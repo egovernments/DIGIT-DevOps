@@ -1,0 +1,54 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: backbone
+  labels:
+    app: postgres
+    role: master
+    tier: backend
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: postgres
+    role: master
+    tier: backend
+---
+kind: ReplicationController
+apiVersion: v1
+metadata:
+  name: postgres
+  namespace: backbone
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: postgres
+        role: master
+        tier: backend
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:9.4
+        env:
+        - name: POSTGRES_DB
+          value: mydb
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          value: postgres
+        - name: PGDATA
+          value: /var/lib/postgresql/data
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - mountPath: /docker-entrypoint-initdb.d
+          name: db-volume
+      volumes:
+        - name: db-volume
+          hostPath:
+            path: /Users/Shared/postgres_dump

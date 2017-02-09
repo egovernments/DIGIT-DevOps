@@ -1,0 +1,47 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: location-enrichment
+  namespace: pgr
+  labels:
+    app: location-enrichment
+    role: master
+    tier: frontend
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: location-enrichment
+    role: master
+    tier: frontend
+---
+kind: ReplicationController
+apiVersion: v1
+metadata:
+  name: location-enrichment
+  namespace: pgr
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: location-enrichment
+        role: master
+        tier: frontend
+    spec:
+      containers:
+      - name: location-enrichment
+        image: egovio/pgr-location-enrichment
+        ports:
+        - containerPort: 8080
+        env:
+        - name: EGOV_SERVICES_BOUNDARY_SERVICE_HOST
+          value: http://egov-location.common:8080/
+        - name: EGOV_SERVICES_CROSSHIERARCHY_SERVICE_HOST
+          value: http://egov-location.common:8080/
+        - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+          value: kafka.backbone:9092
+        - name: KAFKA_TOPICS_PGR_VALIDATED_NAME
+          value: ap.public.mseva.validated

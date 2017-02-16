@@ -1,0 +1,39 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: filestore
+  namespace: common
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: filestore
+        role: master
+        tier: frontend
+    spec:
+      volumes:
+      - name: filestore-mount-path
+        persistentVolumeClaim:
+          claimName: filestore-volume
+      containers:
+      - name: filestore
+        image: egovio/egov-filestore
+        volumeMounts:
+        - mountPath: "/filestore"
+          name: filestore-mount-path
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:postgresql://postgres.backbone:5432/mydb
+        - name: SPRING_DATASOURCE_USERNAME
+          value: postgres
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: postgres
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FILE_STORE_HOST
+          value: http://localhost:8080/
+        - name: FILE_STORAGE_MOUNT_PATH
+          value: "/filestore"

@@ -1,0 +1,28 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: web
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: nginx
+        role: master
+        tier: frontend
+    spec:
+      containers:
+      - name: nginx
+        image: nsready/pgr-web
+        ports:
+        - containerPort: 80
+      - name: dnsmasq
+        image: "janeczku/go-dnsmasq:release-1.0.5"
+        args:
+          - --listen
+          - "127.0.0.1:53"
+          - --default-resolver
+          - --append-search-domains
+          - --hostsfile=/etc/hosts
+          - --verbose

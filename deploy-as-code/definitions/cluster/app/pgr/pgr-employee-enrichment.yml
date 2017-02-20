@@ -1,19 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgr-employee-enrichment
+  namespace: pgr
+  labels:
+    app: pgr-employee-enrichment
+    role: master
+    tier: frontend
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: pgr-employee-enrichment
+    role: master
+    tier: frontend
+---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: employee-enrichment
+  name: pgr-employee-enrichment
   namespace: pgr
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: employee-enrichment
+        app: pgr-employee-enrichment
         role: master
         tier: worker
     spec:
       containers:
-      - name: employee-enrichment
+      - name: pgr-employee-enrichment
         image: egovio/pgr-employee-enrichment
         ports:
         - containerPort: 8080
@@ -23,4 +41,4 @@ spec:
         - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
           value: kafka.backbone:9092
         - name: EGOV_SERVICES_WORKFLOW_HOSTNAME
-          value: http://workflow.common:8080/
+          value: http://egov-workflow.common:8080/

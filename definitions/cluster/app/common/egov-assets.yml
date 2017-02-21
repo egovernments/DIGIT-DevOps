@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-assets
+  namespace: common
+  labels:
+    app: egov-assets
+    role: master
+    tier: frontend
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-assets
+    role: master
+    tier: frontend
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-assets
+  namespace: common
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: egov-assets
+        role: master
+        tier: frontend
+    spec:
+      containers:
+      - name: eis
+        image: kaviyarasan1993/egov-assets
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:postgresql://postgres.backbone:5432/mydb
+        - name: SPRING_DATASOURCE_USERNAME
+          value: postgres
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: postgres
+        - name: SERVER_PORT
+          value: "8080"

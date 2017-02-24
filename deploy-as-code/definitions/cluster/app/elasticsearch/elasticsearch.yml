@@ -1,0 +1,70 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: elasticsearch-volume-claim
+  namespace: elasticsearch
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "slow"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  selector:
+    matchLabels:
+      app: elasticsearch
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: es-master
+  namespace: es-cluster
+  labels:
+    component: elasticsearch
+    role: master
+spec:
+  template:
+    metadata:
+      labels:
+        component: elasticsearch
+        role: master
+    spec:
+      replicas: 2
+      containers:
+      - name: es-master
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+              - IPC_LOCK
+        image: gcr.io/my_gke_project/elasticsearch:latest
+        imagePullPolicy: Always
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: "CLUSTER_NAME"
+          value: "egov_search"
+        - name: NODE_MASTER
+          value: "true"
+        - name: NODE_DATA
+          value: "false"
+        - name: HTTP_ENABLE
+          value: "false"
+        - name: ES_HEAP_SIZE
+          value: "512m"
+        - name: NUMBER_OF_SHARDS
+          value: "4"
+        - name: NUMBER_OF_REPLICAS
+          value: "1"
+        - name: NUMBER_OF_MASTERS
+          value: "2"
+        ports:
+        - containerPort: 9300
+          name: transport
+          protocol: TCP
+        resources:
+          limits:
+            memory: 1Gi

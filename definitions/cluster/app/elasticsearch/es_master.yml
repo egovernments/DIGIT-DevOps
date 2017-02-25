@@ -1,19 +1,19 @@
-kind: PersistentVolumeClaim
 apiVersion: v1
+kind: Service
 metadata:
-  name: elasticsearch-volume-claim
-  namespace: elasticsearch
-  annotations:
-    volume.beta.kubernetes.io/storage-class: "slow"
+  name: elasticsearch-discovery
+  namespace: es-cluster
+  labels:
+    component: elasticsearch
+    role: master
 spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 5Gi
   selector:
-    matchLabels:
-      app: elasticsearch
+    component: elasticsearch
+    role: master
+  ports:
+  - name: transport
+    port: 9300
+    protocol: TCP
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
@@ -24,13 +24,13 @@ metadata:
     component: elasticsearch
     role: master
 spec:
+  replicas: 1
   template:
     metadata:
       labels:
         component: elasticsearch
         role: master
     spec:
-      replicas: 2
       containers:
       - name: es-master
         securityContext:
@@ -38,7 +38,7 @@ spec:
           capabilities:
             add:
               - IPC_LOCK
-        image: gcr.io/my_gke_project/elasticsearch:latest
+        image: quay.io/pires/docker-elasticsearch-kubernetes:5.2.0
         imagePullPolicy: Always
         env:
         - name: NAMESPACE
@@ -46,21 +46,17 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
         - name: "CLUSTER_NAME"
-          value: "egov_search"
+          value: "egov_es_cluster"
         - name: NODE_MASTER
           value: "true"
         - name: NODE_DATA
           value: "false"
         - name: HTTP_ENABLE
           value: "false"
-        - name: ES_HEAP_SIZE
-          value: "512m"
-        - name: NUMBER_OF_SHARDS
-          value: "4"
-        - name: NUMBER_OF_REPLICAS
-          value: "1"
+        - name: ES_JAVA_OPTS
+          value: "-Xms512m -Xmx512m"
         - name: NUMBER_OF_MASTERS
-          value: "2"
+          value: "1"
         ports:
         - containerPort: 9300
           name: transport

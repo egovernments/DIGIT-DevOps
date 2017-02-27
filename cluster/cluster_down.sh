@@ -1,0 +1,3 @@
+#!/bin/bash
+
+kubectl delete svc,deployments,pvc,pv,configMaps,statefulset,ds,secret --all --all-namespaces

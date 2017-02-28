@@ -8,6 +8,6 @@ ORDINAL=${array[1]}
 expr $ORDINAL + 1 > /opt/zookeeper/data/myid
 
 # copy config mounted externally
-cp /opt/zookeeper-conf/zoo.cfg /opt/zookeeper/zoo.cfg
+cp /opt/zookeeper-conf/zoo.cfg /opt/zookeeper/conf/zoo.cfg
 
 /opt/zookeeper/bin/zkServer.sh start-foreground

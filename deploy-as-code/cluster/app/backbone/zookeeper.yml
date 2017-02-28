@@ -10,11 +10,15 @@ metadata:
 spec:
   ports:
   - port: 2181
-    targetPort: 2181
+    name: client
+  - port: 2888
+    name: server
+  - port: 3888
+    name: leader-election
+  clusterIP: None
   selector:
     app: zookeeper
-    role: master
-    tier: backend
+
 ---
 apiVersion: apps/v1beta1
 kind: StatefulSet
@@ -23,19 +27,23 @@ metadata:
   namespace: backbone
 spec:
   serviceName: "zookeeper"
-  replicas: 2
+  replicas: 3
   template:
     metadata:
       labels:
         app: zookeeper
-        role: master
-        tier: backend
     spec:
       containers:
       - name: zookeeper
         image: egovio/zookeeper:3.4.9
+        imagePullPolicy: Always
         ports:
         - containerPort: 2181
+          name: client
+        - containerPort: 2888
+          name: server
+        - containerPort: 3888
+          name: leader-election
         volumeMounts:
         - name: zookeeper-config-volume
           mountPath: /opt/zookeeper-conf

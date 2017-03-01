@@ -1,0 +1,96 @@
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: pgr-rest-persist-search
+  spec:
+    capacity:
+      storage: 1Gi
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+      name: pgr-rest-persist-search
+      namespace: default
+    hostPath:
+      path: /var/log
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: pgr-rest-persist-search
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "anything"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgr-rest-persist-search
+  labels:
+    app: pgr-rest-persist-search
+spec:
+  ports:
+  - port: 9001
+    targetPort: 9001
+    protocol: TCP
+  selector:
+    app: pgr-rest-persist-search
+  type: "LoadBalancer"
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pgr-rest-persist-search
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: pgr-rest-persist-search
+    spec:
+      volumes:
+      - name: logs
+        persistentVolumeClaim:
+          claimName: pgr-rest-persist-search
+      containers:
+      - name: pgr-rest-persist-search
+        image: nsready/pgr-rest-persist-search
+        volumeMounts:
+        - mountPath: "/var/log"
+          name: logs
+        ports:
+        - containerPort: 9001
+        env:
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:postgresql://postgres:5432/mydb
+        - name: SPRING_DATASOURCE_USERNAME
+          value: postgres
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: postgres
+        - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+          value: kafka:9092
+        - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+          value: kafka:9092
+        - name: USER_SERVICE_URL
+          value: http://core-location-user-workflow:9002/user/details?access_token=
+        - name: CRN_SERVICE_URL
+          value: http://pgr-crn-employee-location:9001/crn-generation/crn
+        - name: EGOV_SERVICES_EIS_HOSTNAME
+          value: http://core-eis-filestore-localization:9001/
+        - name: KAFKA_TOPICS_PGR_WORKFLOWUPDATED_NAME
+          value: egov.pgr.workflowupdated
+        - name: KAFKA_TOPICS_PGR_WORKFLOWUPDATED_ID
+          value: egov.pgr.workflowupdated
+        - name: KAFKA_TOPICS_PGR_WORKFLOWUPDATED_GROUP
+          value: egov.pgr.workflowupdated
+        - name: KAFKA_TOPICS_CORE_NOTIFICATIONS_SMS_NAME
+          value: egov.core.notification.sms
+        - name: KAFKA_TOPICS_CORE_NOTIFICATIONS_EMAIL_NAME
+          value: egov.core.notification.email
+        - name: KAFKA_TOPICS_PGR_INDEXING_NAME
+          value: egov.pgr.indexing

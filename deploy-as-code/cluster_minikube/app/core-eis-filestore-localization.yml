@@ -1,0 +1,89 @@
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: core-eis-filestore-localization
+  spec:
+    capacity:
+      storage: 1Gi
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+      name: core-eis-filestore-localization
+      namespace: default
+    hostPath:
+      path: /var/log
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: core-eis-filestore-localization
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "anything"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-eis-filestore-localization
+  labels:
+    app: core-eis-filestore-localization
+spec:
+  ports:
+  - port: 9001
+    targetPort: 9001
+    protocol: TCP
+    name: eis
+  - port: 9002
+    targetPort: 9002
+    protocol: TCP
+    name: filestore
+  - port: 9003
+    targetPort: 9003
+    protocol: TCP
+    name: localization
+  selector:
+    app: core-eis-filestore-localization
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: core-eis-filestore-localization
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: core-eis-filestore-localization
+    spec:
+      volumes:
+      - name: logs
+        persistentVolumeClaim:
+          claimName: core-eis-filestore-localization
+      containers:
+      - name: core-eis-filestore-localization
+        image: nsready/core-eis-filestore-localization
+        volumeMounts:
+        - mountPath: "/var/log"
+          name: logs
+        ports:
+        - containerPort: 9001
+          name: eis
+        - containerPort: 9002
+          name: filestore
+        - containerPort: 9003
+          name: localization
+        env:
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:postgresql://postgres:5432/mydb
+        - name: SPRING_DATASOURCE_USERNAME
+          value: postgres
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: postgres
+        - name: FLYWAY_URL
+          value: jdbc:postgresql://postgres:5432/mydb

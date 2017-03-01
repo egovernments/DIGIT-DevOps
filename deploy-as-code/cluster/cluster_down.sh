@@ -1,3 +1,5 @@
 #!/bin/bash
 
-kubectl delete svc,deployments,pvc,pv,configMaps,statefulset,ds,secret --all --all-namespaces
+for n in ( core, pgr, lams, logging, es-cluster, default );do
+kubectl delete svc,deployments,pvc,pv,configMaps,statefulset,ds,secret,rc --all --namespace=$n
+done

@@ -40,7 +40,7 @@ fi
 echo "Configuring namespaces"
 kubectl apply -f egov-namespaces.yml
 
-if [[ $env != "dev"]];then
+if [[ $env != "dev" ]];then
     echo "Configuring logging infrastucture"
     kubectl apply -f addons/fluentd-elasticsearch-logging
 fi

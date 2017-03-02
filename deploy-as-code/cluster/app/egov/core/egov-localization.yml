@@ -1,38 +1,36 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: pgr-crn-generation
-  namespace: pgr
+  name: egov-localization
+  namespace: egov
   labels:
-    app: pgr-crn-generation
-    role: master
-    tier: frontend
+    app: egov-localization
+    group: core
 spec:
   ports:
   - port: 8080
     targetPort: 8080
   selector:
-    app: pgr-crn-generation
-    role: master
-    tier: frontend
+    app: egov-localization
+    group: core
+  type: "LoadBalancer"
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: pgr-crn-generation
-  namespace: pgr
+  name: egov-localization
+  namespace: egov
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: pgr-crn-generation
-        role: master
-        tier: frontend
+        app: egov-localization
+        group: core
     spec:
       containers:
-      - name: pgr-crn-generation
-        image: egovio/pgr-crn-generation
+      - name: egov-localization
+        image: egovio/egov-localization
         ports:
         - containerPort: 8080
         env:
@@ -47,6 +45,21 @@ spec:
               name: db
               key: username
         - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: FLYWAY_URL
+          valueFrom:
+            configMapKeyRef:
+              name: db
+              key: url
+        - name: FLYWAY_USER
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: FLYWAY_PASSWORD
           valueFrom:
             secretKeyRef:
               name: db

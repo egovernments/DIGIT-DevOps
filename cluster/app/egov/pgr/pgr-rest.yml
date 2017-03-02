@@ -2,34 +2,31 @@ apiVersion: v1
 kind: Service
 metadata:
   name: pgr-rest
-  namespace: pgr
+  namespace: egov
   labels:
     app: pgr-rest
-    role: master
-    tier: frontend
+    group: pgr
 spec:
   ports:
   - port: 8080
     targetPort: 8080
   selector:
     app: pgr-rest
-    role: master
-    tier: frontend
+    group: pgr
   type: "LoadBalancer"
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: pgr-rest
-  namespace: pgr
+  namespace: egov
 spec:
   replicas: 1
   template:
     metadata:
       labels:
         app: pgr-rest
-        role: master
-        tier: frontend
+        group: pgr
     spec:
       containers:
       - name: pgr-rest
@@ -52,21 +49,30 @@ spec:
             secretKeyRef:
               name: db
               key: password
+        - name: FLYWAY_URL
+          valueFrom:
+            configMapKeyRef:
+              name: db
+              key: url
+        - name: FLYWAY_USER
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: FLYWAY_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
         - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
           value: kafka.backbone:9092
         - name: SERVER_PORT
           value: "8080"
         - name: CRN_SERVICE_URL
-          value: http://pgr-crn-generation.pgr:8080/crn-generation/crn
+          value: http://pgr-crn-generation:8080/crn-generation/crn
         - name: USER_SERVICE_URL
-          value: http://egov-user.core:8080/user/details?access_token=
+          value: http://egov-user:8080/user/details?access_token=
         - name: EGOV_SERVICES_EIS_HOST
-          value: http://egov-eis.core:8080/
+          value: http://egov-eis:8080/
         - name: OUTGOING_QUEUE_NAME_SUFFIX
           value: egov.pgr.validated
-        - name: FLYWAY_URL
-          value: jdbc:postgresql://postgres.backbone:5432/mydb
-        - name: FLYWAY_USER
-          value: postgres
-        - name: FLYWAY_PASSWORD
-          value: postgres

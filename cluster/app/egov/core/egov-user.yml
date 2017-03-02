@@ -1,38 +1,36 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: egov-eis
-  namespace: core
+  name: egov-user
+  namespace: egov
   labels:
-    app: egov-eis
-    role: master
-    tier: frontend
+    app: egov-user
+    group: core
 spec:
   ports:
   - port: 8080
     targetPort: 8080
   selector:
-    app: egov-eis
-    role: master
-    tier: frontend
+    app: egov-user
+    group: core
+  type: "LoadBalancer"
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: egov-eis
-  namespace: core
+  name: egov-user
+  namespace: egov
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: egov-eis
-        role: master
-        tier: frontend
+        app: egov-user
+        group: core
     spec:
       containers:
-      - name: egov-eis
-        image: egovio/egov-eis
+      - name: egov-user
+        image: egovio/egov-user
         ports:
         - containerPort: 8080
         env:
@@ -53,3 +51,7 @@ spec:
               key: password
         - name: SERVER_PORT
           value: "8080"
+        - name: SPRING_REDIS_HOST
+          value: redis.backbone
+        - name: SPRING_REDIS_PORT
+          value: "6379"

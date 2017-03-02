@@ -1,39 +1,35 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: egov-workflow
-  namespace: core
+  name: egov-eis
+  namespace: egov
   labels:
-    app: egov-workflow
-    role: master
-    tier: frontend
+    app: egov-eis
+    group: core
 spec:
   ports:
   - port: 8080
     targetPort: 8080
   selector:
-    app: egov-workflow
-    role: master
-    tier: frontend
-  type: "LoadBalancer"
+    app: egov-eis
+    group: core
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: egov-workflow
-  namespace: core
+  name: egov-eis
+  namespace: egov
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: egov-workflow
-        role: master
-        tier: frontend
+        app: egov-eis
+        group: core
     spec:
       containers:
-      - name: egov-workflow
-        image: egovio/egov-workflow
+      - name: egov-eis
+        image: egovio/egov-eis
         ports:
         - containerPort: 8080
         env:
@@ -52,11 +48,5 @@ spec:
             secretKeyRef:
               name: db
               key: password
-        - name: EGOV_SERVICES_BOUNDARY_HOST
-          value: http://egov-location.core:8080/
-        - name: EGOV_SERVICES_PGRREST_HOST
-          value: http://pgr-rest.pgr:8080/
-        - name: EGOV_SERVICES_EIS_HOST
-          value: http://egov-eis.core:8080/
         - name: SERVER_PORT
           value: "8080"

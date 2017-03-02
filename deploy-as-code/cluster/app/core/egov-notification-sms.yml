@@ -1,0 +1,43 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-notification-sms
+  namespace: core
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: egov-notification-sms
+    spec:
+      containers:
+      - name: egov-notification-sms
+        image: egovio/egov-notification-sms
+        env:
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          value: kafka.backbone:9092
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS_NAME
+          value: egov.core.notification.sms
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS_ID
+          value: egov.core.notification.sms
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS_GROUP
+          value: egov.core.notification.sms
+        - name: SMS_PROVIDER_URL
+          value: http://smscountry.com/SMSCwebservice_Bulk.aspx
+        - name: SMS_SENDER_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: egov-notification-sms
+              key: username
+        - name: SMS_SENDER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: egov-notification-sms
+              key: password
+        - name: SMS_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: egov-notification-sms
+              key: sms-enabled
+        - name: SMS_SENDER
+          value: egov

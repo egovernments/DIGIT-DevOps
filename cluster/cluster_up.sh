@@ -1,20 +1,52 @@
 #!/bin/bash
 
-# Create namespaces
+env_arr=(dev qa)
+env=$1
+usage(){
+    echo "./cluster_up.sh <env>"
+    echo "Ex: ./cluster_up.sh dev|qa|prod"
+}
+
+is_valid_env(){
+    local env=$1
+    local result=1;
+    for e in ${env_arr[@]};
+    do
+        if [[ $e == $env ]];then
+            result=0
+            break
+        fi
+    done
+    return $result
+}
+
+if [[ -z "$env" ]];then
+    echo "ERROR: Environment is a must"
+    usage
+    exit 1
+fi
+
+is_valid_env "$env" && echo "" || ( echo "Invalid environment $env" && exit 1)
+
+echo "Switching context to $env"
+kubectl config use-context $env
+
+if [[ $? != "0" ]];then
+    echo "No context called $env exists in your kubectl config."
+    echo "Please set the required context before proceeding further."
+    exit 1
+fi
+
+echo "Configuring namespaces"
 kubectl apply -f egov-namespaces.yml
 
-# Create add-ons
-kubectl apply -f addons/fluentd-elasticsearch-logging
+if [[ $env != "dev"]];then
+    echo "Configuring logging infrastucture"
+    kubectl apply -f addons/fluentd-elasticsearch-logging
+fi
 
-# Create configs
-kubectl apply -f configMaps/qa
+echo "Creating $env specific configurations."
+kubectl apply -f $env
 
-# Create persistent volumes
-kubectl apply -f volume/qa
-
-# Create apps in all namespaces
-kubectl apply -f app/backbone
-kubectl apply -f app/core
-kubectl apply -f app/pgr
-kubectl apply -f app/lams
-kubectl apply -f app/elasticsearch
+echo "Configuring all modules apps"
+kubectl apply -R -f app

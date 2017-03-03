@@ -1,0 +1,35 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pgr-search-indexer
+  namespace: egov
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: pgr-search-indexer
+        group: pgr
+    spec:
+      containers:
+      - name: pgr-search-indexer
+        image: egovio/pgr-search-indexer
+        env:
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          value: kafka.backbone:9092
+        - name: EGOV_SERVICES_EIS_HOST
+          value: http://egov-eis:8080/
+        - name: EGOV_SERVICES_BOUNDARY_HOST
+          value: http://egov-location:8080/
+        - name: EGOV_SERVICES_PGRREST_HOST
+          value: http://pgr-rest:8080/
+        - name: EGOV_SERVICES_ESINDEXER_HOST
+          value: http://es-client.es-cluster:9200/
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: KAFKA_TOPICS_EGOV_INDEX_NAME
+          value: egov.pgr.indexing
+        - name: KAFKA_TOPICS_EGOV_INDEX_ID
+          value: egov.pgr.indexing
+        - name: KAFKA_TOPICS_EGOV_INDEX_GROUP
+          value: egov.pgr.indexing

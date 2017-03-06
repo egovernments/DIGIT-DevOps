@@ -8,16 +8,26 @@ metadata:
 spec:
   ports:
   - port: 2181
+    name: client
+    protocol: TCP
+  - port: 2888
+    name: server
+    protocol: TCP
+  - port: 3888
+    name: leader-election
+    protocol: TCP
+  clusterIP: None
   selector:
     app: zookeeper
 ---
-apiVersion: extensions/v1beta1
-kind: Deployment
+apiVersion: apps/v1beta1
+kind: StatefulSet
 metadata:
   name: zookeeper
   namespace: backbone
 spec:
-  replicas: 1
+  serviceName: "zookeeper"
+  replicas: 3
   template:
     metadata:
       labels:
@@ -25,6 +35,32 @@ spec:
     spec:
       containers:
       - name: zookeeper
-        image: wurstmeister/zookeeper
+        image: egovio/zookeeper:3.4.9
         ports:
         - containerPort: 2181
+          name: client
+        - containerPort: 2888
+          name: server
+        - containerPort: 3888
+          name: leader-election
+        volumeMounts:
+        - name: zookeeper-config-volume
+          mountPath: /opt/zookeeper-conf
+        - name: zookeeper-data
+          mountPath: /opt/zookeeper/data
+      volumes:
+      - name: zookeeper-config-volume
+        configMap:
+          name: zookeeper-config
+          items:
+          - key: zookeeper-config
+            path: zoo.cfg
+  volumeClaimTemplates:
+  - metadata:
+      name: zookeeper-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+           storage: 5Gi

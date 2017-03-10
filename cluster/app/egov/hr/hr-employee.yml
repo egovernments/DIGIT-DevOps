@@ -1,35 +1,35 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: egov-user
+  name: hr-employee
   namespace: egov
   labels:
-    app: egov-user
-    group: core
+    app: hr-employee
+    group: hr
 spec:
   ports:
   - port: 8080
     targetPort: 8080
   selector:
-    app: egov-user
-    group: core
+    app: hr-employee
+    group: hr
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: egov-user
+  name: hr-employee
   namespace: egov
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: egov-user
-        group: core
+        app: hr-employee
+        group: hr
     spec:
       containers:
-      - name: egov-user
-        image: egovio/egov-user
+      - name: hr-employee
+        image: egovio/hr-employee
         ports:
         - containerPort: 8080
         env:
@@ -37,7 +37,7 @@ spec:
           valueFrom:
             configMapKeyRef:
               name: egov-config
-              key: db-url
+              key: hr-db-url
         - name: SPRING_DATASOURCE_USERNAME
           valueFrom:
             secretKeyRef:
@@ -48,13 +48,7 @@ spec:
             secretKeyRef:
               name: db
               key: password
-        - name: FLYWAY_ENABLED
-          value: "false"
         - name: SERVER_PORT
           value: "8080"
-        - name: SPRING_REDIS_HOST
-          value: redis.backbone
-        - name: SPRING_REDIS_PORT
-          value: "6379"
-        - name: CORE_OTP_SERVICE_URL
-          value: http://egov-otp:8080/
+        - name: FLYWAY_ENABLED
+          value: "false"

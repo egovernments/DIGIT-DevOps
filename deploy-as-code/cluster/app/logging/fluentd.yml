@@ -1,17 +1,15 @@
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
-  name: fluentd-es-v1.22
+  name: fluentd
   namespace: logging
   labels:
-    k8s-app: fluentd-es
-    version: v1.22
+    k8s-app: fluentd
 spec:
   template:
     metadata:
       labels:
-        k8s-app: fluentd-es
-        version: v1.22
+        k8s-app: fluentd
       # This annotation ensures that fluentd does not get evicted if the node
       # supports critical pod annotation based priority scheme.
       # Note that this does not guarantee admission on the nodes (#40573).
@@ -20,18 +18,19 @@ spec:
         scheduler.alpha.kubernetes.io/tolerations: '[{"key": "node.alpha.kubernetes.io/ismaster", "effect": "NoSchedule"}]'
     spec:
       containers:
-      - name: fluentd-es
-        image: gcr.io/google_containers/fluentd-elasticsearch:1.22
-        command:
-          - '/bin/sh'
-          - '-c'
-          - '/usr/sbin/td-agent 2>&1 >> /var/log/fluentd.log'
+      - name: fluentd
+        image: egovio/fluentd
         resources:
           limits:
             memory: 200Mi
           requests:
             cpu: 100m
             memory: 200Mi
+        env:
+        - name: ES_HOST
+          value: es-client.es-cluster
+        - name: ES_PORT
+          value: "9200"
         volumeMounts:
         - name: varlog
           mountPath: /var/log

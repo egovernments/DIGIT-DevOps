@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mseva-web
+  namespace: egov
+  labels:
+    app: mseva-web
+    group: pgr
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: mseva-web
+    group: pgr
+  type: "LoadBalancer"
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: mseva-web
+  namespace: egov
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: mseva-web
+        group: pgr
+    spec:
+      containers:
+      - name: mseva-web
+        image: egovio/mseva-web
+        ports:
+        - containerPort: 80
+      - name: dnsmasq
+        image: "janeczku/go-dnsmasq:release-1.0.5"
+        args:
+          - --listen
+          - "127.0.0.1:53"
+          - --default-resolver
+          - --append-search-domains
+          - --hostsfile=/etc/hosts
+          - --verbose

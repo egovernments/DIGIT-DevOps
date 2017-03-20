@@ -1,0 +1,98 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: zuul
+  namespace: egov
+  labels:
+    app: zuul
+    group: gateway
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: zuul
+    group: gateway
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: zuul
+  namespace: egov
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: zuul
+        group: gateway
+    spec:
+      containers:
+      - name: zuul
+        image: egovio/zuul
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ZUUL_ROUTES_PGR_URL
+          value: http://pgr-rest:8080/
+        - name: ZUUL_ROUTES_USER_URL
+          value: http://egov-user:8080/
+        - name: ZUUL_ROUTES_LOCATION_V1_URL
+          value: http://egov-location:8080/
+        - name: ZUUL_ROUTES_LOCATION_A1_URL
+          value: http://egov-location:8080/
+        - name: ZUUL_ROUTES_FILESTORE_URL
+          value: http://egov-filestore:8080/
+        - name: ZUUL_ROUTES_LOCALIZATION_URL
+          value: http://egov-localization:8080/
+        - name: ZUUL_ROUTES_otp_URL
+          value: http://egov-otp:8080/
+        - name: ZUUL_ROUTES_USER_OTP_URL
+          value: http://user-otp:8080/
+        - name: ZUUL_ROUTES_WORKFLOW_URL
+          value: http://egov-workflow:8080/
+        - name: ZUUL_ROUTES_HR_MASTERS_URL
+          value: http://hr-masters:8080/
+        - name: ZUUL_ROUTES_EGOV_COMMON_MASTERS_URL
+          value: http://egov-common-masters:8080/
+        - name: ZUUL_ROUTES_HR_EMPLOYEE_URL
+          value: http://hr-employee:8080/
+        - name: ZUUL_ROUTES_HR_ATTENDANCE_URL
+          value: http://hr-attendance:8080/
+        - name: ZUUL_ROUTES_HR_WEB_URL
+          value: http://hr-web:80/
+        - name: ZUUL_ROUTES_EIS_URL
+          value: http://egov-eis:8080/
+        - name: ZUUL_ROUTES_EGF_MASTERS_URL
+          value: http://egf-masters:8080/
+        - name: ZUUL_ROUTES_ASSET_SERVICES_URL
+          value: http://asset-services:8080/
+        - name: ZUUL_ROUTES_LAMS_SERVICES_URL
+          value: http://lams-services:8080/
+
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: EGOV_SERVICES_ESINDEXER_HOST
+          value: http://es-client.es-cluster:9200/

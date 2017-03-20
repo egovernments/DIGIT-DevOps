@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: demand-services
+  namespace: egov
+  labels:
+    app: demand-services
+    group: demand
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: demand-services
+    group: demand
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: demand-services
+  namespace: egov
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: demand-services
+        group: demand
+    spec:
+      containers:
+      - name: demand-services
+        image: egovio/demand-services
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: EGOV_SERVICES_COMMON_MASTERS_HOST
+          value: http://egov-common-masters:8080/

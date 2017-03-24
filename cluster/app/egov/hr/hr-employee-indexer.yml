@@ -1,0 +1,46 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: hr-employee-indexer
+  namespace: egov
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: hr-employee-indexer
+        group: hr
+    spec:
+      containers:
+      - name: hr-employee-indexer
+        image: egovio/hr-employee-indexer
+        ports:
+        - containerPort: 8080
+        env:
+        - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: EGOV_SERVICES_BOUNDARY_HOST
+          value: http://egov-location:8080/
+        - name: EGOV_SERVICES_EIS_COMMONMASTER_HOST
+          value: http://egov-common-masters:8080/
+        - name: EGOV_SERVICES_EIS_HRMASTER_HOST
+          value: http://hr-masters:8080/
+        - name: EGOV_SERVICES_ESINDEXER_HOST
+          value: http://es-client.es-cluster:9200/
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS_NAME
+          value: egov.core.notification.sms
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS_ID
+          value: egov.core.notification.sms
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS_GROUP
+          value: egov.core.notification.sms
+        - name: KAFKA_TOPICS_EMPLOYEE_INDEX_NAME
+          value: egov.employee
+        - name: KAFKA_TOPICS_EMPLOYEE_INDEX_ID
+          value: egov.employee-indexer
+        - name: KAFKA_TOPICS_EMPLOYEE_INDEX_GROUP
+          value: egov.employee-indexer
+        - name: SERVER_PORT
+          value: "8080"

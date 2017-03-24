@@ -1,0 +1,30 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pgr-notification
+  namespace: egov
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: pgr-notification
+        group: pgr
+    spec:
+      containers:
+      - name: pgr-notification
+        image: egovio/pgr-notification
+        env:
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: CONSUMER_TOPIC
+          value: egov.pgr.workflowupdated
+        - name: SPRING_KAFKA_CONSUMER_GROUP-ID
+          value: egov.pgr.notification
+        - name: SMS_TOPIC
+          value: EMAIL_TOPIC
+        - name: KAFKA_TOPICS_CORE_NOTIFICATIONS_EMAIL_NAME
+          value: egov.core.notification.email

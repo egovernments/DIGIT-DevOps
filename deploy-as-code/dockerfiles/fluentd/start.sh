@@ -5,7 +5,7 @@ if [ -z "$ES_PORT" ]; then
 fi
 
 if [ -z "$ES_HOST" ]; then
-    export ES_HOST=elasticseatch-logging
+    export ES_HOST=elasticsearch-logging
 fi
 
 

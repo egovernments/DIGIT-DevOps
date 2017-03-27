@@ -1,0 +1,34 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: lams-workflow
+  namespace: egov
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: lams-workflow
+        group: lams
+    spec:
+      containers:
+      - name: lams-workflow
+        image: egovio/lams-workflow
+        ports:
+        - containerPort: 8080
+        env:
+        - name: EGOV_SERVICES_WORKFLOW_SERVICE_HOSTNAME
+          value: http://egov-workflow:9200/
+        - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: SERVER_PORT
+          value: "8080"
+        - name: KAFKA_TOPICS_SAVE_AGREEMENT
+          value: agreement-save-db
+        - name: KAFKA_TOPICS_START_WORKFLOW
+          value: lams-workflow-start
+        - name: KAFKA_TOPICS_UPDATE_WORKFLOW
+          value: lams-workflow-update

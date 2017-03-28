@@ -53,6 +53,9 @@ spec:
         configMap:
           name: kube-dns
           optional: true
+      - name: default-token
+        secret:
+          secretName: default-token-tl05j
       containers:
       - name: kubedns
         image: gcr.io/google_containers/k8s-dns-kube-dns-amd64:1.14.1
@@ -105,6 +108,9 @@ spec:
         volumeMounts:
         - name: kube-dns-config
           mountPath: /kube-dns-config
+        - name: default-token
+          mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          readOnly: true
       - name: dnsmasq
         image: gcr.io/google_containers/k8s-dns-dnsmasq-nanny-amd64:1.14.1
         livenessProbe:
@@ -168,4 +174,4 @@ spec:
             memory: 20Mi
             cpu: 10m
       dnsPolicy: Default  # Don't use cluster DNS.
-      serviceAccountName: kube-dns
+      serviceAccountName: default

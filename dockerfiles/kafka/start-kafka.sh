@@ -1,7 +1,5 @@
 #!/bin/bash
 
-chmod -R 777 /kafka
-
 if [[ -z "$KAFKA_PORT" ]]; then
     export KAFKA_PORT=9092
 fi

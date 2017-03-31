@@ -1,8 +1,6 @@
 sed -i -r 's|#(log4j.appender.ROLLINGFILE.MaxBackupIndex.*)|\1|g' $ZK_HOME/conf/log4j.properties
 sed -i -r 's|#autopurge|autopurge|g' $ZK_HOME/conf/zoo.cfg
 
-chmod -R 777 /opt/zookeeper/data
-
 # Put the pod's ordinal id + 1 to myid file in datadir (kubernetes ordinal starts from 0.
 # Zookeeper quorum member id should be between 1 and 255)
 IFS='- ' read -r -a array <<< "$HOSTNAME"

@@ -1,0 +1,60 @@
+apiVersion: v1
+
+kind: Service
+metadata:
+  name: egov-accesscontrol
+  namespace: egov
+  labels:
+    app: egov-accesscontrol
+    group: core
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-accesscontrol
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-accesscontrol
+  namespace: egov
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: egov-accesscontrol
+        group: core
+    spec:
+      containers:
+      - name: egov-accesscontrol
+        image: egovio/egov-accesscontrol
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"

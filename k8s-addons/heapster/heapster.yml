@@ -1,137 +1,81 @@
-apiVersion: v1
 kind: Service
+apiVersion: v1
 metadata:
-  creationTimestamp: 2017-03-03T12:01:59Z
-  labels:
-    k8s-app: heapster
-    kubernetes.io/cluster-service: "true"
-    kubernetes.io/name: Heapster
   name: heapster
   namespace: kube-system
-  resourceVersion: "50"
-  selfLink: /api/v1/namespaces/kube-system/services/heapster
-  uid: 34648536-0009-11e7-8bfd-068c35e8c77a
+  labels:
+    kubernetes.io/cluster-service: "true"
+    kubernetes.io/name: "Heapster"
 spec:
-  clusterIP: 10.254.219.133
   ports:
-  - port: 80
-    protocol: TCP
-    targetPort: 8082
+    - port: 80
+      targetPort: 8082
   selector:
     k8s-app: heapster
-  sessionAffinity: None
-  type: ClusterIP
-status:
-  loadBalancer: {}
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  annotations:
-    deployment.kubernetes.io/revision: "2"
-  generation: 2
+  name: heapster-v1.2.0
+  namespace: kube-system
   labels:
     k8s-app: heapster
     kubernetes.io/cluster-service: "true"
     version: v1.2.0
-  name: heapster-v1.2.0
-  namespace: kube-system
-  resourceVersion: "931052"
-  selfLink: /apis/extensions/v1beta1/namespaces/kube-system/deployments/heapster-v1.2.0
-  uid: 3457f86f-0009-11e7-8bfd-068c35e8c77a
 spec:
   replicas: 1
   selector:
     matchLabels:
       k8s-app: heapster
       version: v1.2.0
-  strategy:
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 1
-    type: RollingUpdate
   template:
     metadata:
-      annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ""
-        scheduler.alpha.kubernetes.io/tolerations: '[{"key":"CriticalAddonsOnly",
-          "operator":"Exists"}]'
-      creationTimestamp: null
       labels:
         k8s-app: heapster
         version: v1.2.0
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+        scheduler.alpha.kubernetes.io/tolerations: '[{"key":"CriticalAddonsOnly", "operator":"Exists"}]'
     spec:
       containers:
-      - command:
-        - /heapster
-        - --source=kubernetes.summary_api:''
-        image: gcr.io/google_containers/heapster:v1.2.0
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          failureThreshold: 3
-          httpGet:
-            path: /healthz
-            port: 8082
-            scheme: HTTP
-          initialDelaySeconds: 180
-          periodSeconds: 10
-          successThreshold: 1
-          timeoutSeconds: 5
-        name: heapster
-        resources:
-          limits:
-            cpu: 144m
-            memory: 264Mi
-          requests:
-            cpu: 144m
-            memory: 264Mi
-        terminationMessagePath: /dev/termination-log
-      - command:
-        - /pod_nanny
-        - --cpu=80m
-        - --extra-cpu=4m
-        - --memory=200Mi
-        - --extra-memory=4Mi
-        - --threshold=5
-        - --deployment=heapster-v1.2.0
-        - --container=heapster
-        - --poll-period=300000
-        - --estimator=exponential
-        env:
-        - name: MY_POD_NAME
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: metadata.name
-        - name: MY_POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: metadata.namespace
-        image: gcr.io/google_containers/addon-resizer:1.6
-        imagePullPolicy: IfNotPresent
-        name: heapster-nanny
-        resources:
-          limits:
-            cpu: 50m
-            memory: 90Mi
-          requests:
-            cpu: 50m
-            memory: 90Mi
-        terminationMessagePath: /dev/termination-log
-      dnsPolicy: ClusterFirst
-      restartPolicy: Always
-      securityContext: {}
-      terminationGracePeriodSeconds: 30
-status:
-  availableReplicas: 1
-  conditions:
-  - lastTransitionTime: 2017-03-03T12:01:59Z
-    lastUpdateTime: 2017-03-03T12:01:59Z
-    message: Deployment has minimum availability.
-    reason: MinimumReplicasAvailable
-    status: "True"
-    type: Available
-  observedGeneration: 2
-  replicas: 1
-  updatedReplicas: 1
+        - image: gcr.io/google_containers/heapster:v1.2.0
+          name: heapster
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8082
+              scheme: HTTP
+            initialDelaySeconds: 180
+            timeoutSeconds: 5
+          command:
+            - /heapster
+            - --source=kubernetes.summary_api:''
+        - image: gcr.io/google_containers/addon-resizer:1.6
+          name: heapster-nanny
+          resources:
+            limits:
+              cpu: 50m
+              memory: 90Mi
+            requests:
+              cpu: 50m
+              memory: 90Mi
+          env:
+            - name: MY_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: MY_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          command:
+            - /pod_nanny
+            - --cpu=80m
+            - --extra-cpu=4m
+            - --memory=200Mi
+            - --extra-memory=4Mi
+            - --threshold=5
+            - --deployment=heapster-v1.2.0
+            - --container=heapster
+            - --poll-period=300000
+            - --estimator=exponential

@@ -16,7 +16,7 @@ def deploy(env){
 
 def deployStandAlone(env, service, tag){
     stage("Deploy to ${env} env"){
-        def cmd = "python cluster/apply.py  -e dev -m ${service} -i egovio/${service}:${tag} -dmi egovio/${service}-db:${tag} -d"
+        def cmd = "apt-get install python-pip -y && pip install PyYAML && python cluster/apply.py  -e dev -m ${service} -i egovio/${service}:${tag} -dmi egovio/${service}-db:${tag} -d"
         run(env, cmd)
     }
 }

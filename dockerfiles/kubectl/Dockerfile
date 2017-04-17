@@ -2,7 +2,10 @@ FROM ubuntu:trusty
 
 MAINTAINER Sumanth<nsready@gmail.com>
 
-RUN apt-get update -y && apt-get install python -y && apt-get install curl -y
+RUN apt-get update -y && apt-get install python -y && apt-get install curl -y && apt-get install python-pip -y
+
+#Install python libraries
+RUN pip install PyYAML
 
 RUN mkdir -p /.kube
 

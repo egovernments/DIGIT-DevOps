@@ -1,0 +1,13 @@
+def env = "${env.JOB_BASE_NAME}".split("-").last()
+def service = ${image}.split(":").first()
+def tag = ${image}.split(":").last()
+
+try {
+    node("slave"){
+        checkout scm
+        def deployer = load("jenkins/deployer.groovy")
+        deployer.deployStandAlone(env, service, tag)
+    }
+} catch (e) {
+    throw e
+}

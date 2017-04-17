@@ -5,6 +5,9 @@ MAINTAINER Sumanth<nsready@gmail.com>
 RUN apt-get update -y && apt-get install python -y && apt-get install curl -y && apt-get install python-pip -y \
 && apt-get install python-yaml -y
 
+#Install python dependencies
+RUN pip install Jinja2
+
 RUN mkdir -p /.kube
 
 ADD kubeconfig /.kube/config

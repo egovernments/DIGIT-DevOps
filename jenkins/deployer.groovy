@@ -1,4 +1,4 @@
-kubectl_image = "egovio/kubectl:0.0.1"
+kubectl_image = "egovio/kubectl:0.0.2"
 
 def takeSnapshot(group, env){
     stage("Snapshot ${env} env"){

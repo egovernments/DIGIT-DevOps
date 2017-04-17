@@ -46,6 +46,8 @@ def find_config_vars(args):
     if not os.path.isfile(env_file_path):
         raise Exception("No config found for env - {}".format(args.env))
     conf = yaml.load(open(env_file_path, "r"))
+    if not conf[args.microservice]:
+        conf[args.microservice] = {}
     if args.image:
         conf[args.microservice]['image'] = args.image
     if args.db_migration_image:

@@ -20,16 +20,31 @@ metadata:
   name: lams-services
   namespace: egov
 spec:
-  replicas: 1
+  replicas: {{conf['lams-services']['replicas']}}
   template:
     metadata:
       labels:
         app: lams-services
         group: lams
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "lams-services-db-migration",
+            "image": "{{conf["lams-services"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "new-db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "lams_services_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "Always"
+          }
+        ]'
     spec:
       containers:
       - name: lams-services
-        image: egovio/lams-services
+        image: {{conf['lams-services']['image']}}
         ports:
         - containerPort: 8080
         env:
@@ -37,7 +52,7 @@ spec:
           valueFrom:
             configMapKeyRef:
               name: egov-config
-              key: db-url
+              key: new-db-url
         - name: SPRING_DATASOURCE_USERNAME
           valueFrom:
             secretKeyRef:

@@ -20,16 +20,31 @@ metadata:
   name: egov-otp
   namespace: egov
 spec:
-  replicas: 1
+  replicas: {{conf['egov-otp']['replicas']}}
   template:
     metadata:
       labels:
         app: egov-otp
         group: core
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "egov-otp-db-migration",
+            "image": "{{conf["egov-otp"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "new-db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "egov_otp_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "Always"
+          }
+        ]'
     spec:
       containers:
       - name: egov-otp
-        image: egovio/egov-otp
+        image: {{conf['egov-otp']['image']}}
         ports:
         - containerPort: 8080
         env:
@@ -37,7 +52,7 @@ spec:
           valueFrom:
             configMapKeyRef:
               name: egov-config
-              key: db-url
+              key: new-db-url
         - name: SPRING_DATASOURCE_USERNAME
           valueFrom:
             secretKeyRef:

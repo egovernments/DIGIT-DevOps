@@ -8,6 +8,7 @@ import shlex
 from jinja2 import Environment, FileSystemLoader
 from subprocess import Popen, PIPE
 
+parser = argparse.ArgumentParser()
 
 def find_manifest_path(microservice_name):
     path = os.path.dirname(os.path.abspath(__file__))
@@ -19,7 +20,6 @@ def find_manifest_path(microservice_name):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser()
     parser.add_argument("-e", "--env", help="environment to apply against")
     parser.add_argument("-m", "--microservice", help="microservice to apply")
     parser.add_argument("-n", "--namespace", help="namespace of microservice")

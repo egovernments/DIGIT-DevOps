@@ -20,16 +20,31 @@ metadata:
   name: hr-employee
   namespace: egov
 spec:
-  replicas: 1
+  replicas: {{conf['hr-employee']['replicas']}}
   template:
     metadata:
       labels:
         app: hr-employee
         group: hr
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "hr-employee-db-migration",
+            "image": "{{conf["hr-employee"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "new-db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "hr_employee_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "Always"
+          }
+        ]'
     spec:
       containers:
       - name: hr-employee
-        image: egovio/hr-employee
+        image: {{conf['hr-employee']['image']}}
         ports:
         - containerPort: 8080
         env:

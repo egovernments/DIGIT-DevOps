@@ -20,16 +20,31 @@ metadata:
   name: hr-masters
   namespace: egov
 spec:
-  replicas: 1
+  replicas: {{conf['hr-masters']['replicas']}}
   template:
     metadata:
       labels:
         app: hr-masters
         group: hr
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "hr-masters-db-migration",
+            "image": "{{conf["hr-masters"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "new-db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "hr_masters_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "Always"
+          }
+        ]'
     spec:
       containers:
       - name: hr-masters
-        image: egovio/hr-masters
+        image: {{conf['hr-masters']['image']}}
         ports:
         - containerPort: 8080
         env:
@@ -37,7 +52,7 @@ spec:
           valueFrom:
             configMapKeyRef:
               name: egov-config
-              key: hr-db-url
+              key: new-db-url
         - name: SPRING_DATASOURCE_USERNAME
           valueFrom:
             secretKeyRef:

@@ -2,36 +2,36 @@ apiVersion: v1
 
 kind: Service
 metadata:
-  name: egov-tenant
+  name: tenant
   namespace: egov
   labels:
-    app: egov-tenant
+    app: tenant
     group: core
 spec:
   ports:
   - port: 8080
     targetPort: 8080
   selector:
-    app: egov-tenant
+    app: tenant
     group: core
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: egov-tenant
+  name: tenant
   namespace: egov
 spec:
-  replicas: {{conf['egov-tenant']['replicas']}}
+  replicas: {{conf['tenant']['replicas']}}
   template:
     metadata:
       labels:
-        app: egov-tenant
+        app: tenant
         group: core
       annotations:
         pod.beta.kubernetes.io/init-containers: '[
           {
-            "name": "egov-tenant-db-migration",
-            "image": "{{conf["egov-tenant"]["db_migration_image"]}}",
+            "name": "tenant-db-migration",
+            "image": "{{conf["tenant"]["db_migration_image"]}}",
             "env": [
               {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "new-db-url"}}},
               {"name": "SCHEMA_TABLE", "value": "egov_tenant_schema"},
@@ -44,8 +44,8 @@ spec:
         ]'
     spec:
       containers:
-      - name: egov-tenant
-        image: {{conf['egov-tenant']['image']}}
+      - name: tenant
+        image: {{conf['tenant']['image']}}
         ports:
         - containerPort: 8080
         env:

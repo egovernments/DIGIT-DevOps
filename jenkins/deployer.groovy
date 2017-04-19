@@ -1,4 +1,4 @@
-kubectl_image = "egovio/kubectl:0.0.3"
+deployer_image = "egovio/deployer:0.0.1"
 
 def takeSnapshot(group, env){
     stage("Snapshot ${env} env"){
@@ -22,7 +22,7 @@ def deployStandAlone(env, service, tag){
 }
 
 def run(env, cmd){
-    docker.image("${kubectl_image}").inside {
+    docker.image("${deployer_image}").inside {
         set_kube_credentials(env)
         withCredentials([string(credentialsId: "${env}-kube-url", variable: "KUBE_SERVER_URL")]){
             sh "kubectl config set-cluster env --server ${KUBE_SERVER_URL}"

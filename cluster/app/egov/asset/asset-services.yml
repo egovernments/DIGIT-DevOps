@@ -20,16 +20,31 @@ metadata:
   name: asset-services
   namespace: egov
 spec:
-  replicas: 1
+  replicas: {{conf['asset-services']['replicas']}}
   template:
     metadata:
       labels:
         app: asset-services
         group: asset
+        annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "asset-services-db-migration",
+            "image": "{{conf["asset-services"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "new-db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "asset-services_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "Always"
+          }
+        ]'
     spec:
       containers:
       - name: asset-services
-        image: egovio/asset-services
+        image: {{conf['asset-services']['image']}}
         ports:
         - containerPort: 8080
         env:

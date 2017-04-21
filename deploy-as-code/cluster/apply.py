@@ -68,6 +68,12 @@ def apply_manifest(manifest):
                             "STDOUT:{}\nERROR:{}".
                             format(out, err))
 
+def wait_for_deployment_to_finish(service):
+    deployment_status_cmd = "kubectl rollout status deployment/{} --namespace=egov".format(service)
+    out, err = Popen(shlex.split(deployment_status_cmd)).communicate(timeout=300)
+    print out
+    if err:
+        raise Exception("Error while checking deployment status for service: {}\n{}".format(service, err))
 
 def main():
     args = parse_args()
@@ -82,6 +88,7 @@ def main():
         print manifest
     else:
         apply_manifest(manifest)
+        wait_for_deployment_to_finish(args.microservice)
 
 
 if __name__ == "__main__":

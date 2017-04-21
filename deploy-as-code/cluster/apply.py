@@ -7,6 +7,7 @@ import shlex
 
 from jinja2 import Environment, FileSystemLoader
 from subprocess import Popen, PIPE
+from threading import Timer
 
 parser = argparse.ArgumentParser()
 
@@ -68,12 +69,22 @@ def apply_manifest(manifest):
                             "STDOUT:{}\nERROR:{}".
                             format(out, err))
 
+
 def wait_for_deployment_to_finish(service):
     deployment_status_cmd = "kubectl rollout status deployment/{} --namespace=egov".format(service)
-    out, err = Popen(shlex.split(deployment_status_cmd)).communicate(timeout=300)
-    print out
-    if err:
-        raise Exception("Error while checking deployment status for service: {}\n{}".format(service, err))
+    proc = Popen(shlex.split(deployment_status_cmd), stdout=PIPE)
+    kill_proc = lambda p: p.kill()
+    timeout_sec = 300
+    timer = Timer(timeout_sec, kill_proc, [proc])
+    try:
+        timer.start()
+        out, err = proc.communicate()
+        print out
+        if err:
+            raise Exception("Error while checking deployment status for service: {}\n{}".format(service, err))
+    finally:
+        timer.cancel()
+
 
 def main():
     args = parse_args()

@@ -4,8 +4,6 @@ import sys
 
 from Crypto.Cipher import AES
 
-print sys.argv
-
 
 def main():
     # Because kubernetes expects the values in secrets to be base64 encoded

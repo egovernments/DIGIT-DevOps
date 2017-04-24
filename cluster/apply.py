@@ -16,7 +16,6 @@ IGNORE_PATTERNS = r'\.DS_Store'
 parser = argparse.ArgumentParser()
 
 def decrypt(text):
-    print text
     key = os.environ["EGOV_SECRET_PASSCODE"]
     decryptor = AES.new(key, AES.MODE_ECB)
     return decryptor.decrypt(base64.b64decode(text)).strip()

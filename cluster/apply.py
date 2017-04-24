@@ -69,9 +69,9 @@ def validate_args(args):
         args.namespace = "egov"
 
 
-def render_env_props(args, template):
+def render_env_props(args):
     dir_path = os.path.dirname(os.path.abspath(__file__))
-    env_file_path = "{}/{}/{}.yml".format(dir_path, template, args.env)
+    env_file_path = "{}/conf/{}.yml".format(dir_path, args.env)
     if not os.path.isfile(env_file_path):
         raise Exception("No config found for env - {}".format(args.env))
     conf = yaml.load(open(env_file_path, "r"))
@@ -115,11 +115,11 @@ def wait_for_deployment_to_finish(service, namespace):
         timer.cancel()
 
 
-def render_manifest(args, manifest_path, template):
+def render_manifest(args, manifest_path):
     env = Environment(loader=FileSystemLoader("/"),
                       trim_blocks=True)
     env.filters['decrypt'] = decrypt
-    conf = render_env_props(args, template=template)
+    conf = render_env_props(args)
     return env.get_template(manifest_path).render(conf=conf)
 
 
@@ -129,25 +129,25 @@ def main():
     applicable_manifests = []
     cwd = os.path.dirname(os.path.abspath(__file__))
 
-    applicable_manifests.append(render_manifest(args, manifest_path="{}/namespaces.yml".format(cwd), template='conf'))
+    applicable_manifests.append(render_manifest(args, manifest_path="{}/namespaces.yml".format(cwd)))
 
     if args.with_configmap:
         applicable_manifests.append(
-            render_manifest(args, manifest_path="{}/configMaps.yml".format(cwd), template='conf'))
+            render_manifest(args, manifest_path="{}/configMaps.yml".format(cwd)))
     if args.with_secrets:
         applicable_manifests.append(
-            render_manifest(args, manifest_path="{}/secrets.yml".format(cwd), template='secrets'))
+            render_manifest(args, manifest_path="{}/secrets.yml".format(cwd)))
     if args.with_volumes:
-        applicable_manifests.append(render_manifest(args, manifest_path="{}/volumes.yml".format(cwd), template='conf'))
+        applicable_manifests.append(render_manifest(args, manifest_path="{}/volumes.yml".format(cwd)))
 
     if args.all:
         for manifest, path in get_all_manifests():
             print manifest, path
             applicable_manifests.append(render_manifest(
-                args, manifest_path="{}/{}".format(path, manifest), template="conf"))
+                args, manifest_path="{}/{}".format(path, manifest)))
     elif args.microservice:
         applicable_manifests.append(
-            render_manifest(args, manifest_path=find_manifest_path(args.microservice), template="conf"))
+            render_manifest(args, manifest_path=find_manifest_path(args.microservice)))
 
     final_manifest = "\n---\n".join(applicable_manifests)
 

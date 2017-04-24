@@ -1,4 +1,5 @@
 import argparse
+import base64
 import os
 import re
 import sys
@@ -6,6 +7,7 @@ import tempfile
 import yaml
 import shlex
 
+from Crypto.Cipher import AES
 from jinja2 import Environment, FileSystemLoader
 from subprocess import Popen, PIPE
 from threading import Timer
@@ -13,6 +15,11 @@ from threading import Timer
 IGNORE_PATTERNS = r'\.DS_Store'
 parser = argparse.ArgumentParser()
 
+def decrypt(text):
+    print text
+    key = os.environ["EGOV_SECRET_PASSCODE"]
+    decryptor = AES.new(key, AES.MODE_ECB)
+    return decryptor.decrypt(base64.b64decode(text)).strip()
 
 def get_all_manifests():
     path = "{}/app".format(os.path.dirname(os.path.abspath(__file__)))
@@ -32,6 +39,7 @@ def find_manifest_path(microservice_name):
 
 def parse_args():
     parser.add_argument("-e", "--env", help="environment to apply against")
+    parser.add_argument("-n", "--namespace", help="namespace of microservice")
     parser.add_argument("-m", "--microservice", help="microservice to apply")
     parser.add_argument("-i", "--image", help="docker image of microservice")
     parser.add_argument("-dmi", "--db-migration-image", help="docker image of microservice db migration")
@@ -58,6 +66,8 @@ def validate_args(args):
         print "Either a microservice name or 'all' has to be specified to apply manifests for"
         parser.print_help()
         sys.exit(1)
+    if not args.namespace:
+        args.namespace = "egov"
 
 
 def render_env_props(args, template):
@@ -90,8 +100,8 @@ def apply_manifest(manifest):
                             format(out, err))
 
 
-def wait_for_deployment_to_finish(service):
-    deployment_status_cmd = "kubectl rollout status deployment/{} --all-namespaces".format(service)
+def wait_for_deployment_to_finish(service, namespace):
+    deployment_status_cmd = "kubectl rollout status deployment/{} --namespace={}".format(service, namespace)
     proc = Popen(shlex.split(deployment_status_cmd), stdout=PIPE)
     kill_proc = lambda p: p.kill()
     timeout_sec = 300
@@ -109,6 +119,7 @@ def wait_for_deployment_to_finish(service):
 def render_manifest(args, manifest_path, template):
     env = Environment(loader=FileSystemLoader("/"),
                       trim_blocks=True)
+    env.filters['decrypt'] = decrypt
     conf = render_env_props(args, template=template)
     return env.get_template(manifest_path).render(conf=conf)
 
@@ -145,7 +156,7 @@ def main():
         print final_manifest
     else:
         apply_manifest(final_manifest)
-        wait_for_deployment_to_finish(args.microservice)
+        wait_for_deployment_to_finish(args.microservice, args.namespace)
 
 
 if __name__ == "__main__":

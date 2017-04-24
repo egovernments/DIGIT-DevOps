@@ -1,4 +1,4 @@
-deployer_image = "egovio/deployer:0.0.1"
+deployer_image = "egovio/deployer:0.0.2"
 
 def takeSnapshot(group, env){
     stage("Snapshot ${env} env"){
@@ -27,7 +27,7 @@ def run(env, cmd){
         withCredentials([string(credentialsId: "${env}-kube-url", variable: "KUBE_SERVER_URL")]){
             sh "kubectl config set-cluster env --server ${KUBE_SERVER_URL}"
         }
-        withCredentials([string(credentialsId: "$egov_secret_passcode", variable: "EGOV_SECRET_PASSCODE")]) {
+        withCredentials([string(credentialsId: "egov_secret_passcode", variable: "EGOV_SECRET_PASSCODE")]) {
             sh cmd;
         }
     }

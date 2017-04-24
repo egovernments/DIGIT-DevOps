@@ -16,7 +16,7 @@ def deploy(env){
 
 def deployStandAlone(env, service, tag){
     stage("Deploy to ${env} env"){
-        def cmd = "python cluster/apply.py  -e dev -m ${service} -i egovio/${service}:${tag} -dmi egovio/${service}-db:${tag} -conf -secret"
+        def cmd = "python cluster/apply.py  -e dev -m ${service} -i egovio/${service}:${tag} -dmi egovio/${service}-db:${tag} -conf -secret -d"
         run(env, cmd)
     }
 }
@@ -27,7 +27,9 @@ def run(env, cmd){
         withCredentials([string(credentialsId: "${env}-kube-url", variable: "KUBE_SERVER_URL")]){
             sh "kubectl config set-cluster env --server ${KUBE_SERVER_URL}"
         }
-        sh cmd;
+        withCredentials([string(credentialsId: "$egov_secret_passcode", variable: "EGOV_SECRET_PASSCODE")]) {
+            sh cmd;
+        }
     }
 }
 

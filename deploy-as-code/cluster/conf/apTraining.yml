@@ -1,5 +1,5 @@
 # asset >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-asset_services:
+asset-services:
   replicas: 1
   image: egovio/asset_services
   db_migration_image: egovio/asset_services-db
@@ -162,4 +162,67 @@ user-otp:
   replicas: 1
   image: egovio/user-otp
   db_migration_image: egovio/user-otp-db
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+# configMaps >>>>>>>>>>>>>>>>>>>>>>>>>>>>
+zookeeper-config:
+  data: "tickTime=2000\n    initLimit=10\n    syncLimit=5\n    dataDir=/opt/zookeeper/data\n    clientPort=2181\n    autopurge.snapRetainCount=3\n    autopurge.purgeInterval=1\n    server.1=zookeeper-0.zookeeper:2888:3888"
+
+egov-config:
+  sms-enabled: "false"
+  db-url: "jdbc:postgresql://ap-training-cluster-1.ckqm8nba5pj5.ap-southeast-1.rds.amazonaws.com:5432/ap_training?currentSchema=microservice"
+  new-db-url: "jdbc:postgresql://ap-training-cluster-1.ckqm8nba5pj5.ap-southeast-1.rds.amazonaws.com:5432/ap_training?currentSchema=microservice"
+  hr-db-url: "jdbc:postgresql://ap-training-cluster-1.ckqm8nba5pj5.ap-southeast-1.rds.amazonaws.com:5432/ap_training?currentSchema=microservice"
+  kafka-brokers: "kafka-0.kafka.backbone:9092"
+  spring-datasource-tomcat-initialSize: "1"
+  es-indexer-host: "http://es-client.es-cluster:9200/"
+  flyway-locations: "filesystem:/flyway/sql,filesystem:/flyway/seed"
+
+kafka-config:
+  topics: "egov.pgr.validated:1:1,egov.pgr.locationupdated:1:1,egov.pgr.workflowupdated:1:1,egov.pgr.saved:1:1,egov.pgr.indexing:1:1,egov.core.notification.email:1:1,egov.core.notification.sms:1:1,attendance-save-db:1:1,egov.employee:1:1,save-asset-db:1:1,update-asset-db:1:1,save-assetcategory-db:1:1,agreement-save-db:1:1,agreement-update-db:1:1,lams-workflow-start:1:1,lams-workflow-update:1:1,egov-common-holiday:1:1,egov.leaveopeningbalance-create:1:1,egov.leaveopeningbalance-update:1:1,egov-hr-leavetype:1:1,egov.leaveallotment-create:1:1,egov.leaveallotment-update:1:1"
+  zookeeper-connect: "zookeeper-0.zookeeper.backbone:2181"
+  kafka-brokers: "kafka-0.kafka.backbone:9092"
+
+logging-config:
+  es-host: "es-client.es-cluster"
+  es-port: "9200"
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+# zookeeper >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+zookeeper:
+  replicas: 1
+  image: egovio/zookeeper:3.4.9
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+# kafka >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+kafka:
+  replicas: 1
+  image: egovio/kafka:0.10.1.1
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+# redis >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+redis:
+  replicas: 1
+  image: egovio/redis:3.2
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+# es-cluster >>>>>>>>>>>>>>>>>>>>>>>>>>>>
+es-cluster:
+  es-data:
+    replicas: 1
+    shards: "4"
+    es-replicas: "0"
+    image: egovio/elasticsearch:5.2.0
+    java-opts: "-Xms512m -Xmx512m"
+  es-client:
+    replicas: 1
+    image: egovio/elasticsearch:5.2.0
+    java-opts: "-Xms512m -Xmx512m"
+  es-master:
+    replicas: 1
+    image: egovio/elasticsearch:5.2.0
+    java-opts: "-Xms512m -Xmx512m"
+  kibana:
+    replicas: 1
+    image: kibana:5.2
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

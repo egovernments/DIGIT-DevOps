@@ -1,7 +1,9 @@
+{% if conf['es-cluster']%}
+{% for index in range(conf['es-cluster']['es-data']['replicas']) %}
   apiVersion: v1
   kind: PersistentVolume
   metadata:
-    name: es-storage-es-data-0
+    name: es-storage-es-data-{{index}}
     labels:
       app: elasticsearch
   spec:
@@ -12,14 +14,17 @@
     persistentVolumeReclaimPolicy: Recycle
     claimRef:
         namespace: es-cluster
-        name: es-storage-es-data-0
+        name: es-storage-es-data-{{index}}
     hostPath:
-      path: /opt/eGov/es-storage-es-data-0
+      path: /opt/eGov/es-storage-es-data-{{index}}
 ---
+{% endfor %}
+{% endif %}
+{% for index in range(conf['zookeeper']['replicas']) %}
   apiVersion: v1
   kind: PersistentVolume
   metadata:
-    name: zookeeper-data-zookeeper-0
+    name: zookeeper-data-zookeeper-{{index}}
     labels:
       app: zookeeper
   spec:
@@ -30,10 +35,11 @@
     persistentVolumeReclaimPolicy: Recycle
     claimRef:
         namespace: backbone
-        name: zookeeper-data-zookeeper-0
+        name: zookeeper-data-zookeeper-{{index}}
     hostPath:
-      path: /opt/eGov/zookeeper-data-zookeeper-0
+      path: /opt/eGov/zookeeper-data-zookeeper-{{index}}
 ---
+{% endfor %}
   apiVersion: v1
   kind: PersistentVolume
   metadata:
@@ -48,13 +54,17 @@
     accessModes:
       - ReadWriteOnce
     persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+        namespace: egov
+        name: filestore-volume-claim
     hostPath:
       path: /opt/eGov/filestore
 ---
+{% for index in range(conf['kafka']['replicas']) %}
   apiVersion: v1
   kind: PersistentVolume
   metadata:
-    name: kafka-data-kafka-0
+    name: kafka-data-kafka-{{index}}
     labels:
       app: kafka
   spec:
@@ -65,6 +75,8 @@
     persistentVolumeReclaimPolicy: Recycle
     claimRef:
         namespace: backbone
-        name: kafka-data-kafka-0
+        name: kafka-data-kafka-{{index}}
     hostPath:
-      path: /opt/eGov/kafka-data-kafka-0
+      path: /opt/eGov/kafka-data-kafka-{{index}}
+---
+{% endfor %}

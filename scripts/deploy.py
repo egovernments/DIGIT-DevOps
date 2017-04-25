@@ -23,7 +23,7 @@ def deploy():
             service_image_name = service_image['images'][0].split(":")
             tag = "latest"
         db_migration_image = "{}-db:{}".format(service_image_name, tag)
-        deployment_cmd = "python {} -e {} -m {} -i {} -dmi {} -conf -secret -d".format(
+        deployment_cmd = "python {} -e {} -m {} -i {} -dmi {} -conf -secret".format(
             apply_script_file, env, service, images, db_migration_image)
         out, err = (Popen(shlex.split(deployment_cmd), stdout=PIPE).communicate())
         if err:

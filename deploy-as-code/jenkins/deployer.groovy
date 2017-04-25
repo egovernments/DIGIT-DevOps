@@ -2,21 +2,21 @@ deployer_image = "egovio/deployer:0.0.2"
 
 def takeSnapshot(group, env){
     stage("Snapshot ${env} env"){
-        def cmd = "python jenkins/scripts/snapshot.py ${group}"
+        def cmd = "python scripts/snapshot.py ${group}"
         run(env, cmd)
     }
 }
 
 def deploy(env){
     stage("Deploy to ${env} env"){
-        def cmd = "python jenkins/scripts/deploy.py"
+        def cmd = "python scripts/deploy.py ${env}"
         run(env, cmd)
     }
 }
 
 def deployStandAlone(env, service, tag){
     stage("Deploy to ${env} env"){
-        def cmd = "python cluster/apply.py  -e ${env} -m ${service} -i egovio/${service}:${tag} -dmi egovio/${service}-db:${tag} -conf -secret"
+        def cmd = "python scripts/apply.py  -e ${env} -m ${service} -i egovio/${service}:${tag} -dmi egovio/${service}-db:${tag} -conf -secret"
         run(env, cmd)
     }
 }

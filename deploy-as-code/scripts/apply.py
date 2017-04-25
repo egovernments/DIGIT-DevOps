@@ -21,7 +21,7 @@ def decrypt(text):
     return decryptor.decrypt(base64.b64decode(text)).strip()
 
 def get_all_manifests():
-    path = "{}/app".format(os.path.dirname(os.path.abspath(__file__)))
+    path = "{}/../cluster/app".format(os.path.dirname(os.path.abspath(__file__)))
     for dir_path, subdirs, files in os.walk(path):
         for f in files:
             if re.match(IGNORE_PATTERNS, f):
@@ -40,7 +40,7 @@ def parse_args():
     parser.add_argument("-e", "--env", help="environment to apply against")
     parser.add_argument("-n", "--namespace", help="namespace of microservice")
     parser.add_argument("-m", "--microservice", help="microservice to apply")
-    parser.add_argument("-i", "--image", help="docker image of microservice")
+    parser.add_argument("-i", "--images", help="comma separated list of docker images for microservice")
     parser.add_argument("-dmi", "--db-migration-image", help="docker image of microservice db migration")
     parser.add_argument("-d", "--dry-run", help="Do not apply. Just print all manifests to be applied",
                         action="store_true")
@@ -71,15 +71,16 @@ def validate_args(args):
 
 def render_env_props(args):
     dir_path = os.path.dirname(os.path.abspath(__file__))
-    env_file_path = "{}/conf/{}.yml".format(dir_path, args.env)
+    env_file_path = "{}/../cluster/conf/{}.yml".format(dir_path, args.env)
     if not os.path.isfile(env_file_path):
         raise Exception("No config found for env - {}".format(args.env))
     conf = yaml.load(open(env_file_path, "r"))
     if args.microservice:
         if not conf.has_key(args.microservice):
             conf[args.microservice] = {}
-        if args.image:
-            conf[args.microservice]['image'] = args.image
+        if args.images:
+            for index, image in enumerate(args.images.split(",")):
+                conf[args.microservice]['images'][index] = image
         if args.db_migration_image:
             conf[args.microservice]['db_migration_image'] = args.db_migration_image
     return conf
@@ -116,11 +117,12 @@ def wait_for_deployment_to_finish(service, namespace):
 
 
 def render_manifest(args, manifest_path):
-    env = Environment(loader=FileSystemLoader("/"),
+    path, filename = os.path.split(manifest_path)
+    env = Environment(loader=FileSystemLoader(path or "/"),
                       trim_blocks=True)
     env.filters['decrypt'] = decrypt
     conf = render_env_props(args)
-    return env.get_template(manifest_path).render(conf=conf)
+    return env.get_template(filename).render(conf=conf)
 
 
 def main():
@@ -129,16 +131,16 @@ def main():
     applicable_manifests = []
     cwd = os.path.dirname(os.path.abspath(__file__))
 
-    applicable_manifests.append(render_manifest(args, manifest_path="{}/namespaces.yml".format(cwd)))
+    applicable_manifests.append(render_manifest(args, manifest_path="{}/../cluster/namespaces.yml".format(cwd)))
 
     if args.with_configmap:
         applicable_manifests.append(
-            render_manifest(args, manifest_path="{}/configMaps.yml".format(cwd)))
+            render_manifest(args, manifest_path="{}/../cluster/configMaps.yml".format(cwd)))
     if args.with_secrets:
         applicable_manifests.append(
-            render_manifest(args, manifest_path="{}/secrets.yml".format(cwd)))
+            render_manifest(args, manifest_path="{}/../cluster/secrets.yml".format(cwd)))
     if args.with_volumes:
-        applicable_manifests.append(render_manifest(args, manifest_path="{}/volumes.yml".format(cwd)))
+        applicable_manifests.append(render_manifest(args, manifest_path="{}/../cluster/volumes.yml".format(cwd)))
 
     if args.all:
         for manifest, path in get_all_manifests():

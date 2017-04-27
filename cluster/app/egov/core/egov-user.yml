@@ -28,6 +28,20 @@ spec:
         group: core
       annotations:
         pod.beta.kubernetes.io/init-containers: '[
+        {% if conf["egov-user"]["env_specific_db_migration_image"] %}
+          {
+            "name": "egov-user-env-specific-db-migration",
+            "image": "{{conf["egov-user"]["env_specific_db_migration_image"]}}",
+            "command": ["sh", "-c", "cp -R /egov/db-migration/egov-user/* /env_specific_db_migration/"],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          },
+        {% endif %}
           {
             "name": "egov-user-db-migration",
             "image": "{{conf["egov-user"]["db_migration_image"]}}",
@@ -37,6 +51,12 @@ spec:
               {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
               {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
               {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
             ],
             "imagePullPolicy": "Always"
           }
@@ -85,3 +105,6 @@ spec:
           value: http://egov-otp:8080/
         - name: EGOV_SERVICES_ACCESSCONTROL_HOST
           value: http://egov-accesscontrol:8080/
+      volumes:
+      - name: env-specific-db-migration
+        emptyDir: {}

@@ -11,7 +11,7 @@ def main():
 
     key = os.environ["EGOV_SECRET_PASSCODE"]
     encryptor = AES.new(key, AES.MODE_ECB)
-    print base64.b64encode(encryptor.encrypt(b64_encodedtext.rjust(32)))
+    print base64.b64encode(encryptor.encrypt(b64_encodedtext.rjust(16000)))
 
 
 if __name__ == "__main__":

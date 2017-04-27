@@ -15,10 +15,12 @@ from threading import Timer
 IGNORE_PATTERNS = r'\.DS_Store'
 parser = argparse.ArgumentParser()
 
+
 def decrypt(text):
     key = os.environ["EGOV_SECRET_PASSCODE"]
     decryptor = AES.new(key, AES.MODE_ECB)
     return decryptor.decrypt(base64.b64decode(text)).strip()
+
 
 def get_all_manifests():
     path = "{}/../cluster/app".format(os.path.dirname(os.path.abspath(__file__)))
@@ -42,6 +44,8 @@ def parse_args():
     parser.add_argument("-m", "--microservice", help="microservice to apply")
     parser.add_argument("-i", "--images", help="comma separated list of docker images for microservice")
     parser.add_argument("-dmi", "--db-migration-image", help="docker image of microservice db migration")
+    parser.add_argument("-endmi", "--env-specific-db-migration-image",
+                        help="docker image of additional microservice db migration for hybrid environments")
     parser.add_argument("-d", "--dry-run", help="Do not apply. Just print all manifests to be applied",
                         action="store_true")
     parser.add_argument("-conf", "--with_configmap", help="Attach configMaps to manifest",
@@ -83,6 +87,8 @@ def render_env_props(args):
                 conf[args.microservice]['images'][index] = image
         if args.db_migration_image:
             conf[args.microservice]['db_migration_image'] = args.db_migration_image
+        if args.env_specific_db_migration_image:
+            conf[args.microservice]['env_specific_db_migration_image'] = args.env_specific_db_migration_image
     return conf
 
 

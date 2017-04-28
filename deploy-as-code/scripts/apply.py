@@ -97,10 +97,10 @@ def apply_manifest(manifest):
         temp.write(manifest)
         temp.flush()
         apply_cmd = "kubectl apply -f {}".format(temp.name)
-        out, err = (Popen(shlex.split(apply_cmd),
-                          stdout=PIPE).communicate())
+        proc = Popen(shlex.split(apply_cmd), stdout=PIPE)
+        out, err = proc.communicate()
         print out
-        if err:
+        if not proc.returncode == 0:
             raise Exception("Apply failed\n"
                             "STDOUT:{}\nERROR:{}".
                             format(out, err))
@@ -116,7 +116,7 @@ def wait_for_deployment_to_finish(service, namespace):
         timer.start()
         out, err = proc.communicate()
         print out
-        if err:
+        if not proc.returncode == 0:
             raise Exception("Error while checking deployment status for service: {}\n{}".format(service, err))
     finally:
         timer.cancel()

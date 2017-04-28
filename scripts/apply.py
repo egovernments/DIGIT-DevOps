@@ -150,7 +150,6 @@ def main():
 
     if args.all:
         for manifest, path in get_all_manifests():
-            print manifest, path
             applicable_manifests.append(render_manifest(
                 args, manifest_path="{}/{}".format(path, manifest)))
     elif args.microservice:

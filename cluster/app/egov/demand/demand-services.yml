@@ -28,6 +28,20 @@ spec:
         group: demand
       annotations:
         pod.beta.kubernetes.io/init-containers: '[
+        {% if conf["demand-services"]["env_specific_db_migration_image"] %}
+          {
+            "name": "demand-services-env-specific-db-migration",
+            "image": "{{conf["demand-services"]["env_specific_db_migration_image"]}}",
+            "command": ["sh", "-c", "cp -R /egov/db/migration/demand/demand-services/* /env_specific_db_migration/"],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
+            ],
+            "imagePullPolicy": "Always"
+          },
+        {% endif %}
           {
             "name": "demand-services-db-migration",
             "image": "{{conf["demand-services"]["db_migration_image"]}}",
@@ -74,3 +88,8 @@ spec:
           value: "8080"
         - name: FLYWAY_ENABLED
           value: "false"
+      volumes:
+      - name: env-specific-db-migration
+        emptyDir: {}
+      imagePullSecrets:
+      - name: regsecret

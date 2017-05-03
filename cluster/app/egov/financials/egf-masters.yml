@@ -28,6 +28,20 @@ spec:
         group: financials
       annotations:
         pod.beta.kubernetes.io/init-containers: '[
+        {% if conf["egf-masters"]["env_specific_db_migration_image"] %}
+          {
+            "name": "egf-masters-env-specific-db-migration",
+            "image": "{{conf["egf-masters"]["env_specific_db_migration_image"]}}",
+            "command": ["sh", "-c", "cp -R /egov/db/migration/financials/egf-masters/* /env_specific_db_migration/"],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
+            ],
+            "imagePullPolicy": "Always"
+          },
+        {% endif %}
           {
             "name": "egf-masters-db-migration",
             "image": "{{conf["egf-masters"]["db_migration_image"]}}",
@@ -72,3 +86,8 @@ spec:
           value: "8080"
         - name: FLYWAY_ENABLED
           value: "false"
+      volumes:
+      - name: env-specific-db-migration
+        emptyDir: {}
+      imagePullSecrets:
+      - name: regsecret

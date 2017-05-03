@@ -28,6 +28,20 @@ spec:
         group: hr
       annotations:
         pod.beta.kubernetes.io/init-containers: '[
+        {% if conf["hr-leave"]["env_specific_db_migration_image"] %}
+          {
+            "name": "hr-leave-env-specific-db-migration",
+            "image": "{{conf["hr-leave"]["env_specific_db_migration_image"]}}",
+            "command": ["sh", "-c", "cp -R /egov/db/migration/hr/hr-leave/* /env_specific_db_migration/"],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
+            ],
+            "imagePullPolicy": "Always"
+          },
+        {% endif %}
           {
             "name": "hr-leave-db-migration",
             "image": "{{conf["hr-leave"]["db_migration_image"]}}",
@@ -95,3 +109,8 @@ spec:
           value: hr-leave-group
         - name: EGOV_SERVICES_COMMON_WORKFLOW_SERVICE_HOSTNAME
           value: http://egov-common-workflows:8080/
+      volumes:
+      - name: env-specific-db-migration
+        emptyDir: {}
+      imagePullSecrets:
+      - name: regsecret

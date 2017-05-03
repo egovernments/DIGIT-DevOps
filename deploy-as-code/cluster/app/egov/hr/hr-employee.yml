@@ -28,6 +28,20 @@ spec:
         group: hr
       annotations:
         pod.beta.kubernetes.io/init-containers: '[
+        {% if conf["hr-employee"]["env_specific_db_migration_image"] %}
+          {
+            "name": "hr-employee-env-specific-db-migration",
+            "image": "{{conf["hr-employee"]["env_specific_db_migration_image"]}}",
+            "command": ["sh", "-c", "cp -R /egov/db/migration/hr/hr-employee/* /env_specific_db_migration/"],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
+            ],
+            "imagePullPolicy": "Always"
+          },
+        {% endif %}
           {
             "name": "hr-employee-db-migration",
             "image": "{{conf["hr-employee"]["db_migration_image"]}}",
@@ -91,3 +105,8 @@ spec:
           value: "8080"
         - name: FLYWAY_ENABLED
           value: "false"
+      volumes:
+      - name: env-specific-db-migration
+        emptyDir: {}
+      imagePullSecrets:
+      - name: regsecret

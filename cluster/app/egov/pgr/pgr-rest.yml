@@ -26,6 +26,21 @@ spec:
       labels:
         app: pgr-rest
         group: pgr
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "pgr-rest-db-migration",
+            "image": "{{conf["pgr-rest"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "new-db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "pgr_rest_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
     spec:
       containers:
       - name: pgr-rest

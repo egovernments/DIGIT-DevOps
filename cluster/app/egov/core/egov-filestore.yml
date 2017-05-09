@@ -43,6 +43,21 @@ spec:
       labels:
         app: egov-filestore
         group: core
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '
+          {
+            "name": "egov-filestore-db-migration",
+            "image": "{{conf["egov-filestore"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "egov_filestore_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
     spec:
       volumes:
       - name: filestore-mount-path

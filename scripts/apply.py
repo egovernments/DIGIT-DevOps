@@ -162,7 +162,7 @@ def main():
         print final_manifest
     else:
         apply_manifest(final_manifest)
-        wait_for_deployment_to_finish(args.microservice, args.namespace)
+        # wait_for_deployment_to_finish(args.microservice, args.namespace)
 
 
 if __name__ == "__main__":

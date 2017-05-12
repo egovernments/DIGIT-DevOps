@@ -1,0 +1,30 @@
+apiVersion: batch/v2alpha1
+kind: CronJob
+metadata:
+  name: delete-old-logs-in-es
+  namespace: logging
+spec:
+  schedule: "{{ conf['delete-old-logs-in-es']['schedule'] }}"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: delete-old-logs-in-es
+            image: {{ conf['delete-old-logs-in-es']['images'][0] }}
+            command:
+            - /usr/bin/start.sh
+            env:
+            - name: ES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: logging-config
+                  key: es-host
+            - name: ES_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: logging-config
+                  key: es-port
+            - name: DAYS
+              value: "{{ conf['delete-old-logs-in-es']['days'] }}"
+          restartPolicy: OnFailure

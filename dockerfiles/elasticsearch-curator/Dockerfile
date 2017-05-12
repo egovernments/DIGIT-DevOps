@@ -2,10 +2,14 @@ FROM ubuntu:trusty
 
 MAINTAINER Sumanth<nsready@gmail.com>
 
+ARG curator_version=5.0.2
+
+ENV CURATOR_VERSION=$curator_version
+
 RUN apt-get update -y && apt-get install python -y && apt-get install python-dev -y && apt-get install python-pip -y
 
 #Install python dependencies
-RUN pip install elasticsearch-curator
+RUN pip install elasticsearch-curator==${CURATOR_VERSION}
 
 RUN mkdir -p /.curator
 

@@ -1,0 +1,36 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pgr-batch
+  namespace: egov
+spec:
+  replicas: {{conf['pgr-batch']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: pgr-batch
+        group: pgr
+    spec:
+      containers:
+      - name: pgr-batch
+        image: {{conf['pgr-batch']['images'][0]}}
+        env:
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: ESCALATION_INTERVAL
+          value: 3600000
+        - name: EGOV_SERVICES_PGR_HOST
+          value: http://pgr-rest:8080/
+        - name: EGOV_SERVICES_WORKFLOW_HOSTNAME
+          value: http://egov-workflow:8080/
+        - name: EGOV_SERVICE_USER_SERVICE_HOST
+          value: http://egov-user:8080/
+        - name: EGOV_SERVICES_POSITION_HOST
+          value: http://hr-masters:8080/
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: KAFKA_TOPICS_ESCALATION_UPDATE_NAME
+          value: egov.pgr.workflowupdated

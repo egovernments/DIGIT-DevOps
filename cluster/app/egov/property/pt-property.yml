@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pt-property
+  namespace: egov
+  labels:
+    app: pt-property
+    group: property
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: pt-property
+    group: property
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pt-property
+  namespace: egov
+spec:
+  replicas: {{conf['pt-property']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: pt-property
+        group: property
+    spec:
+      containers:
+      - name: pt-property
+        image: {{conf['pt-property']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SERVER_PORT
+          value: "8080"

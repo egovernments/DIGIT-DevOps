@@ -19,4 +19,4 @@ ADD delete_old_logs.yml /.curator/delete_old_logs.yml
 
 COPY start.sh /usr/bin/start.sh
 
-RUN chmod +x /usr/bin/start.sh
+RUN chmod a+x /usr/bin/start.sh

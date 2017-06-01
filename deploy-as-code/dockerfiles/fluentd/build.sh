@@ -33,7 +33,7 @@ sed -i -e "s/USER=td-agent/USER=root/" -e "s/GROUP=td-agent/GROUP=root/" /etc/in
 td-agent-gem install --no-document fluent-plugin-kubernetes_metadata_filter
 td-agent-gem install --no-document fluent-plugin-record-modifier
 td-agent-gem install --no-document fluent-plugin-concat
-td-agent-gem install --no-document fluent-plugin-elasticsearch -v 1.5.0
+td-agent-gem install --no-document fluent-plugin-elasticsearch
 
 # Remove docs and postgres references
 rm -rf /opt/td-agent/embedded/share/doc \

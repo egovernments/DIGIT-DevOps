@@ -14,9 +14,9 @@ def deploy(env){
     }
 }
 
-def deployStandAlone(env, service, tag){
+def deployStandAlone(env, service, image, tag){
     stage("Deploy to ${env} env"){
-        def cmd = "python scripts/apply.py  -e ${env} -m ${service} -i egovio/${service}:${tag} -dmi egovio/${service}-db:${tag} -conf -secret"
+        def cmd = "python scripts/apply.py  -e ${env} -m ${service} -i egovio/${image}:${tag} -dmi egovio/${image}-db:${tag} -conf -secret"
         run(env, cmd)
     }
 }

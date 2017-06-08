@@ -1,4 +1,10 @@
-def service = "${env.SERVICE}"
+def service_image = "${env.SERVICE}".split("/")
+def service = service_image[0]
+def image = service
+if ((service_image).size() > 1){
+    image = service_image[1]
+}
+
 def tag = "${env.TAG}"
 def env = "${env.JOB_BASE_NAME}".split("-").last()
 
@@ -6,7 +12,7 @@ try {
     node("slave"){
         checkout scm
         def deployer = load("jenkins/deployer.groovy")
-        deployer.deployStandAlone(env, service, tag)
+        deployer.deployStandAlone(env, service, image, tag)
     }
 } catch (e) {
     throw e

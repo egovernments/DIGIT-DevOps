@@ -12,9 +12,14 @@ if [ -z "$DAYS" ]; then
     export DAYS=3
 fi
 
+if [ -z "$TARGET_ENV" ]; then
+    export TARGET_ENV=default
+fi
+
 
 sed -i 's/%ES_HOST%/'"$ES_HOST"'/' /.curator/curator.yml
 sed -i 's/%ES_PORT%/'"$ES_PORT"'/' /.curator/curator.yml
 sed -i 's/%DAYS%/'"$DAYS"'/' /.curator/delete_old_logs.yml
+sed -i 's/%TARGET_ENV%/'"$TARGET_ENV"'/' /.curator/delete_old_logs.yml
 
 curator --config /.curator/curator.yml /.curator/delete_old_logs.yml

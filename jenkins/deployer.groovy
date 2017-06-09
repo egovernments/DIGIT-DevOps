@@ -44,7 +44,7 @@ def set_kube_credentials(env){
         sh "cp ${CERT_KEY} /kube/admin-key.pem"
     }
 
-    if (env == "apUat") {
+    if (env == "apUat" || env == "apProd") {
         withCredentials([string(credentialsId: "${env}-kube-token", variable: "TOKEN")]){
             sh "kubectl config set-credentials env --token ${TOKEN}"
         }

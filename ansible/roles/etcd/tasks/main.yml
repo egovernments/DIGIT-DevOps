@@ -1,0 +1,19 @@
+---
+- name: Install etcd
+  yum: name=etcd state=present
+  become: true
+
+- name: Update etcd conf
+  become: true
+  copy: src=etcd.conf dest=/etc/etcd/etcd.conf mode=0644
+  notify:
+    - restart etcd
+
+- name: Check for kubernetes network config
+  command: etcdctl ls {{ kubernetes_network_config_key }}
+  register: network_config
+  ignore_errors: yes
+
+- name: Create kubernetes network config
+  command: etcdctl mk {{ kubernetes_network_config_key }} '{"Network":"{{ kubernetes_pod_network }}"}'
+  when: network_config.rc != 0

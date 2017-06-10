@@ -1,0 +1,16 @@
+---
+- name: Install kubernetes
+  yum: name=kubernetes state=present
+  become: true
+
+- name: Update kube api server conf
+  become: true
+  template: src=api_server.j2 dest=/etc/kubernetes/apiserver mode=0644
+
+- name: restart and enable master services
+  systemd: name={{ item }} daemon_reload=yes state=restarted enabled=yes
+  become: true
+  with_items:
+    - kube-apiserver
+    - kube-controller-manager
+    - kube-scheduler

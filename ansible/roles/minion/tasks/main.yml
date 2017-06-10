@@ -1,0 +1,41 @@
+---
+- name: Install kubernetes
+  yum: name=kubernetes state=present
+  become: true
+
+- name: Install flannel
+  yum: name=flannel state=present
+  become: true
+
+- name: Update kubernetes default conf
+  become: true
+  template: src=kubelet.j2 dest=/etc/kubernetes/kubelet mode=0644
+
+- name: Update kubelet conf
+  become: true
+  template: src=kubernetes_default_config.j2 dest=/etc/kubernetes/config mode=0644
+
+- name: update hostname
+  hostname: name={{ hostname }}
+  become: true
+
+- name: Update hosts file
+  template: src=hosts.j2 dest=/etc/hosts mode=0644
+  become: true
+
+- name: Update sysconfig network file
+  template: src=network.j2 dest=/etc/sysconfig/network mode=0644
+  become: true
+
+- name: Update flannel conf
+  become: true
+  template: src=flanneld.j2 dest=/etc/sysconfig/flanneld mode=0644
+
+- name: restart and enable minion services
+  systemd: name={{ item }} daemon_reload=yes state=restarted enabled=yes
+  become: true
+  with_items:
+    - flanneld
+    - docker
+    - kube-proxy
+    - kubelet

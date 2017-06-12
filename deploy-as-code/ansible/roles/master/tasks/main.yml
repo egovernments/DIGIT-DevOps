@@ -1,4 +1,6 @@
 ---
+- include: ssl_config.yml
+
 - name: Install kubernetes
   yum: name=kubernetes state=present
   become: true
@@ -6,6 +8,10 @@
 - name: Update kube api server conf
   become: true
   template: src=api_server.j2 dest=/etc/kubernetes/apiserver mode=0644
+
+- name: Copy kube controller manager conf
+  become: true
+  copy: src=controller_manager dest=/etc/kubernetes/controller-manager mode=0644
 
 - name: restart and enable master services
   systemd: name={{ item }} daemon_reload=yes state=restarted enabled=yes

@@ -1,0 +1,12 @@
+---
+- name: Create worker key
+  become: true
+  command: openssl genrsa -out /etc/kubernetes/keys/worker-key.pem 2048 creates=/etc/kubernetes/keys/worker-key.pem
+
+- name: Create worker certificate signing request
+  become: true
+  command: openssl req -new -key /etc/kubernetes/keys/worker-key.pem -out /etc/kubernetes/keys/worker.csr -subj "/CN=kube-worker" creates=/etc/kubernetes/keys/worker.csr
+
+- name: Create worker certificate
+  become: true
+  command: openssl x509 -req -in /etc/kubernetes/keys/worker.csr -CA /etc/kubernetes/keys/ca.pem -CAkey /etc/kubernetes/keys/ca-key.pem -CAcreateserial -out /etc/kubernetes/keys/worker.pem -days 365 creates=/etc/kubernetes/keys/worker.pem

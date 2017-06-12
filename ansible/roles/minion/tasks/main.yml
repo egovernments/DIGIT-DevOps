@@ -1,4 +1,6 @@
 ---
+- include: ssl_config.yml
+
 - name: Install kubernetes
   yum: name=kubernetes state=present
   become: true
@@ -11,11 +13,15 @@
   become: true
   template: src=kubelet.j2 dest=/etc/kubernetes/kubelet mode=0644
 
+- name: Update kubectl conf
+  become: true
+  template: src=kubectl.j2 dest=/etc/kubernetes/worker-kubeconfig.yml mode=0644
+
 - name: Update kubelet conf
   become: true
   template: src=kubernetes_default_config.j2 dest=/etc/kubernetes/config mode=0644
 
-- name: update hostname
+- name: Update hostname
   hostname: name={{ hostname }}
   become: true
 
@@ -30,6 +36,10 @@
 - name: Update flannel conf
   become: true
   template: src=flanneld.j2 dest=/etc/sysconfig/flanneld mode=0644
+
+- name: Copy kube proxy template
+  become: true
+  copy: src=kube_proxy dest=/etc/kubernetes/proxy mode=0644
 
 - name: restart and enable minion services
   systemd: name={{ item }} daemon_reload=yes state=restarted enabled=yes

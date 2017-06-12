@@ -1,0 +1,36 @@
+---
+- name: Copy openssl.cnf
+  become: true
+  template: src=openssl.j2 dest=/etc/kubernetes/keys/openssl.cnf mode=0644
+
+- name: Create api-server key
+  become: true
+  command: openssl genrsa -out /etc/kubernetes/keys/apiserver-key.pem 2048 creates=/etc/kubernetes/keys/apiserver-key.pem
+
+- name: Create api-server certificate signing request
+  become: true
+  command: openssl req -new -key /etc/kubernetes/keys/apiserver-key.pem -out /etc/kubernetes/keys/apiserver.csr -subj "/CN=kube-apiserver" -config /etc/kubernetes/keys/openssl.cnf creates=/etc/kubernetes/keys/apiserver.csr
+
+- name: Create api-server certificate
+  become: true
+  command: openssl x509 -req -in /etc/kubernetes/keys/apiserver.csr -CA /etc/kubernetes/keys/ca.pem -CAkey /etc/kubernetes/keys/ca-key.pem -CAcreateserial -out /etc/kubernetes/keys/apiserver.pem -days 365 -extensions v3_req -extfile /etc/kubernetes/keys/openssl.cnf creates=/etc/kubernetes/keys/apiserver.pem
+
+- name: Create admin key
+  become: true
+  command: openssl genrsa -out /etc/kubernetes/keys/admin-key.pem 2048 creates=/etc/kubernetes/keys/admin-key.pem
+
+- name: Create admin certificate signing request
+  become: true
+  command: openssl req -new -key /etc/kubernetes/keys/admin-key.pem -out /etc/kubernetes/keys/admin.csr -subj "/CN=kube-admin" creates=/etc/kubernetes/keys/admin.csr
+
+- name: Create admin certificate
+  become: true
+  command: openssl x509 -req -in /etc/kubernetes/keys/admin.csr -CA /etc/kubernetes/keys/ca.pem -CAkey /etc/kubernetes/keys/ca-key.pem -CAcreateserial -out /etc/kubernetes/keys/admin.pem -days 365 creates=/etc/kubernetes/keys/admin.pem
+
+- name: Archive all keys
+  become: true
+  archive: path=/etc/kubernetes/keys dest=/tmp/keys.zip
+
+- name: Fetch archived keys
+  become: true
+  fetch: src=/tmp/keys.zip dest=/tmp/keys.zip flat=yes

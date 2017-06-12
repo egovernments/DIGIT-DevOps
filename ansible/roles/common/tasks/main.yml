@@ -1,0 +1,23 @@
+---
+- name: Install ntp
+  yum: name=ntp state=present
+  become: true
+
+- name: Start and enable ntpd
+  systemd: name=ntpd daemon_reload=yes state=started enabled=yes
+  become: true
+
+- name: Stop and disable firewall
+  systemd: name=firewalld daemon_reload=yes state=stopped enabled=no
+  become: true
+
+- name: Create keys directory to store keys
+  become: true
+  file: path=/etc/kubernetes/keys state=directory mode=0755
+
+- name: Copy certificate authority keys
+  become: true
+  copy: src={{ item }} dest=/etc/kubernetes/keys/{{ item }} mode=0644
+  with_items:
+    - ca.pem
+    - ca-key.pem

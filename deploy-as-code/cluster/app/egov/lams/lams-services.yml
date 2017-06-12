@@ -122,6 +122,17 @@ spec:
             configMapKeyRef:
               name: egov-config
               key: timezone
+
+{% if conf["lams-services"]["tenant_host_mapping"] %}
+{% for city in conf["lams-services"]["tenant_host_mapping"]["city"] %}
+        - name: AP_{{ city.name | upper }}
+{% if city.domain %}
+          value: {{ city.domain }}
+{% else %}
+          value: {{ city.name}}{{conf["lams-services"]["tenant_host_mapping"]["domain_suffix"][0]}}
+{% endif %}
+{% endfor %}
+{% endif %}
       volumes:
       - name: env-specific-db-migration
         emptyDir: {}

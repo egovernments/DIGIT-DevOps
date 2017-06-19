@@ -1,4 +1,22 @@
 ---
+- name: Install lsb_release
+  yum: name=redhat-lsb-core state=present
+  when: ansible_os_family == "RedHat"
+  become: true
+
+- name: Reread ansible_lsb facts
+  setup: filter=ansible_lsb*
+
+# - name: Enable RHEL extras repository
+#   yum_repository:
+#     name: rhui-REGION-rhel-server-extras
+#     description: Red Hat Enterprise Linux Server 7 Extra(RPMs)
+#     baseurl: https://rhui2-cds01.REGION.aws.ce.redhat.com/pulp/mirror/content/dist/rhel/rhui/server/7/$releasever/$basearch/extras/os
+#     enabled: yes
+#     gpgcheck: no
+#   when: ansible_os_family == "RedHat" and ansible_lsb.major_release|int >= 7
+#   become: true
+
 - name: Install ntp
   yum: name=ntp state=present
   become: true
@@ -9,6 +27,8 @@
 
 - name: Stop and disable firewall
   systemd: name=firewalld daemon_reload=yes state=stopped enabled=no
+  register: unused_disable
+  failed_when: "unused_disable|failed and ('find' not in unused_disable.msg and 'found' not in unused_disable.msg)"
   become: true
 
 - name: Create keys directory to store keys

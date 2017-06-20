@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-idgen
+  namespace: egov
+  labels:
+    app: egov-idgen
+    group: core
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-idgen
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-idgen
+  namespace: egov
+spec:
+  replicas: {{conf['egov-idgen']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-idgen
+        group: core
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+        {% if conf["egov-idgen"]["env_specific_db_migration_image"] %}
+          {
+            "name": "egov-idgen-env-specific-db-migration",
+            "image": "{{conf["egov-idgen"]["env_specific_db_migration_image"]}}",
+            "command": ["sh", "-c", "cp -R /egov/db/migration/core/egov-idgen/* /env_specific_db_migration/"],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
+            ],
+            "imagePullPolicy": "Always"
+          },
+        {% endif %}
+          {
+            "name": "egov-idgen-db-migration",
+            "image": "{{conf["egov-idgen"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "egov_location_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
+    spec:
+      containers:
+      - name: egov-idgen
+        image: {{conf['egov-idgen']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: JAVA_OPTS
+          value: "{{conf['egov-idgen']['heap'] or '-Xmx64m -Xms64m'}}"        
+      volumes:
+      - name: env-specific-db-migration
+        emptyDir: {}
+      imagePullSecrets:
+      - name: regsecret

@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wcms-notification
+  namespace: egov
+  labels:
+    app: wcms-notification
+    group: wcms
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: wcms-notification
+    group: wcms
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: wcms-notification
+  namespace: egov
+spec:
+  replicas: {{conf['wcms-notification']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: wcms-notification
+        group: wcms
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "wcms-notification-db-migration",
+            "image": "{{conf["wcms-notification"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "wcms_notification_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
+    spec:
+      containers:
+      - name: wcms-notification
+        image: {{conf['wcms-notification']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+      	- name: KAFKA_TOPICS_NOTIFICATION_CONNECTION_CREATE_NAME
+      	  value: egov.wcms.newconnection-create
+      	- name: KAFKA_TOPICS_NOTIFICATION_CONNECTION_UPDATE_NAME
+      	  value: egov.wcms.newconnection-update
+      	- name: KAFKA_TOPICS_NOTIFICATION_SMS_NAME
+      	  value: egov.core.notification.sms
+      	- name: KAFKA_TOPICS_NOTIFICATION_SMS_ID
+      	  value: notification.sms
+      	- name: KAFKA_TOPICS_NOTIFICATION_SMS_KEY
+      	  value: sms-notification
+      	- name: EGOV_SERVICES_TENANT_HOST
+      	  value: http://tenant:8080
+      	- name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+      	  value: org.egov.wcms.notification.consumers.HashMapDeserializer
+      	- name: SPRING_KAFKA_CONSUMER_GROUP_ID
+      	  value: wcms-notification-group
+      	- name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+      	  value: org.apache.kafka.common.serialization.StringDeserializer
+      	- name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+      	  value: org.apache.kafka.common.serialization.StringSerializer
+      	- name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+      	  value: org.springframework.kafka.support.serializer.JsonSerializer
+      	- name: BOOTSTRAP_SERVER_CONFIG
+      	  valueFrom:
+      	    configMapKeyRef:
+      	      name: egov-config
+      	      key: kafka-brokers
+      	- name: APP_TIMEZONE
+      	  valueFrom:
+      	    configMapKeyRef:
+      	      name: egov-config
+      	      key: timezone
+      	- name: JAVA_OPTS
+      	  value: "{{conf['wcms-notification']['heap'] or '-Xmx64m -Xms64m'}}"
+      	- name: SPRING_JPA_SHOW_SQL
+      	  value: "{{conf['egov-config']['spring-jpa-show-sql']}}"

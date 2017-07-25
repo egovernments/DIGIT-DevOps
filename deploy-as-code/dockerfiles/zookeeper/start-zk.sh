@@ -10,4 +10,12 @@ expr $ORDINAL + 1 > /opt/zookeeper/data/myid
 # copy config mounted externally
 cp /opt/zookeeper-conf/zoo.cfg /opt/zookeeper/conf/zoo.cfg
 
+if [ $(hostname -s) = 'zookeeper-0' ]; then
+  sed -i -r 's|server.1=zookeeper-0.zookeeper:2888:3888|server.1=0.0.0.0:2888:3888|g' /opt/zookeeper/conf/zoo.cfg
+elif [ $(hostname -s) = 'zookeeper-1' ]; then
+  sed -i -r 's|server.2=zookeeper-1.zookeeper:2888:3888|server.2=0.0.0.0:2888:3888|g' /opt/zookeeper/conf/zoo.cfg
+elif [ $(hostname -s) = 'zookeeper-2' ]; then
+  sed -i -r 's|server.3=zookeeper-2.zookeeper:2888:3888|server.3=0.0.0.0:2888:3888|g' /opt/zookeeper/conf/zoo.cfg
+fi
+
 /opt/zookeeper/bin/zkServer.sh start-foreground

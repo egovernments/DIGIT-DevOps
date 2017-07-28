@@ -48,16 +48,8 @@ spec:
         ports:
         - containerPort: 8080
         env:
-        - name: SERVER_PORT
-          value: 9090
-        - name: SERVER_CONTEXT_PATH
-          value: /egf-master
         - name: SPRING_DATASOURCE_URL
           value: {{ conf['egf-master']['db-url'] }}
-          valueFrom:
-            secretKeyRef:
-              name: db
-              key: username
         - name: SPRING_DATASOURCE_PASSWORD
           valueFrom:
             secretKeyRef:
@@ -162,16 +154,18 @@ spec:
           value: "9300"
         - name: EGF_MASTER_HOST_URL
           value: http://egf-master:8080
-        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
-          value: org.egov.common.queue.HashMapDeserializer
         - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
           value: org.apache.kafka.common.serialization.StringDeserializer
         - name: SPRING_KAFKA_CONSUMER_GROUP_ID
           value: egf-master
         - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
           value: org.apache.kafka.common.serialization.StringSerializer
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
         - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
-          value: org.springframework.kafka.support.serializer.JsonSerializer
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
         - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
           valueFrom:
             configMapKeyRef:

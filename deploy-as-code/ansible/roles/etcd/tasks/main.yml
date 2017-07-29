@@ -6,8 +6,10 @@
 - name: Update etcd conf
   become: true
   copy: src=etcd.conf dest=/etc/etcd/etcd.conf mode=0644
-  notify:
-    - restart etcd
+
+- name: restart and enable etcd services
+  systemd: name=etcd daemon_reload=yes state=restarted enabled=yes
+  become: true
 
 - name: Check for kubernetes network config
   command: etcdctl ls {{ kubernetes_network_config_key }}

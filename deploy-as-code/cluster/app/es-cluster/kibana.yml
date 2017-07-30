@@ -10,9 +10,12 @@ spec:
   - port: 5601
     protocol: TCP
     targetPort: ui
+{% if conf['kibana']['service_type'] == 'NodePort' %}
+    nodePort: {{ conf['kibana']['service_port'] }}
+{% endif %}
   selector:
     k8s-app: kibana
-  type: "LoadBalancer"
+  type: "{{conf['kibana']['service_type']}}"
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
@@ -22,7 +25,7 @@ metadata:
   labels:
     k8s-app: kibana
 spec:
-  replicas: {{conf['es-cluster']['kibana']['replicas']}}
+  replicas: {{conf['kibana']['replicas']}}
   selector:
     matchLabels:
       k8s-app: kibana
@@ -33,7 +36,7 @@ spec:
     spec:
       containers:
       - name: kibana
-        image: {{conf['es-cluster']['kibana']['images'][0]}}
+        image: {{conf['kibana']['images'][0]}}
         resources:
           # keep request = limit to keep this container in guaranteed class
           limits:

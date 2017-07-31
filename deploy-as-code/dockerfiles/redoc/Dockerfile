@@ -1,3 +1,4 @@
 FROM nginx
 
-COPY redoc /usr/share/nginx/html/
+RUN mkdir /usr/share/nginx/html/redoc
+COPY index.html /usr/share/nginx/html/redoc

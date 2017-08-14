@@ -1,0 +1,48 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/scrape: 'true'
+  name: prom-node-exporter
+  namespace: monitoring
+  labels:
+    app: prometheus
+    component: node-exporter
+spec:
+  ports:
+    - name: prom-node-exporter
+      protocol: TCP
+      port: 9100
+      targetPort: 9100
+  selector:
+    app: prometheus
+    component: node-exporter
+
+---
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: prom-node-exporter
+  namespace: monitoring
+  labels:
+    app: prometheus
+    component: node-exporter
+spec:
+  template:
+    metadata:
+      name: prom-node-exporter
+      labels:
+        app: prometheus
+        component: node-exporter
+    spec:
+      containers:
+      - image: prom/node-exporter:v0.14.0
+        name: prom-node-exporter
+        ports:
+        - name: node-exporter
+          #^ must be an IANA_SVC_NAME (at most 15 characters, ..)
+          containerPort: 9100
+          hostPort: 9100
+      hostNetwork: true
+      hostPID: true

@@ -4,26 +4,26 @@ kind: Service
 metadata:
   annotations:
     prometheus.io/scrape: 'true'
-  name: prom-node-exporter
+  name: prometheus-node-exporter
   namespace: monitoring
   labels:
     app: prometheus
     component: node-exporter
 spec:
+  clusterIP: None
   ports:
-    - name: prom-node-exporter
-      protocol: TCP
+    - name: prometheus-node-exporter
       port: 9100
-      targetPort: 9100
+      protocol: TCP
   selector:
     app: prometheus
     component: node-exporter
-
+  type: ClusterIP
 ---
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
-  name: prom-node-exporter
+  name: prometheus-node-exporter
   namespace: monitoring
   labels:
     app: prometheus
@@ -31,14 +31,14 @@ metadata:
 spec:
   template:
     metadata:
-      name: prom-node-exporter
+      name: prometheus-node-exporter
       labels:
         app: prometheus
         component: node-exporter
     spec:
       containers:
       - image: prom/node-exporter:v0.14.0
-        name: prom-node-exporter
+        name: prometheus-node-exporter
         ports:
         - name: node-exporter
           #^ must be an IANA_SVC_NAME (at most 15 characters, ..)

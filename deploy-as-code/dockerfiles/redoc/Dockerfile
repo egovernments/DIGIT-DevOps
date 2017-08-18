@@ -9,5 +9,6 @@ COPY crontab /etc/cron.d/update_redoc_html
 RUN chmod 0644 /etc/cron.d/update_redoc_html
 COPY ./index.html /usr/share/nginx/html/redoc/
 COPY ./start.sh /usr/local/bin/start.sh
+COPY ./nginx.conf /etc/nginx/conf.d/default.conf
 RUN chmod a+x /usr/local/bin/start.sh
 CMD ["/usr/local/bin/start.sh"]

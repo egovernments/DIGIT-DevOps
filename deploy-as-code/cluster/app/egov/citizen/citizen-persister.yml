@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: citizen-persister
+  namespace: egov
+  labels:
+    app: citizen-persister
+    group: citizen
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: citizen-persister
+    group: citizen
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: citizen-persister
+  namespace: egov
+spec:
+  replicas: {{conf['citizen-persister']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: citizen-persister
+        group: citizen
+    spec:
+      containers:
+      - name: citizen-persister
+        image: {{conf['citizen-persister']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+          value: org.apache.kafka.common.serialization.StringDeserializer
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: egov-persist
+        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+        - name: KAFKA_CONSUMER_CONFIG_GROUP_ID
+          value: egov-persist-group
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['citizen-persister']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['collection-masters']['memory_limits'] or "256Mi"}}"

@@ -1,39 +1,39 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: tl-services
+  name: egf-voucher
   namespace: egov
   labels:
-    app: tl-services
-    group: tradelicense
+    app: egf-voucher
+    group: financials
 spec:
   ports:
   - port: 8080
     targetPort: 8080
   selector:
-    app: tl-services
-    group: tradelicense
+    app: egf-voucher
+    group: financials
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: tl-services
+  name: egf-voucher
   namespace: egov
 spec:
-  replicas: {{conf['tl-services']['replicas']}}
+  replicas: {{conf['egf-voucher']['replicas']}}
   template:
     metadata:
       labels:
-        app: tl-services
-        group: tradelicense
+        app: egf-voucher
+        group: financials
       annotations:
         pod.beta.kubernetes.io/init-containers: '[
           {
-            "name": "tl-services-db-migration",
-            "image": "{{conf["tl-services"]["db_migration_image"]}}",
+            "name": "egf-voucher-db-migration",
+            "image": "{{conf["egf-voucher"]["db_migration_image"]}}",
             "env": [
               {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
-              {"name": "SCHEMA_TABLE", "value": "tl_services_schema"},
+              {"name": "SCHEMA_TABLE", "value": "egf_voucher_schema"},
               {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
               {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
               {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
@@ -43,13 +43,11 @@ spec:
         ]'
     spec:
       containers:
-      - name: tl-services
-        image: {{conf['tl-services']['images'][0]}}
+      - name: egf-voucher
+        image: {{conf['egf-voucher']['images'][0]}}
         ports:
         - containerPort: 8080
         env:
-        - name: SERVER_CONTEXTPATH
-          value: /tl-services
         - name: SPRING_DATASOURCE_URL
           valueFrom:
             configMapKeyRef:
@@ -65,26 +63,28 @@ spec:
             secretKeyRef:
               name: db
               key: password
-        - name: EGOV_SERVICES_TL_MASTERS_V1_HOSTNAME
-          value: http://tl-masters:8080/
-        - name: EGOV_SERVICES_EGOV_LOCATION_HOSTNAME
-          value: http://egov-location:8080/
-        - name: EGOV_SERVICES_EGF_MASTERS_HOSTNAME
-          value: http://egf-masters:8080/
-        - name: EGOV_SERVICES_TL_INDEXER_V1_HOSTNAME
-          value: http://tl-indexer:8080/
-        - name: EGOV_SERVICES_PT_PROPERTY_HOSTNAME
-          value: http://pt-property:8080/
-        - name: EGOV_SERVICES_ID_SERVICE_HOSTNAME
-          value: http://egov-idgen:8080/
-        - name: EGOV_SERVICES_TENANT_SERVICE_HOSTNAME
-          value: http://tenant:8080/
-        - name: EGOV_SERVICES_TL_SERVICES_CREATE_LEGACY_TRADELICENSE_VALIDATED
-          value: create-legacy-tradelicense-validated
+        - name: KAFKA_TOPICS_EGF_VOUCHER_VALIDATED_TOPIC
+          value: egov.egf.voucher.validated.topic
+        - name: KAFKA_TOPICS_EGF_VOUCHER_VALIDATED_GROUP
+          value: egov.egf.voucher.validated.group
+        - name: KAFKA_TOPICS_EGF_VOUCHER_VALIDATED_ID
+          value: egov.egf.voucher.validated.id
+        - name: KAFKA_TOPICS_EGF_VOUCHER_COMPLETED_TOPIC
+          value: egov.egf.voucher.completed
+        - name: KAFKA_TOPICS_EGF_VOUCHER_COMPLETED_GROUP
+          value: egov.egf.voucher.completed.group
+        - name: KAFKA_TOPICS_EGF_VOUCHER_VOUCHERSUBTYPE_COMPLETED_KEY
+          value: egov.egf.voucher.completed.key
+        - name: KAFKA_TOPICS_EGF_VOUCHER_VOUCHERSUBTYPE_VALIDATED_KEY
+          value: egov.egf.voucher.validated.key
+        - name: KAFKA_TOPICS_EGF_VOUCHER_VALIDATED_KEY
+          value: egov.egf.voucher.validated.key
+        - name: KAFKA_TOPICS_EGF_VOUCHER_COMPLETED_KEY
+          value: egov.egf.voucher.completed.key
         - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
           value: org.apache.kafka.common.serialization.StringDeserializer
         - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-          value: tl-services
+          value: egf-voucher
         - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
           value: org.apache.kafka.common.serialization.StringSerializer
 {% if conf['egov-config']['serializers-timezone-in-ist'] %}
@@ -93,6 +93,21 @@ spec:
         - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
           value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
 {% endif %}
+        - name: EGF_MASTER_HOST_URL
+          value: http://egf-master:8080/
+        - name: EGF_VOUCHER_HOST_URL
+          value: http://egf-voucher:8080/
+        - name: EGOV_SERVICES_COMMONMASTERS_HOST
+          value: http://egov-common-masters:8080/
+        - name: EGOV_SERVICES_BOUNDARY_HOST
+          value: http://egov-location:8080/
+        - name: ES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: es-host
+        - name: ES_TRANSPORT_PORT
+          value: "9300"
         - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
           valueFrom:
             configMapKeyRef:
@@ -104,15 +119,15 @@ spec:
               name: egov-config
               key: timezone
         - name: JAVA_OPTS
-          value: "{{conf['tl-services']['heap'] or '-Xmx64m -Xms64m'}}"
+          value: "{{conf['egf-voucher']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
         - name: SERVER_PORT
           value: "8080"
         - name: FLYWAY_ENABLED
           value: "false"
-        - name: EGOV_SERVICES_BILLING_SERVICE_HOSTNAME
-          value: http://billing-service:8080/
         resources:
           requests:
             memory: "64Mi"
           limits:
-            memory: "{{ conf['tl-services']['memory_limits'] or "256Mi"}}"
+            memory: "{{ conf['egf-voucher']['memory_limits'] or "256Mi"}}"

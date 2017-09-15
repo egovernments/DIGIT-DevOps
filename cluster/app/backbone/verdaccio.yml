@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: verdaccio
+  namespace: backbone
+  labels:
+    app: verdaccio
+spec:
+  ports:
+  - port: 4873
+    targetPort: 4873
+  selector:
+    app: verdaccio
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: verdaccio
+  namespace: backbone
+spec:
+  replicas: {{conf['verdaccio']['replicas']}}
+  serviceName: "verdaccio"
+  template:
+    metadata:
+      labels:
+        app: verdaccio
+    spec:
+      containers:
+      - name: verdaccio
+        image: {{conf['verdaccio']['images'][0]}}
+        volumeMounts:
+        - name: verdaccio-data
+          mountPath: /verdaccio/storage
+        ports:
+        - containerPort: 4873
+      securityContext:
+        fsGroup: 1000
+  volumeClaimTemplates:
+  - metadata:
+      name: verdaccio-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 5Gi

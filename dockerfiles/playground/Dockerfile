@@ -1,14 +1,20 @@
-FROM ubuntu:trusty
+FROM ubuntu:xenial
 
 MAINTAINER Sumanth<nsready@gmail.com>
 
-RUN apt-get update -y && apt-get install python wget software-properties-common -y && apt-get install curl -y
+RUN apt-get clean && apt-get update
 
-RUN sudo add-apt-repository "deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main"
+RUN apt-get install -y python wget software-properties-common curl
 
-RUN wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+RUN add-apt-repository "deb http://apt.postgresql.org/pub/repos/apt/ xenial-pgdg main"
 
-RUN apt-get update && apt-get install -y postgresql-client-9.6
+RUN wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+
+RUN curl -sL https://deb.nodesource.com/setup_8.x | bash -
+
+RUN apt-get update && apt-get install -y nodejs postgresql-client-9.6
+
+RUN npm install elasticdump -g
 
 ADD run.sh /usr/bin/run.sh
 

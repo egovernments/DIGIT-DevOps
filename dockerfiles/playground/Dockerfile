@@ -4,7 +4,7 @@ MAINTAINER Sumanth<nsready@gmail.com>
 
 RUN apt-get clean && apt-get update
 
-RUN apt-get install -y python wget software-properties-common curl
+RUN apt-get install -y python wget software-properties-common curl vim
 
 RUN add-apt-repository "deb http://apt.postgresql.org/pub/repos/apt/ xenial-pgdg main"
 

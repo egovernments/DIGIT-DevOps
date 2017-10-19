@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: swm-services
+  namespace: egov
+  labels:
+    app: swm-services
+    group: swm
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: swm-services
+    group: swm
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: swm-services
+  namespace: egov
+spec:
+  replicas: {{conf['swm-services']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: swm-services
+        group: swm
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "swm-services-db-migration",
+            "image": "{{conf["swm-services"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "swm_services_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
+    spec:
+      containers:
+      - name: swm-services
+        image: {{conf['swm-services']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SERVER_CONTEXT_PATH
+          value: /swm-services
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+          configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+          secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+          secretKeyRef:
+              name: db
+              key: password
+        - name: FLYWAY_USER
+          value: postgres
+        - name: FLYWAY_PASSWORD
+          value: postgres
+        - name: FLYWAY_TABLE
+          value: swm_services_schema_version
+        - name: FLYWAY_BASELINE_ON_MIGRATE
+          value: true
+        - name: FLYWAY_URL
+          value: jdbc:postgresql://localhost:5432/swm-services
+        - name: FLYWAY_LOCATIONS
+          value: db/migration/main
+        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.springframework.kafka.support.serializer.JsonSerializer
+        - name: EGOV_SWM_VEHICLEFUELLINGDETAILS_SAVE_TOPIC
+          value: swm-vehiclefuellingdetails-save-topic
+        - name: EGOV_SWM_VEHICLEFUELLINGDETAILS_UPDATE_TOPIC
+          value: swm-vehiclefuellingdetails-update-topic
+        - name: EGOV_SWM_VEHICLEFUELLINGDETAILS_INDEXER_TOPIC
+          value: swm-vehiclefuellingdetails-indexer-topic
+        - name: LOGGING_PATTERN_CONSOLE
+          value: %clr(%X{CORRELATION_ID:-}) %clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}
+        - name: LOGGING_LEVEL_ORG_EGOV
+          value: DEBUG
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['swm-services']['heap'] or '-Xmx64m -Xms64m'}}"
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['swm-services']['memory_limits'] or "256Mi"}}"

@@ -22,4 +22,14 @@ sed -i 's/%ES_PORT%/'"$ES_PORT"'/' /.curator/curator.yml
 sed -i 's/%DAYS%/'"$DAYS"'/' /.curator/delete_old_logs.yml
 sed -i 's/%TARGET_ENV%/'"$TARGET_ENV"'/' /.curator/delete_old_logs.yml
 
+echo "/.curator/delete_old_logs.yml"
+echo "****************************"
+cat /.curator/delete_old_logs.yml
+echo "****************************"
+
+echo "/.curator/curator.yml"
+echo "****************************"
+cat /.curator/curator.yml
+echo "****************************"
+
 curator --config /.curator/curator.yml /.curator/delete_old_logs.yml

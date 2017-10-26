@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-indexer
+  namespace: egov
+  labels:
+    app: egov-indexer
+    group: core
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-indexer
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-indexer
+  namespace: egov
+spec:
+  replicas: {{conf['egov-indexer']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-indexer
+        group: core
+    spec:
+      containers:
+      - name: egov-indexer
+        image: {{conf['egov-indexer']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        - name: JAVA_OPTS
+          value: "{{conf['egov-indexer']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: SERVER_PORT
+          value: "8080"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['egov-indexer']['memory_limits'] or "256Mi"}}"

@@ -1,4 +1,5 @@
 {% if conf['es-data']%}
+
 {% for index in range(conf['es-data']['replicas']) %}
   apiVersion: v1
   kind: PersistentVolume
@@ -15,8 +16,14 @@
     claimRef:
         namespace: es-cluster
         name: es-storage-es-data-{{index}}
+{% if conf['es-data']['ebs-volumes']  and conf['es-data']['ebs-volumes'][index]  %}
+    awsElasticBlockStore:
+      volumeID: {{conf['es-data']['ebs-volumes'][index]}}
+      fsType: ext4
+{% else %}
     hostPath:
       path: /opt/eGov/es-storage-es-data-{{index}}
+{% endif %}
 ---
 {% endfor %}
 {% endif %}

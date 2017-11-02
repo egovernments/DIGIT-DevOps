@@ -1,0 +1,37 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: logrotate
+  namespace: logging
+  labels:
+    k8s-app: logrotate
+spec:
+  template:
+    metadata:
+      labels:
+        k8s-app: logrotate
+    spec:
+      containers:
+      - name: logrotate
+        image: {{conf['logrotate']['images'][0]}}
+        securityContext:
+          privileged: true
+        volumeMounts:
+         - name: containers
+           mountPath: /var/lib/docker/containers
+         - name: varlog
+           mountPath: /var/log/
+        env:
+        - name: LOGS_DIRECTORIES
+          value: "/var/lib/docker/containers"
+        - name: LOGROTATE_INTERVAL
+          value: {{conf['logrotate']['logrotate-interval']}}
+        - name: LOGROTATE_FILE
+          value: "/var/log/fluentd.log"
+      volumes:
+         - hostPath:
+             path: /var/lib/docker/containers
+           name: containers
+         - hostPath:
+             path: /var/log/
+           name: varlog

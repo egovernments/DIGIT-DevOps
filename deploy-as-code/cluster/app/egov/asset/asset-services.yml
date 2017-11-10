@@ -46,7 +46,7 @@ spec:
             "name": "asset-services-db-migration",
             "image": "{{conf["asset-services"]["db_migration_image"]}}",
             "env": [
-              {"name": "DB_URL", "value": "{{ conf['asset-services']['db-url']}}"},
+              {"name": "DB_URL", {% if conf['asset-services']['db-url'] %} "value": "{{ conf['asset-services']['db-url'] }}" {% else %} "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}} {% endif %} },
               {"name": "SCHEMA_TABLE", "value": "asset_services_schema"},
               {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
               {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
@@ -70,7 +70,14 @@ spec:
         - containerPort: 8080
         env:
         - name: SPRING_DATASOURCE_URL
+{% if conf['asset-services']['db-url'] %}
           value: {{ conf['asset-services']['db-url'] }}
+{% else %}
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+{% endif %}
         - name: SPRING_DATASOURCE_USERNAME
           valueFrom:
             secretKeyRef:

@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-data-uploader
+  namespace: egov
+  labels:
+    app: egov-data-uploader
+    group: core
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-data-uploader
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-data-uploader
+  namespace: egov
+spec:
+  replicas: {{conf['egov-data-uploader']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-data-uploader
+        group: core
+    spec:
+      containers:
+      - name: egov-data-uploader
+        image: {{conf['egov-data-uploader']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: FLYWAY_ENABLED
+          value: false
+        - name: LOGGING_PATTERN_CONSOLE
+          value: %clr(%X{CORRELATION_ID:-}) %clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}
+        - name: SEARCH_YAML_PATH
+          value: "https://raw.githubusercontent.com/egovernments/egov-services/master/core/egov-data-uploader/src/main/resources/citizen-data-upload.yml"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['egov-data-uploader']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: SERVER_PORT
+          value: "8080"
+          resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{conf['egov-data-uploader']['memory_limits'] or "256Mi"}}"

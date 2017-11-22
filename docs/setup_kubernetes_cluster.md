@@ -15,9 +15,9 @@ eGov cluster has the following kubernetes [components](https://kubernetes.io/doc
 * kubelet
 * kubedns  # Runs as pod inside the cluster
 
-### CoreOS on AWS
+### For CoreOS on AWS
 
-CoreOS can be installed on Amazon AWS using kube-aws provided by CoreOS.
+kube-aws is a command line tool provided by CoreOS to create/update/destroy Kubernetes cluster on Amazon AWS.
 
 * [kube-aws](https://kubernetes-incubator.github.io/kube-aws/getting-started/) - Getting started
 
@@ -31,7 +31,7 @@ eGov uses ansible scripts to setup kubernetes cluster on RHEL 7 and CentOS. Scri
 Hosts inventory consists of etcd, master and minion groups and their respective
 
 * IP Addresses
-* ansible_user : Ansible User with sudo privileges
+* ansible_user : Ansible User name with sudo privileges
 * ansible_ssh_private_key_file: SSH key for the user
 * unique_nic: NIC which flannel and docker will be running
 * master_ip: IP address of the master (can be useful if master is running other than ssh network interface. Then "groups['master'][0]" needs to be replaced with "master_ip" in ansible scripts)
@@ -48,13 +48,13 @@ To setup the cluster:
 ansible-playbook -i hosts cluster.yml
 ```
 
-This will setup all components needed to run kubernetes cluster. It will also copy all certificates and keys into /tmp/keys.zip file on local system.
+This will setup all components required to run kubernetes cluster. It will also copy all certificates and keys into /tmp/keys.zip file on local system.
 
 #### Install kubectl
 
-Install kubectl on the workstation which is needed to interact with kubernetes cluster.
+Install kubectl on the workstation which is required to interact with kubernetes cluster.
 
-* [Howto Install kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+* [How to Install kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 
 
 #### Accessing kubernetes cluster

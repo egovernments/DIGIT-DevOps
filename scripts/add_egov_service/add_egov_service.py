@@ -101,7 +101,7 @@ def append_known_keys(environment_variables,service):
 
     environment_variables += "\n        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS\n          valueFrom:\n            configMapKeyRef:\n              name: egov-config\n              key: kafka-brokers"
     environment_variables += "\n        - name: APP_TIMEZONE\n          valueFrom:\n            configMapKeyRef:\n              name: egov-config\n              key: timezone"
-    environment_variables += "\n        - name: JAVA_OPTS\n          value: \"{{conf['{}']['heap'] or '-Xmx64m -Xms64m'}}\"".format(service)
+    environment_variables += "\n        - name: JAVA_OPTS\n          value: \"{{{{conf['{}']['heap'] or '-Xmx64m -Xms64m'}}}}\"".format(service)
     environment_variables += "\n        - name: SPRING_JPA_SHOW_SQL\n          value: \"{{conf['egov-config']['spring-jpa-show-sql']}}\""
     environment_variables += "\n        - name: SERVER_PORT\n          value: \"8080\""
     environment_variables += "\n        - name: FLYWAY_ENABLED\n          value: \"false\""

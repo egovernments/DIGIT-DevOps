@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-mdms-create
+  namespace: egov
+  labels:
+    app: egov-mdms-create
+    group: core
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-mdms-create
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-mdms-create
+  namespace: egov
+spec:
+  replicas: {{conf['egov-mdms-create']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-mdms-create
+        group: core
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "egov-mdms-create-db-migration",
+            "image": "{{conf["egov-mdms-create"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "egov_mdms_create_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
+    spec:
+      containers:
+      - name: egov-mdms-create
+        image: {{conf['egov-mdms-create']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:

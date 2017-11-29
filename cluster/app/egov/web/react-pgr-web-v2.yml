@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: react-pgr-web-v2
+  namespace: egov
+  labels:
+    app: react-pgr-web-v2
+    group: web
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: react-pgr-web-v2
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: react-pgr-web-v2
+  namespace: egov
+spec:
+  replicas: {{conf['react-pgr-web-v2']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: react-pgr-web-v2
+        group: web
+    spec:
+      containers:
+      - name: react-pgr-web-v2
+        image: {{conf['react-pgr-web-v2']['images'][0]}}
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['react-pgr-web-v2']['memory_limits'] or "64Mi"}}"

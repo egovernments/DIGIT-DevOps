@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-mdms-service-test
+  namespace: egov
+  labels:
+    app: egov-mdms-service-test
+    group: core
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-mdms-service-test
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-mdms-service-test
+  namespace: egov
+spec:
+  replicas: {{conf['egov-mdms-service-test']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-mdms-service-test
+        group: core
+    spec:
+      containers:
+      - name: egov-mdms-service-test
+        image: {{conf['egov-mdms-service-test']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['egov-mdms-service-test']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: EGOV_MDMS_CONF_PATH
+          value: "/opt/mdms/data"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{conf['egov-mdms-service-test']['memory_limits'] or "256Mi"}}"

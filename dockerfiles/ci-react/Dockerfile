@@ -1,9 +1,5 @@
 FROM egovio/ci-react:0.0.2
 
-ADD package.json /tmp/package.json
+RUN npm install n -g
 
-RUN cd /tmp && npm install
-
-RUN npm install -g npx
-
-COPY ./npmrc /tmp/.npmrc
+RUN n 8.4.0

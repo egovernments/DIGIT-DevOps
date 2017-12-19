@@ -26,6 +26,21 @@ spec:
       labels:
         app: egov-data-uploader
         group: core
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "egov-data-uploader-db-migration",
+            "image": "{{conf["egov-data-uploader"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "egov-data-uploader_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
     spec:
       containers:
       - name: egov-data-uploader
@@ -33,6 +48,21 @@ spec:
         ports:
         - containerPort: 8080
         env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
         - name: FLYWAY_ENABLED
           value: "false"
         - name: SEARCH_YAML_PATH

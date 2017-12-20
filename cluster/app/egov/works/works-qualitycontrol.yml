@@ -1,39 +1,39 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: works-qualitytesting
+  name: works-qualitycontrol
   namespace: egov
   labels:
-    app: works-qualitytesting
+    app: works-qualitycontrol
     group: works
 spec:
   ports:
   - port: 8080
     targetPort: 8080
   selector:
-    app: works-qualitytesting
+    app: works-qualitycontrol
     group: works
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: works-qualitytesting
+  name: works-qualitycontrol
   namespace: egov
 spec:
-  replicas: {{conf['works-qualitytesting']['replicas']}}
+  replicas: {{conf['works-qualitycontrol']['replicas']}}
   template:
     metadata:
       labels:
-        app: works-qualitytesting
+        app: works-qualitycontrol
         group: works
       annotations:
         pod.beta.kubernetes.io/init-containers: '[
           {
-            "name": "works-qualitytesting-db-migration",
-            "image": "{{conf["works-qualitytesting"]["db_migration_image"]}}",
+            "name": "works-qualitycontrol-db-migration",
+            "image": "{{conf["works-qualitycontrol"]["db_migration_image"]}}",
             "env": [
               {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
-              {"name": "SCHEMA_TABLE", "value": "works_qualitytesting_schema"},
+              {"name": "SCHEMA_TABLE", "value": "works_qualitycontrol_schema"},
               {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
               {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
               {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
@@ -43,13 +43,13 @@ spec:
         ]'
     spec:
       containers:
-      - name: works-qualitytesting
-        image: {{conf['works-qualitytesting']['images'][0]}}
+      - name: works-qualitycontrol
+        image: {{conf['works-qualitycontrol']['images'][0]}}
         ports:
         - containerPort: 8080
         env:
         - name: SERVER_CONTEXT_PATH
-          value: /works-qualitytesting/v1
+          value: /works-qualitycontrol/v1
         - name: SPRING_DATASOURCE_URL
           valueFrom:
             configMapKeyRef:
@@ -67,18 +67,20 @@ spec:
               key: password
         - name: SPRING_EMBEDDED_KAFKA_BROKERS
           value: embededkafkabroker
-        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
-          value: org.egov.works.qualitycontrol.queue.HashMapDeserializer
         - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
           value: org.apache.kafka.common.serialization.StringDeserializer
         - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-          value: works-qualitytesting-group
+          value: works-qualitycontrol-group
         - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
           value: org.apache.kafka.common.serialization.StringSerializer
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
         - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
-          value: org.springframework.kafka.support.serializer.JsonSerializer
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
         - name: EGOV_SERVICES_WORKS_QUALITYTESTING_CREATEANDUPDATE_TOPIC
-          value: works-qualitytesting-createandupdate
+          value: works-qualitycontrol-createandupdate
         - name: EGOV_SERVICES_EGOV_WORKS_ESTIMATE_HOSTNAME
           value: http://works-estimate:8080/
         - name: EGOV_SERVICES_EGOV_WORKORDER_SERVICE_HOSTNAME
@@ -94,7 +96,7 @@ spec:
               name: egov-config
               key: timezone
         - name: JAVA_OPTS
-          value: "{{conf['works-qualitytesting']['heap'] or '-Xmx64m -Xms64m'}}"
+          value: "{{conf['works-qualitycontrol']['heap'] or '-Xmx64m -Xms64m'}}"
         - name: SPRING_JPA_SHOW_SQL
           value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
         - name: SERVER_PORT
@@ -105,4 +107,4 @@ spec:
           requests:
             memory: "64Mi"
           limits:
-            memory : "{{conf['works-qualitytesting']['memory_limits'] or "256Mi"}}"
+            memory : "{{conf['works-qualitycontrol']['memory_limits'] or "256Mi"}}"

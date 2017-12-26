@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: react-uploader-service
+  namespace: egov
+  labels:
+    app: react-uploader-service
+    group: web
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: react-uploader-service
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: react-uploader-service
+  namespace: egov
+spec:
+  replicas: {{conf['react-uploader-service']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: react-uploader-service
+        group: web
+    spec:
+      containers:
+      - name: react-uploader-service
+        image: {{conf['react-uploader-service']['images'][0]}}
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['react-uploader-service']['memory_limits'] or "64Mi"}}"

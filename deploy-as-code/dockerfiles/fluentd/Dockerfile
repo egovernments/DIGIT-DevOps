@@ -1,4 +1,4 @@
-FROM gcr.io/google_containers/ubuntu-slim:0.6
+FROM gcr.io/google_containers/ubuntu-slim:0.14
 
 # Ensure there are enough file descriptors for running Fluentd.
 RUN ulimit -n 65536

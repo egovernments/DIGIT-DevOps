@@ -134,7 +134,7 @@ if [[ -n "$CUSTOM_INIT_SCRIPT" ]] ; then
   eval $CUSTOM_INIT_SCRIPT
 fi
 
-if [[ $JMX_ENABLED = true ]] ; then
+if [[ $JMX_ENABLED == true ]] ; then
     KAFKA_OPTS = "$KAFKA_OPTS -javaagent:/usr/app/jmx_prometheus_javaagent.jar=7071:/usr/app/prom-jmx-agent-config.yml"
 else
     rm /usr/app/jmx_prometheus_javaagent.jar && rm /usr/app/prom-jmx-agent-config.yml

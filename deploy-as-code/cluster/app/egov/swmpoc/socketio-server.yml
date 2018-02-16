@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: socketio-server
+  namespace: swmpoc
+  labels:
+    app: socketio-server
+spec:
+  ports:
+  - port: 3005
+    targetPort: 3005
+    protocol: TCP
+  selector:
+    app: socketio-server
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: socketio-server
+  namespace: swmpoc
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: socketio-server
+    spec:
+      containers:
+      - name: socketio-server
+        image: {{conf['socketio-server']['images'][0]}}
+        ports:
+        - containerPort: 3005
+        env:
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: {{conf['socketio-server']['memory_limits'] or "128Mi"}}

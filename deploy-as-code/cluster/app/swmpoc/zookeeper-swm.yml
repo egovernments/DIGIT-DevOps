@@ -7,13 +7,13 @@ metadata:
     app: zookeeper
 spec:
   ports:
-  - port: 2181
+  - port: 22181
     name: client
     protocol: TCP
-  - port: 2888
+  - port: 22888
     name: server
     protocol: TCP
-  - port: 3888
+  - port: 23888
     name: leader-election
     protocol: TCP
   clusterIP: None
@@ -27,7 +27,7 @@ metadata:
   namespace: swmpoc
 spec:
   serviceName: "zookeeper"
-  replicas: {{conf['zookeeper-swm']['replicas']}}
+  replicas: 1
   template:
     metadata:
       labels:
@@ -35,32 +35,24 @@ spec:
     spec:
       containers:
       - name: zookeeper
-        image: {{conf['zookeeper-swm']['images'][0]}}
+        image: confluentinc/cp-zookeeper:latest
         ports:
-        - containerPort: 2181
+        - containerPort: 22181
           name: client
-        - containerPort: 2888
+        - containerPort: 22888
           name: server
-        - containerPort: 3888
+        - containerPort: 23888
           name: leader-election
-        volumeMounts:
-        - name: zookeeper-config-volume
-          mountPath: /opt/zookeeper-conf
-        - name: zookeeper-data
-          mountPath: /opt/zookeeper/data
-      volumes:
-      - name: zookeeper-config-volume
-        configMap:
-          name: zookeeper-swm-config
-          items:
-          - key: zookeeper-swm-config
-            path: zoo.cfg
-  volumeClaimTemplates:
-  - metadata:
-      name: zookeeper-data
-    spec:
-      accessModes:
-      - ReadWriteOnce
-      resources:
-        requests:
-           storage: 5Gi
+        env:
+        - name: ZOOKEEPER_SERVER_ID
+          value: "1"
+        - name: ZOOKEEPER_CLIENT_PORT
+          value:  "22181"
+        - name: ZOOKEEPER_TICK_TIME
+          value: "2000"
+        - name: ZOOKEEPER_INIT_LIMIT
+          value:  "5"
+        - name: ZOOKEEPER_SYNC_LIMIT
+          value:  "2"
+        - name: ZOOKEEPER_SERVERS
+          value:  zookeeper-0.zookeeper.swmpoc:22888:23888

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ui-app-v2
+  namespace: egov
+  labels:
+    app: ui-app-v2
+    group: web
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: ui-app-v2
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ui-app-v2
+  namespace: egov
+spec:
+  replicas: {{conf['ui-app-v2']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: ui-app-v2
+        group: web
+    spec:
+      containers:
+      - name: ui-app-v2
+        image: {{conf['ui-app-v2']['images'][0]}}
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['ui-app-v2']['memory_limits'] or "64Mi"}}"

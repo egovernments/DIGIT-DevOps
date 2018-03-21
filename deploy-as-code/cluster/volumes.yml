@@ -99,3 +99,65 @@
 {% endif %}
 ---
 {% endfor %}
+
+{% if conf['prometheus'] %}
+
+{% for index in range(conf['prometheus']['replicas']) %}
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: prometheus-data-prometheus-{{index}}
+    labels:
+      app: prometheus
+      component: core
+  spec:
+    capacity:
+      storage: 5Gi
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+        namespace: monitoring
+        name: prometheus-data-prometheus-{{index}}
+{% if conf['prometheus']['ebs-volumes']  and conf['prometheus']['ebs-volumes'][index]  %}
+    awsElasticBlockStore:
+      volumeID: {{conf['prometheus']['ebs-volumes'][index]}}
+      fsType: ext4
+{% else %}
+    hostPath:
+      path: /opt/eGov/prometheus-data-prometheus-{{index}}
+{% endif %}
+---
+{% endfor %}
+{% endif %}
+
+{% if conf['grafana'] %}
+
+{% for index in range(conf['grafana']['replicas']) %}
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: grafana-data-grafana-{{index}}
+    labels:
+      app: grafana
+      component: core
+  spec:
+    capacity:
+      storage: 5Gi
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+        namespace: monitoring
+        name: grafana-data-grafana-{{index}}
+{% if conf['grafana']['ebs-volumes']  and conf['grafana']['ebs-volumes'][index]  %}
+    awsElasticBlockStore:
+      volumeID: {{conf['grafana']['ebs-volumes'][index]}}
+      fsType: ext4
+{% else %}
+    hostPath:
+      path: /opt/eGov/grafana-data-grafana-{{index}}
+{% endif %}
+---
+{% endfor %}
+{% endif %}

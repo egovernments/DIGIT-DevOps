@@ -28,36 +28,16 @@ spec:
         group: hr-2.0
       annotations:
         pod.beta.kubernetes.io/init-containers: '[
-        {% if conf["hr-masters-v2"]["env_specific_db_migration_image"] %}
-          {
-            "name": "hr-masters-v2-env-specific-db-migration",
-            "image": "{{conf["hr-masters-v2"]["env_specific_db_migration_image"]}}",
-            "command": ["sh", "-c", "cp -R /egov/db/migration/hr-2.0/hr-masters-v2/* /env_specific_db_migration/"],
-            "volumeMounts": [
-              {
-                "mountPath": "/env_specific_db_migration",
-                "name": "env-specific-db-migration"
-              }
-            ],
-            "imagePullPolicy": "Always"
-          },
-        {% endif %}
           {
             "name": "hr-masters-v2-db-migration",
             "image": "{{conf["hr-masters-v2"]["db_migration_image"]}}",
             "env": [
-              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "DB_URL", "value": "{{ conf['hr-masters-v2']['db-url']}}"},
               {"name": "SCHEMA_TABLE", "value": "hr_masters_v2_schema"},
               {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
               {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
               {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}},
               {"name": "IGNOREMISSINGMIGRATIONS", "value": "true"}
-            ],
-            "volumeMounts": [
-              {
-                "mountPath": "/env_specific_db_migration",
-                "name": "env-specific-db-migration"
-              }
             ],
             "imagePullPolicy": "IfNotPresent"
           }

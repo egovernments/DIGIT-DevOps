@@ -78,7 +78,8 @@ def map_project_name(project):
         'citizen': 'citizen',
         'swm': 'swm',
         'lcms': 'lcms',
-        'works': 'works'
+        'works': 'works',
+	'rainmaker': 'rainmaker'
     }.get(project, None)
 
 def check_for_known_keys(key):

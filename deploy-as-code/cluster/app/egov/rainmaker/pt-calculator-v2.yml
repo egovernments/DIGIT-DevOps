@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pt-calculator-v2
+  namespace: egov
+  labels:
+    app: pt-calculator-v2
+    group: rainmaker
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: pt-calculator-v2
+    group: rainmaker
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pt-calculator-v2
+  namespace: egov
+spec:
+  replicas: {{conf['pt-calculator-v2']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: pt-calculator-v2
+        group: rainmaker
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "pt-calculator-v2-db-migration",
+            "image": "{{conf["pt-calculator-v2"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "pt_calculator_v2_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
+    spec:
+      containers:
+      - name: pt-calculator-v2
+        image: {{conf['pt-calculator-v2']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SERVER_CONTEXTPATH
+          value: /pt-calculator-v2
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.springframework.kafka.support.serializer.JsonSerializer
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: rainmaker-pt-calculator-group
+        - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+          value: org.apache.kafka.common.serialization.StringDeserializer
+        - name: KAFKA_TOPICS_BILLING_SLAB_SAVE_SERVICE
+          value: save-pt-billingslab
+        - name: KAFKA_TOPICS_BILLING_SLAB_UPDATE_SERVICE
+          value: update-pt-billingslab
+        - name: EGOV_MDMS_HOST
+          value: http://egov-mdms-service:8080/
+        - name: EGOV_MDMS_SEARCH_ENDPOINT
+          value: /egov-mdms-service/v1/_search
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['pt-calculator-v2']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory : "{{conf['pt-calculator-v2']['memory_limits'] or "256Mi"}}"

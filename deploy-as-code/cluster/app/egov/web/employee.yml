@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: employee
+  namespace: egov
+  labels:
+    app: employee
+    group: web
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: employee
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: employee
+  namespace: egov
+spec:
+  replicas: {{conf['employee']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: employee
+        group: web
+    spec:
+      containers:
+      - name: employee
+        image: {{conf['employee']['images'][0]}}
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['employee']['memory_limits'] or "64Mi"}}"

@@ -21,6 +21,10 @@ kube-aws is a command line tool provided by CoreOS to create/update/destroy Kube
 
 * [kube-aws](https://kubernetes-incubator.github.io/kube-aws/getting-started/) - Getting started
 
+### For creating kubernetes cluster on AWS using kube-aws
+
+* [click here for the steps to create kubernetes cluster](https://github.com/egovernments/eGov-infraOps/blob/master/docs/kube_aws_cluster_setup.md)
+
 ### For RHEL 7/CentOS
 
 eGov uses ansible scripts to setup kubernetes cluster on RHEL 7 and CentOS. Scripts are available in InfraOps repository under [/ansible](https://github.com/egovernments/eGov-infraOps/tree/master/ansible)

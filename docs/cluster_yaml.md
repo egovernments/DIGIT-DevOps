@@ -1,3 +1,4 @@
+```conf
 # Unique name of Kubernetes cluster. In order to deploy
 # more than one cluster into the same AWS account, this
 # name must not conflict with an existing cluster.
@@ -1214,3 +1215,4 @@ addons:
 # User-provided YAML map available in control-plane's stack-template.json
 #customSettings:
 #  key1: [ 1, 2, 3 ]
+```

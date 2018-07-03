@@ -1,6 +1,6 @@
 FROM anapsix/alpine-java
 
-ARG kafka_version=1.0.0
+ARG kafka_version=1.1.0
 ARG scala_version=2.12
 
 MAINTAINER Senthil<Senthil.Kalimuthu@tarento.com>

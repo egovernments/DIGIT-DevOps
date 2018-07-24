@@ -35,12 +35,25 @@ spec:
         app: nginx
         group: gateway
     spec:
+      volumes:
+        - name: ssl
+          hostPath:
+            path: /srv/acme
       containers:
       - name: nginx
         image: {{conf['nginx']['images'][0]}}
         ports:
         - containerPort: 80
         - containerPort: 443
+        env:
+{% if conf['egov-config']['domain'] %}
+        - name: DOMAIN
+          value: {{conf['egov-config']['domain']}}
+{% endif %}
+        volumeMounts:
+          - name: ssl
+            mountPath: /etc/ssl/acme
+            #readOnly: true
         resources:
           requests:
             memory: "32Mi"

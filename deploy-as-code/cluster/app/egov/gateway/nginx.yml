@@ -28,6 +28,11 @@ metadata:
   name: nginx
   namespace: egov
 spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   replicas: {{conf['nginx']['replicas']}}
   template:
     metadata:
@@ -45,6 +50,13 @@ spec:
         ports:
         - containerPort: 80
         - containerPort: 443
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          successThreshold: 1
         env:
 {% if conf['egov-config']['domain'] %}
         - name: DOMAIN

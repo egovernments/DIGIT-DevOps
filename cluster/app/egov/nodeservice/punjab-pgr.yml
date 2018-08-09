@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: punjab-pgr
+  namespace: egov
+  labels:
+    app: punjab-pgr
+    group: web
+spec:
+  ports:
+  - port: 8000
+    targetPort: 8000
+  selector:
+    app: punjab-pgr
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: punjab-pgr
+  namespace: egov
+spec:
+  replicas: {{conf['punjab-pgr']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: punjab-pgr
+        group: web
+    spec:
+      containers:
+      - name: punjab-pgr
+        image: {{conf['punjab-pgr']['images'][0]}}
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['punjab-pgr']['memory_limits'] or "64Mi"}}"

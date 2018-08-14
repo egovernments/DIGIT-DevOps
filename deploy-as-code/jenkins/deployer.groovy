@@ -48,8 +48,17 @@ def set_kube_credentials(env){
         withCredentials([string(credentialsId: "${env}-kube-token", variable: "TOKEN")]){
             sh "kubectl config set-credentials env --token ${TOKEN}"
         }
-
     }
+
+    if (env == "pbuat" || env == "pbprod") {
+        withCredentials([string(credentialsId: "${env}-kube-username", variable: "AUTHUSER")]){
+            sh "kubectl config set-credentials env --username=${AUTHUSER}"
+        }
+        withCredentials([string(credentialsId: "${env}-kube-password", variable: "AUTHPASSWORD")]){
+            sh "kubectl config set-credentials env --password=${AUTHPASSWORD}"
+        }
+    }
+
 }
 
 return this;

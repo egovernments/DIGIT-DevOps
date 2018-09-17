@@ -1,0 +1,97 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: secor
+  namespace: backbone
+  labels:
+    app: secor
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: secor
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: secor
+  namespace: backbone
+spec:
+  replicas: {{conf['secor']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: secor
+    spec:
+      containers:
+      - name: secor
+        image: {{conf['secor']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SECOR_KAFKA_TOPIC_FILTER
+          value: "telemetry-deduped-messages"
+        - name: SECOR_S3_FILESYSTEM
+          value: "s3a"
+        - name: SECOR_UPLOAD_MANAGER_CLASS
+          value: "com.pinterest.secor.uploader.S3UploadManager"
+        - name: SECOR_S3_BUCKET
+          value: "egov-telemetry-data"
+        - name: ZOOKEEPER_PATH
+          value: "/opt/zookeeper/data"
+        - name: AWS_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-secor-config
+              key: aws-access-key
+        - name: AWS_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-secor-config
+              key: aws-secret-key
+        - name: AWS_REGION
+          valueFrom:
+            secretKeyRef:
+              name: aws-secor-config
+              key: aws-region
+        - name: KAFKA_SEED_BROKER_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: kafka-config
+              key: kafka-brokers
+
+        - name: ZOOKEEPER_QUORUM
+          valueFrom:
+            configMapKeyRef:
+              name: kafka-config
+              key: zookeeper-connect
+
+        - name: SECOR_MAX_FILE_SIZE_BYTES
+          value: "200000000"
+        - name: SECOR_MAX_FILE_AGE_SECONDS
+          value: "86400"
+        - name: SECOR_FILE_READER_WRITER_FACTORY
+          value: "com.pinterest.secor.io.impl.SequenceFileReaderWriterFactory"
+
+        # - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+        #   value: org.apache.kafka.common.serialization.StringDeserializer
+        # - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+        #   value: org.apache.kafka.common.serialization.StringSerializer
+        # - name: KAFKA_CONSUMER_CONFIG_GROUP_ID
+        #   value: egov-persist-group
+# {% if conf['egov-config']['serializers-timezone-in-ist'] %}
+#         - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+#           value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+#         - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+#           value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+# {% endif %}
+        - name: JAVA_OPTS
+          value: "{{conf['secor']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: SERVER_PORT
+          value: "8080"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['secor']['memory_limits'] or "256Mi"}}"

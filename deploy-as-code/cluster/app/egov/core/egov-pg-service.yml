@@ -10,6 +10,8 @@ spec:
   ports:
   - port: 8080
     targetPort: 8080
+  - port: 5005
+    targetPort: 5005    
   selector:
     app: egov-pg-service
     group: core
@@ -47,6 +49,9 @@ spec:
         image: {{conf['egov-pg-service']['images'][0]}}
         ports:
         - containerPort: 8080
+          name: "spring-boot"
+        - containerPort: 5005
+          name: "jvm-debug"
         env:
         - name: SPRING_DATASOURCE_URL
           valueFrom:
@@ -167,7 +172,9 @@ spec:
         - name: JAVA_OPTS
           value: "{{conf['egov-pg-service']['heap'] or '-Xmx64m -Xms64m'}}"
         - name: JAVA_ARGS
-          value: "-Dspring.profiles.active=monitoring"
+          value: "{{conf['egov-pg-service']['java-args']}}"
+        - name: JAVA_ENABLE_DEBUG
+          value: "{{conf['egov-pg-service']['java-debug']}}"          
         - name: SPRING_JPA_SHOW_SQL
           value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
         - name: SERVER_PORT
@@ -175,13 +182,13 @@ spec:
         - name: JAEGER_SERVICE_NAME
           value: egov-pg-service
         - name: JAEGER_SAMPLER_TYPE
-          value: const
+          value: "{{conf['jaeger-config']['sampler-type']}}"
         - name: JAEGER_SAMPLER_PARAM
-          value: "1"
+          value: "{{conf['jaeger-config']['sampler-param']}}"
         - name: JAEGER_AGENT_HOST
-          value: jaeger-agent.monitoring
+          value: "{{conf['jaeger-config']['host']}}"
         - name: JAEGER_AGENT_PORT
-          value: "6831"
+          value: "{{conf['jaeger-config']['port']}}"
         - name: SECURITY_BASIC_ENABLED
           value: "false"  
         - name: MANAGEMENT_SECURITY_ENABLED

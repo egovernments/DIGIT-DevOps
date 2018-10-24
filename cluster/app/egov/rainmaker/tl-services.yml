@@ -28,6 +28,11 @@ metadata:
   name: tl-services
   namespace: egov
 spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   replicas: {{conf['tl-services']['replicas']}}
   template:
     metadata:
@@ -58,6 +63,24 @@ spec:
           name: "spring-boot"
         - containerPort: 5005
           name: "jvm-debug"
+        readinessProbe:
+          httpGet:
+            path: /tl-services/health
+            port: 8080
+          initialDelaySeconds: 120
+          timeoutSeconds: 3
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 5
+        livenessProbe:
+          httpGet:
+            path: /tl-services/health
+            port: 8080
+          initialDelaySeconds: 120
+          timeoutSeconds: 3
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 5
         env:
         - name: SPRING_DATASOURCE_URL
           valueFrom:

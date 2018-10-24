@@ -6,6 +6,10 @@ metadata:
   labels:
     app: tl-calculator
     group: rainmaker
+  annotations:
+    prometheus.io/path: /tl-calculator/prometheus
+    prometheus.io/port: "8080"
+    prometheus.io/scrape: "true"    
 spec:
   ports:
   - port: 8080
@@ -101,10 +105,26 @@ spec:
               key: timezone
         - name: JAVA_OPTS
           value: "{{conf['tl-calculator']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: JAVA_ARGS
+          value: "{{conf['tl-calculator']['java-args']}}"          
         - name: SPRING_JPA_SHOW_SQL
           value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
         - name: SERVER_PORT
           value: "8080"
+        - name: JAEGER_SERVICE_NAME
+          value: tl-calculator
+        - name: JAEGER_SAMPLER_TYPE
+          value: "{{conf['jaeger-config']['sampler-type']}}"
+        - name: JAEGER_SAMPLER_PARAM
+          value: "{{conf['jaeger-config']['sampler-param']}}"
+        - name: JAEGER_AGENT_HOST
+          value: "{{conf['jaeger-config']['host']}}"
+        - name: JAEGER_AGENT_PORT
+          value: "{{conf['jaeger-config']['port']}}"
+        - name: SECURITY_BASIC_ENABLED
+          value: "false"  
+        - name: MANAGEMENT_SECURITY_ENABLED
+          value: "false"           
         resources:
           requests:
             memory: "64Mi"

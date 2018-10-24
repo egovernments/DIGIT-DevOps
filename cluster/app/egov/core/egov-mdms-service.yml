@@ -6,6 +6,10 @@ metadata:
   labels:
     app: egov-mdms-service
     group: core
+  annotations:
+    prometheus.io/path: /egov-mdms-service/prometheus
+    prometheus.io/port: "8080"
+    prometheus.io/scrape: "true"       
 spec:
   ports:
   - port: 8080
@@ -59,6 +63,8 @@ spec:
 {% endif %}
         - name: JAVA_OPTS
           value: "{{conf['egov-mdms-service']['heap'] or '-Xmx256m -Xms256m'}}"
+        - name: JAVA_ARGS
+          value: "{{conf['egov-mdms-service']['java-args']}}"          
         - name: SERVER_PORT
           value: "8080"
         - name: EGOV_MDMS_CONF_PATH
@@ -76,13 +82,17 @@ spec:
         - name: JAEGER_SERVICE_NAME
           value: egov-mdms-service
         - name: JAEGER_SAMPLER_TYPE
-          value: const
+          value: "{{conf['jaeger-config']['sampler-type']}}"
         - name: JAEGER_SAMPLER_PARAM
-          value: "1"
+          value: "{{conf['jaeger-config']['sampler-param']}}"
         - name: JAEGER_AGENT_HOST
-          value: jaeger-agent.monitoring
+          value: "{{conf['jaeger-config']['host']}}"
         - name: JAEGER_AGENT_PORT
-          value: "6831"
+          value: "{{conf['jaeger-config']['port']}}"
+        - name: SECURITY_BASIC_ENABLED
+          value: "false"  
+        - name: MANAGEMENT_SECURITY_ENABLED
+          value: "false" 
         resources:
           requests:
             memory: "64Mi"

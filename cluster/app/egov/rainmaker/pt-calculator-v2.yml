@@ -6,6 +6,10 @@ metadata:
   labels:
     app: pt-calculator-v2
     group: rainmaker
+  annotations:
+    prometheus.io/path: /pt-calculator-v2/prometheus
+    prometheus.io/port: "8080"
+    prometheus.io/scrape: "true"    
 spec:
   ports:
   - port: 8080
@@ -103,6 +107,8 @@ spec:
               key: timezone
         - name: JAVA_OPTS
           value: "{{conf['pt-calculator-v2']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: JAVA_ARGS
+          value: "{{conf['pt-calculator-v2']['java-args']}}"          
         - name: SPRING_JPA_SHOW_SQL
           value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
         - name: PT_MODULE_MINPAYABLE_AMOUNT
@@ -111,6 +117,20 @@ spec:
           value: "8080"
         - name: FLYWAY_ENABLED
           value: "false"
+        - name: JAEGER_SERVICE_NAME
+          value: pt-calculator-v2          
+        - name: JAEGER_SAMPLER_TYPE
+          value: "{{conf['jaeger-config']['sampler-type']}}"
+        - name: JAEGER_SAMPLER_PARAM
+          value: "{{conf['jaeger-config']['sampler-param']}}"
+        - name: JAEGER_AGENT_HOST
+          value: "{{conf['jaeger-config']['host']}}"
+        - name: JAEGER_AGENT_PORT
+          value: "{{conf['jaeger-config']['port']}}"
+        - name: SECURITY_BASIC_ENABLED
+          value: "false"  
+        - name: MANAGEMENT_SECURITY_ENABLED
+          value: "false"           
         resources:
           requests:
             memory: "64Mi"

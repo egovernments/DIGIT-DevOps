@@ -6,6 +6,10 @@ metadata:
   labels:
     app: pt-services-v2
     group: rainmaker
+  annotations:
+    prometheus.io/path: /pt-services-v2/prometheus
+    prometheus.io/port: "8080"
+    prometheus.io/scrape: "true"    
 spec:
   ports:
   - port: 8080
@@ -107,6 +111,8 @@ spec:
               key: timezone
         - name: JAVA_OPTS
           value: "{{conf['pt-services-v2']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: JAVA_ARGS
+          value: "{{conf['pt-services-v2']['java-args']}}"          
         - name: SPRING_JPA_SHOW_SQL
           value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
         - name: SERVER_PORT
@@ -120,13 +126,17 @@ spec:
         - name: JAEGER_SERVICE_NAME
           value: pt-services-v2
         - name: JAEGER_SAMPLER_TYPE
-          value: const
+          value: "{{conf['jaeger-config']['sampler-type']}}"
         - name: JAEGER_SAMPLER_PARAM
-          value: "1"
+          value: "{{conf['jaeger-config']['sampler-param']}}"
         - name: JAEGER_AGENT_HOST
-          value: jaeger-agent.monitoring
+          value: "{{conf['jaeger-config']['host']}}"
         - name: JAEGER_AGENT_PORT
-          value: "6831"
+          value: "{{conf['jaeger-config']['port']}}"
+        - name: SECURITY_BASIC_ENABLED
+          value: "false"  
+        - name: MANAGEMENT_SECURITY_ENABLED
+          value: "false" 
         resources:
           requests:
             memory: "64Mi"

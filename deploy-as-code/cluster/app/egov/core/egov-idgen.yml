@@ -24,6 +24,11 @@ metadata:
   name: egov-idgen
   namespace: egov
 spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   replicas: {{conf['egov-idgen']['replicas']}}
   template:
     metadata:
@@ -71,6 +76,24 @@ spec:
         image: {{conf['egov-idgen']['images'][0]}}
         ports:
         - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /egov-idgen/health
+            port: 8080
+          initialDelaySeconds: 120
+          timeoutSeconds: 3
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 5
+        livenessProbe:
+          httpGet:
+            path: /egov-idgen/health
+            port: 8080
+          initialDelaySeconds: 120
+          timeoutSeconds: 3
+          periodSeconds: 60
+          successThreshold: 1
+          failureThreshold: 5
         env:
         - name: SPRING_DATASOURCE_URL
           valueFrom:
@@ -118,11 +141,11 @@ spec:
           value: "false"  
         - name: MANAGEMENT_SECURITY_ENABLED
           value: "false" 
-        resources:
-          requests:
-            memory: "64Mi"
-          limits:
-            memory: "{{ conf['egov-idgen']['memory_limits'] or "256Mi"}}"
+        # resources:
+        #   requests:
+        #     memory: "64Mi"
+        #   limits:
+        #     memory: "{{ conf['egov-idgen']['memory_limits'] or "256Mi"}}"
       volumes:
       - name: env-specific-db-migration
         emptyDir: {}

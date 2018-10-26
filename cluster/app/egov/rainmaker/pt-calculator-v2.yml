@@ -24,6 +24,11 @@ metadata:
   name: pt-calculator-v2
   namespace: egov
 spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   replicas: {{conf['pt-calculator-v2']['replicas']}}
   template:
     metadata:
@@ -51,6 +56,24 @@ spec:
         image: {{conf['pt-calculator-v2']['images'][0]}}
         ports:
         - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /pt-calculator-v2/health
+            port: 8080
+          initialDelaySeconds: 120
+          timeoutSeconds: 3
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 5
+        livenessProbe:
+          httpGet:
+            path: /pt-calculator-v2/health
+            port: 8080
+          initialDelaySeconds: 120
+          timeoutSeconds: 3
+          periodSeconds: 60
+          successThreshold: 1
+          failureThreshold: 5
         env:
         - name: SERVER_CONTEXTPATH
           value: /pt-calculator-v2
@@ -131,8 +154,8 @@ spec:
           value: "false"  
         - name: MANAGEMENT_SECURITY_ENABLED
           value: "false"           
-        resources:
-          requests:
-            memory: "64Mi"
-          limits:
-            memory : "{{conf['pt-calculator-v2']['memory_limits'] or "256Mi"}}"
+        # resources:
+        #   requests:
+        #     memory: "64Mi"
+        #   limits:
+        #     memory : "{{conf['pt-calculator-v2']['memory_limits'] or "256Mi"}}"

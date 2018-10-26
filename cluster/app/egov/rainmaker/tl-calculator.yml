@@ -24,6 +24,11 @@ metadata:
   name: tl-calculator
   namespace: egov
 spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   replicas: {{conf['tl-calculator']['replicas']}}
   template:
     metadata:
@@ -51,6 +56,24 @@ spec:
         image: {{conf['tl-calculator']['images'][0]}}
         ports:
         - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /tl-calculator/health
+            port: 8080
+          initialDelaySeconds: 120
+          timeoutSeconds: 3
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 5
+        livenessProbe:
+          httpGet:
+            path: /tl-calculator/health
+            port: 8080
+          initialDelaySeconds: 120
+          timeoutSeconds: 3
+          periodSeconds: 60
+          successThreshold: 1
+          failureThreshold: 5
         env:
         - name: SERVER_CONTEXTPATH
           value: /tl-calculator
@@ -125,8 +148,8 @@ spec:
           value: "false"  
         - name: MANAGEMENT_SECURITY_ENABLED
           value: "false"           
-        resources:
-          requests:
-            memory: "64Mi"
-          limits:
-            memory: "{{ conf['tl-services']['memory_limits'] or "256Mi"}}"
+        # resources:
+        #   requests:
+        #     memory: "64Mi"
+        #   limits:
+        #     memory: "{{ conf['tl-calculator']['memory_limits'] or "256Mi"}}"

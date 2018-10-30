@@ -20,6 +20,11 @@ metadata:
   name: zuul
   namespace: egov
 spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   replicas: {{conf['zuul']['replicas']}}
   template:
     metadata:
@@ -32,6 +37,24 @@ spec:
         image: {{conf['zuul']['images'][0]}}
         ports:
         - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 120
+          timeoutSeconds: 3
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 120
+          timeoutSeconds: 3
+          periodSeconds: 60
+          successThreshold: 1
+          failureThreshold: 5
         env:
         - name: ZUUL_ROUTES_PGR_URL
           value: http://pgr-rest:8080/

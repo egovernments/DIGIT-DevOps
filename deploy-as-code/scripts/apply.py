@@ -93,12 +93,10 @@ def render_env_props(args):
 
 
 def apply_manifest(manifest):
-    with tempfile.NamedTemporaryFile(delete=False) as temp:
+    with tempfile.NamedTemporaryFile() as temp:
         temp.write(manifest)
         temp.flush()
         apply_cmd = "kubectl apply -f {}".format(temp.name)
-        temp.close()
-        os.unlink(temp.name)
         proc = Popen(shlex.split(apply_cmd), stdout=PIPE)
         out, err = proc.communicate()
         print out

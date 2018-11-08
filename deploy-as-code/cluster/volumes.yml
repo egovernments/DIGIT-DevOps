@@ -161,3 +161,33 @@
 ---
 {% endfor %}
 {% endif %}
+
+{% if conf['secor'] %}
+
+{% for index in range(conf['secor']['replicas']) %}
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: secor-data-secor-{{index}}
+    labels:
+      app: secor
+  spec:
+    capacity:
+      storage: 5Gi
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+        namespace: backbone
+        name: secor-data-secor-{{index}}
+{% if conf['secor']['ebs-volumes']  and conf['secor']['ebs-volumes'][index]  %}
+    awsElasticBlockStore:
+      volumeID: {{conf['secor']['ebs-volumes'][index]}}
+      fsType: ext4
+{% else %}
+    hostPath:
+      path: /secor/data/secor-data-secor-{{index}}
+{% endif %}
+---
+{% endfor %}
+{% endif %}

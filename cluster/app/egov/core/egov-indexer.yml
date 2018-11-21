@@ -30,6 +30,21 @@ spec:
       labels:
         app: egov-indexer
         group: core
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "egov-indexer-db-migration",
+            "image": "{{conf["egov-indexer"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "egov_indexer_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
     spec:
       containers:
       - name: egov-indexer

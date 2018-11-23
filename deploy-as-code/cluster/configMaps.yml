@@ -64,3 +64,39 @@ metadata:
   name: egov-user
   namespace: egov
 {% endif %}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-configuration
+  namespace: monitoring
+  labels:
+    app: jaeger
+    jaeger-infra: configuration
+data:
+  span-storage-type: elasticsearch
+  collector: |
+    es:
+      server-urls: {{conf['egov-config']['es-indexer-host']}}
+    collector:
+      zipkin:
+        http-port: 9411
+  query: |
+    es:
+      server-urls: {{conf['egov-config']['es-indexer-host']}}
+  agent: |
+    collector:
+      host-port: "jaeger-collector:14267"
+  sampling-strategies: |
+    {
+    "service_strategies": [
+        {
+        "service": "egov-user",
+        "type": "probabilistic",
+        "param": 0.5,
+        "operation_strategies": [
+            { "operation": "query", "type": "probabilistic", "param": 0.1 }
+        ]
+        }
+    ],
+    "default_strategy": { "type": "probabilistic", "param": 1 }
+    }

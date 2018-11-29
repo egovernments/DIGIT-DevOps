@@ -35,22 +35,34 @@ spec:
       labels:
         app: collection-services
         group: collections
-      annotations:
-        pod.beta.kubernetes.io/init-containers: '[
-          {
-            "name": "collection-services-db-migration",
-            "image": "{{conf["collection-services"]["db_migration_image"]}}",
-            "env": [
-              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
-              {"name": "SCHEMA_TABLE", "value": "egov_collection_services_schema"},
-              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
-              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
-              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
-            ],
-            "imagePullPolicy": "IfNotPresent"
-          }
-        ]'
     spec:
+      initContainers: 
+      - name: "collection-services-db-migration"
+        image: "{{conf["collection-services"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "collection_services_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        imagePullPolicy: "IfNotPresent"
       containers:
       - name: collection-services
         image: {{conf['collection-services']['images'][0]}}

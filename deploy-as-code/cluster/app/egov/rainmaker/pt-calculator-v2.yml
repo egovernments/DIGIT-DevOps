@@ -35,22 +35,34 @@ spec:
       labels:
         app: pt-calculator-v2
         group: rainmaker
-      annotations:
-        pod.beta.kubernetes.io/init-containers: '[
-          {
-            "name": "pt-calculator-v2-db-migration",
-            "image": "{{conf["pt-calculator-v2"]["db_migration_image"]}}",
-            "env": [
-              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
-              {"name": "SCHEMA_TABLE", "value": "pt_calculator_v2_schema"},
-              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
-              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
-              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
-            ],
-            "imagePullPolicy": "IfNotPresent"
-          }
-        ]'
     spec:
+      initContainers: 
+      - name: "pt-calculator-v2-db-migration"
+        image: "{{conf["pt-calculator-v2"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "pt_calculator_v2_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        imagePullPolicy: "IfNotPresent"
       containers:
       - name: pt-calculator-v2
         image: {{conf['pt-calculator-v2']['images'][0]}}

@@ -35,46 +35,47 @@ spec:
       labels:
         app: egov-user
         group: core
-      annotations:
-        pod.beta.kubernetes.io/init-containers: '[
-        {% if conf["egov-user"]["env_specific_db_migration_image"] %}
-          {
-            "name": "egov-user-env-specific-db-migration",
-            "image": "{{conf["egov-user"]["env_specific_db_migration_image"]}}",
-            "command": ["sh", "-c", "cp -R /egov/db/migration/core/egov-user/* /env_specific_db_migration/"],
-            "volumeMounts": [
-              {
-                "mountPath": "/env_specific_db_migration",
-                "name": "env-specific-db-migration"
-              }
-            ],
-            "imagePullPolicy": "Always"
-          },
-        {% endif %}
-          {
-            "name": "egov-user-db-migration",
-            "image": "{{conf["egov-user"]["db_migration_image"]}}",
-            "env": [
-              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
-              {"name": "SCHEMA_TABLE", "value": "egov_user_schema"},
-              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
-              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
-              {% if conf["egov-user"]["flyway-locations"] %}
-                {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-user", "key": "flyway-locations"}}}
-              {% else %}
-                {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
-              {% endif %}
-            ],
-            "volumeMounts": [
-              {
-                "mountPath": "/env_specific_db_migration",
-                "name": "env-specific-db-migration"
-              }
-            ],
-            "imagePullPolicy": "IfNotPresent"
-          }
-        ]'
     spec:
+      initContainers:
+      {% if conf["egov-user"]["env_specific_db_migration_image"] %}
+        - name: "egov-user-env-specific-db-migration"
+          image: "{{conf["egov-user"]["env_specific_db_migration_image"]}}"
+          command: ["sh", "-c", "cp -R /egov/db/migration/core/egov-user/* /env_specific_db_migration/"]
+        volumeMounts:
+        - mountPath: "/env_specific_db_migration"
+          name: "env-specific-db-migration"
+        imagePullPolicy: "IfNotPresent"
+      {% endif %}
+
+      - name: "egov-user-db-migration"
+        image: "{{conf["egov-user"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "egov_user_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        volumeMounts:
+        - mountPath: "/env_specific_db_migration"
+          name: "env-specific-db-migration"
+        imagePullPolicy: "IfNotPresent"
       containers:
       - name: egov-user
         image: {{conf['egov-user']['images'][0]}}
@@ -139,7 +140,7 @@ spec:
         - name: EGOV_USER_HOST
           value: "http://localhost:8080"
         - name: EGOV_SERVICES_ACCESSCONTROL_HOST
-          value: "{{conf['egov-service-host']['egov-accesscontrol']}}"
+          value: "{{conf['egov-service-host']['egov-user']}}"
         - name: EGOV_FILESTORE_HOST
           value: "{{conf['egov-service-host']['egov-filestore']}}"
 {% if conf['egov-config']['newrelic-enabled'] == "true" %}

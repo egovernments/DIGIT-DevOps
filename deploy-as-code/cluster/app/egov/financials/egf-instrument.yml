@@ -26,22 +26,34 @@ spec:
       labels:
         app: egf-instrument
         group: financials
-      annotations:
-        pod.beta.kubernetes.io/init-containers: '[
-          {
-            "name": "egf-instrument-db-migration",
-            "image": "{{conf["egf-instrument"]["db_migration_image"]}}",
-            "env": [
-              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
-              {"name": "SCHEMA_TABLE", "value": "egf_instrument_schema"},
-              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
-              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
-              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
-            ],
-            "imagePullPolicy": "IfNotPresent"
-          }
-        ]'
     spec:
+      initContainers: 
+      - name: "egf-instrument-db-migration"
+        image: "{{conf["egf-instrument"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "egf_instrument_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        imagePullPolicy: "IfNotPresent"
       containers:
       - name: egf-instrument
         image: {{conf['egf-instrument']['images'][0]}}

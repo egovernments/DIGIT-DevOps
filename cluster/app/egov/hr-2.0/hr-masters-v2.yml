@@ -26,23 +26,34 @@ spec:
       labels:
         app: hr-masters-v2
         group: hr-2.0
-      annotations:
-        pod.beta.kubernetes.io/init-containers: '[
-          {
-            "name": "hr-masters-v2-db-migration",
-            "image": "{{conf["hr-masters-v2"]["db_migration_image"]}}",
-            "env": [
-              {"name": "DB_URL", "value": "{{ conf['hr-masters-v2']['db-url']}}"},
-              {"name": "SCHEMA_TABLE", "value": "hr_masters_v2_schema"},
-              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
-              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
-              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}},
-              {"name": "IGNOREMISSINGMIGRATIONS", "value": "true"}
-            ],
-            "imagePullPolicy": "IfNotPresent"
-          }
-        ]'
     spec:
+      initContainers: 
+      - name: "hr-masters-v2-db-migration"
+        image: "{{conf["hr-masters-v2"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "hr_masters_v2_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        imagePullPolicy: "IfNotPresent"
       containers:
       - name: hr-masters-v2
         image: {{conf['hr-masters-v2']['images'][0]}}

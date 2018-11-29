@@ -244,16 +244,6 @@ spec:
         - name: EGOV_MIXED_MODE_ENDPOINTS_WHITELIST
           value: "{{ conf['zuul-config']['egov-mixed-mode-endpoints-whitelist'] }}"
 {% endif %}
-        - name: JAEGER_SERVICE_NAME
-          value: zuul
-        - name: JAEGER_SAMPLER_TYPE
-          value: const
-        - name: JAEGER_SAMPLER_PARAM
-          value: "1"
-        - name: JAEGER_AGENT_HOST
-          value: jaeger-agent.monitoring
-        - name: JAEGER_AGENT_PORT
-          value: "6831"
         - name: EGOV_AUTHORIZE_ACCESS_CONTROL_HOST
           value: "{{conf['egov-service-host']['egov-accesscontrol']}}" 
         - name: ZUUL_HOST_CONNECT_TIMEOUT_MILLIS
@@ -261,4 +251,20 @@ spec:
         - name: ZUUL_HOST_SOCKET_TIMEOUT_MILLIS
           value: "60000"    
         - name: TRACER_OPENTRACING_ENABLED
-          value: "{{conf['zuul']['tracing-enabled']}}"                
+          value: "{{conf['zuul']['tracing-enabled']}}"
+        - name: JAEGER_SERVICE_NAME
+          value: zuul          
+        - name: JAEGER_SAMPLER_TYPE
+          value: remote
+        - name: JAEGER_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: JAEGER_AGENT_PORT
+          value: "6831"
+        - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+          value: "$(JAEGER_AGENT_HOST):5778"              
+        - name: SECURITY_BASIC_ENABLED
+          value: "false"  
+        - name: MANAGEMENT_SECURITY_ENABLED
+          value: "false"                          

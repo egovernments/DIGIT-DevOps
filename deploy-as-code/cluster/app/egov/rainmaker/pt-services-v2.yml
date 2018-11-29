@@ -35,22 +35,34 @@ spec:
       labels:
         app: pt-services-v2
         group: rainmaker
-      annotations:
-        pod.beta.kubernetes.io/init-containers: '[
-          {
-            "name": "pt-services-v2-db-migration",
-            "image": "{{conf["pt-services-v2"]["db_migration_image"]}}",
-            "env": [
-              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
-              {"name": "SCHEMA_TABLE", "value": "pt_services_v2_schema"},
-              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
-              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
-              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
-            ],
-            "imagePullPolicy": "IfNotPresent"
-          }
-        ]'
     spec:
+      initContainers: 
+      - name: "pt-services-v2-db-migration"
+        image: "{{conf["pt-services-v2"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "pt_services_v2_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        imagePullPolicy: "IfNotPresent"
       containers:
       - name: pt-services-v2
         image: {{conf['pt-services-v2']['images'][0]}}
@@ -105,7 +117,7 @@ spec:
         - name: EGOV_LOCALIZATION_HOST
           value: "{{conf['egov-service-host']['egov-localization']}}"
         - name: EGOV_CALCULATION_HOST
-          value: "{{conf['egov-service-host']['pt-calculator-v2']}}"
+          value: "{{conf['egov-service-host']['pt-services-v2']}}"
 {% if conf['egov-config']['tracer-errors-provideexceptionindetails'] %}
         - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
           value: "{{conf['egov-config']['tracer-errors-provideexceptionindetails']}}"

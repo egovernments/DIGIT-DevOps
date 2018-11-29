@@ -39,22 +39,34 @@ spec:
       labels:
         app: tl-services
         group: rainmaker
-      annotations:
-        pod.beta.kubernetes.io/init-containers: '[
-          {
-            "name": "tl-services-db-migration",
-            "image": "{{conf["tl-services"]["db_migration_image"]}}",
-            "env": [
-              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
-              {"name": "SCHEMA_TABLE", "value": "tl_services_schema"},
-              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
-              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
-              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
-            ],
-            "imagePullPolicy": "IfNotPresent"
-          }
-        ]'
     spec:
+      initContainers: 
+      - name: "tl-services-db-migration"
+        image: "{{conf["tl-services"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "tl_services_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        imagePullPolicy: "IfNotPresent"
       containers:
       - name: tl-services
         image: {{conf['tl-services']['images'][0]}}
@@ -110,7 +122,7 @@ spec:
         - name: EGOV_LOCATION_HOST
           value: "{{conf['egov-service-host']['egov-location']}}"
         - name: EGOV_TL_CALCULATOR_HOST
-          value: "{{conf['egov-service-host']['tl-calculator']}}"
+          value: "{{conf['egov-service-host']['tl-services']}}"
         - name: EGOV_PROPERTY_SERVICE_HOST
           value: "{{conf['egov-service-host']['pt-services-v2']}}"
         - name: EGOV_LOCALIZATION_HOST

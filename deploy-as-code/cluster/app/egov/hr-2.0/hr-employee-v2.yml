@@ -26,42 +26,47 @@ spec:
       labels:
         app: hr-employee-v2
         group: hr-2.0
-      annotations:
-        pod.beta.kubernetes.io/init-containers: '[
-        {% if conf["hr-employee-v2"]["env_specific_db_migration_image"] %}
-          {
-            "name": "hr-employee-v2-env-specific-db-migration",
-            "image": "{{conf["hr-employee-v2"]["env_specific_db_migration_image"]}}",
-            "command": ["sh", "-c", "cp -R /egov/db/migration/hr-2.0/hr-employee-v2/* /env_specific_db_migration/"],
-            "volumeMounts": [
-              {
-                "mountPath": "/env_specific_db_migration",
-                "name": "env-specific-db-migration"
-              }
-            ],
-            "imagePullPolicy": "Always"
-          },
-        {% endif %}
-          {
-            "name": "hr-employee-v2-db-migration",
-            "image": "{{conf["hr-employee-v2"]["db_migration_image"]}}",
-            "env": [
-              {"name": "DB_URL", "value": "{{ conf['hr-employee-v2']['db-url']}}"},
-              {"name": "SCHEMA_TABLE", "value": "hr_employee_v2_schema"},
-              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
-              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
-              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
-            ],
-            "volumeMounts": [
-              {
-                "mountPath": "/env_specific_db_migration",
-                "name": "env-specific-db-migration"
-              }
-            ],
-            "imagePullPolicy": "IfNotPresent"
-          }
-        ]'
     spec:
+      initContainers:
+      {% if conf["hr-employee-v2"]["env_specific_db_migration_image"] %}
+        - name: "hr-employee-v2-env-specific-db-migration"
+          image: "{{conf["hr-employee-v2"]["env_specific_db_migration_image"]}}"
+          command: ["sh", "-c", "cp -R /egov/db/migration/hr-2.0/hr-employee-v2/* /env_specific_db_migration/"]
+        volumeMounts:
+        - mountPath: "/env_specific_db_migration"
+          name: "env-specific-db-migration"
+        imagePullPolicy: "IfNotPresent"
+      {% endif %}
+
+      - name: "hr-employee-v2-db-migration"
+        image: "{{conf["hr-employee-v2"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "hr_employee_v2_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        volumeMounts:
+        - mountPath: "/env_specific_db_migration"
+          name: "env-specific-db-migration"
+        imagePullPolicy: "IfNotPresent"
       containers:
       - name: hr-employee-v2
         image: {{conf['hr-employee-v2']['images'][0]}}

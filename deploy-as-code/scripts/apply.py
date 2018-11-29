@@ -1,6 +1,7 @@
 import argparse
 import base64
 import os
+import platform
 import re
 import sys
 import tempfile
@@ -105,6 +106,22 @@ def apply_manifest(manifest):
                             "STDOUT:{}\nERROR:{}".
                             format(out, err))
 
+def apply_manifest_win(manifest):
+    with tempfile.NamedTemporaryFile(delete=False) as temp:
+        temp.write(manifest)
+        temp.seek(0)
+        temp.flush()
+        apply_cmd = "kubectl apply -f {}".format(temp.name)         
+        proc = Popen(shlex.split(apply_cmd, posix=0), stdout=PIPE)
+        out, err = proc.communicate()
+        temp.close()   
+        os.unlink(temp.name)         
+        print out
+        if not proc.returncode == 0:
+            raise Exception("Apply failed\n"
+                            "STDOUT:{}\nERROR:{}".
+                            format(out, err))                                 
+
 
 def wait_for_deployment_to_finish(service, namespace):
     deployment_status_cmd = "kubectl rollout status deployment/{} --namespace={}".format(service, namespace)
@@ -161,7 +178,10 @@ def main():
     if args.dry_run:
         print final_manifest
     else:
-        apply_manifest(final_manifest)
+        if platform.system() == 'Windows':
+            apply_manifest_win(final_manifest)
+        else:
+            apply_manifest(final_manifest)    
         # wait_for_deployment_to_finish(args.microservice, args.namespace)
 
 

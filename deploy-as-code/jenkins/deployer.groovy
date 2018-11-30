@@ -50,7 +50,7 @@ def set_kube_credentials(env){
         }
     }
 
-    if (env == "pbuat" || env == "pbprod") {
+    if (env == "pbuat" || env == "pbprod" || env=="dev") {
         withCredentials([string(credentialsId: "${env}-kube-username", variable: "AUTHUSER")]){
             sh "kubectl config set-credentials env --username=${AUTHUSER}"
         }

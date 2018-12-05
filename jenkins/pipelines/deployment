@@ -1,19 +1,39 @@
-def service_image = "${env.SERVICE}".split("/")
-def service = service_image[0]
-def image = service
-if ((service_image).size() > 1){
-    image = service_image[1]
-}
+// import java.util.logging.Logger
 
-def tag = "${env.TAG}"
-def env = "${env.JOB_BASE_NAME}".split("-").last()
+// Logger logger = Logger.getLogger('org.example.jobdsl')
+// logger.info('Hello from a Job DSL script!')
+node("slave"){
+    checkout scm
+    def deployer = load("jenkins/deployer.groovy")
 
-try {
-    node("slave"){
-        checkout scm
-        def deployer = load("jenkins/deployer.groovy")
-        deployer.deployStandAlone(env, service, image, tag)
+    def services = "${env.SERVICE}".split(",")
+
+    services.each {
+        def service_image = "$it".trim().split("/")
+        def service = service_image[0]
+        def image = service
+
+        if ((service_image).size() > 1){
+            image = service_image[1]
+        }
+
+        image = image.replace("-db", "")
+
+        def image_with_tag = image.split(":")
+        image = image_with_tag[0]
+        service = image
+        def tag = image_with_tag[1]
+
+
+        def env = "${env.JOB_BASE_NAME}".split("-").last()
+
+        println("Env = ${env}, service = ${service}, image = ${image}, tag = ${tag}")
+        try {
+                deployer.deployStandAlone(env, service, image, tag)
+        } catch (e) {
+            throw e
+        }
     }
-} catch (e) {
-    throw e
 }
+
+

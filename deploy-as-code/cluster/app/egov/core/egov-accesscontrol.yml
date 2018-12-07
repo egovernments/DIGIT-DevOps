@@ -73,6 +73,24 @@ spec:
         image: {{conf['egov-accesscontrol']['images'][0]}}
         ports:
         - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /access/health
+            port: 8080
+          initialDelaySeconds: 90
+          timeoutSeconds: 3
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 5
+        livenessProbe:
+          httpGet:
+            path: /access/health
+            port: 8080
+          initialDelaySeconds: 120
+          timeoutSeconds: 3
+          periodSeconds: 60
+          successThreshold: 1
+          failureThreshold: 5        
         env:
         - name: SPRING_DATASOURCE_URL
           valueFrom:
@@ -116,12 +134,28 @@ spec:
           value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
         - name: EGOV_MDMS_HOST
           value: "{{conf['egov-service-host']['egov-mdms-service']}}"
-        - name: SERVER_TOMCAT_MAX_THREADS
-          value: "{{conf['egov-config']['tomcat-max-threads']}}"
         - name: JAVA_ARGS
           value: "{{conf['egov-accesscontrol']['java-args']}}"  
+{% if conf['egov-accesscontrol']['tracing-enabled']%}          
         - name: TRACER_OPENTRACING_ENABLED
-          value: "{{conf['egov-accesscontrol']['tracing-enabled']}}"                    
+          value: "true" 
+{% endif %}            
+        - name: JAEGER_SERVICE_NAME
+          value: egov-accesscontrol
+        - name: JAEGER_SAMPLER_TYPE
+          value: remote
+        - name: JAEGER_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: JAEGER_AGENT_PORT
+          value: "6831"
+        - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+          value: "$(JAEGER_AGENT_HOST):5778"              
+        - name: SECURITY_BASIC_ENABLED
+          value: "false"  
+        - name: MANAGEMENT_SECURITY_ENABLED
+          value: "false"         
         resources:
           requests:
             memory: "64Mi"

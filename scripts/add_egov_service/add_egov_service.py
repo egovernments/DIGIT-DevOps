@@ -7,8 +7,8 @@ from jinja2 import Environment, FileSystemLoader
 import fileinput
 import shutil
 
-local_repo='/Users/Senthil/eGov/source/egov-services/'
-infraops_repo='/Users/Senthil/eGov/source/eGov-infraOps'
+local_repo='/home/sivaprakash/egov/egov-services/'
+infraops_repo='/home/sivaprakash/egov/eGov-infraOps'
 
 IGNORE_PATTERNS = r'\.DS_Store'
 parser = argparse.ArgumentParser()

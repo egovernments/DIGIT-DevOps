@@ -191,3 +191,32 @@
 ---
 {% endfor %}
 {% endif %}
+{% if conf['es-data-infra']%}
+
+{% for index in range(conf['es-data-infra']['replicas']) %}
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: es-storage-infra-es-data-infra-{{index}}
+    labels:
+      app: elasticsearch
+  spec:
+    capacity:
+      storage: 5Gi
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+        namespace: es-cluster-infra
+        name: es-storage-infra-es-data-infra-{{index}}
+{% if conf['es-data-infra']['ebs-volumes']  and conf['es-data-infra']['ebs-volumes'][index]  %}
+    awsElasticBlockStore:
+      volumeID: {{conf['es-data-infra']['ebs-volumes'][index]}}
+      fsType: ext4
+{% else %}
+    hostPath:
+      path: /opt/eGov/es-storage-infra-es-data-infra-{{index}}
+{% endif %}
+---
+{% endfor %}
+{% endif %}

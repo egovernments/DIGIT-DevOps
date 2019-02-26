@@ -2,7 +2,7 @@ FROM ubuntu:xenial
 
 MAINTAINER Sumanth<nsready@gmail.com>
 
-ARG curator_version=5.0.2
+ARG curator_version=5.6.0
 
 ENV CURATOR_VERSION=$curator_version
 

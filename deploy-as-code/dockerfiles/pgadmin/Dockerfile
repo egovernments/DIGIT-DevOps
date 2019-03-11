@@ -1,4 +1,4 @@
-FROM dpage/pgadmin4:3.6
+FROM dpage/pgadmin4:4.1
 
 COPY ./initialize_db_server.sh /opt/pgadmin/initialize_db_server.sh
 

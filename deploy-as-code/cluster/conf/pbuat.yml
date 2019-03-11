@@ -99,7 +99,7 @@ egov-user:
   roles-state-level: "true"
   citizen-registration-withlogin: "true"
   citizen-otp-fixed: "123456"
-  citizen-otp-fixed-enabled: "false"
+  citizen-otp-fixed-enabled: "true"
   java-args: "-Dspring.profiles.active=production"
 
 tenant:
@@ -133,25 +133,33 @@ egov-indexer:
   heap: "-Xmx512m -Xms512m"
   memory_limits: "768Mi"
 
+egov-workflow-v2:
+  replicas: 1
+  images:
+    - egovio/egov-workflow-v2
+  heap: "-Xmx512m -Xms512m"
+  db_migration_image: egovio/egov-workflow-v2-db
+  java-args: -Dspring.profiles.active=monitoring
+
 egov-persister:
   replicas: 2
   images:
     - egovio/egov-persister
-  persist-yml-path: "https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/pg-service-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/pgr-v3-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/property-services-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/pt-calculator-v2-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/pt-drafts-persister.yml,https://github.com/egovernments/punjab-rainmaker-customization/raw/UAT/configs/egov-persister/tradelicense-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/indexer-job-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/tl-calculation-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/tl-billing-slab-persister.yml"
+  persist-yml-path: "https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/pg-service-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/pgr-v3-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/property-services-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/pt-calculator-v2-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/pt-drafts-persister.yml,https://github.com/egovernments/punjab-rainmaker-customization/raw/UAT/configs/egov-persister/tradelicense-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/indexer-job-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/tl-calculation-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/tl-billing-slab-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/uploader-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/egov-workflow-v2-persister.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-persister/hrms-employee-persister.yml"
 
 egov-searcher:
   replicas: 1
   images:
     - egovio/egov-searcher
-  search-yaml-path: "https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-searcher/rainmaker-pgr-v2-searcher.yml"
+  search-yaml-path: "https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-searcher/rainmaker-pgr-v2-searcher.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-searcher/rainmaker-pt-customsearch-punjab.yml"
 
 egov-data-uploader:
   replicas: 1
   images:
     - egovio/egov-data-uploader
-  heap: "-Xmx192m -Xms192m"
+  heap: "-Xmx512m -Xms512m"
   upload-assessment: "YES"
-  upload-json-path: "https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-uploader/property-upload.json,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-uploader/localization-upload.json"
+  upload-json-path: "https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-uploader/property-upload.json,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-uploader/localization-upload.json,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-uploader/CollectionReceiptWorkflow.json"
   template-download-prefix: "https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/upload-templates"
   internal-file-folder-path: "/tmp"
 
@@ -180,6 +188,12 @@ egov-telemetry-kafka-streams:
   replicas: 1
   images:
     - egovio/egov-telemetry-kafka-streams
+
+egov-telemetry-batch-process:
+  replicas: 1
+  images:
+    - egovio/egov-telemetry-batch-process
+  date: ""
 
 egov-custom-consumer:
   replicas: 1
@@ -219,10 +233,10 @@ nginx:
     - egovio/nginx
     - janeczku/go-dnsmasq:release-1.0.5
   service_type: LoadBalancer
-  kibana-credentials: "admin:$apr1$Is.OmQWE$LruByfjdEx.94DHD0JebK1"
+  kibana-credentials: 'admin:$apr1$Is.OmQWE$LruByfjdEx.94DHD0JebK1\npmidc:$apr1$tGOS.AZa$BH0kOO9XTcTv1JLn7oJEu.'
   SUBFILTER: "YES"
   TELEMETRY_JS_URL: "https://s3.ap-south-1.amazonaws.com/egov-telemetry-data/egov-telemetry-1542631025.js"
-  ULB_JS_URL: "https://s3.ap-south-1.amazonaws.com/pb-egov-assets/ulb-overrides-uat.js"
+  ULB_JS_URL: "https://s3.ap-south-1.amazonaws.com/pb-egov-assets/ulb-overrides-uat-2802191158.js"
   asset-bucket-url: "https://s3.ap-south-1.amazonaws.com"
   jaeger-credentials: "jaegeradmin:$apr1$1tuSu0/m$v0WKCmLDUvugAaYwK16eI."
 
@@ -303,6 +317,13 @@ employee-tradelicence:
   replicas: 1
   images:
     - egovio/employee-tradelicence
+  SUBFILTER: "YES"
+  TL_ULB_JS_URL: "https://s3.ap-south-1.amazonaws.com/pb-egov-assets/tl-uat-ulb-override.js"
+
+ui-uploader:
+  replicas: 1
+  images:
+    - egovio/ui-uploader
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # reportinfra >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -335,7 +356,9 @@ pt-services-v2:
   images:
     - egovio/pt-services-v2
   db_migration_image: egovio/pt-services-v2-db
-  heap: "-Xmx192m -Xms192m"
+  heap: "-Xmx384m -Xms384m"
+  memory_limits: "512Mi"
+  notification-sms-enabled: "false"
 
 pt-calculator-v2:
   replicas: 2
@@ -381,6 +404,7 @@ collection-services:
     - egovio/collection-services
   db_migration_image: egovio/collection-services-db
   receiptnumber-servicebased: "true"
+  search-ignore-status: "Cancelled,Rejected"
 
 collection-receipt-voucher-consumer:
   replicas: 1
@@ -411,6 +435,20 @@ egf-instrument:
   images:
     - egovio/egf-instrument
   db_migration_image: egovio/egf-instrument-db
+
+egov-hrms:
+  replicas: 2
+  images:
+    - egovio/egov-hrms
+  db_migration_image: egovio/egov-hrms
+  java-args: -Dspring.profiles.active=monitoring
+  heap: "-Xmx192m -Xms192m"
+  employee-applink: "https://mseva-uat.lgpunjab.gov.in/employee/user/login"  
+
+hrms-web:
+  replicas: 1
+  images:
+    - egovio/hrms-web 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # configMaps >>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -432,7 +470,7 @@ egov-config:
   spring-jpa-show-sql: "true"
   serializers-timezone-in-ist: "true"
   mobile-validation-workaround: "true"
-  egov-indexer-yaml-repo-path: "https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-indexer/egov-telemetry-indexer.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-indexer/rainmaker-pgr-indexer.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-indexer/rainmaker-pt-indexer.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-indexer/billingservices-indexer.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-indexer/tradelicense-indexer.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-indexer/collection-indexer.yml"
+  egov-indexer-yaml-repo-path: "https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-indexer/egov-telemetry-indexer.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-indexer/rainmaker-pgr-indexer.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-indexer/rainmaker-pt-indexer.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-indexer/billingservices-indexer.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-indexer/tradelicense-indexer.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-indexer/collection-indexer.yml,https://raw.githubusercontent.com/egovernments/punjab-rainmaker-customization/UAT/configs/egov-indexer/egov-uploader-indexer.yml"
   logging-level-jdbc: "null"
   domain: "mseva-uat.lgpunjab.gov.in"
   tracer-errors-provideexceptionindetails: "true"
@@ -444,7 +482,7 @@ kafka-config:
 
 zuul-config:
   egov-open-endpoints-whitelist: "/user/oauth/token,/user-otp/v1/_send,/otp/v1/_validate,/user/citizen/_create,/localization/messages,/localization/messages/v1/_search,/user/password/nologin/_update,/pgr/servicedefinition/v1/_search,/pgr/servicecategories/v1/_search,/pgr/v1/otp/_send,/pgr-master/receivingmode/v1/_search,/tenant/v1/tenant/_search,/egov-location/boundarys,/egov-location/boundarys/boundariesByBndryTypeNameAndHierarchyTypeName,/pgr-master/service/v1/_search,/egov-location/boundarys/getLocationByLocationName,/pgr-master/OTPConfig/_search,/pgr-master/serviceGroup/v1/_search,/egov-location/boundarys/isshapefileexist,/pgr/services/v1/_search,/hr-masters/hrconfigurations/_search,/collection-services/receipts/_view,/pgr-master/service/v2/_search,/pgr-master/servicedefinition/v1/_search,/citizen-services,/citizen-services/v1/requests/receipt/_create,/citizen-services/v1/pgresponse,/citizen-services/v1/requests/anonymous/_search,/egov-mdms-service/v1/_search,/egov-mdms-service/v1/_get,/egov-mdms-service/v1/_reload,/egov-mdms-service/v1/_reloadobj,/egov-location/boundarys/getshapefile,/egov-indexer/index-operations/_index,/egov-indexer/index-operations/_reload,/egov-mdms-service-test/v1/_search,/egov-mdms-create/v1/_update,/egov-mdms-create/v1/_create,/egov-mdms-service-test/v1/_reload,/data-uploader/v1/jobs/_create,/data-uploader/v1/jobs/_search,/data-uploader/v1/upload-definitions/_search,/data-uploader/v1/upload-definitions/_test,/filestore/v1/files/url"
-  egov-mixed-mode-endpoints-whitelist: "/pgr/seva/v1/_create,/pgr/seva/v1/_search,/pgr/seva/v1/_count,/workflow/history/v1/_search,/filestore/v1/files/id,/filestore/v1/files,/filestore/v1/files/tag,/egov-common-masters/departments/_search,/pt-property/property/propertytypes/_search,/pt-property/properties/_search,/pt-property/property/usages/_search,/egov-idgen/id/_generate,/egf-masters/financialyears/_search,/egov-common-workflows/process/_start,/egov-common-workflows/process/_search,/egov-common-workflows/tasks,/egov-common-workflows/tasks/{id}/_update,/user/_search,/user/users/_createnovalidate,/user/users/{id}/_update,/billing-service/demand/_dues,/billing-service/bill/_generate,/billing-service/demand/_create,/wcms/masters/waterchargesconfig/_search,/wcms/masters/usagetypes/_search,/wcms/masters/pipesizes/_search,/wcms-connection/connection/_getbillingtypes,/wcms-connection/connection/_getconnectiontypes,/wcms/masters/sourcetypes/_search,/wcms/masters/supplytypes/_search,/wcms/masters/storagereservoirs/_search,/wcms/masters/treatmentplants/_search,/wcms/masters/documenttypes-applicationtypes/_search,/wcms/masters/donations/_search,/wcms/masters/nonmeterwaterrates/_search,/wcms-connection/connection/_create,/egov-common-masters/genders/_search,/egov-common-workflows/designations/_search"
+  egov-mixed-mode-endpoints-whitelist: "/pgr/seva/v1/_create,/pgr/seva/v1/_search,/pgr/seva/v1/_count,/workflow/history/v1/_search,/filestore/v1/files/id,/filestore/v1/files,/filestore/v1/files/tag,/egov-common-masters/departments/_search,/pt-property/property/propertytypes/_search,/pt-property/properties/_search,/pt-property/property/usages/_search,/egov-idgen/id/_generate,/egf-masters/financialyears/_search,/egov-common-workflows/process/_start,/egov-common-workflows/process/_search,/egov-common-workflows/tasks,/egov-common-workflows/tasks/{id}/_update,/user/_search,/user/users/_createnovalidate,/user/users/{id}/_update,/billing-service/demand/_dues,/billing-service/bill/_generate,/billing-service/demand/_create,/wcms/masters/waterchargesconfig/_search,/wcms/masters/usagetypes/_search,/wcms/masters/pipesizes/_search,/wcms-connection/connection/_getbillingtypes,/wcms-connection/connection/_getconnectiontypes,/wcms/masters/sourcetypes/_search,/wcms/masters/supplytypes/_search,/wcms/masters/storagereservoirs/_search,/wcms/masters/treatmentplants/_search,/wcms/masters/documenttypes-applicationtypes/_search,/wcms/masters/donations/_search,/wcms/masters/nonmeterwaterrates/_search,/wcms-connection/connection/_create,/egov-common-masters/genders/_search,/egov-common-workflows/designations/_search,/access/v1/actions/mdms/_get"
 
 logging-config:
   es-host: "es-client-infra.es-cluster-infra"
@@ -488,9 +526,11 @@ egov-service-host:
   egov-mdms-create: "http://egov-mdms-create:8080/"
   egov-eis: "http://egov-eis:8080/"
   egov-workflow: "http://egov-workflow:8080/"
+  egov-workflow-v2: "http://egov-workflow-v2:8080/"
   egov-searcher: "http://egov-searcher:8080/"
   egov-data-uploader: "http://egov-data-uploader:8080/"
   egov-indexer: "http://egov-indexer:8080/"
+  egov-hrms: "http://egov-hrms:8080/"
   es-client: "http://es-client:9200"
   hr-masters: "http://hr-masters:8080/"
   hr-employee: "http://hr-employee:8080/"
@@ -621,6 +661,13 @@ kibana-infra:
     - kibana:6.4.2
   external_port: 5601
   service_type: LoadBalancer
+  server-basepath: "/kibana-infra"
+
+kibana-infra-dedicated:
+  replicas: 1
+  images:
+    - kibana-infra:5.4.0
+  external_port: 5601
   server-basepath: "/kibana-infra"
 
 secor:

@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: billing-service
+  name: billing-service-v1
   namespace: egov
   labels:
-    app: billing-service
+    app: billing-service-v1
     group: billingservices
   annotations:
-    prometheus.io/path: /billing-service/prometheus
+    prometheus.io/path: /billing-service-v1/prometheus
     prometheus.io/port: "8080"
     prometheus.io/scrape: "true"    
 spec:
@@ -15,13 +15,13 @@ spec:
   - port: 8080
     targetPort: 8080
   selector:
-    app: billing-service
+    app: billing-service-v1
     group: billingservices
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: billing-service
+  name: billing-service-v1
   namespace: egov
 spec:
   strategy:
@@ -29,19 +29,19 @@ spec:
     rollingUpdate:
       maxUnavailable: 0
       maxSurge: 1
-  replicas: {{conf['billing-service']['replicas']}}
+  replicas: {{conf['billing-service-v1']['replicas']}}
   template:
     metadata:
       labels:
-        app: billing-service
+        app: billing-service-v1
         group: billingservices
       annotations:
         pod.beta.kubernetes.io/init-containers: '[
           {
-            "name": "billing-service-db-migration",
-            "image": "{{conf["billing-service"]["db_migration_image"]}}",
+            "name": "billing-service-v1-db-migration",
+            "image": "{{conf["billing-service-v1"]["db_migration_image"]}}",
             "env": [
-              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "DB_URL", "value": "{{conf['billing-service-v1']['db-url']}}"},
               {"name": "SCHEMA_TABLE", "value": "billing_service_schema"},
               {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
               {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
@@ -52,13 +52,13 @@ spec:
         ]'
     spec:
       containers:
-      - name: billing-service
-        image: {{conf['billing-service']['images'][0]}}
+      - name: billing-service-v1
+        image: {{conf['billing-service-v1']['images'][0]}}
         ports:
         - containerPort: 8080
         readinessProbe:
           httpGet:
-            path: /billing-service/health
+            path: /billing-service-v1/health
             port: 8080
           initialDelaySeconds: 90
           timeoutSeconds: 3
@@ -67,7 +67,7 @@ spec:
           failureThreshold: 5
         livenessProbe:
           httpGet:
-            path: /billing-service/health
+            path: /billing-service-v1/health
             port: 8080
           initialDelaySeconds: 120
           timeoutSeconds: 3
@@ -76,10 +76,7 @@ spec:
           failureThreshold: 5
         env:
         - name: SPRING_DATASOURCE_URL
-          valueFrom:
-            configMapKeyRef:
-              name: egov-config
-              key: db-url
+          value: "{{conf['billing-service-v1']['db-url']}}"
         - name: SPRING_DATASOURCE_USERNAME
           valueFrom:
             secretKeyRef:
@@ -106,7 +103,7 @@ spec:
         - name: FLYWAY_ENABLED
           value: "false"
         - name: JAVA_OPTS
-          value: "{{conf['billing-service']['heap'] or '-Xmx192m -Xms192m'}}"
+          value: "{{conf['billing-service-v1']['heap'] or '-Xmx192m -Xms192m'}}"
         - name: APP_TIMEZONE
           valueFrom:
             configMapKeyRef:
@@ -129,35 +126,25 @@ spec:
         - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
           value: org.apache.kafka.common.serialization.StringDeserializer
         - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-          value: bs-persist
+          value: bs-v1-persist
         - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
           value: org.apache.kafka.common.serialization.StringSerializer
         - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
-          value: org.springframework.kafka.support.serializer.JsonSerializer
-        - name: KAFKA_TOPICS_RECEIVINGCENTER_CREATE_NAME
-          value: egov.pgr.receiving-centertype-create
+          value: org.springframework.kafka.support.serializer.JsonSerializer  
         - name: KAFKA_TOPICS_SAVE_BILL
-          value: save-bill-db
+          value: save-bill-v1-db
         - name: KAFKA_TOPICS_UPDATE_BILL
-          value: update-bill-db
-        - name: KAFKA_TOPICS_SAVE_BILL_KEY
-          value: save-bill
-        - name: KAFKA_TOPICS_UPDATE_BILL_KEY
-          value: update-bill
+          value: update-bill-v1-db
         - name: KAFKA_TOPICS_SAVE_DEMAND
-          value: save-demand
+          value: save-demand-v1
         - name: KAFKA_TOPICS_UPDATE_DEMAND
-          value: update-demand
+          value: update-demand-v1
         - name: KAFKA_TOPICS_SAVE_TAXHEADMASTER
-          value: save-taxHeadMaster-db
-        - name: KAFKA_TOPICS_SAVE_TAXHEADMASTER_KEY
-          value: save-taxHeadMaster
+          value: save-taxHeadMaster-v1-db
         - name: KAFKA_TOPICS_UPDATE_TAXHEADMASTER
-          value: update-taxHeadMaster-db
-        - name: KAFKA_TOPICS_UPDATE_TAXHEADMASTER_KEY
-          value: update-taxHeadMaster
+          value: update-taxHeadMaster-v1-db
         - name: KAFKA_CONSUMER_CONFIG_GROUP_ID
-          value: bs-masters-group
+          value: bs-v1-masters-group
         - name: BS_BILL_SEQ_NAME
           value: seq_egbs_bill
         - name: BS_BILLDETAIL_SEQ_NAME
@@ -173,35 +160,23 @@ spec:
         - name: SPRING_JPA_SHOW_SQL
           value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
         - name: SERVER_CONTEXT_PATH
-          value: /billing-service
+          value: /billing-service-v1
         - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
           value: org.egov.demand.consumer.HashMapDeserializer
         - name: KAFKA_TOPICS_RECEIPT_UPDATE_DEMAND
-          value: egov.collection.receipt-create
+          value: egov.collection.v1.receipt-create
         - name: KAFKA_TOPICS_SAVE_GLCODEMASTER
-          value: save-glCodeMaster-db
-        - name: KAFKA_TOPICS_SAVE_GLCODEMASTER_KEY
-          value: save-glCodeMaster
+          value: save-glCodeMaster-v1-db
         - name: KAFKA_TOPICS_UPDATE_GLCODEMASTER
-          value: update-glCodeMaster-db
-        - name: KAFKA_TOPICS_UPDATE_GLCODEMASTER_KEY
-          value: update-glCodeMaster
+          value: update-glCodeMaster-v1-db
         - name: KAFKA_TOPICS_CREATE_TAXPERIOD_NAME
-          value: save-taxperiod-db
-        - name: KAFKA_TOPICS_CREATE_TAXPERIOD_KEY
-          value: save-taxperiod
+          value: save-taxperiod-v1-db
         - name: KAFKA_TOPICS_UPDATE_TAXPERIOD_NAME
-          value: update-taxperiod-db
-        - name: KAFKA_TOPICS_UPDATE_TAXPERIOD_KEY
-          value: update-taxperiod
+          value: update-taxperiod-v1-db
         - name: KAFKA_TOPICS_CREATE_BUSINESSSERVICEDETAIL_NAME
-          value: save-businessservicedetail-db
-        - name: KAFKA_TOPICS_CREATE_BUSINESSSERVICEDETAIL_KEY
-          value: save-businessservicedetail
+          value: save-businessservicedetail-v1-db
         - name: KAFKA_TOPICS_UPDATE_BUSINESSSERVICEDETAIL_NAME
-          value: update-businessservicedetail-db
-        - name: KAFKA_TOPICS_UPDATE_BUSINESSSERVICEDETAIL_KEY
-          value: update-businessservicedetail
+          value: update-businessservicedetail-v1-db
         - name: BS_TAXHEAD_SEQ_NAME
           value: seq_egbs_taxheadmaster
         - name: BS_TAXHEAD_CODE_SEQ_NAME
@@ -213,7 +188,7 @@ spec:
         - name: BS_BUSINESSSERVICEDETAIL_SEQ_NAME
           value: seq_egbs_business_srvc_details
         - name: JAEGER_SERVICE_NAME
-          value: billing-service
+          value: billing-service-v1
         - name: JAEGER_SAMPLER_TYPE
           value: remote
         - name: JAEGER_AGENT_HOST
@@ -234,4 +209,4 @@ spec:
         #   requests:
         #     memory: "64Mi"
         #   limits:
-        #     memory: "{{ conf['billing-service']['memory_limits'] or "256Mi"}}"
+        #     memory: "{{ conf['billing-service-v1']['memory_limits'] or "256Mi"}}"

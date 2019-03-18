@@ -1,0 +1,146 @@
+---
+# Source: kafka-connect-infra/templates/jmx-configmap.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-connect-infra-jmx-configmap
+  namespace: kafka-cluster
+  labels:
+    app: kafka-connect-infra
+data:
+  jmx-kafka-connect-prometheus.yml: |+
+    jmxUrl: service:jmx:rmi:///jndi/rmi://localhost:5555/jmxrmi
+    lowercaseOutputName: true
+    lowercaseOutputLabelNames: true
+    ssl: false
+    rules:
+    - pattern : "kafka.connect<type=connect-worker-metrics>([^:]+):"
+      name: "cp_kafka_connect_connect_worker_metrics_$1"
+    - pattern : "kafka.connect<type=connect-metrics, client-id=([^:]+)><>([^:]+)"
+      name: "cp_kafka_connect_connect_metrics_$1_$2"
+    - pattern : "kafka.connect<type=connector-task-metrics, connector=([^:]+), task=([^:]+)><>status: ([^:]+)"
+      name: "cp_kafka_connect_connect_connector_metrics"
+      value: 1
+      labels:
+        connector: $1
+        task: $2
+        status: $3
+
+---
+# Source: kafka-connect-infra/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-connect-infra
+  namespace: kafka-cluster
+  labels:
+    app: kafka-connect-infra
+spec:
+  ports:
+    - name: kafka-connect
+      port: 8083
+  selector:
+    app: kafka-connect-infra
+
+---
+# Source: kafka-connect-infra/templates/deployment.yaml
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: kafka-connect-infra
+  namespace: kafka-cluster
+  labels:
+    app: kafka-connect-infra
+spec:
+  replicas: {{conf['kafka-connect-infra']['replicas']}}
+  selector:
+    matchLabels:
+      app: kafka-connect-infra
+  template:
+    metadata:
+      labels:
+        app: kafka-connect-infra
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5556"
+    spec:
+      containers:
+        - name: prometheus-jmx-exporter
+          image: "solsson/kafka-prometheus-jmx-exporter@sha256:6f82e2b0464f50da8104acd7363fb9b995001ddff77d248379f8788e78946143"
+          command:
+          - java
+          - -XX:+UnlockExperimentalVMOptions
+          - -XX:+UseCGroupMemoryLimitForHeap
+          - -XX:MaxRAMFraction=1
+          - -XshowSettings:vm
+          - -jar
+          - jmx_prometheus_httpserver.jar
+          - "5556"
+          - /etc/jmx-kafka-connect/jmx-kafka-connect-prometheus.yml
+          ports:
+          - containerPort: 5556            
+          volumeMounts:
+          - name: jmx-config
+            mountPath: /etc/jmx-kafka-connect
+
+        - name: kafka-connect-infra-server
+          image: "{{conf['kafka-connect-infra']['images'][0]}}"
+          imagePullPolicy: "IfNotPresent"
+          ports:
+            - name: kafka-connect
+              containerPort: 8083
+              protocol: TCP
+            - containerPort: 5555
+              name: jmx
+          resources:
+            limits:
+              cpu: 500m
+              memory: 784Mi
+            requests:
+              cpu: 250m
+              memory: 628Mi            
+          env:
+            - name: CONNECT_REST_ADVERTISED_HOST_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: CONNECT_BOOTSTRAP_SERVERS
+              value: "PLAINTEXT://{{conf['kafka-config']['kafka-infra-brokers']}}"
+            - name: CONNECT_GROUP_ID
+              value: kafka-connect-infra
+            - name: CONNECT_CONFIG_STORAGE_TOPIC
+              value: kafka-connect-infra-config
+            - name: CONNECT_OFFSET_STORAGE_TOPIC
+              value: kafka-connect-infra-offset
+            - name: CONNECT_STATUS_STORAGE_TOPIC
+              value: kafka-connect-infra-status
+            - name: KAFKA_HEAP_OPTS
+              value: "{{conf['kafka-connect-infra']['heap']}}"
+            - name: "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR"
+              value: "{{conf['kafka-connect-infra']['config-storage-replication-factor']}}"
+            - name: "CONNECT_INTERNAL_KEY_CONVERTER"
+              value: "org.apache.kafka.connect.json.JsonConverter"
+            - name: "CONNECT_INTERNAL_VALUE_CONVERTER"
+              value: "org.apache.kafka.connect.json.JsonConverter"
+            - name: "CONNECT_KEY_CONVERTER"
+              value: "org.apache.kafka.connect.json.JsonConverter"
+            - name: "CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE"
+              value: "false"
+            - name: "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR"
+              value: "{{conf['kafka-connect-infra']['offset-storage-replication-factor']}}"
+            - name: "CONNECT_PLUGIN_PATH"
+              value: "/usr/share/java"
+            - name: "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR"
+              value: "{{conf['kafka-connect-infra']['status-storage-replication-factor']}}"
+            - name: "CONNECT_VALUE_CONVERTER"
+              value: "org.apache.kafka.connect.json.JsonConverter"
+            - name: "CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE"
+              value: "false"
+            - name: KAFKA_JMX_PORT
+              value: "5555"
+      volumes:
+      - name: jmx-config
+        configMap:
+          name: kafka-connect-infra-jmx-configmap
+

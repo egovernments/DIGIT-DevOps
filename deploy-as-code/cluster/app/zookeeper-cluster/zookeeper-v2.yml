@@ -1,0 +1,211 @@
+---
+# Source: kafka-infra/charts/zookeeper/templates/poddisruptionbudget.yaml
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: zookeeper-v2-pdb
+  namespace: zookeeper-cluster  
+  labels:
+    app: zookeeper-v2
+spec:
+  selector:
+    matchLabels:
+      app: zookeeper-v2
+  maxUnavailable: 1
+
+---
+# Source: kafka-infra/charts/zookeeper/templates/jmx-configmap.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zookeeper-v2-jmx-configmap
+  namespace: zookeeper-cluster
+  labels:
+    app: zookeeper-v2
+data:
+  jmx-zookeeper-prometheus.yml: |+
+    jmxUrl: service:jmx:rmi:///jndi/rmi://localhost:5555/jmxrmi
+    lowercaseOutputName: true
+    lowercaseOutputLabelNames: true
+    ssl: false
+    rules:
+    - pattern: "org.apache.ZooKeeperService<name0=ReplicatedServer_id(\\d+)><>(\\w+)"
+      name: "zookeeper_infra_$2"
+    - pattern: "org.apache.ZooKeeperService<name0=ReplicatedServer_id(\\d+), name1=replica.(\\d+)><>(\\w+)"
+      name: "zookeeper_infra_$3"
+      labels:
+        replicaId: "$2"
+    - pattern: "org.apache.ZooKeeperService<name0=ReplicatedServer_id(\\d+), name1=replica.(\\d+), name2=(\\w+)><>(\\w+)"
+      name: "zookeeper_infra_$4"
+      labels:
+        replicaId: "$2"
+        memberType: "$3"
+    - pattern: "org.apache.ZooKeeperService<name0=ReplicatedServer_id(\\d+), name1=replica.(\\d+), name2=(\\w+), name3=(\\w+)><>(\\w+)"
+      name: "zookeeper_infra_$4_$5"
+      labels:
+        replicaId: "$2"
+        memberType: "$3"
+---
+# Source: kafka-infra/charts/zookeeper/templates/headless-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper-v2-headless
+  namespace: zookeeper-cluster
+  labels:
+    app: zookeeper-v2
+spec:
+  ports:
+    - port: 2888
+      name: server
+    - port: 3888
+      name: leader-election
+  clusterIP: None
+  selector:
+    app: zookeeper-v2
+---
+# Source: kafka-infra/charts/zookeeper/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper-v2
+  namespace: zookeeper-cluster
+  labels:
+    app: zookeeper-v2
+spec:
+  type: 
+  ports:
+    - port: 2181
+      name: client
+  selector:
+    app: zookeeper-v2
+---
+# Source: kafka-infra/charts/zookeeper/templates/statefulset.yaml
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: zookeeper-v2
+  namespace: zookeeper-cluster
+  labels:
+    app: zookeeper-v2
+spec:
+  serviceName: zookeeper-v2-headless
+  podManagementPolicy: OrderedReady
+  replicas: {{conf['zookeeper-v2']['replicas']}}
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: zookeeper-v2
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5556"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - zookeeper-v2
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: prometheus-jmx-exporter
+        image: "solsson/kafka-prometheus-jmx-exporter@sha256:6f82e2b0464f50da8104acd7363fb9b995001ddff77d248379f8788e78946143"
+        command:
+        - java
+        - -XX:+UnlockExperimentalVMOptions
+        - -XX:+UseCGroupMemoryLimitForHeap
+        - -XX:MaxRAMFraction=1
+        - -XshowSettings:vm   
+        - -jar
+        - jmx_prometheus_httpserver.jar
+        - "5556"
+        - /etc/jmx-zookeeper/jmx-zookeeper-prometheus.yml
+        ports:
+        - containerPort: 5556
+        resources:
+          null
+          
+        volumeMounts:
+        - name: jmx-config
+          mountPath: /etc/jmx-zookeeper
+      - name: zookeeper-server
+        image: {{conf['zookeeper-v2']['images'][0]}}
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - containerPort: 2181
+          name: client
+        - containerPort: 2888
+          name: server
+        - containerPort: 3888
+          name: leader-election
+        - containerPort: 5555
+          name: jmx
+        resources:
+          {}
+          
+        env:
+        - name : KAFKA_HEAP_OPTS
+          value: {{conf['zookeeper-v2']['heap']}}
+        - name : KAFKA_JMX_PORT
+          value: "5555"
+        - name : ZOOKEEPER_TICK_TIME
+          value: "2000"
+        - name : ZOOKEEPER_SYNC_LIMIT
+          value: "5"
+        - name : ZOOKEEPER_INIT_LIMIT
+          value: "10"
+        - name : ZOOKEEPER_MAX_CLIENT_CNXNS
+          value: "60"
+        - name : ZOOKEEPER_AUTOPURGE_SNAP_RETAIN_COUNT
+          value: "3"
+        - name : ZOOKEEPER_AUTOPURGE_PURGE_INTERVAL
+          value: "24"
+        - name: ZOOKEEPER_CLIENT_PORT
+          value: "2181"
+        - name : ZOOKEEPER_SERVERS
+          value: {{conf['zookeeper-v2']['zookeeper-servers']}}
+        # ZOOKEEPER_SERVER_ID is required just to pass zookeeper ensure script for env check,
+        # the value(metadata.mame) is not used and will be overwritten in command part
+        - name: ZOOKEEPER_SERVER_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        command:
+        - "bash"
+        - "-c"
+        - "ZOOKEEPER_SERVER_ID=$((${HOSTNAME##*-}+1)) && mkdir -p /var/lib/zookeeper/data && mkdir -p /var/lib/zookeeper/log && /etc/confluent/docker/run"
+        lifecycle:
+          preStop:
+            exec:
+             command: ["sh", "-ce", "kill -s TERM 1; while $(kill -0 1 2>/dev/null); do sleep 1; done"]  
+        resources:
+          limits:
+            cpu: 300m
+            memory: 384Mi
+          requests:
+            cpu: 300m
+            memory: 384Mi        
+        volumeMounts:
+        - name: zookeeper-v2-data
+          mountPath: /var/lib/zookeeper/
+      volumes:
+      
+      - name: jmx-config
+        configMap:
+          name: zookeeper-v2-jmx-configmap
+  volumeClaimTemplates:
+  - metadata:
+      name: zookeeper-v2-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: "5Gi"    

@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-enc-service
+  namespace: egov
+  labels:
+    app: egov-enc-service
+    group: core
+  annotations:
+    prometheus.io/path: /egov-enc-service/prometheus
+    prometheus.io/port: "8080"
+    prometheus.io/scrape: "true"    
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-enc-service
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-enc-service
+  namespace: egov
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  replicas: {{conf['egov-enc-service']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-enc-service
+        group: core
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "egov-enc-service-db-migration",
+            "image": "{{conf["egov-enc-service"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "egov_enc_service_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
+    spec:
+      containers:
+      - name: egov-enc-service
+        image: {{conf['egov-enc-service']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /egov-enc-service/health
+            port: 8080
+          initialDelaySeconds: 90
+          timeoutSeconds: 3
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 5
+        livenessProbe:
+          httpGet:
+            path: /egov-enc-service/health
+            port: 8080
+          initialDelaySeconds: 120
+          timeoutSeconds: 3
+          periodSeconds: 60
+          successThreshold: 1
+          failureThreshold: 5
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SERVER_TOMCAT_MAX_THREADS
+          value: "{{conf['egov-config']['server-tomcat-max-threads']}}"  
+        - name: SERVER_TOMCAT_MAX_CONNECTIONS
+          value: "{{conf['egov-config']['server-tomcat-max-connections']}}" 
+        - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+          value: "{{conf['egov-config']['spring-datasource-tomcat-max-active']}}"                         
+        - name: FLYWAY_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: JAVA_OPTS
+          value: "{{conf['egov-enc-service']['heap'] or '-Xmx256m -Xms256m'}}"
+        - name: JAVA_ARGS
+          value: "{{conf['egov-enc-service']['java-args']}}"       
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: EGOV_MDMS_HOST
+          value: "{{conf['egov-service-host']['egov-mdms-service']}}"
+        - name: EGOV_STATE_LEVEL_TENANT_ID
+          value: "{{conf['egov-enc-service']['state-level-tenant-id']}}"
+        - name: JAEGER_SERVICE_NAME
+          value: egov-enc-service
+        - name: JAEGER_SAMPLER_TYPE
+          value: remote
+        - name: JAEGER_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: JAEGER_AGENT_PORT
+          value: "6831"
+        - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+          value: "$(JAEGER_AGENT_HOST):5778"               
+        - name: SECURITY_BASIC_ENABLED
+          value: "false"  
+        - name: MANAGEMENT_SECURITY_ENABLED
+          value: "false"         
+        - name: SERVER_CONTEXT_PATH
+          value: /egov-enc-service    
+        - name: MASTER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: egov-enc-service
+              key: master.password    
+        - name: MASTER_SALT
+          valueFrom:
+            secretKeyRef:
+              name: egov-enc-service
+              key: master.salt
+        - name: MASTER_INITIALVECTOR
+          valueFrom:
+            secretKeyRef:
+              name: egov-enc-service
+              key: master.initialvector                                                       
+        resources:
+          requests:
+            memory: "256Mi"
+          limits:
+            memory: "{{ conf['egov-enc-service']['memory_limits'] or "512Mi"}}"

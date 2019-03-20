@@ -149,6 +149,37 @@ data:
         Time_Format %b %d %H:%M:%S
 
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fluent-bit
+  namespace: logging
+---
+
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: fluent-bit-read
+rules:
+- apiGroups: [""]
+  resources:
+  - namespaces
+  - pods
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: fluent-bit-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fluent-bit-read
+subjects:
+- kind: ServiceAccount
+  name: fluent-bit
+  namespace: logging
+---  
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
@@ -199,8 +230,8 @@ spec:
         - name: fluent-bit-config
           configMap:
             name: fluent-bit-config
-      serviceAccountName: fluentd
-      serviceAccount: fluentd
+      serviceAccountName: fluent-bit
+      serviceAccount: fluent-bit
       tolerations:
         - key: "node-role.kubernetes.io/master"
           operator: Exists

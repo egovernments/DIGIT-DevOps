@@ -53,6 +53,28 @@ spec:
             configMapKeyRef:
               name: egov-config
               key: timezone
+        - name: JAEGER_SERVICE_NAME
+          value: user-otp
+        - name: JAEGER_SAMPLER_TYPE
+          value: remote
+        - name: JAEGER_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: JAEGER_AGENT_PORT
+          value: "6831"
+        - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+          value: $(JAEGER_AGENT_HOST):5778          
+        - name: JAVA_ARGS
+          value: "{{conf['user-otp']['java-args']}}"
+        - name: SECURITY_BASIC_ENABLED
+          value: "false"  
+        - name: MANAGEMENT_SECURITY_ENABLED
+          value: "false"     
+{% if conf['user-otp']['tracing-enabled']%}          
+        - name: TRACER_OPENTRACING_ENABLED
+          value: "true" 
+{% endif %}                        
         resources:
           requests:
             memory: "64Mi"

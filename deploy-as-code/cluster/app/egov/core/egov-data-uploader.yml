@@ -101,6 +101,26 @@ spec:
         - name: INTERNAL_FILE_FOLDER_PATH
           value: "{{conf['egov-data-uploader']['internal-file-folder-path']}}"
 {% endif %}
+        - name: JAEGER_SERVICE_NAME
+          value: egov-data-uploader
+        - name: JAEGER_SAMPLER_TYPE
+          value: remote
+        - name: JAEGER_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: JAEGER_AGENT_PORT
+          value: "6831"
+        - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+          value: "$(JAEGER_AGENT_HOST):5778"               
+        - name: SECURITY_BASIC_ENABLED
+          value: "false"  
+        - name: MANAGEMENT_SECURITY_ENABLED
+          value: "false"           
+{% if conf['egov-data-uploader']['tracing-enabled']%}          
+        - name: TRACER_OPENTRACING_ENABLED
+          value: "true" 
+{% endif %} 
         # resources:
         #   requests:
         #     memory: "64Mi"

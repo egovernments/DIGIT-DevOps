@@ -220,3 +220,55 @@
 ---
 {% endfor %}
 {% endif %}
+
+{% if conf['zookeeper-v2']%}
+{% for index in range(conf['zookeeper-v2']['replicas']) %}
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: zookeeper-data-zookeeper-v2-{{index}}
+    labels:
+      app: zookeeper-v2
+  spec:
+    capacity:
+      storage: {{conf['zookeeper-v2']['storage-size']}}
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+        namespace: zookeeper-cluster
+        name: zookeeper-data-zookeeper-v2-{{index}}
+{% if conf['zookeeper-v2']['ebs-volumes']  and conf['zookeeper-v2']['ebs-volumes'][index]  %}
+    awsElasticBlockStore:
+      volumeID: {{conf['zookeeper-v2']['ebs-volumes'][index]}}
+      fsType: ext4
+{% endif %}
+---
+{% endfor %}
+{% endif %}
+
+{% if conf['kafka-v2-infra']%}
+{% for index in range(conf['kafka-v2-infra']['replicas']) %}
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: kafka-data-kafka-v2-infra-{{index}}
+    labels:
+      app: kafka-v2-infra
+  spec:
+    capacity:
+      storage: {{conf['kafka-v2-infra']['storage-size']}}
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+        namespace: kafka-cluster
+        name: kafka-data-kafka-v2-infra-{{index}}
+{% if conf['kafka-v2-infra']['ebs-volumes']  and conf['kafka-v2-infra']['ebs-volumes'][index]  %}
+    awsElasticBlockStore:
+      volumeID: {{conf['kafka-v2-infra']['ebs-volumes'][index]}}
+      fsType: ext4
+{% endif %}
+---
+{% endfor %}
+{% endif %}

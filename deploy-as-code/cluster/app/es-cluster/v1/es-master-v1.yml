@@ -1,0 +1,162 @@
+---
+# Source: elasticsearch/templates/master-serviceaccount.yaml
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: elasticsearch-master-v1
+    component: "master"
+  name: elasticsearch-master-v1
+  namespace: es-cluster
+---
+# Source: elasticsearch/templates/master-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: elasticsearch-master-v1
+    component: "master"
+  name: elasticsearch-discovery-v1
+  namespace: es-cluster
+spec:
+  clusterIP: None
+  ports:
+    - port: 9300
+      targetPort: transport
+  selector:
+    app: elasticsearch-master-v1
+    component: "master"
+---
+# Source: elasticsearch/templates/master-statefulset.yaml
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  labels:
+    app: elasticsearch-master-v1
+    component: "master"
+  name: elasticsearch-master-v1
+  namespace: es-cluster
+spec:
+  serviceName: elasticsearch-master-v1
+  replicas: {{conf['es-master-v1']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: elasticsearch-master-v1
+        component: "master"
+        role: master
+    spec:
+      serviceAccountName: elasticsearch-master-v1
+      securityContext:
+        fsGroup: 1000
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: "elasticsearch-v1"
+                  component: "master"
+      initContainers:
+      # see https://www.elastic.co/guide/en/elasticsearch/reference/current/vm-max-map-count.html
+      # and https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-configuration-memory.html#mlockall
+      - name: "sysctl"
+        image: "busybox:latest"
+        imagePullPolicy: "Always"
+        resources:
+            {}
+            
+        command: ["sysctl", "-w", "vm.max_map_count=262144"]
+        securityContext:
+          privileged: true
+      - name: "chown"
+        image: "{{conf['es-master-v1']['images'][0]}}"
+        imagePullPolicy: "IfNotPresent"
+        resources:
+            {}
+            
+        command:
+        - /bin/bash
+        - -c
+        - >
+          set -e;
+          set -x;
+          chown elasticsearch:elasticsearch /usr/share/elasticsearch/data;
+          for datadir in $(find /usr/share/elasticsearch/data -mindepth 1 -maxdepth 1 -not -name ".snapshot"); do
+            chown -R elasticsearch:elasticsearch $datadir;
+          done;
+          chown elasticsearch:elasticsearch /usr/share/elasticsearch/logs;
+          for logfile in $(find /usr/share/elasticsearch/logs -mindepth 1 -maxdepth 1 -not -name ".snapshot"); do
+            chown -R elasticsearch:elasticsearch $logfile;
+          done
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - mountPath: /usr/share/elasticsearch/data
+          name: es-storage
+      containers:
+      - name: elasticsearch
+        env:
+        - name: NODE_DATA
+          value: "false"
+        - name: DISCOVERY_SERVICE
+          value: elasticsearch-discovery-v1
+        - name: ES_CLIENT_SVC
+          value: elasticsearch-client-v1    
+        - name: CLUSTER_NAME
+          value: elasticsearch-v1           
+        - name: PROCESSORS
+          valueFrom:
+            resourceFieldRef:
+              resource: limits.cpu
+        - name: ES_JAVA_OPTS
+          value: "-Djava.net.preferIPv4Stack=true -Xms512m -Xmx512m  "
+        - name: MINIMUM_MASTER_NODES
+          value: "2"
+{% if conf['es-master-v1']['network-host'] %}
+        - name: NETWORK_HOST
+          value: {{conf['es-master-v1']['network-host']}}
+{% endif %}              
+        resources:
+            limits:
+              cpu: "1"
+            requests:
+              cpu: 25m
+              memory: 512Mi
+            
+        readinessProbe:
+          httpGet:
+            path: /_cluster/health?local=true
+            port: 9200
+          initialDelaySeconds: 5
+          
+        image: "{{conf['es-master-v1']['images'][0]}}"
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - containerPort: 9300
+          name: transport
+
+        volumeMounts:
+        - mountPath: /usr/share/elasticsearch/data
+          name: es-storage
+        - mountPath: /usr/share/elasticsearch/config/elasticsearch.yml
+          name: config
+          subPath: elasticsearch.yml
+      volumes:
+      - name: config
+        configMap:
+          name: elasticsearch-v1
+  updateStrategy:
+    type: OnDelete
+  volumeClaimTemplates:
+  - metadata:
+      name: es-storage
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi       

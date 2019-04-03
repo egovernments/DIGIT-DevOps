@@ -127,6 +127,7 @@ egov-user:
   citizen-registration-withlogin: "true"
   citizen-otp-fixed: "123456"
   citizen-otp-fixed-enabled: "true"
+  egov-state-level-tenant-id: "pb"  
 
 egov-workflow:
   replicas: 1
@@ -623,24 +624,6 @@ egov-service-host:
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-# zookeeper >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-zookeeper:
-  replicas: 1
-  images:
-    - egovio/zookeeper:3.4.9-v1.0
-  ebs-volumes:
-    - vol-0a05c818194e23dae
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-# kafka >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-kafka:
-  replicas: 1
-  images:
-    - egovio/kafka:0.10.1.1
-  ebs-volumes:
-    - vol-021e30b139d657057
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
 # redis >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 redis:
   replicas: 1
@@ -649,29 +632,11 @@ redis:
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # es-cluster >>>>>>>>>>>>>>>>>>>>>>>>>>>>
-es-data:
-  replicas: 2
-  shards: "4"
-  es-replicas: "0"
-  images:
-    - egovio/elasticsearch:5.4.0
-  java-opts: "-Xms1024m -Xmx1024m"
-  ebs-volumes:
-    - vol-0cd10dbbdce2b3060
-    - vol-09d3478fe2fbbcbe7
-  network-host: "_eth0:ipv4_"
-
-es-client:
-  replicas: 1
-  images:
-    - egovio/elasticsearch:5.4.0
-  java-opts: "-Xms1024m -Xmx1024m"
-  network-host: "_eth0:ipv4_"
 
 es-master:
   replicas: 1
   images:
-    - egovio/elasticsearch:5.4.0
+    - egovio/elasticsearch:6.6.2
   java-opts: "-Xms1024m -Xmx1024m"
   network-host: "_eth0:ipv4_"
 
@@ -681,6 +646,45 @@ kibana:
     - kibana:5.4.0
   external_port: 5601
   service_type: LoadBalancer
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+# es-v1-cluster >>>>>>>>>>>>>>>>>>>>>>>>>>>>
+es-data-v1:
+  replicas: 2
+  shards: "4"
+  es-replicas: "0"
+  storage-size: 5Gi  
+  images:
+    - docker.elastic.co/elasticsearch/elasticsearch-oss:6.6.2
+  azure-disk:
+    - /subscriptions/b4e1aa53-c521-44e6-8a4d-5ae107916b5b/resourceGroups/MC_egov-micro-playground_k8s-egov-micro-playground_southeastasia/providers/Microsoft.Compute/disks/es-data-v1-0
+    - /subscriptions/b4e1aa53-c521-44e6-8a4d-5ae107916b5b/resourceGroups/MC_egov-micro-playground_k8s-egov-micro-playground_southeastasia/providers/Microsoft.Compute/disks/es-data-v1-1
+  network-host: "_eth0:ipv4_"
+
+es-client-v1:
+  replicas: 1
+  images:
+    - docker.elastic.co/elasticsearch/elasticsearch-oss:6.6.2
+  network-host: "_eth0:ipv4_"
+
+es-master-v1:
+  replicas: 3
+  images:
+    - docker.elastic.co/elasticsearch/elasticsearch-oss:6.6.2
+  storage-size: 2Gi  
+  azure-disk:
+    - /subscriptions/b4e1aa53-c521-44e6-8a4d-5ae107916b5b/resourceGroups/MC_egov-micro-playground_k8s-egov-micro-playground_southeastasia/providers/Microsoft.Compute/disks/es-master-0
+    - /subscriptions/b4e1aa53-c521-44e6-8a4d-5ae107916b5b/resourceGroups/MC_egov-micro-playground_k8s-egov-micro-playground_southeastasia/providers/Microsoft.Compute/disks/es-master-1
+    - /subscriptions/b4e1aa53-c521-44e6-8a4d-5ae107916b5b/resourceGroups/MC_egov-micro-playground_k8s-egov-micro-playground_southeastasia/providers/Microsoft.Compute/disks/es-master-2
+  network-host: "_eth0:ipv4_"
+
+kibana-v1:
+  replicas: 1
+  images:
+    - docker.elastic.co/kibana/kibana-oss:6.6.2
+  es-url: "http://elasticsearch-client-v1:9200"  
+  external_port: 5601
+  service_type: LoadBalancer 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # secrets >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -766,38 +770,6 @@ es-alerts:
   log-index-name: "qa-logstash-*"
   slack-url: SUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dtrFP1/YcM/dZEYNdxfb7/ry3M/l8EsdD5voj9brwWUNxWAJZfWoMAy6DRV+q0Kad/dXa4joQZAkIDMwrrwzfFIfwDSz2ewWhWNv/42WR4L/8gM86ouhlQIZYr0eg6lYht2A+SFpt0E21gY7n7PfihA==
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-#<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-#cloudwatch-push-mem-metrics
-cloudwatch-push-mem-metrics:
-  replicas: 1
-  images:
-    - egovio/cloudwatch-push-mem-metrics:2.1
-  aws_access_key_id: SUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D50c+5SvLR6XHKjeg/R22p659cKSzNNVrmP5hY0G1XUrXQ==
-  aws_secret_access_key: SUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dxxj/YDy1v3qDMnhvLIry2uGPl29GLhDyYuiZFN2Dk1H7VFsZEGqLw0wCYvO1fxv1/e/DP1qRWJzBfcVYnIx5hg==
-  aws_availability_zone: SUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+d42IidRdKmSJZAXgArNm05w==
-  node-env: "QA"
-  arn: SUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dxMFSy0FjBhVCQ904dk+VKSCw1GXYobuhBqN7gDelpQedQGZOdo7f6f3+PxIBwH9MQk/ybcjHSOszHXa82C52eA==
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-prometheus:
-  replicas: 1
-  images:
-    - egovio/prometheus:v1.7.1
-  retention_period: 48h
-  alertmanager-url: http://alertmanager:9093/
-  service_type: LoadBalancer
-  ebs-volumes:
-    - vol-08f5a869907578eb3
-
-grafana:
-  replicas: 1
-  images:
-    - egovio/grafana:4.4.1
-  service_type: LoadBalancer
-  ebs-volumes:
-    - vol-04be0a05b3fb53dde
-
 # fluent-bit >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 fluent-bit:
   images:
@@ -805,3 +777,14 @@ fluent-bit:
   egov-services-log-topic: "egov-services-logs"
   egov-infra-log-topic: "egov-infra-logs"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+egov-enc-service:
+  replicas: 1
+  images:
+    - egovio/egov-enc-service
+  db_migration_image: egovio/egov-enc-service-db
+  java-args: -Dspring.profiles.active=monitoring
+  state-level-tenant-id: "pb"
+  master-password: SUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D50ItO0ZkW/RktsYKkmU+aBcK0oZd7uE4o6/isU6csVXZQ==
+  master-salt: SUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dvOEZ5IC+CmU6hDTR6/f3bA==
+  master-initialvector: SUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dy0CkNn9G4cm+Gf9dXD+pyA==
+  # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

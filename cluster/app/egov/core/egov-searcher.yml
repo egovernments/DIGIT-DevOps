@@ -66,6 +66,26 @@ spec:
           value: "{{conf['egov-searcher']['heap'] or '-Xmx192m -Xms192m'}}"
         - name: SERVER_PORT
           value: "8080"
+        - name: JAEGER_SERVICE_NAME
+          value: egov-searcher
+        - name: JAEGER_SAMPLER_TYPE
+          value: remote
+        - name: JAEGER_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: JAEGER_AGENT_PORT
+          value: "6831"
+        - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+          value: "$(JAEGER_AGENT_HOST):5778"              
+        - name: SECURITY_BASIC_ENABLED
+          value: "false"  
+        - name: MANAGEMENT_SECURITY_ENABLED
+          value: "false" 
+{% if conf['egov-searcher']['tracing-enabled']%}          
+        - name: TRACER_OPENTRACING_ENABLED
+          value: "true" 
+{% endif %}            
         resources:
           requests:
             memory: "64Mi"

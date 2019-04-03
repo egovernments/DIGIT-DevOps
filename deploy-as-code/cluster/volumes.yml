@@ -20,6 +20,12 @@
     awsElasticBlockStore:
       volumeID: {{conf['es-data']['ebs-volumes'][index]}}
       fsType: ext4
+{% elif conf['es-data']['azure-disk']  and conf['es-data']['azure-disk'][index]  %}
+    azureDisk:
+      diskName: es-data-{{index}}
+      diskURI: {{conf['es-data']['azure-disk'][index]}}
+      kind: Managed
+      fsType: ext4
 {% else %}
     hostPath:
       path: /opt/eGov/es-storage-es-data-{{index}}
@@ -27,6 +33,7 @@
 ---
 {% endfor %}
 {% endif %}
+{% if conf['zookeeper']%}
 {% for index in range(conf['zookeeper']['replicas']) %}
   apiVersion: v1
   kind: PersistentVolume
@@ -47,12 +54,19 @@
     awsElasticBlockStore:
       volumeID: {{conf['zookeeper']['ebs-volumes'][index]}}
       fsType: ext4
+{% elif conf['zookeeper']['azure-disk']  and conf['zookeeper']['azure-disk'][index]  %}
+    azureDisk:
+      diskName: zookeeper-{{index}}
+      diskURI: {{conf['zookeeper']['azure-disk'][index]}}
+      kind: Managed
+      fsType: ext4      
 {% else %}
     hostPath:
       path: /opt/eGov/zookeeper-data-zookeeper-{{index}}
 {% endif %}
 ---
 {% endfor %}
+{% endif %}
   apiVersion: v1
   kind: PersistentVolume
   metadata:
@@ -73,6 +87,7 @@
     hostPath:
       path: {{conf['egov-filestore']['volume']}}
 ---
+{% if conf['kafka']%}
 {% for index in range(conf['kafka']['replicas']) %}
   apiVersion: v1
   kind: PersistentVolume
@@ -93,15 +108,21 @@
     awsElasticBlockStore:
       volumeID: {{conf['kafka']['ebs-volumes'][index]}}
       fsType: ext4
+{% elif conf['kafka']['azure-disk']  and conf['kafka']['azure-disk'][index]  %}
+    azureDisk:
+      diskName: kafka-{{index}}
+      diskURI: {{conf['kafka']['azure-disk'][index]}}
+      kind: Managed
+      fsType: ext4            
 {% else %}
     hostPath:
       path: /opt/eGov/kafka-data-kafka-{{index}}
 {% endif %}
 ---
 {% endfor %}
+{% endif %}
 
 {% if conf['prometheus'] %}
-
 {% for index in range(conf['prometheus']['replicas']) %}
   apiVersion: v1
   kind: PersistentVolume
@@ -123,6 +144,12 @@
     awsElasticBlockStore:
       volumeID: {{conf['prometheus']['ebs-volumes'][index]}}
       fsType: ext4
+{% elif conf['prometheus']['azure-disk']  and conf['prometheus']['azure-disk'][index]  %}
+    azureDisk:
+      diskName: prometheus-{{index}}
+      diskURI: {{conf['prometheus']['azure-disk'][index]}}
+      kind: Managed
+      fsType: ext4        
 {% else %}
     hostPath:
       path: /opt/eGov/prometheus-data-prometheus-{{index}}
@@ -132,7 +159,6 @@
 {% endif %}
 
 {% if conf['grafana'] %}
-
 {% for index in range(conf['grafana']['replicas']) %}
   apiVersion: v1
   kind: PersistentVolume
@@ -154,6 +180,12 @@
     awsElasticBlockStore:
       volumeID: {{conf['grafana']['ebs-volumes'][index]}}
       fsType: ext4
+{% elif conf['grafana']['azure-disk']  and conf['grafana']['azure-disk'][index]  %}
+    azureDisk:
+      diskName: grafana-{{index}}
+      diskURI: {{conf['grafana']['azure-disk'][index]}}
+      kind: Managed
+      fsType: ext4          
 {% else %}
     hostPath:
       path: /opt/eGov/grafana-data-grafana-{{index}}
@@ -184,6 +216,12 @@
     awsElasticBlockStore:
       volumeID: {{conf['secor']['ebs-volumes'][index]}}
       fsType: ext4
+{% elif conf['secor']['azure-disk']  and conf['secor']['azure-disk'][index]  %}
+    azureDisk:
+      diskName: secor-{{index}}
+      diskURI: {{conf['secor']['azure-disk'][index]}}
+      kind: Managed
+      fsType: ext4      
 {% else %}
     hostPath:
       path: /secor/data/secor-data-secor-{{index}}
@@ -213,9 +251,141 @@
     awsElasticBlockStore:
       volumeID: {{conf['es-data-infra']['ebs-volumes'][index]}}
       fsType: ext4
+{% elif conf['es-data-infra']['azure-disk']  and conf['es-data-infra']['azure-disk'][index]  %}
+    azureDisk:
+      diskName: es-data-infra-{{index}}
+      diskURI: {{conf['es-data-infra']['azure-disk'][index]}}
+      kind: Managed
+      fsType: ext4         
 {% else %}
     hostPath:
       path: /opt/eGov/es-storage-infra-es-data-infra-{{index}}
+{% endif %}
+---
+{% endfor %}
+{% endif %}
+
+{% if conf['zookeeper-v2']%}
+{% for index in range(conf['zookeeper-v2']['replicas']) %}
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: zookeeper-data-zookeeper-v2-{{index}}
+    labels:
+      app: zookeeper-v2
+  spec:
+    capacity:
+      storage: {{conf['zookeeper-v2']['storage-size']}}
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+        namespace: zookeeper-cluster
+        name: zookeeper-data-zookeeper-v2-{{index}}
+{% if conf['zookeeper-v2']['ebs-volumes']  and conf['zookeeper-v2']['ebs-volumes'][index]  %}
+    awsElasticBlockStore:
+      volumeID: {{conf['zookeeper-v2']['ebs-volumes'][index]}}
+      fsType: ext4
+{% elif conf['zookeeper-v2']['azure-disk']  and conf['zookeeper-v2']['azure-disk'][index]  %}
+    azureDisk:
+      diskName: zookeeper-v2-{{index}}
+      diskURI: {{conf['zookeeper-v2']['azure-disk'][index]}}
+      kind: Managed
+      fsType: ext4         
+{% endif %}
+---
+{% endfor %}
+{% endif %}
+
+{% if conf['kafka-v2-infra']%}
+{% for index in range(conf['kafka-v2-infra']['replicas']) %}
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: kafka-data-kafka-v2-infra-{{index}}
+    labels:
+      app: kafka-v2-infra
+  spec:
+    capacity:
+      storage: {{conf['kafka-v2-infra']['storage-size']}}
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+        namespace: kafka-cluster
+        name: kafka-data-kafka-v2-infra-{{index}}
+{% if conf['kafka-v2-infra']['ebs-volumes']  and conf['kafka-v2-infra']['ebs-volumes'][index]  %}
+    awsElasticBlockStore:
+      volumeID: {{conf['kafka-v2-infra']['ebs-volumes'][index]}}
+      fsType: ext4
+{% elif conf['kafka-v2-infra']['azure-disk']  and conf['kafka-v2-infra']['azure-disk'][index]  %}
+    azureDisk:
+      diskName: kafka-v2-infra-{{index}}
+      diskURI: {{conf['kafka-v2-infra']['azure-disk'][index]}}
+      kind: Managed
+      fsType: ext4       
+{% endif %}
+---
+{% endfor %}
+{% endif %}
+{% if conf['es-master-v1']%}
+{% for index in range(conf['es-master-v1']['replicas']) %}
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: es-storage-elasticsearch-master-v1-{{index}}
+    labels:
+      app: elasticsearch-master-v1
+  spec:
+    capacity:
+      storage: {{conf['es-master-v1']['storage-size']}}
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+        namespace: es-cluster
+        name: es-storage-elasticsearch-master-v1-{{index}}
+{% if conf['es-master-v1']['ebs-volumes']  and conf['es-master-v1']['ebs-volumes'][index]  %}
+    awsElasticBlockStore:
+      volumeID: {{conf['es-master-v1']['ebs-volumes'][index]}}
+      fsType: ext4
+{% elif conf['es-master-v1']['azure-disk']  and conf['es-master-v1']['azure-disk'][index]  %}
+    azureDisk:
+      diskName: es-master-{{index}}
+      diskURI: {{conf['es-master-v1']['azure-disk'][index]}}
+      kind: Managed
+      fsType: ext4       
+{% endif %}
+---
+{% endfor %}
+{% endif %}
+{% if conf['es-data-v1']%}
+{% for index in range(conf['es-data-v1']['replicas']) %}
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: es-storage-elasticsearch-data-v1-{{index}}
+    labels:
+      app: elasticsearch-data-v1
+  spec:
+    capacity:
+      storage: {{conf['es-data-v1']['storage-size']}}
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+        namespace: es-cluster
+        name: es-storage-elasticsearch-data-v1-{{index}}
+{% if conf['es-data-v1']['ebs-volumes']  and conf['es-data-v1']['ebs-volumes'][index]  %}
+    awsElasticBlockStore:
+      volumeID: {{conf['es-data-v1']['ebs-volumes'][index]}}
+      fsType: ext4
+{% elif conf['es-data-v1']['azure-disk']  and conf['es-data-v1']['azure-disk'][index]  %}
+    azureDisk:
+      diskName: es-data-v1-{{index}}
+      diskURI: {{conf['es-data-v1']['azure-disk'][index]}}
+      kind: Managed
+      fsType: ext4       
 {% endif %}
 ---
 {% endfor %}

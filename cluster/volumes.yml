@@ -288,7 +288,7 @@
       fsType: ext4
 {% elif conf['zookeeper-v2']['azure-disk']  and conf['zookeeper-v2']['azure-disk'][index]  %}
     azureDisk:
-      diskName: zookeeper-v2-{{index}}
+      diskName: zookeeper-{{index}}
       diskURI: {{conf['zookeeper-v2']['azure-disk'][index]}}
       kind: Managed
       fsType: ext4         
@@ -322,6 +322,37 @@
     azureDisk:
       diskName: kafka-v2-infra-{{index}}
       diskURI: {{conf['kafka-v2-infra']['azure-disk'][index]}}
+      kind: Managed
+      fsType: ext4       
+{% endif %}
+---
+{% endfor %}
+{% endif %}
+{% if conf['kafka-v2']%}
+{% for index in range(conf['kafka-v2']['replicas']) %}
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: kafka-data-kafka-v2-{{index}}
+    labels:
+      app: kafka-v2
+  spec:
+    capacity:
+      storage: {{conf['kafka-v2']['storage-size']}}
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+        namespace: kafka-cluster
+        name: kafka-data-kafka-v2-{{index}}
+{% if conf['kafka-v2']['ebs-volumes']  and conf['kafka-v2']['ebs-volumes'][index]  %}
+    awsElasticBlockStore:
+      volumeID: {{conf['kafka-v2']['ebs-volumes'][index]}}
+      fsType: ext4
+{% elif conf['kafka-v2']['azure-disk']  and conf['kafka-v2']['azure-disk'][index]  %}
+    azureDisk:
+      diskName: kafka-{{index}}
+      diskURI: {{conf['kafka-v2']['azure-disk'][index]}}
       kind: Managed
       fsType: ext4       
 {% endif %}

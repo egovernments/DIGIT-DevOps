@@ -44,13 +44,13 @@ def set_kube_credentials(env){
         sh "cp ${CERT_KEY} /kube/admin-key.pem"
     }
 
-    if (env == "apUat" || env == "apProd" || env == "playground") {
+    if (env == "apUat" || env == "apProd" || env == "playground" || env == "qa" ) {
         withCredentials([string(credentialsId: "${env}-kube-token", variable: "TOKEN")]){
             sh "kubectl config set-credentials env --token ${TOKEN}"
         }
     }
 
-    if (env == "pbuat" || env == "pbprod" || env=="dev" || env=="qa" || env =="demoenv2") {
+    if (env == "pbuat" || env == "pbprod" || env=="dev" || env =="demoenv2") {
         withCredentials([string(credentialsId: "${env}-kube-username", variable: "AUTHUSER")]){
             sh "kubectl config set-credentials env --username=${AUTHUSER}"
         }

@@ -67,18 +67,18 @@ spec:
         - >
           set -e;
           set -x;
-          chown elasticsearch:elasticsearch /usr/share/elasticsearch/data;
-          for datadir in $(find /usr/share/elasticsearch/data -mindepth 1 -maxdepth 1 -not -name ".snapshot"); do
+          chown elasticsearch:elasticsearch /usr/share/elasticsearch;
+          for datadir in $(find /usr/share/elasticsearch -mindepth 1 -maxdepth 1 -not -name ".snapshot"); do
             chown -R elasticsearch:elasticsearch $datadir;
           done;
-          chown elasticsearch:elasticsearch /usr/share/elasticsearch/logs;
-          for logfile in $(find /usr/share/elasticsearch/logs -mindepth 1 -maxdepth 1 -not -name ".snapshot"); do
+          chown elasticsearch:elasticsearch /usr/share/elasticsearch/log;
+          for logfile in $(find /usr/share/elasticsearch/log -mindepth 1 -maxdepth 1 -not -name ".snapshot"); do
             chown -R elasticsearch:elasticsearch $logfile;
           done
         securityContext:
           runAsUser: 0
         volumeMounts:
-        - mountPath: /usr/share/elasticsearch/data
+        - mountPath: /usr/share/elasticsearch
           name: es-storage
       containers:
       - name: elasticsearch
@@ -98,7 +98,11 @@ spec:
         - name: ES_JAVA_OPTS
           value: "-Djava.net.preferIPv4Stack=true -Xms1536m -Xmx1536m  "
         - name: MINIMUM_MASTER_NODES
-          value: "2"          
+          value: "2"        
+        - name: ES_PATH_DATA
+          value: /var/lib/elasticsearch/data
+        - name: ES_PATH_LOGS
+          value: /usr/share/elasticsearch/log            
 {% if conf['es-data-v1']['network-host'] %}
         - name: NETWORK_HOST
           value: {{conf['es-data-v1']['network-host']}}
@@ -120,10 +124,13 @@ spec:
           httpGet:
             path: /_cluster/health?local=true
             port: 9200
-          initialDelaySeconds: 5
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 5          
           
         volumeMounts:
-        - mountPath: /usr/share/elasticsearch/data
+        - mountPath: /var/lib/elasticsearch
           name: es-storage
         - mountPath: /usr/share/elasticsearch/config/elasticsearch.yml
           name: config

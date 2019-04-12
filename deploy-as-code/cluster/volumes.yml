@@ -421,3 +421,34 @@
 ---
 {% endfor %}
 {% endif %}
+{% if conf['es-data-v1']%}
+{% for index in range(conf['es-data-v1']['replicas']) %}
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: es-storage-elasticsearch-data-v1-{{index}}
+    labels:
+      app: elasticsearch-data-v1
+  spec:
+    capacity:
+      storage: {{conf['es-data-v1']['storage-size']}}
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+        namespace: es-cluster
+        name: es-storage-elasticsearch-data-v1-{{index}}
+{% if conf['es-data-v1']['ebs-volumes']  and conf['es-data-v1']['ebs-volumes'][index]  %}
+    awsElasticBlockStore:
+      volumeID: {{conf['es-data-v1']['ebs-volumes'][index]}}
+      fsType: ext4
+{% elif conf['es-data-v1']['azure-disk']  and conf['es-data-v1']['azure-disk'][index]  %}
+    azureDisk:
+      diskName: es-data-v1-{{index}}
+      diskURI: {{conf['es-data-v1']['azure-disk'][index]}}
+      kind: Managed
+      fsType: ext4       
+{% endif %}
+---
+{% endfor %}
+{% endif %}

@@ -1015,8 +1015,8 @@ egov-config:
   spring-datasource-tomcat-max-active: "5"
   server-tomcat-max-threads: "10"
   server-tomcat-max-connections: "500"
-  es-indexer-host: "http://es-client.es-cluster:9200/"
-  es-host: "es-client.es-cluster"
+  es-indexer-host: "http://elasticsearch-client-v1.es-cluster:9200/"
+  es-host: "elasticsearch-client-v1.es-cluster"
   egov-services-fqdn-name: "https://egov-micro-dev.egovernments.org/"
   flyway-locations: "filesystem:/flyway/sql,filesystem:/flyway/seed,filesystem:/flyway/qa"
   spring-jpa-show-sql: "true"
@@ -1040,7 +1040,7 @@ zuul-config: ## DO NOT WHITELIST API's WITHOUT CONFIRMATION
   egov-mixed-mode-endpoints-whitelist: "/pgr/seva/v1/_create,/pgr/seva/v1/_search,/pgr/seva/v1/_count,/workflow/history/v1/_search,/filestore/v1/files/id,/filestore/v1/files,/filestore/v1/files/tag,/egov-common-masters/departments/_search,/pt-property/property/propertytypes/_search,/pt-property/properties/_search,/pt-property/property/usages/_search,/egov-idgen/id/_generate,/egf-masters/financialyears/_search,/egov-common-workflows/process/_start,/egov-common-workflows/process/_search,/egov-common-workflows/tasks,/egov-common-workflows/tasks/{id}/_update,/user/_search,/user/users/_createnovalidate,/user/users/{id}/_update,/billing-service/demand/_dues,/billing-service/bill/_generate,/billing-service/demand/_create,/wcms/masters/waterchargesconfig/_search,/wcms/masters/usagetypes/_search,/wcms/masters/pipesizes/_search,/wcms-connection/connection/_getbillingtypes,/wcms-connection/connection/_getconnectiontypes,/wcms/masters/sourcetypes/_search,/wcms/masters/supplytypes/_search,/wcms/masters/storagereservoirs/_search,/wcms/masters/treatmentplants/_search,/wcms/masters/documenttypes-applicationtypes/_search,/wcms/masters/donations/_search,/wcms/masters/nonmeterwaterrates/_search,/wcms-connection/connection/_create,/egov-common-masters/genders/_search,/egov-common-workflows/designations/_search,/access/v1/actions/mdms/_get"
 
 logging-config:
-  es-host: "es-client.es-cluster"
+  es-host: "elasticsearch-client-v1.es-cluster"
   es-port: "9200"
 
 jaeger-config:
@@ -1394,7 +1394,7 @@ es-alerts:
   replicas: 1
   images:
     - egovio/es-alerts
-  es-host: "es-client.es-cluster"
+  es-host: "elasticsearch-client-v1.es-cluster"
   es-port: "9200"
   log-index-name: "dev-logstash-*"
   slack-url: SUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dtrFP1/YcM/dZEYNdxfb7/ry3M/l8EsdD5voj9brwWUNxWAJZfWoMAy6DRV+q0Kad/dXa4joQZAkIDMwrrwzfFIfwDSz2ewWhWNv/42WR4L/8gM86ouhlQIZYr0eg6lYht2A+SFpt0E21gY7n7PfihA==
@@ -1453,3 +1453,49 @@ egov-enc-service:
   master-salt: SUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dvOEZ5IC+CmU6hDTR6/f3bA==
   master-initialvector: SUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dy0CkNn9G4cm+Gf9dXD+pyA==
   # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+# es-v1-cluster >>>>>>>>>>>>>>>>>>>>>>>>>>>>
+es-data-v1:
+  replicas: 2
+  shards: "4"
+  es-replicas: "0"
+  storage-size: 30Gi  
+  images:
+    - docker.elastic.co/elasticsearch/elasticsearch-oss:6.6.2
+  ebs-volumes:
+    - vol-061070bcb4864b129
+    - vol-0a4ca0f17dddfd4d1
+  network-host: "_eth0:ipv4_"
+
+es-client-v1:
+  replicas: 1
+  images:
+    - docker.elastic.co/elasticsearch/elasticsearch-oss:6.6.2
+  network-host: "_eth0:ipv4_"
+
+es-master-v1:
+  replicas: 3
+  images:
+    - docker.elastic.co/elasticsearch/elasticsearch-oss:6.6.2
+  storage-size: 2Gi  
+  ebs-volumes:
+    - vol-0f7631025582303b2
+    - vol-077fd1c081f06c938
+    - vol-0918b90e95b9dae9a
+  network-host: "_eth0:ipv4_"
+
+kibana-v1:
+  replicas: 1
+  images:
+    - docker.elastic.co/kibana/kibana-oss:6.6.2
+  es-url: "http://elasticsearch-client-v1:9200"  
+  external_port: 5601
+  service_type: LoadBalancer 
+
+es-curator:
+  schedule: "45 18 * * *"
+  images:
+    - bobrik/curator:5.6.0
+  es-host: "elasticsearch-client-v1.es-cluster"  
+  logs-cleanup-enabled: "true"
+  jaeger-cleanup-enabled: "true"
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

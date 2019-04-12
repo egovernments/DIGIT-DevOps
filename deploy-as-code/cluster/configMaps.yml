@@ -169,7 +169,6 @@ metadata:
 data:
   elasticsearch.yml: |-
     cluster.name: ${CLUSTER_NAME:elasticsearch}
-
     node.data: ${NODE_DATA:true}
     node.master: ${NODE_MASTER:true}
     node.ingest: ${NODE_INGEST:true}
@@ -193,6 +192,9 @@ data:
     gateway.recover_after_time: ${RECOVER_AFTER_TIME:5m}
     gateway.recover_after_master_nodes: ${RECOVER_AFTER_MASTER_NODES:2}
     gateway.recover_after_data_nodes: ${RECOVER_AFTER_DATA_NODES:1}
+    path:
+      data: ${ES_PATH_DATA:/usr/share/elasticsearch/data}
+      logs: ${ES_PATH_LOGS:/usr/share/elasticsearch/logs}
   log4j2.properties: |-
     status = error
     appender.console.type = Console
@@ -205,7 +207,7 @@ data:
     logger.searchguard.level = info
   pre-stop-hook.sh: |-
     #!/bin/bash
-    exec &> >(tee -a "/var/log/elasticsearch-hooks.log")
+    exec &> >(tee -a "/usr/share/elasticsearch/log/elasticsearch-hooks.log")
     NODE_NAME=${HOSTNAME}
     ES_CLIENT=${ES_CLIENT_SVC}
     echo "Prepare to migrate data of the node ${NODE_NAME}"
@@ -216,7 +218,6 @@ data:
       }
     }"
     echo ""
-
     while true ; do
       echo -e "Wait for node ${NODE_NAME} to become empty"
       SHARDS_ALLOCATION=$(curl -s -XGET 'http://{ES_CLIENT}:9200/_cat/shards')
@@ -228,7 +229,7 @@ data:
     echo "Node ${NODE_NAME} is ready to shutdown"
   post-start-hook.sh: |-
     #!/bin/bash
-    exec &> >(tee -a "/var/log/elasticsearch-hooks.log")
+    exec &> >(tee -a "/usr/share/elasticsearch/log/elasticsearch-hooks.log")
     NODE_NAME=${HOSTNAME}
     ES_CLIENT=${ES_CLIENT_SVC}
     CLUSTER_SETTINGS=$(curl -s -XGET "http://${ES_CLIENT}:9200/_cluster/settings")
@@ -320,7 +321,6 @@ data:
       http_auth:
       timeout: 30
       master_only: False
-
     logging:
       loglevel: ${LOG_LEVEL:INFO}
       logfile:

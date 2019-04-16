@@ -149,6 +149,37 @@ data:
         Time_Format %b %d %H:%M:%S
 
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fluent-bit
+  namespace: logging
+---
+
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: fluent-bit-read
+rules:
+- apiGroups: [""]
+  resources:
+  - namespaces
+  - pods
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: fluent-bit-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fluent-bit-read
+subjects:
+- kind: ServiceAccount
+  name: fluent-bit
+  namespace: logging
+---  
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
@@ -175,7 +206,7 @@ spec:
             - containerPort: 2020
           env:
             - name: KAFKA_BROKERS
-              value: "{{conf['kafka-config']['kafka-infra-brokers']}}"
+              value: "{{conf['kafka-config']['kafka-v2-infra-brokers']}}"
             - name: KAFKA_EGOV_SERVICES_LOGS_TOPIC
               value: "{{conf['fluent-bit']['egov-services-log-topic']}}"
             - name: KAFKA_EGOV_INFRA_LOGS_TOPIC
@@ -199,9 +230,5 @@ spec:
         - name: fluent-bit-config
           configMap:
             name: fluent-bit-config
-      serviceAccountName: fluentd
-      serviceAccount: fluentd
-      tolerations:
-        - key: "node-role.kubernetes.io/master"
-          operator: Exists
-          effect: NoSchedule
+      serviceAccountName: fluent-bit
+      serviceAccount: fluent-bit

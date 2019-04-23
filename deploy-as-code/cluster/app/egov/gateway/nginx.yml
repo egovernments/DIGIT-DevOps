@@ -47,9 +47,10 @@ spec:
         group: gateway
     spec:
       volumes:
-        - name: ssl
-          hostPath:
-            path: /srv/acme
+      - name: certs
+        secret:
+          defaultMode: 420
+          secretName: certs
       containers:
       - name: nginx
         image: {{conf['nginx']['images'][0]}}
@@ -97,9 +98,18 @@ spec:
         - name: ASSET_BUCKET_URL
           value: "{{conf['nginx']['asset-bucket-url']}}"
         volumeMounts:
-          - name: ssl
-            mountPath: /etc/ssl/acme
-            #readOnly: true
+        - mountPath: /etc/ssl/acme/private/{{conf['egov-config']['domain']}}/privkey.pem
+          name: certs
+          subPath: privkey.pem
+        - mountPath: /etc/ssl/acme/{{conf['egov-config']['domain']}}/cert.pem
+          name: certs
+          subPath: cert.pem
+        - mountPath: /etc/ssl/acme/{{conf['egov-config']['domain']}}/chain.pem
+          name: certs
+          subPath: chain.pem
+        - mountPath: /etc/ssl/acme/{{conf['egov-config']['domain']}}/fullchain.pem
+          name: certs
+          subPath: fullchain.pem
         resources:
           requests:
             memory: "256Mi"

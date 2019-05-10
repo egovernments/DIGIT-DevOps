@@ -1,0 +1,211 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: firenoc-calculator
+  namespace: egov
+  labels:
+    app: firenoc-calculator
+    group: rainmaker
+  annotations:
+    prometheus.io/path: /firenoc-calculator/prometheus
+    prometheus.io/port: "8080"
+    prometheus.io/scrape: "true"    
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: "express"  
+  - port: 5005
+    targetPort: 5005
+    name: "debug"
+  selector:
+    app: firenoc-calculator
+    group: rainmaker
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: firenoc-calculator
+  namespace: egov
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  replicas: {{conf['firenoc-calculator']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: firenoc-calculator
+        group: rainmaker
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "firenoc-calculator-db-migration",
+            "image": "{{conf["firenoc-calculator"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "tl_services_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
+    spec:
+      containers:
+      - name: firenoc-calculator
+        image: {{conf['firenoc-calculator']['images'][0]}}
+        ports:
+        - containerPort: 8080
+          name: "express"
+        - containerPort: 5005
+          name: "debug"
+        readinessProbe:
+          httpGet:
+            path: /firenoc-calculator/health
+            port: 8080
+          initialDelaySeconds: 90
+          timeoutSeconds: 3
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 5
+        livenessProbe:
+          httpGet:
+            path: /firenoc-calculator/health
+            port: 8080
+          initialDelaySeconds: 120
+          timeoutSeconds: 3
+          periodSeconds: 60
+          successThreshold: 1
+          failureThreshold: 5
+        env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-host
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-name
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SERVER_TOMCAT_MAX_THREADS
+          value: "{{conf['egov-config']['server-tomcat-max-threads']}}"  
+        - name: SERVER_TOMCAT_MAX_CONNECTIONS
+          value: "{{conf['egov-config']['server-tomcat-max-connections']}}" 
+        - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+          value: "{{conf['egov-config']['spring-datasource-tomcat-max-active']}}"                         
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: EGOV_IDGEN_HOST
+          value: "{{conf['egov-service-host']['egov-idgen']}}"
+        - name: EGOV_MDMS_HOST
+          value: "{{conf['egov-service-host']['egov-mdms-service']}}"
+        - name: EGOV_USER_HOST
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        - name: EGOV_LOCATION_HOST
+          value: "{{conf['egov-service-host']['egov-location']}}"
+        - name: EGOV_TL_CALCULATOR_HOST
+          value: "{{conf['egov-service-host']['firenoc-calculator']}}"
+        - name: EGOV_PROPERTY_SERVICE_HOST
+          value: "{{conf['egov-service-host']['pt-services-v2']}}"
+        - name: EGOV_LOCALIZATION_HOST
+          value: "{{conf['egov-service-host']['egov-localization']}}"
+        - name: EGOV_MDMS_SEARCH_ENDPOINT
+          value: "/egov-mdms-service/v1/_search"
+        - name: DB_PORT
+          value: "5432"          
+        - name: KAFKA_TOPICS_FIRENOC_CREATE
+          value: "save-fn-firenoc"
+        - name: KAFKA_TOPICS_FIRENOC_UPDATE
+          value: "save-fn-firenoc"
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS
+          value: "egov.core.notification.sms"
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.HashMapDeserializer
+        - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+          value: org.apache.kafka.common.serialization.StringDeserializer
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: egov-firenoc-calculator
+        - name: PERSISTER_SAVE_TRADELICENSE_TOPIC
+          value: save-firenoc-tradelicense
+        - name: PERSISTER_UPDATE_TRADELICENSE_TOPIC
+          value: update-firenoc-tradelicense
+        - name: PERSISTER_UPDATE_TRADELICENSE_WORKFLOW_TOPIC
+          value: update-firenoc-workflow
+        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.springframework.kafka.support.serializer.JsonSerializer
+        - name: WORKFLOW_CONTEXT_PATH
+          value: "{{conf['egov-service-host']['egov-workflow-v2']}}"
+        - name: WORKFLOW_TRANSITION_PATH
+          value: "egov-workflow-v2/egov-wf/process/_transition"
+        - name: KAFKA_SEVER
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['firenoc-calculator']['heap'] or '-Xmx192m -Xms192m'}}"
+        - name: JAVA_ARGS
+          value: "{{conf['firenoc-calculator']['java-args']}}"
+        - name: JAVA_ENABLE_DEBUG
+          value: "{{conf['firenoc-calculator']['java-debug']}}"
+        - name: EGOV_TL_DEFAULT_LIMIT
+          value:  "{{conf['firenoc-calculator']['firenoc-search-default-limit'] or 50}}"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: EGOV_IDGEN_TL_APPLICATIONNUM_FORMAT
+          value: "PB-firenoc-[cy:yyyy-MM-dd]-[SEQ_EG_TL_APL]"
+        - name: EGOV_IDGEN_TL_LICENSENUMBER_FORMAT
+          value: "PB-firenoc-[cy:yyyy-MM-dd]-[SEQ_EG_PT_LN]"
+        - name: JAEGER_SERVICE_NAME
+          value: firenoc-calculator
+        - name: JAEGER_SAMPLER_TYPE
+          value: remote
+        - name: JAEGER_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: JAEGER_AGENT_PORT
+          value: "6831"
+        - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+          value: "$(JAEGER_AGENT_HOST):5778"        
+        - name: SECURITY_BASIC_ENABLED
+          value: "false"  
+        - name: MANAGEMENT_SECURITY_ENABLED
+          value: "false"     
+{% if conf['firenoc-calculator']['tracing-enabled']%}          
+        - name: TRACER_OPENTRACING_ENABLED
+          value: "true" 
+{% endif %}                         
+{% if conf['egov-config']['tracer-errors-provideexceptionindetails'] %}
+        - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
+          value: "{{conf['egov-config']['tracer-errors-provideexceptionindetails']}}"
+{% endif %}
+        # resources:
+        #   requests:
+        #     memory: "64Mi"
+        #   limits:
+        #     memory: "{{ conf['firenoc-calculator']['memory_limits'] or "512Mi"}}"

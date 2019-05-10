@@ -63,24 +63,24 @@ spec:
           name: "express"
         - containerPort: 5005
           name: "debug"
-        readinessProbe:
-          httpGet:
-            path: /firenoc-services/health
-            port: 8080
-          initialDelaySeconds: 90
-          timeoutSeconds: 3
-          periodSeconds: 30
-          successThreshold: 1
-          failureThreshold: 5
-        livenessProbe:
-          httpGet:
-            path: /firenoc-services/health
-            port: 8080
-          initialDelaySeconds: 120
-          timeoutSeconds: 3
-          periodSeconds: 60
-          successThreshold: 1
-          failureThreshold: 5
+        # readinessProbe:
+        #   httpGet:
+        #     path: /firenoc-services/health
+        #     port: 8080
+        #   initialDelaySeconds: 90
+        #   timeoutSeconds: 3
+        #   periodSeconds: 30
+        #   successThreshold: 1
+        #   failureThreshold: 5
+        # livenessProbe:
+        #   httpGet:
+        #     path: /firenoc-services/health
+        #     port: 8080
+        #   initialDelaySeconds: 120
+        #   timeoutSeconds: 3
+        #   periodSeconds: 60
+        #   successThreshold: 1
+        #   failureThreshold: 5
         env:
         - name: DB_HOST
           valueFrom:
@@ -92,7 +92,7 @@ spec:
             configMapKeyRef:
               name: egov-config
               key: db-name
-        - name: DB_USERNAME
+        - name: DB_USER
           valueFrom:
             secretKeyRef:
               name: db
@@ -118,12 +118,6 @@ spec:
           value: "{{conf['egov-service-host']['egov-user']}}"
         - name: EGOV_LOCATION_HOST
           value: "{{conf['egov-service-host']['egov-location']}}"
-        - name: EGOV_TL_CALCULATOR_HOST
-          value: "{{conf['egov-service-host']['firenoc-calculator']}}"
-        - name: EGOV_PROPERTY_SERVICE_HOST
-          value: "{{conf['egov-service-host']['pt-services-v2']}}"
-        - name: EGOV_LOCALIZATION_HOST
-          value: "{{conf['egov-service-host']['egov-localization']}}"
         - name: EGOV_MDMS_SEARCH_ENDPOINT
           value: "/egov-mdms-service/v1/_search"
         - name: DB_PORT
@@ -140,12 +134,6 @@ spec:
           value: org.apache.kafka.common.serialization.StringDeserializer
         - name: SPRING_KAFKA_CONSUMER_GROUP_ID
           value: egov-firenoc-services
-        - name: PERSISTER_SAVE_TRADELICENSE_TOPIC
-          value: save-firenoc-tradelicense
-        - name: PERSISTER_UPDATE_TRADELICENSE_TOPIC
-          value: update-firenoc-tradelicense
-        - name: PERSISTER_UPDATE_TRADELICENSE_WORKFLOW_TOPIC
-          value: update-firenoc-workflow
         - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
           value: org.apache.kafka.common.serialization.StringSerializer
         - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
@@ -154,7 +142,7 @@ spec:
           value: "{{conf['egov-service-host']['egov-workflow-v2']}}"
         - name: WORKFLOW_TRANSITION_PATH
           value: "egov-workflow-v2/egov-wf/process/_transition"
-        - name: KAFKA_SEVER
+        - name: KAFKA_BROKER_HOST
           valueFrom:
             configMapKeyRef:
               name: egov-config
@@ -164,22 +152,8 @@ spec:
             configMapKeyRef:
               name: egov-config
               key: timezone
-        - name: JAVA_OPTS
-          value: "{{conf['firenoc-services']['heap'] or '-Xmx192m -Xms192m'}}"
-        - name: JAVA_ARGS
-          value: "{{conf['firenoc-services']['java-args']}}"
-        - name: JAVA_ENABLE_DEBUG
-          value: "{{conf['firenoc-services']['java-debug']}}"
-        - name: EGOV_TL_DEFAULT_LIMIT
-          value:  "{{conf['firenoc-services']['firenoc-search-default-limit'] or 50}}"
-        - name: SPRING_JPA_SHOW_SQL
-          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
         - name: SERVER_PORT
           value: "8080"
-        - name: EGOV_IDGEN_TL_APPLICATIONNUM_FORMAT
-          value: "PB-firenoc-[cy:yyyy-MM-dd]-[SEQ_EG_TL_APL]"
-        - name: EGOV_IDGEN_TL_LICENSENUMBER_FORMAT
-          value: "PB-firenoc-[cy:yyyy-MM-dd]-[SEQ_EG_PT_LN]"
         - name: JAEGER_SERVICE_NAME
           value: firenoc-services
         - name: JAEGER_SAMPLER_TYPE
@@ -191,19 +165,7 @@ spec:
         - name: JAEGER_AGENT_PORT
           value: "6831"
         - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
-          value: "$(JAEGER_AGENT_HOST):5778"        
-        - name: SECURITY_BASIC_ENABLED
-          value: "false"  
-        - name: MANAGEMENT_SECURITY_ENABLED
-          value: "false"     
-{% if conf['firenoc-services']['tracing-enabled']%}          
-        - name: TRACER_OPENTRACING_ENABLED
-          value: "true" 
-{% endif %}                         
-{% if conf['egov-config']['tracer-errors-provideexceptionindetails'] %}
-        - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
-          value: "{{conf['egov-config']['tracer-errors-provideexceptionindetails']}}"
-{% endif %}
+          value: "$(JAEGER_AGENT_HOST):5778"  
         # resources:
         #   requests:
         #     memory: "64Mi"

@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: collection-receipt-voucher-consumer
+  namespace: egov
+  labels:
+    app: collection-receipt-voucher-consumer
+    group: collections
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: collection-receipt-voucher-consumer
+    group: collections
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: collection-receipt-voucher-consumer
+  namespace: egov
+spec:
+  replicas: {{conf['collection-receipt-voucher-consumer']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: collection-receipt-voucher-consumer
+        group: collections
+    spec:
+      containers:
+      - name: collection-receipt-voucher-consumer
+        image: {{conf['collection-receipt-voucher-consumer']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SERVER_CONTEXT_PATH
+          value: /collection-receipt-voucher-consumer
+        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+        - name: EGOV_SERVICES_HOST
+          value: "{{conf['egov-config']['egov-services-fqdn-name']}}"
+        - name: JALANDHAR_EGOV_FIN_COE_ERP_HOST
+          value: "{{conf['collection-receipt-voucher-consumer']['jalandhar-erp-host']}}"
+        - name: MOHALI_EGOV_FIN_COE_ERP_HOST
+          value: "{{conf['collection-receipt-voucher-consumer']['mohali-erp-host']}}"
+        - name: NAYAGAON_EGOV_FIN_COE_ERP_HOST
+          value: "{{conf['collection-receipt-voucher-consumer']['nayagaon-erp-host']}}"
+        - name: AMRITSAR_EGOV_FIN_COE_ERP_HOST
+          value: "{{conf['collection-receipt-voucher-consumer']['amritsar-erp-host']}}"
+        - name: KHARAR_EGOV_FIN_COE_ERP_HOST
+          value: "{{conf['collection-receipt-voucher-consumer']['kharar-erp-host']}}"
+        - name: ZIRAKPUR_EGOV_FIN_COE_ERP_HOST
+          value: "{{conf['collection-receipt-voucher-consumer']['zirakpur-erp-host']}}"
+        - name: SI_MICROSERVICE_USER
+          value: "SIFINANCE"
+        - name: SI_MICROSERVICE_PASSWORD
+          value: "sifinance123@"
+        - name: SI_MICROSERVICE_USERTYPE
+          value: "SYSTEM"
+        - name: SI_MICROSERVICE_SCOPE
+          value: "read"
+        - name: SI_MICROSERVICE_GRANTTYPE
+          value: "password"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['collection-receipt-voucher-consumer']['heap'] or '-Xmx192m -Xms192m'}}"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        - name: SERVER_PORT
+          value: "8080"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{conf['collection-receipt-voucher-consumer']['memory_limits'] or "512Mi"}}"

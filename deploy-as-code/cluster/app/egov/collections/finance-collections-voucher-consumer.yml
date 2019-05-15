@@ -1,40 +1,55 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: collection-receipt-voucher-consumer
+  name: finance-collections-voucher-consumer
   namespace: egov
   labels:
-    app: collection-receipt-voucher-consumer
+    app: finance-collections-voucher-consumer
     group: collections
 spec:
   ports:
   - port: 8080
     targetPort: 8080
   selector:
-    app: collection-receipt-voucher-consumer
+    app: finance-collections-voucher-consumer
     group: collections
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: collection-receipt-voucher-consumer
+  name: finance-collections-voucher-consumer
   namespace: egov
 spec:
-  replicas: {{conf['collection-receipt-voucher-consumer']['replicas']}}
+  replicas: {{conf['finance-collections-voucher-consumer']['replicas']}}
   template:
     metadata:
       labels:
-        app: collection-receipt-voucher-consumer
+        app: finance-collections-voucher-consumer
         group: collections
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "firenoc-services-db-migration",
+            "image": "{{conf["firenoc-services"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "finance-collections-voucher-consumer_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
     spec:
       containers:
-      - name: collection-receipt-voucher-consumer
-        image: {{conf['collection-receipt-voucher-consumer']['images'][0]}}
+      - name: finance-collections-voucher-consumer
+        image: {{conf['finance-collections-voucher-consumer']['images'][0]}}
         ports:
         - containerPort: 8080
         env:
         - name: SERVER_CONTEXT_PATH
-          value: /collection-receipt-voucher-consumer
+          value: /finance-collections-voucher-consumer
         - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
           value: org.apache.kafka.common.serialization.StringSerializer
         - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
@@ -42,17 +57,17 @@ spec:
         - name: EGOV_SERVICES_HOST
           value: "{{conf['egov-config']['egov-services-fqdn-name']}}"
         - name: JALANDHAR_EGOV_FIN_COE_ERP_HOST
-          value: "{{conf['collection-receipt-voucher-consumer']['jalandhar-erp-host']}}"
+          value: "{{conf['finance-collections-voucher-consumer']['jalandhar-erp-host']}}"
         - name: MOHALI_EGOV_FIN_COE_ERP_HOST
-          value: "{{conf['collection-receipt-voucher-consumer']['mohali-erp-host']}}"
+          value: "{{conf['finance-collections-voucher-consumer']['mohali-erp-host']}}"
         - name: NAYAGAON_EGOV_FIN_COE_ERP_HOST
-          value: "{{conf['collection-receipt-voucher-consumer']['nayagaon-erp-host']}}"
+          value: "{{conf['finance-collections-voucher-consumer']['nayagaon-erp-host']}}"
         - name: AMRITSAR_EGOV_FIN_COE_ERP_HOST
-          value: "{{conf['collection-receipt-voucher-consumer']['amritsar-erp-host']}}"
+          value: "{{conf['finance-collections-voucher-consumer']['amritsar-erp-host']}}"
         - name: KHARAR_EGOV_FIN_COE_ERP_HOST
-          value: "{{conf['collection-receipt-voucher-consumer']['kharar-erp-host']}}"
+          value: "{{conf['finance-collections-voucher-consumer']['kharar-erp-host']}}"
         - name: ZIRAKPUR_EGOV_FIN_COE_ERP_HOST
-          value: "{{conf['collection-receipt-voucher-consumer']['zirakpur-erp-host']}}"
+          value: "{{conf['finance-collections-voucher-consumer']['zirakpur-erp-host']}}"
         - name: SI_MICROSERVICE_USER
           value: "SIFINANCE"
         - name: SI_MICROSERVICE_PASSWORD
@@ -74,7 +89,7 @@ spec:
               name: egov-config
               key: timezone
         - name: JAVA_OPTS
-          value: "{{conf['collection-receipt-voucher-consumer']['heap'] or '-Xmx192m -Xms192m'}}"
+          value: "{{conf['finance-collections-voucher-consumer']['heap'] or '-Xmx192m -Xms192m'}}"
         - name: SPRING_JPA_SHOW_SQL
           value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
         - name: SERVER_PORT
@@ -83,4 +98,4 @@ spec:
           requests:
             memory: "64Mi"
           limits:
-            memory: "{{conf['collection-receipt-voucher-consumer']['memory_limits'] or "512Mi"}}"
+            memory: "{{conf['finance-collections-voucher-consumer']['memory_limits'] or "512Mi"}}"

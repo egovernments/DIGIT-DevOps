@@ -51,6 +51,11 @@ spec:
         secret:
           defaultMode: 420
           secretName: certs
+{% if conf['nginx']['nginx-global-configs-injection-enabled'] %}          
+      - name: js-injection
+        configMap:
+          name: nginx-globalconfigs-injection    
+{% endif %}                
       containers:
       - name: nginx
         image: {{conf['nginx']['images'][0]}}
@@ -95,6 +100,10 @@ spec:
         - name: CHATBOT_USERINFO_GEN_JS_URL
           value: "{{conf['nginx']['CHATBOT_USERINFO_GEN_JS_URL']}}"
 {% endif %}
+{% if conf['nginx']['nginx-global-configs-injection-enabled'] %}
+        - name: UI_GLOBAL_CONFIGS_JS_URL
+          value: "https://{{conf['egov-config']['domain']}}/configs/globalConfigs.js"
+{% endif %}
 {% if conf['nginx']['PMIDC'] %}
         - name: PMIDC
           value: "{{conf['nginx']['PMIDC']}}"
@@ -114,6 +123,11 @@ spec:
         - mountPath: /etc/ssl/acme/{{conf['egov-config']['domain']}}/fullchain.pem
           name: certs
           subPath: fullchain.pem
+{% if conf['nginx']['nginx-global-configs-injection-enabled'] %}                
+        - mountPath: /var/web/configs/globalConfigs.js
+          name: js-injection
+          subPath: globalConfigs.js       
+{% endif %}                  
         resources:
           requests:
             memory: "256Mi"
@@ -132,4 +146,4 @@ spec:
           requests:
             memory: "64Mi"
           limits:
-            memory: "128Mi"
+            memory: "128Mi"     

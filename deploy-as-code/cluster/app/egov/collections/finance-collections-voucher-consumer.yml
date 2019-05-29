@@ -29,8 +29,8 @@ spec:
       annotations:
         pod.beta.kubernetes.io/init-containers: '[
           {
-            "name": "firenoc-services-db-migration",
-            "image": "{{conf["firenoc-services"]["db_migration_image"]}}",
+            "name": "finance-collections-voucher-consumer-db-migration",
+            "image": "{{conf["finance-collections-voucher-consumer"]["db_migration_image"]}}",
             "env": [
               {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
               {"name": "SCHEMA_TABLE", "value": "finance-collections-voucher-consumer_schema"},
@@ -48,26 +48,53 @@ spec:
         ports:
         - containerPort: 8080
         env:
-        - name: SERVER_CONTEXT_PATH
-          value: /finance-collections-voucher-consumer
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SERVER_TOMCAT_MAX_THREADS
+          value: "{{conf['egov-config']['server-tomcat-max-threads']}}"  
+        - name: SERVER_TOMCAT_MAX_CONNECTIONS
+          value: "{{conf['egov-config']['server-tomcat-max-connections']}}" 
+        - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+          value: "{{conf['egov-config']['spring-datasource-tomcat-max-active']}}"                         
+        - name: FLYWAY_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: FLYWAY_ENABLED
+          value: "false"        
         - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
           value: org.apache.kafka.common.serialization.StringSerializer
         - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
           value: org.apache.kafka.common.serialization.StringSerializer
-        - name: EGOV_SERVICES_HOST
-          value: "{{conf['egov-config']['egov-services-fqdn-name']}}"
-        - name: JALANDHAR_EGOV_FIN_COE_ERP_HOST
-          value: "{{conf['finance-collections-voucher-consumer']['jalandhar-erp-host']}}"
-        - name: MOHALI_EGOV_FIN_COE_ERP_HOST
-          value: "{{conf['finance-collections-voucher-consumer']['mohali-erp-host']}}"
-        - name: NAYAGAON_EGOV_FIN_COE_ERP_HOST
-          value: "{{conf['finance-collections-voucher-consumer']['nayagaon-erp-host']}}"
-        - name: AMRITSAR_EGOV_FIN_COE_ERP_HOST
-          value: "{{conf['finance-collections-voucher-consumer']['amritsar-erp-host']}}"
-        - name: KHARAR_EGOV_FIN_COE_ERP_HOST
-          value: "{{conf['finance-collections-voucher-consumer']['kharar-erp-host']}}"
-        - name: ZIRAKPUR_EGOV_FIN_COE_ERP_HOST
-          value: "{{conf['finance-collections-voucher-consumer']['zirakpur-erp-host']}}"
+        - name: EGOV_SERVICES_EGOV_USER_HOST
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        - name: EGOV_SERVICES_MDMS_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-mdms-service']}}"
+        - name: EGOV_SERVICES_EGFINSTRUMENT_HOSTNAME
+          value: "{{conf['egov-service-host']['egf-instrument']}}"
+        - name: EGOV_SERVICES_EGFMASTER_HOSTNAME
+          value: "{{conf['egov-service-host']['egf-master']}}"
+        - name: EGOV_SERVICES_COLLECTIONS_HOSTNAME
+          value: "{{conf['egov-service-host']['collection-services']}}"
         - name: SI_MICROSERVICE_USER
           value: "SIFINANCE"
         - name: SI_MICROSERVICE_PASSWORD

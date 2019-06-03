@@ -26,22 +26,34 @@ spec:
       labels:
         app: finance-collections-voucher-consumer
         group: collections
-      annotations:
-        pod.beta.kubernetes.io/init-containers: '[
-          {
-            "name": "finance-collections-voucher-consumer-db-migration",
-            "image": "{{conf["finance-collections-voucher-consumer"]["db_migration_image"]}}",
-            "env": [
-              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
-              {"name": "SCHEMA_TABLE", "value": "finance-collections-voucher-consumer_schema"},
-              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
-              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
-              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
-            ],
-            "imagePullPolicy": "IfNotPresent"
-          }
-        ]'
     spec:
+      initContainers: 
+      - name: "finance-collections-voucher-consumer-db-migration"
+        image: "{{conf["finance-collections-voucher-consumer"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "finance-collections-voucher-consumer_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        imagePullPolicy: "IfNotPresent"
       containers:
       - name: finance-collections-voucher-consumer
         image: {{conf['finance-collections-voucher-consumer']['images'][0]}}
@@ -95,6 +107,10 @@ spec:
           value: "{{conf['egov-service-host']['egf-master']}}"
         - name: EGOV_SERVICES_COLLECTIONS_HOSTNAME
           value: "{{conf['egov-service-host']['collection-services']}}"
+        - name: FIN_COE_ERP_ENVIRONMENT_NAME
+          value: "{{conf['finance-collections-voucher-consumer']['erp-env-name']}}"
+        - name: FIN_COE_ERP_DOMAIN_NAME
+          value: "{{conf['finance-collections-voucher-consumer']['erp-domain-name']}}"
         - name: SI_MICROSERVICE_USER
           value: "SIFINANCE"
         - name: SI_MICROSERVICE_PASSWORD

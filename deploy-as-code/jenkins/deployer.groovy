@@ -42,8 +42,9 @@ def run(env, cmd){
             ]){
                 sh cmd;
             }        
-    }
+        }
 
+    }
 }
 
 def set_kube_config(env){

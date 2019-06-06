@@ -25,27 +25,37 @@ def run(env, cmd){
     docker.image("${deployer_image}").inside {
         if (env == "pbuatv2") {
             set_kube_config(env)
+            
+            withCredentials([
+                string(credentialsId: "${env}-aws-access-key", variable: "AWS_ACCESS_KEY"),
+                string(credentialsId: "${env}-aws-secret-access-key", variable: "AWS_SECRET_ACCESS_KEY"),
+                string(credentialsId: "${env}-aws-region", variable: "AWS_REGION"),
+                string(credentialsId: "egov_secret_passcode", variable: "EGOV_SECRET_PASSCODE")
+            ]){
+                sh cmd;
+            }
+            
         } else{
             set_kube_credentials(env)
-            withCredentials([string(credentialsId: "${env}-kube-url", variable: "KUBE_SERVER_URL")]){
+            withCredentials([
+                string(credentialsId: "${env}-kube-url", variable: "KUBE_SERVER_URL"),
+                string(credentialsId: "egov_secret_passcode", variable: "EGOV_SECRET_PASSCODE")
+            ]){
                 sh "kubectl config set-cluster env --server ${KUBE_SERVER_URL}"
+                sh cmd;
             }
-        }
-
-        withCredentials([string(credentialsId: "egov_secret_passcode", variable: "EGOV_SECRET_PASSCODE")]) {
-            sh cmd;
         }
     }
 }
 
 def set_kube_credentials(env){
-    withCredentials([file(credentialsId: "${env}-kube-ca", variable: "CA")]){
+    withCredentials([
+        file(credentialsId: "${env}-kube-ca", variable: "CA"),
+        file(credentialsId: "${env}-kube-cert", variable: "CERT"),
+        file(credentialsId: "${env}-kube-key", variable: "CERT_KEY")
+    ]){
         sh "cp ${CA} /kube/ca.pem"
-    }
-    withCredentials([file(credentialsId: "${env}-kube-cert", variable: "CERT")]){
         sh "cp ${CERT} /kube/admin.pem"
-    }
-    withCredentials([file(credentialsId: "${env}-kube-key", variable: "CERT_KEY")]){
         sh "cp ${CERT_KEY} /kube/admin-key.pem"
     }
 

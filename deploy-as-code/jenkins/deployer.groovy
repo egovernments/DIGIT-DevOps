@@ -23,7 +23,10 @@ def deployStandAlone(env, service, image, tag){
 
 def run(env, cmd){
     docker.image("${deployer_image}").inside {
-            set_kube_config(env)
+        set_kube_config(env)
+
+// aws auth, inject aws specific keys        
+        if (env == "pbuatv2") {
             
             withCredentials([
                 string(credentialsId: "${env}-aws-access-key", variable: "AWS_ACCESS_KEY"),
@@ -33,7 +36,14 @@ def run(env, cmd){
             ]){
                 sh cmd;
             }
+    } else{
+            withCredentials([
+                string(credentialsId: "egov_secret_passcode", variable: "EGOV_SECRET_PASSCODE")
+            ]){
+                sh cmd;
+            }        
     }
+
 }
 
 def set_kube_config(env){

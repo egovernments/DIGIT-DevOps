@@ -23,10 +23,15 @@ def deployStandAlone(env, service, image, tag){
 
 def run(env, cmd){
     docker.image("${deployer_image}").inside {
-        set_kube_credentials(env)
-        withCredentials([string(credentialsId: "${env}-kube-url", variable: "KUBE_SERVER_URL")]){
-            sh "kubectl config set-cluster env --server ${KUBE_SERVER_URL}"
+        if (env == "pbuatv2") {
+            set_kube_config(env)
+        } else{
+            set_kube_credentials(env)
+            withCredentials([string(credentialsId: "${env}-kube-url", variable: "KUBE_SERVER_URL")]){
+                sh "kubectl config set-cluster env --server ${KUBE_SERVER_URL}"
+            }
         }
+
         withCredentials([string(credentialsId: "egov_secret_passcode", variable: "EGOV_SECRET_PASSCODE")]) {
             sh cmd;
         }
@@ -58,6 +63,15 @@ def set_kube_credentials(env){
             sh "kubectl config set-credentials env --password=${AUTHPASSWORD}"
         }
     }
+
+}
+
+def set_kube_config(env){
+    withCredentials([file(credentialsId: "${env}-kube-config", variable: "KUBE_CONFIG")]){
+        sh "cp ${KUBE_CONFIG} /kube/kubeconfig"
+    }
+    
+    sh "export KUBECONFIG=/kube/kubeconfig"
 
 }
 

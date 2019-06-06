@@ -68,10 +68,8 @@ def set_kube_credentials(env){
 
 def set_kube_config(env){
     withCredentials([file(credentialsId: "${env}-kube-config", variable: "KUBE_CONFIG")]){
-        sh "cp ${KUBE_CONFIG} /kube/kubeconfig"
+        sh "cp ${KUBE_CONFIG} /.kube/config"
     }
-    
-    sh "export KUBECONFIG=/kube/kubeconfig"
 
 }
 

@@ -1,4 +1,4 @@
-deployer_image = "egovio/deployer:0.0.2"
+deployer_image = "egovio/deployer:1.0.0"
 
 def takeSnapshot(group, env){
     stage("Snapshot ${env} env"){

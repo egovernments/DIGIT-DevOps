@@ -436,3 +436,71 @@
 ---
 {% endfor %}
 {% endif %}
+{% if conf['es-master-infra-v1']%}
+{% for index in range(conf['es-master-infra-v1']['replicas']) %}
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: es-storage-elasticsearch-master-infra-v1-{{index}}
+    labels:
+      app: elasticsearch-master-infra-v1
+{% if conf['es-master-infra-v1']['zones']%}      
+      failure-domain.beta.kubernetes.io/zone: {{conf['es-master-infra-v1']['zones'][index]}}
+{% endif %}        
+  spec:
+    capacity:
+      storage: {{conf['es-master-infra-v1']['storage-size']}}
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+        namespace: es-cluster-infra
+        name: es-storage-elasticsearch-master-infra-v1-{{index}}
+{% if conf['es-master-infra-v1']['ebs-volumes']  and conf['es-master-infra-v1']['ebs-volumes'][index]  %}
+    awsElasticBlockStore:
+      volumeID: {{conf['es-master-infra-v1']['ebs-volumes'][index]}}
+      fsType: ext4
+{% elif conf['es-master-infra-v1']['azure-disk']  and conf['es-master-infra-v1']['azure-disk'][index]  %}
+    azureDisk:
+      diskName: es-master-infra-{{index}}
+      diskURI: {{conf['es-master-infra-v1']['azure-disk'][index]}}
+      kind: Managed
+      fsType: ext4       
+{% endif %}
+---
+{% endfor %}
+{% endif %}
+{% if conf['es-data-infra-v1']%}
+{% for index in range(conf['es-data-infra-v1']['replicas']) %}
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: es-storage-elasticsearch-data-infra-v1-{{index}}
+    labels:
+      app: elasticsearch-data-infra-v1
+{% if conf['es-data-infra-v1']['zones']%}      
+      failure-domain.beta.kubernetes.io/zone: {{conf['es-data-infra-v1']['zones'][index]}}
+{% endif %}              
+  spec:
+    capacity:
+      storage: {{conf['es-data-infra-v1']['storage-size']}}
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    claimRef:
+        namespace: es-cluster-infra
+        name: es-storage-elasticsearch-data-infra-v1-{{index}}
+{% if conf['es-data-infra-v1']['ebs-volumes']  and conf['es-data-infra-v1']['ebs-volumes'][index]  %}
+    awsElasticBlockStore:
+      volumeID: {{conf['es-data-infra-v1']['ebs-volumes'][index]}}
+      fsType: ext4
+{% elif conf['es-data-infra-v1']['azure-disk']  and conf['es-data-infra-v1']['azure-disk'][index]  %}
+    azureDisk:
+      diskName: es-data-infra-infra-v1-{{index}}
+      diskURI: {{conf['es-data-infra-v1']['azure-disk'][index]}}
+      kind: Managed
+      fsType: ext4       
+{% endif %}
+---
+{% endfor %}
+{% endif %}

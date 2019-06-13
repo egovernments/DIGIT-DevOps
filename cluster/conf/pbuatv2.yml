@@ -537,7 +537,7 @@ zuul-config:
   egov-mixed-mode-endpoints-whitelist: "/pgr/seva/v1/_create,/pgr/seva/v1/_search,/pgr/seva/v1/_count,/workflow/history/v1/_search,/filestore/v1/files/id,/filestore/v1/files,/filestore/v1/files/tag,/egov-common-masters/departments/_search,/pt-property/property/propertytypes/_search,/pt-property/properties/_search,/pt-property/property/usages/_search,/egov-idgen/id/_generate,/egf-masters/financialyears/_search,/egov-common-workflows/process/_start,/egov-common-workflows/process/_search,/egov-common-workflows/tasks,/egov-common-workflows/tasks/{id}/_update,/user/_search,/user/users/_createnovalidate,/user/users/{id}/_update,/billing-service/demand/_dues,/billing-service/bill/_generate,/billing-service/demand/_create,/wcms/masters/waterchargesconfig/_search,/wcms/masters/usagetypes/_search,/wcms/masters/pipesizes/_search,/wcms-connection/connection/_getbillingtypes,/wcms-connection/connection/_getconnectiontypes,/wcms/masters/sourcetypes/_search,/wcms/masters/supplytypes/_search,/wcms/masters/storagereservoirs/_search,/wcms/masters/treatmentplants/_search,/wcms/masters/documenttypes-applicationtypes/_search,/wcms/masters/donations/_search,/wcms/masters/nonmeterwaterrates/_search,/wcms-connection/connection/_create,/egov-common-masters/genders/_search,/egov-common-workflows/designations/_search,/access/v1/actions/mdms/_get"
 
 logging-config:
-  es-host: "es-client-infra.es-cluster-infra"
+  es-host: "elasticsearch-client-infra-v1.es-cluster-infra"
   es-port: "9200"
 
 jaeger-config:
@@ -941,12 +941,59 @@ kibana-v1:
     - docker.elastic.co/kibana/kibana:6.4.2
   es-url: "http://elasticsearch-client-v1:9200"  
   external_port: 5601
+  server-basepath: "/kibana"
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+# es-infra-v1-cluster >>>>>>>>>>>>>>>>>>>>>>>>>>>>
+es-data-infra-v1:
+  replicas: 3
+  storage-size: 30Gi  
+  images:
+    - egovio/elasticsearch-v1:6.4.2
+  ebs-volumes:
+    - "vol-006719d5df18687d0"
+    - "vol-016d360026acdf5dc"
+    - "vol-080d2cea8553fd0a8"
+  zones:
+    - ap-south-1a
+    - ap-south-1b
+    - ap-south-1c      
+  network-host: "_eth0:ipv4_"
+
+es-client-infra-v1:
+  replicas: 1
+  images:
+    - egovio/elasticsearch-v1:6.4.2
+  network-host: "_eth0:ipv4_"
+
+es-master-infra-v1:
+  replicas: 3
+  images:
+    - egovio/elasticsearch-v1:6.4.2
+  storage-size: 2Gi  
+  ebs-volumes:
+    - "vol-059b3126ad9af5a27"
+    - "vol-02aee819b4e7d9309"
+    - "vol-09bef914d318af2fe"
+  zones:
+    - ap-south-1a
+    - ap-south-1b
+    - ap-south-1c      
+  network-host: "_eth0:ipv4_"
+
+kibana-infra-v1:
+  replicas: 1
+  images:
+    - docker.elastic.co/kibana/kibana:6.4.2
+  es-url: "http://elasticsearch-infra-client-v1:9200"  
+  external_port: 5601
+  server-basepath: "/kibana-infra"
 
 es-curator:
   schedule: "45 18 * * *"
   images:
     - bobrik/curator:5.6.0
-  es-host: "elasticsearch-client-v1.es-cluster"  
+  es-host: "elasticsearch-client-infra-v1.es-cluster-infra"  
   logs-cleanup-enabled: "true"
   jaeger-cleanup-enabled: "true"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

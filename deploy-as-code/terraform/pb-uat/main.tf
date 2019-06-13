@@ -99,3 +99,24 @@ module "kafka-infra" {
   disk_size_gb = "500"
   
 }
+
+module "es-master-infra" {
+
+  source = "../modules/storage/aws"
+  environment = "${var.cluster_name}"
+  disk_prefix = "es-master-infra"
+  availability_zones = "${var.availability_zones}"
+  storage_sku = "gp2"
+  disk_size_gb = "2"
+  
+}
+module "es-data-infra-v1" {
+
+  source = "../modules/storage/aws"
+  environment = "${var.cluster_name}"
+  disk_prefix = "es-data-infra-v1"
+  availability_zones = "${var.availability_zones}"
+  storage_sku = "gp2"
+  disk_size_gb = "30"
+  
+}

@@ -1,25 +1,16 @@
-FROM ubuntu:trusty
-
-MAINTAINER Sumanth<nsready@gmail.com>
-
-RUN apt-get update -y && apt-get install python -y && apt-get install python-dev -y && apt-get install curl -y \
- && apt-get install python-pip -y && apt-get install python-yaml -y && apt-get install jq -y
-
-#Install python dependencies
-RUN pip install Jinja2 && pip install pycrypto
-
-RUN mkdir -p /.kube
+FROM python:2
 
 ADD kubeconfig /.kube/config
+COPY requirements.txt ./
 
-RUN mkdir -p /kube
-
-RUN chmod 777 /kube
-
-RUN chmod -R 777 /.kube
-
-RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
-
-RUN chmod +x ./kubectl
-
-RUN sudo mv ./kubectl /usr/local/bin/kubectl
+RUN pip install --no-cache-dir -r requirements.txt \
+    && mkdir -p /.kube \
+    && mkdir -p /kube \
+    && chmod 777 /kube \
+    && chmod -R 777 /.kube \
+    && curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.10.11/bin/linux/amd64/kubectl \
+    && chmod +x ./kubectl \
+    && mv ./kubectl /usr/local/bin/kubectl \
+    && curl -o aws-iam-authenticator https://amazon-eks.s3-us-west-2.amazonaws.com/1.12.7/2019-03-27/bin/linux/amd64/aws-iam-authenticator \
+    && chmod +x ./aws-iam-authenticator \
+    && mv ./aws-iam-authenticator /usr/local/bin/aws-iam-authenticator 

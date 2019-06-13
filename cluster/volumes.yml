@@ -273,6 +273,9 @@
     name: zookeeper-data-zookeeper-v2-{{index}}
     labels:
       app: zookeeper-v2
+{% if conf['zookeeper-v2']['zones']%}      
+      failure-domain.beta.kubernetes.io/zone: {{conf['zookeeper-v2']['zones'][index]}}
+{% endif %}     
   spec:
     capacity:
       storage: {{conf['zookeeper-v2']['storage-size']}}
@@ -305,6 +308,9 @@
     name: kafka-data-kafka-v2-infra-{{index}}
     labels:
       app: kafka-v2-infra
+{% if conf['kafka-v2-infra']['zones']%}      
+      failure-domain.beta.kubernetes.io/zone: {{conf['kafka-v2-infra']['zones'][index]}}
+{% endif %}       
   spec:
     capacity:
       storage: {{conf['kafka-v2-infra']['storage-size']}}
@@ -336,6 +342,9 @@
     name: kafka-data-kafka-v2-{{index}}
     labels:
       app: kafka-v2
+{% if conf['kafka-v2']['zones']%}      
+      failure-domain.beta.kubernetes.io/zone: {{conf['kafka-v2']['zones'][index]}}
+{% endif %}          
   spec:
     capacity:
       storage: {{conf['kafka-v2']['storage-size']}}
@@ -367,6 +376,9 @@
     name: es-storage-elasticsearch-master-v1-{{index}}
     labels:
       app: elasticsearch-master-v1
+{% if conf['es-master-v1']['zones']%}      
+      failure-domain.beta.kubernetes.io/zone: {{conf['es-master-v1']['zones'][index]}}
+{% endif %}        
   spec:
     capacity:
       storage: {{conf['es-master-v1']['storage-size']}}
@@ -398,37 +410,9 @@
     name: es-storage-elasticsearch-data-v1-{{index}}
     labels:
       app: elasticsearch-data-v1
-  spec:
-    capacity:
-      storage: {{conf['es-data-v1']['storage-size']}}
-    accessModes:
-      - ReadWriteOnce
-    persistentVolumeReclaimPolicy: Recycle
-    claimRef:
-        namespace: es-cluster
-        name: es-storage-elasticsearch-data-v1-{{index}}
-{% if conf['es-data-v1']['ebs-volumes']  and conf['es-data-v1']['ebs-volumes'][index]  %}
-    awsElasticBlockStore:
-      volumeID: {{conf['es-data-v1']['ebs-volumes'][index]}}
-      fsType: ext4
-{% elif conf['es-data-v1']['azure-disk']  and conf['es-data-v1']['azure-disk'][index]  %}
-    azureDisk:
-      diskName: es-data-v1-{{index}}
-      diskURI: {{conf['es-data-v1']['azure-disk'][index]}}
-      kind: Managed
-      fsType: ext4       
-{% endif %}
----
-{% endfor %}
-{% endif %}
-{% if conf['es-data-v1']%}
-{% for index in range(conf['es-data-v1']['replicas']) %}
-  apiVersion: v1
-  kind: PersistentVolume
-  metadata:
-    name: es-storage-elasticsearch-data-v1-{{index}}
-    labels:
-      app: elasticsearch-data-v1
+{% if conf['es-data-v1']['zones']%}      
+      failure-domain.beta.kubernetes.io/zone: {{conf['es-data-v1']['zones'][index]}}
+{% endif %}              
   spec:
     capacity:
       storage: {{conf['es-data-v1']['storage-size']}}

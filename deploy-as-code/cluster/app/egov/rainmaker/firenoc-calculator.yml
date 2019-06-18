@@ -39,22 +39,34 @@ spec:
       labels:
         app: firenoc-calculator
         group: rainmaker
-      annotations:
-        pod.beta.kubernetes.io/init-containers: '[
-          {
-            "name": "firenoc-calculator-db-migration",
-            "image": "{{conf["firenoc-calculator"]["db_migration_image"]}}",
-            "env": [
-              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
-              {"name": "SCHEMA_TABLE", "value": "firenoc_calculator_schema"},
-              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
-              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
-              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
-            ],
-            "imagePullPolicy": "IfNotPresent"
-          }
-        ]'
     spec:
+      initContainers: 
+      - name: "firenoc-calculator-db-migration"
+        image: "{{conf["firenoc-calculator"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "firenoc_calculator_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        imagePullPolicy: "IfNotPresent"    
       containers:
       - name: firenoc-calculator
         image: {{conf['firenoc-calculator']['images'][0]}}
@@ -112,37 +124,29 @@ spec:
           value: "{{conf['egov-config']['spring-datasource-tomcat-max-active']}}"                         
         - name: FLYWAY_ENABLED
           value: "false"
-        - name: EGOV_IDGEN_HOST
-          value: "{{conf['egov-service-host']['egov-idgen']}}"
+        - name: EGOV_BILLINGSERVICE_HOST
+          value: "{{conf['egov-service-host']['billing-service']}}"
         - name: EGOV_MDMS_HOST
           value: "{{conf['egov-service-host']['egov-mdms-service']}}"
         - name: EGOV_USER_HOST
           value: "{{conf['egov-service-host']['egov-user']}}"
-        - name: EGOV_LOCATION_HOST
-          value: "{{conf['egov-service-host']['egov-location']}}"
-        - name: EGOV_TL_CALCULATOR_HOST
-          value: "{{conf['egov-service-host']['firenoc-calculator']}}"
-        - name: EGOV_PROPERTY_SERVICE_HOST
-          value: "{{conf['egov-service-host']['pt-services-v2']}}"
+        - name: EGOV_FIRENOC_SERVICE_HOST
+          value: "{{conf['egov-service-host']['firenoc-services']}}"
         - name: EGOV_LOCALIZATION_HOST
           value: "{{conf['egov-service-host']['egov-localization']}}"
         - name: EGOV_MDMS_SEARCH_ENDPOINT
           value: "/egov-mdms-service/v1/_search"
         - name: DB_PORT
           value: "5432"          
-        - name: KAFKA_TOPICS_FIRENOC_CREATE
-          value: "save-fn-firenoc"
-        - name: KAFKA_TOPICS_FIRENOC_UPDATE
-          value: "save-fn-firenoc"
+        - name: KAFKA_TOPICS_SAVE_SERVICE
+          value: "save-firenoc-calculator-billingslab"
+        - name: KAFKA_TOPICS_UPDATE_SERVICE
+          value: "update-firenoc-calculator-billingslab"
         - name: KAFKA_TOPICS_NOTIFICATION_SMS
           value: "egov.core.notification.sms"
         - name: SPRING_KAFKA_CONSUMER_GROUP_ID
           value: egov-firenoc-calculator
-        - name: WORKFLOW_CONTEXT_PATH
-          value: "{{conf['egov-service-host']['egov-workflow-v2']}}"
-        - name: WORKFLOW_TRANSITION_PATH
-          value: "egov-workflow-v2/egov-wf/process/_transition"
-        - name: KAFKA_SERVER
+        - name: KAFKA_BOOTSTRAP_SERVER
           valueFrom:
             configMapKeyRef:
               name: egov-config

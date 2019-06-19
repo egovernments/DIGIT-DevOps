@@ -15,10 +15,10 @@
 
 # Builds a docker image for Kafka Connect
 
-FROM confluentinc/cp-kafka:5.1.0
+FROM confluentinc/cp-kafka:5.2.2
 
-ENV CONFLUENT_VERSION=5.1.0
-ENV CONFLUENT_DEB_VERSION=1
+# ENV CONFLUENT_VERSION=5.2.2
+# ENV CONFLUENT_DEB_VERSION=1
 ENV COMPONENT=kafka-connect
 
 # Default kafka-connect rest.port

@@ -117,7 +117,12 @@ spec:
         command:
         - "bash"
         - "-c"
-        - "ZOOKEEPER_SERVER_ID=$((${HOSTNAME##*-}+1)) && mkdir -p /var/lib/zookeeper/data && mkdir -p /var/lib/zookeeper/log && /etc/confluent/docker/run"
+        - |
+          mkdir -p /var/lib/zookeeper/data && mkdir -p /var/lib/zookeeper/log && \
+          ZK_FIX_HOST_REGEX="s/${HOSTNAME}\.[^:]*:/0.0.0.0:/g" \
+          ZOOKEEPER_SERVER_ID=$((${HOSTNAME##*-}+1)) \
+          ZOOKEEPER_SERVERS=`echo $ZOOKEEPER_SERVERS | sed -e "$ZK_FIX_HOST_REGEX"` \
+          /etc/confluent/docker/run
         lifecycle:
           preStop:
             exec:

@@ -1,20 +1,11 @@
-FROM ubuntu:xenial
+FROM ubuntu:18.04
 
-MAINTAINER Sumanth<nsready@gmail.com>
+LABEL author="devops@egovernments.org" 
 
-RUN apt-get clean && apt-get update
-
-RUN apt-get install -y python wget software-properties-common curl vim
-
-RUN add-apt-repository "deb http://apt.postgresql.org/pub/repos/apt/ xenial-pgdg main"
-
-RUN wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
-
-RUN curl -sL https://deb.nodesource.com/setup_8.x | bash -
-
-RUN apt-get update && apt-get install -y nodejs postgresql-client-9.6
-
-RUN npm install elasticdump -g
+RUN apt-get update && apt-get install -y \
+    socat \
+    postgresql-client-10 \
+    && rm -rf /var/lib/apt/lists/*
 
 ADD run.sh /usr/bin/run.sh
 

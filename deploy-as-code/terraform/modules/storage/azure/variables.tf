@@ -1,5 +1,5 @@
 variable "environment" {}
-variable "count" {}
+variable "itemCount" {}
 variable "disk_prefix" {}    
 variable "location" {}
 variable "resource_group" {}

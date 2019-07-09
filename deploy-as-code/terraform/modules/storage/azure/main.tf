@@ -1,5 +1,5 @@
 resource "azurerm_managed_disk" "storage" {
-  count                = "${var.count}"  
+  count                = "${var.itemCount}"  
   name                 = "${var.disk_prefix}-${count.index}"
   location             = "${var.location}"
   resource_group_name  = "${var.resource_group}"

@@ -1,6 +1,10 @@
 provider "azurerm" {
   # whilst the `version` attribute is optional, we recommend pinning to a given version of the Provider
   version = "=1.28.0"
+  subscription_id  = "b4e1aa53-c521-44e6-8a4d-5ae107916b5b"
+  tenant_id        = "593ce202-d1a9-4760-ba26-ae35417c00cb" 
+  client_id = "${var.client_id}"
+  client_secret = "${var.client_secret}"
 }
 
 resource "azurerm_resource_group" "resource_group" {
@@ -14,12 +18,12 @@ resource "azurerm_resource_group" "resource_group" {
 module "kubernetes" {
   source = "../modules/kubernetes/azure"
   environment = "${var.environment}"
-  name = "bihar-uat"
+  name = "egov-micro-dev"
   location = "${azurerm_resource_group.resource_group.location}"
   resource_group = "${azurerm_resource_group.resource_group.name}"
-  nodes = "5"
-  client_id = "dc5e5e16-0853-4706-a3be-c45fae116f37"
-  client_secret = "qOoPmOuZp80/9j.h:NQcJ-TFf9Y6ps8Z"
+  client_id = "${var.client_id}"
+  client_secret = "${var.client_secret}"
+  nodes = "4"
 }
 
 module "zookeeper" {
@@ -70,17 +74,17 @@ module "es-data-v1" {
 
 module "postgres-db" {
   source = "../modules/db/azure"
-  server_name = "bihar-uat-db"
+  server_name = "egov-micro-dev"
   resource_group = "${module.kubernetes.node_resource_group}"  
   sku_cores = "2"
   location = "${azurerm_resource_group.resource_group.location}"
   sku_tier = "Basic"
   storage_mb = "51200"
   backup_retention_days = "7"
-  administrator_login = "biharuat"
-  administrator_login_password = "62bQA8E2By6wcUUz"
+  administrator_login = "egovdev"
+  administrator_login_password = "${var.db_password}"
   ssl_enforce = "Disabled"
-  db_name = "bihar_uat_db"
+  db_name = "egov_dev_ms"
   environment= "${var.environment}"
   
 }

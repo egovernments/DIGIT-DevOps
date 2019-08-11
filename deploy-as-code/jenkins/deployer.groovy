@@ -26,7 +26,7 @@ def run(env, cmd){
         set_kube_config(env)
 
 // aws auth, inject aws specific keys        
-        if (env == "pbuatv2") {
+        if (env == "pbuatv2" || env == "ukdPord" || env == "ukdUat") {
             
             withCredentials([
                 string(credentialsId: "${env}-aws-access-key", variable: "AWS_ACCESS_KEY"),

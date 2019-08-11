@@ -7,9 +7,8 @@ variable "cluster_name" {
 }
 
 variable "vpc_cidr_block" {
-  default = "10.0.0.0/16"
+  default = "192.168.0.0/16"
 }
-
 
 variable "availability_zones" {
   default = ["ap-south-1a", "ap-south-1b", "ap-south-1c"]
@@ -20,13 +19,16 @@ variable "kubernetes_version" {
 }
 
 variable "instance_type" {
-  default = "m5.xlarge"
+  default = "r5.large"
 }
 
 variable "number_of_worker_nodes" {
-  default = "5"
+  default = "4"
 }
 
 variable "ssh_key_name" {
-  default = "egov-final-ssh"
+  default = "egov-micro-pb-ssh"
 }
+
+variable "db_password" {}
+

@@ -17,3 +17,7 @@ output "master_nodes_sg_id" {
 output "worker_nodes_sg_id" {
   value = "${aws_security_group.worker_nodes_sg.id}"
 }
+
+output "rds_db_sg_id" {
+  value = "${aws_security_group.rds_db_sg.id}"
+}

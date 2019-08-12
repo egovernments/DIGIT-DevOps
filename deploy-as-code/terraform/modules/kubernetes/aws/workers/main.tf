@@ -90,7 +90,7 @@ resource "aws_autoscaling_group" "asg" {
 
   mixed_instances_policy {
     instances_distribution {
-      on_demand_base_capacity = "${var.number_of_worker_nodes}"-1
+      on_demand_base_capacity = "${var.number_of_worker_nodes}"
       on_demand_percentage_above_base_capacity = 0
     }
 
@@ -101,8 +101,12 @@ resource "aws_autoscaling_group" "asg" {
       }
 
       override {
+        instance_type = "r5.large"
+      }   
+      
+      override {
         instance_type = "m5.xlarge"
-      }
+      }   
 
       override {
         instance_type = "m4.xlarge"

@@ -180,6 +180,18 @@ resource "aws_security_group" "master_nodes_sg" {
   }"
 }
 
+resource "aws_security_group" "rds_db_sg" {
+  name        = "db-${var.cluster_name}"
+  description = "RDS Database security group"
+  vpc_id      = "${aws_vpc.vpc.id}"
+
+  tags = "${
+    map(
+      "Name", "db-${var.cluster_name}"
+    )
+  }"
+}
+
 resource "aws_security_group_rule" "master_nodes_egress_workers" {
   description              = "Allow outbound traffic to worker nodes" 
   from_port                = 10250
@@ -218,5 +230,15 @@ resource "aws_security_group_rule" "worker_nodes_ingress_cluster" {
   protocol                 = "tcp"
   security_group_id        = "${aws_security_group.worker_nodes_sg.id}"
   source_security_group_id = "${aws_security_group.master_nodes_sg.id}"
+  type                     = "ingress"
+}
+
+resource "aws_security_group_rule" "rds_db_ingress_workers" {
+  description              = "Allow worker nodes to communicate with RDS database" 
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = "${aws_security_group.rds_db_sg.id}"
+  source_security_group_id = "${aws_security_group.worker_nodes_sg.id}"
   type                     = "ingress"
 }

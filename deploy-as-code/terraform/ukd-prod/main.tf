@@ -1,8 +1,32 @@
+terraform {
+  backend "s3" {
+    bucket = "ukd-micro-prod-terraform-state"
+    key = "terraform"
+    region = "ap-south-1"
+  }
+}
+
 module "network" {
   source             = "../modules/kubernetes/aws/network"
   vpc_cidr_block     = "${var.vpc_cidr_block}"
   cluster_name       = "${var.cluster_name}"
   availability_zones = "${var.availability_zones}"
+}
+
+module "db" {
+  source                        = "../modules/db/aws"
+  subnet_ids                    = "${module.network.private_subnets}"
+  vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
+  availability_zone             = "${element(var.availability_zones, 0)}"
+  instance_class                = "db.r5.large"
+  engine_version                = "10.6"
+  storage_type                  = "gp2"
+  storage_gb                    = "100"
+  backup_retention_days         = "7"
+  administrator_login           = "ukdprod_admin"
+  administrator_login_password  = "${var.db_password}"
+  db_name                       = "${var.cluster_name}-db"
+  environment                   = "${var.cluster_name}"
 }
 
 module "eks-cluster" {
@@ -48,58 +72,6 @@ module "es-data-v1" {
   
 }
 
-module "zookeeper" {
-
-  source = "../modules/storage/aws"
-  environment = "${var.cluster_name}"
-  disk_prefix = "zookeeper"
-  availability_zones = "${var.availability_zones}"
-  storage_sku = "gp2"
-  disk_size_gb = "5"
-  
-}
-
-locals {
-  kafka_snapshot_id = ["snap-0c938922c4bc10752", "snap-0e18843f0167b8b90"]
-  kafka_availability_zones = ["ap-south-1a", "ap-south-1b"]
-}
-
-resource "aws_ebs_volume" "vol_by_snapshots" {
-  count = 2
-
-  availability_zone = "${local.kafka_availability_zones[count.index]}"
-  size              = "50"
-  type              = "gp2"
-  snapshot_id       = "${local.kafka_snapshot_id[count.index]}"
-
-  tags = {
-    Name = "kafka-${count.index}"
-    KubernetesCluster = "${var.cluster_name}"
-  }
-}
-
-resource "aws_ebs_volume" "kafka_1c_vol" {
-  availability_zone = "ap-south-1c"
-  size              = "50"
-  type              = "gp2"
-
-  tags = {
-    Name = "kafka-2"
-    KubernetesCluster = "${var.cluster_name}"
-  }
-}
-
-module "kafka-infra" {
-
-  source = "../modules/storage/aws"
-  environment = "${var.cluster_name}"
-  disk_prefix = "kafka-infra"
-  availability_zones = "${var.availability_zones}"
-  storage_sku = "st1"
-  disk_size_gb = "500"
-  
-}
-
 module "es-master-infra" {
 
   source = "../modules/storage/aws"
@@ -117,6 +89,39 @@ module "es-data-infra-v1" {
   disk_prefix = "es-data-infra-v1"
   availability_zones = "${var.availability_zones}"
   storage_sku = "gp2"
-  disk_size_gb = "30"
+  disk_size_gb = "50"
+  
+}
+
+module "zookeeper" {
+
+  source = "../modules/storage/aws"
+  environment = "${var.cluster_name}"
+  disk_prefix = "zookeeper"
+  availability_zones = "${var.availability_zones}"
+  storage_sku = "gp2"
+  disk_size_gb = "5"
+  
+}
+
+module "kafka" {
+
+  source = "../modules/storage/aws"
+  environment = "${var.cluster_name}"
+  disk_prefix = "kafka"
+  availability_zones = "${var.availability_zones}"
+  storage_sku = "gp2"
+  disk_size_gb = "50"
+  
+}
+
+module "kafka-infra" {
+
+  source = "../modules/storage/aws"
+  environment = "${var.cluster_name}"
+  disk_prefix = "kafka-infra"
+  availability_zones = "${var.availability_zones}"
+  storage_sku = "st1"
+  disk_size_gb = "500"
   
 }

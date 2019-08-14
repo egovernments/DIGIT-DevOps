@@ -10,7 +10,6 @@ variable "vpc_cidr_block" {
   default = "10.0.0.0/16"
 }
 
-
 variable "availability_zones" {
   default = ["ap-south-1a", "ap-south-1b", "ap-south-1c"]
 }
@@ -28,5 +27,7 @@ variable "number_of_worker_nodes" {
 }
 
 variable "ssh_key_name" {
-  default = "ukd-prod-ssh"
+  default = "ukd-micro-prod"
 }
+
+variable "db_password" {}

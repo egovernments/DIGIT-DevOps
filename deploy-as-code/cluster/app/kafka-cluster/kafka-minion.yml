@@ -1,0 +1,87 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-minion
+  namespace: kafka-cluster  
+  labels:
+    app : kafka-minion
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app : kafka-minion
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-minion
+  namespace: kafka-cluster    
+  labels:
+    app : kafka-minion
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app : kafka-minion
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+      labels:
+        app : kafka-minion
+    spec:
+      securityContext:
+        fsGroup: 99
+        runAsUser: 99
+        
+      containers:
+        - name: kafka-minion 
+          image: "quay.io/google-cloud-tools/kafka-minion:v1.0.0"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TELEMETRY_HOST
+              value: "0.0.0.0"
+            - name: TELEMETRY_PORT
+              value: "8080"
+            - name: EXPORTER_IGNORE_SYSTEM_TOPICS
+              value: "true"
+            - name: METRICS_PREFIX
+              value: "kafka_cluster"
+            - name: LOG_LEVEL
+              value: "info"
+            - name: KAFKA_BROKERS
+              value: "{{conf['kafka-config']['kafka-brokers']}}"
+            - name: KAFKA_CONSUMER_OFFSETS_TOPIC_NAME
+              value: "__consumer_offsets"
+            - name: KAFKA_TLS_ENABLED
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            httpGet:
+              path: /healthcheck
+              port: http
+          readinessProbe:
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
+            httpGet:
+              path: /readycheck
+              port: http
+          resources:
+            {}

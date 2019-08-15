@@ -1,0 +1,53 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: egov-telemetry-batch-process
+  namespace: egov
+spec:
+  concurrencyPolicy: "Forbid"
+  schedule: "{{conf['egov-telemetry-batch-process']['schedule']}}"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: egov-telemetry-batch-process
+            image: "{{ conf['egov-telemetry-batch-process']['images'][0] }}"
+            env:
+            - name: ES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: egov-config
+                  key: es-host
+            - name: ES_PORT
+              value: "9200"
+            - name: ES_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: egov-config
+                  key: es-indexer-host
+            - name: ES_NODE_WAN_ONLY
+              value: "true"
+            - name: KAFKA_OUTPUT_TOPIC
+              value: "batch-telemetry"
+            - name: SESSION_TIMEOUT
+              value: "30"
+            - name: JAVA_OPTS
+              value: '-Xmx512m -Xms512m'
+            - name: KAFKA_BOOTSTRAP_SERVER_CONFIG
+              valueFrom:
+                configMapKeyRef:
+                  name: egov-config
+                  key: kafka-brokers
+            - name: ES_OUTPUT_TELEMETRY_BATCH_INDEX
+              value: "batchtelemetryindex-v1*/general/"
+            - name: ES_INPUT_TELEMETRY_INDEX
+              value: "telemetryindex-v1*/general/"
+            - name: DATE
+              value: ""
+            resources:
+              requests:
+                memory: "256Mi"
+              limits:
+                memory: "1024Mi"
+          restartPolicy: Never

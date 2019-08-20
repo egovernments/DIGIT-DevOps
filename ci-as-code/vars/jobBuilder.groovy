@@ -5,7 +5,6 @@ import org.egov.jenkins.models.JobConfig
 library 'ci-libs'
 
 def call(Map params) {
-    node() {    
     git params.repo
     def yaml = readYaml file: params.configFile;
     List<String> folders = Utils.foldersToBeCreatedOrUpdated(yaml, env);
@@ -63,7 +62,6 @@ def call(Map params) {
         }          
         }
 
-    }
     }
 
 }

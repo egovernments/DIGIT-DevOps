@@ -3,24 +3,25 @@ import org.egov.jenkins.Utils
 import org.egov.jenkins.models.JobConfig
 
 def call(Map params) {
-    node{
-    git params.repo
-    def yaml = readYaml file: params.configFile;
-    List<String> folders = Utils.foldersToBeCreatedOrUpdated(yaml, env);
-    List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config);
-    
-    
-    node{
-    for( int i=0; i< folders.size(); i++ ){
-            jobDsl scriptText: """
-                folder("${folders[i]}")
-                """
-        }
-    }
+    node {
+        git params.repo
+        def yaml = readYaml file: params.configFile;
+        List<String> folders = Utils.foldersToBeCreatedOrUpdated(yaml, env);
+        List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config);
 
-    node{    
-    for(int i=0; i< jobConfigs.size(); i++){
-            jobDsl scriptText: """
+        StringBuilder jobDslScript = new StringBuilder();
+
+        for (int i = 0; i < folders.size(); i++) {
+            jobDslScript.append("""
+                folder("${folders[i]}")
+                """);
+        }
+
+
+
+
+        for (int i = 0; i < jobConfigs.size(); i++) {
+            jobDslScript.append("""
             pipelineJob("${jobConfigs.get(i).getName()}") {
                 logRotator(-1, 5, -1, -1)
                 parameters {
@@ -53,10 +54,11 @@ def call(Map params) {
                     }
                 }
             }
-"""
+""");
         }
 
-    }
+        jobDsl scriptText: jobDslScript.toString()
+
     }
 
 }

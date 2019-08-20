@@ -13,16 +13,19 @@ def call(Map params) {
 
     for( int i=0; i< folders.size(); i++ ){
         stage('Create folders') {
-        jobDsl(scriptText: """
-            folder("${folders[i]}")
-            """
-            )
+        container(name: 'jnlp') {
+            jobDsl(scriptText: """
+                folder("${folders[i]}")
+                """
+                )
+        }     
         }
     }
 
     for(int i=0; i< jobConfigs.size(); i++){
         stage('Create jobs') {
-        jobDsl(scriptText: """
+        container(name: 'jnlp') {
+            jobDsl(scriptText: """
             pipelineJob("${jobConfigs.get(i).getName()}") {
                 logRotator(-1, 5, -1, -1)
                 parameters {
@@ -56,7 +59,8 @@ def call(Map params) {
                 }
             }
 """
-)
+                )
+        }          
         }
 
     }

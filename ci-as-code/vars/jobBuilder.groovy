@@ -8,12 +8,17 @@ def call(Map params) {
     def yaml = readYaml file: params.configFile;
     List<String> folders = Utils.foldersToBeCreatedOrUpdated(yaml, env);
     List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config);
-
+    
+    
+    node{
     for( int i=0; i< folders.size(); i++ ){
             jobDsl scriptText: """
                 folder("${folders[i]}")
                 """
         }
+    }
+
+    node{    
     for(int i=0; i< jobConfigs.size(); i++){
             jobDsl scriptText: """
             pipelineJob("${jobConfigs.get(i).getName()}") {
@@ -51,6 +56,7 @@ def call(Map params) {
 """
         }
 
+    }
     }
 
 }

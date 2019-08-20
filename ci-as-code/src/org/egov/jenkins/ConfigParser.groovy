@@ -7,7 +7,7 @@ class ConfigParser {
 
     static List<JobConfig> parseConfig(def yaml, def env) {
         List<JobConfig> configs = populateConfigs(yaml.config);
-        String jobName = env.JOB_BASE_NAME;
+        String jobName = env.JOB_NAME;
 
         List<JobConfig> filteredJobConfigs = new ArrayList<>();
 

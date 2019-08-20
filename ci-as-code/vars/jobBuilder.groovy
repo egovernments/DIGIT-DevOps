@@ -14,13 +14,12 @@ def call(Map params) {
             jobDsl scriptText: """
                 folder("${folders[i]}")
                 """
-                )
         }
     }
 
     for(int i=0; i< jobConfigs.size(); i++){
         node{
-            jobDsl(scriptText: """
+            jobDsl scriptText: """
             pipelineJob("${jobConfigs.get(i).getName()}") {
                 logRotator(-1, 5, -1, -1)
                 parameters {
@@ -54,7 +53,6 @@ def call(Map params) {
                 }
             }
 """
-                )
         }
 
     }

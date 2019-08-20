@@ -10,15 +10,11 @@ def call(Map params) {
     List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config);
 
     for( int i=0; i< folders.size(); i++ ){
-        node{
             jobDsl scriptText: """
                 folder("${folders[i]}")
                 """
         }
-    }
-
     for(int i=0; i< jobConfigs.size(); i++){
-        node{
             jobDsl scriptText: """
             pipelineJob("${jobConfigs.get(i).getName()}") {
                 logRotator(-1, 5, -1, -1)
@@ -55,7 +51,6 @@ def call(Map params) {
 """
         }
 
-    }
     }
 
 }

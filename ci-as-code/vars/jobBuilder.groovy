@@ -2,8 +2,6 @@ import org.egov.jenkins.ConfigParser
 import org.egov.jenkins.Utils
 import org.egov.jenkins.models.JobConfig
 
-library 'ci-libs'
-
 def call(Map params) {
     git params.repo
     def yaml = readYaml file: params.configFile;
@@ -11,19 +9,13 @@ def call(Map params) {
     List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config);
 
     for( int i=0; i< folders.size(); i++ ){
-        stage('Create folders') {
-        container(name: 'jnlp') {
             jobDsl(scriptText: """
                 folder("${folders[i]}")
                 """
                 )
-        }     
-        }
     }
 
     for(int i=0; i< jobConfigs.size(); i++){
-        stage('Create jobs') {
-        container(name: 'jnlp') {
             jobDsl(scriptText: """
             pipelineJob("${jobConfigs.get(i).getName()}") {
                 logRotator(-1, 5, -1, -1)
@@ -59,8 +51,6 @@ def call(Map params) {
             }
 """
                 )
-        }          
-        }
 
     }
 

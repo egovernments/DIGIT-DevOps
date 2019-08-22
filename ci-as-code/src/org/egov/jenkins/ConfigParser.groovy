@@ -42,7 +42,7 @@ class ConfigParser {
                 else
                     dockerFile = build.dockerFile;
 
-                BuildConfig buildConfig = new BuildConfig(buildContext, build.imageName, dockerFile);
+                BuildConfig buildConfig = new BuildConfig(buildContext, build.imageName, dockerFile, build.workDir);
                 buildConfigs.add(buildConfig);
             }
             JobConfig jobConfig = new JobConfig(job.name, buildConfigs);

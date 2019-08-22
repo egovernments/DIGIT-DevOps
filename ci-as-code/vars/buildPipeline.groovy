@@ -19,6 +19,8 @@ spec:
     volumeMounts:
       - name: jenkins-docker-cfg
         mountPath: /root
+      - name: kaniko-cache
+        mountPath: /cache        
   - name: git
     image: docker.io/nithindv/alpine-git:latest
     imagePullPolicy: Always
@@ -26,6 +28,9 @@ spec:
     - cat
     tty: true        
   volumes:
+  - name: kaniko-cache
+    persistentVolumeClaim:
+      claimName: kaniko-cache-claim
   - name: jenkins-docker-cfg
     projected:
       sources:
@@ -33,7 +38,7 @@ spec:
           name: regcred-self
           items:
             - key: .dockerconfigjson
-              path: .docker/config.json  
+              path: .docker/config.json             
 """
     ) {
         node(POD_LABEL) {

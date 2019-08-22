@@ -28,7 +28,20 @@ class ConfigParser {
         yaml.each { job ->
             List<BuildConfig> buildConfigs = new ArrayList<>();
             job.build.each { build ->
-                BuildConfig buildConfig = new BuildConfig(build.context, build.imageName);
+                String dockerFile = "";
+                String buildContext = ""
+
+                if(build.context == null)
+                    buildContext = ".";
+                else
+                    buildContext = build.context;
+
+                if(build.dockerFile == null)
+                    dockerFile = build.context + "/Dockerfile";
+                else
+                    dockerFile = build.dockerFile;
+
+                BuildConfig buildConfig = new BuildConfig(buildContext, build.imageName, dockerFile);
                 buildConfigs.add(buildConfig);
             }
             JobConfig jobConfig = new JobConfig(job.name, buildConfigs);

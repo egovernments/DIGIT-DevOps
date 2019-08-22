@@ -39,9 +39,9 @@ spec:
         node(POD_LABEL) {
 
             checkout scm
+            final String REPO_NAME = "docker.io/nithindv";
             def yaml = readYaml file: pipelineParams.configFile;
             List<JobConfig> jobConfigs = ConfigParser.parseConfig(yaml, env);
-//            JobConfig jobConfig = jobConfigs.get(0);
 
             jobConfigs.each { jobConfig ->
 
@@ -56,23 +56,26 @@ spec:
                         }
                     }
                 }
-                jobConfig.getBuildConfigs().each { buildConfig ->
-                    stage('Build with Kaniko') {
-                        withEnv(["BUILD_PATH=${buildConfig.getContext()}",
-                                 "PATH=/busybox:/kaniko:$PATH",
-                                 "REPO_NAME=docker.io/nithindv",
-                                 "BUILD_NUMBER=${env.BUILD_NUMBER}",
-                                 "IMAGE_NAME=${buildConfig.getImageName()}",
-                                 "COMMIT_HASH=${readFile('commit').trim()}"
-                        ]) {
-                            container(name: 'kaniko', shell: '/busybox/sh') {
-                                sh '''#!/busybox/sh
-                echo "Attempting to build image,  ${REPO_NAME}/${IMAGE_NAME}:${BUILD_NUMBER}-${COMMIT_HASH}"
-                        /kaniko/executor -f `pwd`/${BUILD_PATH}/Dockerfile -c `pwd`/${BUILD_PATH} \
-                --cache=true \
-                --destination=${REPO_NAME}/${IMAGE_NAME}:${BUILD_NUMBER}-${COMMIT_HASH}
-                        '''
-                            }
+
+                stage('Build with Kaniko') {
+                    withEnv(["PATH=/busybox:/kaniko:$PATH"
+                    ]) {
+                        StringBuilder script = new StringBuilder("#!/busybox/sh");
+
+                        jobConfig.getBuildConfigs().each { buildConfig ->
+                            String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${readFile('commit').trim()}";
+                            script.append("""
+                echo \"Attempting to build image,  ${image}\"
+                        /kaniko/executor -f `pwd`/${buildConfig.getDockerfile()} -c `pwd`/${buildConfig.getContext()} \
+                --cache=true --cache-repo=${REPO_NAME}/kaniko-cache \
+                --destination=${image}
+                        """)
+
+                        }
+
+
+                        container(name: 'kaniko', shell: '/busybox/sh') {
+                            sh script.toString();
                         }
                     }
                 }

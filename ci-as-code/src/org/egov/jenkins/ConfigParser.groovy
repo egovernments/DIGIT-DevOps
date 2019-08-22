@@ -12,11 +12,11 @@ class ConfigParser {
         List<JobConfig> filteredJobConfigs = new ArrayList<>();
 
         configs.each { config ->
-            if(config.getName().equalsIgnoreCase(jobName)){
+            if (config.getName().equalsIgnoreCase(jobName)) {
                 filteredJobConfigs.add(config);
             }
         }
-        if(filteredJobConfigs.isEmpty())
+        if (filteredJobConfigs.isEmpty())
             throw new Exception("Invalid Job");
 
         return filteredJobConfigs;
@@ -29,15 +29,16 @@ class ConfigParser {
             List<BuildConfig> buildConfigs = new ArrayList<>();
             job.build.each { build ->
                 String dockerFile = "";
-                String buildContext = ""
+                String buildContext = build.workDir;
 
-                if(build.context == null)
-                    buildContext = ".";
+
+                if (build.dockerFile == null || build.dockerFile.startsWith(build.workDir))
+                    buildContext = build.workDir;
                 else
-                    buildContext = build.context;
+                    buildContext = ".";
 
-                if(build.dockerFile == null)
-                    dockerFile = build.context + "/Dockerfile";
+                if (build.dockerFile == null)
+                    dockerFile = build.workDir + "/Dockerfile";
                 else
                     dockerFile = build.dockerFile;
 

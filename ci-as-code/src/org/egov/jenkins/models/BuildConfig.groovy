@@ -5,11 +5,13 @@ class BuildConfig {
     private String context;
     private String imageName;
     private String dockerFile;
+    private String workDir;
 
-    BuildConfig(String context, String imageName, String dockerFile) {
+    BuildConfig(String context, String imageName, String dockerFile, String workDir) {
         this.context = context
         this.imageName = imageName
         this.dockerFile = dockerFile
+        this.workDir = workDir
     }
 
     String getContext() {
@@ -25,6 +27,10 @@ class BuildConfig {
         return dockerFile
     }
 
+    String getWorkDir() {
+        return workDir
+    }
+
 
     @Override
     public String toString() {
@@ -32,6 +38,7 @@ class BuildConfig {
                 "context='" + context + '\'' +
                 ", imageName='" + imageName + '\'' +
                 ", dockerFile='" + dockerFile + '\'' +
+                ", workDir='" + workDir + '\'' +
                 '}';
     }
 }

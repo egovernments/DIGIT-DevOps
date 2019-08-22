@@ -71,7 +71,8 @@ spec:
                             String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${readFile('commit').trim()}";
                             script.append("""
                 echo \"Attempting to build image,  ${image}\"
-                        /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
+                /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
+                --build-arg WORK_DIR=${buildConfig.getWorkDir()}
                 --cache=true --cache-repo=${REPO_NAME}/kaniko-cache \
                 --destination=${image}
                         """)

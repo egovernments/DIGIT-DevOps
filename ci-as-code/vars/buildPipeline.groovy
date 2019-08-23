@@ -81,7 +81,7 @@ spec:
                 echo \"Attempting to build image,  ${image}\"
                 /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
                 --build-arg WORK_DIR=${buildConfig.getWorkDir()} \
-                --cache=true --cache-repo=${REPO_NAME}/kaniko-cache --single-snapshot \
+                --cache=true --cache-dir=/cache --single-snapshot \
                 --destination=${image}
                         """)
 

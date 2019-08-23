@@ -20,7 +20,14 @@ spec:
       - name: jenkins-docker-cfg
         mountPath: /root
       - name: kaniko-cache
-        mountPath: /cache        
+        mountPath: /cache  
+    resources:
+      requests:
+        memory: "704Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"      
   - name: git
     image: docker.io/nithindv/alpine-git:latest
     imagePullPolicy: Always

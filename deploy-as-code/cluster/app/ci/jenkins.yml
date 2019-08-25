@@ -64,7 +64,7 @@ data:
               <containers>
                 <org.csanchez.jenkins.plugins.kubernetes.ContainerTemplate>
                   <name>jnlp</name>
-                  <image>jenkins/jnlp-slave:3.27-1</image>
+                  <image>jenkins/jnlp-slave:3.29-1-alpine</image>
                   <privileged>false</privileged>
                   <alwaysPullImage>false</alwaysPullImage>
                   <workingDir>/home/jenkins</workingDir>
@@ -75,9 +75,9 @@ data:
                   # changes, and should be cleanned up in the future once everybody had
                   # enough time to migrate.
                   <resourceRequestCpu>200m</resourceRequestCpu>
-                  <resourceRequestMemory>256Mi</resourceRequestMemory>
-                  <resourceLimitCpu>200m</resourceLimitCpu>
-                  <resourceLimitMemory>256Mi</resourceLimitMemory>
+                  <resourceRequestMemory>640Mi</resourceRequestMemory>
+                  <resourceLimitCpu>500m</resourceLimitCpu>
+                  <resourceLimitMemory>1Gi</resourceLimitMemory>
                   <envVars>
                     <org.csanchez.jenkins.plugins.kubernetes.ContainerEnvVar>
                       <key>JENKINS_URL</key>
@@ -175,9 +175,12 @@ data:
     kubernetes:1.18.1
     workflow-job:2.33
     workflow-aggregator:2.6
-    credentials-binding:1.20
+    credentials-binding:1.19
     git:3.11.0
-    configuration-as-code:1.27
+    git-parameter:0.9.11
+    configuration-as-code:1.25
+    pipeline-utility-steps:2.3.0
+    job-dsl:1.75
     github-oauth:0.33
 
 
@@ -315,13 +318,20 @@ spec:
         "app.kubernetes.io/name": 'jenkins'
         "app.kubernetes.io/component": "jenkins-master"
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: cloud.google.com/gke-preemptible
+                operator: DoesNotExist    
       securityContext:
         runAsUser: 1000
         fsGroup: 1000
       serviceAccountName: "jenkins"
       initContainers:
         - name: "copy-default-config"
-          image: "jenkins/jenkins:lts"
+          image: "jenkins/jenkins:lts-alpine"
           imagePullPolicy: "Always"
           command: [ "sh", "/var/jenkins_config/apply_config.sh" ]
           env:
@@ -337,11 +347,11 @@ spec:
                   key: jenkins-admin-user
           resources:
             limits:
-              cpu: 2000m
-              memory: 4096Mi
+              cpu: 500m
+              memory: 1Gi
             requests:
-              cpu: 50m
-              memory: 256Mi
+              cpu: 100m
+              memory: 512Mi
             
           volumeMounts:
             - mountPath: /tmp
@@ -358,12 +368,12 @@ spec:
               name: secrets-dir
       containers:
         - name: jenkins
-          image: "jenkins/jenkins:lts"
+          image: "jenkins/jenkins:lts-alpine"
           imagePullPolicy: "Always"
           args: [ "--argumentsRealm.passwd.$(ADMIN_USER)=$(ADMIN_PASSWORD)",  "--argumentsRealm.roles.$(ADMIN_USER)=admin"]
           env:
             - name: JAVA_OPTS
-              value: ""
+              value: "-Xms2560M -Xmx2560M"
             - name: JENKINS_OPTS
               value: ""
             - name: JENKINS_SLAVE_AGENT_PORT
@@ -407,8 +417,8 @@ spec:
               cpu: 2000m
               memory: 4096Mi
             requests:
-              cpu: 50m
-              memory: 256Mi
+              cpu: 1000m
+              memory: 2560Mi
             
           volumeMounts:
             - mountPath: /tmp
@@ -441,3 +451,62 @@ spec:
       - name: jenkins-home
         persistentVolumeClaim:
           claimName: jenkins
+---
+
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: kaniko-cache-volume
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadOnlyMany
+  hostPath:
+    path: "/tmp/kaniko-cache"          
+
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: kaniko-cache-claim
+  namespace: jenkins
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadOnlyMany
+  resources:
+    requests:
+      storage: 8Gi
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kaniko-warmer
+  namespace: jenkins
+spec:
+  containers:
+  - name: kaniko-warmer
+    image: gcr.io/kaniko-project/warmer:latest
+    args: ["--cache-dir=/cache",
+           "--image=nithindv/alpine-maven-jdk-8:gcp",
+           "--image=egovio/citizen:latest",
+           "--image=egovio/pt-calculator-v2:latest",
+           "--image=egovio/nginx:latest",
+           "--image=egovio/firenoc-services:latest",
+           "--image=egovio/8-openjdk-alpine",
+           "--image=egovio/alpine-maven-builder-jdk-8:gcp",         
+           "--image=egovio/flyway:4.1.2"         
+           ]
+    volumeMounts:
+      - name: kaniko-cache
+        mountPath: /cache
+  restartPolicy: Never
+  volumes:
+    - name: kaniko-cache
+      persistentVolumeClaim:
+              claimName: kaniko-cache-claim

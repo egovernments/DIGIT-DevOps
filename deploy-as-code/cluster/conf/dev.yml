@@ -347,6 +347,103 @@ nginx:
   asset-bucket-url: "https://s3.ap-south-1.amazonaws.com"
   jaeger-credentials: "jaegeradmin:$apr1$LYwa.eHV$zWn6CJySbyd729NMFcUQd0"
   nginx-global-configs-injection-enabled: "true"
+  nginx-global-configs: |
+      globalConfigs.js: |-
+        var globalConfigs = (function() {
+            var stateTenantId = '{{conf['egov-config']['egov-state-level-tenant-id']}}'
+            var getConfig = function(key) {
+                if(key === 'STATE_LEVEL_TENANT_ID'){
+                    return stateTenantId;
+                }
+            };
+            return {
+                getConfig
+            };
+        }());
+      redoc.html: |-  
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>eGov API Docs</title>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <link
+              href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700"
+              rel="stylesheet"
+            />
+            <style>
+                  body {
+                    margin: 0;
+                    padding-top: 40px;
+                  }
+
+                  nav {
+                    position: fixed;
+                    top: 0;
+                    width: 100%;
+                    z-index: 100;
+                  }
+                  #links_container {
+                      margin: 0;
+                      padding: 0;
+                  }
+
+                  #links_container li {
+                      display: inline-block;
+                      padding: 10px;
+                      color: white;
+                      cursor: pointer;
+                  }
+
+                  #links_container select {
+                      height: 35px;
+                      border-radius: 4px;
+                      font-size: 15px;
+                  }
+            </style>
+          </head>
+          <body>
+            <nav>
+              <ul id="links_container"></ul>
+            </nav>
+            <redoc scroll-y-offset="body > nav"></redoc>
+            <redoc spec-url="http://petstore.swagger.io/v2/swagger.json"></redoc>
+            <script src="https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js"></script>
+            <script>
+              // list of APIS
+              var apis = [
+                {
+                  name: "Property Registry",
+                  url:
+                    "https://raw.githubusercontent.com/egovernments/egov-services/PT_APPLY_PAY/docs/rainmaker/property-tax/property-v2.0.yml"
+                },
+                {
+                  name: "Property Assessment",
+                  url:
+                    "https://raw.githubusercontent.com/egovernments/egov-services/PT_APPLY_PAY/docs/rainmaker/property-tax/property-assessment-v2.0.yml"
+                }
+              ];
+              // initially render first API
+              Redoc.init(apis[0].url);
+              // dynamically building navigation items
+              var $selectContainer = document.getElementById("links_container");
+              var $select = document.createElement("SELECT");
+              $select.addEventListener("change", function(ev) {
+                Redoc.init(ev.target.value);
+              });
+              apis.forEach(function(api) {
+                var $selitem = document.createElement("option");
+                $selitem.setAttribute("value", api.url);
+                var $selText = document.createTextNode(api.name);
+                $selitem.appendChild($selText);
+                $select.appendChild($selitem);
+              });
+              $selectContainer.appendChild($select);
+            </script>
+          </body>
+        </html>
+
+
 
 zuul:
   replicas: 2

@@ -195,15 +195,18 @@
 		url:  'https://raw.githubusercontent.com/egovernments/egov-services/master/docs/wcms/contracts/new-connection/v1-0-0.yml'
 	},
 
-            ];
-        // initially render first API
-        Redoc.init(apis[0].url);
+    ];
+
+		let MODULE_QUERY_PARAM_NAME = "module";
 
         // dynamically building navigation items
         var $selectContainer = document.getElementById('links_container');
         var $select = document.createElement("SELECT");
         $select.addEventListener('change', function(ev) {
           Redoc.init(ev.target.value);
+		  let params = new URLSearchParams(window.location.search);
+		  params.set(MODULE_QUERY_PARAM_NAME, ev.target[ev.target.selectedIndex].text);
+		  window.location.search = params.toString();
         });
         apis.forEach(function(api) {
           var $selitem = document.createElement('option');
@@ -213,6 +216,28 @@
           $select.appendChild($selitem);
         });
         $selectContainer.appendChild($select);
+
+		let searchParams = new URLSearchParams(window.location.search);
+		let module = searchParams.get(MODULE_QUERY_PARAM_NAME);
+		if(module == null) {
+			// initially render first API
+			Redoc.init(apis[0].url);
+		} else {
+			let moduleAPI = apis.find(function(element) { return element.name == module; })
+			if(moduleAPI == null) {
+				Redoc.init(apis[0].url);
+			} else {
+				Redoc.init(moduleAPI.url);
+				var opts = $select.options;
+				for (var opt, j = 0; opt = opts[j].text; j++) {
+					if (opt == moduleAPI.name) {
+						$select.selectedIndex = j;
+						break;
+					}
+				}
+			}
+		}
+
       </script>
     </body>
   </html> 

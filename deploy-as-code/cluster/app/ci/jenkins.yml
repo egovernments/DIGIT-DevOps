@@ -157,15 +157,51 @@ data:
     rm -rf /var/jenkins_home/casc_configs/*
     cp -v /var/jenkins_config/*.yaml /var/jenkins_home/casc_configs
 # Only add config to this script if we aren't auto-reloading otherwise the pod will restart upon each config change:
-  # github-oauth.yaml: |-
-  #   jenkins:
-  #     securityRealm:
-  #       github:
-  #         githubWebUri: "https://github.com"
-  #         githubApiUri: "https://api.github.com"
-  #         clientID: "{{conf['jenkins']['github-client-id'] | decrypt}}"
-  #         clientSecret: "{{conf['jenkins']['github-client-secret'] | decrypt}}"
-  #         oauthScopes: "read:org,user:email,repo"    
+  github-oauth.yaml: |-
+    jenkins:
+      securityRealm:
+        github:
+          githubWebUri: "https://github.com"
+          githubApiUri: "https://api.github.com"
+          clientID: "${GITHUB_CLIENT_ID}"
+          clientSecret: "${GITHUB_CLIENT_SECRET}"
+          oauthScopes: "read:org,user:email"    
+
+  matrix-authorization-strategy.yaml: |- 
+    jenkins:
+      authorizationStrategy:
+        projectMatrix:
+          permissions:
+          - "Agent/Build:egovernments*micro-service-devops"
+          - "Agent/Configure:egovernments*micro-service-devops"
+          - "Agent/Connect:egovernments*micro-service-devops"
+          - "Agent/Create:egovernments*micro-service-devops"
+          - "Agent/Delete:egovernments*micro-service-devops"
+          - "Agent/Disconnect:egovernments*micro-service-devops"
+          - "Credentials/Create:egovernments*micro-service-devops"
+          - "Credentials/Delete:egovernments*micro-service-devops"
+          - "Credentials/ManageDomains:egovernments*micro-service-devops"
+          - "Credentials/Update:egovernments*micro-service-devops"
+          - "Credentials/View:egovernments*micro-service-devops"
+          - "Job/Build:egovernments*micro-service-devops"
+          - "Job/Cancel:egovernments*micro-service-devops"
+          - "Job/Configure:egovernments*micro-service-devops"
+          - "Job/Create:egovernments*micro-service-devops"
+          - "Job/Delete:egovernments*micro-service-devops"
+          - "Job/Discover:egovernments*micro-service-devops"
+          - "Job/Move:egovernments*micro-service-devops"
+          - "Job/Read:egovernments*micro-service-devops"
+          - "Job/Workspace:egovernments*micro-service-devops"
+          - "Overall/Administer:egovernments*micro-service-devops"
+          - "Overall/Read:egovernments*micro-service-devops"
+          - "Run/Delete:egovernments*micro-service-devops"
+          - "Run/Replay:egovernments*micro-service-devops"
+          - "Run/Update:egovernments*micro-service-devops"
+          - "View/Configure:egovernments*micro-service-devops"
+          - "View/Create:egovernments*micro-service-devops"
+          - "View/Delete:egovernments*micro-service-devops"
+          - "View/Read:egovernments*micro-service-devops"  
+
     
   welcome-message.yaml: |-
     jenkins:
@@ -182,6 +218,7 @@ data:
     pipeline-utility-steps:2.3.0
     job-dsl:1.75
     github-oauth:0.33
+    matrix-auth:2.4.2
 
 
 ---
@@ -331,7 +368,7 @@ spec:
       serviceAccountName: "jenkins"
       initContainers:
         - name: "copy-default-config"
-          image: "jenkins/jenkins:lts-alpine"
+          image: "jenkins/jenkins:2.189-alpine"
           imagePullPolicy: "Always"
           command: [ "sh", "/var/jenkins_config/apply_config.sh" ]
           env:
@@ -345,6 +382,16 @@ spec:
                 secretKeyRef:
                   name: jenkins
                   key: jenkins-admin-user
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-oauth
+                  key: clientID
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-oauth
+                  key: clientSecret                                                            
           resources:
             limits:
               cpu: 500m
@@ -368,7 +415,7 @@ spec:
               name: secrets-dir
       containers:
         - name: jenkins
-          image: "jenkins/jenkins:lts-alpine"
+          image: "jenkins/jenkins:2.189-alpine"
           imagePullPolicy: "Always"
           args: [ "--argumentsRealm.passwd.$(ADMIN_USER)=$(ADMIN_PASSWORD)",  "--argumentsRealm.roles.$(ADMIN_USER)=admin"]
           env:
@@ -388,6 +435,16 @@ spec:
                 secretKeyRef:
                   name: jenkins
                   key: jenkins-admin-user
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-oauth
+                  key: clientID
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-oauth
+                  key: clientSecret                   
             - name: CASC_JENKINS_CONFIG
               value: "/var/jenkins_home/casc_configs"                  
           ports:
@@ -510,3 +567,14 @@ spec:
     - name: kaniko-cache
       persistentVolumeClaim:
               claimName: kaniko-cache-claim
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jenkins-oauth
+  namespace: jenkins
+type: Opaque
+data:
+  clientID: "{{conf['jenkins']['github-client-id'] | decrypt}}"
+  clientSecret: "{{conf['jenkins']['github-client-secret']  | decrypt}}"

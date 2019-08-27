@@ -51,7 +51,7 @@ spec:
     ) {
         node(POD_LABEL) {
 
-            checkout scm
+            def scmVars = checkout scm
             final String REPO_NAME = "docker.io/nithindv";
             def yaml = readYaml file: pipelineParams.configFile;
             List<JobConfig> jobConfigs = ConfigParser.parseConfig(yaml, env);
@@ -63,9 +63,9 @@ spec:
                              "PATH=alpine:$PATH"
                     ]) {
                         container(name: 'git', shell: '/bin/sh') {
-                            sh '''#!/bin/sh
-                  git log --oneline -- ${BUILD_PATH} | awk \'NR==1{print $1}\' > commit
-                  '''
+                            scmVars['ACTUAL_COMMIT'] = sh (script: 
+                 'git log --oneline -- ${BUILD_PATH} | awk \'NR==1{print $1}\'',
+                  returnStdout: true).trim()
                         }
                     }
                 }
@@ -76,7 +76,7 @@ spec:
                         StringBuilder script = new StringBuilder("#!/busybox/sh");
 
                         jobConfig.getBuildConfigs().each { buildConfig ->
-                            String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BRANCH_NAME}-${env.BUILD_NUMBER}-${readFile('commit').trim()}";
+                            String image = "${REPO_NAME}/${buildConfig.getImageName()}:${scmVars.GIT_BRANCH}-${env.BUILD_NUMBER}-${scmVars.ACTUAL_COMMIT}";
                             script.append("""
                 echo \"Attempting to build image,  ${image}\"
                 /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \

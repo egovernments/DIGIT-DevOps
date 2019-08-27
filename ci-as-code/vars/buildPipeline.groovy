@@ -66,9 +66,7 @@ spec:
                             scmVars['ACTUAL_COMMIT'] = sh (script: 
                  'git log --oneline -- ${BUILD_PATH} | awk \'NR==1{print $1}\'',
                   returnStdout: true).trim()
-                            scmVars['ACTUAL_COMMIT'] = scmVars['ACTUAL_COMMIT'].replaceFirst("origin/", "")
-                            println scmVars['ACTUAL_COMMIT'].indexOf("origin/")
-                            println scmVars['ACTUAL_COMMIT']
+                            scmVars['BRANCH'] = scmVars['GIT_BRANCH'].replaceFirst("origin/", "")
                         }
                     }
                 }
@@ -79,7 +77,7 @@ spec:
                         StringBuilder script = new StringBuilder("#!/busybox/sh");
 
                         jobConfig.getBuildConfigs().each { buildConfig ->
-                            String image = "${REPO_NAME}/${buildConfig.getImageName()}:${scmVars.GIT_BRANCH}-${env.BUILD_NUMBER}-${scmVars.ACTUAL_COMMIT}";
+                            String image = "${REPO_NAME}/${buildConfig.getImageName()}:${scmVars.BRANCH}-${env.BUILD_NUMBER}-${scmVars.ACTUAL_COMMIT}";
                             script.append("""
                 echo \"Attempting to build image,  ${image}\"
                 /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \

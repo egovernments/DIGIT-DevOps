@@ -59,13 +59,14 @@ spec:
             jobConfigs.each { jobConfig ->
 
                 stage('Parse Latest Git Commit') {
-                    withEnv(["BUILD_PATH=${jobConfig.getBuildConfigs().get(0).getContext()}",
+                    withEnv(["BUILD_PATH=${jobConfig.getBuildConfigs().get(0).getWorkDir()}",
                              "PATH=alpine:$PATH"
                     ]) {
                         container(name: 'git', shell: '/bin/sh') {
                             scmVars['ACTUAL_COMMIT'] = sh (script: 
                  'git log --oneline -- ${BUILD_PATH} | awk \'NR==1{print $1}\'',
-                  returnStdout: true).trim().replaceFirst("origin/", "")
+                  returnStdout: true).trim()
+                            scmVars['ACTUAL_COMMIT'] = scmVars['ACTUAL_COMMIT'].replaceFirst("origin/", "")
                         }
                     }
                 }

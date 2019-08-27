@@ -65,7 +65,7 @@ spec:
                         container(name: 'git', shell: '/bin/sh') {
                             scmVars['ACTUAL_COMMIT'] = sh (script: 
                  'git log --oneline -- ${BUILD_PATH} | awk \'NR==1{print $1}\'',
-                  returnStdout: true).trim().replace("orgin/", "")
+                  returnStdout: true).trim().replaceFirst("origin/", "")
                         }
                     }
                 }

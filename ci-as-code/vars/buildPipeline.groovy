@@ -67,6 +67,8 @@ spec:
                  'git log --oneline -- ${BUILD_PATH} | awk \'NR==1{print $1}\'',
                   returnStdout: true).trim()
                             scmVars['ACTUAL_COMMIT'] = scmVars['ACTUAL_COMMIT'].replaceFirst("origin/", "")
+                            println test.indexOf("origin/")
+                            println scmVars['ACTUAL_COMMIT']
                         }
                     }
                 }

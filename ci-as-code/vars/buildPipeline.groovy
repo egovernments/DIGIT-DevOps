@@ -77,7 +77,7 @@ spec:
                         StringBuilder script = new StringBuilder("#!/busybox/sh");
 
                         jobConfig.getBuildConfigs().each { buildConfig ->
-                            String image = "${REPO_NAME}/${buildConfig.getImageName()}:${scmVars.BRANCH}-${env.BUILD_NUMBER}-${scmVars.ACTUAL_COMMIT}";
+                            String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
                             script.append("""
                 echo \"Attempting to build image,  ${image}\"
                 /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \

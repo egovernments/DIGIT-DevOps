@@ -55,7 +55,6 @@ class ConfigParser {
 
     static BuildConfig validateAndEnrichBuildConfig(Map<String,Object> buildYaml, def env){
         String workDir, dockerFile, buildContext = "";
-        String workspace = env.JENKINS_AGENT_WORKDIR + "/" + "workspace"
 
         if(buildYaml.get('workDir') == null)
             throw new Exception("Working Directory is empty for config");
@@ -64,12 +63,12 @@ class ConfigParser {
             throw new Exception("Image Name is empty for config");
 
 
-        workDir = workspace + "/" + buildYaml.workDir
+        workDir = buildYaml.workDir
 
         if (buildYaml.dockerFile == null)
             dockerFile = workDir + "/Dockerfile";
         else
-            dockerFile = workspace + "/" + buildYaml.dockerFile;
+            dockerFile = buildYaml.dockerFile;
 
         Path workDirPath = Paths.get(workDir);
         Path dockerFilePath = Paths.get(dockerFile);
@@ -83,8 +82,7 @@ class ConfigParser {
         workDir = workDirPath.normalize()
         dockerFile = dockerFilePath.normalize()
 
-
-        buildContext = getCommonBasePath(workDir, dockerFile);
+        buildContext = "./" + getCommonBasePath(workDir, dockerFile);
 
         return new BuildConfig(buildContext, buildYaml.imageName, dockerFile, workDir);
 

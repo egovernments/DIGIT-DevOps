@@ -56,7 +56,6 @@ spec:
             final String REPO_NAME = "docker.io/nithindv";
             def yaml = readYaml file: pipelineParams.configFile;
             List<JobConfig> jobConfigs = ConfigParser.parseConfig(yaml, env);
-            println(jobConfigs)
 
             for(int i=0; i<jobConfigs.size(); i++){
                 JobConfig jobConfig = jobConfigs.get(i)

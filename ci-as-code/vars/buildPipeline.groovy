@@ -64,9 +64,10 @@ spec:
                 container(name: 'jnlp', shell: '/bin/sh') {
                     scmVars = checkout scm
                     yaml = readYaml file: pipelineParams.configFile;
-                    String workspace = System.getenv('JENKINS_AGENT_WORKDIR') + "/" + "workspace"
+                    String workspace = env.JENKINS_AGENT_WORKDIR + "/" + "workspace"
                     println(workspace)
                     println(!Files.exists(Paths.get(workspace)) || !Files.isDirectory(Paths.get(workspace)))
+                    sh 'printenv'
                     jobConfigs = ConfigParser.parseConfig(yaml, env);
                 }
             }

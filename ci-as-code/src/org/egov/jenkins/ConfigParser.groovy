@@ -26,23 +26,14 @@ class ConfigParser {
     static List<JobConfig> populateConfigs(def yaml) {
         List<JobConfig> config = new ArrayList<>();
         yaml.each { job ->
+            validateJobConfig(job)
             List<BuildConfig> buildConfigs = new ArrayList<>();
             job.build.each { build ->
-                String dockerFile = "";
-                String buildContext = build.workDir;
+                validateAndEnrichBuildConfig(build)
+                String buildContext = getCommonPath(build.workDir, build.dockerFile);
+                println buildContext
 
-
-                if (build.dockerFile == null || build.dockerFile.startsWith(build.workDir))
-                    buildContext = build.workDir;
-                else
-                    buildContext = ".";
-
-                if (build.dockerFile == null)
-                    dockerFile = build.workDir + "/Dockerfile";
-                else
-                    dockerFile = build.dockerFile;
-
-                BuildConfig buildConfig = new BuildConfig(buildContext, build.imageName, dockerFile, build.workDir);
+                BuildConfig buildConfig = new BuildConfig(buildContext, build.imageName, build.dockerFile, build.workDir);
                 buildConfigs.add(buildConfig);
             }
             JobConfig jobConfig = new JobConfig(job.name, buildConfigs);
@@ -51,5 +42,57 @@ class ConfigParser {
 
         return config;
     }
+
+    static void validateAndEnrichBuildConfig(Map<String,Object> buildConfig){
+        String dockerFile = "";
+        if(buildConfig.get('workDir') == null)
+            throw new Exception("Working Directory is empty for config");
+        
+        if(buildConfig.get('imageName') == null)
+            throw new Exception("Image Name is empty for config");    
+
+        if (build.dockerFile == null)
+            build.dockerFile = build.workDir + "/Dockerfile";           
+
+        Path workDir = Paths.get(buildConfig.get('workDir'));
+        Path dockerFile = Paths.get(buildConfig.get('dockerFile'));
+
+        if( ! Files.exists(workDir) || ! Files.isDirectory(workDir))
+            throw new Exception("Working directory does not exist!");
+
+        if( ! Files.exists(dockerFile) || ! Files.isRegularFile(dockerFile))
+            throw new Exception("Docker file does not exist!");
+
+        buildConfig['workDir'] = workDir.toAbsolutePath()
+        buildConfig['dockerFile'] = dockerFile.toAbsolutePath()
+
+        println workDir.toAbsolutePath()
+        println dockerFile.toAbsolutePath()
+
+    }
+
+    static void validateJobConfig(Map<String,Object> jobConfig){
+        if(jobConfig.get('name') == null)
+            throw new Exception("Job name is empty for config");       
+    }
+    
+    private static String getCommonBasePath(String...  paths){
+        String commonPath = "";
+        String[][] folders = new String[paths.length][];
+
+        for(int i=0; i<paths.length; i++){
+            folders[i] = paths[i].split("/");
+        }
+
+        for(int j = 0; j< folders[0].length; j++){
+            String s = folders[0][j];
+            for(int i=1; i<paths.length; i++){
+                if(!s.equals(folders[i][j]))
+                    return commonPath;
+            }
+            commonPath += s + "/";
+        }
+        return commonPath;
+    }        
 
 }

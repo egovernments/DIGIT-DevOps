@@ -48,7 +48,7 @@ class ConfigParser {
 
     static void validateAndEnrichBuildConfig(Map<String,Object> buildConfig){
         String dockerFile = "";
-        String workspace = System.getenv('WORKSPACE')
+        String workspace = System.getenv('JENKINS_AGENT_WORKDIR')+ "/" + "workspace"
         
         if(buildConfig.get('workDir') == null)
             throw new Exception("Working Directory is empty for config");

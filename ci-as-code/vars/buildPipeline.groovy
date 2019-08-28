@@ -1,8 +1,6 @@
 import org.egov.jenkins.ConfigParser
+import org.egov.jenkins.models.BuildConfig
 import org.egov.jenkins.models.JobConfig
-
-import java.nio.file.Files
-import java.nio.file.Paths
 
 library 'ci-libs'
 
@@ -54,32 +52,21 @@ spec:
     ) {
         node(POD_LABEL) {
 
-            def scmVars
-            def yaml
-            List<JobConfig> jobConfigs = null;
+            def scmVars = checkout scm
             final String REPO_NAME = "docker.io/nithindv";
+            def yaml = readYaml file: pipelineParams.configFile;
+            List<JobConfig> jobConfigs = ConfigParser.parseConfig(yaml, env);
+            println(jobConfigs)
 
-
-            stage('Initialize Workspace') {
-                container(name: 'jnlp', shell: '/bin/sh') {
-                    scmVars = checkout scm
-                    yaml = readYaml file: pipelineParams.configFile;
-                    String workspace = env.JENKINS_AGENT_WORKDIR + "/" + "workspace"
-                    println(workspace)
-                    println(!Files.exists(Paths.get(workspace)) || !Files.isDirectory(Paths.get(workspace)))
-                    sh 'printenv'
-                    jobConfigs = ConfigParser.parseConfig(yaml, env);
-                }
-            }
-
-            jobConfigs.each { jobConfig ->
+            for(int i=0; i<jobConfigs.size(); i++){
+                JobConfig jobConfig = jobConfigs.get(i)
 
                 stage('Parse Latest Git Commit') {
                     withEnv(["BUILD_PATH=${jobConfig.getBuildConfigs().get(0).getWorkDir()}",
                              "PATH=alpine:$PATH"
                     ]) {
                         container(name: 'git', shell: '/bin/sh') {
-                            scmVars['ACTUAL_COMMIT'] = sh(script:
+                            scmVars['ACTUAL_COMMIT'] = sh (script:
                                     'git log --oneline -- ${BUILD_PATH} | awk \'NR==1{print $1}\'',
                                     returnStdout: true).trim()
                             scmVars['BRANCH'] = scmVars['GIT_BRANCH'].replaceFirst("origin/", "")
@@ -92,15 +79,19 @@ spec:
                     ]) {
                         container(name: 'kaniko', shell: '/busybox/sh') {
 
-                            jobConfig.getBuildConfigs().each { buildConfig ->
+                            for(int j=0; j<jobConfig.getBuildConfigs().size(); j++){
+                                BuildConfig buildConfig = jobConfig.getBuildConfigs().get(i)
+                                if( ! fileExists(buildConfig.getWorkDir()) || ! fileExists(buildConfig.getDockerFile()))
+                                    throw new Exception("Working directory / dockerfile does not exist!");
+
                                 String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
                                 sh """
-                echo \"Attempting to build image,  ${image}\"
-                /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
-                --build-arg WORK_DIR=${buildConfig.getWorkDir()} \
-                --cache=true --cache-dir=/cache --single-snapshot \
-                --destination=${image}
-                        """
+                                    echo \"Attempting to build image,  ${image}\"
+                                    /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
+                                    --build-arg WORK_DIR=${buildConfig.getWorkDir()} \
+                                    --cache=true --cache-dir=/cache --single-snapshot \
+                                    --destination=${image}
+                                """
 
                             }
                         }

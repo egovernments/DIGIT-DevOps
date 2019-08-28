@@ -1,10 +1,7 @@
 package org.egov.jenkins
 
 import org.egov.jenkins.models.BuildConfig
-import org.egov.jenkins.models.JobConfig;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import org.egov.jenkins.models.JobConfig
 
 class ConfigParser {
 
@@ -25,13 +22,13 @@ class ConfigParser {
         if(filteredJobConfigs.isEmpty())
             throw new Exception("No config exists for this job! ")
 
-        List<JobConfig> jobConfigs = populateConfigs(filteredJobConfigs);
+        List<JobConfig> jobConfigs = populateConfigs(filteredJobConfigs, env);
 
         return jobConfigs;
 
     }
 
-    static List<JobConfig> populateConfigs(List<Object> jobConfigs) {
+    static List<JobConfig> populateConfigs(List<Object> jobConfigs, def env) {
         List<JobConfig> config = new ArrayList<>();
 
         for (int jobConfigIndex = 0; jobConfigIndex < jobConfigs.size(); jobConfigIndex++) {
@@ -43,7 +40,7 @@ class ConfigParser {
 
             for (int buildConfigIndex = 0; buildConfigIndex < job.get("build").size();
                  buildConfigIndex++) {
-                BuildConfig buildConfig = validateAndEnrichBuildConfig(job.get("build").get(buildConfigIndex))
+                BuildConfig buildConfig = validateAndEnrichBuildConfig(job.get("build").get(buildConfigIndex), env)
                 buildConfigs.add(buildConfig);
             }
             JobConfig jobConfig = new JobConfig(job.name, buildConfigs);
@@ -53,9 +50,9 @@ class ConfigParser {
         return config;
     }
 
-    static BuildConfig validateAndEnrichBuildConfig(Map<String,Object> buildYaml){
+    static BuildConfig validateAndEnrichBuildConfig(Map<String,Object> buildYaml, def env){
         String workDir, dockerFile, buildContext = "";
-        String workspace = System.getenv('JENKINS_AGENT_WORKDIR')+ "/" + "workspace"
+        String workspace = env.JENKINS_AGENT_WORKDIR + "/" + "workspace"
 
         if(buildYaml.get('workDir') == null)
             throw new Exception("Working Directory is empty for config");
@@ -71,17 +68,17 @@ class ConfigParser {
         else
             dockerFile = workspace + "/" + buildYaml.dockerFile;
 
-        Path workDirPath = Paths.get(workDir);
-        Path dockerFilePath = Paths.get(dockerFile);
-
-        if( ! Files.exists(workDirPath) || ! Files.isDirectory(workDirPath))
-            throw new Exception("Working directory does not exist!");
-
-        if( ! Files.exists(dockerFilePath) || ! Files.isRegularFile(dockerFilePath))
-            throw new Exception("Docker file does not exist!");
-
-        workDir = workDirPath.toAbsolutePath()
-        dockerFile = dockerFilePath.toAbsolutePath()
+//        Path workDirPath = Paths.get(workDir);
+//        Path dockerFilePath = Paths.get(dockerFile);
+//
+//        if( ! Files.exists(workDirPath) || ! Files.isDirectory(workDirPath))
+//            throw new Exception("Working directory does not exist!");
+//
+//        if( ! Files.exists(dockerFilePath) || ! Files.isRegularFile(dockerFilePath))
+//            throw new Exception("Docker file does not exist!");
+//
+//        workDir = workDirPath.toAbsolutePath()
+//        dockerFile = dockerFilePath.toAbsolutePath()
 
         buildContext = getCommonBasePath(workDir, dockerFile);
 

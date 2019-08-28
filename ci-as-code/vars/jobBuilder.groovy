@@ -56,7 +56,9 @@ def call(Map params) {
 """);
         }
 
-        jobDsl scriptText: jobDslScript.toString()
+        stage('Building jobs') {
+            jobDsl scriptText: jobDslScript.toString()
+        }
 
     }
 

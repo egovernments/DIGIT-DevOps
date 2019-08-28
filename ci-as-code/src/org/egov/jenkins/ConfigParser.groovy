@@ -31,7 +31,7 @@ class ConfigParser {
 
     }
 
-    static List<JobConfig> populateConfigs(List<Object> jobConfigs, def env) {
+    static List<JobConfig> populateConfigs(def jobConfigs, def env) {
         List<JobConfig> config = new ArrayList<>();
 
         for (int jobConfigIndex = 0; jobConfigIndex < jobConfigs.size(); jobConfigIndex++) {

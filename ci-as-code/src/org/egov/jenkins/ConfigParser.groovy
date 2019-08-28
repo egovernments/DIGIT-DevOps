@@ -54,20 +54,20 @@ class ConfigParser {
         if (build.dockerFile == null)
             build.dockerFile = build.workDir + "/Dockerfile";           
 
-        Path workDir = Paths.get(buildConfig.get('workDir'));
-        Path dockerFile = Paths.get(buildConfig.get('dockerFile'));
+        Path workDirPath = Paths.get(buildConfig.get('workDir'));
+        Path dockerFilePath = Paths.get(buildConfig.get('dockerFile'));
 
-        if( ! Files.exists(workDir) || ! Files.isDirectory(workDir))
+        if( ! Files.exists(workDirPath) || ! Files.isDirectory(workDirPath))
             throw new Exception("Working directory does not exist!");
 
-        if( ! Files.exists(dockerFile) || ! Files.isRegularFile(dockerFile))
+        if( ! Files.exists(dockerFilePath) || ! Files.isRegularFile(dockerFilePath))
             throw new Exception("Docker file does not exist!");
 
-        buildConfig['workDir'] = workDir.toAbsolutePath()
-        buildConfig['dockerFile'] = dockerFile.toAbsolutePath()
+        buildConfig['workDir'] = workDirPath.toAbsolutePath()
+        buildConfig['dockerFile'] = dockerFilePath.toAbsolutePath()
 
-        println workDir.toAbsolutePath()
-        println dockerFile.toAbsolutePath()
+        println workDirPath.toAbsolutePath()
+        println dockerFilePath.toAbsolutePath()
 
     }
 

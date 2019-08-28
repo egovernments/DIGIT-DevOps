@@ -52,11 +52,10 @@ spec:
         node(POD_LABEL) {
 
             def scmVars = checkout scm
+            println env.WORKSPACE
             final String REPO_NAME = "docker.io/nithindv";
             def yaml = readYaml file: pipelineParams.configFile;
             List<JobConfig> jobConfigs = ConfigParser.parseConfig(yaml, env);
-            println env.WORKSPACE
-            println jobConfigs
 
             jobConfigs.each { jobConfig ->
 

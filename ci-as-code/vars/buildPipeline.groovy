@@ -1,6 +1,9 @@
 import org.egov.jenkins.ConfigParser
 import org.egov.jenkins.models.JobConfig
 
+import java.nio.file.Files
+import java.nio.file.Paths
+
 library 'ci-libs'
 
 def call(Map pipelineParams) {
@@ -54,6 +57,9 @@ spec:
             def scmVars = checkout scm
             final String REPO_NAME = "docker.io/nithindv";
             def yaml = readYaml file: pipelineParams.configFile;
+            String workspace = System.getenv('JENKINS_AGENT_WORKDIR')+ "/" + "workspace"
+            println(workspace)
+            println( ! Files.exists(Paths.get(workspace)) || ! Files.isDirectory(Paths.get(workspace)))
             List<JobConfig> jobConfigs = ConfigParser.parseConfig(yaml, env);
 
             jobConfigs.each { jobConfig ->

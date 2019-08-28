@@ -52,7 +52,6 @@ spec:
         node(POD_LABEL) {
 
             def scmVars = checkout scm
-            println env.WORKSPACE
             final String REPO_NAME = "docker.io/nithindv";
             def yaml = readYaml file: pipelineParams.configFile;
             List<JobConfig> jobConfigs = ConfigParser.parseConfig(yaml, env);
@@ -64,9 +63,9 @@ spec:
                              "PATH=alpine:$PATH"
                     ]) {
                         container(name: 'git', shell: '/bin/sh') {
-                            scmVars['ACTUAL_COMMIT'] = sh (script: 
-                 'git log --oneline -- ${BUILD_PATH} | awk \'NR==1{print $1}\'',
-                  returnStdout: true).trim()
+                            scmVars['ACTUAL_COMMIT'] = sh (script:
+                                    'git log --oneline -- ${BUILD_PATH} | awk \'NR==1{print $1}\'',
+                                    returnStdout: true).trim()
                             scmVars['BRANCH'] = scmVars['GIT_BRANCH'].replaceFirst("origin/", "")
                         }
                     }
@@ -77,9 +76,9 @@ spec:
                     ]) {
                         container(name: 'kaniko', shell: '/busybox/sh') {
 
-                        jobConfig.getBuildConfigs().each { buildConfig ->
-                            String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
-                            sh """
+                            jobConfig.getBuildConfigs().each { buildConfig ->
+                                String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
+                                sh """
                 echo \"Attempting to build image,  ${image}\"
                 /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
                 --build-arg WORK_DIR=${buildConfig.getWorkDir()} \
@@ -87,7 +86,7 @@ spec:
                 --destination=${image}
                         """
 
-                        }
+                            }
                         }
                     }
                 }

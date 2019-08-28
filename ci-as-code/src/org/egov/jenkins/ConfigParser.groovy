@@ -9,34 +9,41 @@ import java.nio.file.Paths;
 class ConfigParser {
 
     static List<JobConfig> parseConfig(def yaml, def env) {
-        List<JobConfig> configs = populateConfigs(yaml.config);
         String jobName = env.JOB_NAME;
+        if( ! yaml.config instanceof List)
+            throw new Exception("Invalid job config file format!")
 
-        List<JobConfig> filteredJobConfigs = new ArrayList<>();
+        List<Object> configs = yaml.config;
+        List<Object> filteredJobConfigs = new ArrayList<>();
 
-        configs.each { config ->
-            if (config.getName().equalsIgnoreCase(jobName)) {
-                filteredJobConfigs.add(config);
+        for (int i = 0; i < configs.size(); i++) {
+            if (configs.get(i).getName().equalsIgnoreCase(jobName)) {
+                filteredJobConfigs.add(configs.get(i));
             }
         }
-        if (filteredJobConfigs.isEmpty())
-            throw new Exception("Invalid Job");
 
-        return filteredJobConfigs;
+        if(filteredJobConfigs.isEmpty())
+            throw new Exception("No config exists for this job! ")
+
+        List<JobConfig> jobConfigs = populateConfigs(filteredJobConfigs);
+
+        return jobConfigs;
 
     }
 
-    static List<JobConfig> populateConfigs(def yaml) {
+    static List<JobConfig> populateConfigs(List<Object> jobConfigs) {
         List<JobConfig> config = new ArrayList<>();
-        yaml.each { job ->
-            validateJobConfig(job)
-            List<BuildConfig> buildConfigs = new ArrayList<>();
-            job.build.each { build ->
-                validateAndEnrichBuildConfig(build)
-                String buildContext = getCommonPath(build.workDir, build.dockerFile);
-                println buildContext
 
-                BuildConfig buildConfig = new BuildConfig(buildContext, build.imageName, build.dockerFile, build.workDir);
+        for (int jobConfigIndex = 0; jobConfigIndex < jobConfigs.size(); jobConfigIndex++) {
+            Map<String, Object> job = jobConfigs.get(jobConfigIndex)
+            List<BuildConfig> buildConfigs = new ArrayList<>();
+
+            if( ! job.get("build") instanceof Map)
+                throw new Exception("Invalid job config, build config missing ! - Job "+job.get("name"))
+
+            for (int buildConfigIndex = 0; buildConfigIndex < job.get("build").size();
+                 buildConfigIndex++) {
+                BuildConfig buildConfig = validateAndEnrichBuildConfig(job.get("build").get(buildConfigIndex))
                 buildConfigs.add(buildConfig);
             }
             JobConfig jobConfig = new JobConfig(job.name, buildConfigs);
@@ -46,25 +53,26 @@ class ConfigParser {
         return config;
     }
 
-    static void validateAndEnrichBuildConfig(Map<String,Object> buildConfig){
-        String dockerFile = "";
+    static BuildConfig validateAndEnrichBuildConfig(Map<String,Object> buildYaml){
+        String workDir, dockerFile, buildContext = "";
         String workspace = System.getenv('JENKINS_AGENT_WORKDIR')+ "/" + "workspace"
-        
-        if(buildConfig.get('workDir') == null)
+
+        if(buildYaml.get('workDir') == null)
             throw new Exception("Working Directory is empty for config");
-        
-        if(buildConfig.get('imageName') == null)
-            throw new Exception("Image Name is empty for config");  
-        
-        buildConfig.workDir = workspace + "/" + buildConfig.workDir
 
-        if (buildConfig.dockerFile == null)
-            buildConfig.dockerFile = buildConfig.workDir + "/Dockerfile";
-        else 
-            buildConfig.dockerFile = workspace + "/" + buildConfig.dockerFile;
+        if(buildYaml.get('imageName') == null)
+            throw new Exception("Image Name is empty for config");
 
-        Path workDirPath = Paths.get(buildConfig.get('workDir'));
-        Path dockerFilePath = Paths.get(buildConfig.get('dockerFile'));
+
+        workDir = workspace + "/" + buildYaml.workDir
+
+        if (buildYaml.dockerFile == null)
+            dockerFile = workDir + "/Dockerfile";
+        else
+            dockerFile = workspace + "/" + buildYaml.dockerFile;
+
+        Path workDirPath = Paths.get(workDir);
+        Path dockerFilePath = Paths.get(dockerFile);
 
         if( ! Files.exists(workDirPath) || ! Files.isDirectory(workDirPath))
             throw new Exception("Working directory does not exist!");
@@ -72,19 +80,15 @@ class ConfigParser {
         if( ! Files.exists(dockerFilePath) || ! Files.isRegularFile(dockerFilePath))
             throw new Exception("Docker file does not exist!");
 
-        buildConfig['workDir'] = workDirPath.toAbsolutePath()
-        buildConfig['dockerFile'] = dockerFilePath.toAbsolutePath()
+        workDir = workDirPath.toAbsolutePath()
+        dockerFile = dockerFilePath.toAbsolutePath()
 
-        println workDirPath.toAbsolutePath()
-        println dockerFilePath.toAbsolutePath()
+        buildContext = getCommonBasePath(workDir, dockerFile);
+
+        return new BuildConfig(buildContext, buildYaml.imageName, dockerFile, workDir);
 
     }
 
-    static void validateJobConfig(Map<String,Object> jobConfig){
-        if(jobConfig.get('name') == null)
-            throw new Exception("Job name is empty for config");       
-    }
-    
     private static String getCommonBasePath(String...  paths){
         String commonPath = "";
         String[][] folders = new String[paths.length][];
@@ -102,6 +106,6 @@ class ConfigParser {
             commonPath += s + "/";
         }
         return commonPath;
-    }        
+    }
 
 }

@@ -2,6 +2,9 @@ package org.egov.jenkins
 
 import org.egov.jenkins.models.BuildConfig
 import org.egov.jenkins.models.JobConfig
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
 
 class ConfigParser {
 
@@ -68,8 +71,8 @@ class ConfigParser {
         else
             dockerFile = workspace + "/" + buildYaml.dockerFile;
 
-//        Path workDirPath = Paths.get(workDir);
-//        Path dockerFilePath = Paths.get(dockerFile);
+        Path workDirPath = Paths.get(workDir);
+        Path dockerFilePath = Paths.get(dockerFile);
 //
 //        if( ! Files.exists(workDirPath) || ! Files.isDirectory(workDirPath))
 //            throw new Exception("Working directory does not exist!");
@@ -77,8 +80,9 @@ class ConfigParser {
 //        if( ! Files.exists(dockerFilePath) || ! Files.isRegularFile(dockerFilePath))
 //            throw new Exception("Docker file does not exist!");
 //
-//        workDir = workDirPath.toAbsolutePath()
-//        dockerFile = dockerFilePath.toAbsolutePath()
+        workDir = workDirPath.normalize()
+        dockerFile = dockerFilePath.normalize()
+
 
         buildContext = getCommonBasePath(workDir, dockerFile);
 
@@ -86,23 +90,22 @@ class ConfigParser {
 
     }
 
-    private static String getCommonBasePath(String...  paths){
-        String commonPath = "";
-        String[][] folders = new String[paths.length][];
+    private static String getCommonBasePath(String path, String path1){
+        String[] pathArray = path.split("/");
+        String[] path1Array = path1.split("/");
 
-        for(int i=0; i<paths.length; i++){
-            folders[i] = paths[i].split("/");
+        List<String> commonPaths = new ArrayList<>();
+
+        for(int i=0; i<Integer.min(pathArray.length, path1Array.length); i++){
+            if(pathArray[i].equals(path1Array[i]))
+                commonPaths.add(pathArray[i]);
+            else
+                break;
         }
 
-        for(int j = 0; j< folders[0].length; j++){
-            String s = folders[0][j];
-            for(int i=1; i<paths.length; i++){
-                if(!s.equals(folders[i][j]))
-                    return commonPath;
-            }
-            commonPath += s + "/";
-        }
-        return commonPath;
+        System.out.println(commonPaths);
+        return String.join("/", commonPaths);
+
     }
 
 }

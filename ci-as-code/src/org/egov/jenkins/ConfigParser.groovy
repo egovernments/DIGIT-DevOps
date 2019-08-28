@@ -27,7 +27,7 @@ class ConfigParser {
     }
 
     static List<JobConfig> populateConfigs(def yaml) {
-        println System.getEnv("WORKSPACE");
+        println System.getenv("WORKSPACE");
         List<JobConfig> config = new ArrayList<>();
         yaml.each { job ->
             validateJobConfig(job)

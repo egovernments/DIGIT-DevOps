@@ -7,7 +7,7 @@ def call(Map params) {
         git params.repo
         def yaml = readYaml file: params.configFile;
         List<String> folders = Utils.foldersToBeCreatedOrUpdated(yaml, env);
-        List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config);
+        List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config, env);
 
         StringBuilder jobDslScript = new StringBuilder();
 

@@ -17,7 +17,7 @@ class ConfigParser {
         List<Object> filteredJobConfigs = new ArrayList<>();
 
         for (int i = 0; i < configs.size(); i++) {
-            if (configs.get(i).getName().equalsIgnoreCase(jobName)) {
+            if (configs.get(i).get("name").equalsIgnoreCase(jobName)) {
                 filteredJobConfigs.add(configs.get(i));
             }
         }

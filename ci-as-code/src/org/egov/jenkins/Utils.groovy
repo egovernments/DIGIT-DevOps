@@ -4,8 +4,7 @@ import org.egov.jenkins.models.JobConfig
 
 class Utils {
 
-    static List<String> foldersToBeCreatedOrUpdated(def yaml, def env) {
-        List<JobConfig> configs = ConfigParser.populateConfigs(yaml.config);
+    static List<String> foldersToBeCreatedOrUpdated(List<JobConfig> configs, def env) {
 
         Set<String> folders = new HashSet<>();
 

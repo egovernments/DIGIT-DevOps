@@ -27,8 +27,6 @@ class ConfigParser {
     }
 
     static List<JobConfig> populateConfigs(def yaml) {
-        println "Printing workspace"
-        println System.getenv("WORKSPACE");
         List<JobConfig> config = new ArrayList<>();
         yaml.each { job ->
             validateJobConfig(job)
@@ -50,14 +48,20 @@ class ConfigParser {
 
     static void validateAndEnrichBuildConfig(Map<String,Object> buildConfig){
         String dockerFile = "";
+        String workspace = System.getenv('WORKSPACE')
+        
         if(buildConfig.get('workDir') == null)
             throw new Exception("Working Directory is empty for config");
         
         if(buildConfig.get('imageName') == null)
-            throw new Exception("Image Name is empty for config");    
+            throw new Exception("Image Name is empty for config");  
+        
+        buildConfig.workDir = workspace + "/" + buildConfig.workDir
 
         if (buildConfig.dockerFile == null)
-            buildConfig.dockerFile = buildConfig.workDir + "/Dockerfile";           
+            buildConfig.dockerFile = buildConfig.workDir + "/Dockerfile";
+        else 
+            buildConfig.dockerFile = workspace + "/" + buildConfig.dockerFile;
 
         Path workDirPath = Paths.get(buildConfig.get('workDir'));
         Path dockerFilePath = Paths.get(buildConfig.get('dockerFile'));

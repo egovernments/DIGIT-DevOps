@@ -54,8 +54,8 @@ class ConfigParser {
         if(buildConfig.get('imageName') == null)
             throw new Exception("Image Name is empty for config");    
 
-        if (build.dockerFile == null)
-            build.dockerFile = build.workDir + "/Dockerfile";           
+        if (buildConfig.dockerFile == null)
+            buildConfig.dockerFile = buildConfig.workDir + "/Dockerfile";           
 
         Path workDirPath = Paths.get(buildConfig.get('workDir'));
         Path dockerFilePath = Paths.get(buildConfig.get('dockerFile'));

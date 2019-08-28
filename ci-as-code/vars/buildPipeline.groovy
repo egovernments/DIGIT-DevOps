@@ -54,13 +54,22 @@ spec:
     ) {
         node(POD_LABEL) {
 
-            def scmVars = checkout scm
+            def scmVars
+            def yaml
+            List<JobConfig> jobConfigs = null;
             final String REPO_NAME = "docker.io/nithindv";
-            def yaml = readYaml file: pipelineParams.configFile;
-            String workspace = System.getenv('JENKINS_AGENT_WORKDIR')+ "/" + "workspace"
-            println(workspace)
-            println( ! Files.exists(Paths.get(workspace)) || ! Files.isDirectory(Paths.get(workspace)))
-            List<JobConfig> jobConfigs = ConfigParser.parseConfig(yaml, env);
+
+
+            stage('Initialize Workspace') {
+                container(name: 'jnlp', shell: '/bin/sh') {
+                    scmVars = checkout scm
+                    yaml = readYaml file: pipelineParams.configFile;
+                    String workspace = System.getenv('JENKINS_AGENT_WORKDIR') + "/" + "workspace"
+                    println(workspace)
+                    println(!Files.exists(Paths.get(workspace)) || !Files.isDirectory(Paths.get(workspace)))
+                    jobConfigs = ConfigParser.parseConfig(yaml, env);
+                }
+            }
 
             jobConfigs.each { jobConfig ->
 
@@ -69,7 +78,7 @@ spec:
                              "PATH=alpine:$PATH"
                     ]) {
                         container(name: 'git', shell: '/bin/sh') {
-                            scmVars['ACTUAL_COMMIT'] = sh (script:
+                            scmVars['ACTUAL_COMMIT'] = sh(script:
                                     'git log --oneline -- ${BUILD_PATH} | awk \'NR==1{print $1}\'',
                                     returnStdout: true).trim()
                             scmVars['BRANCH'] = scmVars['GIT_BRANCH'].replaceFirst("origin/", "")

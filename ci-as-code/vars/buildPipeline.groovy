@@ -74,23 +74,19 @@ spec:
                 stage('Build with Kaniko') {
                     withEnv(["PATH=/busybox:/kaniko:$PATH"
                     ]) {
-                        StringBuilder script = new StringBuilder("#!/busybox/sh");
+                        container(name: 'kaniko', shell: '/busybox/sh') {
 
                         jobConfig.getBuildConfigs().each { buildConfig ->
                             String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
-                            script.append("""
+                            sh """
                 echo \"Attempting to build image,  ${image}\"
                 /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
                 --build-arg WORK_DIR=${buildConfig.getWorkDir()} \
                 --cache=true --cache-dir=/cache --single-snapshot \
                 --destination=${image}
-                        """)
+                        """
 
                         }
-
-
-                        container(name: 'kaniko', shell: '/busybox/sh') {
-                            sh script.toString();
                         }
                     }
                 }

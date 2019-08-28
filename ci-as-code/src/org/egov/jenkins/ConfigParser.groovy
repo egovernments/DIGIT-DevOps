@@ -27,6 +27,7 @@ class ConfigParser {
     }
 
     static List<JobConfig> populateConfigs(def yaml) {
+        println "Printing workspace"
         println System.getenv("WORKSPACE");
         List<JobConfig> config = new ArrayList<>();
         yaml.each { job ->

@@ -172,6 +172,7 @@ data:
       authorizationStrategy:
         projectMatrix:
           permissions:
+          # Admin
           - "Agent/Build:egovernments*micro-service-devops"
           - "Agent/Configure:egovernments*micro-service-devops"
           - "Agent/Connect:egovernments*micro-service-devops"
@@ -201,6 +202,16 @@ data:
           - "View/Create:egovernments*micro-service-devops"
           - "View/Delete:egovernments*micro-service-devops"
           - "View/Read:egovernments*micro-service-devops"  
+          # Devs
+          - "Agent/Build:egovernments*micro-service-dev"
+          - "Job/Build:egovernments*micro-service-dev"
+          - "Job/Cancel:egovernments*micro-service-dev"
+          - "Job/Read:egovernments*micro-service-dev"
+          - "Job/Workspace:egovernments*micro-service-dev"
+          - "Overall/Read:egovernments*micro-service-dev"
+          - "Run/Replay:egovernments*micro-service-dev"
+          - "View/Read:egovernments*micro-service-dev"           
+          
 
     
   welcome-message.yaml: |-
@@ -538,35 +549,6 @@ spec:
   resources:
     requests:
       storage: 8Gi
-
----
-apiVersion: v1
-kind: Pod
-metadata:
-  name: kaniko-warmer
-  namespace: jenkins
-spec:
-  containers:
-  - name: kaniko-warmer
-    image: gcr.io/kaniko-project/warmer:latest
-    args: ["--cache-dir=/cache",
-           "--image=nithindv/alpine-maven-jdk-8:gcp",
-           "--image=egovio/citizen:latest",
-           "--image=egovio/pt-calculator-v2:latest",
-           "--image=egovio/nginx:latest",
-           "--image=egovio/firenoc-services:latest",
-           "--image=egovio/8-openjdk-alpine",
-           "--image=egovio/alpine-maven-builder-jdk-8:gcp",         
-           "--image=egovio/flyway:4.1.2"         
-           ]
-    volumeMounts:
-      - name: kaniko-cache
-        mountPath: /cache
-  restartPolicy: Never
-  volumes:
-    - name: kaniko-cache
-      persistentVolumeClaim:
-              claimName: kaniko-cache-claim
 
 ---
 apiVersion: v1

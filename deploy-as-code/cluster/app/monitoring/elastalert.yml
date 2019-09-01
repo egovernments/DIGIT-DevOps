@@ -1,0 +1,81 @@
+---
+# Source: elastalert/templates/config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elastalert-config
+  namespace: es-cluster-infra
+  labels:
+    app: elastalert
+data:
+  elastalert_config: |-
+    ---
+    rules_folder: /opt/rules
+    scan_subdirectories: false
+    run_every:
+      minutes: 1
+    buffer_time:
+      minutes: 15
+    es_host: "{{conf['logging-config']['es-host']}}"
+    es_port: {{conf['logging-config']['es-port']}}
+    writeback_index: elastalert
+    use_ssl: False
+    verify_certs: False
+    alert_time_limit:
+      minutes: 2880
+
+---
+# Source: elastalert/templates/rules.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elastalert-rules
+  namespace: es-cluster-infra
+  labels:
+    app: elastalert
+data:
+
+---
+# Source: elastalert/templates/deployment.yaml
+
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: elastalert
+  namespace: es-cluster-infra
+  labels:
+    app: elastalert
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  template:
+    metadata:
+      annotations:
+      labels:
+        name: elastalert
+        app: elastalert
+    spec:
+      containers:
+      - name: elastalert
+        image: "jertel/elastalert-docker:0.2.1"
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+          - name: config
+            mountPath: '/opt/config'
+          - name: rules
+            mountPath: '/opt/rules'
+        resources:
+            {}
+            
+      restartPolicy: Always
+      volumes:
+        - name: rules
+          configMap:
+            name: elastalert-rules
+            items:
+        - name: config
+          configMap:
+            name: elastalert-config
+            items:
+            - key: elastalert_config
+              path: elastalert_config.yaml

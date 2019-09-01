@@ -94,6 +94,7 @@ def render_env_props(args):
 
 
 def apply_manifest(manifest):
+    manifest = manifest.encode('utf-8').strip()
     with tempfile.NamedTemporaryFile() as temp:
         temp.write(manifest)
         temp.flush()

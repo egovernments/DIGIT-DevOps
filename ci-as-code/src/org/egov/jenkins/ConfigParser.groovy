@@ -72,7 +72,7 @@ class ConfigParser {
 
         Path workDirPath = Paths.get(workDir);
         Path dockerFilePath = Paths.get(dockerFile);
-        
+
         workDir = workDirPath.normalize()
         dockerFile = dockerFilePath.normalize()
 

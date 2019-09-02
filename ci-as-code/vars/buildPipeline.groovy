@@ -85,7 +85,7 @@ spec:
                                 if( ! fileExists(buildConfig.getWorkDir()) || ! fileExists(buildConfig.getDockerFile()))
                                     throw new Exception("Working directory / dockerfile does not exist!");
 
-                                String workDir = buildConfig.getWorkDir().replaceFirst(getCommonBasePath(workDir, dockerFile), "./")
+                                String workDir = buildConfig.getWorkDir().replaceFirst(getCommonBasePath(buildConfig.getWorkDir(), buildConfig.getDockerFile()), "./")
                                 String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
                                 sh """
                                     echo \"Attempting to build image,  ${image}\"

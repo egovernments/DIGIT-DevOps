@@ -72,13 +72,7 @@ class ConfigParser {
 
         Path workDirPath = Paths.get(workDir);
         Path dockerFilePath = Paths.get(dockerFile);
-//
-//        if( ! Files.exists(workDirPath) || ! Files.isDirectory(workDirPath))
-//            throw new Exception("Working directory does not exist!");
-//
-//        if( ! Files.exists(dockerFilePath) || ! Files.isRegularFile(dockerFilePath))
-//            throw new Exception("Docker file does not exist!");
-//
+        
         workDir = workDirPath.normalize()
         dockerFile = dockerFilePath.normalize()
 
@@ -88,7 +82,7 @@ class ConfigParser {
 
     }
 
-    private static String getCommonBasePath(String path, String path1){
+    public static String getCommonBasePath(String path, String path1){
         String[] pathArray = path.split("/");
         String[] path1Array = path1.split("/");
 
@@ -101,7 +95,6 @@ class ConfigParser {
                 break;
         }
 
-        System.out.println(commonPaths);
         return String.join("/", commonPaths);
 
     }

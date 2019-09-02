@@ -2,6 +2,8 @@ import org.egov.jenkins.ConfigParser
 import org.egov.jenkins.models.BuildConfig
 import org.egov.jenkins.models.JobConfig
 
+import static org.egov.jenkins.ConfigParser.getCommonBasePath
+
 library 'ci-libs'
 
 def call(Map pipelineParams) {
@@ -83,11 +85,12 @@ spec:
                                 if( ! fileExists(buildConfig.getWorkDir()) || ! fileExists(buildConfig.getDockerFile()))
                                     throw new Exception("Working directory / dockerfile does not exist!");
 
+                                String workDir = buildConfig.getWorkDir().replaceFirst(getCommonBasePath(workDir, dockerFile), "./")
                                 String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
                                 sh """
                                     echo \"Attempting to build image,  ${image}\"
                                     /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
-                                    --build-arg WORK_DIR=${buildConfig.getWorkDir()} \
+                                    --build-arg WORK_DIR=${workDir} \
                                     --cache=true --cache-dir=/cache --single-snapshot \
                                     --destination=${image}
                                 """

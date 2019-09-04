@@ -81,7 +81,7 @@ spec:
                         container(name: 'kaniko', shell: '/busybox/sh') {
 
                             for(int j=0; j<jobConfig.getBuildConfigs().size(); j++){
-                                BuildConfig buildConfig = jobConfig.getBuildConfigs().get(i)
+                                BuildConfig buildConfig = jobConfig.getBuildConfigs().get(j)
                                 if( ! fileExists(buildConfig.getWorkDir()) || ! fileExists(buildConfig.getDockerFile()))
                                     throw new Exception("Working directory / dockerfile does not exist!");
 
@@ -94,7 +94,8 @@ spec:
                                     --cache=true --cache-dir=/cache \
                                     --single-snapshot=true \
                                     --snapshotMode=time \
-                                    --destination=${image}
+                                    --destination=${image} \
+                                    --no-push=true
                                 """
 
                             }

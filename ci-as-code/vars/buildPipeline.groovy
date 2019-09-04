@@ -92,7 +92,9 @@ spec:
                                     /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
                                     --build-arg WORK_DIR=${workDir} \
                                     --cache=true --cache-dir=/cache \
-                                    --single-snapshot --snapshotMode=time \
+                                    --single-snapshot=true \
+                                    --snapshotMode=time \
+                                    --cleanup=true \
                                     --destination=${image}
                                 """
 

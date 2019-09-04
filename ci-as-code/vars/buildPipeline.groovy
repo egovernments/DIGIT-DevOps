@@ -81,6 +81,7 @@ spec:
                                 String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
                                 sh """
                                     echo \"Attempting to build image,  ${image}\"
+                                    docker version
                                     docker build -f `pwd`/${buildConfig.getDockerFile()} \
                                     --build-arg WORK_DIR=${workDir} \
                                     -t ${image} \

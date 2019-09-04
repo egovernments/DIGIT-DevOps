@@ -94,7 +94,6 @@ spec:
                                     --cache=true --cache-dir=/cache \
                                     --single-snapshot=true \
                                     --snapshotMode=time \
-                                    --cleanup=true \
                                     --destination=${image}
                                 """
 

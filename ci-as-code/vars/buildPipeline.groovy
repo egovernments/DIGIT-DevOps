@@ -13,35 +13,29 @@ metadata:
   name: kaniko
 spec:
   containers:
-  - name: kaniko
-    image: gcr.io/kaniko-project/executor:debug
-    imagePullPolicy: Always
+  - name: docker-cli
+    image: egovio/alpine-docker-cli:17.12.1-ce
+    imagePullPolicy: IfNotPresent
     command:
-    - /busybox/cat
+    - cat
     tty: true
     volumeMounts:
       - name: jenkins-docker-cfg
         mountPath: /root
-      - name: kaniko-cache
-        mountPath: /cache  
-    resources:
-      requests:
-        memory: "1280Mi"
-        cpu: "750m"
-      limits:
-        memory: "1536Mi"
-        cpu: "1250m"      
+      - name: dockersock
+        mountPath: /var/run/docker.sock  
+    securityContext:
+      privileged: true       
   - name: git
     image: docker.io/nithindv/alpine-git:latest
-    imagePullPolicy: Always
+    imagePullPolicy: IfNotPresent
     command:
     - cat
     tty: true        
   volumes:
-  - name: kaniko-cache
-    persistentVolumeClaim:
-      claimName: kaniko-cache-claim
-      readOnly: true      
+  - name: dockersock
+    hostPath:
+      path: /var/run/docker.sock      
   - name: jenkins-docker-cfg
     projected:
       sources:
@@ -75,10 +69,8 @@ spec:
                     }
                 }
 
-                stage('Build with Kaniko') {
-                    withEnv(["PATH=/busybox:/kaniko:$PATH"
-                    ]) {
-                        container(name: 'kaniko', shell: '/busybox/sh') {
+                stage('Build docker image') {
+                        container(name: 'docker-cli', shell: '/bin/sh') {
 
                             for(int j=0; j<jobConfig.getBuildConfigs().size(); j++){
                                 BuildConfig buildConfig = jobConfig.getBuildConfigs().get(i)
@@ -89,16 +81,15 @@ spec:
                                 String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
                                 sh """
                                     echo \"Attempting to build image,  ${image}\"
-                                    /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
+                                    docker build -f `pwd`/${buildConfig.getDockerFile()} \
                                     --build-arg WORK_DIR=${workDir} \
-                                    --cache=true --cache-dir=/cache \
-                                    --single-snapshot --snapshotMode=time \
-                                    --destination=${image}
+                                    -t ${image} \
+                                    `pwd`/${buildConfig.getContext()}
+                                    docker push ${image}
                                 """
 
                             }
                         }
-                    }
                 }
             }
 

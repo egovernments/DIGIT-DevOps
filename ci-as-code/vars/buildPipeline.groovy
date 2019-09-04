@@ -15,7 +15,7 @@ spec:
   containers:
   - name: kaniko
     image: gcr.io/kaniko-project/executor:debug
-    imagePullPolicy: Always
+    imagePullPolicy: IfNotPresent
     command:
     - /busybox/cat
     tty: true
@@ -33,7 +33,7 @@ spec:
         cpu: "1250m"      
   - name: git
     image: docker.io/nithindv/alpine-git:latest
-    imagePullPolicy: Always
+    imagePullPolicy: IfNotPresent
     command:
     - cat
     tty: true        

@@ -95,7 +95,7 @@ spec:
                                     --single-snapshot=true \
                                     --snapshotMode=time \
                                     --destination=${image} \
-                                    --no-push=true
+                                    --no-push=true --cache-repo=egovio/cache/cache
                                 """
 
                             }

@@ -4,7 +4,7 @@ import org.egov.jenkins.models.JobConfig
 
 def call(Map params) {
     node {
-        git params.repo
+        git url: params.repo, credentialsId: 'git_read'
         def yaml = readYaml file: params.configFile;
         List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config, env);
         List<String> folders = Utils.foldersToBeCreatedOrUpdated(jobConfigs, env);

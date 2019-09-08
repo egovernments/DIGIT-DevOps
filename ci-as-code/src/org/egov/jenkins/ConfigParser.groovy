@@ -56,19 +56,19 @@ class ConfigParser {
     static BuildConfig validateAndEnrichBuildConfig(Map<String,Object> buildYaml, def env){
         String workDir, dockerFile, buildContext = "";
 
-        if(buildYaml.get('workDir') == null)
+        if(buildYaml.get('work-dir') == null)
             throw new Exception("Working Directory is empty for config");
 
-        if(buildYaml.get('imageName') == null)
+        if(buildYaml.get('image-name') == null)
             throw new Exception("Image Name is empty for config");
 
 
-        workDir = buildYaml.workDir
+        workDir = buildYaml.get('work-dir')
 
-        if (buildYaml.dockerFile == null)
+        if (buildYaml.get('dockerfile') == null)
             dockerFile = workDir + "/Dockerfile";
         else
-            dockerFile = buildYaml.dockerFile;
+            dockerFile = buildYaml.get('dockerfile');
 
         Path workDirPath = Paths.get(workDir);
         Path dockerFilePath = Paths.get(dockerFile);
@@ -78,7 +78,7 @@ class ConfigParser {
 
         buildContext = "./" + getCommonBasePath(workDir, dockerFile);
 
-        return new BuildConfig(buildContext, buildYaml.imageName, dockerFile, workDir);
+        return new BuildConfig(buildContext, buildYaml.get('image-name'), dockerFile, workDir);
 
     }
 

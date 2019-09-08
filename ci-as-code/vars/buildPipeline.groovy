@@ -87,6 +87,7 @@ spec:
 
                                 String workDir = buildConfig.getWorkDir().replaceFirst(getCommonBasePath(buildConfig.getWorkDir(), buildConfig.getDockerFile()), "./")
                                 String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
+                                String noPushImage = env.NO_PUSH ? env.NO_PUSH : false;
                                 sh """
                                     echo \"Attempting to build image,  ${image}\"
                                     /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
@@ -95,7 +96,8 @@ spec:
                                     --single-snapshot=true \
                                     --snapshotMode=time \
                                     --destination=${image} \
-                                    --no-push=true --cache-repo=egovio/cache/cache
+                                    --no-push=${noPushImage} \
+                                    --cache-repo=egovio/cache/cache
                                 """
 
                             }

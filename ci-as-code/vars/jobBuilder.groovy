@@ -42,7 +42,10 @@ def call(Map params) {
                     cpsScm {
                         scm {
                             git{
-                                remote {url("${params.repo}")} 
+                                remote {
+                                    url("${params.repo}")
+                                    credentials('git_read')
+                                } 
                                 branch ('\${BRANCH}')
                                 scriptPath('Jenkinsfile')
                                 extensions { }

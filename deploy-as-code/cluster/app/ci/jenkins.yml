@@ -211,9 +211,20 @@ data:
           - "Overall/Read:egovernments*micro-service-dev"
           - "Run/Replay:egovernments*micro-service-dev"
           - "View/Read:egovernments*micro-service-dev"           
-          
-
     
+  credentials.yaml: |-
+    credentials:
+      system:
+        domainCredentials:
+          - credentials:
+              - basicSSHUserPrivateKey:
+                  scope: GLOBAL
+                  id: git_read
+                  description: "SSH private key file for git checkouts"
+                  privateKeySource:
+                    directEntry:
+                      privateKey: ${GIT_READ_SSH_PRIVATE_KEY}    
+          
   welcome-message.yaml: |-
     jenkins:
       systemMessage: Welcome to EGOV CI server.  This Jenkins is configured and managed 'as code'. YOLO, drink well, stay high!!
@@ -230,6 +241,7 @@ data:
     job-dsl:1.75
     github-oauth:0.33
     matrix-auth:2.4.2
+    ssh-credentials:1.17.1
 
 
 ---
@@ -379,8 +391,8 @@ spec:
       serviceAccountName: "jenkins"
       initContainers:
         - name: "copy-default-config"
-          image: "jenkins/jenkins:2.189-alpine"
-          imagePullPolicy: "Always"
+          image: "jenkins/jenkins:2.193-alpine"
+          imagePullPolicy: "IfNotPresent"
           command: [ "sh", "/var/jenkins_config/apply_config.sh" ]
           env:
             - name: ADMIN_PASSWORD
@@ -426,8 +438,8 @@ spec:
               name: secrets-dir
       containers:
         - name: jenkins
-          image: "jenkins/jenkins:2.189-alpine"
-          imagePullPolicy: "Always"
+          image: "jenkins/jenkins:2.193-alpine"
+          imagePullPolicy: "IfNotPresent"
           args: [ "--argumentsRealm.passwd.$(ADMIN_USER)=$(ADMIN_PASSWORD)",  "--argumentsRealm.roles.$(ADMIN_USER)=admin"]
           env:
             - name: JAVA_OPTS
@@ -436,16 +448,16 @@ spec:
               value: ""
             - name: JENKINS_SLAVE_AGENT_PORT
               value: "50000"
-            - name: ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: jenkins
-                  key: jenkins-admin-password
-            - name: ADMIN_USER
-              valueFrom:
-                secretKeyRef:
-                  name: jenkins
-                  key: jenkins-admin-user
+            # - name: ADMIN_PASSWORD
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: jenkins
+            #       key: jenkins-admin-password
+            # - name: ADMIN_USER
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: jenkins
+            #       key: jenkins-admin-user
             - name: GITHUB_CLIENT_ID
               valueFrom:
                 secretKeyRef:
@@ -455,7 +467,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: jenkins-oauth
-                  key: clientSecret                   
+                  key: clientSecret      
+            - name: GIT_READ_SSH_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-credentials
+                  key: gitReadSshPrivateKey                                  
             - name: CASC_JENKINS_CONFIG
               value: "/var/jenkins_home/casc_configs"                  
           ports:
@@ -560,3 +577,12 @@ type: Opaque
 data:
   clientID: "{{conf['jenkins']['github-client-id'] | decrypt}}"
   clientSecret: "{{conf['jenkins']['github-client-secret']  | decrypt}}"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jenkins-credentials
+  namespace: jenkins
+type: Opaque
+data:
+  gitReadSshPrivateKey: "{{conf['jenkins']['git-read-ssh-private-key'] | decrypt}}"

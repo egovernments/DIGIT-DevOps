@@ -9,7 +9,14 @@ spec:
   jobTemplate:
     spec:
       template:
-        spec:      
+        spec: 
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: cloud.google.com/gke-preemptible
+                    operator: Exists             
           containers:
           - name: kaniko-cache-warmer
             image: gcr.io/kaniko-project/warmer:latest
@@ -21,7 +28,8 @@ spec:
                   "--image=egovio/firenoc-services:latest",
                   "--image=egovio/8-openjdk-alpine",
                   "--image=egovio/alpine-maven-builder-jdk-8:gcp",         
-                  "--image=egovio/flyway:4.1.2"         
+                  "--image=egovio/flyway:4.1.2",         
+                  "--image=egovio/alpine-node-builder-10:yarn"         
                   ]               
             volumeMounts:
               - name: kaniko-cache

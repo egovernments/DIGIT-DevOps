@@ -100,7 +100,7 @@ spec:
                                     --no-push=${noPushImage} \
                                     --cache-repo=egovio/cache/cache
                                 """
-
+                                echo "${image} pushed successfully!"
                             }
                         }
                     }

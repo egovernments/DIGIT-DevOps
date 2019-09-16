@@ -35,7 +35,14 @@ spec:
       labels:
         app: pdf-service
         group: rainmaker
-    spec:
+    spec:   
+      volumes:
+      - name: git-secret
+        secret:
+          secretName: git-creds
+          defaultMode: 288 # = mode 0440   
+      - name: workdir
+        emptyDir: {}                            
       initContainers: 
       - name: "pdf-service-db-migration"
         image: "{{conf["pdf-service"]["db_migration_image"]}}"
@@ -62,7 +69,32 @@ spec:
             configMapKeyRef: 
               name: egov-config
               key: flyway-locations
-        imagePullPolicy: "IfNotPresent"    
+        imagePullPolicy: "IfNotPresent"  
+      - name: "git-sync"
+        image: "{{conf["git-sync"]["image"]}}"
+        env: 
+        - name: "GIT_SYNC_REPO"
+          value: "{{conf['pdf-service']['repo']}}"
+        - name: "GIT_SYNC_BRANCH"
+          value: "{{conf['pdf-service']['branch']}}"        
+        - name: "GIT_SYNC_DEPTH"
+          value: "1"            
+        - name: "GIT_SYNC_ONE_TIME"
+          value: "true"          
+        - name: "GIT_SYNC_SSH"
+          value: "true"      
+        - name: "GIT_SYNC_ROOT"
+          value: "/work-dir"      
+        securityContext:
+          runAsUser: 65533 # git-sync user
+        volumeMounts:
+        - name: git-secret
+          mountPath: /etc/git-secret              
+        - name: workdir
+          mountPath: "/work-dir"         
+        imagePullPolicy: "IfNotPresent"
+      securityContext:
+        fsGroup: 65533 # to make SSH key readable                    
       containers:
       - name: pdf-service
         image: {{conf['pdf-service']['images'][0]}}
@@ -104,6 +136,10 @@ spec:
           value: "8080"
         - name: MAX_NUMBER_PAGES
           value: "80"   
+        - name: DATA_CONFIG_URLS
+          value: "{{conf["pdf-service"]["data-config-urls"]}}"   
+        - name: FORMAT_CONFIG_URLS
+          value: "{{conf["pdf-service"]["format-config-urls"]}}"                       
         - name: EGOV_LOCALISATION_HOST
           value: "{{conf['egov-service-host']['egov-localization']}}"    
         - name: EGOV_FILESTORE_SERVICE_HOST
@@ -127,3 +163,6 @@ spec:
         #     memory: "64Mi"
         #   limits:
         #     memory: "{{ conf['pdf-service']['memory_limits'] or "512Mi"}}"
+        volumeMounts:              
+        - name: workdir
+          mountPath: "/work-dir"            

@@ -46,7 +46,7 @@ spec:
     projected:
       sources:
       - secret:
-          name: regcred-self
+          name: regcred
           items:
             - key: .dockerconfigjson
               path: .docker/config.json          
@@ -55,7 +55,7 @@ spec:
         node(POD_LABEL) {
 
             def scmVars = checkout scm
-            String REPO_NAME = env.REPO_NAME ? env.REPO_NAME : "docker.io/nithindv";           
+            String REPO_NAME = env.REPO_NAME ? env.REPO_NAME : "docker.io/egovio";           
             def yaml = readYaml file: pipelineParams.configFile;
             List<JobConfig> jobConfigs = ConfigParser.parseConfig(yaml, env);
 

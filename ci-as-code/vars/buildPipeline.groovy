@@ -21,7 +21,7 @@ spec:
     tty: true
     volumeMounts:
       - name: jenkins-docker-cfg
-        mountPath: /kaniko
+        mountPath: /kaniko/.docker
       - name: kaniko-cache
         mountPath: /cache  
     resources:
@@ -49,7 +49,7 @@ spec:
           name: regcred
           items:
             - key: .dockerconfigjson
-              path: .docker/config.json             
+              path: config.json             
 """
     ) {
         node(POD_LABEL) {

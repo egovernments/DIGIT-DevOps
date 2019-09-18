@@ -14,14 +14,14 @@ metadata:
 spec:
   containers:
   - name: kaniko
-    image: gcr.io/kaniko-project/executor:debug-v0.8.0
+    image: gcr.io/kaniko-project/executor:debug
     imagePullPolicy: IfNotPresent
     command:
     - /busybox/cat
     tty: true
     volumeMounts:
       - name: jenkins-docker-cfg
-        mountPath: /kaniko/.docker
+        mountPath: /root
       - name: kaniko-cache
         mountPath: /cache  
     resources:
@@ -46,16 +46,16 @@ spec:
     projected:
       sources:
       - secret:
-          name: regcred
+          name: regcred-self
           items:
             - key: .dockerconfigjson
-              path: config.json             
+              path: .docker/config.json          
 """
     ) {
         node(POD_LABEL) {
 
             def scmVars = checkout scm
-            String REPO_NAME = env.REPO_NAME ? env.REPO_NAME : "docker.io/egovio";           
+            String REPO_NAME = env.REPO_NAME ? env.REPO_NAME : "docker.io/nithindv";           
             def yaml = readYaml file: pipelineParams.configFile;
             List<JobConfig> jobConfigs = ConfigParser.parseConfig(yaml, env);
 

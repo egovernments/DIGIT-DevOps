@@ -19,8 +19,9 @@ def parse_args():
 def main():
     args = parse_args()
     if args.file :
-        f=open(args.file, "r")
-        text_to_encrypt = f.read()
+        file_to_encrypt = args.file.decode('utf-8','ignore').strip()
+        f = open(file_to_encrypt, "r+")
+        text_to_encrypt = f.read()  
     else :
         text_to_encrypt = sys.argv[1]
 

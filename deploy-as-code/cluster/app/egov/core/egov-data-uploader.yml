@@ -26,14 +26,14 @@ spec:
       labels:
         app: egov-data-uploader
         group: core
-    spec:
+    spec:   
       volumes:
       - name: git-secret
         secret:
           secretName: git-creds
           defaultMode: 288 # = mode 0440   
       - name: workdir
-        emptyDir: {}      
+        emptyDir: {}       
       initContainers: 
       - name: "git-sync"
         image: "{{conf["git-sync"]["image"]}}"
@@ -59,33 +59,7 @@ spec:
           mountPath: "/work-dir"         
         imagePullPolicy: "IfNotPresent"
       securityContext:
-        fsGroup: 65533 # to make SSH key readable       
-      - name: "egov-data-uploader-db-migration"
-        image: "{{conf["egov-data-uploader"]["db_migration_image"]}}"
-        env: 
-        - name: "DB_URL"
-          valueFrom: 
-            configMapKeyRef: 
-              name: egov-config
-              key: db-url
-        - name: "SCHEMA_TABLE"
-          value: "egov-data-uploader_schema"
-        - name: "FLYWAY_USER"
-          valueFrom: 
-            secretKeyRef: 
-              name: db
-              key: flyway-username
-        - name: "FLYWAY_PASSWORD"
-          valueFrom:
-            secretKeyRef: 
-              name: db
-              key: flyway-password
-        - name: "FLYWAY_LOCATIONS"
-          valueFrom: 
-            configMapKeyRef: 
-              name: egov-config
-              key: flyway-locations
-        imagePullPolicy: "IfNotPresent"
+        fsGroup: 65533 # to make SSH key readable  
       containers:
       - name: egov-data-uploader
         image: {{conf['egov-data-uploader']['images'][0]}}
@@ -181,8 +155,8 @@ spec:
         volumeMounts:              
         - name: workdir
           mountPath: "/work-dir" 
-        # resources:
-        #   requests:
-        #     memory: "64Mi"
-        #   limits:
-        #     memory: "{{conf['egov-data-uploader']['memory_limits'] or "256Mi"}}"
+      # resources:
+      #   requests:
+      #     memory: "64Mi"
+      #   limits:
+      #     memory: "{{conf['egov-data-uploader']['memory_limits'] or "256Mi"}}"

@@ -108,6 +108,7 @@ def apply_manifest(manifest):
                             format(out, err))
 
 def apply_manifest_win(manifest):
+    manifest = manifest.encode('utf-8').strip()    
     with tempfile.NamedTemporaryFile(delete=False) as temp:
         temp.write(manifest)
         temp.seek(0)

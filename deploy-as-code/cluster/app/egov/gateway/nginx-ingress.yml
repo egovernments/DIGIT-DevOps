@@ -212,19 +212,22 @@ metadata:
   labels:
     app: nginx-ingress
   name: nginx-ingress-controller
-  namespace: "{{ conf['nginx-ingress']['namespace'] }}"  
+  namespace: "{{ conf['nginx-ingress']['namespace'] }}"
 spec:
-  replicas: 1
+  replicas: {{ conf['nginx-ingress']['replicas'] or 1}}
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+    type: RollingUpdate  
   revisionHistoryLimit: 10  
   strategy:
-    {}
-    
+    {}   
   minReadySeconds: 0
   template:
     metadata:
       labels:
         app: nginx-ingress
-    spec:         
+    spec:             
       dnsPolicy: ClusterFirst
       containers:
         - name: nginx-ingress-controller
@@ -232,10 +235,11 @@ spec:
           imagePullPolicy: "IfNotPresent"
           args:
             - /nginx-ingress-controller
-            # - --publish-service={{ conf['nginx-ingress']['namespace'] }}/nginx-ingress-controller
             - --annotations-prefix=nginx.ingress.kubernetes.io
             - --election-id=ingress-controller-leader
             - --ingress-class=nginx
+            - --enable-dynamic-certificates=false
+            - --enable-ssl-chain-completion=true
             - --configmap={{ conf['nginx-ingress']['namespace'] }}/nginx-ingress-controller
             # - --default-backend-service={{ conf['nginx-ingress']['default-backend-service'] }}
           securityContext:
@@ -309,235 +313,19 @@ data:
   proxy-read-timeout: "60"  
   client-max-body-size: "2m"
   server-tokens: "false"
-  ssl-ciphers: "EECDH+AESGCM:EDH+AESGCM"
-  ssl-ecdh-curve: "secp384r1"
-  ssl-protocols: "TLSv1.2 TLSv1.3"  
+  ssl-ciphers: "{{ conf['nginx-ingress']['ssl-ciphers'] }}"
+  ssl-ecdh-curve: "{{ conf['nginx-ingress']['ssl-ecdh-curve'] }}"
+  ssl-protocols: "{{ conf['nginx-ingress']['ssl-protocols'] }}"
 ---
 apiVersion: v1
 data:
   Strict-Transport-Security: "max-age=63072000; includeSubdomains; preload"
   X-Frame-Options: "sameorigin"
   X-Content-Type-Options: "nosniff"
-  Content-Security-Policy: "default-src 'self' https: 'unsafe-eval' 'unsafe-inline'; object-src 'none'; img-src 'self' https: data: blob:; style-src https: blob: 'unsafe-inline';"
+  Content-Security-Policy: "default-src 'self' https: 'unsafe-eval' 'unsafe-inline'; object-src 'none'; img-src 'self' https: data: blob:; style-src https: blob: 'unsafe-inline'; worker-src 'self' blob:"
   X-XSS-Protection: "1"
   Referrer-Policy: "no-referrer-when-downgrade"
 kind: ConfigMap
 metadata:
   name: custom-headers
   namespace: "{{ conf['nginx-ingress']['namespace'] }}"
----
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: routes
-  namespace: egov
-  annotations:
-    kubernetes.io/ingress.class: "nginx"
-    nginx.ingress.kubernetes.io/app-root: /citizen    
-    certmanager.k8s.io/cluster-issuer: "letsencrypt-staging"  
-spec:
-  rules:
-  - host: 52.172.52.102.nip.io
-    http:
-      paths:
-      - backend:
-          serviceName: employee-tradelicence
-          servicePort: 80
-        path: /employee-tradelicence
-      - backend:
-          serviceName: telemetry
-          servicePort: 9001
-        path: /v1/telemetry
-      - backend:
-          serviceName: citizen
-          servicePort: 80
-        path: /citizen      
-      - backend:
-          serviceName: employee
-          servicePort: 80
-        path: /employee
-      - backend:
-          serviceName: react-pgr-web
-          servicePort: 80
-        path: /app/v1
-      - backend:
-          serviceName: ui-dashboard
-          servicePort: 80
-        path: /rainmaker/dashboard
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /egov-location
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /localization
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /user
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /user-otp
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /otp
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /egf-masters
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /hr-masters
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /hr-masters-v2
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /egov-common-masters
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /hr-employee-v2
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /tenant
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /billing-service
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /access
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /egov-idgen
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /pg-service
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /pt-calculator-v2
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /pt-services-v2
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /rainmaker-pgr
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /egov-mdms-create
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /data-uploader
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /infra-search/egov-searcher
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /egov-indexer
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /egov-mdms-service
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /citizen-services
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /report
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /tl-services
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /tl-masters
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /egf-instrument
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /egf-master
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /collection-services
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /collection-masters
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /customization
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /tl-calculator
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /collection-receipt-voucher-consumer
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /egov-workflow-v2
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /egov-hrms
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /apportion-service
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /billing-service-v1
-      - backend:
-          serviceName: zuul
-          servicePort: 8080
-        path: /collection-services-v1
-  tls:
-  - hosts:
-    - 52.172.52.102.nip.io
-    secretName: 52.172.52.102.nip.io-tls-certs
----
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: routes
-  namespace: es-cluster
-  annotations:
-    kubernetes.io/ingress.class: "nginx"     
-spec:
-  rules:
-  - host: 52.172.52.102.nip.io
-    http:
-      paths:
-      - backend:
-          serviceName: kibana-v1
-          servicePort: 5601
-        path: /kibana   

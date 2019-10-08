@@ -31,7 +31,13 @@ spec:
       labels:
         app: employee
         group: web
-    spec:
+    spec:  
+{% if conf['employee']['custom-js-injection'] %} 
+      volumes:         
+      - name: js-injection
+        configMap:
+          name: employee-js-injection
+{% endif %} 
       containers:
       - name: employee
         image: {{conf['employee']['images'][0]}}
@@ -47,6 +53,12 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 5
           successThreshold: 1
+        volumeMounts:
+{% if conf['employee']['custom-js-injection'] %}               
+        - mountPath: /etc/nginx/conf.d/sub_filter.conf
+          name: js-injection    
+          subPath: sub_filter.conf   
+{% endif %}            
         resources:
           requests:
             memory: "128Mi"

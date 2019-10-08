@@ -55,6 +55,8 @@ def parse_args():
                         action="store_true")
     parser.add_argument("-vol", "--with_volumes", help="Attach volumes to manifest",
                         action="store_true")
+    parser.add_argument("-ing", "--with_ingress", help="Deploy ingress",
+                        action="store_true")                        
     parser.add_argument("-all", "--all", help="Apply all manifests across all namespaces",
                         action="store_true")
 
@@ -166,6 +168,9 @@ def main():
             render_manifest(args, manifest_path="{}/../cluster/secrets.yml".format(cwd)))
     if args.with_volumes:
         applicable_manifests.append(render_manifest(args, manifest_path="{}/../cluster/volumes.yml".format(cwd)))
+
+    if args.with_ingress:
+        applicable_manifests.append(render_manifest(args, manifest_path="{}/../cluster/ingress.yml".format(cwd)))        
 
     if args.all:
         for manifest, path in get_all_manifests():

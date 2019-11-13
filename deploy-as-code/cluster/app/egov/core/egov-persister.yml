@@ -31,6 +31,39 @@ spec:
         app: egov-persister
         group: core
     spec:
+      volumes:
+      - name: git-secret
+        secret:
+          secretName: git-creds
+          defaultMode: 288 # = mode 0440   
+      - name: workdir
+        emptyDir: {}       
+      initContainers: 
+      - name: "git-sync"
+        image: "{{conf["git-sync"]["image"]}}"
+        env: 
+        - name: "GIT_SYNC_REPO"
+          value: "{{conf['egov-persister']['repo']}}"
+        - name: "GIT_SYNC_BRANCH"
+          value: "{{conf['egov-persister']['branch']}}"        
+        - name: "GIT_SYNC_DEPTH"
+          value: "1"            
+        - name: "GIT_SYNC_ONE_TIME"
+          value: "true"          
+        - name: "GIT_SYNC_SSH"
+          value: "true"      
+        - name: "GIT_SYNC_ROOT"
+          value: "/work-dir"      
+        securityContext:
+          runAsUser: 65533 # git-sync user
+        volumeMounts:
+        - name: git-secret
+          mountPath: /etc/git-secret              
+        - name: workdir
+          mountPath: "/work-dir"         
+        imagePullPolicy: "IfNotPresent"
+      securityContext:
+        fsGroup: 65533 # to make SSH key readable 
       containers:
       - name: egov-persister
         image: {{conf['egov-persister']['images'][0]}}

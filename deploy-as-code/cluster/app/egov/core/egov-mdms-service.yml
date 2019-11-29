@@ -36,6 +36,7 @@ spec:
         app: egov-mdms-service
         group: core
     spec:
+{% if conf['egov-mdms-service']['repo'] %}    
       volumes:
       - name: git-secret
         secret:
@@ -68,7 +69,8 @@ spec:
           mountPath: "/work-dir"         
         imagePullPolicy: "IfNotPresent"
       securityContext:
-        fsGroup: 65533 # to make SSH key readable            
+        fsGroup: 65533 # to make SSH key readable  
+{% endif %}                  
       containers:
       - name: egov-mdms-service
         image: {{conf['egov-mdms-service']['images'][0]}}
@@ -156,12 +158,14 @@ spec:
         - name: SECURITY_BASIC_ENABLED
           value: "false"  
         - name: MANAGEMENT_SECURITY_ENABLED
-          value: "false" 
-        volumeMounts:              
-        - name: workdir
-          mountPath: "/work-dir"          
+          value: "false"           
         resources:
           requests:
             memory: "64Mi"
           limits:
             memory: "{{ conf['egov-mdms-service']['memory_limits'] or "512Mi"}}"
+{% if conf['egov-mdms-service']['repo'] %}            
+        volumeMounts:              
+        - name: workdir
+          mountPath: "/work-dir"            
+{% endif %}

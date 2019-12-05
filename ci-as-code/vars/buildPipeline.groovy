@@ -29,8 +29,8 @@ spec:
         memory: "1792Mi"
         cpu: "750m"
       limits:
-        memory: "2560Mi"
-        cpu: "1250m"      
+        memory: "3072Mi"
+        cpu: "1500m"      
   - name: git
     image: docker.io/nithindv/alpine-git:latest
     imagePullPolicy: IfNotPresent

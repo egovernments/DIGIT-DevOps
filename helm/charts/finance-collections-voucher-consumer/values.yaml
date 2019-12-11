@@ -1,0 +1,123 @@
+---
+labels:
+  app: "finance-collections-voucher-consumer"
+  group: "collections"
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "finance-collections-voucher-consumer_schema"
+    image:
+      repository: "egovio/finance-collections-voucher-consumer-db"
+image:
+  repository: "egovio/finance-collections-voucher-consumer"
+replicas: "1"
+erp-env-name: "dev"
+erp-domain-name: "egovernments.org"
+heap: "-Xmx192m -Xms192m"
+
+env: |
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: spring-datasource-tomcat-initialSize
+  - name: SERVER_TOMCAT_MAX_THREADS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: server-tomcat-max-threads
+  - name: SERVER_TOMCAT_MAX_CONNECTIONS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: server-tomcat-max-connections
+  - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: spring-datasource-tomcat-max-active
+  - name: FLYWAY_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: FLYWAY_ENABLED
+    value: "false"        
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  - name: EGOV_SERVICES_EGOV_USER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: EGOV_SERVICES_MDMS_HOSTNAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: EGOV_SERVICES_EGFINSTRUMENT_HOSTNAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egf-instrument
+  - name: EGOV_SERVICES_EGFMASTER_HOSTNAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egf-master
+  - name: EGOV_SERVICES_COLLECTIONS_HOSTNAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: collection-services
+  - name: FIN_COE_ERP_ENVIRONMENT_NAME
+    value: {{ index .Values "erp-env-name" | quote }}
+  - name: FIN_COE_ERP_DOMAIN_NAME
+    value: {{ index .Values "erp-domain-name" | quote }}
+  - name: SI_MICROSERVICE_USER
+    value: "SIFINANCE"
+  - name: SI_MICROSERVICE_PASSWORD
+    value: "sifinance123@"
+  - name: SI_MICROSERVICE_USERTYPE
+    value: "SYSTEM"
+  - name: SI_MICROSERVICE_SCOPE
+    value: "read"
+  - name: SI_MICROSERVICE_GRANTTYPE
+    value: "password"
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: APP_TIMEZONE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: timezone
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SPRING_JPA_SHOW_SQL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: spring-jpa-show-sql
+  - name: SERVER_PORT
+    value: "8080"
+

@@ -1,0 +1,168 @@
+# Default values for commons.
+# This is a YAML-formatted file.
+# Declare name/value pairs to be passed into your templates.
+replicas: 1
+httpPort: 8080
+targetHttpPort: 8080
+appType: ""
+
+image:
+  pullPolicy: IfNotPresent   
+  tag: latest
+
+affinity:
+    preferSpreadAcrossAZ: true
+
+initContainers:
+  dbMigration:
+    enabled: false
+    image:
+      pullPolicy: IfNotPresent  
+      tag: latest
+    env: |
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}              
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+                name: db
+                key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+                name: db
+                key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+                name: egov-config
+                key: flyway-locations
+
+  gitSync:
+    enabled: false
+    image:
+      repository: k8s.gcr.io/git-sync
+      tag: v3.1.1
+      pullPolicy: IfNotPresent   
+    env: |
+        - name: "GIT_SYNC_REPO"
+          value: "{{ .Values.initContainers.gitSync.repo }}"
+        - name: "GIT_SYNC_BRANCH"
+          value: "{{ .Values.initContainers.gitSync.branch }}"        
+        - name: "GIT_SYNC_DEPTH"
+          value: "1"            
+        - name: "GIT_SYNC_ONE_TIME"
+          value: "true"          
+        - name: "GIT_SYNC_SSH"
+          value: "true"      
+        - name: "GIT_SYNC_ROOT"
+          value: "/work-dir"
+
+healthChecks:
+    enabled: false
+    livenessProbe: |
+        httpGet:
+            path: "{{ .Values.healthChecks.livenessProbePath }}"
+            port: {{ .Values.httpPort }}
+        initialDelaySeconds: 60
+        timeoutSeconds: 3
+        periodSeconds: 60
+        successThreshold: 1
+        failureThreshold: 5
+    readinessProbe: |
+        httpGet:
+            path: "{{ .Values.healthChecks.readinessProbePath }}"
+            port: {{ .Values.httpPort }}
+        initialDelaySeconds: 60
+        timeoutSeconds: 3
+        periodSeconds: 30
+        successThreshold: 1
+        failureThreshold: 5        
+
+lifecycle:
+    preStop:
+        exec:
+            command:
+            - sh
+            - -c
+            - "sleep 10"
+
+extraEnv:
+  java: |
+      - name: SPRING_DATASOURCE_URL
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-url
+      - name: FLYWAY_URL
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-url
+      - name: SPRING_DATASOURCE_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: username
+      - name: SPRING_DATASOURCE_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: password
+      - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: spring-datasource-tomcat-initialSize
+      - name: SERVER_TOMCAT_MAX_THREADS
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: server-tomcat-max-threads
+      - name: SERVER_TOMCAT_MAX_CONNECTIONS
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: server-tomcat-max-connections
+      - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: spring-datasource-tomcat-max-active  
+  jaeger: |             
+      - name: JAEGER_SERVICE_NAME
+        value: {{ .Chart.Name }}
+      - name: JAEGER_SAMPLER_TYPE
+        value: remote
+      - name: JAEGER_AGENT_HOST
+        valueFrom:
+          fieldRef:
+            fieldPath: status.hostIP
+      - name: JAEGER_AGENT_PORT
+        value: "6831"
+      - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+        value: "$(JAEGER_AGENT_HOST):5778"  
+
+additionalLabels: {}
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name:
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000            

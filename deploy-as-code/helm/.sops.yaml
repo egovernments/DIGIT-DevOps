@@ -1,0 +1,20 @@
+# creation rules are evaluated sequentially, the first match wins
+creation_rules:
+        # upon creation of a file that matches the pattern *dev.yaml,
+        # KMS set A is used
+        - path_regex: environments/dev\.yaml$
+          encrypted_regex: '^(secrets)$'
+          kms: 'arn:aws:kms:ap-south-1:880678429748:key/b792c6d0-9cc9-415b-bd7f-628f55f1bfdd'
+          pgp: 'C7ED80C79625B40667A6FAD6774DE10645AAD1BB'
+
+        # prod files use KMS set B in the PROD IAM
+        # - path_regex: \.prod\.yaml$
+        #   kms: 'arn:aws:kms:us-west-2:361527076523:key/5052f06a-5d3f-489e-b86c-57201e06f31e+arn:aws:iam::361527076523:role/hiera-sops-prod,arn:aws:kms:eu-central-1:361527076523:key/cb1fab90-8d17-42a1-a9d8-334968904f94+arn:aws:iam::361527076523:role/hiera-sops-prod'
+        #   pgp: 'FBC7B9E2A4F9289AC0C1D4843D16CEE4A27381B4'
+
+        # Finally, if the rules above have not matched, this one is a
+        # catchall that will encrypt the file using KMS set C
+        # The absence of a path_regex means it will match everything
+        - kms: 'arn:aws:kms:ap-south-1:880678429748:key/b792c6d0-9cc9-415b-bd7f-628f55f1bfdd'
+          encrypted_regex: '^(secrets)$'
+          pgp: 'C7ED80C79625B40667A6FAD6774DE10645AAD1BB'

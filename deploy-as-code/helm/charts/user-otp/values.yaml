@@ -1,0 +1,58 @@
+---
+labels:
+  app: "user-otp"
+  group: "user"
+initContainers: {}
+image:
+  repository: "egovio/user-otp"
+replicas: "1"
+heap: "-Xmx192m -Xms192m"
+java-args: ""
+
+env: |
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: SERVER_PORT
+    value: "8080"
+  - name: OTP_HOST
+    value: http://egov-otp:8080/otp
+  - name: USER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: SMS_TOPIC
+    value: egov.core.notification.sms
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: APP_TIMEZONE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: timezone
+  - name: JAEGER_SERVICE_NAME
+    value: user-otp
+  - name: JAEGER_SAMPLER_TYPE
+    value: remote
+  - name: JAEGER_AGENT_HOST
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: JAEGER_AGENT_PORT
+    value: "6831"
+  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+    value: $(JAEGER_AGENT_HOST):5778          
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"     
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}
+

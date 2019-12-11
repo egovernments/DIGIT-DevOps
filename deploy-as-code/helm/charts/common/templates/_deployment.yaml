@@ -1,0 +1,98 @@
+{{- define "common.deployment" -}}
+{{- $common := dict "Values" .Values.common -}} 
+{{- $noCommon := omit .Values "common" -}} 
+{{- $module := dict "Values" (index .Values (tpl .Chart.Name .)) -}} 
+{{- $noModule := omit (index .Values (tpl .Chart.Name .)) -}} 
+{{- $overrides := dict "Values" (merge $noModule $noCommon ) -}} 
+{{- $noValues := omit . "Values" -}} 
+{{- with merge $noValues $overrides $common }}
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+{{- if eq (.Values.replicas | int) 1 }}
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+{{- end }}      
+  replicas: {{ .Values.replicas }}
+  template:
+    metadata:  
+      labels:
+      {{- include "common.labels" . | nindent 8 }}            
+    spec:
+      {{- if .Values.affinity.preferSpreadAcrossAZ }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: "failure-domain.beta.kubernetes.io/zone"
+              labelSelector:
+                matchLabels:
+                {{- include "common.labels" . | nindent 18 }}     
+      {{- end }}  
+      initContainers:
+      {{- if .Values.initContainers.customInitContainers }}
+        {{- tpl (toYaml .Values.customInitContainers) . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.initContainers.dbMigration.enabled }}
+      - name: "db-migration"
+        image: "{{ .Values.initContainers.dbMigration.image.repository }}:{{ .Values.initContainers.dbMigration.image.tag }}"
+        imagePullPolicy: {{ .Values.initContainers.dbMigration.image.pullPolicy }}   
+        {{- if .Values.initContainers.dbMigration.env }}               
+        env: 
+          {{- tpl  .Values.initContainers.dbMigration.env . | nindent 12 }}
+        {{- end }}
+      {{- end }}        
+      {{- if .Values.initContainers.gitSync.enabled }}
+      - name: "git-sync"
+        image: "{{ .Values.initContainers.gitSync.image.repository }}:{{ .Values.initContainers.gitSync.image.tag }}"
+        imagePullPolicy: {{ .Values.initContainers.gitSync.image.pullPolicy }}   
+        {{- if .Values.initContainers.gitSync.env }}               
+        env: 
+          {{- tpl  .Values.initContainers.gitSync.env . | nindent 12 }}
+        {{- end }}        
+      {{- end }}            
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.httpPort }}
+              protocol: TCP
+      {{- if .Values.healthChecks.enabled }}              
+          readinessProbe:
+          {{- tpl  .Values.healthChecks.readinessProbe . | nindent 12 }} 
+          livenessProbe:
+          {{- tpl  .Values.healthChecks.livenessProbe . | nindent 12 }}                      
+       {{- end }}       
+        {{- if .Values.lifecycle }}
+          lifecycle:
+          {{- toYaml .Values.lifecycle | nindent 12 }}
+        {{- end }}   
+        {{- if .Values.env }}               
+          env:                     
+          {{- tpl  .Values.env . | nindent 12 }}
+        {{- if eq .Values.appType "java-spring" }} 
+          {{- tpl  .Values.extraEnv.java . | nindent 12 }}         
+        {{- end -}} 
+        {{- if index .Values "jaeger-enabled" }} 
+          {{- tpl  .Values.extraEnv.jaeger . | nindent 12 }}         
+        {{- end }}                   
+        {{- end }}                     
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+{{- end -}}
+{{- end -}}

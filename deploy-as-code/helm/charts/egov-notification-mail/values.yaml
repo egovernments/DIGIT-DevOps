@@ -1,0 +1,40 @@
+---
+labels:
+  app: "egov-notification-mail"
+  group: "core"
+initContainers: {}
+image:
+  repository: "egovio/egov-notification-mail"
+replicas: "1"
+username: "egov-micro.services@egovernments.org"
+heap: "-Xmx192m -Xms192m"
+
+env: |
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: KAFKA_TOPICS_NOTIFICATION_MAIL_NAME
+    value: egov.core.notification.email
+  - name: KAFKA_TOPICS_NOTIFICATION_MAIL_ID
+    value: egov.core.notification.email
+  - name: KAFKA_TOPICS_NOTIFICATION_MAIL_GROUP
+    value: egov.core.notification.email
+  - name: MAIL_SENDER_USERNAME
+    value: {{ index .Values "username" | quote }}
+  - name: MAIL_SENDER_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: egov-notification-mail
+        key: mailsenderpassword                   
+  - name: FLYWAY_ENABLED
+    value: "false"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: APP_TIMEZONE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: timezone
+

@@ -1,0 +1,35 @@
+{{- define "common.service" -}}
+{{- $common := dict "Values" .Values.common -}} 
+{{- $noCommon := omit .Values "common" -}} 
+{{- $module := dict "Values" (index .Values (tpl .Chart.Name .)) -}} 
+{{- $noModule := omit (index .Values (tpl .Chart.Name .)) -}} 
+{{- $overrides := dict "Values" (merge $noModule $noCommon ) -}} 
+{{- $noValues := omit . "Values" -}} 
+{{- with merge $noValues $overrides $common }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Chart.Name }}
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.metrics }}    
+  annotations: 
+    prometheus.io/path: {{ .Values.metrics.path | quote }}
+    prometheus.io/port: {{ .Values.metrics.port | quote }}
+    prometheus.io/scrape: "true"  
+{{- end }}
+  labels:
+{{- include "common.labels" . | nindent 4 }}   
+spec:
+  selector: 
+{{- include "common.labels" . | nindent 4 }}    
+  ports:
+  - port: {{ .Values.httpPort }}
+    targetPort: {{ .Values.targetHttpPort }}
+{{- if eq .Values.appType "java-spring" }} 
+  - port: 5005
+    targetPort: 5005
+    name: "jvm-debug"      
+{{- end -}}      
+{{- end -}}
+{{- end -}}   

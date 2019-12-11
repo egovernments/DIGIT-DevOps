@@ -1,0 +1,126 @@
+---
+labels:
+  app: "egov-enc-service"
+  group: "core"
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "egov_enc_service_schema"
+    image:
+      repository: "egovio/egov-enc-service-db"
+image:
+  repository: "egovio/egov-enc-service"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/egov-enc-service/health"
+  readinessProbePath: "/egov-enc-service/health"
+heap: "-Xmx256m -Xms256m"
+java-args: "-Dspring.profiles.active=monitoring"
+state-level-tenant-id: "pb"
+
+env: |
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: spring-datasource-tomcat-initialSize
+  - name: SERVER_TOMCAT_MAX_THREADS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: server-tomcat-max-threads
+  - name: SERVER_TOMCAT_MAX_CONNECTIONS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: server-tomcat-max-connections
+  - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: spring-datasource-tomcat-max-active
+  - name: FLYWAY_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: SERVER_PORT
+    value: "8080"
+  - name: FLYWAY_ENABLED
+    value: "false"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: APP_TIMEZONE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: timezone
+  - name: SPRING_JPA_SHOW_SQL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: spring-jpa-show-sql
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: EGOV_STATE_LEVEL_TENANT_ID
+    value: {{ index .Values "state-level-tenant-id" | quote }}
+  - name: JAEGER_SERVICE_NAME
+    value: egov-enc-service
+  - name: JAEGER_SAMPLER_TYPE
+    value: remote
+  - name: JAEGER_AGENT_HOST
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: JAEGER_AGENT_PORT
+    value: "6831"
+  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+    value: "$(JAEGER_AGENT_HOST):5778"               
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"         
+  - name: SERVER_CONTEXT_PATH
+    value: /egov-enc-service    
+  - name: MASTER_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: egov-enc-service
+        key: master.password    
+  - name: MASTER_SALT
+    valueFrom:
+      secretKeyRef:
+        name: egov-enc-service
+        key: master.salt
+  - name: MASTER_INITIALVECTOR
+    valueFrom:
+      secretKeyRef:
+        name: egov-enc-service
+        key: master.initialvector                                                       
+

@@ -1,0 +1,88 @@
+---
+labels:
+  app: "egov-searcher"
+  group: "core"
+initContainers:
+  gitSync:
+    enabled: true
+    repo: "git@github.com:egovernments/configs"
+    branch: "master"
+image:
+  repository: "egovio/egov-searcher"
+replicas: "1"
+search-yaml-path: "file:///work-dir/configs/egov-searcher/rainmaker-pgr-v2.yml,file:///work-dir/configs/egov-searcher/weekly-impact-emailer-searcher.yml,file:///work-dir/configs/egov-searcher/PTDemandBasedSearcher.yml,file:///work-dir/configs/egov-searcher/bill-genie.yml"
+heap: "-Xmx192m -Xms192m"
+
+env: |
+  - name: FLYWAY_ENABLED
+    value: "false"
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: SEARCH_YAML_PATH
+    value: {{ index .Values "search-yaml-path" | quote }}
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: APP_TIMEZONE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: timezone
+  - name: SERVER_TOMCAT_MAX_THREADS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: server-tomcat-max-threads
+  - name: SERVER_TOMCAT_MAX_CONNECTIONS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: server-tomcat-max-connections
+  - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: spring-datasource-tomcat-max-active
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAEGER_SERVICE_NAME
+    value: egov-searcher
+  - name: JAEGER_SAMPLER_TYPE
+    value: remote
+  - name: JAEGER_AGENT_HOST
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: JAEGER_AGENT_PORT
+    value: "6831"
+  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+    value: "$(JAEGER_AGENT_HOST):5778"              
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false" 
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}
+  volumeMounts:              
+  - name: workdir
+    mountPath: "/work-dir"             
+

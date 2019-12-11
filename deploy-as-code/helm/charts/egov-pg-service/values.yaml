@@ -1,0 +1,223 @@
+---
+labels:
+  app: "egov-pg-service"
+  group: "core"
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "egov_pg_service_schema"
+    image:
+      repository: "egovio/egov-pg-service-db"
+image:
+  repository: "egovio/egov-pg-service"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/pg-service/health"
+  readinessProbePath: "/pg-service/health"
+payu-url: ""
+payu-url-status: ""
+easypay-sub-merchant-id: ""
+easypay-url: ""
+easypay-url-status: ""
+heap: "-Xmx192m -Xms192m"
+java-args: "-Dspring.profiles.active=monitoring"
+java-debug: "true"
+
+env: |
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: SERVER_TOMCAT_MAX_THREADS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: server-tomcat-max-threads
+  - name: SERVER_TOMCAT_MAX_CONNECTIONS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: server-tomcat-max-connections
+  - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: spring-datasource-tomcat-max-active
+  - name: FLYWAY_ENABLED
+    value: "false"
+  - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+    value: org.egov.tracer.kafka.deserializer.HashMapDeserializer
+  - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+    value: org.apache.kafka.common.serialization.StringDeserializer
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: egov-pg-service
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.springframework.kafka.support.serializer.JsonSerializer
+  - name: EGOV_IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-idgen
+  - name: EGOV_BILLINGSERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: billing-service
+  - name: EGOV_COLLECTIONSERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: collection-services
+  - name: EGOV_COLLECTIONMASTERS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: collection-masters
+  - name: EGOV_BANKACCOUNTSERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egf-master
+  - name: EGOV_BUSINESSDETAILSSERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-common-masters
+  - name: AXIS_ACTIVE
+    value: "true"
+  - name: AXIS_CURRENCY
+    value: "INR"
+  - name: AXIS_MERCHANT_VPC_VERSION    
+    value: "1"
+  - name: AXIS_MERCHANT_VPC_COMMAND_PAY
+    value: "pay"
+  - name: AXIS_MERCHANT_VPC_COMMAND_STATUS
+    value: "queryDR"
+  - name: AXIS_LOCALE
+    value: "en_IN"
+  - name: AXIS_URL_DEBIT
+    value: "https://migs.mastercard.com.au/vpcpay"
+  - name: AXIS_URL_STATUS
+    value: "https://migs.mastercard.com.au/vpcdps"
+  - name: AXIS_MERCHANT_ID
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: axismerchantid
+  - name: AXIS_MERCHANT_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: axismerchantsecret
+  - name: AXIS_MERCHANT_USER
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: axismerchantuser
+  - name: AXIS_MERCHANT_PWD
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: axismerchantpwd
+  - name: AXIS_MERCHANT_ACCESS_CODE
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: axismerchantaccesscode
+  {{- if index .Values "payu-merchant-key" }}
+  - name: PAYU_ACTIVE
+    value: "true"    
+  - name: PAYU_URL
+    value: {{ index .Values "payu-url" | quote }}
+  - name: PAYU_URL_STATUS
+    value: {{ index .Values "payu-url-status" | quote }}
+  - name: PAYU_MERCHANT_KEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: payumerchantkey
+  - name: PAYU_MERCHANT_SALT
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: payumerchantsalt 
+  {{- end }}
+  {{- if index .Values "easypay-sub-merchant-id" }}
+  - name: EASYPAY_ACTIVE
+    value: "true"
+  - name: EASYPAY_MERCHANT_ID
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: easypay-merchant-id
+  - name: EASYPAY_AES_KEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: easypay-aes-key
+  - name: EASYPAY_SUB_MERCHANT_ID
+    value: {{ index .Values "easypay-sub-merchant-id" | quote }}
+  - name: EASYPAY_GATEWAY_URL
+    value: {{ index .Values "easypay-url" | quote }}
+  - name: EASYPAY_GATEWAY_STATUS_URL
+    value: {{ index .Values "easypay-url-status" | quote }}
+  {{- end }}
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: APP_TIMEZONE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: timezone
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: JAVA_ENABLE_DEBUG
+    value: {{ index .Values "java-debug" | quote }}
+  - name: SPRING_JPA_SHOW_SQL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: spring-jpa-show-sql
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAEGER_SERVICE_NAME
+    value: egov-pg-service
+  - name: JAEGER_SAMPLER_TYPE
+    value: remote
+  - name: JAEGER_AGENT_HOST
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: JAEGER_AGENT_PORT
+    value: "6831"
+  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+    value: "$(JAEGER_AGENT_HOST):5778"               
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false" 
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}
+terminationGracePeriodSeconds: 60
+

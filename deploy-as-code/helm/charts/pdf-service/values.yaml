@@ -1,0 +1,70 @@
+---
+labels:
+  app: "pdf-service"
+  group: "rainmaker"
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "pdf_service_schema"
+    image:
+      repository: "egovio/pdf-service-db"
+  gitSync:
+    enabled: true
+    repo: "git@github.com:egovernments/configs"
+    branch: "master"
+image:
+  repository: "egovio/pdf-service"
+replicas: "1"
+data-config-urls: "file:///work-dir/configs/pdf-service/data-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/data-config/pt-receipt.json,file:///work-dir/configs/pdf-service/data-config/tl-receipt-hide.json,file:///work-dir/configs/pdf-service/data-config/tl-receipt.json"
+format-config-urls: "file:///work-dir/configs/pdf-service/format-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/format-config/pt-receipt.json,file:///work-dir/configs/pdf-service/format-config/tl-receipt-hide.json,file:///work-dir/configs/pdf-service/format-config/tl-receipt.json"
+
+env: |
+  - name: KAFKA_BROKER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: APP_TIMEZONE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: timezone
+  - name: SERVER_PORT
+    value: "8080"
+  - name: MAX_NUMBER_PAGES
+    value: "80"   
+  - name: DATA_CONFIG_URLS
+    value: {{ index .Values "data-config-urls" | quote }}
+  - name: FORMAT_CONFIG_URLS
+    value: {{ index .Values "format-config-urls" | quote }}
+  - name: EGOV_LOCALISATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-localization
+  - name: EGOV_FILESTORE_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-filestore
+  - name: EGOV_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  - name: JAEGER_SERVICE_NAME
+    value: pdf-service
+  - name: JAEGER_SAMPLER_TYPE
+    value: remote
+  - name: JAEGER_AGENT_HOST
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: JAEGER_AGENT_PORT
+    value: "6831"
+  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+    value: "$(JAEGER_AGENT_HOST):5778"  
+  volumeMounts:              
+  - name: workdir
+    mountPath: "/work-dir"            
+

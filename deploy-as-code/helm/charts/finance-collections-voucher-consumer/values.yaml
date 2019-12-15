@@ -1,63 +1,28 @@
----
+# Common Labels
 labels:
   app: "finance-collections-voucher-consumer"
   group: "collections"
+
+# Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
     schemaTable: "finance-collections-voucher-consumer_schema"
     image:
       repository: "egovio/finance-collections-voucher-consumer-db"
+
+# Container Configs
 image:
   repository: "egovio/finance-collections-voucher-consumer"
 replicas: "1"
+appType: "java-spring"
+jaeger-enabled: true
 erp-env-name: "dev"
 erp-domain-name: "egovernments.org"
 heap: "-Xmx192m -Xms192m"
 
+# Additional Container Envs
 env: |
-  - name: SPRING_DATASOURCE_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-url
-  - name: SPRING_DATASOURCE_USERNAME
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: username
-  - name: SPRING_DATASOURCE_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: password
-  - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-datasource-tomcat-initialSize
-  - name: SERVER_TOMCAT_MAX_THREADS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: server-tomcat-max-threads
-  - name: SERVER_TOMCAT_MAX_CONNECTIONS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: server-tomcat-max-connections
-  - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-datasource-tomcat-max-active
-  - name: FLYWAY_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-url
-  - name: FLYWAY_ENABLED
-    value: "false"        
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
@@ -106,11 +71,6 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: kafka-brokers
-  - name: APP_TIMEZONE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: timezone
   - name: JAVA_OPTS
     value: {{ index .Values "heap" | quote }}
   - name: SPRING_JPA_SHOW_SQL

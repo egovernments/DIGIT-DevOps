@@ -1,13 +1,23 @@
----
+# Common Labels
 labels:
   app: "pt-calculator-v2"
   group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "pt-calculator-v2"
+
+# Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
     schemaTable: "pt_calculator_v2_schema"
     image:
       repository: "egovio/pt-calculator-v2-db"
+
+# Container Configs
 image:
   repository: "egovio/pt-calculator-v2"
 replicas: "1"
@@ -15,6 +25,8 @@ healthChecks:
   enabled: true
   livenessProbePath: "/pt-calculator-v2/health"
   readinessProbePath: "/pt-calculator-v2/health"
+appType: "java-spring"
+jaeger-enabled: true
 logging-level: "DEBUG"
 JAVA_ENABLE_DEBUG: ""
 CUSTOM_PB_ZERO_ASSESSMENT: ""
@@ -26,39 +38,10 @@ unbuiltarea-prorated: "false"
 heap: "-Xmx192m -Xms192m"
 java-args: "-Dspring.profiles.active=monitoring"
 
+# Additional Container Envs
 env: |
   - name: SERVER_CONTEXTPATH
     value: /pt-calculator-v2
-  - name: SPRING_DATASOURCE_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-url
-  - name: SPRING_DATASOURCE_USERNAME
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: username
-  - name: SPRING_DATASOURCE_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: password
-  - name: SERVER_TOMCAT_MAX_THREADS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: server-tomcat-max-threads
-  - name: SERVER_TOMCAT_MAX_CONNECTIONS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: server-tomcat-max-connections
-  - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-datasource-tomcat-max-active
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
@@ -102,12 +85,6 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: kafka-brokers
-  - name: APP_TIMEZONE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: timezone
-  {{- if index .Values "JAVA_ENABLE_DEBUG" }}
   - name: JAVA_ENABLE_DEBUG
     value: {{ index .Values "JAVA_ENABLE_DEBUG" | quote }}
   {{- end }}
@@ -140,20 +117,6 @@ env: |
     value: "100"
   - name: SERVER_PORT
     value: "8080"
-  - name: FLYWAY_ENABLED
-    value: "false"
-  - name: JAEGER_SERVICE_NAME
-    value: pt-calculator-v2          
-  - name: JAEGER_SAMPLER_TYPE
-    value: remote
-  - name: JAEGER_AGENT_HOST
-    valueFrom:
-      fieldRef:
-        fieldPath: status.hostIP
-  - name: JAEGER_AGENT_PORT
-    value: "6831"
-  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
-    value: "$(JAEGER_AGENT_HOST):5778"              
   - name: SECURITY_BASIC_ENABLED
     value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED

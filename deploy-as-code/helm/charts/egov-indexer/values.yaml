@@ -1,7 +1,15 @@
----
+# Common Labels
 labels:
   app: "egov-indexer"
   group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "egov-indexer"
+
+# Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
@@ -12,6 +20,8 @@ initContainers:
     enabled: true
     repo: "git@github.com:egovernments/configs"
     branch: "master"
+
+# Container Configs
 image:
   repository: "egovio/egov-indexer"
 replicas: "1"
@@ -19,30 +29,13 @@ healthChecks:
   enabled: true
   livenessProbePath: "/egov-indexer/health"
   readinessProbePath: "/egov-indexer/health"
-egov-indexer-yaml-repo-path: "file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml,file:///work-dir/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/configs/egov-indexer/error-queue.yml,file:///work-dir/configs/egov-indexer/finance-rolloutadotpion-indexer.yml,file:///work-dir/configs/egov-indexer/payment-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/configs/egov-indexer/tradelicense-indexer.yml"
+appType: "java-spring"
+jaeger-enabled: true
+egov-indexer-yaml-repo-path: "file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml,file:///work-dir/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/configs/egov-indexer/error-queue.yml,file:///work-dir/configs/egov-indexer/finance-rolloutadotpion-indexer.yml,file:///work-dir/configs/egov-indexer/payment-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/configs/egov-indexer/tradelicense-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-tl-indexer.yml"
 heap: "-Xmx192m -Xms192m"
 
+# Additional Container Envs
 env: |
-  - name: SPRING_DATASOURCE_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-url
-  - name: SPRING_DATASOURCE_USERNAME
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: username
-  - name: SPRING_DATASOURCE_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: password
-  - name: APP_TIMEZONE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: timezone
   - name: EGOV_SERVICES_INFRA_INDEXER_HOST
     valueFrom:
       configMapKeyRef:
@@ -58,21 +51,6 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: kafka-brokers
-  - name: SERVER_TOMCAT_MAX_THREADS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: server-tomcat-max-threads
-  - name: SERVER_TOMCAT_MAX_CONNECTIONS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: server-tomcat-max-connections
-  - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-datasource-tomcat-max-active
   - name: EGOV_INDEXER_YML_REPO_PATH
     value: {{ index .Values "egov-indexer-yaml-repo-path" | quote }}
   {{- if index .Values "global" "serializers-timezone-in-ist" }}
@@ -85,8 +63,6 @@ env: |
     value: {{ index .Values "heap" | quote }}
   - name: SERVER_PORT
     value: "8080"
-  - name: FLYWAY_ENABLED
-    value: "false"
   - name: SECURITY_BASIC_ENABLED
     value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED

@@ -1,7 +1,15 @@
----
+# Common Labels
 labels:
   app: "pdf-service"
   group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "pdf-service"
+
+# Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
@@ -12,23 +20,23 @@ initContainers:
     enabled: true
     repo: "git@github.com:egovernments/configs"
     branch: "master"
+
+# Container Configs
 image:
   repository: "egovio/pdf-service"
 replicas: "1"
-data-config-urls: "file:///work-dir/configs/pdf-service/data-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/data-config/pt-receipt.json,file:///work-dir/configs/pdf-service/data-config/tl-receipt-hide.json,file:///work-dir/configs/pdf-service/data-config/tl-receipt.json"
-format-config-urls: "file:///work-dir/configs/pdf-service/format-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/format-config/pt-receipt.json,file:///work-dir/configs/pdf-service/format-config/tl-receipt-hide.json,file:///work-dir/configs/pdf-service/format-config/tl-receipt.json"
+appType: "java-spring"
+jaeger-enabled: true
+data-config-urls: "file:///work-dir/configs/pdf-service/data-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/data-config/pt-receipt.json,file:///work-dir/configs/pdf-service/data-config/tl-receipt.json,file:///work-dir/configs/pdf-service/data-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/data-config/consolidatedreceipt.json"
+format-config-urls: "file:///work-dir/configs/pdf-service/format-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/format-config/pt-receipt.json,file:///work-dir/configs/pdf-service/format-config/tl-receipt.json,file:///work-dir/configs/pdf-service/format-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/format-config/consolidatedreceipt.json"
 
+# Additional Container Envs
 env: |
   - name: KAFKA_BROKER_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: kafka-brokers
-  - name: APP_TIMEZONE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: timezone
   - name: SERVER_PORT
     value: "8080"
   - name: MAX_NUMBER_PAGES
@@ -52,19 +60,6 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: egov-services-fqdn-name
-  - name: JAEGER_SERVICE_NAME
-    value: pdf-service
-  - name: JAEGER_SAMPLER_TYPE
-    value: remote
-  - name: JAEGER_AGENT_HOST
-    valueFrom:
-      fieldRef:
-        fieldPath: status.hostIP
-  - name: JAEGER_AGENT_PORT
-    value: "6831"
-  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
-    value: "$(JAEGER_AGENT_HOST):5778"  
-  volumeMounts:              
   - name: workdir
     mountPath: "/work-dir"            
 

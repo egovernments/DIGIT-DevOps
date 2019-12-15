@@ -1,12 +1,22 @@
----
+# Common Labels
 labels:
   app: "report"
   group: "reportinfra"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "report"
+
+# Init Containers Configs
 initContainers:
   gitSync:
     enabled: true
     repo: "git@github.com:egovernments/configs"
     branch: "master"
+
+# Container Configs
 image:
   repository: "egovio/report"
 replicas: "1"
@@ -14,32 +24,17 @@ healthChecks:
   enabled: true
   livenessProbePath: "/report/health"
   readinessProbePath: "/report/health"
+appType: "java-spring"
+jaeger-enabled: true
 report-locationsfile-path: "file:///work-dir/configs/reports/reportFileLocationsv1.txt"
 heap: "-Xmx192m -Xms192m"
 spring-datasource-tomcat-max-active: "5"
 tracing-enabled: "true"
 
+# Additional Container Envs
 env: |
-  - name: SPRING_DATASOURCE_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-url
-  - name: SPRING_DATASOURCE_USERNAME
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: username
-  - name: SPRING_DATASOURCE_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: password
   - name: SERVER_CONTEXTPATH
     value: /report
-  - name: FLYWAY_ENABLED
-    value: "false"
-  {{- if index .Values "report-locationsfile-path" }}
   - name: REPORT_LOCATIONSFILE_PATH
     value: {{ index .Values "report-locationsfile-path" | quote }}
   {{- end }}
@@ -48,11 +43,6 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: kafka-brokers
-  - name: APP_TIMEZONE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: timezone
   - name: JAVA_OPTS
     value: {{ index .Values "heap" | quote }}
   - name: SPRING_JPA_SHOW_SQL
@@ -60,34 +50,10 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: spring-jpa-show-sql
-  - name: SERVER_TOMCAT_MAX_THREADS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: server-tomcat-max-threads
-  - name: SERVER_TOMCAT_MAX_CONNECTIONS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: server-tomcat-max-connections
-  - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
-    value: {{ index .Values "spring-datasource-tomcat-max-active" | quote }}
   - name: SERVER_PORT
     value: "8080"
   - name: TRACER_OPENTRACING_ENABLED
     value: {{ index .Values "tracing-enabled" | quote }}
-  - name: JAEGER_SERVICE_NAME
-    value: report-service          
-  - name: JAEGER_SAMPLER_TYPE
-    value: remote
-  - name: JAEGER_AGENT_HOST
-    valueFrom:
-      fieldRef:
-        fieldPath: status.hostIP
-  - name: JAEGER_AGENT_PORT
-    value: "6831"
-  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
-    value: "$(JAEGER_AGENT_HOST):5778"              
   - name: SECURITY_BASIC_ENABLED
     value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED

@@ -1,43 +1,28 @@
----
+# Common Labels
 labels:
   app: "egf-masters"
   group: "financials"
+
+# Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
     schemaTable: "egf_masters_schema"
     image:
       repository: "egovio/egf-masters-db"
+
+# Container Configs
 image:
   repository: "egovio/egf-masters"
 replicas: "1"
+appType: "java-spring"
+jaeger-enabled: true
 heap: "-Xmx64m -Xms64m"
 
+# Additional Container Envs
 env: |
-  - name: SPRING_DATASOURCE_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-url
-  - name: SPRING_DATASOURCE_USERNAME
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: username
-  - name: SPRING_DATASOURCE_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: password
-  - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-datasource-tomcat-initialSize
   - name: SERVER_PORT
     value: "8080"
-  - name: FLYWAY_ENABLED
-    value: "false"
   - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
     valueFrom:
       configMapKeyRef:
@@ -133,11 +118,6 @@ env: |
     value: financial_masters_group
   - name: JAVA_OPTS
     value: {{ index .Values "heap" | quote }}
-  - name: APP_TIMEZONE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: timezone
   - name: SPRING_JPA_SHOW_SQL
     valueFrom:
       configMapKeyRef:

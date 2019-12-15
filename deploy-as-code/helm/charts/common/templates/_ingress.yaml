@@ -1,0 +1,40 @@
+{{- define "common.ingress" -}}
+{{- $common := dict "Values" .Values.common -}} 
+{{- $noCommon := omit .Values "common" -}} 
+{{- $module := dict "Values" (index .Values (tpl .Chart.Name .)) -}} 
+{{- $noModule := omit (index .Values (tpl .Chart.Name .)) -}} 
+{{- $overrides := dict "Values" (merge $noModule $noCommon ) -}} 
+{{- $noValues := omit . "Values" -}} 
+{{- with merge $noValues $overrides $common }}
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ .Chart.Name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+{{- toYaml .Values.ingress.annotations | nindent 4 }}   
+{{- if .Values.ingress.waf.enabled }}      
+{{- toYaml .Values.ingress.waf.annotations | nindent 4 }} 
+{{- end  }}
+{{- if .Values.ingress.additionalAnnotations }}      
+{{- toYaml .Values.ingress.additionalAnnotations | nindent 4 }} 
+{{- end  }}
+  labels:
+{{- include "common.labels" . | nindent 4 }}                            
+spec:
+  rules:
+  - host: {{ .Values.global.domain }}
+    http:
+      paths:
+      - backend:
+{{- if .Values.ingress.zuul }}          
+          serviceName: zuul
+          servicePort: 8080
+{{ else }}
+          serviceName: {{ .Chart.Name }}
+          servicePort: {{ .Values.httpPort }}
+{{- end }}            
+        path: /{{ .Values.ingress.context }}
+{{- end -}}
+{{- end -}}         

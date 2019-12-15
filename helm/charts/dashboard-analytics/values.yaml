@@ -1,33 +1,36 @@
----
+# Common Labels
 labels:
   app: "dashboard-analytics"
   group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "dashboard-analytics"
+
+# Init Containers Configs
 initContainers:
   gitSync:
     enabled: true
     repo: "git@github.com:egovernments/configs"
     branch: "master"
+
+# Container Configs
 image:
   repository: "egovio/dashboard-analytics"
 replicas: "1"
+appType: "java-spring"
+jaeger-enabled: true
 config-schema-paths: "file:///work-dir/configs/egov-dss-dashboards/dashboard-analytics/*.json"
 
+# Additional Container Envs
 env: |
   - name: SPRING.DATASOURCE.URL
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: db-url
-  - name: SPRING_DATASOURCE_USERNAME
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: username
-  - name: SPRING_DATASOURCE_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: password
   - name: SERVER_CONTEXT
     value: "dashboard-analytics" 
   - name: SERVER_PORT

@@ -1,52 +1,33 @@
----
+# Common Labels
 labels:
   app: "egf-master"
   group: "financials"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "egf-master"
+
+# Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
     schemaTable: "egf_master_schema"
     image:
       repository: "egovio/egf-master-db"
+
+# Container Configs
 image:
   repository: "egovio/egf-master"
 replicas: "1"
+appType: "java-spring"
+jaeger-enabled: true
 db-url: "jdbc:postgresql://egov-micro-dev.postgres.database.azure.com:5432/egov_dev_ms?currentSchema=egov_master"
 heap: "-Xmx192m -Xms192m"
 
+# Additional Container Envs
 env: |
-  - name: SPRING_DATASOURCE_URL
-    value: {{ index .Values "db-url" | quote }}
-  - name: SPRING_DATASOURCE_USERNAME
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: username
-  - name: SPRING_DATASOURCE_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: password
-  - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-datasource-tomcat-initialSize
-  - name: SERVER_TOMCAT_MAX_THREADS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: server-tomcat-max-threads
-  - name: SERVER_TOMCAT_MAX_CONNECTIONS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: server-tomcat-max-connections
-  - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-datasource-tomcat-max-active
   - name: KAFKA_TOPICS_EGF_MASTERS_VALIDATED_KEY
     value: egov.egf.masters.bank.validated.key
   - name: KAFKA_TOPICS_EGF_MASTERS_VALIDATED_TOPIC
@@ -135,8 +116,6 @@ env: |
     value: egov.egf.masters.subscheme.completed.key
   - name: KAFKA_TOPICS_EGF_MASTERS_SUPPLIER_COMPLETED_KEY
     value: egov.egf.masters.supplier.completed.key
-  - name: FLYWAY_ENABLED
-    value: "false"
   - name: ES_HOST
     valueFrom:
       configMapKeyRef:
@@ -168,11 +147,6 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: kafka-brokers
-  - name: APP_TIMEZONE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: timezone
   - name: JAVA_OPTS
     value: {{ index .Values "heap" | quote }}
   - name: SERVER_PORT

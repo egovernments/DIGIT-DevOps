@@ -11,12 +11,15 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Chart.Name }}
-  namespace: {{ .Release.Namespace }}
-{{- if .Values.metrics }}    
+  namespace: {{ .Release.Namespace }}   
   annotations: 
+{{- if .Values.metrics }}   
     prometheus.io/path: {{ .Values.metrics.path | quote }}
     prometheus.io/port: {{ .Values.metrics.port | quote }}
     prometheus.io/scrape: "true"  
+{{- end }}
+{{- if .Values.ingress.zuul }} 
+    zuul/route-path: {{ .Values.ingress.context }}
 {{- end }}
   labels:
 {{- include "common.labels" . | nindent 4 }}   
@@ -25,11 +28,6 @@ spec:
 {{- include "common.labels" . | nindent 4 }}    
   ports:
   - port: {{ .Values.httpPort }}
-    targetPort: {{ .Values.targetHttpPort }}
-{{- if eq .Values.appType "java-spring" }} 
-  - port: 5005
-    targetPort: 5005
-    name: "jvm-debug"      
-{{- end -}}      
+    targetPort: {{ .Values.targetHttpPort }}  
 {{- end -}}
 {{- end -}}   

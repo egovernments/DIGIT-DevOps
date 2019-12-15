@@ -1,17 +1,30 @@
----
+# Common Labels
 labels:
   app: "firenoc-services"
   group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "firenoc-services"
+
+# Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
     schemaTable: "firenoc_services_schema"
     image:
       repository: "egovio/firenoc-services-db"
+
+# Container Configs
 image:
   repository: "egovio/firenoc-services"
 replicas: "1"
+appType: "java-spring"
+jaeger-enabled: true
 
+# Additional Container Envs
 env: |
   - name: DB_HOST
     valueFrom:
@@ -33,23 +46,6 @@ env: |
       secretKeyRef:
         name: db
         key: password
-  - name: SERVER_TOMCAT_MAX_THREADS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: server-tomcat-max-threads
-  - name: SERVER_TOMCAT_MAX_CONNECTIONS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: server-tomcat-max-connections
-  - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-datasource-tomcat-max-active
-  - name: FLYWAY_ENABLED
-    value: "false"
   - name: EGOV_IDGEN_HOST
     valueFrom:
       configMapKeyRef:
@@ -122,23 +118,6 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: kafka-brokers
-  - name: APP_TIMEZONE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: timezone
   - name: SERVER_PORT
     value: "8080"
-  - name: JAEGER_SERVICE_NAME
-    value: firenoc-services
-  - name: JAEGER_SAMPLER_TYPE
-    value: remote
-  - name: JAEGER_AGENT_HOST
-    valueFrom:
-      fieldRef:
-        fieldPath: status.hostIP
-  - name: JAEGER_AGENT_PORT
-    value: "6831"
-  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
-    value: "$(JAEGER_AGENT_HOST):5778"  
 

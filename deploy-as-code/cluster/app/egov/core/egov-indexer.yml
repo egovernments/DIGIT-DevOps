@@ -36,6 +36,13 @@ spec:
         app: egov-indexer
         group: core
     spec:
+      volumes:
+      - name: git-secret
+        secret:
+          secretName: git-creds
+          defaultMode: 288 # = mode 0440   
+      - name: workdir
+        emptyDir: {} 
       initContainers: 
       - name: "egov-indexer-db-migration"
         image: "{{conf["egov-indexer"]["db_migration_image"]}}"
@@ -63,6 +70,31 @@ spec:
               name: egov-config
               key: flyway-locations
         imagePullPolicy: "IfNotPresent"
+      - name: "git-sync"
+        image: "{{conf["git-sync"]["image"]}}"
+        env: 
+        - name: "GIT_SYNC_REPO"
+          value: "{{conf['egov-indexer']['repo']}}"
+        - name: "GIT_SYNC_BRANCH"
+          value: "{{conf['egov-indexer']['branch']}}"        
+        - name: "GIT_SYNC_DEPTH"
+          value: "1"            
+        - name: "GIT_SYNC_ONE_TIME"
+          value: "true"          
+        - name: "GIT_SYNC_SSH"
+          value: "true"      
+        - name: "GIT_SYNC_ROOT"
+          value: "/work-dir"      
+        securityContext:
+          runAsUser: 65533 # git-sync user
+        volumeMounts:
+        - name: git-secret
+          mountPath: /etc/git-secret              
+        - name: workdir
+          mountPath: "/work-dir"         
+        imagePullPolicy: "IfNotPresent"
+      securityContext:
+        fsGroup: 65533 # to make SSH key readable 
       containers:
       - name: egov-indexer
         image: {{conf['egov-indexer']['images'][0]}}
@@ -126,8 +158,7 @@ spec:
         - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
           value: "{{conf['egov-config']['spring-datasource-tomcat-max-active']}}"           
         - name: EGOV_INDEXER_YML_REPO_PATH
-#          value: "https://raw.githubusercontent.com/egovernments/egov-services/master/citizen/citizen-indexer/src/main/resources/watercharges-indexer.yml,https://raw.githubusercontent.com/egovernments/egov-services/master/citizen/citizen-indexer/src/main/resources/property-tax.yml,https://raw.githubusercontent.com/egovernments/egov-services/master/citizen/citizen-indexer/src/main/resources/swm-service-indexer.yml,https://raw.githubusercontent.com/egovernments/egov-services/master/citizen/citizen-indexer/src/main/resources/asset-service-maha.yml,https://raw.githubusercontent.com/egovernments/egov-services/master/core/egov-indexer/s,https://raw.githubusercontent.com/egovernments/egov-services/master/core/egov-indexer/src/main/resources/lcms-indexer.yml,https://raw.githubusercontent.com/egovernments/egov-services/master/core/egov-indexer/src/main/resources/inventory-service-indexer.yml"
-          value: "{{conf['egov-config']['egov-indexer-yaml-repo-path']}}"
+          value: "{{conf['egov-indexer']['egov-indexer-yaml-repo-path']}}"
 {% if conf['egov-config']['serializers-timezone-in-ist'] %}
         - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
           value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
@@ -143,7 +174,10 @@ spec:
         - name: SECURITY_BASIC_ENABLED
           value: "false"  
         - name: MANAGEMENT_SECURITY_ENABLED
-          value: "false"           
+          value: "false"
+        volumeMounts:              
+        - name: workdir
+          mountPath: "/work-dir"           
         resources:
           requests:
             memory: "128Mi"

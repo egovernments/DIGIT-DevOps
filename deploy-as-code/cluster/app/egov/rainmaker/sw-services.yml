@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: ws-services
+  name: sw-services
   namespace: egov
   labels:
-    app: ws-services
+    app: sw-services
     group: rainmaker
   annotations:
-    prometheus.io/path: /ws-services/prometheus
+    prometheus.io/path: /sw-services/prometheus
     prometheus.io/port: "8080"
     prometheus.io/scrape: "true"    
 spec:
@@ -15,13 +15,13 @@ spec:
   - port: 8080
     targetPort: 8080
   selector:
-    app: ws-services
+    app: sw-services
     group: rainmaker
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: ws-services
+  name: sw-services
   namespace: egov
 spec:
   strategy:
@@ -29,16 +29,16 @@ spec:
     rollingUpdate:
       maxUnavailable: 0
       maxSurge: 1
-  replicas: {{conf['ws-services']['replicas']}}
+  replicas: {{conf['sw-services']['replicas']}}
   template:
     metadata:
       labels:
-        app: ws-services
+        app: sw-services
         group: rainmaker
     spec:
       initContainers: 
-      - name: "ws-services-db-migration"
-        image: "{{conf["ws-services"]["db_migration_image"]}}"
+      - name: "sw-services-db-migration"
+        image: "{{conf["sw-services"]["db_migration_image"]}}"
         env: 
         - name: "DB_URL"
           valueFrom: 
@@ -46,7 +46,7 @@ spec:
               name: egov-config
               key: db-url
         - name: "SCHEMA_TABLE"
-          value: "ws_services_schema"
+          value: "sw_services_schema"
         - name: "FLYWAY_USER"
           valueFrom: 
             secretKeyRef: 
@@ -64,13 +64,13 @@ spec:
               key: flyway-locations
         imagePullPolicy: "IfNotPresent"
       containers:
-      - name: ws-services
-        image: {{conf['ws-services']['images'][0]}}
+      - name: sw-services
+        image: {{conf['sw-services']['images'][0]}}
         ports:
         - containerPort: 8080
         readinessProbe:
           httpGet:
-            path: /ws-services/health
+            path: /sw-services/health
             port: 8080
           initialDelaySeconds: 90
           timeoutSeconds: 3
@@ -79,7 +79,7 @@ spec:
           failureThreshold: 5
         livenessProbe:
           httpGet:
-            path: /ws-services/health
+            path: /sw-services/health
             port: 8080
           initialDelaySeconds: 120
           timeoutSeconds: 3
@@ -124,8 +124,8 @@ spec:
           value: "{{conf['egov-service-host']['egov-localization']}}"
         - name: EGOV_BILLINGSERVICE_HOST
           value: "{{conf['egov-service-host']['billing-service']}}"          
-        - name: EGOV_WS_CALCULATION_HOST
-          value: "{{conf['egov-service-host']['ws-calculator']}}"
+        - name: EGOV_SW_CALCULATION_HOST
+          value: "{{conf['egov-service-host']['sw-calculator']}}"
 {% if conf['egov-config']['tracer-errors-provideexceptionindetails'] %}
         - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
           value: "{{conf['egov-config']['tracer-errors-provideexceptionindetails']}}"
@@ -135,11 +135,11 @@ spec:
         - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
           value: org.apache.kafka.common.serialization.StringDeserializer
         - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-          value: egov-ws-services
-        - name: EGOV_WATERSERVICE_CREATEWATERCONNECTION
-          value: save-ws-connection
-        - name: EGOV_WATERSERVICE_UPDATEWATERCONNECTION
-          value: update-ws-connection
+          value: egov-sw-services
+        - name: EGOV_SEWERAGESERVICE_CREATECONNECTION
+          value: save-sw-connection
+        - name: EGOV_SEWERAGESERVICE_UPDATECONNECTION
+          value: update-sw-connection
         - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
           value: org.apache.kafka.common.serialization.StringSerializer
         - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
@@ -155,19 +155,21 @@ spec:
               name: egov-config
               key: timezone
         - name: JAVA_OPTS
-          value: "{{conf['ws-services']['heap'] or '-Xmx192m -Xms192m'}}"
+          value: "{{conf['sw-services']['heap'] or '-Xmx192m -Xms192m'}}"
         - name: JAVA_ARGS
-          value: "{{conf['ws-services']['java-args']}}"          
+          value: "{{conf['sw-services']['java-args']}}"          
         - name: SPRING_JPA_SHOW_SQL
           value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
         - name: SERVER_PORT
           value: "8080"
-        - name: EGOV_IDGEN_WCID_FORMAT
-          value: {{conf['ws-services']['wcid-format']}} 
+        - name: SERVER_CONTEXT_PATH
+          value: /sw-services               
+        - name: EGOV_IDGEN_SCID_FORMAT
+          value: {{conf['sw-services']['scid-format']}} 
         - name: NOTIFICATION_URL
           value: "{{conf['egov-config']['egov-services-fqdn-name']}}citizen/wcs"
         - name: JAEGER_SERVICE_NAME
-          value: ws-services
+          value: sw-services
         - name: JAEGER_SAMPLER_TYPE
           value: remote
         - name: JAEGER_AGENT_HOST
@@ -182,12 +184,12 @@ spec:
           value: "false"  
         - name: MANAGEMENT_SECURITY_ENABLED
           value: "false"
-{% if conf['ws-services']['tracing-enabled']%}          
+{% if conf['sw-services']['tracing-enabled']%}          
         - name: TRACER_OPENTRACING_ENABLED
           value: "true" 
 {% endif %}                
         resources:
           requests:
-            memory: "{{ conf['ws-services']['memory_limits'] or "512Mi"}}"
+            memory: "{{ conf['sw-services']['memory_limits'] or "512Mi"}}"
           limits:
-            memory: "{{ conf['ws-services']['memory_limits'] or "512Mi"}}"
+            memory: "{{ conf['sw-services']['memory_limits'] or "512Mi"}}"

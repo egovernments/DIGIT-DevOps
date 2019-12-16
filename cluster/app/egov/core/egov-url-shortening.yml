@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: ws-services
+  name: egov-url-shortening
   namespace: egov
   labels:
-    app: ws-services
-    group: rainmaker
+    app: egov-url-shortening
+    group: egov
   annotations:
-    prometheus.io/path: /ws-services/prometheus
+    prometheus.io/path: /egov-url-shortening/prometheus
     prometheus.io/port: "8080"
     prometheus.io/scrape: "true"    
 spec:
@@ -15,13 +15,13 @@ spec:
   - port: 8080
     targetPort: 8080
   selector:
-    app: ws-services
-    group: rainmaker
+    app: egov-url-shortening
+    group: egov
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: ws-services
+  name: egov-url-shortening
   namespace: egov
 spec:
   strategy:
@@ -29,16 +29,16 @@ spec:
     rollingUpdate:
       maxUnavailable: 0
       maxSurge: 1
-  replicas: {{conf['ws-services']['replicas']}}
+  replicas: {{conf['egov-url-shortening']['replicas']}}
   template:
     metadata:
       labels:
-        app: ws-services
-        group: rainmaker
+        app: egov-url-shortening
+        group: egov
     spec:
       initContainers: 
-      - name: "ws-services-db-migration"
-        image: "{{conf["ws-services"]["db_migration_image"]}}"
+      - name: "egov-url-shortening-db-migration"
+        image: "{{conf["egov-url-shortening"]["db_migration_image"]}}"
         env: 
         - name: "DB_URL"
           valueFrom: 
@@ -46,7 +46,7 @@ spec:
               name: egov-config
               key: db-url
         - name: "SCHEMA_TABLE"
-          value: "ws_services_schema"
+          value: "egov-url-shortening_schema"
         - name: "FLYWAY_USER"
           valueFrom: 
             secretKeyRef: 
@@ -64,13 +64,13 @@ spec:
               key: flyway-locations
         imagePullPolicy: "IfNotPresent"
       containers:
-      - name: ws-services
-        image: {{conf['ws-services']['images'][0]}}
+      - name: egov-url-shortening
+        image: {{conf['egov-url-shortening']['images'][0]}}
         ports:
         - containerPort: 8080
         readinessProbe:
           httpGet:
-            path: /ws-services/health
+            path: /url-shortening/health
             port: 8080
           initialDelaySeconds: 90
           timeoutSeconds: 3
@@ -79,7 +79,7 @@ spec:
           failureThreshold: 5
         livenessProbe:
           httpGet:
-            path: /ws-services/health
+            path: /url-shortening/health
             port: 8080
           initialDelaySeconds: 120
           timeoutSeconds: 3
@@ -110,64 +110,33 @@ spec:
           value: "{{conf['egov-config']['spring-datasource-tomcat-max-active']}}"                        
         - name: FLYWAY_ENABLED
           value: "false"
-        - name: EGOV_IDGEN_HOST
-          value: "{{conf['egov-service-host']['egov-idgen']}}"
-        - name: EGOV_PROPERTY_SERVICE_HOST
-          value: "{{conf['egov-service-host']['property-services']}}"
-        - name: EGOV_MDMS_HOST
-          value: "{{conf['egov-service-host']['egov-mdms-service']}}"
-        - name: EGOV_USER_HOST
-          value: "{{conf['egov-service-host']['egov-user']}}"
-        - name: EGOV_LOCATION_HOST
-          value: "{{conf['egov-service-host']['egov-location']}}"
-        - name: EGOV_LOCALIZATION_HOST
-          value: "{{conf['egov-service-host']['egov-localization']}}"
-        - name: EGOV_BILLINGSERVICE_HOST
-          value: "{{conf['egov-service-host']['billing-service']}}"          
-        - name: EGOV_WS_CALCULATION_HOST
-          value: "{{conf['egov-service-host']['ws-calculator']}}"
 {% if conf['egov-config']['tracer-errors-provideexceptionindetails'] %}
         - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
           value: "{{conf['egov-config']['tracer-errors-provideexceptionindetails']}}"
 {% endif %}
-        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
-          value: org.egov.tracer.kafka.deserializer.HashMapDeserializer
-        - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
-          value: org.apache.kafka.common.serialization.StringDeserializer
-        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-          value: egov-ws-services
-        - name: EGOV_WATERSERVICE_CREATEWATERCONNECTION
-          value: save-ws-connection
-        - name: EGOV_WATERSERVICE_UPDATEWATERCONNECTION
-          value: update-ws-connection
-        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
-          value: org.apache.kafka.common.serialization.StringSerializer
-        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
-          value: org.springframework.kafka.support.serializer.JsonSerializer
-        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
-          valueFrom:
-            configMapKeyRef:
-              name: egov-config
-              key: kafka-brokers
+        - name: JAVA_ENABLE_DEBUG
+          value: "true"
+        - name: SPRING_REDIS_HOST
+          value: redis.backbone
+        - name: SPRING_REDIS_PORT
+          value: "6379"
+        - name: SERVER_CONTEXT_PATH
+          value: /url-shortening
         - name: APP_TIMEZONE
           valueFrom:
             configMapKeyRef:
               name: egov-config
               key: timezone
         - name: JAVA_OPTS
-          value: "{{conf['ws-services']['heap'] or '-Xmx192m -Xms192m'}}"
+          value: "{{conf['egov-url-shortening']['heap'] or '-Xmx192m -Xms192m'}}"
         - name: JAVA_ARGS
-          value: "{{conf['ws-services']['java-args']}}"          
+          value: "{{conf['egov-url-shortening']['java-args']}}"          
         - name: SPRING_JPA_SHOW_SQL
           value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
         - name: SERVER_PORT
           value: "8080"
-        - name: EGOV_IDGEN_WCID_FORMAT
-          value: {{conf['ws-services']['wcid-format']}} 
-        - name: NOTIFICATION_URL
-          value: "{{conf['egov-config']['egov-services-fqdn-name']}}citizen/wcs"
         - name: JAEGER_SERVICE_NAME
-          value: ws-services
+          value: egov-url-shortening
         - name: JAEGER_SAMPLER_TYPE
           value: remote
         - name: JAEGER_AGENT_HOST
@@ -182,12 +151,12 @@ spec:
           value: "false"  
         - name: MANAGEMENT_SECURITY_ENABLED
           value: "false"
-{% if conf['ws-services']['tracing-enabled']%}          
+{% if conf['egov-url-shortening']['tracing-enabled']%}          
         - name: TRACER_OPENTRACING_ENABLED
           value: "true" 
 {% endif %}                
         resources:
           requests:
-            memory: "{{ conf['ws-services']['memory_limits'] or "512Mi"}}"
+            memory: "{{ conf['egov-url-shortening']['memory_limits'] or "512Mi"}}"
           limits:
-            memory: "{{ conf['ws-services']['memory_limits'] or "512Mi"}}"
+            memory: "{{ conf['egov-url-shortening']['memory_limits'] or "512Mi"}}"

@@ -82,8 +82,7 @@ spec:
                 }
 
                 stage('Build with Kaniko') {
-                    withEnv(["GIT_ACCESS_TOKEN=$GIT_ACCESS_TOKEN",
-                        "PATH=/busybox:/kaniko:$PATH"
+                    withEnv(["PATH=/busybox:/kaniko:$PATH"
                     ]) {
                         container(name: 'kaniko', shell: '/busybox/sh') {
 
@@ -101,7 +100,7 @@ spec:
                                     echo \"Attempting to build image,  ${image}\"
                                     /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
                                     --build-arg WORK_DIR=${workDir} \
-                                    --build-arg token=${GIT_ACCESS_TOKEN} \
+                                    --build-arg token=$GIT_ACCESS_TOKEN \
                                     --cache=true --cache-dir=/cache \
                                     --single-snapshot=true \
                                     --snapshotMode=time \

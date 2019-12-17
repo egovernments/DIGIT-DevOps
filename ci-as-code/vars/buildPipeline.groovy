@@ -88,6 +88,7 @@ spec:
 
                                 String workDir = buildConfig.getWorkDir().replaceFirst(getCommonBasePath(buildConfig.getWorkDir(), buildConfig.getDockerFile()), "./")
                                 String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
+                                String imageLatest = "${REPO_NAME}/${buildConfig.getImageName()}:latest";
                                 String noPushImage = env.NO_PUSH ? env.NO_PUSH : false;
                                 sh """
                                     echo \"Attempting to build image,  ${image}\"
@@ -97,6 +98,7 @@ spec:
                                     --single-snapshot=true \
                                     --snapshotMode=time \
                                     --destination=${image} \
+                                    --destination=${imageLatest} \                                    
                                     --no-push=${noPushImage} \
                                     --cache-repo=egovio/cache/cache
                                 """

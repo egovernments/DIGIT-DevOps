@@ -98,7 +98,7 @@ spec:
                                     --single-snapshot=true \
                                     --snapshotMode=time \
                                     --destination=${image} \
-                                    --destination=${imageLatest} \                                    
+                                    --destination=${imageLatest} \
                                     --no-push=${noPushImage} \
                                     --cache-repo=egovio/cache/cache
                                 """

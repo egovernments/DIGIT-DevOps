@@ -82,7 +82,8 @@ spec:
                 }
 
                 stage('Build with Kaniko') {
-                    withEnv(["PATH=/busybox:/kaniko:$PATH"
+                    withEnv(["GIT_ACCESS_TOKEN=$GIT_ACCESS_TOKEN",
+                        "PATH=/busybox:/kaniko:$PATH"
                     ]) {
                         container(name: 'kaniko', shell: '/busybox/sh') {
 

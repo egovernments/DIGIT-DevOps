@@ -21,10 +21,10 @@ spec:
     tty: true
     env:
       - name: GIT_ACCESS_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: jenkins-credentials
-              key: gitReadAccessToken    
+        valueFrom:
+          secretKeyRef:
+            name: jenkins-credentials
+            key: gitReadAccessToken    
     volumeMounts:
       - name: jenkins-docker-cfg
         mountPath: /root

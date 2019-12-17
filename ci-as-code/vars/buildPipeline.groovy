@@ -19,6 +19,12 @@ spec:
     command:
     - /busybox/cat
     tty: true
+    env:
+      - name: GIT_ACCESS_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: jenkins-credentials
+              key: gitReadAccessToken    
     volumeMounts:
       - name: jenkins-docker-cfg
         mountPath: /root
@@ -94,6 +100,7 @@ spec:
                                     echo \"Attempting to build image,  ${image}\"
                                     /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
                                     --build-arg WORK_DIR=${workDir} \
+                                    --build-arg token=${GIT_ACCESS_TOKEN} \                                    
                                     --cache=true --cache-dir=/cache \
                                     --single-snapshot=true \
                                     --snapshotMode=time \

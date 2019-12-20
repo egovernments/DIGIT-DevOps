@@ -72,7 +72,7 @@ def call(Map params) {
 """);
         }
         }
-
+        System.out.println("Job Dsl Script : "+jobDslScript.toString())
         stage('Building jobs') {
           //  jobDsl scriptText: jobDslScript.toString()
         }

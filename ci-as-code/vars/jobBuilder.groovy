@@ -4,19 +4,32 @@ import org.egov.jenkins.models.JobConfig
 
 def call(Map params) {
     node {
-        git url: params.repo, credentialsId: 'git_read'
-        def yaml = readYaml file: params.configFile;
-        List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config, env);
-        List<String> folders = Utils.foldersToBeCreatedOrUpdated(jobConfigs, env);
+        
+        List<String> gitUrls = params.urls;
+        String configFile = './build/build-config.yml';
+        Map<String,List<JobConfig>> jobConfigMap=new HashMap<>();
 
+        for (int i = 0; i < gitUrls.size(); i++) {
+            String dirName = Utils.getDirName(gitUrls[i]);
+            dir(dirName) {
+                 git url: gitUrls[i], credentialsId: 'git_read'
+                 def yaml = readYaml file: configFile;
+                 List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config, env);
+                 jobConfigMap.put(gitUrls[i],jobConfigs);
+            }
+
+        }
         StringBuilder jobDslScript = new StringBuilder();
 
-        for (int i = 0; i < folders.size(); i++) {
-            jobDslScript.append("""
-                folder("${folders[i]}")
-                """);
-        }
+        for (Map.Entry<Integer, String> entry : jobConfigMap.entrySet()) {   
 
+            List<String> folders = Utils.foldersToBeCreatedOrUpdated(entry.getValue(), env);
+
+            for (int i = 0; i < folders.size(); i++) {
+                jobDslScript.append("""
+                    folder("${folders[i]}")
+                    """);
+              }
 
         for (int i = 0; i < jobConfigs.size(); i++) {
             jobDslScript.append("""
@@ -43,7 +56,7 @@ def call(Map params) {
                         scm {
                             git{
                                 remote {
-                                    url("${params.repo}")
+                                    url("${entry.getKey()}")
                                     credentials('git_read')
                                 } 
                                 branch ('\${BRANCH}')
@@ -57,9 +70,10 @@ def call(Map params) {
             }
 """);
         }
+        }
 
         stage('Building jobs') {
-            jobDsl scriptText: jobDslScript.toString()
+          //  jobDsl scriptText: jobDslScript.toString()
         }
 
     }

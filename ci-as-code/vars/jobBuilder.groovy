@@ -23,7 +23,8 @@ def call(Map params) {
 
         for (Map.Entry<Integer, String> entry : jobConfigMap.entrySet()) {   
 
-            List<String> folders = Utils.foldersToBeCreatedOrUpdated(entry.getValue(), env);
+            List<JobConfig> jobConfigs = entry.getValue();
+            List<String> folders = Utils.foldersToBeCreatedOrUpdated(jobConfigs, env);
 
             for (int i = 0; i < folders.size(); i++) {
                 jobDslScript.append("""

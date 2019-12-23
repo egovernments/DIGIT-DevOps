@@ -37,9 +37,8 @@ spec:
         memory: "1024Mi"
         cpu: "500m"                
 """
-    )
-
-    node(POD_LABEL) {
+    ) {
+        node(POD_LABEL) {
         
         List<String> gitUrls = params.urls;
         String configFile = './build/build-config.yml';
@@ -141,4 +140,5 @@ spec:
 
     }
 
+}
 }

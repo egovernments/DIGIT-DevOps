@@ -1,6 +1,7 @@
 import org.egov.jenkins.ConfigParser
 import org.egov.jenkins.Utils
 import org.egov.jenkins.models.JobConfig
+import org.egov.jenkins.models.BuildConfig
 
 def call(Map params) {
 
@@ -122,7 +123,7 @@ def call(Map params) {
 
         stage('Building jobs') {
             sh """ 
-            echo $jobDslScript.toString()
+            echo ${jobDslScript.toString()}
             """
           // jobDsl scriptText: jobDslScript.toString()
         }

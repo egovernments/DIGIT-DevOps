@@ -123,18 +123,15 @@ spec:
         }
 
         stage('Building jobs') {
-            sh """ 
-            echo "${jobDslScript.toString()}"
-            """
-          // jobDsl scriptText: jobDslScript.toString()
+           jobDsl scriptText: jobDslScript.toString()
         }
 
         stage('Creating Repositories in DockerHub') {
                     withEnv(["REPO_LIST=${repoList}"
                     ]) {
                         container(name: 'build-utils', shell: '/bin/sh') {
-                           // sh (script:'sh /tmp/scripts/create_repo.sh')
-                           sh (script:'echo \$REPO_LIST')
+                            sh (script:'sh /tmp/scripts/create_repo.sh')
+                           //sh (script:'echo \$REPO_LIST')
                         }
                     }
         }

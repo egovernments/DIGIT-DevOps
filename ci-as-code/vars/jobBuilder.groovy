@@ -3,7 +3,42 @@ import org.egov.jenkins.Utils
 import org.egov.jenkins.models.JobConfig
 
 def call(Map params) {
-    node {
+
+    podTemplate(yaml: """
+        kind: Pod
+        metadata:
+        name: build-utils
+        spec:
+        containers:
+        - name: build-utils
+            image: egovio/build-utils
+            imagePullPolicy: IfNotPresent
+            env:
+            - name: DOCKER_UNAME
+              valueFrom:
+                  secretKeyRef:
+                    name: docker-credentials
+                    key: docker_uname
+            - name: DOCKER_UPASS
+              valueFrom:
+                  secretKeyRef:
+                    name: docker-credentials
+                    key: docker_upass
+            - name: DOCKER_NAMESPACE
+                value: egovio
+            - name: DOCKER_GROUP_NAME
+                value: dev     
+            resources:
+            requests:
+                memory: "768Mi"
+                cpu: "250m"
+            limits:
+                memory: "1024Mi"
+                cpu: "500m"                
+        """
+    )
+
+    node(POD_LABEL) {
         
         List<String> gitUrls = params.urls;
         String configFile = './build/build-config.yml';
@@ -17,13 +52,15 @@ def call(Map params) {
                  List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config, env);
                  jobConfigMap.put(gitUrls[i],jobConfigs);
             }
-
         }
+
         StringBuilder jobDslScript = new StringBuilder();
+        StringBuilder repoList = new StringBuilder();
 
         for (Map.Entry<Integer, String> entry : jobConfigMap.entrySet()) {   
 
             List<JobConfig> jobConfigs = entry.getValue();
+ 
             List<String> folders = Utils.foldersToBeCreatedOrUpdated(jobConfigs, env);
 
             for (int i = 0; i < folders.size(); i++) {
@@ -33,6 +70,16 @@ def call(Map params) {
               }
 
         for (int i = 0; i < jobConfigs.size(); i++) {
+
+            for(int j=0; j<jobConfigs.getBuildConfigs().size(); j++){
+                BuildConfig buildConfig = jobConfig.getBuildConfigs().get(j);
+                repoList.append(buildConfig.getImageName());
+                    if(j!=jobConfigs.getBuildConfigs().size()-1)
+                    {
+                        repoList.append(",");
+                    }
+            }
+
             jobDslScript.append("""
             pipelineJob("${jobConfigs.get(i).getName()}") {
                 logRotator(-1, 5, -1, -1)
@@ -72,10 +119,24 @@ def call(Map params) {
 """);
         }
         }
-        System.out.println("Job Dsl Script : "+jobDslScript.toString());
+
         stage('Building jobs') {
-          //  jobDsl scriptText: jobDslScript.toString()
+            sh """ 
+            echo $jobDslScript.toString()
+            """
+          // jobDsl scriptText: jobDslScript.toString()
         }
+
+        stage('Creating Repositories in DockerHub') {
+                    withEnv(["REPO_LIST=${repoList.toString()}"
+                    ]) {
+                        container(name: 'build-utils', shell: '/bin/sh') {
+                           // sh (script:'sh /tmp/scripts/create_repo.sh')
+                           sh (script:'echo \$REPO_LIST')
+                        }
+                    }
+        }
+                
 
     }
 

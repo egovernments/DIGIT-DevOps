@@ -8,7 +8,7 @@ TOKEN=$(curl -s -H "Content-Type: application/json" -X POST -d '{"username": "'$
 # get list of repos for that user account 
 CURR_REPO_LIST=$(curl -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/repositories/${DOCKER_NAMESPACE}/ | jq -r '.results|.[]|.name')
 
-CHK_REPO_LIST=${repoList//,/ }     
+CHK_REPO_LIST=${REPO_LIST//,/ }     
 
 for i in $CHK_REPO_LIST; do 
  exists=                                                                                                                                                                  

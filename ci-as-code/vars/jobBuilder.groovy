@@ -125,7 +125,7 @@ spec:
 
         stage('Building jobs') {
             sh """ 
-            echo ${jobDslScript.toString()}
+            echo "${jobDslScript.toString()}"
             """
           // jobDsl scriptText: jobDslScript.toString()
         }

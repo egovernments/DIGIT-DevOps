@@ -12,7 +12,7 @@ metadata:
 spec:
   containers:
   - name: build-utils
-    image: egovio/build-utils
+    image: egovio/build-utils:4-docker_repo-2d3ca713
     imagePullPolicy: IfNotPresent
     command:
     - cat

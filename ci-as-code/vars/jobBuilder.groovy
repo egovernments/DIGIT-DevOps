@@ -75,7 +75,7 @@ spec:
         for (int i = 0; i < jobConfigs.size(); i++) {
 
             for(int j=0; j<jobConfigs.getBuildConfigs().size(); j++){
-                BuildConfig buildConfig = jobConfig.getBuildConfigs().get(j);
+                BuildConfig buildConfig = jobConfigs.getBuildConfigs().get(j);
                 repoList.append(buildConfig.getImageName());
                     if(j!=jobConfigs.getBuildConfigs().size()-1)
                     {

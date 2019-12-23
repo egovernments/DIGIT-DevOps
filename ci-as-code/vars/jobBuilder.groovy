@@ -58,7 +58,8 @@ spec:
         }
 
         StringBuilder jobDslScript = new StringBuilder();
-        StringBuilder repoList = new StringBuilder();
+        Set<String> repoSet = new HashSet<>();
+        String repoList = "";
 
         for (Map.Entry<Integer, String> entry : jobConfigMap.entrySet()) {   
 
@@ -76,12 +77,10 @@ spec:
 
             for(int j=0; j<jobConfigs.get(i).getBuildConfigs().size(); j++){
                 BuildConfig buildConfig = jobConfigs.get(i).getBuildConfigs().get(j);
-                repoList.append(buildConfig.getImageName());
-                    if(j!=jobConfigs.get(i).getBuildConfigs().size()-1)
-                    {
-                        repoList.append(",");
-                    }
-            }
+                repoSet.add(buildConfig.getImageName());                    
+            }  
+
+            repoList = String.join(",", repoSet);     
 
             jobDslScript.append("""
             pipelineJob("${jobConfigs.get(i).getName()}") {
@@ -131,7 +130,7 @@ spec:
         }
 
         stage('Creating Repositories in DockerHub') {
-                    withEnv(["REPO_LIST=${repoList.toString()}"
+                    withEnv(["REPO_LIST=${repoList}"
                     ]) {
                         container(name: 'build-utils', shell: '/bin/sh') {
                            // sh (script:'sh /tmp/scripts/create_repo.sh')

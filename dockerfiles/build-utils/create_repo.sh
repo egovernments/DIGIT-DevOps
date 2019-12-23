@@ -29,8 +29,9 @@ GROUP_ID=$(curl -s -H "Authorization: JWT ${TOKEN}" https://hub.docker.com/v2/or
 for REPO_NAME in ${CREATE_REPO_LIST}                                     
 do                                                       
      #Create Repo
-     curl -s -H "Authorization: JWT ${TOKEN}" -H "Content-Type: application/json" -X POST -d '{"namespace":"'${DOCKER_NAMESPACE}'","name":"'${REPO_NAME}'","description":"","is_private":false,"full_description":""}' https://hub.docker.com/v2/repositories/
-  
+     CREATED_REPO=$(curl -s -H "Authorization: JWT ${TOKEN}" -H "Content-Type: application/json" -X POST -d '{"namespace":"'${DOCKER_NAMESPACE}'","name":"'${REPO_NAME}'","description":"","is_private":false,"full_description":""}' https://hub.docker.com/v2/repositories/ | jq -r .name)
+     echo $CREATED_REPO " repository created"
      #Adding Permissions
-     curl -s -H "Authorization: JWT ${TOKEN}" -H "Content-Type: application/json" -X POST -d '{"group_id": "'${GROUP_ID}'", "groupid": "'${GROUP_ID}'", "group_name": "'${DOCKER_GROUP_NAME}'", "groupname": "'${DOCKER_GROUP_NAME}'", "permission": "'${PERMISSION}'"}' https://hub.docker.com/v2/repositories/${DOCKER_NAMESPACE}/${REPO_NAME}/groups/
+     PERM_ADDED=$(curl -s -H "Authorization: JWT ${TOKEN}" -H "Content-Type: application/json" -X POST -d '{"group_id": "'${GROUP_ID}'", "groupid": "'${GROUP_ID}'", "group_name": "'${DOCKER_GROUP_NAME}'", "groupname": "'${DOCKER_GROUP_NAME}'", "permission": "'${PERMISSION}'"}' https://hub.docker.com/v2/repositories/${DOCKER_NAMESPACE}/${REPO_NAME}/groups/ | jq -r .group_name)
+     echo $PERMISSION " permission to the group " $PERM_ADDED " for repository " $CREATED_REPO
 done

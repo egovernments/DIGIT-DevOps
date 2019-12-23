@@ -6,37 +6,37 @@ import org.egov.jenkins.models.BuildConfig
 def call(Map params) {
 
     podTemplate(yaml: """
-        kind: Pod
-        metadata:
-        name: build-utils
-        spec:
-        containers:
-        - name: build-utils
-            image: egovio/build-utils
-            imagePullPolicy: IfNotPresent
-            env:
-            - name: DOCKER_UNAME
-              valueFrom:
-                  secretKeyRef:
-                    name: docker-credentials
-                    key: docker_uname
-            - name: DOCKER_UPASS
-              valueFrom:
-                  secretKeyRef:
-                    name: docker-credentials
-                    key: docker_upass
-            - name: DOCKER_NAMESPACE
-                value: egovio
-            - name: DOCKER_GROUP_NAME
-                value: dev     
-            resources:
-            requests:
-                memory: "768Mi"
-                cpu: "250m"
-            limits:
-                memory: "1024Mi"
-                cpu: "500m"                
-        """
+kind: Pod
+metadata:
+  name: build-utils
+spec:
+  containers:
+  - name: build-utils
+    image: egovio/build-utils
+    imagePullPolicy: IfNotPresent
+    env:
+      - name: DOCKER_UNAME
+        valueFrom:
+          secretKeyRef:
+            name: jenkins-credentials
+            key: dockerUserName
+      - name: DOCKER_UPASS
+        valueFrom:
+          secretKeyRef:
+            name: jenkins-credentials
+            key: dockerPassword
+      - name: DOCKER_NAMESPACE
+        value: egovio
+      - name: DOCKER_GROUP_NAME  
+        value: dev
+    resources:
+      requests:
+        memory: "768Mi"
+        cpu: "250m"
+      limits:
+        memory: "1024Mi"
+        cpu: "500m"                
+"""
     )
 
     node(POD_LABEL) {

@@ -15,7 +15,7 @@ spec:
     image: egovio/build-utils
     imagePullPolicy: IfNotPresent
     command:
-    - /busybox/cat
+    - cat
     tty: true
     env:
       - name: DOCKER_UNAME

@@ -1,24 +1,87 @@
 import org.egov.jenkins.ConfigParser
 import org.egov.jenkins.Utils
 import org.egov.jenkins.models.JobConfig
+import org.egov.jenkins.models.BuildConfig
 
 def call(Map params) {
-    node {
-        git url: params.repo, credentialsId: 'git_read'
-        def yaml = readYaml file: params.configFile;
-        List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config, env);
-        List<String> folders = Utils.foldersToBeCreatedOrUpdated(jobConfigs, env);
 
-        StringBuilder jobDslScript = new StringBuilder();
+    podTemplate(yaml: """
+kind: Pod
+metadata:
+  name: build-utils
+spec:
+  containers:
+  - name: build-utils
+    image: egovio/build-utils:7-master-95e76687
+    imagePullPolicy: IfNotPresent
+    command:
+    - cat
+    tty: true
+    env:
+      - name: DOCKER_UNAME
+        valueFrom:
+          secretKeyRef:
+            name: jenkins-credentials
+            key: dockerUserName
+      - name: DOCKER_UPASS
+        valueFrom:
+          secretKeyRef:
+            name: jenkins-credentials
+            key: dockerPassword
+      - name: DOCKER_NAMESPACE
+        value: egovio
+      - name: DOCKER_GROUP_NAME  
+        value: dev
+    resources:
+      requests:
+        memory: "768Mi"
+        cpu: "250m"
+      limits:
+        memory: "1024Mi"
+        cpu: "500m"                
+"""
+    ) {
+        node(POD_LABEL) {
+        
+        List<String> gitUrls = params.urls;
+        String configFile = './build/build-config.yml';
+        Map<String,List<JobConfig>> jobConfigMap=new HashMap<>();
 
-        for (int i = 0; i < folders.size(); i++) {
-            jobDslScript.append("""
-                folder("${folders[i]}")
-                """);
+        for (int i = 0; i < gitUrls.size(); i++) {
+            String dirName = Utils.getDirName(gitUrls[i]);
+            dir(dirName) {
+                 git url: gitUrls[i], credentialsId: 'git_read'
+                 def yaml = readYaml file: configFile;
+                 List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config, env);
+                 jobConfigMap.put(gitUrls[i],jobConfigs);
+            }
         }
 
+        StringBuilder jobDslScript = new StringBuilder();
+        Set<String> repoSet = new HashSet<>();
+        String repoList = "";
+
+        for (Map.Entry<Integer, String> entry : jobConfigMap.entrySet()) {   
+
+            List<JobConfig> jobConfigs = entry.getValue();
+ 
+            List<String> folders = Utils.foldersToBeCreatedOrUpdated(jobConfigs, env);
+
+            for (int i = 0; i < folders.size(); i++) {
+                jobDslScript.append("""
+                    folder("${folders[i]}")
+                    """);
+              }
 
         for (int i = 0; i < jobConfigs.size(); i++) {
+
+            for(int j=0; j<jobConfigs.get(i).getBuildConfigs().size(); j++){
+                BuildConfig buildConfig = jobConfigs.get(i).getBuildConfigs().get(j);
+                repoSet.add(buildConfig.getImageName());                    
+            }  
+
+            repoList = String.join(",", repoSet);     
+
             jobDslScript.append("""
             pipelineJob("${jobConfigs.get(i).getName()}") {
                 logRotator(-1, 5, -1, -1)
@@ -43,7 +106,7 @@ def call(Map params) {
                         scm {
                             git{
                                 remote {
-                                    url("${params.repo}")
+                                    url("${entry.getKey()}")
                                     credentials('git_read')
                                 } 
                                 branch ('\${BRANCH}')
@@ -57,11 +120,24 @@ def call(Map params) {
             }
 """);
         }
+        }
 
         stage('Building jobs') {
-            jobDsl scriptText: jobDslScript.toString()
+           jobDsl scriptText: jobDslScript.toString()
         }
+
+        stage('Creating Repositories in DockerHub') {
+                    withEnv(["REPO_LIST=${repoList}"
+                    ]) {
+                        container(name: 'build-utils', shell: '/bin/sh') {
+                            sh (script:'sh /tmp/scripts/create_repo.sh')
+                           //sh (script:'echo \$REPO_LIST')
+                        }
+                    }
+        }
+                
 
     }
 
+}
 }

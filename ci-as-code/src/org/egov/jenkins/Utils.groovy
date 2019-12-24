@@ -32,4 +32,15 @@ class Utils {
         return source.length() - source.replace(match, "").length();
     }
 
+    static String getDirName(String url) {
+
+        String dirName = "";
+
+        int startIndex = url.lastIndexOf("/");
+	    int endIndex = url.lastIndexOf(".");
+        dirName = url.substring(startIndex+1,endIndex);
+        return dirName;
+
+    }
+
 }

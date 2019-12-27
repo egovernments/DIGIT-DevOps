@@ -1,9 +1,9 @@
 # Default values for commons.
 # This is a YAML-formatted file.
 # Declare name/value pairs to be passed into your templates.
+namespace: egov
 replicas: 1
 httpPort: 8080
-targetHttpPort: 8080
 appType: ""
 
 ingress:
@@ -108,6 +108,7 @@ lifecycle:
             - -c
             - "sleep 10"
 
+## Allows specification of additional environment variables
 extraEnv:
   java: |
       - name: SPRING_DATASOURCE_URL
@@ -157,6 +158,23 @@ extraEnv:
           configMapKeyRef:
             name: egov-config
             key: spring-datasource-tomcat-max-active  
+      - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: kafka-brokers
+      - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: kafka-brokers
+      - name: SPRING_JPA_SHOW_SQL
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: spring-jpa-show-sql           
+
+
   jaeger: |             
       - name: JAEGER_SERVICE_NAME
         value: {{ .Chart.Name }}
@@ -172,8 +190,18 @@ extraEnv:
         value: "$(JAEGER_AGENT_HOST):5778"
 
 
+## Additional init containers
+extraInitContainers: |
+
+## Additional sidecar containers
+extraContainers: |
+
+## Add additional volumes and mounts, e. g. for custom themes
+extraVolumes: |
+extraVolumeMounts: |
 
 additionalLabels: {}
+
 serviceAccount:
   # Specifies whether a service account should be created
   create: true

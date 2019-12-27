@@ -22,7 +22,7 @@ image:
   repository: "egovio/egf-master"
 replicas: "1"
 appType: "java-spring"
-jaeger-enabled: true
+tracing-enabled: true
 db-url: "jdbc:postgresql://egov-micro-dev.postgres.database.azure.com:5432/egov_dev_ms?currentSchema=egov_master"
 heap: "-Xmx192m -Xms192m"
 
@@ -130,23 +130,14 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egf-master
-  - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
-    value: org.apache.kafka.common.serialization.StringDeserializer
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
     value: egf-master
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   {{- if index .Values "global" "serializers-timezone-in-ist" }}
-  - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
-    value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
     value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
   {{- end }}
-  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: kafka-brokers
   - name: JAVA_OPTS
     value: {{ index .Values "heap" | quote }}
   - name: SERVER_PORT

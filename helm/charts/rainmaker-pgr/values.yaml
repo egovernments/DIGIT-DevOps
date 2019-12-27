@@ -26,7 +26,7 @@ healthChecks:
   livenessProbePath: "/rainmaker-pgr/health"
   readinessProbePath: "/rainmaker-pgr/health"
 appType: "java-spring"
-jaeger-enabled: true
+tracing-enabled: true
 notification-sms-enabled: "true"
 notification-email-enabled: "false"
 new-complaint-enabled: "true"
@@ -39,20 +39,11 @@ java-args: "-Dspring.profiles.active=monitoring"
 
 # Additional Container Envs
 env: |
-  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: kafka-brokers
-  - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
-    value: org.apache.kafka.common.serialization.StringDeserializer
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
     value: rainmaker-service
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   {{- if index .Values "global" "serializers-timezone-in-ist" }}
-  - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
-    value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
     value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
   {{- end }}
@@ -76,16 +67,6 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-searcher
-  - name: EGOV_HR_EMPLOYEE_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: hr-employee
-  - name: EGOV_HR_EMPLOYEE_V2_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: hr-employee-v2
   - name: EGOV_COMMON_MASTERS_HOST
     valueFrom:
       configMapKeyRef:
@@ -138,11 +119,6 @@ env: |
     value: {{ index .Values "heap" | quote }}
   - name: JAVA_ARGS
     value: {{ index .Values "java-args" | quote }}
-  - name: SPRING_JPA_SHOW_SQL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-jpa-show-sql
   - name: SERVER_PORT
     value: "8080"
   - name: SECURITY_BASIC_ENABLED

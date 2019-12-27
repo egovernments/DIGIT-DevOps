@@ -26,7 +26,7 @@ healthChecks:
   livenessProbePath: "/user/health"
   readinessProbePath: "/user/health"
 appType: "java-spring"
-jaeger-enabled: true
+tracing-enabled: true
 egov-state-level-tenant-id: "pb"
 decryption-abac-enabled: "false"
 account-unlock-cool-down-period-minutes: "30"
@@ -90,10 +90,6 @@ env: |
     value: {{ index .Values "decryption-abac-enabled" | quote }}
   - name: KAFKA_TOPIC_AUDIT
     value: "enc-user-audit-data"         
-  - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
-    value: org.egov.tracer.kafka.deserializer.HashMapDeserializer
-  - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
-    value: org.apache.kafka.common.serialization.StringDeserializer
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
     value: "egov-user"
   - name: ACCOUNT_UNLOCK_COOL_DOWN_PERIOD_MINUTES
@@ -102,20 +98,6 @@ env: |
     value: org.apache.kafka.common.serialization.StringSerializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
     value: org.springframework.kafka.support.serializer.JsonSerializer  
-  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: kafka-brokers                                                               
-  {{- if index .Values "global" "newrelic-enabled" }}
-  - name: NEWRELIC_ENABLED
-    value: "true"
-  - name: NEWRELIC_LICENSE_KEY
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: newrelic-license-key
-  {{- end }}
   {{- if index .Values "otp-validation" }}
   - name: OTP_VALIDATION_REGISTER_MANDATORY
     value: {{ index .Values "otp-validation" | quote }}
@@ -164,11 +146,6 @@ env: |
     value: {{ index .Values "heap" | quote }}
   - name: JAVA_ARGS
     value: {{ index .Values "java-args" | quote }}
-  - name: SPRING_JPA_SHOW_SQL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-jpa-show-sql
   {{- if index .Values "global" "mobile-validation-workaround" }}
   - name: MOBILE_NUMBER_VALIDATION_WORKAROUND_ENABLED
     value: "true"

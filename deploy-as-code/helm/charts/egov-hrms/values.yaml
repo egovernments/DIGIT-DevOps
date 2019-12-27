@@ -26,14 +26,13 @@ healthChecks:
   livenessProbePath: "/egov-hrms/health"
   readinessProbePath: "/egov-hrms/health"
 appType: "java-spring"
-jaeger-enabled: true
+tracing-enabled: true
 employee-applink: "https://egov-micro-dev.egovernments.org/employee/user/login"
 heap: "-Xmx192m -Xms192m"
 java-args: "-Dspring.profiles.active=monitoring"
 
 # Additional Container Envs
 env: |
-  
   - name: EGOV_SERVICES_DATA_SYNC_EMPLOYEE_REQUIRED 
     value:  "false"
   - name: EGOV_MDMS_HOST
@@ -81,10 +80,6 @@ env: |
     value: /user/users/_updatenovalidate
   - name: EGOV_HRMS_EMPLOYEE_APP_LINK
     value: {{ index .Values "employee-applink" | quote }}
-  - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
-    value: org.egov.tracer.kafka.deserializer.HashMapDeserializer
-  - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
-    value: org.apache.kafka.common.serialization.StringDeserializer
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
     value: employee-group1
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
@@ -97,18 +92,8 @@ env: |
     value: update-hrms-employee
   - name: KAFKA_TOPICS_NOTIFICATION_SMS
     value: egov.core.notification.sms
-  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: kafka-brokers
   - name: JAVA_OPTS
     value: {{ index .Values "heap" | quote }}
-  - name: SPRING_JPA_SHOW_SQL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-jpa-show-sql
   - name: SERVER_PORT
     value: "8080"
   - name: JAVA_ARGS

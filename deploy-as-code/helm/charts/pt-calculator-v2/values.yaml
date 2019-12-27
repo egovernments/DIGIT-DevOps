@@ -26,7 +26,7 @@ healthChecks:
   livenessProbePath: "/pt-calculator-v2/health"
   readinessProbePath: "/pt-calculator-v2/health"
 appType: "java-spring"
-jaeger-enabled: true
+tracing-enabled: true
 logging-level: "DEBUG"
 JAVA_ENABLE_DEBUG: ""
 CUSTOM_PB_ZERO_ASSESSMENT: ""
@@ -48,8 +48,6 @@ env: |
     value: org.springframework.kafka.support.serializer.JsonSerializer
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
     value: rainmaker-pt-calculator-group
-  - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
-    value: org.apache.kafka.common.serialization.StringDeserializer
   - name: KAFKA_TOPICS_BILLING_SLAB_SAVE_SERVICE
     value: save-pt-billingslab
   - name: KAFKA_TOPICS_BILLING_SLAB_UPDATE_SERVICE
@@ -80,11 +78,7 @@ env: |
         name: egov-config
         key: tracer-errors-provideexceptionindetails
   {{- end }}
-  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: kafka-brokers
+  {{- if index .Values "JAVA_ENABLE_DEBUG" }}
   - name: JAVA_ENABLE_DEBUG
     value: {{ index .Values "JAVA_ENABLE_DEBUG" | quote }}
   {{- end }}
@@ -108,11 +102,6 @@ env: |
     value: {{ index .Values "heap" | quote }}
   - name: JAVA_ARGS
     value: {{ index .Values "java-args" | quote }}
-  - name: SPRING_JPA_SHOW_SQL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-jpa-show-sql
   - name: PT_MODULE_MINPAYABLE_AMOUNT
     value: "100"
   - name: SERVER_PORT

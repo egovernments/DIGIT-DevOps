@@ -25,31 +25,21 @@ healthChecks:
   livenessProbePath: "/report/health"
   readinessProbePath: "/report/health"
 appType: "java-spring"
-jaeger-enabled: true
+tracing-enabled: "true"
 report-locationsfile-path: "file:///work-dir/configs/reports/reportFileLocationsv1.txt"
 heap: "-Xmx192m -Xms192m"
 spring-datasource-tomcat-max-active: "5"
-tracing-enabled: "true"
 
 # Additional Container Envs
 env: |
   - name: SERVER_CONTEXTPATH
     value: /report
+  {{- if index .Values "report-locationsfile-path" }}
   - name: REPORT_LOCATIONSFILE_PATH
     value: {{ index .Values "report-locationsfile-path" | quote }}
   {{- end }}
-  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: kafka-brokers
   - name: JAVA_OPTS
     value: {{ index .Values "heap" | quote }}
-  - name: SPRING_JPA_SHOW_SQL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-jpa-show-sql
   - name: SERVER_PORT
     value: "8080"
   - name: TRACER_OPENTRACING_ENABLED
@@ -75,11 +65,6 @@ env: |
         key: egov-state-level-tenant-id
   - name: KAFKA_TOPIC_AUDIT
     value: "enc-report-audit-data"         
-  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: kafka-brokers  
   {{- if index .Values "tracing-enabled" }}
   - name: TRACER_OPENTRACING_ENABLED
     value: "true" 

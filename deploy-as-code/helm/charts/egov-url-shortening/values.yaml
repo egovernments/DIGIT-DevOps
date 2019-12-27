@@ -26,12 +26,13 @@ healthChecks:
   livenessProbePath: "/url-shortening/health"
   readinessProbePath: "/url-shortening/health"
 appType: "java-spring"
-jaeger-enabled: true
+tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
 java-args: "-Dspring.profiles.active=monitoring"
 
 # Additional Container Envs
 env: |
+  {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
   - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
     valueFrom:
       configMapKeyRef:
@@ -50,11 +51,6 @@ env: |
     value: {{ index .Values "heap" | quote }}
   - name: JAVA_ARGS
     value: {{ index .Values "java-args" | quote }}
-  - name: SPRING_JPA_SHOW_SQL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-jpa-show-sql
   - name: SERVER_PORT
     value: "8080"
   - name: SECURITY_BASIC_ENABLED

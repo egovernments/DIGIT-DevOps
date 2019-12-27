@@ -1,7 +1,6 @@
 {{- define "common.deployment" -}}
 {{- $common := dict "Values" .Values.common -}} 
 {{- $noCommon := omit .Values "common" -}} 
-{{- $module := dict "Values" (index .Values (tpl .Chart.Name .)) -}} 
 {{- $noModule := omit (index .Values (tpl .Chart.Name .)) -}} 
 {{- $overrides := dict "Values" (merge $noModule $noCommon ) -}} 
 {{- $noValues := omit . "Values" -}} 
@@ -10,7 +9,7 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: {{ .Chart.Name }}
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ .Values.namespace }}
 spec:
 {{- if eq (.Values.replicas | int) 1 }}
   strategy:
@@ -23,7 +22,25 @@ spec:
       labels:
       {{- include "common.labels" . | nindent 8 }}            
     spec:
-      {{- if .Values.affinity.preferSpreadAcrossAZ }}
+    {{- if .Values.initContainers.gitSync.enabled }}
+      securityContext:
+        fsGroup: 65533 # to make SSH key readable 
+    {{- end }} 
+    {{- if or .Values.initContainers.gitSync.enabled .Values.extraVolumes }}     
+      volumes:  
+    {{- if .Values.initContainers.gitSync.enabled }}  
+      - name: git-secret
+        secret:
+          secretName: git-creds
+          defaultMode: 288 # = mode 0440
+      - name: workdir
+        emptyDir: {}               
+    {{- end }}     
+      {{- with .Values.extraVolumes }}
+        {{- tpl . $ | nindent 8 }}
+      {{- end }}     
+    {{- end }}        
+    {{- if .Values.affinity.preferSpreadAcrossAZ }}
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -33,10 +50,10 @@ spec:
               labelSelector:
                 matchLabels:
                 {{- include "common.labels" . | nindent 18 }}     
-      {{- end }}  
+    {{- end }}  
       initContainers:
-      {{- if .Values.initContainers.customInitContainers }}
-        {{- tpl (toYaml .Values.customInitContainers) . | nindent 8 }}
+      {{- with .Values.initContainers.extraInitContainers }}
+        {{- tpl . $ | nindent 8 }}
       {{- end }}
       {{- if .Values.initContainers.dbMigration.enabled }}
       - name: "db-migration"
@@ -51,12 +68,22 @@ spec:
       - name: "git-sync"
         image: "{{ .Values.initContainers.gitSync.image.repository }}:{{ .Values.initContainers.gitSync.image.tag }}"
         imagePullPolicy: {{ .Values.initContainers.gitSync.image.pullPolicy }}   
+        securityContext:
+          runAsUser: 65533 # git-sync user
+        volumeMounts:
+        - name: git-secret
+          mountPath: /etc/git-secret              
+        - name: workdir
+          mountPath: "/work-dir"                   
         {{- if .Values.initContainers.gitSync.env }}               
         env: 
           {{- tpl  .Values.initContainers.gitSync.env . | nindent 12 }}
         {{- end }}        
       {{- end }}            
       containers:
+      {{- with .Values.extraContainers }}
+        {{- tpl . $ | nindent 8 }}
+      {{- end }}      
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -73,7 +100,17 @@ spec:
         {{- if .Values.lifecycle }}
           lifecycle:
           {{- toYaml .Values.lifecycle | nindent 12 }}
-        {{- end }}                 
+        {{- end }}      
+        {{- if or .Values.initContainers.gitSync.enabled .Values.extraVolumeMounts }}
+          volumeMounts:              
+        {{- if .Values.initContainers.gitSync.enabled }}            
+          - name: workdir
+            mountPath: "/work-dir"
+        {{- end }}             
+        {{- with .Values.extraVolumeMounts }}
+          {{- tpl . $ | nindent 12 }}
+        {{- end }}          
+        {{- end }}                              
           env:  
         {{- if .Values.env }}                                   
           {{- tpl  .Values.env . | nindent 12 }}
@@ -81,11 +118,11 @@ spec:
         {{- if eq .Values.appType "java-spring" }} 
           {{- tpl  .Values.extraEnv.java . | nindent 12 }}         
         {{- end -}} 
-        {{- if index .Values "jaeger-enabled" }} 
+        {{- if index .Values "tracing-enabled" }} 
           {{- tpl  .Values.extraEnv.jaeger . | nindent 12 }}         
         {{- end }}                     
           resources:
-{{ toYaml .Values.resources | indent 12 }}
+            {{- toYaml .Values.resources | nindent 12 }}
     {{- with .Values.nodeSelector }}
       nodeSelector:
 {{ toYaml . | indent 8 }}

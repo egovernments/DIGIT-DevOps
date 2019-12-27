@@ -10,22 +10,18 @@ initContainers: {}
 image:
   repository: "egovio/egov-notification-sms"
 replicas: "1"
+appType: "java-spring"
+tracing-enabled: true
 sms-provider-url: "https://msdgweb.mgov.gov.in/esms/sendsmsrequest"
 sms-sender: "egov"
 sms-sender-requesttype: "POST"
 sms-extra-req-params: "smsservicetype=unicodemsg"
-appType: "java-spring"
-jaeger-enabled: true
 heap: "-Xmx192m -Xms192m"
 java-args: ""
+secure-key: true
 
 # Additional Container Envs
 env: |
-  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: kafka-brokers
   - name: KAFKA_TOPICS_NOTIFICATION_SMS_NAME
     value: egov.core.notification.sms
   - name: KAFKA_TOPICS_NOTIFICATION_SMS_ID
@@ -44,7 +40,7 @@ env: |
       secretKeyRef:
         name: egov-notification-sms
         key: password
-  {{- if index .Values "egov-notification-sms-secret" "secure-key" }}
+  {{- if index .Values "secure-key" }}
   - name: SMS_SENDER_SECURE_KEY
     valueFrom:
       secretKeyRef:
@@ -108,4 +104,3 @@ env: |
     value: {{ index .Values "heap" | quote }}
   - name: JAVA_ARGS
     value: {{ index .Values "java-args" | quote }}
-

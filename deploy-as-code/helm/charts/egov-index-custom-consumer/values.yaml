@@ -11,7 +11,7 @@ image:
   repository: "egovio/egov-index-custom-consumer"
 replicas: "1"
 appType: "java-spring"
-jaeger-enabled: true
+tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
 
 # Additional Container Envs
@@ -21,20 +21,11 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: pt-services-v2
-  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: kafka-brokers
-  - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
-    value: org.apache.kafka.common.serialization.StringDeserializer
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
     value: "egov-index-custom-consumer-group"
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   {{- if index .Values "global" "serializers-timezone-in-ist" }}
-  - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
-    value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
     value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
   {{- end }}

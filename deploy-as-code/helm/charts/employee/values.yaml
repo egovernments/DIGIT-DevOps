@@ -3,6 +3,11 @@ labels:
   app: "employee"
   group: "web"
 
+# Ingress Configs
+ingress:
+  enabled: true
+  context: "employee"
+
 # Init Containers Configs
 initContainers: {}
 
@@ -10,6 +15,7 @@ initContainers: {}
 image:
   repository: "egovio/employee"
 replicas: "1"
+httpPort: 80
 healthChecks:
   enabled: true
   livenessProbePath: "/employee/"
@@ -20,19 +26,4 @@ dashboard-url: ""
 env: |
   - name: REACT_APP_WS_FINANCIALINDICATORS
     value: {{ index .Values "dashboard-url" | quote }}
-  ports:
-  - containerPort: 80
-  readinessProbe:
-    httpGet:
-      path: /employee/
-      port: 80
-    initialDelaySeconds: 5
-    periodSeconds: 5
-    successThreshold: 1
-  {{- if index .Values "custom-js-injection" }}
-  volumeMounts:            
-  - mountPath: /etc/nginx/conf.d/sub_filter.conf
-    name: js-injection    
-    subPath: sub_filter.conf   
-  {{- end }}
 

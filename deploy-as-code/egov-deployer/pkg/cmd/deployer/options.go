@@ -1,6 +1,7 @@
 package deployer
 
 type Options struct {
+	HelmDir        string
 	Images         string
 	Environment    string
 	ClusterConfigs bool

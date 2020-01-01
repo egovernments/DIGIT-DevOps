@@ -20,6 +20,7 @@ import (
 
 	"github.com/egovernments/eGov-infraOps/egov-deployer/pkg/cmd/deployer"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var options deployer.Options
@@ -45,12 +46,18 @@ to quickly create a Cobra application.`,
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		// fmt.Println("deploy called with images: " + args[0])
+
+		options.HelmDir = viper.GetString("helm-dir")
 		deployer.DeployCharts(options)
 	},
 }
 
 func init() {
 	// deployCmd.Flags().StringVarP(&images, "images", "i", "", "Images to be deployed")
+
+	deployCmd.Flags().String("helm-dir", "../helm", "Helm Charts / Configs directory")
+	viper.BindPFlag("helm-dir", deployCmd.Flags().Lookup("helm-dir"))
+
 	deployCmd.Flags().StringVarP(&options.Environment, "environment", "e", "", "Environment override to be applied")
 	deployCmd.Flags().BoolVarP(&options.ClusterConfigs, "cluster-configs", "c", false, "Deploy cluster configs")
 	deployCmd.Flags().BoolVarP(&options.Print, "print", "p", false, "Print templates to stdout")

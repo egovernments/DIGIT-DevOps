@@ -13,7 +13,8 @@ import (
 
 func DeployCharts(options Options) {
 
-	helmDir := "D:\\Documents\\eGov\\infraops-helm\\eGov-infraOps\\helm"
+	helmDir, _ := filepath.Abs(options.HelmDir)
+	fmt.Println("Helm Directory - " + helmDir)
 
 	envOverrideFile := filepath.FromSlash(fmt.Sprintf(helmDir+"/environments/%s.yaml", options.Environment))
 

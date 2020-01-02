@@ -18,7 +18,7 @@ func DeployCharts(options Options) {
 
 	envOverrideFile := filepath.FromSlash(fmt.Sprintf(helmDir+"/environments/%s.yaml", options.Environment))
 
-	if options.ClusterConfigs {
+	if options.ClusterConfigs && !options.Print {
 		envSecretFile := filepath.FromSlash(fmt.Sprintf(helmDir+"/environments/%s-secrets.yaml", options.Environment))
 		deployClusterConfigs(helmDir, envOverrideFile, envSecretFile)
 	}
@@ -78,10 +78,10 @@ func DeployCharts(options Options) {
 }
 
 func getImageTagFromCluster(service string) (tag string) {
-	kubectlGetImageCmd := fmt.Sprintf("kubectl get deployment %s -o=jsonpath='{$.spec.template.spec.containers[:1].image}'", service)
+	kubectlGetImageCmd := fmt.Sprintf("kubectl get deployments -l app=%s --all-namespaces -o=jsonpath={.items[*].spec.template.spec.containers[:1].image}", service)
 
 	output := execCommandRaw(kubectlGetImageCmd, "", true)
-	return strings.ReplaceAll(output.String(), "'", "")
+	return output.String()
 
 }
 

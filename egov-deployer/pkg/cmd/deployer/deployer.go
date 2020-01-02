@@ -64,7 +64,8 @@ func DeployCharts(options Options) {
 
 			log.Println("Applying manifests to the cluster ")
 			kubeApplyCmd := "kubectl apply -f ."
-			execCommand(kubeApplyCmd, tmpDir+string(os.PathSeparator)+repository+string(os.PathSeparator)+"templates")
+			out := execCommand(kubeApplyCmd, tmpDir+string(os.PathSeparator)+repository+string(os.PathSeparator)+"templates")
+			log.Println(out.String())
 
 		} else {
 			helmTemplate := fmt.Sprintf("helm template -f %s --set image.tag=%s --set initContainers.dbMigration.image.tag=%s .", envOverrideFile, tag, tag)
@@ -80,7 +81,7 @@ func getImageTagFromCluster(service string) (tag string) {
 	kubectlGetImageCmd := fmt.Sprintf("kubectl get deployment %s -o=jsonpath='{$.spec.template.spec.containers[:1].image}'", service)
 
 	output := execCommandRaw(kubectlGetImageCmd, "", true)
-	return output.String()
+	return strings.ReplaceAll(output.String(), "'", "")
 
 }
 
@@ -99,20 +100,23 @@ func deployClusterConfigs(helmDir string, envOverrideFile string, envSecretFile 
 	if err != nil {
 		log.Panicln("Failed to create temporary directory", err)
 	}
+
+	tmpDecFile, err := ioutil.TempFile(tmpDir, "helm-dec-")
+	if err != nil {
+		log.Panicln("Failed to create temporary file", err)
+	}
 	// Clean up folder after function exists
 	defer os.RemoveAll(tmpDir)
 
-	sopsDecryptCmd := fmt.Sprintf("sops -d -i %s", envSecretFile)
+	sopsDecryptCmd := fmt.Sprintf("sops -d --output %s %s", tmpDecFile.Name(), envSecretFile)
 	execCommand(sopsDecryptCmd, helmDir)
 
-	helmTemplate := fmt.Sprintf("helm template --output-dir %s -f %s -f %s .", tmpDir, envOverrideFile, envSecretFile)
+	helmTemplate := fmt.Sprintf("helm template --output-dir %s -f %s -f %s .", tmpDir, envOverrideFile, tmpDecFile.Name())
 	execCommand(helmTemplate, clusterConfigDir)
 
-	sopsEncryptCmd := fmt.Sprintf("sops -e -i %s", envSecretFile)
-	execCommand(sopsEncryptCmd, helmDir)
-
 	kubeApplyCmd := "kubectl apply -f ."
-	execCommand(kubeApplyCmd, tmpDir+string(os.PathSeparator)+"cluster-configs"+string(os.PathSeparator)+"templates")
+	out := execCommand(kubeApplyCmd, tmpDir+string(os.PathSeparator)+"cluster-configs"+string(os.PathSeparator)+"templates")
+	log.Println(out.String())
 }
 
 func getDockerComponents(image string) (repository string, tag string) {

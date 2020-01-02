@@ -9,7 +9,7 @@ metadata:
 spec:
   containers:
   - name: egov-deployer
-    image: egovio/egov-deployer
+    image: egovio/egov-deployer:5-helm-8cd1c345
     command:
     - cat
     tty: true

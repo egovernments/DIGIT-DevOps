@@ -40,7 +40,7 @@ spec:
                 stage('Deploy Images') {
                         container(name: 'egov-deployer', shell: '/bin/sh') {
                             sh (script:
-                                    './egov-deployer deploy -e ${pipelineParams.environment} ${env.IMAGES}'
+                                    './egov-deployer deploy -e ${pipelineParams.environment} ${env.IMAGES}')
                         }
                 }
         }

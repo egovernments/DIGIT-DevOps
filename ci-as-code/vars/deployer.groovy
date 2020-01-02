@@ -10,7 +10,7 @@ spec:
   - name: egov-deployer
     image: egovio/egov-deployer
     command:
-    - /busybox/cat
+    - cat
     tty: true
     env:  
       - name: "GOOGLE_APPLICATION_CREDENTIALS"

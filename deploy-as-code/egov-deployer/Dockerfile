@@ -22,6 +22,7 @@ FROM alpine:3
 
 ARG KUBECTL_VERSION=v1.12.10
 ARG SOPS_VERSION=v3.5.0
+ARG HELM_VERSION=v3.0.2
 
 WORKDIR /opt/egov
 
@@ -30,9 +31,11 @@ COPY --chown=egov:egov --from=build /app/egov-deployer /opt/egov/
 
 RUN chmod +x /opt/egov/egov-deployer 
 RUN wget https://storage.googleapis.com/kubernetes-release/release/$KUBECTL_VERSION/bin/linux/amd64/kubectl \
-    && wget -O aws-iam-authenticator https://amazon-eks.s3-us-west-2.amazonaws.com/1.12.7/2019-03-27/bin/linux/amd64/aws-iam-authenticator \
+    && wget https://amazon-eks.s3-us-west-2.amazonaws.com/1.12.7/2019-03-27/bin/linux/amd64/aws-iam-authenticator \
     && wget -O sops https://github.com/mozilla/sops/releases/download/$SOPS_VERSION/sops-$SOPS_VERSION.linux \
-    && chmod +x ./kubectl ./aws-iam-authenticator ./sops \
-    && mv ./kubectl ./aws-iam-authenticator ./sops /usr/local/bin 
+    && wget -qO- https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz | tar xvz \
+    && chmod +x ./kubectl ./aws-iam-authenticator ./sops ./linux-amd64/helm \
+    && mv ./kubectl ./aws-iam-authenticator ./sops ./linux-amd64/helm /usr/local/bin \
+    && rm -rf ./linux-amd64 && rm -f /var/cache/apk/*
 
-USER egov
+# USER egov

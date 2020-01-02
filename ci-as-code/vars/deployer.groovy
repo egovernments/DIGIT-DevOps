@@ -14,7 +14,9 @@ spec:
     tty: true
     env:  
       - name: "GOOGLE_APPLICATION_CREDENTIALS"
-        value: "/var/run/secret/cloud.google.com/service-account.json"            
+        value: "/var/run/secret/cloud.google.com/service-account.json" 
+      - name: "HELM_DIR"
+        value: "/home/jenkins/agent/workspace/${pipelineParams.helmDir}"                   
     volumeMounts:
       - name: service-account
         mountPath: /var/run/secret/cloud.google.com
@@ -33,10 +35,11 @@ spec:
         secretName: "gcp-kms-decryptor-sa"    
   - name: kube-config
     secret:
-        secretName: '${pipelineParams.environment}-kube-config'                    
+        secretName: "${pipelineParams.environment}-kube-config"                    
 """
     ) {
         node(POD_LABEL) {
+            git url: gitUrls[i], credentialsId: 'git_read'
                 stage('Deploy Images') {
                         container(name: 'egov-deployer', shell: '/bin/sh') {
                             sh (script:

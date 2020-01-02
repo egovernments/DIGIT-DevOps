@@ -1,7 +1,8 @@
 library 'ci-libs'
 
 def call(Map pipelineParams) {
-    podTemplate(yaml: """
+
+podTemplate(yaml: """
 kind: Pod
 metadata:
   name: egov-deployer
@@ -14,14 +15,12 @@ spec:
     tty: true
     env:  
       - name: "GOOGLE_APPLICATION_CREDENTIALS"
-        value: "/var/run/secret/cloud.google.com/service-account.json" 
-      - name: "HELM_DIR"
-        value: "/home/jenkins/agent/workspace/${pipelineParams.helmDir}"                   
+        value: "/var/run/secret/cloud.google.com/service-account.json"              
     volumeMounts:
       - name: service-account
         mountPath: /var/run/secret/cloud.google.com
       - name: kube-config
-        mountPath: /home/egov/.kube     
+        mountPath: /root/.kube     
     resources:
       requests:
         memory: "256Mi"
@@ -39,14 +38,16 @@ spec:
 """
     ) {
         node(POD_LABEL) {
-            git url: pipelineParams.repo, credentialsId: 'git_read'
+            git url: ${pipelineParams.repo}, branch: ${pipelineParams.branch}, credentialsId: 'git_read'
                 stage('Deploy Images') {
                         container(name: 'egov-deployer', shell: '/bin/sh') {
-                            sh (script:
-                                    './egov-deployer deploy -e ${pipelineParams.environment} ${env.IMAGES}')
-                        }
+                            sh """
+                                /opt/egov/egov-deployer deploy --helm-dir `pwd`/${pipelineParams.helmDir} -c=${env.CLUSTER_CONFIGS}  -e ${pipelineParams.environment} ${env.IMAGES}
+                            """
+                            }
                 }
         }
     }
+
 
 }

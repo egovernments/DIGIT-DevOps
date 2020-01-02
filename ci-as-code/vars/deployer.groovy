@@ -1,6 +1,6 @@
 library 'ci-libs'
 
-def call(Map pipelinepipelineParams) {
+def call(Map pipelineParams) {
     podTemplate(yaml: """
 kind: Pod
 metadata:

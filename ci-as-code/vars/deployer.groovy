@@ -39,7 +39,7 @@ spec:
 """
     ) {
         node(POD_LABEL) {
-            git url: gitUrls[i], credentialsId: 'git_read'
+            git url: pipelineParams.repo, credentialsId: 'git_read'
                 stage('Deploy Images') {
                         container(name: 'egov-deployer', shell: '/bin/sh') {
                             sh (script:

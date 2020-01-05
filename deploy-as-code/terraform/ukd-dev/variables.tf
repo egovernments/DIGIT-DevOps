@@ -1,8 +1,8 @@
 variable "environment" {
-    default = "ukd-dev"
+    default = "ukd-micro-dev"
 }
 variable "resource_group" {
-    default = "ukd-dev"
+    default = "ukd-micro-dev"
 }
 
 variable "location" {

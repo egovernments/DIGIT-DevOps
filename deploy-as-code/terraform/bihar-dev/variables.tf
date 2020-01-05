@@ -1,8 +1,8 @@
 variable "environment" {
-    default = "bihar-dev"
+    default = "bihar-micro-dev"
 }
 variable "resource_group" {
-    default = "bihar-dev"
+    default = "bihar-micro-dev"
 }
 
 variable "location" {

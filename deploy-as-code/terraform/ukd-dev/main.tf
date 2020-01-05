@@ -18,7 +18,7 @@ resource "azurerm_resource_group" "resource_group" {
 module "kubernetes" {
   source = "../modules/kubernetes/azure"
   environment = "${var.environment}"
-  name = "ukd-dev"
+  name = "ukd-micro-dev"
   location = "${azurerm_resource_group.resource_group.location}"
   resource_group = "${azurerm_resource_group.resource_group.name}"
   client_id = "${var.client_id}"

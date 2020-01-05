@@ -18,7 +18,7 @@ resource "azurerm_resource_group" "resource_group" {
 module "kubernetes" {
   source = "../modules/kubernetes/azure"
   environment = "${var.environment}"
-  name = "bihar-dev"
+  name = "bihar-micro-dev"
   location = "${azurerm_resource_group.resource_group.location}"
   resource_group = "${azurerm_resource_group.resource_group.name}"
   client_id = "${var.client_id}"
@@ -74,7 +74,7 @@ module "es-data-v1" {
 
 module "postgres-db" {
   source = "../modules/db/azure"
-  server_name = "bihar-dev-db"
+  server_name = "bihar-micro-dev-db"
   resource_group = "${module.kubernetes.node_resource_group}"  
   sku_cores = "2"
   location = "${azurerm_resource_group.resource_group.location}"

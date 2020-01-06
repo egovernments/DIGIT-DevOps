@@ -108,19 +108,23 @@ spec:
         {{- with .Values.extraVolumeMounts }}
           {{- tpl . $ | nindent 12 }}
         {{- end }}          
-        {{- end }}                              
+        {{- end }}     
+      {{- if or .Values.env (eq .Values.appType "java-spring") (index .Values "tracing-enabled") }}                         
           env:  
         {{- if .Values.env }}                                   
           {{- tpl  .Values.env . | nindent 12 }}
-        {{- end }}             
+        {{- end -}}         
         {{- if eq .Values.appType "java-spring" }} 
           {{- tpl  .Values.extraEnv.java . | nindent 12 }}         
         {{- end -}} 
         {{- if index .Values "tracing-enabled" }} 
           {{- tpl  .Values.extraEnv.jaeger . | nindent 12 }}         
-        {{- end }}                     
+        {{- end }}
+      {{- end }}
+      {{- if .Values.resources }}                                     
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- tpl .Values.resources . | nindent 12 }}
+      {{- end }}            
     {{- with .Values.nodeSelector }}
       nodeSelector:
 {{ toYaml . | indent 8 }}

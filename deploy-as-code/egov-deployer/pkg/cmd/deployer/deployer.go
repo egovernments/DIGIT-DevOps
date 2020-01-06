@@ -115,7 +115,7 @@ func deployClusterConfigs(helmDir string, envOverrideFile string, envSecretFile 
 	execCommand(helmTemplate, clusterConfigDir)
 
 	kubeApplyCmd := "kubectl apply -f ."
-	out := execCommand(kubeApplyCmd, tmpDir+string(os.PathSeparator)+"cluster-configs"+string(os.PathSeparator)+"templates")
+	out := execCommandRaw(kubeApplyCmd, tmpDir+string(os.PathSeparator)+"cluster-configs"+string(os.PathSeparator)+"templates", false)
 	log.Println(out.String())
 }
 

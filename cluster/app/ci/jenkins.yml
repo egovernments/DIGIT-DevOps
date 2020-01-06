@@ -289,7 +289,12 @@ data:
                   description: "SSH private key file for git checkouts"
                   privateKeySource:
                     directEntry:
-                      privateKey: ${GIT_READ_SSH_PRIVATE_KEY}    
+                      privateKey: ${GIT_READ_SSH_PRIVATE_KEY}
+              - slackCredentials:
+                  scope: GLOBAL
+                  id: slack-token
+                  secret: '${SLACK_TOKEN}'
+                  description: Slack token           
           
   welcome-message.yaml: |-
     jenkins:
@@ -310,7 +315,11 @@ data:
     ssh-credentials:1.18
     trilead-api:1.0.5
     authorize-project:1.3.0
-
+    snyk-security-scanner:2.10.3
+    performance:3.17
+    jenkins-jira-issue-updater:1.18
+    blueocean:1.21.0
+    slack:2.35
 
 ---
 # Source: jenkins/templates/home-pvc.yaml
@@ -540,7 +549,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: jenkins-credentials
-                  key: gitReadSshPrivateKey                                  
+                  key: gitReadSshPrivateKey
+            - name: SLACK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-credentials
+                  key: slackToken                                        
             - name: CASC_JENKINS_CONFIG
               value: "/var/jenkins_home/casc_configs"                  
           ports:
@@ -658,4 +672,5 @@ data:
   gitReadSshPrivateKey: "{{conf['jenkins']['git-read-ssh-private-key'] | decrypt}}"
   gitReadAccessToken: "{{conf['jenkins']['git-read-access-token'] | decrypt}}"  
   dockerUserName: "{{conf['jenkins']['docker-username'] | decrypt}}"  
-  dockerPassword: "{{conf['jenkins']['docker-password'] | decrypt}}"  
+  dockerPassword: "{{conf['jenkins']['docker-password'] | decrypt}}" 
+  slackToken: "{{conf['jenkins']['slack-token'] | decrypt}}"   

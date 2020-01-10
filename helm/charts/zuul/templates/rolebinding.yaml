@@ -1,0 +1,21 @@
+{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app: {{ .Chart.Name }}
+    group: gateway
+  name: {{ .Chart.Name }}
+  namespace: {{ .Values.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Chart.Name }}
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.serviceAccount }}
+  namespace: {{ .Values.namespace }}   
+{{- end -}}  

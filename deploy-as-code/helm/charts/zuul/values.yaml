@@ -3,13 +3,16 @@ labels:
   app: "zuul"
   group: "gateway"
 
+serviceAccount: zuul
+namespace: egov  
+
 # Init Containers Configs
 initContainers: {}
 
 # Container Configs
 image:
   repository: "egovio/zuul"
-replicas: "2"
+replicas: "1"
 healthChecks:
   enabled: true
   livenessProbePath: "/health"
@@ -23,177 +26,15 @@ tracing-enabled: true
 server-tomcat-max-threads: "350"
 server-tomcat-max-connections: "1500"
 java-args: ""
+egov-open-endpoints-whitelist: "/user/oauth/token,/user-otp/v1/_send,/otp/v1/_validate,/user/citizen/_create,/localization/messages,/localization/messages/v1/_search,/user/password/nologin/_update,/tenant/v1/tenant/_search,/egov-location/boundarys,/egov-location/boundarys/boundariesByBndryTypeNameAndHierarchyTypeName,/egov-location/boundarys/getLocationByLocationName,/egov-mdms-service/v1/_search,/egov-location/location/v11/geography/_search,/filestore/v1/files/url,/pt-calculator-v2/billing-slab/_search"  
+egov-mixed-mode-endpoints-whitelist: "/filestore/v1/files/id,/filestore/v1/files,/filestore/v1/files/tag,/user/_search,/access/v1/actions/mdms/_get,/tl-services/v1/BPAREG/_create,/tl-services/v1/BPAREG/_update,/tl-calculator/v1/BPAREG/_getbill"
+eventlog-enabled: "false"
+eventlog-topic: "zuul-event-log"
+eventlog-urls-whitelist: ""
+ignoredservices: "s3-proxy,zuul,nginx-ingress-controller"
 
 # Additional Container Envs
 env: |
-  - name: ZUUL_ROUTES_PGR_URL
-    value: http://pgr-rest:8080/
-  - name: ZUUL_ROUTES_USER_URL
-    value: http://egov-user:8080/
-  - name: ZUUL_ROUTES_LOCATION_V1_URL
-    value: http://egov-location:8080/
-  - name: ZUUL_ROUTES_LOCATION_A1_URL
-    value: http://egov-location:8080/
-  - name: ZUUL_ROUTES_FILESTORE_URL
-    value: http://egov-filestore:8080/
-  - name: ZUUL_ROUTES_LOCALIZATION_URL
-    value: http://egov-localization:8080/
-  - name: ZUUL_ROUTES_API_LOCALIZATION_URL
-    value: http://egov-localization:8080/
-  - name: ZUUL_ROUTES_OTP_URL
-    value: http://egov-otp:8080/
-  - name: ZUUL_ROUTES_USER_OTP_URL
-    value: http://user-otp:8080/
-  - name: ZUUL_ROUTES_WORKFLOW_URL
-    value: http://egov-workflow:8080/
-  - name: ZUUL_ROUTES_HR_MASTERS_URL
-    value: http://hr-masters:8080/
-  - name: ZUUL_ROUTES_EGOV_COMMON_MASTERS_URL
-    value: http://egov-common-masters:8080/
-  - name: ZUUL_ROUTES_HR_EMPLOYEE_URL
-    value: http://hr-employee:8080/
-  - name: ZUUL_ROUTES_HR_ATTENDANCE_URL
-    value: http://hr-attendance:8080/
-  - name: ZUUL_ROUTES_HR_LEAVE_URL
-    value: http://hr-leave:8080/
-  - name: ZUUL_ROUTES_HR_EMPLOYEE_MOVEMENT_URL
-    value: http://hr-employee-movement:8080/
-  - name: ZUUL_ROUTES_EIS_URL
-    value: http://egov-eis:8080/
-  - name: ZUUL_ROUTES_EGF_MASTERS_URL
-    value: http://egf-masters:8080/
-  - name: ZUUL_ROUTES_ASSET_SERVICES_URL
-    value: http://asset-services:8080/
-  - name: ZUUL_ROUTES_LAMS_SERVICES_URL
-    value: http://lams-services:8080/
-  - name: ZUUL_ROUTES_DEMAND_SERVICES_URL
-    value: http://demand-services:8080/
-  - name: ZUUL_ROUTES_EGOV_COMMON_WORKFLOWS_URL
-    value: http://egov-common-workflows:8080/
-  - name: ZUUL_ROUTES_EGOV_ACCESSCONTROL_URL
-    value: http://egov-accesscontrol:8080/
-  - name: ZUUL_ROUTES_TENANT_URL
-    value: http://tenant:8080/
-  - name: ZUUL_ROUTES_WCMS_MASTERS_URL
-    value: http://wcms-masters:8080/
-  - name: ZUUL_ROUTES_PDF_SERVICE_URL
-    value: http://pdf-service:8080/
-  - name: ZUUL_ROUTES_WCMS_CONNECTION_URL
-    value: http://wcms-connection:8080/
-  - name: ZUUL_ROUTES_PT_PROPERTY_URL
-    value: http://pt-property:8080/
-  - name: ZUUL_ROUTES_PROPERTY_SERVICES_URL
-    value: http://property-services:8080/          
-  - name: ZUUL_ROUTES_PT_WORKFLOW_URL
-    value: http://pt-workflow:8080/
-  - name: ZUUL_ROUTES_PGR_MASTER_URL
-    value: http://pgr-master:8080/
-  - name: ZUUL_ROUTES_EGOV_IDGEN_URL
-    value: http://egov-idgen:8080/
-  - name: ZUUL_ROUTES_COLLECTION_MASTERS_URL
-    value: http://collection-masters:8080/
-  - name: ZUUL_ROUTES_COLLECTION_SERVICES_URL
-    value: http://collection-services:8080/
-  - name: ZUUL_ROUTES_COLLECTION_SEARCH_INDEXER_URL
-    value: http://collection-search-indexer:8080/
-  - name: ZUUL_ROUTES_BILLING_SERVICE_URL
-    value: http://billing-service:8080
-  - name: EGOV_AUTH_SERVICE_HOST
-    value: http://egov-user:8080/
-  - name: ZUUL_ROUTES_PT_TAX_ENRICHMENT_URL
-    value: http://pt-tax-enrichment:8080/
-  - name: ZUUL_ROUTES_PT_CALCULATOR_URL
-    value: http://pt-calculator:8080/
-  - name: ZUUL_ROUTES_EGF_MASTER_URL
-    value: http://egf-master:8080/
-  - name: ZUUL_ROUTES_EGF_INSTRUMENT_URL
-    value: http://egf-instrument:8080/
-  - name: ZUUL_ROUTES_TL_MASTERS_URL
-    value: http://tl-masters:8080/
-  - name: ZUUL_ROUTES_TL_SERVICES_URL
-    value: http://tl-services:8080/
-  - name: ZUUL_ROUTES_REPORT_URL
-    value: http://report:8080/
-  - name: ZUUL_ROUTES_CITIZEN_SERVICES_URL
-    value: http://citizen-services:8080/
-  - name: ZUUL_ROUTES_TL_WORKFLOW_URL
-    value: http://tl-workflow:8080/
-  - name: ZUUL_ROUTES_EGF_VOUCHER_URL
-    value: http://egf-voucher:8080/
-  - name: ZUUL_ROUTES_WCMS_WORKFLOW_URL
-    value: http://wcms-workflow:8080/
-  - name: ZUUL_ROUTES_EGF_VOUCHER_WORKFLOW_URL
-    value: http://egf-voucher-workflow:8080/
-  - name: ZUUL_ROUTES_EGOV_MDMS_SERVICE_URL
-    value: http://egov-mdms-service:8080/
-  - name: ZUUL_ROUTES_SWM_SERVICES_URL
-    value: http://swm-services:8080/
-  - name: ZUUL_ROUTES_ASSET_SERVICES_MAHA_URL
-    value: http://asset-services-maha:8080/
-  - name: ZUUL_ROUTES_WORKS_SERVICES_URL
-    value: http://works-services:8080/
-  - name: ZUUL_ROUTES_WORKS_ESTIMATE_URL
-    value: http://works-estimate:8080/
-  - name: ZUUL_ROUTES_LCMS_WORKFLOW_URL
-    value: http://lcms-workflow:8080/
-  - name: ZUUL_ROUTES_LCMS_SERVICES_URL
-    value: http://lcms-services:8080/
-  - name: ZUUL_ROUTES_PERFORMANCE_ASSESSMENT_URL
-    value: http://performance-assessment:8080/
-  - name: ZUUL_ROUTES_WORKS_MASTERS_URL
-    value: http://works-masters:8080/
-  - name: ZUUL_ROUTES_INVENTORY_SERVICES_URL
-    value: http://inventory-services:8080/
-  - name: ZUUL_ROUTES_EGOV_SEARCHER_URL
-    value: http://egov-searcher:8080/
-  - name: ZUUL_ROUTES_EGOV_DATA_UPLOADER_URL
-    value: http://egov-data-uploader:8080/
-  - name: ZUUL_ROUTES_WORKS_WORKORDER_URL
-    value: http://works-workorder:8080/
-  - name: ZUUL_ROUTES_WORKS_MEASUREMENTBOOK_URL
-    value: http://works-measurementbook:8080/
-  - name: ZUUL_ROUTES_EGOV_MDMS_SERVICE_TEST_URL
-    value: http://egov-mdms-service-test:8080/
-  - name: ZUUL_ROUTES_EGOV_MDMS_CREATE_URL
-    value: http://egov-mdms-create:8080/
-  - name: ZUUL_ROUTES_EGF_BILL_URL
-    value: http://egf-bill:8080/
-  - name: ZUUL_ROUTES_WORKS_QUALITYCONTROL_URL
-    value: http://works-qualitycontrol:8080/
-  - name: ZUUL_ROUTES_EGOV_INTEGRATION_URL
-    value: http://egov-integration:8080/
-  - name: ZUUL_ROUTES_RAINMAKER_PGR_URL
-    value: http://rainmaker-pgr:8080/
-  - name: ZUUL_ROUTES_HR_MASTERS_V2_URL
-    value: http://hr-masters-v2:8080/
-  - name: ZUUL_ROUTES_HR_EMPLOYEE_V2_URL
-    value: http://hr-employee-v2:8080/
-  - name: ZUUL_ROUTES_PT_SERVICES_V2_URL
-    value: http://pt-services-v2:8080/
-  - name: ZUUL_ROUTES_PT_CALCULATOR_V2_URL
-    value: http://pt-calculator-v2:8080/
-  - name: ZUUL_ROUTES_EGOV_PG_SERVICE_URL
-    value: http://egov-pg-service:8080/
-  - name: ZUUL_ROUTES_EGOV_CUSTOMIZATION_URL
-    value: http://rainmaker-custom-service:8000/
-  - name: ZUUL_ROUTES_WS_SERVICES_URL
-    value: http://ws-services:8080/
-  - name: ZUUL_ROUTES_BPA_SERVICES_URL 
-    value: http://bpa-services:8080/  
-  - name: ZUUL_ROUTES_BPA_CALCULATOR_URL 
-    value: http://bpa-calculator:8080/  
-  - name: ZUUL_ROUTES_WS_CALCULATOR_URL
-    value: http://ws-calculator:8080/          
-  - name: ZUUL_ROUTES_SW_SERVICES_URL
-    value: http://sw-services:8080/   
-  - name: ZUUL_ROUTES_SW_CALCULATOR_URL
-    value: http://sw-calculator:8080/
-  - name: ZUUL_ROUTES_EGOV_INDEXER_URL
-    value: http://egov-indexer:8080/
-  - name: ZUUL_ROUTES_EGOV_URL_SHORTENING_URL
-    value: http://egov-url-shortening:8080/
-  - name: ZUUL_ROUTES_DASHBOARD_URL
-    value: http://dashboard-analytics:8080/
   - name: URL_LISTS
     value: "/pt-services-v2/property/_create:http://rainmaker-custom-service:8000/customization/protected/punjab-pt/property/_create|/pt-services-v2/property/_update:http://rainmaker-custom-service:8000/customization/protected/punjab-pt/property/_update|/pt-calculator-v2/propertytax/_estimate:http://rainmaker-custom-service:8000/customization/protected/punjab-pt/pt-calculator-v2/_estimate"
   - name: CUSTOM_FILTER_PROPERTY
@@ -207,29 +48,7 @@ env: |
   - name: URL_PREHOOK_LISTS        
     value: {{ index .Values "prehook-config" | quote }}
   - name: ZUUL_ROUTES_TL_CALCULATOR_URL
-    value: http://tl-calculator:8080/
-  - name: ZUUL_ROUTES_COLLECTION_RECEIPT_VOUCHER_CONSUMER_URL
-    value: http://collection-receipt-voucher-consumer:8080/
-  - name: ZUUL_ROUTES_EGOV_INDEX_CUSTOM_CONSUMER_URL
-    value: http://collection-receipt-voucher-consumer:8080/
-  - name: ZUUL_FINANCE_COLLECTIONS_VOUCHER_CONSUMER_URL
-    value: http://finance-collections-voucher-consumer:8080/
-  - name: ZUUL_ROUTES_EGOV_WORKFLOW_V2_URL
-    value: http://egov-workflow-v2:8080/
-  - name: ZUUL_ROUTES_EGOV_HRMS_URL
-    value: http://egov-hrms:8080/
-  - name: ZUUL_ROUTES_APPORTION_SERVICE_URL
-    value: http://egov-apportion-service:8080/
-  - name: ZUUL_ROUTES_BILLING_SERVICE_V1_URL
-    value: http://billing-service-v1:8080/
-  - name: ZUUL_ROUTES_COLLECTION_SERVICES_V1_URL
-    value: http://collection-services-v1:8080/
-  - name: ZUUL_ROUTES_FIRENOC_SERVICES_URL
-    value: http://firenoc-services:8080/
-  - name: ZUUL_ROUTES_FIRENOC_CALCULATOR_URL
-    value: http://firenoc-calculator:8080/    
-  - name: ZUUL_ROUTES_EGOV_USER_EVENT_URL
-    value: http://egov-user-event:8080/                                     
+    value: http://tl-calculator:8080/                                  
   - name: SERVER_PORT
     value: "8080"
   - name: JAVA_OPTS
@@ -242,13 +61,16 @@ env: |
     value: org.springframework.kafka.support.serializer.JsonSerializer
   - name: EGOV_CUSTOM_ASYNC_FILTER_TOPIC
     value: res-custom-filter
-  {{- if index .Values "zuul-config" }}
   - name: EGOV_OPEN_ENDPOINTS_WHITELIST
+    value: {{ index .Values "egov-open-endpoints-whitelist" | quote }}  
   - name: EGOV_MIXED_MODE_ENDPOINTS_WHITELIST
+    value: {{ index .Values "egov-mixed-mode-endpoints-whitelist" | quote }}    
   - name: EVENTLOG_ENABLED
+    value: {{ index .Values "eventlog-enabled" | quote }}   
   - name: EVENTLOG_TOPIC
+    value: {{ index .Values "eventlog-topic" | quote }}   
   - name: EVENTLOG_URLS_WHITELIST
-  {{- end }}
+    value: {{ index .Values "eventlog-whitelist" | quote }}   
   - name: EGOV_AUTHORIZE_ACCESS_CONTROL_HOST
     valueFrom:
       configMapKeyRef:
@@ -268,4 +90,5 @@ env: |
     value: "false"
   - name: JAVA_ARGS
     value: {{ index .Values "java-args" | quote }}
-
+  - name: ZUUL_IGNOREDSERVICES
+    value: {{ index .Values "ignoredservices" | quote }}    

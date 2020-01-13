@@ -20,7 +20,6 @@ initContainers:
 image:
   repository: "egovio/dashboard-analytics"
 replicas: "1"
-appType: "java-spring"
 tracing-enabled: true
 config-schema-paths: "file:///work-dir/configs/egov-dss-dashboards/dashboard-analytics/*.json"
 
@@ -31,6 +30,16 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: db-url
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password        
   - name: SERVER_CONTEXT
     value: "dashboard-analytics" 
   - name: SERVER_PORT
@@ -41,7 +50,12 @@ env: |
         name: egov-config
         key: es-indexer-host
   - name: SERVICES_ESINDEXER_HOST_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: es-indexer-host  
   - name: SERVICES_ESINDEXER_HOST_PORT
+    value: "9200"  
   - name: ES_INDEX_NAME
     value: "transaction"
   - name: ES_DOCUMENT_TYPE
@@ -52,4 +66,3 @@ env: |
     value: "/_search"
   - name: CONFIG_SCHEMA_PATHS
     value: {{ index .Values "config-schema-paths" | quote }}
-

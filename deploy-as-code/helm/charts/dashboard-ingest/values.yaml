@@ -21,7 +21,6 @@ image:
   repository: "egovio/dashboard-ingest"
 replicas: "1"
 config-schema-paths: "file:///work-dir/configs/egov-dss-dashboards/dashboard-ingest/*.json"
-appType: "java-spring"
 tracing-enabled: true
 
 # Additional Container Envs
@@ -32,7 +31,12 @@ env: |
         name: egov-config
         key: es-indexer-host
   - name: SERVICES_ESINDEXER_HOST_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: es-indexer-host  
   - name: SERVICES_ESINDEXER_HOST_PORT
+    value: "9200"
   - name: ES_TARGET_INDEX_NAME
     value: "dss-target_v1"
   - name: ES_INDEX_NAME
@@ -63,8 +67,17 @@ env: |
     value: {{ index .Values "config-schema-paths" | quote }}
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
     value: pipeline-group
+  - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers    
   - name: KAFKA_TOPICS_INCOMING_DATA
     value: "egov.collection.receipt-create"  
   - name: SERVER_PORT
     value: "8080"
-

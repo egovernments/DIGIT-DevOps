@@ -1,11 +1,14 @@
-{{- if index .Values "db" "db-ips" }}
+{{- with index .Values "cluster-configs" "db" }}
+{{- if index . "db-ips" }}
 kind: Endpoints
 apiVersion: v1
 metadata:
- name: "{{ .Values.db.name }}-endpoints"
+ name: {{ .name }}
+ namespace: {{ .namespace }}
 subsets:
  - addresses:
-    {{- toYaml index .Values "db" "db-ips" | nindent 4 }}
+    {{- toYaml (index . "db-ips") | nindent 4 }}
    ports:
-     - port: {{ .Values.db.targetPort }}
+     - port: {{ .targetPort }}
+{{- end }}
 {{- end }}

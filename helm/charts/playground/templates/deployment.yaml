@@ -2,12 +2,21 @@
 {{- $baseValues := .Values | deepCopy -}}
 {{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
 {{- with mustMergeOverwrite . $values -}}
+{{- if .Capabilities.APIVersions.Has "apps/v1" }}
+apiVersion: apps/v1
+{{- else }}
 apiVersion: extensions/v1beta1
+{{- end }}
 kind: Deployment
 metadata:
   name: {{ .Chart.Name }}
   namespace: {{ .Values.namespace }}
 spec:
+{{- if .Capabilities.APIVersions.Has "apps/v1" }}
+  selector:
+    matchLabels:
+      {{- include "common.labels" . | nindent 6 }}  
+{{- end }}
   replicas: {{ .Values.replicas }}
   template:
     metadata:
@@ -16,5 +25,5 @@ spec:
     spec:
       containers:
       - name: {{ .Chart.Name }}
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        image: "{{ .Values.global.containerRegistry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
 {{- end -}}     

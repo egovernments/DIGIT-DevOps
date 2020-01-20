@@ -1,13 +1,17 @@
 global:
     domain: mseva.bihar.gov.in
+    containerRegistry: asia.gcr.io/digit-egov
 cluster-configs:
+    db: 
+      db-ips:
+        - ip: 192.168.80.3
     configmaps:
         egov-config:
             data:
                 sms-enabled: "true"
                 timezone: Asia/Kolkata
-                db-url: jdbc:postgresql://192.168.80.3:5432/biharprod
-                db-host: 192.168.80.3
+                db-url: jdbc:postgresql://db-service.egov:5432/biharprod
+                db-host: "db-service.egov"
                 db-name: biharprod
                 kafka-brokers: kafka-v2.kafka-cluster:9092
                 spring-datasource-tomcat-initialSize: "1"
@@ -70,8 +74,6 @@ cluster-configs:
 
 
 egov-filestore:
-    image:
-      repository: "asia.gcr.io/digit-egov/egov-filestore"
     volume: /opt/eGov/filestore
     is-bucket-fixed: "true"
     is-s3-enabled: "true"
@@ -82,8 +84,6 @@ egov-filestore:
         aws-secret-key: SZwM3/vVbjm64QT3caUKzPxPfvkNee7kv5zZIlZZAzBv8FVqt4YeMEqMnFBTiz9XTVYIItctNrSQ5n2LiMk+qA==
 
 egov-localization:
-    image:
-      repository: "asia.gcr.io/digit-egov/egov-localization"
     memory_limits: 384Mi
 
 egov-location:
@@ -92,16 +92,12 @@ egov-location:
         api-key: SUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dSUXPxnqcJGuM4ou3u3cPnUlFz8Z6nCRrjOKLt7t3D51JRc/Gepwka4zii7e7dw+dyi/Sya9ZDtLZDNzSGtaGykvnF+wcghHpkW9T+oRVqtkTHKLLoCUXJf04VvvIQXtMANiA1syH+LaovWzb+X1eIQ==
 
 egov-notification-sms:
-    image:
-      repository: "asia.gcr.io/digit-egov/egov-notification-sms"
     sms-provider-url: https://msdgweb.mgov.gov.in/esms/sendsmsrequest
     sms-sender: BHRGOV
     sms-sender-requesttype: POST
     sms-custom-config: "true"
 
 egov-user:
-    image:
-      repository: "asia.gcr.io/digit-egov/egov-user"
     replicas: 2
     heap: -Xmx256m -Xms256m
     memory_limits: 512Mi
@@ -120,8 +116,6 @@ egov-user:
     decryption-abac-enabled: "false"
 
 egov-mdms-service:
-    image:
-      repository: "asia.gcr.io/digit-egov/egov-mdms-service"
     mdms-path: /work-dir/bihar-mdms-data/data
     masters-config-url: file:///work-dir/bihar-mdms-data/data/mdms-masters-config.json
     java-args: -Dspring.profiles.active=monitoring
@@ -131,14 +125,10 @@ egov-mdms-service:
             branch: master
 
 egov-indexer:
-    image:
-      repository: "asia.gcr.io/digit-egov/egov-indexer"
     heap: -Xmx512m -Xms512m
     memory_limits: 768Mi
 
 egov-persister:
-    image:
-      repository: "asia.gcr.io/digit-egov/egov-persister"
     persist-yml-path: "file:///work-dir/bihar-rainmaker-customization/configs/egov-persister/pg-service-persister.yml,file:///work-dir/bihar-rainmaker-customization/configs/egov-persister/pgr-v3-persister.yml,file:///work-dir/bihar-rainmaker-customization/configs/egov-persister/property-services-persister.yml,file:///work-dir/bihar-rainmaker-customization/configs/egov-persister/pt-calculator-v2-persister.yml,file:///work-dir/bihar-rainmaker-customization/configs/egov-persister/pt-drafts-persister.yml,file:///work-dir/bihar-rainmaker-customization/configs/egov-persister/tradelicense-persister.yml,file:///work-dir/bihar-rainmaker-customization/configs/egov-persister/indexer-job-persister.yml,file:///work-dir/bihar-rainmaker-customization/configs/egov-persister/tl-calculation-persister.yml,file:///work-dir/bihar-rainmaker-customization/configs/egov-persister/tl-billing-slab-persister.yml,file:///work-dir/bihar-rainmaker-customization/configs/egov-persister/uploader-persister.yml,file:///work-dir/bihar-rainmaker-customization/configs/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/bihar-rainmaker-customization/configs/egov-persister/hrms-employee-persister.yml,file:///work-dir/bihar-rainmaker-customization/configs/egov-persister/collection-migration-persister.yml"
     initContainers:
         gitSync:
@@ -146,8 +136,6 @@ egov-persister:
             branch: "master"
 
 pdf-service:
-    image:
-      repository: "asia.gcr.io/digit-egov/pdf-service"
     data-config-urls: "file:///work-dir/bihar-rainmaker-customization/configs/pdf-service/data-config/consolidatedreceipt.json,file:///work-dir/bihar-rainmaker-customization/configs/pdf-service/data-config/pt-receipt.json,file:///work-dir/bihar-rainmaker-customization/configs/pdf-service/data-config/tl-receipt-hide.json,file:///work-dir/bihar-rainmaker-customization/configs/pdf-service/data-config/tl-receipt.json,file:///work-dir/bihar-rainmaker-customization/configs/pdf-service/data-config/misc-receipt.json"
     format-config-urls: "file:///work-dir/bihar-rainmaker-customization/configs/pdf-service/format-config/consolidatedreceipt.json,file:///work-dir/bihar-rainmaker-customization/configs/pdf-service/format-config/pt-receipt.json,file:///work-dir/bihar-rainmaker-customization/configs/pdf-service/format-config/tl-receipt-hide.json,file:///work-dir/bihar-rainmaker-customization/configs/pdf-service/format-config/tl-receipt.json,file:///work-dir/bihar-rainmaker-customization/configs/pdf-service/format-config/misc-receipt.json"
     initContainers:
@@ -156,8 +144,6 @@ pdf-service:
             branch: "master"
 
 egov-searcher:
-    image:
-      repository: "asia.gcr.io/digit-egov/egov-searcher"
     replicas: 1
     images:
         - asia.gcr.io/digit-egov/egov-searcher
@@ -168,8 +154,6 @@ egov-searcher:
             branch: master   
 
 egov-pg-service:
-    image:
-      repository: "asia.gcr.io/digit-egov/egov-pg-service"
     # ccavenue-merchant-id: Jh+HYzyV6lzLt1nG3fuwUg==
     # ccavenue-redirect-working-key: u/T01144lMvzenSBH5lDsZlmggdF0VsxKKEn0hh2EK8E9oIqRInECQZXiknc9Ck8
     # ccavenue-status-working-key: u/T01144lMvzenSBH5lDsZlmggdF0VsxKKEn0hh2EK8E9oIqRInECQZXiknc9Ck8
@@ -182,15 +166,11 @@ egov-pg-service:
 
 
 egov-apportion-service:
-    image:
-      repository: "asia.gcr.io/digit-egov/egov-apportion-service"
     memory_limits: 512Mi
     heap: -Xmx256m -Xms256m
 
 
 egf-master:
-    image:
-      repository: "asia.gcr.io/digit-egov/egf-master"
     memory_limits: 512Mi
     heap: -Xmx256m -Xms256m
 
@@ -216,8 +196,6 @@ git-sync:
     image: k8s.gcr.io/git-sync:v3.1.1
 
 zuul:
-    image:
-      repository: "asia.gcr.io/digit-egov/zuul"
     replicas: 2
     custom-filter-property: "false"
     tracing-enabled: "true"
@@ -230,21 +208,15 @@ zuul:
 
     
 collection-services:
-    image:
-      repository: "asia.gcr.io/digit-egov/collection-services"
     receiptnumber-servicebased: "false"
     
 employee:
-    image:
-      repository: "asia.gcr.io/digit-egov/employee"
     custom-js-injection:
         "sub_filter.conf: \"\n  sub_filter  '<head>' '<head>\n  <script
         src=https://s3.ap-south-1.amazonaws.com/bihar-uat-assets/globalConfigs.js
         type=text/javascript></script>\n  ';\"    \n"
 
 citizen:
-    image:
-      repository: "asia.gcr.io/digit-egov/citizen"
     custom-js-injection: |
         sub_filter.conf: "
           sub_filter  '<head>' '<head>
@@ -253,8 +225,6 @@ citizen:
           
         
 report:
-    image:
-      repository: "asia.gcr.io/digit-egov/report"
     tracing-enabled: "true"
     report-locationsfile-path: file:///work-dir/bihar-rainmaker-customization/configs/reports/report.config
     spring-datasource-tomcat-max-active: 5
@@ -264,8 +234,6 @@ report:
             branch: master   
     
 rainmaker-pgr:
-    image:
-      repository: "asia.gcr.io/digit-egov/rainmaker-pgr"
     notification-sms-enabled: "true"
     notification-email-enabled: "false"
     new-complaint-enabled: "true"
@@ -275,13 +243,9 @@ rainmaker-pgr:
     notification-allowed-status: open,assigned,rejected,resolved
 
 pt-calculator-v2:
-    image:
-      repository: "asia.gcr.io/digit-egov/pt-calculator-v2"
     logging-level: DEBUG
 
 tl-services:
-    image:
-      repository: "asia.gcr.io/digit-egov/tl-services"
     heap: -Xmx128m -Xms64m
     memory_limits: 384Mi
     java-args: -Dspring.profiles.active=monitoring
@@ -291,15 +255,11 @@ tl-services:
 
 
 egov-workflow-v2:
-    image:
-      repository: "asia.gcr.io/digit-egov/egov-workflow-v2"
     logging-level: DEBUG
     java-args: -Dspring.profiles.active=monitoring
     heap: -Xmx192m -Xms192m
 
 egov-hrms:
-    image:
-      repository: "asia.gcr.io/digit-egov/egov-hrms"
     java-args: -Dspring.profiles.active=monitoring
     heap: -Xmx192m -Xms192m
     employee-applink: https://mseva.bihar.gov.in/employee/user/login
@@ -396,7 +356,7 @@ pgadmin:
         - asia.gcr.io/digit-egov/pgadmin:v4.1.1
 
 pgadmin-config:
-    host: 192.168.80.3
+    host: "db-service.egov"
     db-admin-username: bihar_admin
     db-read-username: bihar_readonly
     port: "5432"

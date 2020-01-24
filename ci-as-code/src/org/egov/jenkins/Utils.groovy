@@ -16,7 +16,7 @@ class Utils {
 
         Comparator<String> comparator = new Comparator<String>() {
             @Override
-            int compare(String o1, String o2) {
+            public int compare(String o1, String o2) {
                 return Integer.compare(numberOfOccurrences(o1, "/"), numberOfOccurrences(o2, "/"));
             }
         };

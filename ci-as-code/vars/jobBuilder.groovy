@@ -65,6 +65,10 @@ spec:
              folder("builds")
              """);
 
+        jobDslScript.append("""
+             folder("core-services")
+             """);
+
         for (Map.Entry<Integer, String> entry : jobConfigMap.entrySet()) {   
 
             List<JobConfig> jobConfigs = entry.getValue();

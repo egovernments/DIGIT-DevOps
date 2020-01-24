@@ -66,7 +66,7 @@ spec:
              """);
 
         jobDslScript.append("""
-             folder("core-services")
+             folder("builds/core-services")
              """);
 
         for (Map.Entry<Integer, String> entry : jobConfigMap.entrySet()) {   

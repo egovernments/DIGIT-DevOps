@@ -45,8 +45,8 @@ class ConfigParser {
                  buildConfigIndex++) {
                 BuildConfig buildConfig = validateAndEnrichBuildConfig(job.get("build").get(buildConfigIndex), env)
                 buildConfigs.add(buildConfig);
-            }
-            String jobName=(new StringBuilder()).append(buildPrefix).append(job.name).toString();  
+            }  
+            String jobName=buildPrefix.concat(job.name);
             JobConfig jobConfig = new JobConfig(jobName, buildConfigs);
             config.add(jobConfig);
         }

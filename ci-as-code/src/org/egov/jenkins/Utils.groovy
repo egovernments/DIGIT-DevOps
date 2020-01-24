@@ -23,7 +23,7 @@ class Utils {
 
 
 
-        List<String> uniqueFolders = folders.toList();
+        List<String> uniqueFolders = new ArrayList<>(folders);
         uniqueFolders.sort(comparator);
         return uniqueFolders;
     }

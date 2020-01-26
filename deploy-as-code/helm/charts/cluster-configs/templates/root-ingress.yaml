@@ -4,6 +4,7 @@ kind: Ingress
 metadata:
   annotations:
     nginx.ingress.kubernetes.io/app-root: /{{ .appRoot }}
+    certmanager.k8s.io/cluster-issuer: {{ index . "cert-issuer" | quote}}     
   name: {{ .name }}
   namespace: {{ .namespace }}
 spec:
@@ -15,4 +16,8 @@ spec:
           serviceName: {{ .serviceName }}
           servicePort: {{ .servicePort }}
         path: /
+  tls:
+  - hosts:
+    - {{ $.Values.global.domain }}
+    secretName: {{ $.Values.global.domain }}-tls-certs         
 {{- end -}}

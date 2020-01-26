@@ -23,8 +23,11 @@ class Utils {
 
 
 
-        List<String> uniqueFolders = new ArrayList<>(folders);
+        List<String> uniqueFolders = folders.toList();
         uniqueFolders.sort(comparator);
+          sh """
+          echo \"Folders:  ${uniqueFolders}\"
+           """
         return uniqueFolders;
     }
 

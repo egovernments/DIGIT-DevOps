@@ -128,9 +128,9 @@ spec:
 
         stage('Building jobs') {
            //jobDsl scriptText: jobDslScript.toString()
-           //  sh """
-           //  echo \"Job DsL Script:  ${jobDslScript.toString()}\"
-           //   """
+             sh """
+             echo \"Job DsL Script:  ${jobDslScript.toString()}\"
+              """
         }
 
         stage('Creating Repositories in DockerHub') {

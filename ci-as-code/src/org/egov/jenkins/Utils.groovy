@@ -14,18 +14,18 @@ class Utils {
                 folders.add(config.getName().substring(0, index));
         }
 
-        Comparator<String> comparator = new Comparator<String>() {
-            @Override
-            public int compare(String o1, String o2) {
-                return Integer.compare(numberOfOccurrences(o1, "/"), numberOfOccurrences(o2, "/"));
-            }
-        };
-
-
-
         List<String> uniqueFolders = folders.toList();
-        uniqueFolders.sort(comparator);
-        println(uniqueFolders);
+        for (int j = 0; j < uniqueFolders.size()-1; j++) { 
+        	  
+            if (numberOfOccurrences(uniqueFolders.get(j),"/") > numberOfOccurrences(uniqueFolders.get(j + 1),"/")) { 
+  
+                String temp = uniqueFolders.get(j); 
+                uniqueFolders.set(j,uniqueFolders.get(j + 1)); 
+                uniqueFolders.set(j+1,temp);
+  
+                j = -1; 
+            } 
+        } 
         return uniqueFolders;
     }
 

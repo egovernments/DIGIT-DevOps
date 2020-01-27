@@ -25,9 +25,7 @@ class Utils {
 
         List<String> uniqueFolders = folders.toList();
         uniqueFolders.sort(comparator);
-          sh """
-          echo \"Folders:  ${uniqueFolders}\"
-           """
+        println(uniqueFolders);
         return uniqueFolders;
     }
 

@@ -33,7 +33,6 @@ class ConfigParser {
 
     static List<JobConfig> populateConfigs(def jobConfigs, def env) {
         List<JobConfig> config = new ArrayList<>();
-        String buildPrefix = "builds/";
         for (int jobConfigIndex = 0; jobConfigIndex < jobConfigs.size(); jobConfigIndex++) {
             Map<String, Object> job = jobConfigs.get(jobConfigIndex)
             List<BuildConfig> buildConfigs = new ArrayList<>();
@@ -46,8 +45,7 @@ class ConfigParser {
                 BuildConfig buildConfig = validateAndEnrichBuildConfig(job.get("build").get(buildConfigIndex), env)
                 buildConfigs.add(buildConfig);
             }  
-            String jobName=buildPrefix.concat(job.name);
-            JobConfig jobConfig = new JobConfig(jobName, buildConfigs);
+            JobConfig jobConfig = new JobConfig(job.name, buildConfigs);
             config.add(jobConfig);
         }
 

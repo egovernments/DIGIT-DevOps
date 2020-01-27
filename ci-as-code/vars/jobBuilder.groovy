@@ -46,6 +46,7 @@ spec:
         List<String> gitUrls = params.urls;
         String configFile = './build/build-config.yml';
         Map<String,List<JobConfig>> jobConfigMap=new HashMap<>();
+        StringBuilder jobDslScript = new StringBuilder();
 
         for (int i = 0; i < gitUrls.size(); i++) {
             String dirName = Utils.getDirName(gitUrls[i]);
@@ -54,28 +55,23 @@ spec:
                  def yaml = readYaml file: configFile;
                  List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config, env);
                  jobConfigMap.put(gitUrls[i],jobConfigs);
+                 
+                 List<String> folders = Utils.foldersToBeCreatedOrUpdated(jobConfigs, env);
+                  for (int i = 0; i < folders.size(); i++) {
+                      jobDslScript.append("""
+                          folder("${folders[i]}")
+                          """);
+                    }
             }
         }
 
-        StringBuilder jobDslScript = new StringBuilder();
+        
         Set<String> repoSet = new HashSet<>();
         String repoList = "";
-
-        jobDslScript.append("""
-             folder("builds")
-             """);
 
         for (Map.Entry<Integer, String> entry : jobConfigMap.entrySet()) {   
 
             List<JobConfig> jobConfigs = entry.getValue();
- 
-            List<String> folders = Utils.foldersToBeCreatedOrUpdated(jobConfigs, env);
-
-            for (int i = 0; i < folders.size(); i++) {
-                jobDslScript.append("""
-                    folder("${folders[i]}")
-                    """);
-              }
 
         for (int i = 0; i < jobConfigs.size(); i++) {
 

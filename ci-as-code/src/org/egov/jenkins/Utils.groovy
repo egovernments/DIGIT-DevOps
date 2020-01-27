@@ -9,9 +9,11 @@ class Utils {
         Set<String> folders = new HashSet<>();
 
         configs.each { config ->
-            int index = config.getName().lastIndexOf("/");
-            if(index != -1)
-                folders.add(config.getName().substring(0, index));
+            String configName = config.getName();	   
+            while(configName.lastIndexOf("/")!=-1) {
+            	configName= configName.substring(0, configName.lastIndexOf("/"));
+                folders.add(configName);   
+            }
         }
 
         List<String> uniqueFolders = folders.toList();

@@ -55,16 +55,15 @@ spec:
                  def yaml = readYaml file: configFile;
                  List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config, env);
                  jobConfigMap.put(gitUrls[i],jobConfigs);
-                 
+
                  List<String> folders = Utils.foldersToBeCreatedOrUpdated(jobConfigs, env);
-                  for (int i = 0; i < folders.size(); i++) {
+                  for (int j = 0; j < folders.size(); j++) {
                       jobDslScript.append("""
-                          folder("${folders[i]}")
+                          folder("${folders[j]}")
                           """);
                     }
             }
         }
-
         
         Set<String> repoSet = new HashSet<>();
         String repoList = "";

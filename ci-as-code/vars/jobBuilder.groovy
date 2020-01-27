@@ -86,7 +86,7 @@ spec:
             jobDslScript.append("""
             pipelineJob("${jobConfigs.get(i).getName()}") {
                 logRotator(-1, 5, -1, -1)
-                parameters {
+                parameters {  
                   gitParameterDefinition {
                         name('BRANCH')
                         type('BRANCH')
@@ -100,8 +100,10 @@ spec:
                         selectedValue('DEFAULT')
                         quickFilterEnabled(true)
                         listSize('5')                 
-                  }
                 }
+                  booleanParam('GCR_PUSH', false, 'check to push images to GCR')
+              }
+            }
                 definition {
                     cpsScm {
                         scm {

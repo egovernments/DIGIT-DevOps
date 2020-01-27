@@ -102,7 +102,6 @@ spec:
                         listSize('5')                 
                 }
                   booleanParam('GCR_PUSH', false, 'check to push images to GCR')
-              }
             }
                 definition {
                     cpsScm {

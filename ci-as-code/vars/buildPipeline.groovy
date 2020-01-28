@@ -98,7 +98,7 @@ spec:
                                 String imageLatest = "${REPO_NAME}/${buildConfig.getImageName()}:latest";
                                 String noPushImage = env.NO_PUSH ? env.NO_PUSH : false;
                                 echo "ALT_REPO_PUSH: ${ALT_REPO_PUSH}"
-                                if(env.ALT_REPO_PUSH==true){
+                                 if(env.ALT_REPO_PUSH.equalsIgnoreCase("true")){
                                   String gcr_image = "${GCR_REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
                                   String gcr_imageLatest = "${GCR_REPO_NAME}/${buildConfig.getImageName()}:latest";
                                   sh """

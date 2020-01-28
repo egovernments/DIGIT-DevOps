@@ -101,7 +101,7 @@ spec:
                         quickFilterEnabled(true)
                         listSize('5')                 
                 }
-                  booleanParam('GCR_PUSH', false, 'check to push images to GCR')
+                  booleanParam('ALT_REPO_PUSH', false, 'Check to push images to GCR')
             }
                 definition {
                     cpsScm {

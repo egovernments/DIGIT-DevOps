@@ -61,7 +61,8 @@ spec:
         node(POD_LABEL) {
 
             def scmVars = checkout scm
-            String REPO_NAME = env.REPO_NAME ? env.REPO_NAME : "docker.io/egovio";           
+            String REPO_NAME = env.REPO_NAME ? env.REPO_NAME : "docker.io/egovio";         
+            String GCR_REPO_NAME = "asia.gcr.io/digit-egov/";
             def yaml = readYaml file: pipelineParams.configFile;
             List<JobConfig> jobConfigs = ConfigParser.parseConfig(yaml, env);
 
@@ -96,6 +97,16 @@ spec:
                                 String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
                                 String imageLatest = "${REPO_NAME}/${buildConfig.getImageName()}:latest";
                                 String noPushImage = env.NO_PUSH ? env.NO_PUSH : false;
+                                if(env.ALT_REPO_PUSH==true){
+                                  String gcr_image = "${GCR_REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
+                                  String gcr_imageLatest = "${GCR_REPO_NAME}/${buildConfig.getImageName()}:latest";
+                                  sh """
+                                    echo \"Gcr push Enabled:  ${ALT_REPO_PUSH}\"
+                                  """  
+                                  echo "${image} and ${gcr_image} to be pushed!"
+                              
+                                }
+                                else{
                                 sh """
                                     echo \"Attempting to build image,  ${image}\"
                                     /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
@@ -110,6 +121,7 @@ spec:
                                     --cache-repo=egovio/cache/cache
                                 """
                                 echo "${image} pushed successfully!"
+                                }
                             }
                         }
                     }

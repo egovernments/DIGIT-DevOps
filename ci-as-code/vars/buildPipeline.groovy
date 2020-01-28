@@ -52,7 +52,7 @@ spec:
     projected:
       sources:
       - secret:
-          name: regcred
+          name: docker-push
           items:
             - key: .dockerconfigjson
               path: .docker/config.json          

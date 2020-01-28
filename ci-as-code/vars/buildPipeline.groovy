@@ -62,7 +62,7 @@ spec:
 
             def scmVars = checkout scm
             String REPO_NAME = env.REPO_NAME ? env.REPO_NAME : "docker.io/egovio";         
-            String GCR_REPO_NAME = "asia.gcr.io/digit-egov/";
+            String GCR_REPO_NAME = "asia.gcr.io/digit-egov";
             def yaml = readYaml file: pipelineParams.configFile;
             List<JobConfig> jobConfigs = ConfigParser.parseConfig(yaml, env);
 
@@ -97,15 +97,26 @@ spec:
                                 String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
                                 String imageLatest = "${REPO_NAME}/${buildConfig.getImageName()}:latest";
                                 String noPushImage = env.NO_PUSH ? env.NO_PUSH : false;
-                                echo "ALT_REPO_PUSH: ${ALT_REPO_PUSH}"
+                                echo "ALT_REPO_PUSH ENABLED: ${ALT_REPO_PUSH}"
                                  if(env.ALT_REPO_PUSH.equalsIgnoreCase("true")){
                                   String gcr_image = "${GCR_REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
                                   String gcr_imageLatest = "${GCR_REPO_NAME}/${buildConfig.getImageName()}:latest";
                                   sh """
-                                    echo \"Gcr push Enabled:  ${ALT_REPO_PUSH}\"
+                                    echo \"Attempting to build image,  ${image}\"
+                                    /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
+                                    --build-arg WORK_DIR=${workDir} \
+                                    --build-arg GIT_ACCESS_TOKEN=\$GIT_ACCESS_TOKEN \
+                                    --cache=true --cache-dir=/cache \
+                                    --single-snapshot=true \
+                                    --snapshotMode=time \
+                                    --destination=${image} \
+                                    --destination=${imageLatest} \
+                                    --destination=${gcr_image} \
+                                    --destination=${gcr_imageLatest} \
+                                    --no-push=${noPushImage} \
+                                    --cache-repo=egovio/cache/cache
                                   """  
-                                  echo "${image} and ${gcr_image} to be pushed!"
-                              
+                                  echo "${image} and ${gcr_image} pushed successfully!!"                              
                                 }
                                 else{
                                 sh """

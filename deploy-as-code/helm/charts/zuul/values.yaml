@@ -7,7 +7,29 @@ serviceAccount: zuul
 namespace: egov  
 
 # Init Containers Configs
-initContainers: {}
+initContainers: 
+  extraInitContainers: |
+    - name: "zuul-kubernetes-discovery"
+      image: "{{ .Values.global.containerRegistry }}/zuul-kubernetes-discovery:2-master-91c9795"
+      command:
+      - cat
+      tty: true      
+      env: 
+      - name: "OUTPUT_FILE_PATH"
+        value: "/etc/zuul/routes.properties" 
+      - name: "NAMESPACE"
+        value: "egov"         
+      volumeMounts:
+      - name: zuul-routes
+        mountPath: /etc/zuul
+
+extraVolumes: |
+  - name: zuul-routes
+    emptyDir: {}  
+
+extraVolumeMounts: |     
+  - name: zuul-routes
+    mountPath: "/etc/zuul"
 
 # Container Configs
 image:
@@ -31,7 +53,6 @@ egov-mixed-mode-endpoints-whitelist: "/filestore/v1/files/id,/filestore/v1/files
 eventlog-enabled: "false"
 eventlog-topic: "zuul-event-log"
 eventlog-urls-whitelist: ""
-ignoredservices: "s3-proxy,zuul,nginx-ingress-controller"
 
 # Additional Container Envs
 env: |
@@ -95,5 +116,5 @@ env: |
     value: "false"
   - name: JAVA_ARGS
     value: {{ index .Values "java-args" | quote }}
-  - name: ZUUL_IGNOREDSERVICES
-    value: {{ index .Values "ignoredservices" | quote }}    
+  - name: ZUUL_ROUTES_FILEPATH
+    value: "file:/etc/zuul/routes.properties"   

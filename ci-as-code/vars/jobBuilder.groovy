@@ -112,17 +112,12 @@ spec:
                                     credentials('git_read')
                                 } 
                                 branch ('\${BRANCH}')
+                                scriptPath('Jenkinsfile')
                                 extensions { }
                             }
                         }
 
                     }
-                    cps {
-            script("""
-library 'ci-libs'
-buildPipeline(configFile: './build/build-config.yml')
-            """.stripIndent())
-                }
                 }
             }
 """);

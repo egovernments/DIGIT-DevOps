@@ -9,11 +9,11 @@ USER root
 
 # Add the WildFly distribution to /opt, and make wildfly the owner of the extracted tar content
 # Make sure the distribution is available from a well-known place
-RUN cd $HOME \
+RUN cd /tmp \
     && curl -O https://devops.egovernments.org/Downloads/wildfly/$WILDFLY_VERSION.zip \
     && unzip $WILDFLY_VERSION.zip \
     && rm $WILDFLY_VERSION.zip \
-    && mv $HOME/wildfly-* $JBOSS_HOME \
+    && mv /tmp/wildfly-* $JBOSS_HOME \
     && chown -R jboss:jboss ${JBOSS_HOME} \
     && chmod -R 775 ${JBOSS_HOME}
 COPY org /opt/jboss/wildfly/modules/system/layers/base/org

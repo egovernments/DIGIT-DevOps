@@ -3,14 +3,13 @@ labels:
   app: "chatbot"
   group: "core"
 
-# Ingress Configs
-ingress:
-  enabled: true
-  zuul: true
-  context: "chatbot"
-
 # Init Containers Configs
-initContainers: {}
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "egov_chatbot_schema"
+    image:
+      repository: "chatbot-db"
 
 # Container Configs
 image:
@@ -24,7 +23,10 @@ java-args: ""
 # Additional Container Envs
 env: |  
   - name: EGOV_EXTERNAL_HOST
-    value: https://egov-micro-dev.egovernments.org
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
   - name: USER_SERVICE_CHATBOT_HOST
     valueFrom:
       configMapKeyRef:
@@ -73,5 +75,3 @@ env: |
     value: "false"
   - name: TRACER_OPENTRACING_ENABLED
     value: "true"
-  - name: KARIX_AUTHENTICATION_TOKEN
-    value: Bearer s6iyrz5y8rPApBQ2gQ3oog==

@@ -25,6 +25,17 @@ tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
 java-args: ""
 
+kafka-topics-partition-count: 3
+kafka-topics-replication-factor: 2
+kafka-consumer-poll-ms: 10
+kafka-producer-linger-ms: 5
+
+state-level-tenant-id: "pb"
+contact-card-whatsapp-number: "918744960111"
+contact-card-whatsapp-name: "mSeva Punjab"
+
+user-service-chatbot-citizen-passwrord: "123456"
+
 # Additional Container Envs
 env: |  
   - name: KAFKA_BOOTSTRAP_SERVER
@@ -90,13 +101,39 @@ env: |
     value: "false"
   - name: MANAGEMENT_SECURITY_ENABLED
     value: "false"
+  - name: STATE_LEVEL_TENANT_ID
+    value: {{ index .Values "state-level-tenant-id" | quote }}
+  - name: USER_SERVICE_CHATBOT_CITIZEN_PASSWORD
+    value: {{ index .Values "user-service-chatbot-citizen-passwrord" | quote }}
   - name: VALUEFIRST_USERNAME
-    value: "demosoumya1"
+    valueFrom:
+      secretKeyRef:
+        name: chatbot
+        key: valuefirst.username
   - name: VALUEFIRST_PASSWORD
-    value: "demosoumya1"
+    valueFrom:
+      secretKeyRef:
+        name: chatbot
+        key: valuefirst.password
   - name: TRACER_OPENTRACING_ENABLED
     value: "true"
   - name: KAFKA_TOPICS_PARTITION_COUNT
-    value: "3"
+    value: {{ index .Values "kafka-topics-partition-count" | quote }}
   - name: KAFKA_TOPICS_REPLICATION_FACTOR
-    value: "2"
+    value: {{ index .Values "kafka-topics-replication-factor" | quote }}
+  {{- if index .Values "kafka-consumer-poll-ms" }}
+  - name: KAFKA_CONSUMER_POLL_MS
+    value: {{ index .Values "kafka-consumer-poll-ms" | quote }}
+  {{- end }}
+  {{- if index .Values "kafka-producer-linger-ms" }}
+  - name: KAFKA_PRODUCER_LINGER_MS
+    value: {{ index .Values "kafka-producer-linger-ms" | quote }}
+  {{- end }}
+  {{- if index .Values "contact-card-whatsapp-number" }}
+  - name: CONTACT_CARD_WHATSAPP_NUMBER
+    value: {{ index .Values "contact-card-whatsapp-number" | quote }}
+  {{- end }}
+  {{- if index .Values "contact-card-whatsapp-name" }}
+  - name: CONTACT_CARD_WHATSAPP_NAME
+    value: {{ index .Values "contact-card-whatsapp-name" | quote }}
+  {{- end }}

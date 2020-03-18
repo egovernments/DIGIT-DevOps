@@ -1,0 +1,31 @@
+{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
+{{- if .Values.prometheus.enabled -}}
+{{- if .Values.prometheus.serviceMonitor -}}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app: {{ template "kuberhealthy.name" . }}
+    prometheus: {{ .Values.prometheus.name }}
+    release: {{ .Values.prometheus.release }}
+  name: {{ template "kuberhealthy.name" . }}
+  namespace: {{ .Values.namespace }}
+spec:
+  jobLabel: component
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.namespace }}
+  endpoints:
+  - port: http
+    interval: 15s
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+{{- end -}}
+{{- end -}}
+{{- end -}}

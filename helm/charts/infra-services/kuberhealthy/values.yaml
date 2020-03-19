@@ -81,6 +81,42 @@ check:
     extraEnvs:
       HOSTNAME: "kubernetes.default"
     nodeSelector: {}
+  egov:
+    image:
+      repository: egovio/kuberhealthy-checks
+      tag: "1-master-ac7c528"
+  db:
+    enabled: true
+    env: |
+      - name: PG_USER
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: username
+      - name: PG_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: password
+      - name: PG_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-host
+      - name: PG_DBNAME
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-name
+  kafka:
+    enabled: true
+    env: |
+        - name: BOOTSTRAP_SERVER
+          valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: kafka-brokers
+
   podRestarts:
     enabled: false
     image:

@@ -5,3 +5,5 @@ variable "client_secret" {}
 variable "resource_group" {}
 variable "location" {}
 variable "environment" {}
+
+variable "ssh_public_key" {}

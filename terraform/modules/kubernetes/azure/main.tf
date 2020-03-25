@@ -4,12 +4,19 @@ resource "azurerm_kubernetes_cluster" "aks" {
   resource_group_name = "${var.resource_group}"
   dns_prefix          = "${var.name}"
 
-  agent_pool_profile {
-    name            = "default"
-    count           = "${var.nodes}"
-    vm_size         = "Standard_B4ms"
-    os_type         = "Linux"
-    os_disk_size_gb = 32
+
+  linux_profile {
+      admin_username = "ubuntu"
+
+      ssh_key {
+          key_data = file(var.ssh_public_key)
+      }
+  }
+
+  default_node_pool {
+    name       = "default"
+    node_count = "${var.nodes}"
+    vm_size    = "Standard_B4ms"
   }
 
   service_principal {

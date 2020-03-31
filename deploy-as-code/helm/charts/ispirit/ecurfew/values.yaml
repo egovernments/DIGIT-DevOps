@@ -1,7 +1,8 @@
 # Common Labels
 labels:
   app: "ecurfew"
-  group: "rainmaker"
+  group: "ispirit"
+namespace: ispirit
 
 # Ingress Configs
 ingress:
@@ -15,10 +16,6 @@ ingress:
 image:
   repository: "ecurfew"
 replicas: "1"
-healthChecks:
-  enabled: true
-  livenessProbePath: "/ecurfew/health"
-  readinessProbePath: "/ecurfew/health"
 heap: "-Xmx3Gi -Xms3Gi"
 java-args: "-Dspring.profiles.active=monitoring"
 memory_limits: 4Gi
@@ -26,34 +23,28 @@ storage:
   aws:
     region: us-east-2
     bucket: ecurfew
+resources: |
+  requests:
+    memory: {{ .Values.memory_limits | quote }}
+  limits:
+    memory: {{ .Values.memory_limits | quote }}
 
 # Additional Container Envs
 env: |
   - name: SPRING_DATASOURCE_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-url     
+    value: "{{ index .Values "db-url" }}"   
   - name: APP_TIMEZONE
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: timezone              
-  - name: FLYWAY_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-url
+    value: "Asia/Kolkata"     
   - name: SPRING_DATASOURCE_USERNAME
     valueFrom:
       secretKeyRef:
-        name: db
-        key: username
+        name: ispirit-ecurfew
+        key: db-username
   - name: SPRING_DATASOURCE_PASSWORD
     valueFrom:
       secretKeyRef:
-        name: db
-        key: password       
+        name: ispirit-ecurfew
+        key: db-password       
   - name: AWS_S3_ACCESSKEYID
     valueFrom:
       secretKeyRef:
@@ -63,11 +54,31 @@ env: |
     valueFrom:
       secretKeyRef:
         name: ispirit-ecurfew
-        key: s3-secretaccesskey   
+        key: s3-secretaccesskey 
+  - name: TWILIO_ACCOUNT_SID
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: twilio-account-sid  
+  - name: TWILIO_AUTH_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: twilio-auth-token 
+  - name: TWILIO_FROM_PHONE
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: twilio-phone  
+  - name: SPRING_SENDGRID_API-KEY
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: sendgrid-api-key                                   
   - name: SIGNATUREPRIVATEKEYNAME
-    value: "/etc/ispirit/private_key.der"
+    value: "/etc/ispirit/private_key.pem"
   - name: SIGNATUREPUBLICKEYNAME
-    value: "/etc/ispirit/public_key.der"                
+    value: "/etc/ispirit/public_key.pem"                
   - name: AWS_REGION
     value: {{ .Values.storage.aws.region }}     
   - name: AWS_S3_BUCKET
@@ -85,4 +96,21 @@ env: |
   - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
     value: "10"
   - name: SERVER_CONTEXT_PATH
-    value: /ecurfew        
+    value: /ecurfew    
+  - name: SERVER_CONTEXT_PATH
+    value: "8080"         
+
+
+extraVolumes: |
+  - name: crypto-keys
+    secret:
+      secretName: ispirit-ecurfew
+      defaultMode: 288 # = mode 0440
+
+extraVolumeMounts: |
+  - mountPath: /etc/ispirit/public_key.pem
+    name: crypto-keys
+    subPath: public_key.pem
+  - mountPath: /etc/ispirit/private_key.pem
+    name: crypto-keys
+    subPath: private_key.pem    

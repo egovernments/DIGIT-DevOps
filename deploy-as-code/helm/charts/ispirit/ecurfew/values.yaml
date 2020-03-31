@@ -1,0 +1,88 @@
+# Common Labels
+labels:
+  app: "ecurfew"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  context: "ecurfew"
+  hostName: "epassapi.egovernments.org"  
+  additionalAnnotations: |
+    certmanager.k8s.io/cluster-issuer: {{ index $.Values "cluster-configs" "root-ingress" "cert-issuer" | quote }}  
+
+# Container Configs
+image:
+  repository: "ecurfew"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/ecurfew/health"
+  readinessProbePath: "/ecurfew/health"
+heap: "-Xmx3Gi -Xms3Gi"
+java-args: "-Dspring.profiles.active=monitoring"
+memory_limits: 4Gi
+storage:
+  aws:
+    region: us-east-2
+    bucket: ecurfew
+
+# Additional Container Envs
+env: |
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url     
+  - name: APP_TIMEZONE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: timezone              
+  - name: FLYWAY_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password       
+  - name: AWS_S3_ACCESSKEYID
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: s3-accesskey        
+  - name: AWS_S3_SECRETACCESSKEY
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: s3-secretaccesskey   
+  - name: SIGNATUREPRIVATEKEYNAME
+    value: "/etc/ispirit/private_key.der"
+  - name: SIGNATUREPUBLICKEYNAME
+    value: "/etc/ispirit/public_key.der"                
+  - name: AWS_REGION
+    value: {{ .Values.storage.aws.region }}     
+  - name: AWS_S3_BUCKET
+    value: {{ .Values.storage.aws.bucket }}         
+  - name: SECURITY_REQUIRE_SSL
+    value: "false" 
+  - name: SPRING_REDIS_HOST
+    value: redis.backbone
+  - name: SPRING_REDIS_PORT
+    value: "6379"
+  - name: REDISHOST
+    value: redis.backbone
+  - name: REDISPORT
+    value: "6379"            
+  - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+    value: "10"
+  - name: SERVER_CONTEXT_PATH
+    value: /ecurfew        

@@ -22,9 +22,11 @@ metadata:
 {{- include "common.labels" . | nindent 4 }}                            
 spec:
   rules:
-{{- if .Values.ingress.hostName }}   
+{{- if .Values.ingress.host }}   
+  {{- tpl  .Values.ingress.host . | nindent 2 }}
+{{- else if .Values.ingress.hostName }} 
   - host: {{ .Values.ingress.hostName }}
-{{- else }} 
+{{- else }}  
   - host: {{ .Values.global.domain }}
 {{- end }}  
     http:
@@ -39,6 +41,9 @@ spec:
 {{- end }}            
         path: /{{ .Values.ingress.context }}
   tls:
+{{- if .Values.ingress.tls }}
+  {{- tpl  .Values.ingress.tls . | nindent 2 }}
+{{- else }} 
 {{- if .Values.ingress.hostName }}
   - hosts: 
     - {{ .Values.ingress.hostName }}
@@ -47,7 +52,8 @@ spec:
   - hosts:
     - {{ .Values.global.domain }}
     secretName: {{ .Values.global.domain }}-tls-certs 
-{{- end }}    
+{{- end }} 
+{{- end }} 
 {{- end -}} 
 {{- end -}} 
 {{- end -}} 

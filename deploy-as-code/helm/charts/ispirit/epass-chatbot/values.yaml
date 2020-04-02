@@ -1,0 +1,65 @@
+# Common Labels
+labels:
+  app: "epass-chatbot"
+  group: "ispirit"
+namespace: ispirit
+
+# Ingress Configs
+ingress:
+  enabled: true
+  context: "sms-webhook"
+
+# Container Configs
+image:
+  repository: "epass-chatbot"
+replicas: "1"
+
+healthChecks:
+  enabled: true
+  livenessProbePath: "/user/health"
+  readinessProbePath: "/user/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+java-args: ""
+
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true"
+  - name: SERVER_TOMCAT_MAX_THREADS
+    valueFrom:
+      configMapKeyRef:
+        key: server-tomcat-max-threads
+        name: egov-config
+  - name: SERVER_TOMCAT_MAX_CONNECTIONS
+    valueFrom:
+      configMapKeyRef:
+        key: server-tomcat-max-connections
+        name: egov-config
+  - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+  - name: JAEGER_SERVICE_NAME
+    value: epass-chatbot
+  - name: JAEGER_SAMPLER_TYPE
+    value: remote
+  - name: JAEGER_AGENT_HOST
+    valueFrom:
+      fieldRef:
+        apiVersion: v1
+        fieldPath: status.hostIP
+  - name: JAEGER_AGENT_PORT
+    value: "6831"
+  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+    value: $(JAEGER_AGENT_HOST):5778

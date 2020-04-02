@@ -8,12 +8,21 @@ namespace: ispirit
 ingress:
   enabled: true
   context: "sms-webhook"
+  ip-whitelist: "0.0.0.0/0"
+  host: |
+    - host: {{ index .Values "global" "moca-domain" }}
+  tls: |
+      - hosts:
+        - {{ index .Values "global" "moca-domain" }}
+        secretName: {{ index .Values "global" "moca-domain" }}-tls-certs  
+  additionalAnnotations: |
+    certmanager.k8s.io/cluster-issuer: {{ index $.Values "cluster-configs" "root-ingress" "cert-issuer" | quote }}  
+    nginx.ingress.kubernetes.io/whitelist-source-range: {{ index .Values "ingress" "ip-whitelist" | quote }}      
 
 # Container Configs
 image:
   repository: "epass-chatbot"
 replicas: "1"
-
 healthChecks:
   enabled: true
   livenessProbePath: "/sms-webhook/health"
@@ -21,6 +30,7 @@ healthChecks:
 tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
 java-args: ""
+sender-id: DOCAEP
 
 
 # Additional Container Envs
@@ -50,3 +60,5 @@ env: |
     value: $(JAEGER_AGENT_HOST):5778
   - name: JAVA_OPTS
     value: {{ index .Values "heap" | quote }}
+  - name: KARIX_SENDER_ID
+    value: {{ index .Values "sender-id" | quote }}

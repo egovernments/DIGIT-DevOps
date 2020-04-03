@@ -1,31 +1,22 @@
 # Common Labels
 labels:
-  app: "ecurfew"
+  app: "ecurfew-cron"
   group: "ispirit"
 namespace: ispirit
 
 # Ingress Configs
 ingress:
-  enabled: true
-  context: "ecurfew"
-  host: |
-    - host: {{ index .Values "global" "moca-domain" }}
-  tls: |
-      - hosts:
-        - {{ index .Values "global" "moca-domain" }}
-        secretName: {{ index .Values "global" "moca-domain" }}-tls-certs    
-  additionalAnnotations: |
-    certmanager.k8s.io/cluster-issuer: {{ index $.Values "cluster-configs" "root-ingress" "cert-issuer" | quote }}  
+  enabled: false
 
 # Container Configs
 image:
-  repository: "ecurfew"
+  repository: "ecurfew-cron"
 replicas: "1"
-heap: "-Xmx2G -Xms2G"
+heap: "-Xmx9G -Xms9G"
 java-args: "-Dspring.profiles.active=monitoring"
-memory_limits: 2560Mi
+memory_limits: 10Gi
 from-address: no-reply@anumati.gov
-cronInstance: false
+cronInstance: true
 storage:
   aws:
     region: us-east-2
@@ -33,10 +24,10 @@ storage:
 resources: |
   requests:
     memory: {{ .Values.memory_limits | quote }}
-    cpu: 500m
+    cpu: 2
   limits:
     memory: {{ .Values.memory_limits | quote }}
-    cpu: 1
+    cpu: 2
 
 # Additional Container Envs
 env: |
@@ -128,7 +119,7 @@ env: |
 extraVolumes: |
   - name: crypto-keys
     secret:
-      secretName: ispirit-ecurfew
+      secretName: ispirit-ecurfew-cron
       defaultMode: 288 # = mode 0440
 
 extraVolumeMounts: |

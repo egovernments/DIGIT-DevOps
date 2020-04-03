@@ -1,0 +1,56 @@
+{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: fluent-bit
+  namespace: {{ .Values.namespace }}
+  labels:
+    k8s-app: fluent-bit
+    app: fluent-bit
+    version: v1
+    kubernetes.io/cluster-service: "true"
+spec:
+  template:
+    metadata:
+      labels:
+        k8s-app: fluent-bit-logging
+        version: v1
+        kubernetes.io/cluster-service: "true"
+    spec:
+      containers:
+        - name: fluent-bit
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          ports:
+            - containerPort: 2020
+          env:
+            - name: KAFKA_BROKERS
+              value: {{ index $.Values "cluster-configs" "configmaps" "egov-config" "data" "kafka-infrabrokers" | quote }}   
+            - name: KAFKA_EGOV_SERVICES_LOGS_TOPIC
+              value: {{ index .Values "egov-services-log-topic" | quote }}
+            - name: KAFKA_EGOV_INFRA_LOGS_TOPIC
+              value: {{ index .Values "egov-infra-log-topic" | quote }}   
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            - name: fluent-bit-config
+              mountPath: /fluent-bit/etc/
+      terminationGracePeriodSeconds: 10
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: fluent-bit-config
+          configMap:
+            name: fluent-bit-config
+      serviceAccountName: fluent-bit
+      serviceAccount: fluent-bit
+{{- end -}}          

@@ -1,0 +1,15 @@
+{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: fluent-bit-read
+rules:
+- apiGroups: [""]
+  resources:
+  - namespaces
+  - pods
+  verbs: ["get", "list", "watch"]
+{{- end -}}    

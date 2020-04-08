@@ -88,7 +88,7 @@ spec:
                 parameters {
                   gitParameterDefinition {
                         name('BRANCH')
-                        type('BRANCH')
+                        type('BRANCH_TAG')
                         description('') 
                         branch('')      
                         useRepository('')                     

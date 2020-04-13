@@ -25,6 +25,11 @@ spec:
           secretKeyRef:
             name: jenkins-credentials
             key: gitReadAccessToken 
+      - name: TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: jenkins-credentials
+            key: gitReadAccessToken             
       - name: "GOOGLE_APPLICATION_CREDENTIALS"
         value: "/var/run/secret/cloud.google.com/service-account.json"             
     volumeMounts:

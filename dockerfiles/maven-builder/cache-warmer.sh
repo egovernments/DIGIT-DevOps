@@ -11,5 +11,5 @@ echo $line
 cp $line .
 mvn -B dependency:go-offline
 done < files.txt
-rm -r apps
+rm -rf apps
 done < $filename

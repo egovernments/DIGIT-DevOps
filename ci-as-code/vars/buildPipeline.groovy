@@ -25,6 +25,11 @@ spec:
           secretKeyRef:
             name: jenkins-credentials
             key: gitReadAccessToken    
+      - name: TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: jenkins-credentials
+            key: gitReadAccessToken               
     volumeMounts:
       - name: jenkins-docker-cfg
         mountPath: /root

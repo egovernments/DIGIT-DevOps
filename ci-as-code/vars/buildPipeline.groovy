@@ -44,7 +44,7 @@ spec:
         memory: "1792Mi"
         cpu: "750m"
       limits:
-        memory: "3072Mi"
+        memory: "3572Mi"
         cpu: "1500m"      
   - name: git
     image: docker.io/nithindv/alpine-git:latest

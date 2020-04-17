@@ -30,7 +30,6 @@ variable "ssh_key_name" {
   default = "demo-k8s-key"
 }
 
-variable "db_password" {
-  default = "98vzGyayE3PuQscn"
-}
+variable "db_password" {}
+
 

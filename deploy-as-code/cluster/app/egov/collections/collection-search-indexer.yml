@@ -1,0 +1,107 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: collection-search-indexer
+  namespace: egov
+  labels:
+    app: collection-search-indexer
+    group: collections
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: collection-search-indexer
+    group: collections
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: collection-search-indexer
+  namespace: egov
+spec:
+  replicas: {{conf['collection-search-indexer']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: collection-search-indexer
+        group: collections
+    spec:
+      containers:
+      - name: collection-search-indexer
+        image: {{conf['collection-search-indexer']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: JAVA_OPTS
+          value: "{{conf['collection-search-indexer']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: KAFKA_TOPICS_EGOV_INDEX_NAME
+          value: egov.collection.receipt-create
+        - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+          value: org.apache.kafka.common.serialization.StringDeserializer
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.collection.indexer.consumer.HashMapDeserializer
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: index
+        - name: EGOV_SERVICES_ESINDEXER_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: es-indexer-host
+        - name: EGOV_SERVICES_ESINDEXER_USERNAME
+          value: elastic
+        - name: EGOV_SERVICES_ESINDEXER_PASSWORD
+          value: changeme
+        - name: EGOV_SERVICES_HREMPLOYEE_HOST
+          value: "{{conf['egov-service-host']['hr-employee']}}"
+        - name: EGOV_SERVICES_TENANT_HOST
+          value: "{{conf['egov-service-host']['tenant']}}"
+        - name: ES_INDEX_NAME
+          value: receipts
+        - name: ES_DOCUMENT_TYPE
+          value: receipts_bifurcation
+        - name: EGOV_COMMON_SERVICE_HOST
+          value: "{{conf['egov-service-host']['egov-common-masters']}}"
+        - name: USER_SERVICE_HOST
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['collection-search-indexer']['memory_limits'] or "256Mi"}}"

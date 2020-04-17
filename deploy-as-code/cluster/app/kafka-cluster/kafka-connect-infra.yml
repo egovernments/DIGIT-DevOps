@@ -1,0 +1,86 @@
+# Source: kafka-connect-infra/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-connect-infra
+  namespace: kafka-cluster
+  labels:
+    app: kafka-connect-infra
+spec:
+  ports:
+    - name: kafka-connect
+      port: 8083
+  selector:
+    app: kafka-connect-infra
+
+---
+# Source: kafka-connect-infra/templates/deployment.yaml
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: kafka-connect-infra
+  namespace: kafka-cluster
+  labels:
+    app: kafka-connect-infra
+spec:
+  replicas: {{conf['kafka-connect-infra']['replicas']}}
+  selector:
+    matchLabels:
+      app: kafka-connect-infra
+  template:
+    metadata:
+      labels:
+        app: kafka-connect-infra
+    spec:
+      containers:
+        - name: kafka-connect-infra-server
+          image: "{{conf['kafka-connect-infra']['images'][0]}}"
+          imagePullPolicy: "IfNotPresent"
+          ports:
+            - name: kafka-connect
+              containerPort: 8083
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 500m
+              memory: 1Gi
+            requests:
+              cpu: 250m
+              memory: 768Mi            
+          env:
+            - name: CONNECT_REST_ADVERTISED_HOST_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: CONNECT_BOOTSTRAP_SERVERS
+              value: "PLAINTEXT://{{conf['kafka-config']['kafka-infra-brokers']}}"
+            - name: CONNECT_GROUP_ID
+              value: kafka-connect-infra
+            - name: CONNECT_CONFIG_STORAGE_TOPIC
+              value: kafka-connect-infra-config
+            - name: CONNECT_OFFSET_STORAGE_TOPIC
+              value: kafka-connect-infra-offset
+            - name: CONNECT_STATUS_STORAGE_TOPIC
+              value: kafka-connect-infra-status
+            - name: KAFKA_HEAP_OPTS
+              value: "{{conf['kafka-connect-infra']['heap']}}"
+            - name: "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR"
+              value: "{{conf['kafka-connect-infra']['config-storage-replication-factor']}}"
+            - name: "CONNECT_INTERNAL_KEY_CONVERTER"
+              value: "org.apache.kafka.connect.json.JsonConverter"
+            - name: "CONNECT_INTERNAL_VALUE_CONVERTER"
+              value: "org.apache.kafka.connect.json.JsonConverter"
+            - name: "CONNECT_KEY_CONVERTER"
+              value: "org.apache.kafka.connect.json.JsonConverter"
+            - name: "CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE"
+              value: "false"
+            - name: "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR"
+              value: "{{conf['kafka-connect-infra']['offset-storage-replication-factor']}}"
+            - name: "CONNECT_PLUGIN_PATH"
+              value: "/usr/share/java"
+            - name: "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR"
+              value: "{{conf['kafka-connect-infra']['status-storage-replication-factor']}}"
+            - name: "CONNECT_VALUE_CONVERTER"
+              value: "org.apache.kafka.connect.json.JsonConverter"
+            - name: "CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE"
+              value: "false"

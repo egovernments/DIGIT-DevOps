@@ -1,0 +1,43 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: asset-indexer
+  namespace: egov
+spec:
+  replicas: {{conf['asset-indexer']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: asset-indexer
+        group: asset
+    spec:
+      containers:
+      - name: asset-indexer
+        image: {{conf['asset-indexer']['images'][0]}}
+        env:
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: KAFKA_TOPICS_SAVE_ASSET
+          value: save-asset-db
+        - name: KAFKA_TOPICS_UPDATE_ASSET
+          value: update-asset-db
+        - name: KAFKA_TOPICS_SAVE_ASSETCATEGORY
+          value: save-assetcategory-db
+        - name: EGOV_SERVICES_ASSET_INDEXER_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: es-indexer-host
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['asset-indexer']['memory_limits'] or "256Mi"}}"

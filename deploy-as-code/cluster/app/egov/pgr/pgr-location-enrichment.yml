@@ -1,0 +1,52 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pgr-location-enrichment
+  namespace: egov
+spec:
+  replicas: {{conf['pgr-location-enrichment']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: pgr-location-enrichment
+        group: pgr
+    spec:
+      containers:
+      - name: pgr-location-enrichment
+        image: {{conf['pgr-location-enrichment']['images'][0]}}
+        env:
+        - name: EGOV_SERVICES_BOUNDARY_HOST
+          value: "{{conf['egov-service-host']['egov-location']}}"
+        - name: EGOV_SERVICES_CROSSHIERARCHY_SERVICE_HOST
+          value: "{{conf['egov-service-host']['egov-location']}}"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: KAFKA_TOPICS_PGR_VALIDATED_NAME
+          value: egov.pgr.validated
+        - name: KAFKA_TOPICS_PGR_VALIDATED_ID
+          value: egov.pgr.validated
+        - name: KAFKA_TOPICS_PGR_VALIDATED_GROUP
+          value: egov.pgr.validated
+        - name: KAFKA_TOPICS_PGR_BOUNDARY_ENRICHED_NAME
+          value: egov.pgr.locationupdated
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['pgr-location-enrichment']['memory_limits'] or "256Mi"}}"

@@ -1,0 +1,97 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wcms-search-indexer
+  namespace: egov
+  labels:
+    app: wcms-search-indexer
+    group: wcms
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: wcms-search-indexer
+    group: wcms
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: wcms-search-indexer
+  namespace: egov
+spec:
+  replicas: {{conf['wcms-search-indexer']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: wcms-search-indexer
+        group: wcms
+    spec:
+      containers:
+      - name: wcms-search-indexer
+        image: {{conf['wcms-search-indexer']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: KAFKA_TOPICS_EGOV_INDEX_NAME
+          value: egov.wcms.newconnection
+        - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+          value: org.apache.kafka.common.serialization.StringDeserializer
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.web.indexer.consumer.HashMapDeserializer
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: index
+        - name: KAFKA_TOPICS_NEWCONNECTION_CREATE_NAME
+          value: egov.wcms.newconnection-create
+        - name: KAFKA_TOPICS_NEWCONNECTION_CREATE_KEY
+          value: newconnection-create
+        - name: KAFKA_TOPICS_NEWCONNECTION_UPDATE_NAME
+          value: egov.wcms.newconnection-update
+        - name: KAFKA_TOPICS_NEWCONNECTION_UPDATE_KEY
+          value: newconnection-update
+        - name: EGOV_SERVICES_BOUNDARY_HOST
+          value: "{{conf['egov-service-host']['egov-location']}}"
+        - name: EGOV_SERVICES_PGRREST_HOST
+          value: "{{conf['egov-service-host']['pgr-rest']}}"
+        - name: EGOV_SERVICES_ESINDEXER_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: es-indexer-host
+        - name: EGOV_SERVICES_HREMPLOYEE_HOST
+          value: "{{conf['egov-service-host']['hr-employee']}}"
+        - name: EGOV_SERVICES_WCMS_CONNECTION_HOST
+          value: "{{conf['egov-service-host']['wcms-connection']}}"
+        - name: EGOV_SERVICES_COMMONMASTERS_HOST
+          value: "{{conf['egov-service-host']['egov-common-masters']}}"
+        - name: EGOV_SERVICES_WCMS_INDEXER_HOST
+          value: "{{conf['egov-service-host']['wcms-search-indexer']}}"
+        - name: ES_INDEX_NAME
+          value: watercharges
+        - name: ES_DOCUMENT_TYPE
+          value: consumerdetails
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['wcms-search-indexer']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: EGOV_SERVICES_TENANT_HOST
+          value: "{{conf['egov-service-host']['tenant']}}"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['wcms-search-indexer']['memory_limits'] or "256Mi"}}"

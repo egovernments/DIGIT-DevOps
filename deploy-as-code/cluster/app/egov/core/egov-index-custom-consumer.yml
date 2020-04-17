@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-index-custom-consumer
+  namespace: egov
+  labels:
+    app: egov-index-custom-consumer
+    group: core
+  annotations:
+    prometheus.io/path: /egov-index-custom-consumer/prometheus
+    prometheus.io/port: "8080"
+    prometheus.io/scrape: "true"      
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-index-custom-consumer
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-index-custom-consumer
+  namespace: egov
+spec:
+  replicas: {{conf['egov-index-custom-consumer']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-index-custom-consumer
+        group: core
+    spec:
+      containers:
+      - name: egov-index-custom-consumer
+        image: {{conf['egov-index-custom-consumer']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: EGOV_PT_HOST
+          value: "{{conf['egov-service-host']['pt-services-v2']}}"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+          value: org.apache.kafka.common.serialization.StringDeserializer
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: "egov-index-custom-consumer-group"
+        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        - name: SERVER_TOMCAT_MAX_THREADS
+          value: "{{conf['egov-config']['server-tomcat-max-threads']}}"
+        - name: JAVA_OPTS
+          value: "{{conf['egov-index-custom-consumer']['heap'] or '-Xmx192m -Xms192m'}}"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"         
+

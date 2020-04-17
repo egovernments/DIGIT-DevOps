@@ -1,0 +1,143 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: asset-services
+  namespace: egov
+  labels:
+    app: asset-services
+    group: asset
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: asset-services
+    group: asset
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: asset-services
+  namespace: egov
+spec:
+  replicas: {{conf['asset-services']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: asset-services
+        group: asset
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+        {% if conf["asset-services"]["env_specific_db_migration_image"] %}
+          {
+            "name": "asset-services-env-specific-db-migration",
+            "image": "{{conf["asset-services"]["env_specific_db_migration_image"]}}",
+            "command": ["sh", "-c", "cp -R /egov/db/migration/asset/asset-services/* /env_specific_db_migration/"],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
+            ],
+            "imagePullPolicy": "Always"
+          },
+        {% endif %}
+          {
+            "name": "asset-services-db-migration",
+            "image": "{{conf["asset-services"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", {% if conf['asset-services']['db-url'] %} "value": "{{ conf['asset-services']['db-url'] }}" {% else %} "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}} {% endif %} },
+              {"name": "SCHEMA_TABLE", "value": "asset_services_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}},
+              {"name": "IGNOREMISSINGMIGRATIONS", "value": "true"}
+            ],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
+            ],
+            "imagePullPolicy": "Always"
+          }
+        ]'
+    spec:
+      containers:
+      - name: asset-services
+        image: {{conf['asset-services']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+{% if conf['asset-services']['db-url'] %}
+          value: {{ conf['asset-services']['db-url'] }}
+{% else %}
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+{% endif %}
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: KAFKA_TOPICS_SAVE_ASSET
+          value: save-asset-db
+        - name: KAFKA_TOPICS_UPDATE_ASSET
+          value: update-asset-db
+        - name: KAFKA_TOPICS_SAVE_ASSETCATEGORY
+          value: save-assetcategory-db
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['asset-services']['heap'] or '-Xmx256m -Xms256m'}}"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+{% if conf['asset-services']['tenant_host_mapping'] %}
+{% for city in conf["asset-services"]["tenant_host_mapping"]["city"] %}
+        - name: AP_{{ city.name | upper }}
+{% if city.domain %}
+          value: {{ city.domain }}
+{% else %}
+          value: {{ conf["asset-services"]["tenant_host_mapping"]["url_schema"][0]}}{{city.name}}{{conf["asset-services"]["tenant_host_mapping"]["domain_suffix"][0]}}
+{% endif %}
+{% endfor %}
+{% endif %}        
+{% if conf['asset-services']['memory_limits'] %}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['asset-services']['memory_limits'] or "256Mi"}}"
+{% endif %}
+      volumes:
+      - name: env-specific-db-migration
+        emptyDir: {}
+{% if conf['egov-docker-registry-secret'] %}
+      imagePullSecrets:
+      - name: regsecret
+{% endif %}

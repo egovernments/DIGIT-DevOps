@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: performance-assessment
+  namespace: egov
+  labels:
+    app: performance-assessment
+    group: performance
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: performance-assessment
+    group: performance
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: performance-assessment
+  namespace: egov
+spec:
+  replicas: {{conf['performance-assessment']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: performance-assessment
+        group: performance
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "performance-assessment-db-migration",
+            "image": "{{conf["performance-assessment"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "performance_assessment_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
+    spec:
+      containers:
+      - name: performance-assessment
+        image: {{conf['performance-assessment']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.pa.consumer.HashMapDeserializer
+        - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+          value: org.apache.kafka.common.serialization.StringDeserializer
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: performance-assessment-persist
+        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.springframework.kafka.support.serializer.JsonSerializer
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['performance-assessment']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: SERVER_PORT
+          value: "8080"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['performance-assessment']['memory_limits'] or "256Mi"}}"

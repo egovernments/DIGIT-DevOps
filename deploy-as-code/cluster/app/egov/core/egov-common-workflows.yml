@@ -1,0 +1,138 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-common-workflows
+  namespace: egov
+  labels:
+    app: egov-common-workflows
+    group: core
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-common-workflows
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-common-workflows
+  namespace: egov
+spec:
+  replicas: {{conf['egov-common-workflows']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-common-workflows
+        group: core
+    spec:
+   initContainers:
+      {% if conf["egov-common-workflows"]["env_specific_db_migration_image"] %}
+        - name: "egov-common-workflows-env-specific-db-migration"
+          image: "{{conf["egov-common-workflows"]["env_specific_db_migration_image"]}}"
+          command: ["sh", "-c", "cp -R /egov/db/migration/core/egov-common-workflows/* /env_specific_db_migration/"]
+        volumeMounts:
+        - mountPath: "/env_specific_db_migration"
+          name: "env-specific-db-migration"
+        imagePullPolicy: "IfNotPresent"
+      {% endif %}
+
+      - name: "egov-common-workflows-db-migration"
+        image: "{{conf["egov-common-workflows"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "egov_common_workflows_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        volumeMounts:
+        - mountPath: "/env_specific_db_migration"
+          name: "env-specific-db-migration"
+        imagePullPolicy: "IfNotPresent"
+      containers:
+      - name: egov-common-workflows
+        image: {{conf['egov-common-workflows']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: EGOV_SERVICES_BOUNDARY_HOST
+          value: "{{conf['egov-service-host']['egov-location']}}"
+        - name: EGOV_SERVICES_PGRREST_HOST
+          value: "{{conf['egov-service-host']['pgr-rest']}}"
+        - name: EGOV_SERVICES_EIS_HOST
+          value: "{{conf['egov-service-host']['egov-eis']}}"
+        - name: EGOV_SERVICES_HR_EMPLOYEE_HOST
+          value: "{{conf['egov-service-host']['hr-employee']}}"
+        - name: EGOV_SERVICES_HR_MASTERS_HOST
+          value: "{{conf['egov-service-host']['hr-masters']}}"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: USER_SERVICE_URL
+          value: "{{conf['egov-service-host']['egov-user-egov']}}"
+        - name: EGOV_SERVICES_USER_HOST
+          value: "{{conf['egov-service-host']['egov-user-egov']}}"
+        - name: JAVA_OPTS
+          value: "{{conf['egov-common-workflows']['heap'] or '-Xmx192m -Xms192m'}}"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        - name: EGOV_SERVICES_PGRMASTER_HOST
+          value: "{{conf['egov-service-host']['pgr-master']}}"
+{% if conf['egov-common-workflows']['memory_limits'] %}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['egov-common-workflows']['memory_limits'] or "512Mi"}}"
+{% endif %}
+      volumes:
+      - name: env-specific-db-migration
+        emptyDir: {}
+{% if conf['egov-docker-registry-secret'] %}
+      imagePullSecrets:
+      - name: regsecret
+{% endif %}

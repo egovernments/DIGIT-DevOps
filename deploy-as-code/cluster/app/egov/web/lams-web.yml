@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: lams-web
+  namespace: egov
+  labels:
+    app: lams-web
+    group: web
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: lams-web
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: lams-web
+  namespace: egov
+spec:
+  replicas: {{conf['lams-web']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: lams-web
+        group: web
+    spec:
+      containers:
+      - name: lams-web
+        image: {{conf['lams-web']['images'][0]}}
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['lams-web']['memory_limits'] or "64Mi"}}"

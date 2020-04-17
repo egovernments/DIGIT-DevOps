@@ -1,0 +1,107 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: es-data
+  namespace: es-cluster
+  labels:
+    component: elasticsearch
+    role: data
+spec:
+  selector:
+    component: elasticsearch
+    role: data
+  ports:
+  - name: transport
+    port: 9300
+    protocol: TCP
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: es-data
+  namespace: es-cluster
+spec:
+  serviceName: "es-data"
+  replicas: {{conf['es-data']['replicas']}}
+  template:
+    metadata:
+      labels:
+        component: elasticsearch
+        role: data
+      # annotations:
+      #   pod.beta.kubernetes.io/init-containers: '[
+      #     {
+      #     "name": "sysctl",
+      #       "image": "busybox",
+      #       "imagePullPolicy": "IfNotPresent",
+      #       "command": ["sysctl", "-w", "vm.max_map_count=262144"],
+      #       "securityContext": {
+      #         "privileged": true
+      #       }
+      #     }
+      #   ]'
+    spec:
+      initContainers: 
+      - name: "sysctl"
+        image: "busybox"
+        imagePullPolicy: "IfNotPresent"
+        command: ["sysctl", "-w", "vm.max_map_count=262144"]
+        securityContext:
+          privileged: true
+      containers:
+      - name: es-data
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+              - IPC_LOCK
+        image: {{conf['es-data']['images'][0]}}
+        imagePullPolicy: Always
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: "CLUSTER_NAME"
+          value: "egov_es_cluster"
+        - name: NODE_MASTER
+          value: "false"
+        - name: NODE_DATA
+          value: "true"
+### Network_host is specific to Ubuntu and Debian version host. Only for Punjab UAT and Prod ###
+{% if conf['es-data']['network-host'] %}
+        - name: NETWORK_HOST
+          value: {{conf['es-data']['network-host']}}
+{% endif %}
+#########################################
+        - name: HTTP_ENABLE
+          value: "false"
+        - name: NODE_INGEST
+          value: "false"
+        - name: ES_JAVA_OPTS
+          value: {{conf['es-data']['java-opts']}}
+        - name: NUMBER_OF_SHARDS
+          value: "{{conf['es-data']['shards']}}"
+        - name: NUMBER_OF_REPLICAS
+          value: "{{conf['es-data']['es-replicas']}}"
+        - name: MAX_LOCAL_STORAGE_NODES
+          value: "1"
+        ports:
+        - containerPort: 9300
+          name: transport
+          protocol: TCP
+        resources:
+          limits:
+            memory: 2Gi
+        volumeMounts:
+        - name: es-storage
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: es-storage
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 5Gi

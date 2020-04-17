@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-custom-consumer
+  namespace: egov
+  labels:
+    app: egov-custom-consumer
+    group: core
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-custom-consumer
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-custom-consumer
+  namespace: egov
+spec:
+  replicas: {{conf['egov-custom-consumer']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-custom-consumer
+        group: core
+    spec:
+      containers:
+      - name: egov-custom-consumer
+        image: {{conf['egov-custom-consumer']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+          value: org.apache.kafka.common.serialization.StringDeserializer
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: egov-api-gateway
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: JAVA_OPTS
+          value: "{{conf['egov-custom-consumer']['heap'] or '-Xmx192m -Xms192m'}}"
+        - name: SERVER_PORT
+          value: "8080"
+        - name:  EGOV_COEXISTENCE_HOSTNAME
+          value: "{{conf['egov-custom-consumer']['erp-host']}}"
+        # resources:
+        #   requests:
+        #     memory: "64Mi"
+        #   limits:
+        #     memory: "{{ conf['egov-custom-consumer']['memory_limits'] or "512Mi"}}"

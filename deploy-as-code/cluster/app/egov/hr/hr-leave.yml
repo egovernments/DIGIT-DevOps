@@ -1,0 +1,148 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hr-leave
+  namespace: egov
+  labels:
+    app: hr-leave
+    group: hr
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: hr-leave
+    group: hr
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: hr-leave
+  namespace: egov
+spec:
+  replicas: {{conf['hr-leave']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: hr-leave
+        group: hr
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+        {% if conf["hr-leave"]["env_specific_db_migration_image"] %}
+          {
+            "name": "hr-leave-env-specific-db-migration",
+            "image": "{{conf["hr-leave"]["env_specific_db_migration_image"]}}",
+            "command": ["sh", "-c", "cp -R /egov/db/migration/hr/hr-leave/* /env_specific_db_migration/"],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
+            ],
+            "imagePullPolicy": "Always"
+          },
+        {% endif %}
+          {
+            "name": "hr-leave-db-migration",
+            "image": "{{conf["hr-leave"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "hr_leave_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
+    spec:
+      containers:
+      - name: hr-leave
+        image: {{conf['hr-leave']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: KAFKA_TOPICS_LEAVEOPENINGBALANCE_CREATE_NAME
+          value: egov.leaveopeningbalance-create
+        - name: KAFKA_TOPICS_LEAVEOPENINGBALANCE_UPDATE_NAME
+          value: egov.leaveopeningbalance-update
+        - name: KAFKA_TOPICS_LEAVETYPE_NAME
+          value: egov-hr-leavetype
+        - name: KAFKA_TOPICS_LEAVETYPE_ID
+          value: egov-hr-leavetype
+        - name: KAFKA_TOPICS_LEAVETYPE_GROUP
+          value: egov-hr-leavetype
+        - name: KAFKA_TOPICS_LEAVEALLOTMENT_CREATE_NAME
+          value: egov.leaveallotment-create
+        - name: KAFKA_TOPICS_LEAVEALLOTMENT_UPDATE_NAME
+          value: egov.leaveallotment-update
+        - name: KAFKA_CONSUMER_CONFIG_GROUP_ID
+          value: hr-leave-group
+        - name: EGOV_SERVICES_COMMON_WORKFLOW_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-common-workflows']}}"
+        - name: EGOV_SERVICES_COMMON_MASTERS_HOST
+          value: "{{conf['egov-service-host']['egov-common-masters']}}"
+        - name: EGOV_SERVICES_HR_EMPLOYEE_HOST
+          value: "{{conf['egov-service-host']['hr-employee']}}"
+        - name: EGOV_SERVICES_HR_MASTERS_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['hr-masters']}}"
+        - name: EGOV_SERVICES_USERS_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        - name: EGOV_SERVICES_HR_ATTENDANCE_HOST
+          value: "{{conf['egov-service-host']['hr-attendance']}}"
+        - name: JAVA_OPTS
+          value: "{{conf['hr-leave']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['hr-leave']['memory_limits'] or "256Mi"}}"
+      volumes:
+      - name: env-specific-db-migration
+        emptyDir: {}
+{% if conf['egov-docker-registry-secret'] %}
+      imagePullSecrets:
+      - name: regsecret
+{% endif %}

@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hr-attendance
+  namespace: egov
+  labels:
+    app: hr-attendance
+    group: hr
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: hr-attendance
+    group: hr
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: hr-attendance
+  namespace: egov
+spec:
+  replicas: {{conf['hr-attendance']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: hr-attendance
+        group: hr
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "hr-attendance-db-migration",
+            "image": "{{conf["hr-attendance"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "hr_attendance_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "Always"
+          }
+        ]'
+    spec:
+      containers:
+      - name: hr-attendance
+        image: {{conf['hr-attendance']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: EGOV_SERVICES_ESINDEXER_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: es-indexer-host
+        - name: EGOV_SERVICES_HR_MASTERS_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['hr-masters']}}"
+        - name: EGOV_SERVICES_HR_EMPLOYEE_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['hr-employee']}}"
+        - name: EGOV_SERVICES_COMMON_MASTERS_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-common-masters']}}"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['hr-attendance']['memory_limits'] or "256Mi"}}"

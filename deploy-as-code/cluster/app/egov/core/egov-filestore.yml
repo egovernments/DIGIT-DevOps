@@ -1,0 +1,160 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: filestore-volume-claim
+  namespace: egov
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "slow"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  selector:
+    matchLabels:
+      app: egov-filestore
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-filestore
+  namespace: egov
+  labels:
+    app: egov-filestore
+    group: core
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-filestore
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-filestore
+  namespace: egov
+spec:
+  replicas: {{conf['egov-filestore']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-filestore
+        group: core
+    spec:
+      initContainers: 
+      - name: "egov-filestore-db-migration"
+        image: "{{conf["egov-filestore"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "egov_filestore_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        imagePullPolicy: "IfNotPresent"
+      volumes:
+      - name: filestore-mount-path
+        persistentVolumeClaim:
+          claimName: filestore-volume-claim
+      containers:
+      - name: egov-filestore
+        image: {{conf['egov-filestore']['images'][0]}}
+        volumeMounts:
+        - mountPath: "/filestore"
+          name: filestore-mount-path
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize   
+        - name: SERVER_TOMCAT_MAX_CONNECTIONS
+          value: "{{conf['egov-config']['server-tomcat-max-connections']}}" 
+        - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+          value: "{{conf['egov-config']['spring-datasource-tomcat-max-active']}}"              
+        - name: SERVER_TOMCAT_MAX_THREADS
+          value: "{{conf['egov-config']['server-tomcat-max-threads']}}"                
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FILE_STORAGE_MOUNT_PATH
+          value: "/filestore"
+        - name: TEMP_FOLDER_PATH
+          value: "/tmp"
+        - name: SPRING_HTTP_MULTIPART_MAX_FILE_SIZE
+          value: "6MB"
+{% if conf['egov-filestore']['is-s3-enabled'] %}
+        - name: ISS3ENABLED
+          value: "true"
+        - name: AWS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: egov-filestore
+              key: awskey
+        - name: AWS_SECRETKEY
+          valueFrom:
+            secretKeyRef:
+              name: egov-filestore
+              key: awssecretkey
+{% endif %}
+{% if conf['egov-filestore']['is-bucket-fixed'] %}
+        - name: IS_BUCKET_FIXED
+          value: "{{conf['egov-filestore']['is-bucket-fixed']}}"
+{% endif %}
+{% if conf['egov-filestore']['fixed-bucketname'] %}
+        - name: FIXED_BUCKETNAME
+          value: "{{conf['egov-filestore']['fixed-bucketname']}}"
+{% endif %}
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['egov-filestore']['heap'] or '-Xmx192m -Xms192m'}}"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+{% if conf['egov-filestore']['memory_limits'] %}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['egov-filestore']['memory_limits'] or "512Mi"}}"
+{% endif %}

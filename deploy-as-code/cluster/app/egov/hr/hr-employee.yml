@@ -1,0 +1,157 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hr-employee
+  namespace: egov
+  labels:
+    app: hr-employee
+    group: hr
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: hr-employee
+    group: hr
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: hr-employee
+  namespace: egov
+spec:
+  replicas: {{conf['hr-employee']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: hr-employee
+        group: hr
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+        {% if conf["hr-employee"]["env_specific_db_migration_image"] %}
+          {
+            "name": "hr-employee-env-specific-db-migration",
+            "image": "{{conf["hr-employee"]["env_specific_db_migration_image"]}}",
+            "command": ["sh", "-c", "cp -R /egov/db/migration/hr/hr-employee/* /env_specific_db_migration/"],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
+            ],
+            "imagePullPolicy": "Always"
+          },
+        {% endif %}
+          {
+            "name": "hr-employee-db-migration",
+            "image": "{{conf["hr-employee"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "hr_employee_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
+    spec:
+      containers:
+      - name: hr-employee
+        image: {{conf['hr-employee']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: EGOV_SERVICES_HR_EMPLOYEE_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['hr-employee']}}"
+        - name: EGOV_SERVICES_EGOV_COMMON_MASTERS_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-common-masters']}}"
+        - name: EGOV_SERVICES_HR_MASTERS_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['hr-masters']}}"
+        - name: EGOV_SERVICES_USERS_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        - name: EGOV_SERVICES_DATA_SYNC_EMPLOYEE_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['data-sync-employee']}}"
+        - name: EGOV_SERVICES_EGOV_IDGEN_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-idgen']}}"
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS_NAME
+          value: egov.core.notification.sms
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS_ID
+          value: egov.core.notification.sms
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS_GROUP
+          value: egov.core.notification.sms
+        - name: KAFKA_TOPICS_EMPLOYEE_SAVEDB_NAME
+          value: egov.employee
+        - name: KAFKA_TOPICS_EMPLOYEE_SAVEDB_KEY
+          value: employee
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+{% if conf['hr-employee']['data_sync_employee_required'] %}
+        - name: EGOV_SERVICES_DATA_SYNC_EMPLOYEE_REQUIRED
+          value: "{{conf['hr-employee']['data_sync_employee_required']}}"
+{% endif %}
+{% if conf['hr-employee']['memory_limits'] %}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['hr-employee']['memory_limits'] or "256Mi"}}"
+{% endif %}
+      volumes:
+      - name: env-specific-db-migration
+        emptyDir: {}
+{% if conf['egov-docker-registry-secret'] %}
+      imagePullSecrets:
+      - name: regsecret
+{% endif %}

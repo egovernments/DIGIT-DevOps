@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: punjab-pgr
+  namespace: egov
+  labels:
+    app: punjab-pgr
+    group: web
+spec:
+  ports:
+  - port: 8000
+    targetPort: 8000
+  selector:
+    app: punjab-pgr
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: punjab-pgr
+  namespace: egov
+spec:
+  replicas: {{conf['punjab-pgr']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: punjab-pgr
+        group: web
+    spec:
+      containers:
+      - name: punjab-pgr
+        image: {{conf['punjab-pgr']['images'][0]}}
+        env:
+        - name: EGOV_MDMS_HOST
+          value: "{{conf['egov-service-host']['egov-mdms-service']}}"
+        - name: DEBUG_MODE
+          value: "true"
+        - name: PT_DEMAND_HOST
+          value: "{{conf['egov-service-host']['billing-service']}}"
+        - name: DB_HOST
+          value: {{conf['punjab-pgr']['db-host']}}
+        - name: DB_NAME
+          value: {{conf['punjab-pgr']['db-name']}}
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['punjab-pgr']['memory_limits'] or "64Mi"}}"

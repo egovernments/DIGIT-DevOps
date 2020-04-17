@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ui-dashboard
+  namespace: egov
+  labels:
+    app: ui-dashboard
+    group: web
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: ui-dashboard
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ui-dashboard
+  namespace: egov
+spec:
+  replicas: {{conf['ui-dashboard']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: ui-dashboard
+        group: web
+    spec:
+      containers:
+      - name: ui-app-v2
+        image: {{conf['ui-dashboard']['images'][0]}}
+        ports:
+        - containerPort: 80
+        env:
+        - name: REACT_APP_ES
+          value: {{conf['egov-config']['es-indexer-host']}}
+        - name: REACT_APP_BOUNDARY_SERVICE_API
+          value: {{conf['egov-service-host']['egov-location']}}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['ui-dashboard']['memory_limits'] or "64Mi"}}"

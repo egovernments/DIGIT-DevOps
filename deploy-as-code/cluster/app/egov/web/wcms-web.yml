@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wcms-web
+  namespace: egov
+  labels:
+    app: wcms-web
+    group: web
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: wcms-web
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: wcms-web
+  namespace: egov
+spec:
+  replicas: {{conf['wcms-web']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: wcms-web
+        group: web
+    spec:
+      containers:
+      - name: wcms-web
+        image: {{conf['wcms-web']['images'][0]}}
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['wcms-web']['memory_limits'] or "64Mi"}}"

@@ -100,17 +100,17 @@ resource "aws_autoscaling_group" "asg" {
         version = "$Latest"
       }
 
-      override {
-        instance_type = "r5.large"
-      }   
+      # override {
+      #   instance_type = "r5.large"
+      # }   
       
-      override {
-        instance_type = "m5.xlarge"
-      }   
+      # override {
+      #   instance_type = "m5.xlarge"
+      # }   
 
-      override {
-        instance_type = "m4.xlarge"
-      }
+      # override {
+      #   instance_type = "m4.xlarge"
+      # }
     }
   }
 

@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pt-workflow
+  namespace: egov
+  labels:
+    app: pt-workflow
+    group: property
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: pt-workflow
+    group: property
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pt-workflow
+  namespace: egov
+spec:
+  replicas: {{conf['pt-workflow']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: pt-workflow
+        group: property
+    spec:
+      containers:
+      - name: pt-workflow
+        image: {{conf['pt-workflow']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: EGOV_SERVICES_EGOV_COMMON_WORKFLOWS_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-common-workflows']}}"
+        - name: EGOV_PROPERTYTAX_PROPERTY_TITLETRANSFER_WORKFLOW_CREATE
+          value: property-titletransfer-create-user-validated
+        - name: EGOV_PROPERTYTAX_PROPERTY_TITLETRANSFER_WORKFLOW_UPDATE
+          value: property-titletransfer-update-user-validated
+        - name: EGOV_PROPERTYTAX_PROPERTY_TITLETRANSFER_WORKFLOW_CREATED
+          value: property-titletransfer-create-workflow-started
+        - name: EGOV_PROPERTYTAX_PROPERTY_TITLETRANSFER_APPROVED
+          value: property-titletransfer-approved
+        - name: EGOV_PROPERTYTAX_PROPERTY_TITLETRANSFER_WORKFLOW_UPDATED
+          value: property-titletransfer-workflow-updated
+        - name: EGOV_PROPERTYTAX_PROPERTY_CREATE_WORKFLOW
+          value: property-create-tax-calculated
+        - name: EGOV_PROPERTYTAX_PROPERTY_UPDATE_WORKFLOW
+          value: property-update-tax-calculated
+        - name: EGOV_PROPERTYTAX_PROPERTY_CREATE_WORKFLOW_STARTED
+          value: property-create-workflow-started
+        - name: EGOV_PROPERTYTAX_PROPERTY_UPDATE_WORKFLOW_STARTED
+          value: property-update-workflow-started
+        - name: EGOV_PROPERTYTAX_PROPERTY_UPDATE_WORKFLOW_APPROVED
+          value: property-update-workflow-approved
+        - name: CONSUMER_GROUPID
+          value: workflowConsumer
+        - name: EGOV_SERVICES_TENANT_HOSTNAME
+          value: "{{conf['egov-service-host']['tenant']}}"
+        - name: ID_IDNAME
+          value: propertytax.upicnumber
+        - name: EGOV_SERVICES_EGOV_IDGEN_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-idgen']}}"
+        - name: EGOV_SERVICES_PT_PROPERTY_HOSTNAME
+          value: "{{conf['egov-service-host']['pt-property']}}"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['pt-workflow']['memory_limits'] or "256Mi"}}"

@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egf-account-details-consumer
+  namespace: egov
+  labels:
+    app: egf-account-details-consumer
+    group: financials
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egf-account-details-consumer
+    group: financials
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egf-account-details-consumer
+  namespace: egov
+spec:
+  replicas: {{conf['egf-account-details-consumer']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egf-account-details-consumer
+        group: financials
+    spec:
+      containers:
+      - name: egf-account-details-consumer
+        image: {{conf['egf-account-details-consumer']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: JAVA_OPTS
+          value: "{{conf['egf-account-details-consumer']['heap'] or '-Xmx192m -Xms192m'}}"
+        - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: KAFKA_TOPICS_EMPLOYEE_SAVEDB_NAME
+          value: egov.employee
+        - name: EGOV_SERVICES_EGF_MASTERS_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['egf-masters']}}"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['egf-account-details-consumer']['memory_limits'] or "512Mi"}}"

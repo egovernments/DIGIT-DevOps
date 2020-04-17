@@ -1,0 +1,87 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: hr-employee-indexer
+  namespace: egov
+spec:
+  replicas: {{conf['hr-employee-indexer']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: hr-employee-indexer
+        group: hr
+    spec:
+      containers:
+      - name: hr-employee-indexer
+        image: {{conf['hr-employee-indexer']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            memory: "256Mi"
+          requests:
+            memory: "128Mi"
+        env:
+        - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: EGOV_COMMON_MASTERS_SERVICE_HOST
+          value: "{{conf['egov-service-host']['egov-common-masters']}}"
+        - name: EGOV_LOCATION_SERVICE_HOST
+          value: "{{conf['egov-service-host']['egov-location']}}"
+        - name: EGOV_USER_SERVICE_HOST
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        - name: EGF_MASTERS_SERVICE_HOST
+          value: "{{conf['egov-service-host']['egf-masters']}}"
+        - name: EGOV_TENANT_SERVICE_HOST
+          value: "{{conf['egov-service-host']['tenant']}}"
+        - name: HR_MASTERS_SERVICE_HOST
+          value: "{{conf['egov-service-host']['hr-masters']}}"
+        - name: EGOV_SERVICES_ESINDEXER_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: es-indexer-host
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS_NAME
+          value: egov.core.notification.sms
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS_ID
+          value: egov.core.notification.sms
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS_GROUP
+          value: egov.core.notification.sms
+        - name: KAFKA_TOPICS_EMPLOYEE_ESINDEX_SAVEDB_NAME
+          value: egov.employee
+        - name: KAFKA_TOPICS_EMPLOYEE_ESINDEX_SAVEDB_ID
+          value: egov.employee-indexer
+        - name: KAFKA_TOPICS_EMPLOYEE_ESINDEX_UPDATEDB_NAME
+          value: egov.employee.update
+        - name: KAFKA_TOPICS_EMPLOYEE_ESINDEX_UPDATEDB_ID
+          value: egov.employee-update
+        - name: KAFKA_TOPICS_EMPLOYEE_INDEX_GROUP
+          value: egov.employee-indexer
+        - name: SERVER_PORT
+          value: "8080"
+        - name: JAVA_OPTS
+          value: "{{conf['hr-employee-indexer']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['hr-employee-indexer']['memory_limits'] or "256Mi"}}"

@@ -1,0 +1,147 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egf-voucher
+  namespace: egov
+  labels:
+    app: egf-voucher
+    group: financials
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egf-voucher
+    group: financials
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egf-voucher
+  namespace: egov
+spec:
+  replicas: {{conf['egf-voucher']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egf-voucher
+        group: financials
+    spec:
+      initContainers: 
+      - name: "egf-voucher-db-migration"
+        image: "{{conf["egf-voucher"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "egf_voucher_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        imagePullPolicy: "IfNotPresent"
+      containers:
+      - name: egf-voucher
+        image: {{conf['egf-voucher']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: KAFKA_TOPICS_EGF_VOUCHER_VALIDATED_TOPIC
+          value: egov.egf.voucher.validated.topic
+        - name: KAFKA_TOPICS_EGF_VOUCHER_VALIDATED_GROUP
+          value: egov.egf.voucher.validated.group
+        - name: KAFKA_TOPICS_EGF_VOUCHER_VALIDATED_ID
+          value: egov.egf.voucher.validated.id
+        - name: KAFKA_TOPICS_EGF_VOUCHER_COMPLETED_TOPIC
+          value: egov.egf.voucher.completed
+        - name: KAFKA_TOPICS_EGF_VOUCHER_COMPLETED_GROUP
+          value: egov.egf.voucher.completed.group
+        - name: KAFKA_TOPICS_EGF_VOUCHER_VOUCHERSUBTYPE_COMPLETED_KEY
+          value: egov.egf.voucher.completed.key
+        - name: KAFKA_TOPICS_EGF_VOUCHER_VOUCHERSUBTYPE_VALIDATED_KEY
+          value: egov.egf.voucher.validated.key
+        - name: KAFKA_TOPICS_EGF_VOUCHER_VALIDATED_KEY
+          value: egov.egf.voucher.validated.key
+        - name: KAFKA_TOPICS_EGF_VOUCHER_COMPLETED_KEY
+          value: egov.egf.voucher.completed.key
+        - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+          value: org.apache.kafka.common.serialization.StringDeserializer
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: egf-voucher
+        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        - name: EGF_MASTER_HOST_URL
+          value: "{{conf['egov-service-host']['egf-master']}}"
+        - name: EGF_VOUCHER_HOST_URL
+          value: "{{conf['egov-service-host']['egf-voucher']}}"
+        - name: EGOV_SERVICES_COMMONMASTERS_HOST
+          value: "{{conf['egov-service-host']['egov-common-masters']}}"
+        - name: EGOV_SERVICES_BOUNDARY_HOST
+          value: "{{conf['egov-service-host']['egov-location']}}"
+        - name: ES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: es-host
+        - name: ES_TRANSPORT_PORT
+          value: "9300"
+        - name: ES_CLUSTER_NAME
+          value: egov_es_cluster
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['egf-voucher']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['egf-voucher']['memory_limits'] or "256Mi"}}"

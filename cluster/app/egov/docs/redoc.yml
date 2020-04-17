@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: redoc
+  namespace: egov
+  labels:
+    app: redoc
+    group: docs
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+{% if conf['redoc']['service_type'] == 'NodePort' %}
+    nodePort: {{ conf['redoc']['service_port'] }}
+{% endif %}
+  selector:
+    app: redoc
+    group: docs
+  type: "{{conf['redoc']['service_type']}}"
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: redoc
+  namespace: egov
+spec:
+  replicas: {{conf['redoc']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: redoc
+        group: docs
+    spec:
+      containers:
+      - name: redoc
+        image: {{conf['redoc']['images'][0]}}
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['redoc']['memory_limits'] or "128Mi"}}"

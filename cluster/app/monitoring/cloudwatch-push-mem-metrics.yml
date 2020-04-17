@@ -1,0 +1,46 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: cloudwatch-push-mem-metrics
+  namespace: monitoring
+spec:
+  template:
+    metadata:
+      labels:
+        app: cloudwatch-push-mem-metrics
+        group: cloudwatch-push-mem-metrics
+    spec:
+      containers:
+      - name: cloudwatch-push-mem-metrics
+        image: {{conf['cloudwatch-push-mem-metrics']['images'][0]}}
+        env:
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: aws-config
+              key: aws-access-key-id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-config
+              key: aws-secret-access-key
+        - name: AWS_AVAILABILITY_ZONE
+          valueFrom:
+            secretKeyRef:
+              name: aws-config
+              key: aws-availability-zone
+        - name: NODE_ENV
+          value: "{{ conf['cloudwatch-push-mem-metrics']['node-env']}}"
+        - name: ARN
+          valueFrom:
+            secretKeyRef:
+              name: aws-config
+              key: arn
+        volumeMounts:
+        - name: rootfs
+          mountPath: /rootfs
+          readOnly: true
+      volumes:
+      - name: rootfs
+        hostPath:
+          path: /

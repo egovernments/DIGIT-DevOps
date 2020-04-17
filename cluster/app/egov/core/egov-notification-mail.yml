@@ -1,0 +1,49 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-notification-mail
+  namespace: egov
+spec:
+  replicas: {{conf['egov-notification-mail']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-notification-mail
+        group: core
+    spec:
+      containers:
+      - name: egov-notification-mail
+        image: {{conf['egov-notification-mail']['images'][0]}}
+        env:
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: KAFKA_TOPICS_NOTIFICATION_MAIL_NAME
+          value: egov.core.notification.email
+        - name: KAFKA_TOPICS_NOTIFICATION_MAIL_ID
+          value: egov.core.notification.email
+        - name: KAFKA_TOPICS_NOTIFICATION_MAIL_GROUP
+          value: egov.core.notification.email
+        - name: MAIL_SENDER_USERNAME
+          value: "{{conf['egov-notification-mail']['username']}}"
+        - name: MAIL_SENDER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: egov-notification-mail
+              key: mailsenderpassword                   
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: JAVA_OPTS
+          value: "{{conf['egov-notification-mail']['heap'] or '-Xmx192m -Xms192m'}}"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['egov-notification-mail']['memory_limits'] or "512Mi"}}"

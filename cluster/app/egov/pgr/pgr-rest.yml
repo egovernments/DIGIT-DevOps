@@ -1,0 +1,148 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgr-rest
+  namespace: egov
+  labels:
+    app: pgr-rest
+    group: pgr
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: pgr-rest
+    group: pgr
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pgr-rest
+  namespace: egov
+spec:
+  replicas: {{conf['pgr-rest']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: pgr-rest
+        group: pgr
+    spec:
+      initContainers: 
+      - name: "pgr-rest-db-migration"
+        image: "{{conf["pgr-rest"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "pgr_rest_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        imagePullPolicy: "IfNotPresent"
+      containers:
+      - name: pgr-rest
+        image: {{conf['pgr-rest']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: SERVER_PORT
+          value: "8080"
+        - name: CRN_HOST
+          value: "{{conf['egov-service-host']['pgr-crn-generation']}}"
+        - name: CRN_SERVICE_URL
+          value: http://pgr-crn-generation:8080/crn-generation/crn/v1/_create
+        - name: USER_SERVICE_URL
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        - name: EGOV_SERVICES_EIS_HOST
+          value: "{{conf['egov-service-host']['egov-eis']}}"
+        - name: OUTGOING_QUEUE_NAME
+          value: egov.pgr.validated
+        - name: KAFKA_TOPICS_PGR_WORKFLOWUPDATED_NAME
+          value: egov.pgr.workflowupdated
+        - name: ES_CLUSTER_NAME
+          value: egov_es_cluster
+        - name: PGRMASTER_HOST
+          value: "{{conf['egov-service-host']['pgr-master']}}"
+        - name: HREMPLOYEE_HOST
+          value: "{{conf['egov-service-host']['hr-employee']}}"
+        - name: OTP_HOST
+          value: "{{conf['egov-service-host']['egov-otp']}}"
+        - name: ES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: es-host
+        - name: ES_TRANSPORT_PORT
+          value: "9300"
+        - name: ES_LOG_REQUEST
+          value: "true"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SMS_TOPIC
+          value: egov.core.notification.sms
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+{% if conf['pgr-rest']['postgres-enabled'] %}
+        - name: POSTGRES_ENABLED
+          value: "true"
+{% endif %}
+        - name: JAVA_OPTS
+          value: "{{conf['pgr-rest']['heap'] or '-Xmx128m -Xms128m'}}"
+        - name: EGOV_WORKFLOW_HOST
+          value: "{{conf['egov-service-host']['egov-workflow']}}"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['pgr-rest']['memory_limits'] or "512Mi"}}"

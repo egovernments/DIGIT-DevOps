@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-ui-transform-service
+  namespace: egov
+  labels:
+    app: egov-ui-transform-service
+    group: web
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-ui-transform-service
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-ui-transform-service
+  namespace: egov
+spec:
+  replicas: {{conf['egov-ui-transform-service']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-ui-transform-service
+        group: web
+    spec:
+      containers:
+      - name: egov-ui-transform-service
+        image: {{conf['egov-ui-transform-service']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            memory: "128Mi"
+          limits:
+            memory: "{{ conf['egov-ui-transform-service']['memory_limits'] or "128Mi"}}"

@@ -1,0 +1,44 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: egov-weekly-impact-notifier
+  namespace: egov
+spec:
+  concurrencyPolicy: "Forbid"
+  schedule: "{{conf['egov-weekly-impact-notifier']['schedule']}}"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: egov-weekly-impact-notifier
+            image: "{{ conf['egov-weekly-impact-notifier']['images'][0] }}"
+            env:
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: egov-config
+                  key: kafka-brokers       
+            - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+              value: org.egov.tracer.kafka.deserializer.HashMapDeserializer
+            - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+              value: org.apache.kafka.common.serialization.StringDeserializer
+            - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+              value: "egov-weekly-impact-notifier"
+            - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+              value: org.apache.kafka.common.serialization.StringSerializer
+            - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+              value: org.springframework.kafka.support.serializer.JsonSerializer                     
+            - name: EGOV_IMPACT_EMAILER_INTERVAL_IN_SECS
+              value: "{{conf['egov-weekly-impact-notifier']['mail-interval-in-secs']}}"
+            - name: EGOV_IMPACT_EMAILER_EMAIL_TO_ADDRESS
+              value: "{{conf['egov-weekly-impact-notifier']['mail-to-address']}}"
+            - name: EGOV_IMPACT_EMAILER_EMAIL_SUBJECT
+              value: "Egov's Weekly Impact"
+            - name: EGOV_SEARCHER_HOST
+              value: "{{conf['egov-service-host']['egov-searcher']}}"
+            - name: EGOV_SEARCHER_ENDPOINT
+              value: "/egov-searcher/{moduleName}/{searchName}/_get"
+            - name: EGOV_CORE_NOTIFICATION_EMAIL_TOPIC
+              value: "egov.core.notification.email"
+          restartPolicy: Never

@@ -1,0 +1,48 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: lams-notification
+  namespace: egov
+spec:
+  replicas: {{conf['lams-notification']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: lams-notification
+        group: lams
+    spec:
+      containers:
+      - name: lams-notification
+        image: {{conf['lams-notification']['images'][0]}}
+        env:
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: KAFKA_TOPICS_NOTIFICATION_AGREEMENT_CREATE_NAME
+          value: agreement-save-db
+        - name: KAFKA_TOPICS_NOTIFICATION_AGREEMENT_UPDATE_NAME
+          value: agreement-update-db
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS_ID
+          value: agreement
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS_GROUP
+          value: agreement-group
+        - name: KAFKA_TOPICS_NOTIFICATION_SMS_NAME
+          value: egov.core.notification.sms
+        - name: EGOV_SERVICES_ASSET_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['asset-services']}}"
+        - name: EGOV_SERVICES_ALLOTTEE_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+{% if conf['lams-notification']['memory_limits'] %}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['lams-notification']['memory_limits'] or "256Mi"}}"
+{% endif %}

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgr-web
+  namespace: egov
+  labels:
+    app: pgr-web
+    group: web
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: pgr-web
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pgr-web
+  namespace: egov
+spec:
+  replicas: {{conf['pgr-web']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: pgr-web
+        group: web
+    spec:
+      containers:
+      - name: pgr-web
+        image: {{conf['pgr-web']['images'][0]}}
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['pgr-web']['memory_limits'] or "64Mi"}}"

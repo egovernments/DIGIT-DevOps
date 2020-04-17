@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboards-web
+  namespace: egov
+  labels:
+    app: dashboards-web
+    group: web
+spec:
+  ports:
+  - port: 80
+    targetPort: dashboards-web
+    protocol: TCP
+{% if conf['dashboards-web']['service_type'] == 'NodePort' %}
+    nodePort: {{ conf['dashboards-web']['service_port'] }}
+{% endif %}
+  selector:
+    app: dashboards-web
+    group: web
+  type: "{{conf['dashboards-web']['service_type']}}"
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: dashboards-web
+  namespace: egov
+spec:
+  replicas: {{conf['dashboards-web']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: dashboards-web
+        group: web
+    spec:
+      containers:
+      - name: dashboards-web
+        image: {{conf['dashboards-web']['images'][0]}}
+        ports:
+        - containerPort: 80
+          protocol: TCP
+          name: dashboards-web
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['dashboards-web']['memory_limits'] or "64Mi"}}"

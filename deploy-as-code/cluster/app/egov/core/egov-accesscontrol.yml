@@ -1,0 +1,134 @@
+apiVersion: v1
+
+kind: Service
+metadata:
+  name: egov-accesscontrol
+  namespace: egov
+  labels:
+    app: egov-accesscontrol
+    group: core
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-accesscontrol
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-accesscontrol
+  namespace: egov
+spec:
+  replicas: {{conf['egov-accesscontrol']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-accesscontrol
+        group: core
+    spec:
+      containers:
+      - name: egov-accesscontrol
+        image: {{conf['egov-accesscontrol']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /access/health
+            port: 8080
+          initialDelaySeconds: 90
+          timeoutSeconds: 3
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 5
+        livenessProbe:
+          httpGet:
+            path: /access/health
+            port: 8080
+          initialDelaySeconds: 120
+          timeoutSeconds: 3
+          periodSeconds: 60
+          successThreshold: 1
+          failureThreshold: 5        
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: FLYWAY_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SERVER_TOMCAT_MAX_THREADS
+          value: "{{conf['egov-config']['server-tomcat-max-threads']}}"
+        - name: SERVER_TOMCAT_MAX_CONNECTIONS
+          value: "{{conf['egov-config']['server-tomcat-max-connections']}}" 
+        - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+          value: "{{conf['egov-config']['spring-datasource-tomcat-max-active']}}"                           
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: JAVA_OPTS
+          value: "{{conf['egov-accesscontrol']['heap'] or '-Xmx192m -Xms192m'}}"          
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        - name: EGOV_MDMS_HOST
+          value: "{{conf['egov-service-host']['egov-mdms-service']}}"
+        - name: JAVA_ARGS
+          value: "{{conf['egov-accesscontrol']['java-args']}}"  
+{% if conf['egov-accesscontrol']['tracing-enabled']%}          
+        - name: TRACER_OPENTRACING_ENABLED
+          value: "true" 
+{% endif %}            
+        - name: JAEGER_SERVICE_NAME
+          value: egov-accesscontrol
+        - name: JAEGER_SAMPLER_TYPE
+          value: remote
+        - name: JAEGER_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: JAEGER_AGENT_PORT
+          value: "6831"
+        - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+          value: "$(JAEGER_AGENT_HOST):5778"              
+        - name: SECURITY_BASIC_ENABLED
+          value: "false"  
+        - name: MANAGEMENT_SECURITY_ENABLED
+          value: "false"         
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['egov-accesscontrol']['memory_limits'] or "512Mi"}}"
+      volumes:
+      - name: env-specific-db-migration
+        emptyDir: {}
+{% if conf['egov-docker-registry-secret'] %}
+      imagePullSecrets:
+      - name: regsecret
+{% endif %}

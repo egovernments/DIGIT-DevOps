@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pt-notification
+  namespace: egov
+  labels:
+    app: pt-notification
+    group: property
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: pt-notification
+    group: property
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pt-notification
+  namespace: egov
+spec:
+  replicas: {{conf['pt-notification']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: pt-notification
+        group: property
+    spec:
+      containers:
+      - name: pt-notification
+        image: {{conf['pt-notification']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: PT_NOTIFICATION_GROUPNAME
+          value: notification
+        - name: EGOV_SERVICES_BILLING_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['billing-service']}}"
+        - name: EGOV_SERVICES_PT_PROPERTY_HOSTNAME
+          value: "{{conf['egov-service-host']['pt-property']}}"
+        - name: EGOV_PROPERTYTAX_PT_NOTIFICATION_DEMAND_ACKNOWLEDGEMENT
+          value: demand-create-validated
+        - name: EGOV_PROPERTYTAX_PT_NOTIFICATION_DEMAND_APPROVE
+          value: demand-approved
+        - name: EGOV_PROPERTYTAX_PT_NOTIFICATION_DEMAND_TRANSFERFEE
+          value: demand-transferfee
+        - name: EGOV_PROPERTYTAX_PT_NOTIFICATION_DEMAND_REJECT
+          value: demand-rejected
+        - name: EGOV_PROPERTYTAX_PT_NOTIFICATION_PROPERTY_ACKNOWLEDGEMENT
+          value: property-create-validated
+        - name: EGOV_PROPERTYTAX_PT_NOTIFICATION_PROPERTY_APPROVE
+          value: property-update-workflow-approved
+        - name: EGOV_PROPERTYTAX_PT_NOTIFICATION_PROPERTY_REJECT
+          value: property-rejected
+        - name: EGOV_PROPERTYTAX_PT_NOTIFICATION_PROPERTY_ALTERATION_ACKNOWLEDGEMENT
+          value: property-alteration-validated
+        - name: EGOV_PROPERTYTAX_PT_NOTIFICATION_PROPERTY_ALTERATION_APPROVE
+          value: property-alteration-approved
+        - name: EGOV_PROPERTYTAX_PT_NOTIFICATION_PROPERTY_ALTERATION_REJECT
+          value: property-alteration-rejected
+        - name: EGOV_PROPERTYTAX_PT_NOTIFICATION_REVISION_PETITION_ACKNOWLEDGEMENT
+          value: revision-petition-validated
+        - name: EGOV_PROPERTYTAX_PT_NOTIFICATION_REVISION_PETITION_HEARING
+          value: revision-petition-hearing
+        - name: EGOV_PROPERTYTAX_PT_NOTIFICATION_REVISION_PETITION_ENDORSEMENT
+          value: revision-petition-endorsement
+        - name: EGOV_SERVICES_FQDN_NAME
+          value: "{{conf['egov-config']['egov-services-fqdn-name']}}"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['pt-notification']['memory_limits'] or "256Mi"}}"

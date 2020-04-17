@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: employee-tradelicence
+  namespace: egov
+  labels:
+    app: employee-tradelicence
+    group: web
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: employee-tradelicence
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: employee-tradelicence
+  namespace: egov
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  replicas: {{conf['employee-tradelicence']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: employee-tradelicence
+        group: web
+    spec:
+      containers:
+      - name: employee-tradelicence
+        image: {{conf['employee-tradelicence']['images'][0]}}
+        ports:
+        - containerPort: 80
+        readinessProbe:
+          httpGet:
+            path: /employee-tradelicence/licence
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          successThreshold: 1
+        env:
+{% if conf['employee-tradelicence']['SUBFILTER'] %}
+        - name: SUBFILTER
+          value: "{{conf['employee-tradelicence']['SUBFILTER']}}"
+{% endif %}
+{% if conf['employee-tradelicence']['TL_ULB_JS_URL'] %}
+        - name: TL_ULB_JS_URL
+          value: "{{conf['employee-tradelicence']['TL_ULB_JS_URL']}}"
+{% endif %}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['employee-tradelicence']['memory_limits'] or "64Mi"}}"

@@ -1,0 +1,54 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pgr-batch
+  namespace: egov
+spec:
+  replicas: {{conf['pgr-batch']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: pgr-batch
+        group: pgr
+    spec:
+      containers:
+      - name: pgr-batch
+        image: {{conf['pgr-batch']['images'][0]}}
+        env:
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: ESCALATION_INTERVAL
+          value: "{{conf['pgr-batch']['escalation_interval']}}"
+        - name: EGOV_SERVICES_PGR_HOST
+          value: "{{conf['egov-service-host']['pgr-rest']}}"
+        - name: EGOV_SERVICES_WORKFLOW_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-workflow']}}"
+        - name: EGOV_SERVICE_USER_SERVICE_HOST
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        - name: EGOV_SERVICES_POSITION_HOST
+          value: "{{conf['egov-service-host']['hr-masters']}}"
+        - name: EGOV_SERVICES_TENANT_HOST
+          value: "{{conf['egov-service-host']['tenant']}}"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: KAFKA_TOPICS_ESCALATION_UPDATE_NAME
+          value: egov.pgr.workflowupdated
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['pgr-batch']['memory_limits'] or "256Mi"}}"

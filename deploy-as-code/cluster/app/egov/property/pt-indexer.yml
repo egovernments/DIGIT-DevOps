@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pt-indexer
+  namespace: egov
+  labels:
+    app: pt-indexer
+    group: property
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: pt-indexer
+    group: property
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pt-indexer
+  namespace: egov
+spec:
+  replicas: {{conf['pt-indexer']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: pt-indexer
+        group: property
+    spec:
+      containers:
+      - name: pt-indexer
+        image: {{conf['pt-indexer']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: CONSUMER_GROUP
+          value: Indexer
+        - name: EGOV_PROPERTYTAX_PROPERTY_CREATE_WORKFLOW_STARTED
+          value: property-create-workflow-started
+        - name: EGOV_PROPERTYTAX_PROPERTY_UPDATE_WORKFLOW_STARTED
+          value: property-update-workflow-started
+        - name: EGOV_PROPERTYTAX_PROPERTY_UPDATE_WORKFLOW_APPROVED
+          value: property-update-workflow-approved
+        - name: EGOV_SERVICES_TENANT_HOSTNAME
+          value: "{{conf['egov-service-host']['tenant']}}"
+        - name: ES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: es-host
+        - name: ES_PORT
+          value: "9200"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['pt-indexer']['memory_limits'] or "256Mi"}}"

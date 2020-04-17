@@ -1,0 +1,53 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: lams-indexer
+  namespace: egov
+spec:
+  replicas: {{conf['lams-indexer']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: lams-indexer
+        group: lams
+    spec:
+      containers:
+      - name: lams-indexer
+        image: {{conf['lams-indexer']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: EGOV_SERVICES_LAMS_INDEXER_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: es-indexer-host
+        - name: EGOV_SERVICES_ASSET_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['asset-services']}}"
+        - name: EGOV_SERVICES_ALLOTTEE_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        - name: EGOV_SERVICES_BOUNDARY_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-location']}}"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: SERVER_PORT
+          value: "8080"
+        - name: KAFKA_TOPICS_SAVE_AGREEMENT
+          value: agreement-save-db
+        - name: KAFKA_TOPICS_UPDATE_AGREEMENT
+          value: agreement-update-db
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+{% if conf['lams-indexer']['memory_limits'] %}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['lams-indexer']['memory_limits'] or "256Mi"}}"
+{% endif %}

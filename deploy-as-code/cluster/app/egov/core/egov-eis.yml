@@ -1,0 +1,123 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-eis
+  namespace: egov
+  labels:
+    app: egov-eis
+    group: core
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-eis
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-eis
+  namespace: egov
+spec:
+  replicas: {{conf['egov-eis']['replicas']}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: egov-eis
+        group: core
+    spec:
+      initContainers:
+      {% if conf["egov-eis"]["env_specific_db_migration_image"] %}
+        - name: "egov-eis-env-specific-db-migration"
+          image: "{{conf["egov-eis"]["env_specific_db_migration_image"]}}"
+          command: ["sh", "-c", "cp -R /egov/db/migration/core/egov-eis/* /env_specific_db_migration/"]
+        volumeMounts:
+        - mountPath: "/env_specific_db_migration"
+          name: "env-specific-db-migration"
+        imagePullPolicy: "IfNotPresent"
+      {% endif %}
+
+      - name: "egov-eis-db-migration"
+        image: "{{conf["egov-eis"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "egov_eis_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        volumeMounts:
+        - mountPath: "/env_specific_db_migration"
+          name: "env-specific-db-migration"
+        imagePullPolicy: "IfNotPresent"
+      containers:
+      - name: egov-eis
+        image: {{conf['egov-eis']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['egov-eis']['memory_limits'] or "256Mi"}}"
+      volumes:
+      - name: env-specific-db-migration
+        emptyDir: {}
+{% if conf['egov-docker-registry-secret'] %}
+      imagePullSecrets:
+      - name: regsecret
+{% endif %}

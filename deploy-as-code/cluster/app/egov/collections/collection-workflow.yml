@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: collection-workflow
+  namespace: egov
+  labels:
+    app: collection-workflow
+    group: collections
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: collection-workflow
+    group: collections
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: collection-workflow
+  namespace: egov
+spec:
+  replicas: {{conf['collection-workflow']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: collection-workflow
+        group: collections
+    spec:
+      containers:
+      - name: collection-workflow
+        image: {{conf['collection-workflow']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: EGOV_SERVICES_WORKFLOW_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-common-workflows']}}"
+        - name: EGOV_COLLECTION_SERVICE_HOST
+          value: "{{conf['egov-service-host']['collection-services']}}"
+        - name: EGOV_HREMPLOYEE_HOSTNAME
+          value: "{{conf['egov-service-host']['hr-employee']}}"
+        - name: KAFKA_TOPICS_WORKFLOW_START_NAME
+          value: egov.collection.workflow-start
+        - name: KAFKA_TOPICS_WORKFLOW_START_KEY
+          value: workflow-start
+        - name: KAFKA_TOPICS_WORKFLOW_UPDATE_NAME
+          value: egov.collection.workflow-update
+        - name: KAFKA_TOPICS_WORKFLOW_UPDATE_KEY
+          value: workflow-update
+        - name: KAFKA_TOPICS_STATEID_UPDATE_NAME
+          value: egov.collection.stateId-update
+        - name: KAFKA_TOPICS_STATEID_UPDATE_KEY
+          value: stateId-update
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: collection-persist
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        - name: USER_SERVICE_HOST
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['collection-workflow']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['collection-workflow']['memory_limits'] or "256Mi"}}"

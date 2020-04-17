@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pt-user-enrichment
+  namespace: egov
+  labels:
+    app: pt-user-enrichment
+    group: property
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: pt-user-enrichment
+    group: property
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pt-user-enrichment
+  namespace: egov
+spec:
+  replicas: {{conf['pt-user-enrichment']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: pt-user-enrichment
+        group: property
+    spec:
+      containers:
+      - name: pt-user-enrichment
+        image: {{conf['pt-user-enrichment']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: EGOV_PROPERTYTAX_PROPERTY_USERENHANCED
+          value: validateuser
+        - name: EGOV_PROPERTYTAX_PROPERTY_UPDATE_USERENHANCED
+          value: updateuser
+        - name: EGOV_PROPERTYTAX_PROPERTY_TAX
+          value: propertytax
+        - name: EGOV_PROPERTYTAX_PROPERTY_UPDATE_UPDATE_TAX
+          value: updatepropertytax
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: EGOV_SERVICES_EGOV_USER_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        - name: SERVER_CONTEXTPATH
+          value: /pt-user-enrichment
+        - name: EGOV_PROPERTYTAX_PROPERTY_TAX
+          value: property-create-user-validated
+        - name: EGOV_SERVICES_TENANT_HOSTNAME
+          value: "{{conf['egov-service-host']['tenant']}}"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['pt-user-enrichment']['memory_limits'] or "256Mi"}}"

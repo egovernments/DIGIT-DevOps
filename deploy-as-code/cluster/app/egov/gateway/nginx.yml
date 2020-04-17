@@ -1,0 +1,164 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  namespace: egov
+  labels:
+    app: nginx
+    group: gateway
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+    name: http
+  - port: 443
+    targetPort: 443
+    name: https
+  # - port: 8180
+  #   targetPort: 8180
+  #   name: kibanaro
+  # - port: 8181
+  #   targetPort: 8181
+    name: kibanali
+{% if conf['nginx']['service_type'] == 'NodePort' %}
+    nodePort: {{ conf['nginx']['service_port'] }}
+{% endif %}
+  selector:
+    app: nginx
+    group: gateway
+  type: "{{conf['nginx']['service_type']}}"
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: egov
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  replicas: {{conf['nginx']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: nginx
+        group: gateway
+    spec:
+      volumes:
+      - name: certs
+        secret:
+          defaultMode: 420
+          secretName: certs
+{% if conf['nginx']['nginx-global-configs-injection-enabled'] %}          
+      - name: js-injection
+        configMap:
+          name: nginx-globalconfigs-injection    
+{% endif %}                
+      containers:
+      - name: nginx
+        image: {{conf['nginx']['images'][0]}}
+        ports:
+        - containerPort: 80
+        - containerPort: 443
+        livenessProbe:
+          httpGet:
+            path: /citizen
+            port: 80
+          initialDelaySeconds: 15
+          timeoutSeconds: 3
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 5 
+        readinessProbe:
+          httpGet:
+            path: /citizen
+            port: 80
+          initialDelaySeconds: 15
+          timeoutSeconds: 3          
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 5           
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - sh
+              - -c
+              - "sleep 10 && nginx -s quit"             
+        env:
+{% if conf['egov-config']['domain'] %}
+        - name: DOMAIN
+          value: {{conf['egov-config']['domain']}}
+{% endif %}
+{% if conf['nginx']['kibana-credentials'] %}
+        - name: KIBANA_CREDENTIALS
+          value: {{conf['nginx']['kibana-credentials']}}
+{% endif %}
+{% if conf['nginx']['jaeger-credentials'] %}
+        - name: JAEGER_CREDENTIALS
+          value: {{conf['nginx']['jaeger-credentials']}}
+{% endif %}
+{% if conf['nginx']['SUBFILTER'] %}
+        - name: SUBFILTER
+          value: "{{conf['nginx']['SUBFILTER']}}"
+{% endif %}
+{% if conf['nginx']['ULB_JS_URL'] %}
+        - name: ULB_JS_URL
+          value: "{{conf['nginx']['ULB_JS_URL']}}"
+{% endif %}
+{% if conf['nginx']['TELEMETRY_JS_URL'] %}
+        - name: TELEMETRY_JS_URL
+          value: "{{conf['nginx']['TELEMETRY_JS_URL']}}"
+{% endif %}
+{% if conf['nginx']['CHATBOT_USERINFO_GEN_JS_URL'] %}
+        - name: CHATBOT_USERINFO_GEN_JS_URL
+          value: "{{conf['nginx']['CHATBOT_USERINFO_GEN_JS_URL']}}"
+{% endif %}
+{% if conf['nginx']['nginx-global-configs-injection-enabled'] %}
+        - name: UI_GLOBAL_CONFIGS_JS_URL
+          value: "https://{{conf['egov-config']['domain']}}/configs/globalConfigs.js"
+{% endif %}
+{% if conf['nginx']['PMIDC'] %}
+        - name: PMIDC
+          value: "{{conf['nginx']['PMIDC']}}"
+{% endif %}
+        - name: ASSET_BUCKET_URL
+          value: "{{conf['nginx']['asset-bucket-url']}}"
+        volumeMounts:
+        - mountPath: /etc/ssl/acme/private/{{conf['egov-config']['domain']}}/privkey.pem
+          name: certs
+          subPath: privkey.pem
+        - mountPath: /etc/ssl/acme/{{conf['egov-config']['domain']}}/cert.pem
+          name: certs
+          subPath: cert.pem
+        - mountPath: /etc/ssl/acme/{{conf['egov-config']['domain']}}/chain.pem
+          name: certs
+          subPath: chain.pem
+        - mountPath: /etc/ssl/acme/{{conf['egov-config']['domain']}}/fullchain.pem
+          name: certs
+          subPath: fullchain.pem
+{% if conf['nginx']['nginx-global-configs-injection-enabled'] %}                
+        - mountPath: /var/web/configs/
+          name: js-injection    
+{% endif %}                  
+        resources:
+          requests:
+            memory: "256Mi"
+          limits:
+            memory: "{{ conf['nginx']['memory_limits'] or "256Mi"}}"
+      - name: dnsmasq
+        image: {{conf['nginx']['images'][1]}}
+        args:
+          - --listen
+          - "127.0.0.1:53"
+          - --default-resolver
+          - --append-search-domains
+          - --hostsfile=/etc/hosts
+          - --verbose
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "128Mi"     

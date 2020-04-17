@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: citizen-services
+  namespace: egov
+  labels:
+    app: citizen-services
+    group: citizen
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: citizen-services
+    group: citizen
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: citizen-services
+  namespace: egov
+spec:
+  replicas: {{conf['citizen-services']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: citizen-services
+        group: citizen
+    spec:
+      initContainers: 
+      - name: "citizen-services-db-migration"
+        image: "{{conf["citizen-services"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "citizen_services_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        imagePullPolicy: "IfNotPresent"
+      containers:
+      - name: citizen-services
+        image: {{conf['citizen-services']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+          value: org.apache.kafka.common.serialization.StringDeserializer
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: egov-persist
+        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+        - name: KAFKA_TOPICS_SAVE_SERVICE_KEY
+          value: save-service
+        - name: KAFKA_TOPICS_UPDATE_SERVICE_KEY
+          value: update-service
+        - name: EGOV_SERVICES_BILLING_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['billing-service']}}"
+        - name: EGOV_SERVICES_COLLECTION_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['collection-services']}}"
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        - name: EGOV_SERVICES_ID_GEN_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-idgen']}}"
+        - name: EGOV_CITIZEN_REDIRECT_HOSTNAME
+          value: "{{ conf['citizen-services']['redirect_hostname'] }}"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['citizen-services']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['collection-masters']['memory_limits'] or "256Mi"}}"

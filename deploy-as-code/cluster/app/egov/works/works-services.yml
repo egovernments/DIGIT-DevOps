@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: works-services
+  namespace: egov
+  labels:
+    app: works-services
+    group: works
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: works-services
+    group: works
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: works-services
+  namespace: egov
+spec:
+  replicas: {{conf['works-services']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: works-services
+        group: works
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "works-services-db-migration",
+            "image": "{{conf["works-services"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "works_services_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
+    spec:
+      containers:
+      - name: works-services
+        image: {{conf['works-services']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: PERSIST_THROUGH_KAFKA
+          value: "yes"
+        - name: FETCH_DATA_FROM
+          value: db
+        - name: WORKS_ESTIMATE_HOST_URL
+          value: "{{conf['egov-service-host']['works-estimate']}}"
+        - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+          value: org.apache.kafka.common.serialization.StringDeserializer
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: works-services
+        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['works-services']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: EGOV_FILESTORE_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-filestore']}}"
+        - name: EGOV_IDGEN_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-idgen']}}"
+        - name: EGOV_SERVICES_WORKORDER_HOSTNAME
+          value: "{{conf['egov-service-host']['works-workorder']}}"
+        - name: EGOV_SERVICES_EGOV_WORKS_ESTIMATE_HOSTNAME
+          value: "{{conf['egov-service-host']['works-estimate']}}"
+        - name: EGOV_SERVICES_EGOV_MDMS_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-mdms-service']}}"
+        - name: EGOV_SERVICES_EGOV_MDMS_SEARCHPATH
+          value: /egov-mdms-service/v1/_search
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['works-services']['memory_limits'] or "256Mi"}}"

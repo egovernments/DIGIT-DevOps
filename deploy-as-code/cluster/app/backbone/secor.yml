@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: secor
+  namespace: backbone
+  labels:
+    app: secor
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: secor
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: secor
+  namespace: backbone
+spec:
+  replicas: {{conf['secor']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: secor
+    spec:
+      containers:
+      - name: secor
+        image: {{conf['secor']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SECOR_KAFKA_TOPIC_FILTER
+          value: "telemetry-final-messages"
+        - name: SECOR_S3_FILESYSTEM
+          value: "s3a"
+        - name: SECOR_UPLOAD_MANAGER_CLASS
+          value: "com.pinterest.secor.uploader.S3UploadManager"
+        - name: SECOR_S3_BUCKET
+          value: "{{ conf['secor']['s3-bucket']}}"
+        - name: ZOOKEEPER_PATH
+          value: "/"
+        - name: SECOR_WRITER_FACTORY
+          value: "com.pinterest.secor.io.impl.DelimitedTextFileReaderWriterFactory"
+        - name: CONFIG_FILE
+          value: "{{ conf['secor']['config_file']}}"
+        - name: SECOR_MESSAGE_PARSER_CLASS
+          value: "com.pinterest.secor.parser.JsonMessageParser"
+        - name: MESSAGE_TIMESTAMP_NAME
+          value: "syncts"
+        - name: AWS_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-secor-config
+              key: aws-access-key
+        - name: AWS_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-secor-config
+              key: aws-secret-key
+        - name: AWS_REGION
+          valueFrom:
+            secretKeyRef:
+              name: aws-secor-config
+              key: aws-region
+        - name: KAFKA_SEED_BROKER_HOST
+          value: "kafka-0.kafka.backbone"
+        - name: KAFKA_SEED_BROKER_PORT
+          value: "9092"
+        - name: ZOOKEEPER_QUORUM
+          valueFrom:
+            configMapKeyRef:
+              name: kafka-config
+              key: zookeeper-connect
+        # - name: SECOR_MAX_FILE_SIZE_BYTES
+        #   value: "200000000"
+        # - name: SECOR_MAX_FILE_AGE_SECONDS
+        #   value: "86400"
+        # - name: SECOR_FILE_READER_WRITER_FACTORY
+        #   value: "com.pinterest.secor.io.impl.SequenceFileReaderWriterFactory"
+        - name: JAVA_OPTS
+          value: "{{conf['secor']['heap'] or '-Xmx512m -Xms512m'}}"
+        - name: SERVER_PORT
+          value: "8080"
+        resources:
+          requests:
+            memory: "512Mi"
+          limits:
+            memory: "{{ conf['secor']['memory_limits'] or "1Gi"}}"

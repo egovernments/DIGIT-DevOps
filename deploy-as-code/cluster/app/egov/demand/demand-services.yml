@@ -1,0 +1,135 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: demand-services
+  namespace: egov
+  labels:
+    app: demand-services
+    group: demand
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: demand-services
+    group: demand
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: demand-services
+  namespace: egov
+spec:
+  replicas: {{conf['demand-services']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: demand-services
+        group: demand
+    spec:
+      initContainers:
+      {% if conf["demand-services"]["env_specific_db_migration_image"] %}
+        - name: "demand-services-env-specific-db-migration"
+          image: "{{conf["demand-services"]["env_specific_db_migration_image"]}}"
+          command: ["sh", "-c", "cp -R /egov/db/migration/demand/demand-services/* /env_specific_db_migration/"]
+        volumeMounts:
+        - mountPath: "/env_specific_db_migration"
+          name: "env-specific-db-migration"
+        imagePullPolicy: "IfNotPresent"
+      {% endif %}
+
+      - name: "demand-services-db-migration"
+        image: "{{conf["demand-services"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "demand_services_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        volumeMounts:
+        - mountPath: "/env_specific_db_migration"
+          name: "env-specific-db-migration"
+        imagePullPolicy: "IfNotPresent"
+      containers:
+      - name: demand-services
+        image: {{conf['demand-services']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SERVER_TOMCAT_MAX_THREADS
+          value: "{{conf['egov-config']['server-tomcat-max-threads']}}"    
+        - name: SERVER_TOMCAT_MAX_CONNECTIONS
+          value: "{{conf['egov-config']['server-tomcat-max-connections']}}" 
+        - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+          value: "{{conf['egov-config']['spring-datasource-tomcat-max-active']}}"              
+        - name: EGOV_SERVICES_COMMON_MASTERS_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-common-masters']}}"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['demand-services']['heap'] or '-Xmx192m -Xms192m'}}"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+{% if conf['demand-services']['memory_limits'] %}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['demand-services']['memory_limits'] or "256Mi"}}"
+{% endif %}
+      volumes:
+      - name: env-specific-db-migration
+        emptyDir: {}
+{% if conf['egov-docker-registry-secret'] %}
+      imagePullSecrets:
+      - name: regsecret
+{% endif %}

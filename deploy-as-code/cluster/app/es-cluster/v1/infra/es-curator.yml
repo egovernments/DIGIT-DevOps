@@ -1,0 +1,46 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: es-curator
+  namespace: es-cluster-infra
+spec:
+  concurrencyPolicy: "Forbid"
+  schedule: "{{conf['es-curator']['schedule']}}"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: es-curator
+            image: "{{conf['es-curator']['images'][0]}}"
+            args:
+            - --config
+            - /etc/config/config.yml
+            - /etc/config/action_file.yml
+            env:
+            - name: ES_CLIENT_HOST
+              value: "{{conf['es-curator']['es-host']}}"
+            - name: ES_CLIENT_PORT
+              value: "9200"
+            - name: LOG_LEVEL
+              value: "DEBUG" 
+{% if conf['es-curator']['jaeger-cleanup-enabled'] == "true" %}              
+            - name: LOGS_CLEANUP_DISABLED
+              value: "False"
+            - name: RETAIN_LOGS_IN_DAYS
+              value: "{{conf['es-curator']['logs-to-retain']}}"
+{% endif %}                
+{% if conf['es-curator']['jaeger-cleanup-enabled'] == "true" %}
+            - name: JAEGER_CLEANUP_DISABLED
+              value: "False"
+            - name: RETAIN_JAEGER_DATA_IN_DAYS
+              value: "14"
+{% endif %}                           
+            volumeMounts:
+              - name: config-volume
+                mountPath: /etc/config
+          volumes:
+            - name: config-volume
+              configMap:
+                name: es-curator-config
+          restartPolicy: OnFailure

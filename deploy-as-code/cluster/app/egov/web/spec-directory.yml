@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: spec-directory
+  namespace: egov
+  labels:
+    app: spec-directory
+spec:
+  ports:
+  - port: 4022
+    targetPort: 4022
+    protocol: TCP
+  selector:
+    app: spec-directory
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: spec-directory
+  namespace: egov
+spec:
+  replicas: {{conf['spec-directory']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: spec-directory
+    spec:
+      containers:
+      - name: spec-directory
+        image: {{conf['spec-directory']['images'][0]}}
+        ports:
+        - containerPort: 4022
+        env:
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: {{conf['spec-directory']['memory_limits'] or "128Mi"}}

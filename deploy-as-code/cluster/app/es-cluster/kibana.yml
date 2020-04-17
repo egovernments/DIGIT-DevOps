@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana
+  namespace: es-cluster
+  labels:
+    k8s-app: kibana
+spec:
+  ports:
+  - port: {{ conf['kibana']['external_port']}}
+    protocol: TCP
+    targetPort: ui
+{% if conf['kibana']['service_type'] == 'NodePort' %}
+    nodePort: {{ conf['kibana']['service_port'] }}
+{% endif %}
+  selector:
+    k8s-app: kibana
+  type: "{{conf['kibana']['service_type']}}"
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: kibana
+  namespace: es-cluster
+  labels:
+    k8s-app: kibana
+spec:
+  replicas: {{conf['kibana']['replicas']}}
+  selector:
+    matchLabels:
+      k8s-app: kibana
+  template:
+    metadata:
+      labels:
+        k8s-app: kibana
+    spec:
+      containers:
+      - name: kibana
+        image: {{conf['kibana']['images'][0]}}
+        resources:
+          # keep request = limit to keep this container in guaranteed class
+          limits:
+            cpu: 200m
+          requests:
+            cpu: 200m
+        env:
+          - name: "ELASTICSEARCH_URL"
+            value: "http://es-client:9200"
+{% if conf['kibana']['server-basepath'] %}
+          - name: "SERVER_BASEPATH"
+            value: {{conf['kibana']['server-basepath']}}
+{% endif %}
+        ports:
+        - containerPort: 5601
+          name: ui
+          protocol: TCP

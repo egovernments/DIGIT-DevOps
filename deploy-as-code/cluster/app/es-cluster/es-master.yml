@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch-discovery
+  namespace: es-cluster
+  labels:
+    component: elasticsearch
+    role: master
+spec:
+  selector:
+    component: elasticsearch
+    role: master
+  ports:
+  - name: transport
+    port: 9300
+    protocol: TCP
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: es-master
+  namespace: es-cluster
+  labels:
+    component: elasticsearch
+    role: master
+spec:
+  replicas: {{conf['es-master']['replicas']}}
+  template:
+    metadata:
+      labels:
+        component: elasticsearch
+        role: master
+      # annotations:
+      #   pod.beta.kubernetes.io/init-containers: '[
+      #     {
+      #     "name": "sysctl",
+      #       "image": "busybox",
+      #       "imagePullPolicy": "IfNotPresent",
+      #       "command": ["sysctl", "-w", "vm.max_map_count=262144"],
+      #       "securityContext": {
+      #         "privileged": true
+      #       }
+      #     }
+      #   ]'
+    spec:
+      initContainers: 
+      - name: "sysctl"
+        image: "busybox"
+        imagePullPolicy: "IfNotPresent"
+        command: ["sysctl", "-w", "vm.max_map_count=262144"]
+        securityContext:
+          privileged: true
+      containers:
+      - name: es-master
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+              - IPC_LOCK
+        image: {{conf['es-master']['images'][0]}}
+        imagePullPolicy: Always
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: "CLUSTER_NAME"
+          value: "egov_es_cluster"
+        - name: NODE_MASTER
+          value: "true"
+        - name: NODE_DATA
+          value: "false"
+### Network_host is specific to Ubuntu and Debian version host. Only for Punjab UAT and Prod ###
+{% if conf['es-master']['network-host'] %}
+        - name: NETWORK_HOST
+          value: {{conf['es-master']['network-host']}}
+{% endif %}
+#########################################
+        - name: HTTP_ENABLE
+          value: "false"
+        - name: NODE_INGEST
+          value: "false"
+        - name: ES_JAVA_OPTS
+          value: {{conf['es-master']['java-opts']}}
+        - name: NUMBER_OF_MASTERS
+          value: "1"
+        - name: MAX_LOCAL_STORAGE_NODES
+          value: "1"
+        ports:
+        - containerPort: 9300
+          name: transport
+          protocol: TCP
+        resources:
+          limits:
+            memory: 2Gi

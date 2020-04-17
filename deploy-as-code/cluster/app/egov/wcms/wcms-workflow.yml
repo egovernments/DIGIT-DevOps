@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wcms-workflow
+  namespace: egov
+  labels:
+    app: wcms-workflow
+    group: wcms
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: wcms-workflow
+    group: wcms
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: wcms-workflow
+  namespace: egov
+spec:
+  replicas: {{conf['wcms-workflow']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: wcms-workflow
+        group: wcms
+    spec:
+      containers:
+      - name: wcms-workflow
+        image: {{conf['wcms-workflow']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+          value: org.apache.kafka.common.serialization.StringDeserializer
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: wcms-workflow
+        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+        - name: EGOV_SERVICES_WCMS_MASTERS_HOSTNAME
+          value: "{{conf['egov-service-host']['wcms-masters']}}"
+        - name: KAFKA_TOPICS_CONNECTION_CREATE_NAME
+          value: egov.wcms.newconnection-create
+        - name: KAFKA_TOPICS_CONNECTION_UPDATE_NAME
+          value: egov.wcms.newconnection-update
+        - name: KAFKA_TOPICS_WCMS_NEWCONNECTION_WORKFLOW_UPDATE
+          value: update-newconn-workflow
+        - name: KAFKA_TOPICS_WCMS_NEWCONNECTION_WORKFLOW_CREATE
+          value: initiated-newconn-workflow
+        - name: EGOV_SERVICES_WORKFLOW_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-common-workflows']}}"
+        - name: EGOV_SERVICES_COMMON_MASTERS_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-common-masters']}}"
+        - name: EGOV_SERVICES_HR_MASTERS_HOSTNAME
+          value: "{{conf['egov-service-host']['hr-masters']}}"
+        - name: EGOV_SERVICES_HR_EMPLOYEE_HOSTNAME
+          value: "{{conf['egov-service-host']['hr-employee']}}"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['wcms-workflow']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['wcms-workflow']['memory_limits'] or "256Mi"}}"

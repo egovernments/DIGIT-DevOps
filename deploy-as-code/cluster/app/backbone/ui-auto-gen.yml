@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ui-auto-gen
+  namespace: backbone
+  labels:
+    app: ui-auto-gen
+spec:
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+  selector:
+    app: ui-auto-gen
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ui-auto-gen
+  namespace: backbone
+spec:
+  replicas: {{conf['ui-auto-gen']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: ui-auto-gen
+    spec:
+      containers:
+      - name: ui-auto-gen
+        image: {{conf['ui-auto-gen']['images'][0]}}
+        ports:
+        - containerPort: 3000
+        env:
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: {{conf['spec-directory']['memory_limits'] or "128Mi"}}

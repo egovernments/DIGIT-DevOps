@@ -1,0 +1,160 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: lams-services
+  namespace: egov
+  labels:
+    app: lams-services
+    group: lams
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: lams-services
+    group: lams
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: lams-services
+  namespace: egov
+spec:
+  replicas: {{conf['lams-services']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: lams-services
+        group: lams
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+        {% if conf["lams-services"]["env_specific_db_migration_image"] %}
+          {
+            "name": "lams-services-env-specific-db-migration",
+            "image": "{{conf["lams-services"]["env_specific_db_migration_image"]}}",
+            "command": ["sh", "-c", "cp -R /egov/db/migration/lams/lams-services/* /env_specific_db_migration/"],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
+            ],
+            "imagePullPolicy": "Always"
+          },
+        {% endif %}
+          {
+            "name": "lams-services-db-migration",
+            "image": "{{conf["lams-services"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", {% if conf['lams-services']['db-url'] %} "value": "{{ conf['lams-services']['db-url'] }}" {% else %} "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}} {% endif %} },
+              {"name": "SCHEMA_TABLE", "value": "lams_services_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "volumeMounts": [
+              {
+                "mountPath": "/env_specific_db_migration",
+                "name": "env-specific-db-migration"
+              }
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
+    spec:
+      containers:
+      - name: lams-services
+        image: {{conf['lams-services']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+{% if conf['lams-services']['db-url'] %}
+          value: {{ conf['lams-services']['db-url'] }}
+{% else %}
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+{% endif %}
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: EGOV_SERVICES_ASSET_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['asset-services']}}"
+        - name: EGOV_SERVICES_DEMAND_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['demand-services']}}"
+        - name: EGOV_SERVICES_ALLOTTEE_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        - name: EGOV_SERVICES_FINANCIAL_HOSTNAME
+          value: "{{conf['egov-service-host']['egf-masters']}}"
+        - name: EGOV_SERVICES_EMPLOYEE_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['hr-employee']}}"
+        - name: EGOV_SERVICES_EGOV_COMMON_WORKFLOWS_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-common-workflows']}}"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: KAFKA_TOPICS_START_WORKFLOW
+          value: lams-workflow-start
+        - name: KAFKA_TOPICS_UPDATE_WORKFLOW
+          value: lams-workflow-update
+        - name: KAFKA_TOPICS_SAVE_AGREEMENT
+          value: agreement-save-db
+        - name: KAFKA_TOPICS_UPDATE_AGREEMENT
+          value: agreement-update-db
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+{% if conf["lams-services"]["tenant_host_mapping"] %}
+{% for city in conf["lams-services"]["tenant_host_mapping"]["city"] %}
+        - name: AP_{{ city.name | upper }}
+{% if city.domain %}
+          value: {{ city.domain }}
+{% else %}
+          value: {{ conf["lams-services"]["tenant_host_mapping"]["url_schema"][0]}}{{ city.name}}{{conf["lams-services"]["tenant_host_mapping"]["domain_suffix"][0]}}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if conf['lams-services']['memory_limits'] %}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['lams-services']['memory_limits'] or "256Mi"}}"
+{% endif %}
+      volumes:
+      - name: env-specific-db-migration
+        emptyDir: {}
+{% if conf['egov-docker-registry-secret'] %}
+      imagePullSecrets:
+      - name: regsecret
+{% endif %}

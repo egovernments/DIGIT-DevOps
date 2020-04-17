@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pgr-crn-generation
+  namespace: egov
+  labels:
+    app: pgr-crn-generation
+    group: pgr
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: pgr-crn-generation
+    group: pgr
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pgr-crn-generation
+  namespace: egov
+spec:
+  replicas: {{conf['pgr-crn-generation']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: pgr-crn-generation
+        group: pgr
+    spec:
+      containers:
+      - name: pgr-crn-generation
+        image: {{conf['pgr-crn-generation']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: EGOV_SERVICES_TENANT_HOST
+          value: "{{conf['egov-service-host']['tenant']}}"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['pgr-crn-generation']['memory_limits'] or "256Mi"}}"

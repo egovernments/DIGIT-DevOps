@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rainmaker-employee-karnataka
+  namespace: egov
+  labels:
+    app: rainmaker-employee-karnataka
+    group: web
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: rainmaker-employee-karnataka
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: rainmaker-employee-karnataka
+  namespace: egov
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  replicas: {{conf['rainmaker-employee-karnataka']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: rainmaker-employee-karnataka
+        group: web
+    spec:
+      containers:
+      - name: rainmaker-employee-karnataka
+        image: {{conf['rainmaker-employee-karnataka']['images'][0]}}
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "128Mi"
+          limits:
+            memory: "{{ conf['rainmaker-employee-karnataka']['memory_limits'] or "128Mi"}}"

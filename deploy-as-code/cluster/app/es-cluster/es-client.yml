@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: es-client
+  namespace: es-cluster
+  labels:
+    component: elasticsearch
+    role: client
+spec:
+  selector:
+    component: elasticsearch
+    role: client
+  ports:
+  - name: http
+    port: 9200
+    protocol: TCP
+  - name: transport
+    port: 9300
+    protocol: TCP
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: es-client
+  namespace: es-cluster
+  labels:
+    component: elasticsearch
+    role: client
+spec:
+  replicas: {{conf['es-client']['replicas']}}
+  template:
+    metadata:
+      labels:
+        component: elasticsearch
+        role: client
+      # annotations:
+      #   pod.beta.kubernetes.io/init-containers: '[
+      #     {
+      #     "name": "sysctl",
+      #       "image": "busybox",
+      #       "imagePullPolicy": "IfNotPresent",
+      #       "command": ["sysctl", "-w", "vm.max_map_count=262144"],
+      #       "securityContext": {
+      #         "privileged": true
+      #       }
+      #     }
+      #   ]'
+    spec:
+      initContainers: 
+      - name: "sysctl"
+        image: "busybox"
+        imagePullPolicy: "IfNotPresent"
+        command: ["sysctl", "-w", "vm.max_map_count=262144"]
+        securityContext:
+          privileged: true
+      containers:
+      - name: es-client
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+              - IPC_LOCK
+        image: {{conf['es-client']['images'][0]}}
+        imagePullPolicy: Always
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CLUSTER_NAME
+          value: "egov_es_cluster"
+        - name: NODE_MASTER
+          value: "false"
+        - name: NODE_DATA
+          value: "false"
+### Network_host is specific to Ubuntu and Debian version host. Only for Punjab UAT and Prod ###
+{% if conf['es-client']['network-host'] %}
+        - name: NETWORK_HOST
+          value: {{conf['es-client']['network-host']}}
+{% endif %}
+#########################################
+        - name: NODE_INGEST
+          value: "false"
+        - name: MAX_LOCAL_STORAGE_NODES
+          value: "1"
+        - name: HTTP_ENABLE
+          value: "true"
+        - name: ES_JAVA_OPTS
+          value: {{conf['es-client']['java-opts']}}
+        ports:
+        - containerPort: 9200
+          name: http
+          protocol: TCP
+        - containerPort: 9300
+          name: transport
+          protocol: TCP
+        resources:
+          limits:
+            memory: 2Gi

@@ -1,0 +1,144 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: finance-collections-voucher-consumer
+  namespace: egov
+  labels:
+    app: finance-collections-voucher-consumer
+    group: collections
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: finance-collections-voucher-consumer
+    group: collections
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: finance-collections-voucher-consumer
+  namespace: egov
+spec:
+  replicas: {{conf['finance-collections-voucher-consumer']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: finance-collections-voucher-consumer
+        group: collections
+    spec:
+      initContainers: 
+      - name: "finance-collections-voucher-consumer-db-migration"
+        image: "{{conf["finance-collections-voucher-consumer"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "finance-collections-voucher-consumer_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        imagePullPolicy: "IfNotPresent"
+      containers:
+      - name: finance-collections-voucher-consumer
+        image: {{conf['finance-collections-voucher-consumer']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SERVER_TOMCAT_MAX_THREADS
+          value: "{{conf['egov-config']['server-tomcat-max-threads']}}"  
+        - name: SERVER_TOMCAT_MAX_CONNECTIONS
+          value: "{{conf['egov-config']['server-tomcat-max-connections']}}" 
+        - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+          value: "{{conf['egov-config']['spring-datasource-tomcat-max-active']}}"                         
+        - name: FLYWAY_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: FLYWAY_ENABLED
+          value: "false"        
+        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+        - name: EGOV_SERVICES_EGOV_USER_HOST
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        - name: EGOV_SERVICES_MDMS_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-mdms-service']}}"
+        - name: EGOV_SERVICES_EGFINSTRUMENT_HOSTNAME
+          value: "{{conf['egov-service-host']['egf-instrument']}}"
+        - name: EGOV_SERVICES_EGFMASTER_HOSTNAME
+          value: "{{conf['egov-service-host']['egf-master']}}"
+        - name: EGOV_SERVICES_COLLECTIONS_HOSTNAME
+          value: "{{conf['egov-service-host']['collection-services']}}"
+        - name: FIN_COE_ERP_ENVIRONMENT_NAME
+          value: "{{conf['finance-collections-voucher-consumer']['erp-env-name']}}"
+        - name: FIN_COE_ERP_DOMAIN_NAME
+          value: "{{conf['finance-collections-voucher-consumer']['erp-domain-name']}}"
+        - name: SI_MICROSERVICE_USER
+          value: "SIFINANCE"
+        - name: SI_MICROSERVICE_PASSWORD
+          value: "sifinance123@"
+        - name: SI_MICROSERVICE_USERTYPE
+          value: "SYSTEM"
+        - name: SI_MICROSERVICE_SCOPE
+          value: "read"
+        - name: SI_MICROSERVICE_GRANTTYPE
+          value: "password"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['finance-collections-voucher-consumer']['heap'] or '-Xmx192m -Xms192m'}}"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        - name: SERVER_PORT
+          value: "8080"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{conf['finance-collections-voucher-consumer']['memory_limits'] or "512Mi"}}"

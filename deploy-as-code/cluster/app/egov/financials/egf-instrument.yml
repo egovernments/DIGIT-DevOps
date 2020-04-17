@@ -1,0 +1,162 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egf-instrument
+  namespace: egov
+  labels:
+    app: egf-instrument
+    group: financials
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egf-instrument
+    group: financials
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egf-instrument
+  namespace: egov
+spec:
+  replicas: {{conf['egf-instrument']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egf-instrument
+        group: financials
+    spec:
+      initContainers: 
+      - name: "egf-instrument-db-migration"
+        image: "{{conf["egf-instrument"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "egf_instrument_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        imagePullPolicy: "IfNotPresent"
+      containers:
+      - name: egf-instrument
+        image: {{conf['egf-instrument']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: ES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: es-host
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SERVER_TOMCAT_MAX_THREADS
+          value: "{{conf['egov-config']['server-tomcat-max-threads']}}"    
+        - name: SERVER_TOMCAT_MAX_CONNECTIONS
+          value: "{{conf['egov-config']['server-tomcat-max-connections']}}" 
+        - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+          value: "{{conf['egov-config']['spring-datasource-tomcat-max-active']}}"              
+        - name: ES_TRANSPORT_PORT
+          value: "9300"
+        - name: KAFKA_TOPICS_EGF_INSTRUMENT_VALIDATED_TOPIC
+          value: egov.egf.instrument.validated.topic
+        - name: KAFKA_TOPICS_EGF_INSTRUMENT_VALIDATED_GROUP
+          value: egov.egf.instrument.validated.group
+        - name: KAFKA_TOPICS_EGF_INSTRUMENT_VALIDATED_ID
+          value: egov.egf.instrument.validated.id
+        - name: KAFKA_TOPICS_EGF_INSTRUMENT_COMPLETED_TOPIC
+          value: egov.egf.instrument.completed
+        - name: KAFKA_TOPICS_EGF_INSTRUMENT_COMPLETED_GROUP
+          value: egov.egf.instrument.completed.group
+        - name: KAFKA_TOPICS_EGF_INSTRUMENT_INSTRUMENT_ACCOUNTCODE_VALIDATED_KEY
+          value: egov.egf.instrument.instrument.accountcode.validated.key
+        - name: KAFKA_TOPICS_EGF_INSTRUMENT_INSTRUMENT_VALIDATED_KEY
+          value: egov.egf.instrument.budgetdetail.validated.key
+        - name: KAFKA_TOPICS_EGF_INSTRUMENT_INSTRUMENT_TYPE_VALIDATED_KEY
+          value: egov.egf.instrument.budgetreapp.validated.key
+        - name: KAFKA_TOPICS_EGF_INSTRUMENT_SURRENDER_REASON_VALIDATED_KEY
+          value: egov.egf.instrument.surrender.reason.validated.key
+        - name: KAFKA_TOPICS_EGF_INSTRUMENT_INSTRUMENT_ACCOUNTCODE_COMPLETED_KEY
+          value: egov.egf.instrument.instrument.accountcode.completed.key
+        - name: KAFKA_TOPICS_EGF_INSTRUMENT_INSTRUMENT_COMPLETED_KEY
+          value: egov.egf.instrument.instrument.completed.key
+        - name: KAFKA_TOPICS_EGF_INSTRUMENT_INSTRUMENT_TYPE_COMPLETED_KEY
+          value: egov.egf.instrument.instrument.type.completed.key
+        - name: KAFKA_TOPICS_EGF_INSTRUMENT_SURRENDER_REASON_COMPLETED_KEY
+          value: egov.egf.instrument.surrender.reason.completed.key
+        - name: EGF_INSTRUMENT_HOST_URL
+          value: "{{conf['egov-service-host']['egf-instrument']}}"
+        - name: EGF_MASTER_HOST_URL
+          value: "{{conf['egov-service-host']['egf-master']}}"
+        - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+          value: org.apache.kafka.common.serialization.StringDeserializer
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: egf-instrument
+        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        - name: ES_CLUSTER_NAME
+          value: egov_es_cluster
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['egf-instrument']['heap'] or '-Xmx192m -Xms192m'}}"
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        - name: SERVER_PORT
+          value: "8080"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['egf-instrument']['memory_limits'] or "512Mi"}}"

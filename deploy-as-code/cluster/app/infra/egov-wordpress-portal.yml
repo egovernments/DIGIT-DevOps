@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-wordpress-portal
+  namespace: infra
+  labels:
+    app: egov-wordpress-portal
+    group: web
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: egov-wordpress-portal
+    group: web
+  type: "LoadBalancer"
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-wordpress-portal
+  namespace: infra
+spec:
+  replicas: {{conf['egov-wordpress-portal']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-wordpress-portal
+        group: web
+    spec:
+      containers:
+      - name: egov-wordpress-portal
+        image: {{conf['egov-wordpress-portal']['images'][0]}}
+        ports:
+        - containerPort: 80
+        env:
+          - name: WORDPRESS_DB_HOST
+            value: {{ conf['egov-wordpress-portal']['db-host']}}
+          - name: WORDPRESS_DB_USER
+            valueFrom:
+              secretKeyRef:
+                name: egov-wordpress-portal-db
+                key: username
+          - name: WORDPRESS_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: egov-wordpress-portal-db
+                key: password
+          - name: WORDPRESS_DB_NAME
+            value: {{ conf['egov-wordpress-portal']['db-name']}}
+          - name: WORDPRESS_TABLE_PREFIX
+            value: wpho_
+          - name: WORDPRESS_SITEURL
+            value: {{ conf['egov-wordpress-portal']['wordpress_siteurl']}}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['egov-wordpress-portal']['memory_limits'] or "256Mi"}}"

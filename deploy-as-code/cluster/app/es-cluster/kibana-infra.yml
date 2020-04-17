@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana-infra
+  namespace: es-cluster-infra
+  labels:
+    k8s-app: kibana-infra
+spec:
+  ports:
+  - port: {{ conf['kibana-infra']['external_port']}}
+    protocol: TCP
+    targetPort: ui
+{% if conf['kibana-infra']['service_type'] == 'NodePort' %}
+    nodePort: {{ conf['kibana-infra']['service_port'] }}
+{% endif %}
+  selector:
+    k8s-app: kibana-infra
+  type: "{{conf['kibana-infra']['service_type']}}"
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: kibana-infra
+  namespace: es-cluster-infra
+  labels:
+    k8s-app: kibana-infra
+spec:
+  replicas: {{conf['kibana-infra']['replicas']}}
+  selector:
+    matchLabels:
+      k8s-app: kibana-infra
+  template:
+    metadata:
+      labels:
+        k8s-app: kibana-infra
+    spec:
+      containers:
+      - name: kibana-infra
+        image: {{conf['kibana-infra']['images'][0]}}
+        resources:
+          # keep request = limit to keep this container in guaranteed class
+          limits:
+            cpu: 200m
+          requests:
+            cpu: 200m
+        env:
+          - name: "ELASTICSEARCH_URL"
+            value: "http://es-client-infra:9200"
+{% if conf['kibana-infra']['server-basepath'] %}
+          - name: "SERVER_BASEPATH"
+            value: {{conf['kibana-infra']['server-basepath']}}
+{% endif %}
+        ports:
+        - containerPort: 5601
+          name: ui
+          protocol: TCP

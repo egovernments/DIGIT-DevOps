@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pt-property
+  namespace: egov
+  labels:
+    app: pt-property
+    group: property
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: pt-property
+    group: property
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pt-property
+  namespace: egov
+spec:
+  replicas: {{conf['pt-property']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: pt-property
+        group: property
+      # annotations:
+      #   pod.beta.kubernetes.io/init-containers: '[
+      #     {
+      #       "name": "pt-property-db-migration",
+      #       "image": "{{conf["pt-property"]["db_migration_image"]}}",
+      #       "env": [
+      #         {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+      #         {"name": "SCHEMA_TABLE", "value": "pt_property_schema"},
+      #         {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+      #         {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+      #         {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+      #       ],
+      #       "imagePullPolicy": "IfNotPresent"
+      #     }
+      #   ]'
+    spec:
+      containers:
+      - name: pt-property
+        image: {{conf['pt-property']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: spring-datasource-tomcat-initialSize
+        - name: SERVER_PORT
+          value: "8080"
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: SPRING_
+        - name: EGOV_SERVICES_EGOV_IDGEN_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-idgen']}}"
+        - name: EGOV_SERVICES_EGOV_LOCATION_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-location']}}"
+        - name: SERVER_CONTEXTPATH
+          value: /pt-property
+        - name: EGOV_SERVICES_PT_CALCULATOR_HOSTNAME
+          value: "{{conf['egov-service-host']['pt-calculator']}}"
+        - name: EGOV_PROPERTYTAX_PROPERTY_USERENHANCED
+          value: property-create-validated
+        - name: EGOV_PROPERTYTAX_PROPERTY_UPDATE_USERENHANCED
+          value: updateuser
+        - name: EGOV_PROPERTYTAX_PROPERTY_TAX
+          value: property-create-user-validated
+        - name: EGOV_PROPERTYTAX_PROPERTY_CREATE_WORKFLOW_STARTED
+          value: property-create-workflow-started
+        - name: EGOV_PROPERTYTAX_PROPERTY_UPDATE_TAX
+          value: updatepropertytax
+        - name: EGOV_PROPERTYTAX_PROPERTY_CREATE_APPROVED
+          value: property-create-tax-calculated
+        - name: EGOV_PROPERTYTAX_PROPERTY_UPDATE_APPROVED
+          value: updateproperty
+        - name: EGOV_PROPERTYTAX_PROPERTY_TITLE_TRANSFER
+          value: property-titletransfer-validated
+        - name: SPRING_JPA_SHOW_SQL
+          value: "{{conf['egov-config']['spring-jpa-show-sql']}}"
+        - name: EGOV_SERVICES_EGOV_USER_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        - name: EGOV_SERVICES_TENANT_HOSTNAME
+          value: "{{conf['egov-service-host']['tenant']}}"
+        - name: EGOV_SERVICES_BILLING_SERVICE_HOSTNAME
+          value: "{{conf['egov-service-host']['billing-service']}}"
+        - name: EGOV_SERVICES_EGOV_COMMON_WORKFLOWS_HOSTNAME
+          value: "{{conf['egov-service-host']['egov-common-workflows']}}"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['pt-property']['memory_limits'] or "256Mi"}}"

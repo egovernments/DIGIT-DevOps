@@ -1,0 +1,60 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pgr-notification
+  namespace: egov
+spec:
+  replicas: {{conf['pgr-notification']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: pgr-notification
+        group: pgr
+    spec:
+      containers:
+      - name: pgr-notification
+        image: {{conf['pgr-notification']['images'][0]}}
+        env:
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: CONSUMER_TOPIC
+          value: egov.pgr.workflowupdated
+        - name: GROUP_ID
+          value: egov.pgr.notification
+        - name: SMS_TOPIC
+          value: egov.core.notification.sms
+        - name: EMAIL_TOPIC
+          value: egov.core.notification.email
+        - name: TENANT_HOST
+          value: "{{conf['egov-service-host']['tenant']}}"
+        - name: PGR_HOST
+          value: "{{conf['egov-service-host']['pgr-rest']}}"
+        - name: HREMPLOYEE_HOST
+          value: "{{conf['egov-service-host']['hr-employee']}}"
+        - name: LOCATION_HOST
+          value: "{{conf['egov-service-host']['egov-location']}}"
+        - name: HRMASTER_HOST
+          value: "{{conf['egov-service-host']['hr-masters']}}"
+        - name: SMS_ESCALATION_ENABLED
+          value: "{{ conf['pgr-notification']['sms-escalation-enabled'] }}"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: OTP_HOST
+          value: "{{conf['egov-service-host']['egov-otp']}}"
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['pgr-notification']['memory_limits'] or "256Mi"}}"

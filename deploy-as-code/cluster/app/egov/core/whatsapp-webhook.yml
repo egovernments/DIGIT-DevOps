@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: whatsapp-webhook
+  namespace: egov
+  labels:
+    app: whatsapp-webhook
+    group: core
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: whatsapp-webhook
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: whatsapp-webhook
+  namespace: egov
+spec:
+  replicas: {{conf['whatsapp-webhook']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: whatsapp-webhook
+        group: core
+    spec:
+      containers:
+      - name: whatsapp-webhook
+        image: "{{conf['whatsapp-webhook']['images'][0]}}"
+        ports:
+        - containerPort: 8080
+        env:
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: kafka_broker_list
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name : kafka_topic
+          value : 'whatsapp-received-messages'
+        - name : keyPath
+          value : '$.sender.from'
+        - name : service_port
+          value : "8080"
+        - name : endPoint
+          value : '/whatsapp/messages'
+        resources:
+          requests:
+            memory: "128Mi"
+          limits:
+            memory: "128Mi"

@@ -1,0 +1,113 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-integration
+  namespace: egov
+  labels:
+    app: egov-integration
+    group: core
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-integration
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-integration
+  namespace: egov
+spec:
+  replicas: {{conf['egov-integration']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-integration
+        group: core
+    spec:
+      containers:
+      - name: egov-integration
+        image: {{conf['egov-integration']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ZUUL_ROUTES_EGF_BANK_PATH
+          value: /egf-masters/banks/_search
+        - name: ZUUL_ROUTES_EGF_BANK_STRIPPREFIX
+          value: "true"
+        - name: ZUUL_ROUTES_EGF_BANK_URL
+          value: "{{conf['egov-integration']['zuul-routes-egf-bank-url']}}"
+        - name: ZUUL_ROUTES_EGF_BRANCH_PATH
+          value: /egf-masters/bankbranches/_search
+        - name: ZUUL_ROUTES_EGF_BRANCH_STRIPPREFIX
+          value: "true"
+        - name: ZUUL_ROUTES_EGF_BRANCH_URL
+          value: "{{conf['egov-integration']['zuul-routes-egf-branch-url']}}"
+        - name: ZUUL_ROUTES_EGOV_MDMS_SEARCH_PATH
+          value: /egov-mdms-service/v1/_search
+        - name: ZUUL_ROUTES_EGOV_MDMS_SEARCH_STRIPPREFIX
+          value: "true"
+        - name: ZUUL_ROUTES_EGOV_MDMS_SEARCH_URL
+          value: "{{conf['egov-config']['egov-services-fqdn-name']}}"
+        - name: ZUUL_ROUTES_COMMON_MASTER_DEPARTMENT_STRIPPREFIX
+          value: "true"
+        - name: ZUUL_ROUTES_COMMON_MASTER_DEPARTMENT_URL
+          value: "{{conf['egov-integration']['zuul-routes-common-master-department-url']}}"
+        - name: ZUUL_ROUTES_TENANT_SEARCH_PATH
+          value: /tenant/v1/tenant/_search
+        - name: ZUUL_ROUTES_TENANT_SEARCH_STRIPPREFIX
+          value: "true"
+        - name: ZUUL_ROUTES_TENANT_SEARCH_URL
+          value: "{{conf['egov-integration']['zuul-routes-tenant-search-url']}}"
+        - name: EGOV_INNOWAVE_HOST
+          value: "{{conf['egov-integration']['egov-innowave-host']}}"
+        - name: EGOV_MDMS_FILTER_URIS 
+          value:  /egov-mdms-service/v1/_search,/egov-mdms-service/v1/_get
+        - name: EGOV_REQUEST_FILTER_SHOULD_NOT_FILTER
+          value:  /egov-mdms-service/v1/_search,/egov-mdms-service/v1/_get
+        - name: EGOV_TENANT_FILTER_URIS
+          value: /tenant/v1/tenant/_search
+        - name: INNOWAVE_API_AUTH_GRANT_TYPE
+          value: password
+        - name: INNOWAVE_API_AUTH_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: egov-integration
+              key: username
+        - name: INNOWAVE_API_AUTH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: egov-integration
+              key: password
+        - name: INNOWAVE_API_AUTH_PASSWORD_BASIC_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: egov-integration
+              key: token
+        - name: INNOWAVE_API_AUTH_URI
+          value: /MahaULBAPI/oauth/token
+        - name: EGOV_SERVICE_CONFIG_PATH
+          value: "https://raw.githubusercontent.com/egovernments/egov-services/master/core/egov-integration/src/main/resources/ServicesConfiguration.yml"
+        - name: EGOV_MDMS_CONFIG_PATH
+          value: "https://raw.githubusercontent.com/egovernments/egov-services/master/core/egov-integration/src/main/resources/MdmsConfig.yml"
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAVA_OPTS
+          value: "{{conf['egov-integration']['heap'] or '-Xmx64m -Xms64m'}}"
+        - name: SERVER_PORT
+          value: "8080"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['egov-integration']['memory_limits'] or "256Mi"}}"

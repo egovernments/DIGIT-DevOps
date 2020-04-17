@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: maha-dma
+  namespace: egov
+  labels:
+    app: maha-dma
+    group: web
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: maha-dma
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: maha-dma
+  namespace: egov
+spec:
+  replicas: {{conf['maha-dma']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: maha-dma
+        group: web
+    spec:
+      containers:
+      - name: maha-dma
+        image: {{conf['maha-dma']['images'][0]}}
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['maha-dma']['memory_limits'] or "64Mi"}}"

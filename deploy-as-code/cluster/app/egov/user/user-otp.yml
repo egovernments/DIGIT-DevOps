@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-otp
+  namespace: egov
+  labels:
+    app: user-otp
+    group: user
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: user-otp
+    group: user
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: user-otp
+  namespace: egov
+spec:
+  replicas: {{conf['user-otp']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: user-otp
+        group: user
+    spec:
+      containers:
+      - name: user-otp
+        image: {{conf['user-otp']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        # readinessProbe:
+        #   httpGet:
+        #     path: /user-otp/health
+        #     port: 8080
+        #   initialDelaySeconds: 60
+        #   timeoutSeconds: 3
+        #   periodSeconds: 30
+        #   successThreshold: 1
+        #   failureThreshold: 5
+        # livenessProbe:
+        #   httpGet:
+        #     path: /user-otp/health
+        #     port: 8080
+        #   initialDelaySeconds: 60
+        #   timeoutSeconds: 3
+        #   periodSeconds: 60
+        #   successThreshold: 1
+        #   failureThreshold: 5        
+        env:
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: SERVER_PORT
+          value: "8080"
+        - name: OTP_HOST
+          value: http://egov-otp:8080/otp
+        - name: USER_HOST
+          value: "{{conf['egov-service-host']['egov-user']}}"
+        - name: SMS_TOPIC
+          value: egov.core.notification.sms
+        - name: JAVA_OPTS
+          value: "{{conf['user-otp']['heap'] or '-Xmx192m -Xms192m'}}"
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: JAEGER_SERVICE_NAME
+          value: user-otp
+        - name: JAEGER_SAMPLER_TYPE
+          value: remote
+        - name: JAEGER_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: JAEGER_AGENT_PORT
+          value: "6831"
+        - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+          value: $(JAEGER_AGENT_HOST):5778          
+        - name: JAVA_ARGS
+          value: "{{conf['user-otp']['java-args']}}"
+        - name: SECURITY_BASIC_ENABLED
+          value: "false"  
+        - name: MANAGEMENT_SECURITY_ENABLED
+          value: "false"     
+{% if conf['user-otp']['tracing-enabled']%}          
+        - name: TRACER_OPENTRACING_ENABLED
+          value: "true" 
+{% endif %}                        
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['user-otp']['memory_limits'] or "512Mi"}}"

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: asset-web
+  namespace: egov
+  labels:
+    app: asset-web
+    group: web
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: asset-web
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: asset-web
+  namespace: egov
+spec:
+  replicas: {{conf['asset-web']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: asset-web
+        group: web
+    spec:
+      containers:
+      - name: asset-web
+        image: {{conf['asset-web']['images'][0]}}
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['asset-web']['memory_limits'] or "64Mi"}}"

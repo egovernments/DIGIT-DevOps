@@ -1,0 +1,152 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-services
+  namespace: egov
+  labels:
+    app: inventory-services
+    group: inventory
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: inventory-services
+    group: inventory
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: inventory-services
+  namespace: egov
+spec:
+  replicas: {{conf['inventory-services']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: inventory-services
+        group: inventory
+      annotations:
+        pod.beta.kubernetes.io/init-containers: '[
+          {
+            "name": "inventory-services-db-migration",
+            "image": "{{conf["inventory-services"]["db_migration_image"]}}",
+            "env": [
+              {"name": "DB_URL", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "db-url"}}},
+              {"name": "SCHEMA_TABLE", "value": "inventory_services_schema"},
+              {"name": "FLYWAY_USER", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-username"}}},
+              {"name": "FLYWAY_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "db", "key": "flyway-password"}}},
+              {"name": "FLYWAY_LOCATIONS", "valueFrom": {"configMapKeyRef": {"name": "egov-config", "key": "flyway-locations"}}}
+            ],
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ]'
+    spec:
+      initContainers: 
+      - name: "inventory-services-db-migration"
+        image: "{{conf["inventory-services"]["db_migration_image"]}}"
+        env: 
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: "inventory_services_v2_schema"
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+        imagePullPolicy: "IfNotPresent"
+      containers:
+      - name: inventory-services
+        image: {{conf['inventory-services']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: SPRING_DATASOURCE_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: FLYWAY_ENABLED
+          value: "false"
+        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: ES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: es-host
+        - name: ES_TRANSPORT_PORT
+          value: "9300"
+        - name: ES_CLUSTER_NAME
+          value: egov_es_cluster
+{% if conf['inventory-services']['es-enabled'] %}
+        - name: ES_ENABLED
+          value: "true"
+{% endif %}
+{% if conf['inventory-services']['financial-enabled'] %}
+        - name: FINANCIAL_ENABLED
+          value: "false"
+{% endif %}
+        - name: EGOV_SERVICE_HOST_URL
+          value: {{conf['egov-config']['egov-services-fqdn-name']}}
+        - name: EGOV_SERVICES_EGOV_IDGEN_HOSTNAME
+          value: {{conf['egov-service-host']['egov-idgen']}}
+        - name: EGOV_SERVICES_EGOV_MDMS_HOSTNAME
+          value: {{conf['egov-service-host']['egov-mdms-service']}}
+        - name: EGF_MASTER_HOST_URL
+          value: {{conf['egov-service-host']['egf-master']}}
+        - name: EGOV_BILL_HOST
+          value: {{conf['egov-service-host']['egf-bill']}}
+        - name: ONLYCENTRALSTORE_PURCHASE
+          value: "false"
+        - name: EGF_MASTER_HOST_URL
+          value: "{{conf['egov-service-host']['egf-master']}}"
+        - name: JAVA_OPTS
+          value: "{{conf['inventory-services']['heap'] or '-Xmx128m -Xms128m'}}"
+        - name: SERVER_PORT
+          value: "8080"
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['inventory-services']['memory_limits'] or "512Mi"}}"

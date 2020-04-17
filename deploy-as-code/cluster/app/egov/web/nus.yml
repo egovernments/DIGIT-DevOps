@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nus
+  namespace: nus
+  labels:
+    app: nus
+    group: web
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: nus
+    group: web
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: nus
+  namespace: nus
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  replicas: {{conf['nus']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: nus
+        group: web
+    spec:
+      containers:
+      - name: nus
+        image: {{conf['nus']['images'][0]}}
+        env:
+        - name: REACT_APP_WS_FINANCIALINDICATORS
+          value: {{conf['nus']['dashboard-url']}}
+        ports:
+        - containerPort: 80
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          successThreshold: 1
+        resources:
+          requests:
+            memory: "128Mi"
+          limits:
+            memory: "{{ conf['nus']['memory_limits'] or "128Mi"}}"

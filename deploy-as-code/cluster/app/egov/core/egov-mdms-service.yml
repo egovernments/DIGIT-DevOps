@@ -1,0 +1,171 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: egov-mdms-service
+  namespace: egov
+  labels:
+    app: egov-mdms-service
+    group: core
+  annotations:
+    prometheus.io/path: /egov-mdms-service/prometheus
+    prometheus.io/port: "8080"
+    prometheus.io/scrape: "true"       
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: egov-mdms-service
+    group: core
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: egov-mdms-service
+  namespace: egov
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  replicas: {{conf['egov-mdms-service']['replicas']}}
+  template:
+    metadata:
+      labels:
+        app: egov-mdms-service
+        group: core
+    spec:
+{% if conf['egov-mdms-service']['repo'] %}    
+      volumes:
+      - name: git-secret
+        secret:
+          secretName: git-creds
+          defaultMode: 288 # = mode 0440   
+      - name: workdir
+        emptyDir: {}           
+      initContainers: 
+      - name: "git-sync"
+        image: "{{conf["git-sync"]["image"]}}"
+        env: 
+        - name: "GIT_SYNC_REPO"
+          value: "{{conf['egov-mdms-service']['repo']}}"
+        - name: "GIT_SYNC_BRANCH"
+          value: "{{conf['egov-mdms-service']['branch']}}"        
+        - name: "GIT_SYNC_DEPTH"
+          value: "1"            
+        - name: "GIT_SYNC_ONE_TIME"
+          value: "true"          
+        - name: "GIT_SYNC_SSH"
+          value: "true"      
+        - name: "GIT_SYNC_ROOT"
+          value: "/work-dir"      
+        securityContext:
+          runAsUser: 65533 # git-sync user
+        volumeMounts:
+        - name: git-secret
+          mountPath: /etc/git-secret              
+        - name: workdir
+          mountPath: "/work-dir"         
+        imagePullPolicy: "IfNotPresent"
+      securityContext:
+        fsGroup: 65533 # to make SSH key readable  
+{% endif %}                  
+      containers:
+      - name: egov-mdms-service
+        image: {{conf['egov-mdms-service']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /egov-mdms-service/health
+            port: 8080
+          initialDelaySeconds: 30
+          timeoutSeconds: 3
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 5
+        livenessProbe:
+          httpGet:
+            path: /egov-mdms-service/health
+            port: 8080
+          initialDelaySeconds: 30
+          timeoutSeconds: 3
+          periodSeconds: 30
+          successThreshold: 1
+          failureThreshold: 5
+        env:
+        - name: APP_TIMEZONE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: timezone
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: kafka-brokers
+        - name: SERVER_TOMCAT_MAX_THREADS
+          value: "{{conf['egov-config']['server-tomcat-max-threads']}}"  
+        - name: SERVER_TOMCAT_MAX_CONNECTIONS
+          value: "{{conf['egov-config']['server-tomcat-max-connections']}}" 
+        - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+          value: "{{conf['egov-config']['spring-datasource-tomcat-max-active']}}"                         
+        - name: SERVER_CONTEXT_PATH
+          value: /egov-mdms-service
+        - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+          value: org.apache.kafka.common.serialization.StringDeserializer
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: egov-mdms-service-consumer-group
+        - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+          value: org.apache.kafka.common.serialization.StringSerializer
+{% if conf['egov-config']['serializers-timezone-in-ist'] %}
+        - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+          value: org.egov.tracer.kafka.deserializer.ISTTimeZoneHashMapDeserializer
+        - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+          value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+{% endif %}
+        - name: JAVA_OPTS
+          value: "{{conf['egov-mdms-service']['heap'] or '-Xmx192m -Xms192m'}}"
+        - name: JAVA_ARGS
+          value: "{{conf['egov-mdms-service']['java-args']}}"          
+        - name: SERVER_PORT
+          value: "8080"
+        - name: EGOV_MDMS_CONF_PATH
+          value: "{{conf['egov-mdms-service']['mdms-path']}}"
+        - name: EGOV_MDMS_GIT_URL
+          value: "{{conf['egov-mdms-service']['mdms-git-url']}}"
+        - name: EGOV_MDMS_FOLDER
+          value: "{{conf['egov-mdms-service']['mdms-folder']}}"
+        - name: MASTERS_CONFIG_URL
+          value: "{{conf['egov-mdms-service']['masters-config-url']}}"
+{% if conf['egov-mdms-service']['branch'] %}
+        - name: BRANCH
+          value: "{{conf['egov-mdms-service']['branch']}}"
+{% endif %}
+        - name: JAEGER_SERVICE_NAME
+          value: egov-mdms-service
+        - name: JAEGER_SAMPLER_TYPE
+          value: remote
+        - name: JAEGER_AGENT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: JAEGER_AGENT_PORT
+          value: "6831"
+        - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+          value: "$(JAEGER_AGENT_HOST):5778"               
+        - name: SECURITY_BASIC_ENABLED
+          value: "false"  
+        - name: MANAGEMENT_SECURITY_ENABLED
+          value: "false"           
+        resources:
+          requests:
+            memory: "64Mi"
+          limits:
+            memory: "{{ conf['egov-mdms-service']['memory_limits'] or "512Mi"}}"
+{% if conf['egov-mdms-service']['repo'] %}            
+        volumeMounts:              
+        - name: workdir
+          mountPath: "/work-dir"            
+{% endif %}

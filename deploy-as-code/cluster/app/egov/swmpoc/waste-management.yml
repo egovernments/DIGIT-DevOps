@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: waste-management
+  namespace: swmpoc
+  labels:
+    app: waste-management
+    group: swmpoc
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: waste-management
+    group: swmpoc
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: waste-management
+  namespace: swmpoc
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: waste-management
+        group: swmpoc
+    spec:
+      containers:
+      - name: waste-management
+        image: {{conf['waste-management']['images'][0]}}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SERVER_CONTEXTPATH
+          value: /waste-management
+        - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+          value: wm-consumer-grp
+        - name: CASSANDRA_CONTACTPOINTS
+          value: cassandra-0.cassandra.swmpoc
+        - name: CASSANDRA_PORT
+          value: "9042"
+        - name: CASSANDRA_KEYSPACE
+          value: testKeySpace
+        - name: KAFKA_STREAM_IN_TOPIC
+          value: "tour.info"
+        - name: KAFKA_STREAM_CASSANDRA_TOPIC
+          value: cassandra.persist.topic
+        - name: SOCKET_IO_HOST
+          value: http://socketio-server.swmpoc:3005/location
+        - name: SOCKET_DEFAULT_ROOM
+          value: data
+        - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka-rest-0.kafka-rest.swmpoc:8082"
+        - name: APP_TIMEZONE
+          value: {{conf['time-config']['timezone']}}
+        - name: JAVA_OPTS
+          value: -Xmx256m -Xms256m
+        - name: SERVER_PORT
+          value: "8080"
+        resources:
+          requests:
+            memory: "512Mi"
+          limits:
+            memory: "{{ conf['waste-management']['memory_limits'] or "512Mi"}}"

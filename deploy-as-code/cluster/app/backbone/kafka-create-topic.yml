@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-create-topic
+  namespace: backbone
+spec:
+  template:
+    metadata:
+      name: create-topic
+    spec:
+      containers:
+      - name: kafka
+        image: egovio/kafka-create-topic:v0.0.1
+        command:
+        - /usr/bin/create-topics.sh
+        env:
+        - name: KAFKA_ZOOKEEPER_CONNECT
+          valueFrom:
+            configMapKeyRef:
+              name: kafka-config
+              key: zookeeper-connect
+        - name: KAFKA_CREATE_TOPICS
+          valueFrom:
+            configMapKeyRef:
+              name: kafka-config
+              key: topics
+        - name: KAFKA_BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: kafka-config
+              key: kafka-brokers
+      restartPolicy: Never

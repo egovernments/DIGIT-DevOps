@@ -30,6 +30,7 @@ java-args: "-Dspring.profiles.active=monitoring"
 memory_limits: 2560Mi
 from-address: no-reply@anumati.gov
 cronInstance: false
+aws-kms-signature-key-id: 991b3812-b3b8-4c35-b046-9bbec74d2b87
 storage:
   aws:
     region: us-east-2
@@ -68,6 +69,16 @@ env: |
       secretKeyRef:
         name: ispirit-ecurfew
         key: s3-secretaccesskey 
+  - name: AWS_KMS_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: s3-accesskey        
+  - name: AWS_KMS_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: s3-secretaccesskey 
   - name: TWILIO_ACCOUNT_SID
     valueFrom:
       secretKeyRef:
@@ -98,6 +109,10 @@ env: |
     value: "/etc/ispirit/public_key.pem"                
   - name: AWS_S3_REGION
     value: {{ .Values.storage.aws.region }}     
+  - name: AWS_KMS_REGION
+    value: {{ .Values.storage.aws.region }}     
+  - name: AWS_KMS_SIGNATURE_KEY_ID
+    value: {{ index .Values "aws-kms-signature-key-id" | quote }}
   - name: AWS_S3_BUCKET
     value: {{ .Values.storage.aws.bucket }}         
   - name: SECURITY_REQUIRE_SSL

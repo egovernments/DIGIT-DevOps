@@ -78,7 +78,7 @@ def validate_args(args):
 
 def render_env_props(args):
     dir_path = os.path.dirname(os.path.abspath(__file__))
-    env_file_path = "{}/../cluster/conf/{}.yml".format(dir_path, args.env)
+    env_file_path = "{}/../helm/environments/{}.yaml".format(dir_path, args.env)
     if not os.path.isfile(env_file_path):
         raise Exception("No config found for env - {}".format(args.env))
     conf = yaml.load(open(env_file_path, "r"))

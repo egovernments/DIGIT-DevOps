@@ -1,7 +1,7 @@
 resource "aws_ebs_volume" "vol" {
-  count = "${length(var.availability_zones)}"
+  count = "${var.storage_count}"
 
-  availability_zone = "${var.availability_zones[count.index]}"
+  availability_zone = "${element(var.availability_zones, count.index)}"
   size              = "${var.disk_size_gb}"
   type              = "${var.storage_sku}"
 

@@ -28,7 +28,7 @@ resource "aws_subnet" "public_subnet" {
   tags = "${
     map(
       "Name", "utility-${var.availability_zones[count.index]}-${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
+      "kubernetes.io/cluster/${var.cluster_name}", "shared",
       "kubernetes.io/role/elb", 1,
       "SubnetType", "Utility",
       "KubernetesCluster", "${var.cluster_name}"
@@ -46,7 +46,7 @@ resource "aws_subnet" "private_subnet" {
   tags = "${
     map(
       "Name", "${var.availability_zones[count.index]}-${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
+      "kubernetes.io/cluster/${var.cluster_name}", "shared",
       "kubernetes.io/role/internal-elb", 1,
       "SubnetType", "Private",
       "KubernetesCluster", "${var.cluster_name}"
@@ -60,7 +60,7 @@ resource "aws_internet_gateway" "internet_gateway" {
   tags = "${
     map(
       "Name", "${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
+      "kubernetes.io/cluster/${var.cluster_name}", "shared",
       "KubernetesCluster", "${var.cluster_name}"
     )
   }"
@@ -77,7 +77,7 @@ resource "aws_route_table" "public_route_table" {
     tags = "${
     map(
       "Name", "public-${var.cluster_name}-rtb",
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
+      "kubernetes.io/cluster/${var.cluster_name}", "shared",
       "KubernetesCluster", "${var.cluster_name}"
     )
   }"
@@ -97,7 +97,7 @@ resource "aws_eip" "eip" {
     tags = "${
     map(
       "Name", "eip-${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
+      "kubernetes.io/cluster/${var.cluster_name}", "shared",
       "KubernetesCluster", "${var.cluster_name}"
     )
   }"  
@@ -113,7 +113,7 @@ resource "aws_nat_gateway" "nat" {
     tags = "${
     map(
       "Name", "nat-gw-${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
+      "kubernetes.io/cluster/${var.cluster_name}", "shared",
       "KubernetesCluster", "${var.cluster_name}"
     )
   }"
@@ -131,7 +131,7 @@ resource "aws_route_table" "private_route_table" {
     tags = "${
     map(
       "Name", "private-${var.cluster_name}-rtb",
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
+      "kubernetes.io/cluster/${var.cluster_name}", "shared",
       "KubernetesCluster", "${var.cluster_name}"
     )
   }"  
@@ -160,7 +160,7 @@ resource "aws_security_group" "worker_nodes_sg" {
   tags = "${
     map(
       "Name", "nodes-${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
+      "kubernetes.io/cluster/${var.cluster_name}", "shared",
       "KubernetesCluster", "${var.cluster_name}"
     )
   }"
@@ -174,7 +174,7 @@ resource "aws_security_group" "master_nodes_sg" {
   tags = "${
     map(
       "Name", "masters-${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
+      "kubernetes.io/cluster/${var.cluster_name}", "shared",
       "KubernetesCluster", "${var.cluster_name}"
     )
   }"

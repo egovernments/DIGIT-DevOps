@@ -63,7 +63,7 @@ func DeployCharts(options Options) {
 			execCommand(helmTemplate, serviceChartDirectory)
 
 			log.Println("Applying manifests to the cluster ")
-			kubeApplyCmd := "kubectl apply -f ."
+			kubeApplyCmd := "kubectl apply --recursive  -f ."
 			out := execCommand(kubeApplyCmd, tmpDir+string(os.PathSeparator)+repository+string(os.PathSeparator)+"templates")
 			log.Println(out.String())
 
@@ -114,7 +114,7 @@ func deployClusterConfigs(helmDir string, envOverrideFile string, envSecretFile 
 	helmTemplate := fmt.Sprintf("helm template --output-dir %s -f %s -f %s .", tmpDir, envOverrideFile, tmpDecFile.Name())
 	execCommand(helmTemplate, clusterConfigDir)
 
-	kubeApplyCmd := "kubectl apply -f ."
+	kubeApplyCmd := "kubectl apply --recursive -f ."
 	out := execCommandRaw(kubeApplyCmd, tmpDir+string(os.PathSeparator)+"cluster-configs"+string(os.PathSeparator)+"templates", false)
 	log.Println(out.String())
 }

@@ -25,8 +25,6 @@ heap: "-Xmx256m -Xms256m"
 java-args: "-Dspring.profiles.active=monitoring"
 
 master-password-provider: software
-number-of-symmetric-keys-per-tenant: 100
-aws-kms-region: ap-south-1
 
 # Additional Container Envs
 env: |
@@ -52,11 +50,13 @@ env: |
     value: "false"         
   - name: SERVER_CONTEXT_PATH
     value: /egov-enc-service    
+  - name: MASTER_PASSWORD_PROVIDER
+    value: {{ index .Values "master-password-provider" | quote }}
   {{- if index .Values "number-of-symmetric-keys-per-tenant" }}
   - name: NUMBER_OF_SYMMETRIC_ACTIVE_KEYS_PER_TENANT
     value: {{ index .Values "number-of-symmetric-keys-per-tenant" | quote }}
   {{- end }}
-  {{ if eq .Values.master-password-provider "software" }}
+  {{- if eq (index .Values "master-password-provider") "software" }}
   - name: MASTER_PASSWORD
     valueFrom:
       secretKeyRef:
@@ -73,7 +73,7 @@ env: |
         name: egov-enc-service
         key: master.initialvector
   {{- end }}
-  {{ if eq .Values.master-password-provider "awskms" }}
+  {{- if eq (index .Values "master-password-provider") "awskms" }}
   - name: AWS_KMS_REGION
     value: {{ index .Values "aws-kms-region" | quote }}
   - name: AWS_KMS_ACCESS_KEY

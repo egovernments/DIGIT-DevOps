@@ -57,6 +57,16 @@ env: |
       secretKeyRef:
         name: ispirit-ecurfew
         key: s3-secretaccesskey 
+  - name: AWS_KMS_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: s3-accesskey        
+  - name: AWS_KMS_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: s3-secretaccesskey 
   - name: TWILIO_ACCOUNT_SID
     valueFrom:
       secretKeyRef:
@@ -85,8 +95,12 @@ env: |
     value: "/etc/ispirit/private_key.pem"
   - name: SIGNATUREPUBLICKEYNAME
     value: "/etc/ispirit/public_key.pem"                
-  - name: AWS_REGION
+  - name: AWS_S3_REGION
     value: {{ .Values.storage.aws.region }}     
+  - name: AWS_KMS_REGION
+    value: {{ .Values.storage.aws.region }}     
+  - name: AWS_KMS_SIGNATURE_KEY_ID
+    value: {{ index .Values "aws-kms-signature-key-id" | quote }}
   - name: AWS_S3_BUCKET
     value: {{ .Values.storage.aws.bucket }}         
   - name: SECURITY_REQUIRE_SSL
@@ -115,7 +129,9 @@ env: |
   - name: EMAIL_FROM_ADDRESS
     value: {{ index .Values "from-address" | quote }} 
   - name: CRONINSTANCE
-    value: {{ index .Values "cronInstance" | quote }}    
+    value: {{ index .Values "cronInstance" | quote }}
+  - name: SUPERUSER_ID
+    value: "1"         
   - name: AAROGYA_SETU_URL
     value: {{ index .Values "aarogya-setu-url" | quote }}
   - name: AAROGYA_SETU_CHECK_ENABLED
@@ -133,7 +149,7 @@ env: |
   - name: AAROGYA_SETU_JWT_TOKEN_EXPIRY_MINUTES
     value: {{ index .Values "aarogya-setu-jwt-token-expiry-minutes" | quote }}       
   - name: FIXED_OTP_ENABLED
-    value: {{ index .Values "fixed-otp-enabled" | quote }}     
+    value: {{ index .Values "fixed-otp-enabled" | quote }}              
   - name: TENANT_ID_FOR_ENCRYPTION
     value: "in"
   - name: EGOV_ENC_SERVICE_HOST

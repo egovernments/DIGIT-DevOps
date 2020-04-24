@@ -25,7 +25,7 @@ spec:
           secretKeyRef:
             name: jenkins-credentials
             key: gitReadAccessToken 
-      - name: token
+      - name: TOKEN
         valueFrom:
           secretKeyRef:
             name: jenkins-credentials

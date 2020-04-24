@@ -46,6 +46,8 @@ spec:
         List<String> gitUrls = params.urls;
         String configFile = './build/build-config.yml';
         Map<String,List<JobConfig>> jobConfigMap=new HashMap<>();
+        StringBuilder jobDslScript = new StringBuilder();
+        List<String> allJobConfigs = new ArrayList<>();
 
         for (int i = 0; i < gitUrls.size(); i++) {
             String dirName = Utils.getDirName(gitUrls[i]);
@@ -54,24 +56,23 @@ spec:
                  def yaml = readYaml file: configFile;
                  List<JobConfig> jobConfigs = ConfigParser.populateConfigs(yaml.config, env);
                  jobConfigMap.put(gitUrls[i],jobConfigs);
+                 allJobConfigs.addAll(jobConfigs);
             }
         }
-
-        StringBuilder jobDslScript = new StringBuilder();
+        
         Set<String> repoSet = new HashSet<>();
         String repoList = "";
+
+        List<String> folders = Utils.foldersToBeCreatedOrUpdated(allJobConfigs, env);
+                  for (int j = 0; j < folders.size(); j++) {
+                      jobDslScript.append("""
+                          folder("${folders[j]}")
+                          """);
+                    }
 
         for (Map.Entry<Integer, String> entry : jobConfigMap.entrySet()) {   
 
             List<JobConfig> jobConfigs = entry.getValue();
- 
-            List<String> folders = Utils.foldersToBeCreatedOrUpdated(jobConfigs, env);
-
-            for (int i = 0; i < folders.size(); i++) {
-                jobDslScript.append("""
-                    folder("${folders[i]}")
-                    """);
-              }
 
         for (int i = 0; i < jobConfigs.size(); i++) {
 
@@ -85,7 +86,7 @@ spec:
             jobDslScript.append("""
             pipelineJob("${jobConfigs.get(i).getName()}") {
                 logRotator(-1, 5, -1, -1)
-                parameters {
+                parameters {  
                   gitParameterDefinition {
                         name('BRANCH')
                         type('BRANCH_TAG')
@@ -99,8 +100,9 @@ spec:
                         selectedValue('DEFAULT')
                         quickFilterEnabled(true)
                         listSize('5')                 
-                  }
                 }
+                  booleanParam('ALT_REPO_PUSH', false, 'Check to push images to GCR')
+            }
                 definition {
                     cpsScm {
                         scm {

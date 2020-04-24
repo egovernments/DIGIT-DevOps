@@ -24,23 +24,27 @@ spec:
         valueFrom:
           secretKeyRef:
             name: jenkins-credentials
-            key: gitReadAccessToken    
-      - name: TOKEN
+            key: gitReadAccessToken 
+      - name: token
         valueFrom:
           secretKeyRef:
             name: jenkins-credentials
-            key: gitReadAccessToken               
+            key: gitReadAccessToken             
+      - name: "GOOGLE_APPLICATION_CREDENTIALS"
+        value: "/var/run/secret/cloud.google.com/service-account.json"             
     volumeMounts:
       - name: jenkins-docker-cfg
         mountPath: /root
       - name: kaniko-cache
         mountPath: /cache  
+      - name: service-account
+        mountPath: /var/run/secret/cloud.google.com        
     resources:
       requests:
         memory: "1792Mi"
         cpu: "750m"
       limits:
-        memory: "3072Mi"
+        memory: "3572Mi"
         cpu: "1500m"      
   - name: git
     image: docker.io/nithindv/alpine-git:latest
@@ -53,6 +57,9 @@ spec:
     persistentVolumeClaim:
       claimName: kaniko-cache-claim
       readOnly: true      
+  - name: service-account
+    secret:
+        secretName: "gcp-docker-push-sa"      
   - name: jenkins-docker-cfg
     projected:
       sources:
@@ -66,7 +73,8 @@ spec:
         node(POD_LABEL) {
 
             def scmVars = checkout scm
-            String REPO_NAME = env.REPO_NAME ? env.REPO_NAME : "docker.io/egovio";           
+            String REPO_NAME = env.REPO_NAME ? env.REPO_NAME : "docker.io/egovio";         
+            String GCR_REPO_NAME = "asia.gcr.io/digit-egov";
             def yaml = readYaml file: pipelineParams.configFile;
             List<JobConfig> jobConfigs = ConfigParser.parseConfig(yaml, env);
 
@@ -101,11 +109,33 @@ spec:
                                 String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
                                 String imageLatest = "${REPO_NAME}/${buildConfig.getImageName()}:latest";
                                 String noPushImage = env.NO_PUSH ? env.NO_PUSH : false;
+                                echo "ALT_REPO_PUSH ENABLED: ${ALT_REPO_PUSH}"
+                                 if(env.ALT_REPO_PUSH.equalsIgnoreCase("true")){
+                                  String gcr_image = "${GCR_REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
+                                  String gcr_imageLatest = "${GCR_REPO_NAME}/${buildConfig.getImageName()}:latest";
+                                  sh """
+                                    echo \"Attempting to build image,  ${image}\"
+                                    /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
+                                    --build-arg WORK_DIR=${workDir} \
+                                    --build-arg token=\$GIT_ACCESS_TOKEN \
+                                    --cache=true --cache-dir=/cache \
+                                    --single-snapshot=true \
+                                    --snapshotMode=time \
+                                    --destination=${image} \
+                                    --destination=${imageLatest} \
+                                    --destination=${gcr_image} \
+                                    --destination=${gcr_imageLatest} \
+                                    --no-push=${noPushImage} \
+                                    --cache-repo=egovio/cache/cache
+                                  """  
+                                  echo "${image} and ${gcr_image} pushed successfully!!"                              
+                                }
+                                else{
                                 sh """
                                     echo \"Attempting to build image,  ${image}\"
                                     /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
                                     --build-arg WORK_DIR=${workDir} \
-                                    --build-arg GIT_ACCESS_TOKEN=\$GIT_ACCESS_TOKEN \
+                                    --build-arg token=\$GIT_ACCESS_TOKEN \
                                     --cache=true --cache-dir=/cache \
                                     --single-snapshot=true \
                                     --snapshotMode=time \
@@ -115,6 +145,7 @@ spec:
                                     --cache-repo=egovio/cache/cache
                                 """
                                 echo "${image} pushed successfully!"
+                                }
                             }
                         }
                     }

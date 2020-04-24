@@ -9,22 +9,25 @@ class Utils {
         Set<String> folders = new HashSet<>();
 
         configs.each { config ->
-            int index = config.getName().lastIndexOf("/");
-            if(index != -1)
-                folders.add(config.getName().substring(0, index));
+            String configName = config.getName();	   
+            while(configName.lastIndexOf("/")!=-1) {
+            	configName= configName.substring(0, configName.lastIndexOf("/"));
+                folders.add(configName);   
+            }
         }
 
-        Comparator<String> comparator = new Comparator<String>() {
-            @Override
-            int compare(String o1, String o2) {
-                return Integer.compare(numberOfOccurrences(o1, "/"), numberOfOccurrences(o2, "/"));
-            }
-        };
-
-
-
         List<String> uniqueFolders = folders.toList();
-        uniqueFolders.sort(comparator);
+        for (int j = 0; j < uniqueFolders.size()-1; j++) { 
+        	  
+            if (numberOfOccurrences(uniqueFolders.get(j),"/") > numberOfOccurrences(uniqueFolders.get(j + 1),"/")) { 
+  
+                String temp = uniqueFolders.get(j); 
+                uniqueFolders.set(j,uniqueFolders.get(j + 1)); 
+                uniqueFolders.set(j+1,temp);
+  
+                j = -1; 
+            } 
+        } 
         return uniqueFolders;
     }
 

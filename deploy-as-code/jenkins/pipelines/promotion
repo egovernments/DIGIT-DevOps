@@ -1,0 +1,20 @@
+def group = "${env.GROUP}"
+def env = "${env.JOB_BASE_NAME}".split("-")
+def source_env = env[1]
+def dest_env = env[3]
+
+try {
+    node("slave"){
+        checkout scm
+        def deployer = load("jenkins/deployer.groovy")
+        def archiver = load("jenkins/archiver.groovy")
+
+	      deployer.takeSnapshot(group, source_env)
+
+        archiver.archiveArtifacts(["scripts/service_images.json"])
+
+        deployer.deploy(dest_env)
+    }
+} catch (e) {
+    throw e
+}

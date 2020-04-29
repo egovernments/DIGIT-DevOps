@@ -107,12 +107,10 @@ spec:
 
                                 String workDir = buildConfig.getWorkDir().replaceFirst(getCommonBasePath(buildConfig.getWorkDir(), buildConfig.getDockerFile()), "./")
                                 String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
-                                String imageLatest = "${REPO_NAME}/${buildConfig.getImageName()}:latest";
                                 String noPushImage = env.NO_PUSH ? env.NO_PUSH : false;
                                 echo "ALT_REPO_PUSH ENABLED: ${ALT_REPO_PUSH}"
                                  if(env.ALT_REPO_PUSH.equalsIgnoreCase("true")){
                                   String gcr_image = "${GCR_REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
-                                  String gcr_imageLatest = "${GCR_REPO_NAME}/${buildConfig.getImageName()}:latest";
                                   sh """
                                     echo \"Attempting to build image,  ${image}\"
                                     /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \
@@ -122,9 +120,7 @@ spec:
                                     --single-snapshot=true \
                                     --snapshotMode=time \
                                     --destination=${image} \
-                                    --destination=${imageLatest} \
                                     --destination=${gcr_image} \
-                                    --destination=${gcr_imageLatest} \
                                     --no-push=${noPushImage} \
                                     --cache-repo=egovio/cache/cache
                                   """  
@@ -140,7 +136,6 @@ spec:
                                     --single-snapshot=true \
                                     --snapshotMode=time \
                                     --destination=${image} \
-                                    --destination=${imageLatest} \
                                     --no-push=${noPushImage} \
                                     --cache-repo=egovio/cache/cache
                                 """

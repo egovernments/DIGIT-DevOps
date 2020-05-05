@@ -27,17 +27,29 @@ fixed-bucketname: "egov-rainmaker"
 heap: "-Xmx192m -Xms192m"
 allowed-file-formats-map: "{jpg:{'image/jpg','image/jpeg'},jpeg:{'image/jpeg','image/jpg'},png:{'image/png'},pdf:{'application/pdf'},odt:{'application/vnd.oasis.opendocument.text'},ods:{'application/vnd.oasis.opendocument.spreadsheet'},docx:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text'},doc:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text'},dxf:{'text/plain'},csv:{'text/plain'},txt:{'text/plain'}}"
 allowed-file-formats: "jpg,jpeg,png,doc,docx,pdf"
+file-storage-mount-path: "/filestore"
 
 # Additional Container Envs
 env: |
   - name: SERVER_PORT
     value: "8080"
   - name: FILE_STORAGE_MOUNT_PATH
-    value: "/filestore"
+    value: {{ index .Values "file-storage-mount-path" | quote }}
   - name: TEMP_FOLDER_PATH
     value: "/tmp"
   - name: SPRING_HTTP_MULTIPART_MAX_FILE_SIZE
     value: "6MB"
+  {{- if index .Values "is-nfs-enabled" }}
+  - name: ISNFSSTORAGEENABLED
+    value: "true"
+  - name: DISK_STORAGE_HOST_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  - name: SOURCE_DISK
+    value: "diskStorage"
+  {{- end }}
   {{- if index .Values "is-s3-enabled" }}
   - name: ISS3ENABLED
     value: "true"

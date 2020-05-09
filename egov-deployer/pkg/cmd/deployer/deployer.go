@@ -11,33 +11,39 @@ import (
 	"strings"
 )
 
+// DeployCharts deploys render all charts using helm template and deploy them using kubectl apply --recursive
 func DeployCharts(options Options) {
 
 	helmDir, _ := filepath.Abs(options.HelmDir)
 	log.Println("Helm Directory - " + helmDir)
 
+	index := buildIndex(helmDir)
 	envOverrideFile := filepath.FromSlash(fmt.Sprintf(helmDir+"/environments/%s.yaml", options.Environment))
 
 	if options.ClusterConfigs && !options.Print {
 		envSecretFile := filepath.FromSlash(fmt.Sprintf(helmDir+"/environments/%s-secrets.yaml", options.Environment))
-		deployClusterConfigs(helmDir, envOverrideFile, envSecretFile)
+		deployClusterConfigs(index, helmDir, envOverrideFile, envSecretFile)
 	}
 
 	services := strings.Split(options.Images, ",")
 	for _, service := range services {
 
+		var name, helmTemplate, isAltService = "", "", false
+
 		log.Printf("------------------------------------ DEPLOYING %s ------------------------------------", service)
 		repository, tag := getDockerComponents(service)
-		serviceChartDirectory, err := getServiceChartDirectory(helmDir, repository)
+		serviceChartDirectory, ok := index[repository]
 
-		if err == nil && serviceChartDirectory != "" {
+		name = repository
+
+		if ok && serviceChartDirectory != "" {
 			log.Println(serviceChartDirectory)
 		} else {
 			log.Panicln("Service chart not found: " + repository)
 		}
 
 		if tag == "" {
-			clusterImage := getImageTagFromCluster(repository)
+			clusterImage := getImageTagFromCluster(name)
 			if clusterImage == "" {
 				log.Panicln("Image tag not found")
 			}
@@ -46,6 +52,12 @@ func DeployCharts(options Options) {
 		}
 
 		helmDepUpdate := "helm dep update"
+
+		altServiceOverrideFile := filepath.FromSlash(fmt.Sprintf(serviceChartDirectory+"/%s-values.yaml", name))
+		if _, err := os.Stat(altServiceOverrideFile); err == nil {
+			isAltService = true
+			log.Printf("Applying values from %s-values.yaml", name)
+		}
 
 		execCommand(helmDepUpdate, serviceChartDirectory)
 
@@ -59,7 +71,11 @@ func DeployCharts(options Options) {
 			defer os.RemoveAll(tmpDir)
 
 			log.Printf("Generating final manifests to directory : %s ", tmpDir)
-			helmTemplate := fmt.Sprintf("helm template --output-dir %s -f %s --set image.tag=%s --set initContainers.dbMigration.image.tag=%s .", tmpDir, envOverrideFile, tag, tag)
+			if isAltService {
+				helmTemplate = fmt.Sprintf("helm template --output-dir %s -f %s -f %s --set name=%s --set image.tag=%s --set initContainers.dbMigration.image.tag=%s .", tmpDir, envOverrideFile, altServiceOverrideFile, name, tag, tag)
+			} else {
+				helmTemplate = fmt.Sprintf("helm template --output-dir %s -f %s --set name=%s --set image.tag=%s --set initContainers.dbMigration.image.tag=%s .", tmpDir, envOverrideFile, name, tag, tag)
+			}
 			execCommand(helmTemplate, serviceChartDirectory)
 
 			log.Println("Applying manifests to the cluster ")
@@ -68,7 +84,13 @@ func DeployCharts(options Options) {
 			log.Println(out.String())
 
 		} else {
-			helmTemplate := fmt.Sprintf("helm template -f %s --set image.tag=%s --set initContainers.dbMigration.image.tag=%s .", envOverrideFile, tag, tag)
+			if isAltService {
+				helmTemplate = fmt.Sprintf("helm template -f %s -f %s --set name=%s --set image.tag=%s --set initContainers.dbMigration.image.tag=%s .", envOverrideFile, altServiceOverrideFile, name, tag, tag)
+			} else {
+				helmTemplate = fmt.Sprintf("helm template -f %s --set name=%s --set image.tag=%s --set initContainers.dbMigration.image.tag=%s .", envOverrideFile, name, tag, tag)
+			}
+
+			log.Printf("Executing %s", helmTemplate)
 			out := execCommand(helmTemplate, serviceChartDirectory)
 			fmt.Println(out.String())
 		}
@@ -85,15 +107,15 @@ func getImageTagFromCluster(service string) (tag string) {
 
 }
 
-func deployClusterConfigs(helmDir string, envOverrideFile string, envSecretFile string) {
+func deployClusterConfigs(index map[string]string, helmDir string, envOverrideFile string, envSecretFile string) {
 
 	log.Println("------------------------------------ DEPLOYING CLUSTER CONFIGS ------------------------------------")
-	clusterConfigDir, err := getServiceChartDirectory(helmDir, "cluster-configs")
+	clusterConfigDir, ok := index["cluster-configs"]
 
-	if err == nil && clusterConfigDir != "" {
+	if ok && clusterConfigDir != "" {
 		fmt.Println(clusterConfigDir)
 	} else {
-		log.Panicln("Cluster configs not found", err)
+		log.Panicln("Cluster configs not found")
 	}
 
 	tmpDir, err := ioutil.TempDir(os.TempDir(), "helm-")
@@ -147,6 +169,38 @@ func getServiceChartDirectory(baseDirectory string, service string) (serviceChar
 		})
 
 	return serviceChartDirectory, err
+}
+
+func buildIndex(chartsDirectory string) (m map[string]string) {
+	m = make(map[string]string)
+	filepath.Walk(chartsDirectory,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if strings.Contains(info.Name(), "values.yaml") {
+				if strings.EqualFold(info.Name(), "values.yaml") {
+					addToMap(m, filepath.Base(filepath.Dir(path)), filepath.Dir(path))
+				} else {
+					svc := strings.Replace(info.Name(), "-values.yaml", "", 1)
+					addToMap(m, svc, filepath.Dir(path))
+				}
+			}
+
+			return nil
+		})
+
+	return m
+
+}
+
+func addToMap(m map[string]string, k string, v string) {
+	if _, ok := m[k]; ok {
+		log.Printf("Duplicate service found %s! This will lead to undesired results, fix it! \n", k)
+	}
+
+	m[k] = v
 }
 
 func execCommand(command string, commandDirectory string) (out bytes.Buffer) {

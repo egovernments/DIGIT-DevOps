@@ -1,9 +1,18 @@
-{{- define "common.labels" -}}
-{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
+{{- define "common.name" -}}
+{{- $envOverrides := index .Values (tpl (default .Chart.Name .Values.name) .) -}} 
 {{- $baseCommonValues := .Values.common | deepCopy -}}
 {{- $values := dict "Values" (mustMergeOverwrite $baseCommonValues .Values $envOverrides) -}}
 {{- with mustMergeOverwrite . $values -}}
-app: {{ .Chart.Name }}
+{{- default .Chart.Name .Values.name -}}    
+{{- end }}
+{{- end }}
+
+{{- define "common.labels" -}}
+{{- $envOverrides := index .Values (include "common.name" .) | deepCopy -}} 
+{{- $baseCommonValues := .Values.common | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $envOverrides $baseCommonValues .Values ) -}}
+{{- with mustMergeOverwrite . $values }}
+app: {{ default .Chart.Name .Values.name }}
 {{- if .Values.labels.group }}      
 group: {{ .Values.labels.group }}  
 {{- end }}  

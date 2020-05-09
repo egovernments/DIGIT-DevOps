@@ -1,7 +1,7 @@
 {{- define "common.deployment" -}}
-{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
+{{- $envOverrides := index .Values (include "common.name" .) | deepCopy -}} 
 {{- $baseCommonValues := .Values.common | deepCopy -}}
-{{- $values := dict "Values" (mustMergeOverwrite $baseCommonValues .Values $envOverrides) -}}
+{{- $values := dict "Values" (mustMergeOverwrite $envOverrides $baseCommonValues .Values ) -}}
 {{- with mustMergeOverwrite . $values }}
 {{- if .Capabilities.APIVersions.Has "apps/v1" }}
 apiVersion: apps/v1
@@ -10,7 +10,7 @@ apiVersion: extensions/v1beta1
 {{- end }}
 kind: Deployment
 metadata:
-  name: {{ .Chart.Name }}
+  name: {{ template "common.name" . }}
   namespace: {{ .Values.namespace }}
   labels:
   {{- include "common.labels" . | nindent 4 }}   
@@ -24,7 +24,7 @@ spec:
   strategy:
     rollingUpdate:
       maxUnavailable: 0
-{{- end }}      
+{{- end }}     
   replicas: {{ .Values.replicas }}
   template:
     metadata:  
@@ -98,7 +98,7 @@ spec:
       {{- with .Values.extraContainers }}
         {{- tpl . $ | nindent 8 }}
       {{- end }}      
-        - name: {{ .Chart.Name }}
+        - name: {{ template "common.name" . }}
           image: "{{ .Values.global.containerRegistry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:

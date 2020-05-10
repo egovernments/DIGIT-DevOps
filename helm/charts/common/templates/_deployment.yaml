@@ -1,8 +1,4 @@
 {{- define "common.deployment" -}}
-{{- $envOverrides := index .Values (include "common.name" .) | deepCopy -}} 
-{{- $baseCommonValues := .Values.common | deepCopy -}}
-{{- $values := dict "Values" (mustMergeOverwrite $envOverrides $baseCommonValues .Values ) -}}
-{{- with mustMergeOverwrite . $values }}
 {{- if .Capabilities.APIVersions.Has "apps/v1" }}
 apiVersion: apps/v1
 {{- else }}
@@ -13,7 +9,7 @@ metadata:
   name: {{ template "common.name" . }}
   namespace: {{ .Values.namespace }}
   labels:
-  {{- include "common.labels" . | nindent 4 }}   
+{{- include "common.labels" . | nindent 4 }}   
 spec:
 {{- if .Capabilities.APIVersions.Has "apps/v1" }}
   selector:
@@ -149,5 +145,4 @@ spec:
       tolerations:
 {{ toYaml . | indent 8 }}
     {{- end }}
-{{- end -}}
 {{- end -}}

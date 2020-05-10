@@ -1,15 +1,10 @@
-{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
-{{- $baseValues := .Values | deepCopy -}}
-{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
-{{- with mustMergeOverwrite . $values -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: fluent-bit-config
+  name: {{ template "name" . }}-config
   namespace: {{ .Values.namespace }}
   labels:
-    k8s-app: fluent-bit
-    app: fluent-bit
+    app: {{ template "name" . }}
 data:
   # Configuration files: server, input, filters and output
   # ======================================================
@@ -135,5 +130,4 @@ data:
         Format      regex
         Regex       ^\<(?<pri>[0-9]+)\>(?<time>[^ ]* {1,2}[^ ]* [^ ]*) (?<host>[^ ]*) (?<ident>[a-zA-Z0-9_\/\.\-]*)(?:\[(?<pid>[0-9]+)\])?(?:[^\:]*\:)? *(?<message>.*)$
         Time_Key    time
-        Time_Format %b %d %H:%M:%S
-{{- end -}}        
+        Time_Format %b %d %H:%M:%S       

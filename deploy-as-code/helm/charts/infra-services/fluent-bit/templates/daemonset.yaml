@@ -1,23 +1,16 @@
-{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
-{{- $baseValues := .Values | deepCopy -}}
-{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
-{{- with mustMergeOverwrite . $values -}}
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
-  name: fluent-bit
+  name: {{ template "name" . }}
   namespace: {{ .Values.namespace }}
   labels:
-    k8s-app: fluent-bit
-    app: fluent-bit
-    version: v1
+    app: {{ template "name" . }}
     kubernetes.io/cluster-service: "true"
 spec:
   template:
     metadata:
       labels:
-        k8s-app: fluent-bit-logging
-        version: v1
+        app: {{ template "name" . }}
         kubernetes.io/cluster-service: "true"
     spec:
       containers:
@@ -38,7 +31,7 @@ spec:
             - name: varlibdockercontainers
               mountPath: /var/lib/docker/containers
               readOnly: true
-            - name: fluent-bit-config
+            - name: {{ template "name" . }}-config
               mountPath: /fluent-bit/etc/
       terminationGracePeriodSeconds: 10
       volumes:
@@ -48,9 +41,8 @@ spec:
         - name: varlibdockercontainers
           hostPath:
             path: /var/lib/docker/containers
-        - name: fluent-bit-config
+        - name: {{ template "name" . }}-config
           configMap:
-            name: fluent-bit-config
-      serviceAccountName: fluent-bit
-      serviceAccount: fluent-bit
-{{- end -}}          
+            name: {{ template "name" . }}-config
+      serviceAccountName: {{ template "name" . }}
+      serviceAccount: {{ template "name" . }}    

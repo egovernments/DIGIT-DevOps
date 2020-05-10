@@ -8,11 +8,11 @@
 {{- end }}
 
 {{- define "common.labels" -}}
-{{- $envOverrides := index .Values (include "common.name" .) | deepCopy -}} 
+{{- $envOverrides := index .Values (include "common.name" .) -}} 
 {{- $baseCommonValues := .Values.common | deepCopy -}}
-{{- $values := dict "Values" (mustMergeOverwrite $envOverrides $baseCommonValues .Values ) -}}
-{{- with mustMergeOverwrite . $values }}
-app: {{ default .Chart.Name .Values.name }}
+{{- $values := dict "Values" (mustMergeOverwrite $baseCommonValues .Values $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
+app: {{ template "common.name" . }}
 {{- if .Values.labels.group }}      
 group: {{ .Values.labels.group }}  
 {{- end }}  

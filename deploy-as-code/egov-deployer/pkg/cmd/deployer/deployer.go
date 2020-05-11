@@ -28,13 +28,15 @@ func DeployCharts(options Options) {
 	services := strings.Split(options.Images, ",")
 	for _, service := range services {
 
-		var name, helmTemplate, isAltService = "", "", false
+		var name, helmTemplate, args = "", "", make([]string, 0, 10)
 
 		log.Printf("------------------------------------ DEPLOYING %s ------------------------------------", service)
 		repository, tag := getDockerComponents(service)
 		serviceChartDirectory, ok := index[repository]
 
 		name = repository
+		args = append(args, fmt.Sprintf("-f %s", envOverrideFile))
+		args = append(args, fmt.Sprintf("--set name=%s", name))
 
 		if ok && serviceChartDirectory != "" {
 			log.Println(serviceChartDirectory)
@@ -44,18 +46,22 @@ func DeployCharts(options Options) {
 
 		if tag == "" {
 			clusterImage := getImageTagFromCluster(name)
-			if clusterImage == "" {
-				log.Panicln("Image tag not found")
+			if clusterImage != "" {
+				_, tag = getDockerComponents(clusterImage)
+				args = append(args, fmt.Sprintf("--set image.tag=%s", tag))
+				args = append(args, fmt.Sprintf("--set initContainers.dbMigration.image.tag=%s", tag))
+				log.Printf("Fetched image from cluster, %s:%s", repository, tag)
 			}
-			_, tag = getDockerComponents(clusterImage)
-			log.Printf("Fetched image from cluster, %s:%s", repository, tag)
+		} else {
+			args = append(args, fmt.Sprintf("--set image.tag=%s", tag))
+			args = append(args, fmt.Sprintf("--set initContainers.dbMigration.image.tag=%s", tag))
 		}
 
 		helmDepUpdate := "helm dep update"
 
 		altServiceOverrideFile := filepath.FromSlash(fmt.Sprintf(serviceChartDirectory+"/%s-values.yaml", name))
 		if _, err := os.Stat(altServiceOverrideFile); err == nil {
-			isAltService = true
+			args = append(args, fmt.Sprintf("-f %s", altServiceOverrideFile))
 			log.Printf("Applying values from %s-values.yaml", name)
 		}
 
@@ -69,13 +75,10 @@ func DeployCharts(options Options) {
 
 			// Clean up folder after function exists
 			defer os.RemoveAll(tmpDir)
+			args = append(args, fmt.Sprintf("--output-dir %s", tmpDir))
 
 			log.Printf("Generating final manifests to directory : %s ", tmpDir)
-			if isAltService {
-				helmTemplate = fmt.Sprintf("helm template --output-dir %s -f %s -f %s --set name=%s --set image.tag=%s --set initContainers.dbMigration.image.tag=%s .", tmpDir, envOverrideFile, altServiceOverrideFile, name, tag, tag)
-			} else {
-				helmTemplate = fmt.Sprintf("helm template --output-dir %s -f %s --set name=%s --set image.tag=%s --set initContainers.dbMigration.image.tag=%s .", tmpDir, envOverrideFile, name, tag, tag)
-			}
+			helmTemplate = fmt.Sprintf("helm template %s .", strings.Join(args[:], " "))
 			execCommand(helmTemplate, serviceChartDirectory)
 
 			log.Println("Applying manifests to the cluster ")
@@ -84,12 +87,7 @@ func DeployCharts(options Options) {
 			log.Println(out.String())
 
 		} else {
-			if isAltService {
-				helmTemplate = fmt.Sprintf("helm template -f %s -f %s --set name=%s --set image.tag=%s --set initContainers.dbMigration.image.tag=%s .", envOverrideFile, altServiceOverrideFile, name, tag, tag)
-			} else {
-				helmTemplate = fmt.Sprintf("helm template -f %s --set name=%s --set image.tag=%s --set initContainers.dbMigration.image.tag=%s .", envOverrideFile, name, tag, tag)
-			}
-
+			helmTemplate = fmt.Sprintf("helm template %s .", strings.Join(args[:], " "))
 			log.Printf("Executing %s", helmTemplate)
 			out := execCommand(helmTemplate, serviceChartDirectory)
 			fmt.Println(out.String())

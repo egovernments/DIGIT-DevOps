@@ -66,18 +66,22 @@ spec:
         {{- tpl . $ | nindent 8 }}
       {{- end }}
       {{- if .Values.initContainers.dbMigration.enabled }}
+      {{ with .Values.initContainers.dbMigration}}
       - name: "db-migration"
-        image: "{{ .Values.global.containerRegistry }}/{{ .Values.initContainers.dbMigration.image.repository }}:{{ .Values.initContainers.dbMigration.image.tag }}"
-        imagePullPolicy: {{ .Values.initContainers.dbMigration.image.pullPolicy }}   
+        image: {{ template "common.image" (dict "Values" $.Values "repository" .image.repository "tag" .image.tag) }}
+        imagePullPolicy: {{ .image.pullPolicy }} 
+      {{- end }}    
         {{- if .Values.initContainers.dbMigration.env }}               
         env: 
           {{- tpl  .Values.initContainers.dbMigration.env . | nindent 12 }}
         {{- end }}
       {{- end }}        
       {{- if .Values.initContainers.gitSync.enabled }}
+      {{ with .Values.initContainers.gitSync }}
       - name: "git-sync"
-        image: "{{ .Values.initContainers.gitSync.image.repository }}:{{ .Values.initContainers.gitSync.image.tag }}"
-        imagePullPolicy: {{ .Values.initContainers.gitSync.image.pullPolicy }}   
+        image: {{ template "common.image" (dict "Values" $.Values "repository" .image.repository "tag" .image.tag) }}
+        imagePullPolicy: {{ .image.pullPolicy }}   
+      {{- end }}
         securityContext:
           runAsUser: 65533 # git-sync user
         volumeMounts:
@@ -95,8 +99,8 @@ spec:
         {{- tpl . $ | nindent 8 }}
       {{- end }}      
         - name: {{ template "common.name" . }}
-          image: "{{ .Values.global.containerRegistry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: {{ template "common.image" (dict "Values" $.Values "repository" .Values.image.repository "tag" .Values.image.tag) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}       
           ports:
             - name: http
               containerPort: {{ .Values.httpPort }}

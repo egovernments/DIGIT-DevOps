@@ -1,43 +1,47 @@
-{{- $envOverrides := index .Values (tpl .Values.name .) -}} 
+{{- $envOverrides := index .Values (tpl (default .Chart.Name .Values.name) .) -}} 
 {{- $baseValues := .Values | deepCopy -}}
 {{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
 {{- with mustMergeOverwrite . $values -}}
+{{- if .Values.persistence.enabled }}  
 {{- range $idx, $v := until (int .Values.replicas) }}
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-name: "{{ $.Chart.Name }}-data-{{ $.Values.name }}-{{ $idx }}"
-labels:
-    app: {{ $.Values.name }}
+  name: "kafka-data-{{ template "name" $ }}-{{ $idx }}"
+  labels:
+    app: {{ template "name" $ }}
 {{- if $.Values.persistence.aws }}   
     failure-domain.beta.kubernetes.io/zone: {{ index $.Values "persistence" "aws" $idx "zone" }}
 {{- end }}     
 spec:
-capacity:
+ capacity:
     storage: {{ $.Values.persistence.dataDirSize | quote }}  
-accessModes:
+ accessModes:
     - ReadWriteOnce
-persistentVolumeReclaimPolicy: Retain
-claimRef:
+ persistentVolumeReclaimPolicy: Recycle
+ claimRef:
     namespace: {{ $.Values.namespace }}  
-    name: "{{ $.Chart.Name }}-data-{{ $.Values.name }}-{{ $idx }}"
+    name: "kafka-data-{{ template "name" $ }}-{{ $idx }}"
 {{- if $.Values.persistence.aws }}
-awsElasticBlockStore:
+ awsElasticBlockStore:
     volumeID: {{ index $.Values "persistence" "aws" $idx "volumeId" }}
+    zone: {{ index $.Values "persistence" "aws" $idx "zone" }}
     fsType: ext4
 {{- end }} 
 {{- if $.Values.persistence.azure }}
-azureDisk:
-    diskName: {{ index $.Values "persistence" "azure" $idx "zodiskNamee" }}
+ azureDisk:
+    cachingMode: ReadWrite
+    diskName: {{ index $.Values "persistence" "azure" $idx "diskName" }}
     diskURI: {{ index $.Values "persistence" "azure" $idx "diskUri" }}
     kind: Managed
     fsType: ext4 
 {{- end }}     
 {{- if $.Values.persistence.openstack }}
-cinder: 
+ cinder: 
     fsType: "ext4" 
     volumeID: {{ index $.Values "persistence" "openstack" $idx }}
 {{- end }}         
 ---
+{{- end }}
 {{- end }}
 {{- end }}

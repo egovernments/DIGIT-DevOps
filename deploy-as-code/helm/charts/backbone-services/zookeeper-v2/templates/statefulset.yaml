@@ -1,16 +1,12 @@
-{{- $envOverrides := index .Values (tpl .Values.name .) -}} 
-{{- $baseValues := .Values | deepCopy -}}
-{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
-{{- with mustMergeOverwrite . $values -}}
 apiVersion: apps/v1beta1
 kind: StatefulSet
 metadata:
-  name: {{ .Values.name }}
+  name: {{ template "name" . }}
   namespace: {{ .Values.namespace }}
   labels:
-    app: {{ .Values.name }}
+    app: {{ template "name" . }}
 spec:
-  serviceName: "{{ .Values.name }}-headless"
+  serviceName: "{{ template "name" . }}-headless"
   podManagementPolicy: {{ .Values.podManagementPolicy }}
   replicas: {{ .Values.replicas }}
   updateStrategy:
@@ -18,7 +14,7 @@ spec:
   template:
     metadata:
       labels:
-        app: {{ .Values.name }}
+        app: {{ template "name" . }}
       {{- if or .Values.podAnnotations .Values.prometheus.jmx.enabled }}        
       annotations:
       {{- range $key, $value := .Values.podAnnotations }}
@@ -40,7 +36,7 @@ spec:
                   - key: "app"
                     operator: In
                     values:
-                    - {{ .Values.name }}
+                    - {{ template "name" . }}
               topologyKey: "kubernetes.io/hostname"
       containers:
       {{- if .Values.prometheus.jmx.enabled }}
@@ -130,7 +126,7 @@ spec:
       volumes:
       - name: jmx-config
         configMap:
-          name: {{ .Values.name }}-jmx-configmap
+          name: {{ template "name" . }}-jmx-configmap
       {{- end }}          
   volumeClaimTemplates:
   - metadata:
@@ -140,5 +136,4 @@ spec:
         - ReadWriteOnce
       resources:
         requests:
-          storage: {{ .Values.persistence.dataDirSize | quote }}  
-{{- end -}}              
+          storage: {{ .Values.persistence.dataDirSize | quote }}       

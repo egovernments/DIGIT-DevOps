@@ -1,5 +1,5 @@
-{{- define "zookeeper.serverlist" -}}
-{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
+{{- define "kafka.serverlist" -}}
+{{- $envOverrides := index .Values (tpl (default .Chart.Name .Values.name) .) -}} 
 {{- $baseValues := .Values | deepCopy -}}
 {{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
 {{- with mustMergeOverwrite . $values -}}
@@ -12,5 +12,14 @@
 {{- $noop := printf "%s-%d.%s-headless.%s:%d:%d" $name $idx $name $namespace (int $serverPort) (int $leaderElectionPort) | append $zk.servers | set $zk "servers" -}}
 {{- end }}
 {{- printf "%s" (join ";" $zk.servers) | quote -}}
+{{- end }}
+{{- end }}
+
+{{- define "name" -}}
+{{- $envOverrides := index .Values (tpl (default .Chart.Name .Values.name) .) -}} 
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
+{{- default .Chart.Name .Values.name -}}    
 {{- end }}
 {{- end }}

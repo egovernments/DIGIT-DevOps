@@ -54,13 +54,13 @@ output "db_rds_postgres_address" {
 }
 
 output "deployer_secret_key_cmd" {
-  value = "${module.iam_user_deployer.keybase_secret_key_decrypt_command}"
+  value = "${map(module.iam_user_deployer.this_iam_access_key_id, module.iam_user_deployer.keybase_secret_key_decrypt_command)}"
 }
 
 output "admin_secret_key_cmd" {
-  value = "${module.iam_user_admin.keybase_secret_key_decrypt_command}"
+  value = "${map(module.iam_user_admin.this_iam_access_key_id, module.iam_user_admin.keybase_secret_key_decrypt_command)}"
 }
 
 output "user_secret_key_cmd" {
-  value = "${module.iam_user_user.keybase_secret_key_decrypt_command}"
+  value = "${map(module.iam_user_user.this_iam_access_key_id, module.iam_user_user.keybase_secret_key_decrypt_command)}"
 }

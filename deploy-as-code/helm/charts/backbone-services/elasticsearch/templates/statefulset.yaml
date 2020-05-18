@@ -270,20 +270,20 @@ spec:
           {{- end }}
           {{- if lt (int (include "elasticsearch.esMajorVersion" .)) 7 }}
           - name: discovery.zen.ping.unicast.hosts
-            value: "{{ template "name" . }}-headless"
+            value: {{ .Values.masterService | quote }}
           {{- else }}
           - name: discovery.seed_hosts
-            value: "{{ template "name" . }}-headless"
+            value: {{ .Values.masterService | quote }}
           {{- end }}
           - name: cluster.name
-            value: "{{ .Values.clusterName }}"
+            value: {{ .Values.clusterName | quote }}
           - name: network.host
-            value: "{{ .Values.networkHost }}"                       
+            value: {{ .Values.networkHost | quote }}                      
           - name: ES_JAVA_OPTS
-            value: "{{ .Values.esJavaOpts }}"
+            value: {{ .Values.esJavaOpts | quote }}
           {{- range $role, $enabled := .Values.roles }}
           - name: node.{{ $role }}
-            value: "{{ $enabled }}"
+            value: {{ $enabled | quote }}
           {{- end }}
 {{- if .Values.extraEnvs }}
 {{ toYaml .Values.extraEnvs | indent 10 }}
@@ -345,13 +345,13 @@ spec:
               else
                 BASIC_AUTH=''
               fi
-              curl -XGET -s -k --fail ${BASIC_AUTH} {{ .Values.protocol }}://{{ template "name" . }}:{{ .Values.httpPort }}${path}
+              curl -XGET -s -k --fail ${BASIC_AUTH} {{ .Values.protocol }}://{{ .Values.masterService }}:{{ .Values.httpPort }}${path}
           }
 
           cleanup () {
             while true ; do
               local master="$(http "/_cat/master?h=node" || echo "")"
-              if [[ $master == "{{ template "name" . }}"* && $master != "${NODE_NAME}" ]]; then
+              if [[ $master == "{{ .Values.masterService }}"* && $master != "${NODE_NAME}" ]]; then
                 echo "This node is not master."
                 break
               fi

@@ -1,8 +1,4 @@
-{{- if .Capabilities.APIVersions.Has "apps/v1" }}
-apiVersion: apps/v1
-{{- else }}
-apiVersion: apps/v1beta1
-{{- end }}
+apiVersion: {{ template "statefulset.apiVersion" . }}
 kind: StatefulSet
 metadata:
   name: {{ template "name" . }}
@@ -70,7 +66,7 @@ spec:
           mountPath: /etc/jmx-kafka
       {{- end }}
       - name: {{ template "name" . }}-broker
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        image: {{ template "common.image" (dict "Values" .Values "repository" .Values.image.repository "tag" .Values.image.tag) }}
         imagePullPolicy: "{{ .Values.imagePullPolicy }}"
         ports:
         - containerPort: 9092
@@ -111,7 +107,7 @@ spec:
         - name: KAFKA_LOG_DIRS
           value: {{ .Values.logDirs | quote }}
         - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
-          value: {{ .Values.listenerSecurity | quote }}
+          value: {{ .Values.listenerSecurity | quote }}      
         - name: "KAFKA_LINGER_MS"
           value: {{ .Values.lingerMs | quote }}
         - name: "KAFKA_NUM_PARTITIONS"
@@ -120,6 +116,8 @@ spec:
           value: {{ .Values.replicationFactor | quote }}
         - name: "KAFKA_MIN_INSYNC_REPLICAS"
           value: {{ .Values.minInsyncReplicas | quote }}
+        - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+          value: {{ .Values.offsetsReplicationFactor | quote }} 
         # This is required because the Downward API does not yet support identification of
         # pod numbering in statefulsets. Thus, we are required to specify a command which
         # allows us to extract the pod ID for usage as the Kafka Broker ID.

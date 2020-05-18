@@ -57,14 +57,13 @@ func DeployCharts(options Options) {
 			args = append(args, fmt.Sprintf("--set initContainers.dbMigration.image.tag=%s", tag))
 		}
 
-		helmDepUpdate := "helm dep update"
-
 		altServiceOverrideFile := filepath.FromSlash(fmt.Sprintf(serviceChartDirectory+"/%s-values.yaml", name))
 		if _, err := os.Stat(altServiceOverrideFile); err == nil {
 			args = append(args, fmt.Sprintf("-f %s", altServiceOverrideFile))
 			log.Printf("Applying values from %s-values.yaml", name)
 		}
 
+		helmDepUpdate := "helm dep update"
 		execCommand(helmDepUpdate, serviceChartDirectory)
 
 		if !options.Print {
@@ -73,6 +72,7 @@ func DeployCharts(options Options) {
 				log.Panicln("Cannot create temporary directory", err)
 			}
 
+			deployCrds(serviceChartDirectory)
 			// Clean up folder after function exists
 			defer os.RemoveAll(tmpDir)
 			args = append(args, fmt.Sprintf("--output-dir %s", tmpDir))
@@ -83,7 +83,7 @@ func DeployCharts(options Options) {
 
 			log.Println("Applying manifests to the cluster ")
 			kubeApplyCmd := "kubectl apply --recursive  -f ."
-			out := execCommand(kubeApplyCmd, tmpDir+string(os.PathSeparator)+repository+string(os.PathSeparator)+"templates")
+			out := execCommand(kubeApplyCmd, tmpDir)
 			log.Println(out.String())
 
 		} else {
@@ -93,6 +93,18 @@ func DeployCharts(options Options) {
 			fmt.Println(out.String())
 		}
 
+	}
+
+}
+
+func deployCrds(serviceChartDirectory string) {
+	crdsDirectory := serviceChartDirectory + string(os.PathSeparator) + "crds"
+	if _, err := os.Stat(crdsDirectory); err == nil {
+		log.Println("CRDS Directory found, applying CRDS!")
+		applyCrds := fmt.Sprintf("kubectl apply --recursive  -f  %s", serviceChartDirectory+string(os.PathSeparator)+"crds")
+
+		out := execCommandRaw(applyCrds, serviceChartDirectory, false)
+		log.Println(out.String())
 	}
 
 }

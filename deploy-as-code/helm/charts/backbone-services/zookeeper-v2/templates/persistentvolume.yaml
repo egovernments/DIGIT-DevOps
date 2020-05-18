@@ -12,6 +12,7 @@ metadata:
     app: {{ template "name" $ }}
 {{- if $.Values.persistence.aws }}   
     failure-domain.beta.kubernetes.io/zone: {{ index $.Values "persistence" "aws" $idx "zone" }}
+    topology.kubernetes.io/zone: {{ index $.Values "persistence" "aws" $idx "zone" }}
 {{- end }}     
 spec:
  capacity:
@@ -25,7 +26,6 @@ spec:
 {{- if $.Values.persistence.aws }}
  awsElasticBlockStore:
     volumeID: {{ index $.Values "persistence" "aws" $idx "volumeId" }}
-    zone: {{ index $.Values "persistence" "aws" $idx "zone" }}
     fsType: ext4
 {{- end }} 
 {{- if $.Values.persistence.azure }}
@@ -40,7 +40,15 @@ spec:
  cinder: 
     fsType: "ext4" 
     volumeID: {{ index $.Values "persistence" "openstack" $idx }}
-{{- end }}         
+{{- end }}   
+{{- if $.Values.persistence.iscsi }}
+ iscsi:
+   targetPortal: {{ index $.Values "persistence" "iscsi" $idx "targetPortal" }} 
+   iqn: {{ index $.Values "persistence" "iscsi" $idx }}
+   lun: 0
+   fsType: 'ext4'
+   readOnly: true  
+{{- end }}       
 ---
 {{- end }}
 {{- end }}

@@ -117,12 +117,12 @@ module "eks" {
     {
       userarn  = "${module.iam_user_admin.this_iam_user_arn}"
       username = "${module.iam_user_admin.this_iam_user_name}"
-      groups   = ["system:masters"]
+      groups   = ["global-readonly", "digit-user"]
     },
     {
       userarn  = "${module.iam_user_user.this_iam_user_arn}"
       username = "${module.iam_user_user.this_iam_user_name}"
-      groups   = ["global-readonly", "digit-user"]
+      groups   = ["global-readonly"]
     },    
   ]
 }

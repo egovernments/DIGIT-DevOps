@@ -15,7 +15,7 @@
 
 # Builds a docker image for Kafka Connect
 
-FROM confluentinc/cp-kafka:5.2.2
+FROM confluentinc/cp-kafka:5.4.1
 
 # ENV CONFLUENT_VERSION=5.2.2
 # ENV CONFLUENT_DEB_VERSION=1
@@ -23,6 +23,8 @@ ENV COMPONENT=kafka-connect
 
 # Default kafka-connect rest.port
 EXPOSE 8083
+
+COPY include/etc/confluent/docker /etc/confluent/docker
 
 RUN echo "===> Installing Kafka Connect JARs" \
     && apt-get -qq update \
@@ -32,10 +34,9 @@ RUN echo "===> Installing Kafka Connect JARs" \
     && apt-get clean && rm -rf /tmp/* /var/lib/apt/lists/* \
     echo "===> Setting up ${COMPONENT} dirs ..." \
     && mkdir -p /etc/${COMPONENT} /etc/${COMPONENT}/secrets /etc/${COMPONENT}/jars \
-    && chmod -R ag+w /etc/${COMPONENT} /etc/${COMPONENT}/secrets /etc/${COMPONENT}/jars
+    && chmod -R ag+w /etc/${COMPONENT} /etc/${COMPONENT}/secrets /etc/${COMPONENT}/jars \
+    && chmod -R +x /etc/confluent/docker
 
 VOLUME ["/etc/${COMPONENT}/jars", "/etc/${COMPONENT}/secrets"]
-
-COPY include/etc/confluent/docker /etc/confluent/docker
 
 CMD ["/etc/confluent/docker/run"]

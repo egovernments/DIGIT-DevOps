@@ -128,6 +128,10 @@ func deployClusterConfigs(index map[string]string, helmDir string, envOverrideFi
 		log.Panicln("Cluster configs not found")
 	}
 
+	var args = make([]string, 0, 10)
+
+	args = append(args, fmt.Sprintf("-f %s", envOverrideFile))
+
 	tmpDir, err := ioutil.TempDir(os.TempDir(), "helm-")
 	if err != nil {
 		log.Panicln("Failed to create temporary directory", err)
@@ -139,11 +143,18 @@ func deployClusterConfigs(index map[string]string, helmDir string, envOverrideFi
 	}
 	// Clean up folder after function exists
 	defer os.RemoveAll(tmpDir)
+	args = append(args, fmt.Sprintf("--output-dir %s", tmpDir))
 
-	sopsDecryptCmd := fmt.Sprintf("sops -d --output %s %s", tmpDecFile.Name(), envSecretFile)
-	execCommand(sopsDecryptCmd, helmDir)
+	if _, err := os.Stat(helmDir + "/.sops.yaml"); os.IsNotExist(err) {
+		args = append(args, fmt.Sprintf("-f %s", envSecretFile))
+	} else {
+		sopsDecryptCmd := fmt.Sprintf("sops -d --output %s %s", tmpDecFile.Name(), envSecretFile)
+		execCommand(sopsDecryptCmd, helmDir)
+		args = append(args, fmt.Sprintf("-f %s", tmpDecFile.Name()))
+	}
 
-	helmTemplate := fmt.Sprintf("helm template --output-dir %s -f %s -f %s .", tmpDir, envOverrideFile, tmpDecFile.Name())
+	helmTemplate := fmt.Sprintf("helm template %s .", strings.Join(args[:], " "))
+	log.Println(helmTemplate)
 	execCommand(helmTemplate, clusterConfigDir)
 
 	kubeApplyCmd := "kubectl apply --recursive -f ."

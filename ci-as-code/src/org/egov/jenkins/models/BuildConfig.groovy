@@ -18,6 +18,30 @@ class BuildConfig {
         return context
     }
 
+    String getServiceCategoryName() {
+        String repo = null;
+        switch (this.context) {
+            case ~/.*core-services.*/:
+                repo = "CORE"
+                break;
+            case ~/.*municipal-services.*/:
+                repo = "MUNICIPAL"
+                break;
+            case ~/.*business-services.*/:
+                repo = "BUSINESS"
+                break;
+            case ~/.*frontend.*/:
+                repo = "FRONTEND"
+                break;
+            case ~/.*utilities.*/:
+                repo = "UTILITIES"
+                break;    
+            default:
+                repo = "ALL-OTHERS"
+        }
+        return repo;
+    }
+
 
     String getImageName() {
         return imageName

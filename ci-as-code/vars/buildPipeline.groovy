@@ -77,6 +77,8 @@ spec:
             String GCR_REPO_NAME = "asia.gcr.io/digit-egov";
             def yaml = readYaml file: pipelineParams.configFile;
             List<JobConfig> jobConfigs = ConfigParser.parseConfig(yaml, env);
+            String serviceCategory = null;
+            String buildNum = null;
 
             for(int i=0; i<jobConfigs.size(); i++){
                 JobConfig jobConfig = jobConfigs.get(i)
@@ -109,7 +111,9 @@ spec:
                                     throw new Exception("Working directory / dockerfile does not exist!");
 
                                 String workDir = buildConfig.getWorkDir().replaceFirst(getCommonBasePath(buildConfig.getWorkDir(), buildConfig.getDockerFile()), "./")
-                                String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.VERSION}-${scmVars.ACTUAL_COMMIT}";
+                                String image = "${REPO_NAME}/${buildConfig.getImageName()}:${scmVars.VERSION}-${scmVars.ACTUAL_COMMIT}";
+                                serviceCategory = buildConfig.getServiceCategoryName();  // Dashboard
+                                buildNum = image; // Dashboard
                                 String noPushImage = env.NO_PUSH ? env.NO_PUSH : false;
                                 echo "ALT_REPO_PUSH ENABLED: ${ALT_REPO_PUSH}"
                                  if(env.ALT_REPO_PUSH.equalsIgnoreCase("true")){
@@ -143,14 +147,26 @@ spec:
                                     --cache-repo=egovio/cache/cache
                                 """
                                 echo "${image} pushed successfully!"
-                                }
+                                }                                
                             }
                         }
                     }
                 }
+                stage ("Update dashboard") {
+                    wrappers {
+                        environmentDashboard {
+                            environmentName(scmVars.BRANCH)  
+                            componentName(serviceCategory)
+                            buildNumber(buildNum)
+                            //buildJob(String buildJob)
+                            //packageName(String packageName)
+                            //addColumns(true)
+                            //Date now = new Date()                                
+                            //columns(String Date, now.format("yyMMdd.HHmm", TimeZone.getTimeZone('UTC')))
+                        } 
+                    }    
+                }    
             }
-
-
         }
     }
 

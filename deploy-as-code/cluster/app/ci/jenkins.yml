@@ -290,26 +290,27 @@ data:
                   privateKeySource:
                     directEntry:
                       privateKey: ${GIT_READ_SSH_PRIVATE_KEY}
-              - slackCredentials:
-                  scope: GLOBAL
-                  id: slack-token
-                  secret: '${SLACK_TOKEN}'
-                  description: Slack token           
+              # - slackCredentials:
+              #     scope: GLOBAL
+              #     id: slack-token
+              #     secret: '${SLACK_TOKEN}'
+              #     description: Slack token           
           
   welcome-message.yaml: |-
     jenkins:
       systemMessage: Welcome to EGOV CI server.  This Jenkins is configured and managed 'as code'.
       
   plugins.txt: |-
-    kubernetes:1.22.3
-    workflow-job:2.33
+    kubernetes:1.25.7
+    workflow-job:2.39
     workflow-aggregator:2.6
-    credentials-binding:1.19
-    git:3.11.0
+    credentials:2.3.7
+    credentials-binding:1.23
+    git:4.2.2
     git-parameter:0.9.11
-    configuration-as-code:1.32
-    pipeline-utility-steps:2.3.0
-    job-dsl:1.75
+    configuration-as-code:1.41
+    pipeline-utility-steps:2.5.0
+    job-dsl:1.77
     github-oauth:0.33
     matrix-auth:2.5
     ssh-credentials:1.18
@@ -317,9 +318,14 @@ data:
     authorize-project:1.3.0
     snyk-security-scanner:2.10.3
     performance:3.17
-    jenkins-jira-issue-updater:1.18
-    blueocean:1.21.0
-    slack:2.35
+    blueocean:1.23.2
+    blueocean-jira:1.23.2
+    jenkins-jira-issue-updater:1.600
+    github-scm-filter-jira-validator:0.1.0
+    release-helper:1.3.3
+    dashboard-view:2.12
+    environment-dashboard:1.1.7
+    slack:2.40
 
 ---
 # Source: jenkins/templates/home-pvc.yaml
@@ -336,7 +342,7 @@ spec:
     - "ReadWriteOnce"
   resources:
     requests:
-      storage: "8Gi"
+      storage: "20Gi"
 
 ---
 # Source: jenkins/templates/service-account.yaml
@@ -454,21 +460,14 @@ spec:
       labels:
         "app.kubernetes.io/name": 'jenkins'
         "app.kubernetes.io/component": "jenkins-master"
-    spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: cloud.google.com/gke-preemptible
-                operator: DoesNotExist    
+    spec:   
       securityContext:
         runAsUser: 1000
         fsGroup: 1000
       serviceAccountName: "jenkins"
       initContainers:
         - name: "copy-default-config"
-          image: "jenkins/jenkins:2.199-alpine"
+          image: "jenkins/jenkins:2.238-alpine"
           imagePullPolicy: "IfNotPresent"
           command: [ "sh", "/var/jenkins_config/apply_config.sh" ]
           env:
@@ -515,7 +514,7 @@ spec:
               name: secrets-dir
       containers:
         - name: jenkins
-          image: "jenkins/jenkins:2.199-alpine"
+          image: "jenkins/jenkins:2.238-alpine"
           imagePullPolicy: "IfNotPresent"
           args: [ "--argumentsRealm.passwd.$(ADMIN_USER)=$(ADMIN_PASSWORD)",  "--argumentsRealm.roles.$(ADMIN_USER)=admin"]
           env:

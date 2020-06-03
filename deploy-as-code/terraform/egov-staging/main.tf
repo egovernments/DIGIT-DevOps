@@ -1,6 +1,6 @@
 terraform {
   backend "s3" {
-    bucket = "egov-staging-terraform-state-store"
+    bucket = "egov-playground-terraform-state-store"
     key = "terraform"
     region = "ap-south-1"
   }

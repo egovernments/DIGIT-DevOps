@@ -47,7 +47,7 @@ spec:
         memory: "3572Mi"
         cpu: "1500m"      
   - name: git
-    image: docker.io/nithindv/alpine-git:latest
+    image: docker.io/egovio/builder:1-master-77a500ed
     imagePullPolicy: IfNotPresent
     command:
     - cat
@@ -87,7 +87,10 @@ spec:
                     ]) {
                         container(name: 'git', shell: '/bin/sh') {
                             scmVars['ACTUAL_COMMIT'] = sh (script:
-                                    'git log --oneline -- ${BUILD_PATH} | awk \'NR==1{print $1}\'',
+                                    'get_application_version.sh ${BUILD_PATH}',
+                                    returnStdout: true).trim()
+                            scmVars['VERSION'] = sh (script:
+                                    'get_folder_commit.sh ${BUILD_PATH}',
                                     returnStdout: true).trim()
                             scmVars['BRANCH'] = scmVars['GIT_BRANCH'].replaceFirst("origin/", "")
                         }
@@ -106,11 +109,11 @@ spec:
                                     throw new Exception("Working directory / dockerfile does not exist!");
 
                                 String workDir = buildConfig.getWorkDir().replaceFirst(getCommonBasePath(buildConfig.getWorkDir(), buildConfig.getDockerFile()), "./")
-                                String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
+                                String image = "${REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.VERSION}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
                                 String noPushImage = env.NO_PUSH ? env.NO_PUSH : false;
                                 echo "ALT_REPO_PUSH ENABLED: ${ALT_REPO_PUSH}"
                                  if(env.ALT_REPO_PUSH.equalsIgnoreCase("true")){
-                                  String gcr_image = "${GCR_REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
+                                  String gcr_image = "${GCR_REPO_NAME}/${buildConfig.getImageName()}:${env.BUILD_NUMBER}-${scmVars.VERSION}-${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
                                   sh """
                                     echo \"Attempting to build image,  ${image}\"
                                     /kaniko/executor -f `pwd`/${buildConfig.getDockerFile()} -c `pwd`/${buildConfig.getContext()} \

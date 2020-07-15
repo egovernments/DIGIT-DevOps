@@ -152,18 +152,18 @@ spec:
                         }
                     }
                 }
-                stage ("Update dashboard") {
-                        environmentDashboard {
-                            environmentName(scmVars.BRANCH)  
-                            componentName(serviceCategory)
-                            buildNumber(buildNum)
-                            //buildJob(String buildJob)
-                            //packageName(String packageName)
-                            //addColumns(true)
-                            //Date now = new Date()                                
-                            //columns(String Date, now.format("yyMMdd.HHmm", TimeZone.getTimeZone('UTC'))) 
-                    }    
-                }    
+                // stage ("Update dashboard") {
+                //         environmentDashboard {
+                //             environmentName(scmVars.BRANCH)  
+                //             componentName(serviceCategory)
+                //             buildNumber(buildNum)
+                //             //buildJob(String buildJob)
+                //             //packageName(String packageName)
+                //             //addColumns(true)
+                //             //Date now = new Date()                                
+                //             //columns(String Date, now.format("yyMMdd.HHmm", TimeZone.getTimeZone('UTC'))) 
+                //     }    
+                // }    
             }
         }
     }

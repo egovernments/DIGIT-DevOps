@@ -111,7 +111,12 @@ spec:
                                     throw new Exception("Working directory / dockerfile does not exist!");
 
                                 String workDir = buildConfig.getWorkDir().replaceFirst(getCommonBasePath(buildConfig.getWorkDir(), buildConfig.getDockerFile()), "./")
-                                String image = "${REPO_NAME}/${buildConfig.getImageName()}:v${scmVars.VERSION}-${scmVars.ACTUAL_COMMIT}";
+                                String image = null;
+                                if(scmVars.BRANCH.equalsIgnoreCase("master")) {
+                                  image = "${REPO_NAME}/${buildConfig.getImageName()}:v${scmVars.VERSION}-${scmVars.ACTUAL_COMMIT}";
+                                } else {
+                                  image = "${REPO_NAME}/${buildConfig.getImageName()}:${scmVars.BRANCH}-${scmVars.ACTUAL_COMMIT}";
+                                } 
                                 serviceCategory = buildConfig.getServiceCategoryName();  // Dashboard
                                 buildNum = "${scmVars.VERSION}"; // Dashboard
                                 String noPushImage = env.NO_PUSH ? env.NO_PUSH : false;

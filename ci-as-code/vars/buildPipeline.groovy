@@ -113,7 +113,7 @@ spec:
                                 String workDir = buildConfig.getWorkDir().replaceFirst(getCommonBasePath(buildConfig.getWorkDir(), buildConfig.getDockerFile()), "./")
                                 String image = "${REPO_NAME}/${buildConfig.getImageName()}:${scmVars.VERSION}-${scmVars.ACTUAL_COMMIT}";
                                 serviceCategory = buildConfig.getServiceCategoryName();  // Dashboard
-                                buildNum = image; // Dashboard
+                                buildNum = "${scmVars.VERSION}"; // Dashboard
                                 String noPushImage = env.NO_PUSH ? env.NO_PUSH : false;
                                 echo "ALT_REPO_PUSH ENABLED: ${ALT_REPO_PUSH}"
                                  if(env.ALT_REPO_PUSH.equalsIgnoreCase("true")){
@@ -153,7 +153,6 @@ spec:
                     }
                 }
                 stage ("Update dashboard") {
-                    wrappers {
                         environmentDashboard {
                             environmentName(scmVars.BRANCH)  
                             componentName(serviceCategory)
@@ -162,8 +161,7 @@ spec:
                             //packageName(String packageName)
                             //addColumns(true)
                             //Date now = new Date()                                
-                            //columns(String Date, now.format("yyMMdd.HHmm", TimeZone.getTimeZone('UTC')))
-                        } 
+                            //columns(String Date, now.format("yyMMdd.HHmm", TimeZone.getTimeZone('UTC'))) 
                     }    
                 }    
             }

@@ -24,27 +24,27 @@ namespace: monitoring
 ## Create default rules for monitoring the cluster
 ##
 defaultRules:
-  create: false
+  create: true
   rules:
     alertmanager: true
-    etcd: true
-    general: true
-    k8s: true
-    kubeApiserver: true
-    kubeApiserverError: true
-    kubePrometheusNodeAlerting: true
-    kubePrometheusNodeRecording: true
+    etcd: false
+    general: false
+    k8s: false
+    kubeApiserver: false
+    kubeApiserverError: false
+    kubePrometheusNodeAlerting: false
+    kubePrometheusNodeRecording: false
     kubernetesAbsent: true
     kubernetesApps: true
     kubernetesResources: true
     kubernetesStorage: true
     kubernetesSystem: true
-    kubeScheduler: true
-    network: true
-    node: true
+    kubeScheduler: false
+    network: false
+    node: false
     prometheus: true
     prometheusOperator: true
-    time: true
+    time: false
 
   ## Runbook url prefix for default rules
   runbookUrl: https://github.com/kubernetes-monitoring/kubernetes-mixin/tree/master/runbook.md#
@@ -126,7 +126,7 @@ alertmanager:
           alertname: Watchdog
         receiver: 'null'
     receivers:
-    - name: 'null'
+    - name: 'null'         
 
   ## Pass the Alertmanager configuration directives through Helm's templating
   ## engine. If the Alertmanager configuration contains Alertmanager templates,
@@ -142,28 +142,28 @@ alertmanager:
   ## ref: https://prometheus.io/docs/alerting/notifications/
   ##      https://prometheus.io/docs/alerting/notification_examples/
   ##
-  templateFiles: {}
-  #
-  ## An example template:
-  #   template_1.tmpl: |-
-  #       {{ define "cluster" }}{{ .ExternalURL | reReplaceAll ".*alertmanager\\.(.*)" "$1" }}{{ end }}
-  #
-  #       {{ define "slack.myorg.text" }}
-  #       {{- $root := . -}}
-  #       {{ range .Alerts }}
-  #         *Alert:* {{ .Annotations.summary }} - `{{ .Labels.severity }}`
-  #         *Cluster:*  {{ template "cluster" $root }}
-  #         *Description:* {{ .Annotations.description }}
-  #         *Graph:* <{{ .GeneratorURL }}|:chart_with_upwards_trend:>
-  #         *Runbook:* <{{ .Annotations.runbook }}|:spiral_note_pad:>
-  #         *Details:*
-  #           {{ range .Labels.SortedPairs }} • *{{ .Name }}:* `{{ .Value }}`
-  #           {{ end }}
+  templateFiles: 
+    template_1.tmpl: |-
+        {{ define "cluster" }}{{ .ExternalURL | reReplaceAll ".*alertmanager\\.(.*)" "$1" }}{{ end }}
+        
+        {{ define "slack.message.title" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}-{{ .ExternalURL | reReplaceAll ".*alertmanager\\.(.*)" "$1" }}] {{ .CommonLabels.alertname }}{{ end }}        
+  
+        {{ define "slack.message.body" }}
+          *Portal:*  {{ .ExternalURL }}
+          {{- $root := . -}}
+          {{ range .Alerts }}
+            - {{ .Annotations.message }}
+          {{ end }}
+        {{ end }}
 
   ingress:
-    enabled: false
+    enabled: true
 
     annotations: {}
+
+    additionalAnnotations: |
+      nginx.ingress.kubernetes.io/auth-signin:  https://$host/oauth2/start?rd=$escaped_request_uri
+      nginx.ingress.kubernetes.io/auth-url:     https://$host/oauth2/auth     
 
     labels: {}
 
@@ -320,7 +320,7 @@ alertmanager:
     ## If true then the user will be responsible to provide a secret with alertmanager configuration
     ## So when true the config part will be ignored (including templateFiles) and the one in the secret will be used
     ##
-    useExistingSecret: false
+    useExistingSecret: true
 
     ## Secrets is a list of Secrets in the same namespace as the Alertmanager object, which shall be mounted into the
     ## Alertmanager Pods. The Secrets are mounted into /etc/alertmanager/secrets/.
@@ -330,12 +330,12 @@ alertmanager:
     ## ConfigMaps is a list of ConfigMaps in the same namespace as the Alertmanager object, which shall be mounted into the Alertmanager Pods.
     ## The ConfigMaps are mounted into /etc/alertmanager/configmaps/.
     ##
-    configMaps: []
+    configMaps: [alertmanager-templatefiles]
 
     ## ConfigSecret is the name of a Kubernetes Secret in the same namespace as the Alertmanager object, which contains configuration for
     ## this Alertmanager instance. Defaults to 'alertmanager-' The secret is mounted into /etc/alertmanager/config.
     ##
-    # configSecret:
+    configSecret: alertmanager-main
 
     ## Define Log Format
     # Use logfmt (default) or json-formatted logging
@@ -375,7 +375,7 @@ alertmanager:
     ## 	The route prefix Alertmanager registers HTTP handlers for. This is useful, if using ExternalURL and a proxy is rewriting HTTP routes of a request, and the actual ExternalURL is still true,
     ## but the server serves requests under a different route prefix. For example for use with kubectl proxy.
     ##
-    routePrefix: /
+    routePrefix: /alertmanager
 
     ## If set to true all actions on the underlying managed objects are not going to be performed, except for delete actions.
     ##
@@ -618,7 +618,7 @@ kubeApiServer:
 ## Component scraping the kubelet and kubelet-hosted cAdvisor
 ##
 kubelet:
-  enabled: false
+  enabled: true
   namespace: kube-system
 
   serviceMonitor:
@@ -979,7 +979,7 @@ kubeProxy:
 ## Component scraping kube state metrics
 ##
 kubeStateMetrics:
-  enabled: false
+  enabled: true
   serviceMonitor:
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
@@ -1182,7 +1182,7 @@ prometheusOperator:
   ## ref: https://github.com/coreos/prometheus-operator/blob/master/helm/prometheus-operator/README.md
   ##
   kubeletService:
-    enabled: false
+    enabled: true
     namespace: kube-system
 
   ## Create a servicemonitor for the operator
@@ -1483,7 +1483,7 @@ prometheus:
 
     ## Interval between consecutive scrapes.
     ##
-    scrapeInterval: ""
+    scrapeInterval: "2m"
 
     ## Interval between consecutive evaluations.
     ##

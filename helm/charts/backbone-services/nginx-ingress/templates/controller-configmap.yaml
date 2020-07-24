@@ -1,7 +1,4 @@
-{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
-{{- $baseValues := .Values | deepCopy -}}
-{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
-{{- with mustMergeOverwrite . $values -}}
+{{- $serviceName := include "nginx-ingress.name" . -}}
 {{- if or .Values.controller.config (or (or .Values.controller.proxySetHeaders .Values.controller.headers) .Values.controller.addHeaders) }}
 apiVersion: v1
 kind: ConfigMap
@@ -19,6 +16,5 @@ data:
 {{- end }}
 {{- if .Values.controller.config }}                                   
   {{- tpl .Values.controller.config . | nindent 2 }}
-{{- end }}
 {{- end }}
 {{- end }}

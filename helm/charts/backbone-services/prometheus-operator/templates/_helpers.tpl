@@ -1,7 +1,12 @@
 {{/* vim: set filetype=mustache: */}}
 {{/* Expand the name of the chart. This is suffixed with -alertmanager, which means subtract 13 from longest 63 available */}}
 {{- define "prometheus-operator.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 50 | trimSuffix "-" -}}
+{{- $envOverrides := index .Values (tpl (default .Chart.Name .Values.name) .) -}} 
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
+{{- default .Chart.Name .Values.name -}}    
+{{- end }}
 {{- end }}
 
 {{/*
@@ -12,6 +17,10 @@ The components in this chart create additional resources that expand the longest
 The longest name that gets created adds and extra 37 characters, so truncation should be 63-35=26.
 */}}
 {{- define "prometheus-operator.fullname" -}}
+{{- $envOverrides := index .Values (tpl (default .Chart.Name .Values.name) .) -}} 
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 26 | trimSuffix "-" -}}
 {{- else -}}
@@ -21,7 +30,8 @@ The longest name that gets created adds and extra 37 characters, so truncation s
 {{- else -}}
 {{- printf "%s-%s" .Release.Name $name | trunc 26 | trimSuffix "-" -}}
 {{- end -}}
-{{- end -}}
+{{- end -}} 
+{{- end }}
 {{- end -}}
 
 {{/* Fullname suffixed with operator */}}
@@ -76,4 +86,11 @@ The longest name that gets created adds and extra 37 characters, so truncation s
 {{- else -}}
     {{ default "default" .Values.alertmanager.serviceAccount.name }}
 {{- end -}}
+{{- end -}}
+
+{{/*
+Allow the release namespace to be overridden for multi-namespace deployments in combined charts
+*/}}
+{{- define "prometheus-operator.namespace" -}}
+    {{- .Values.namespace -}}
 {{- end -}}

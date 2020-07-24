@@ -26,7 +26,12 @@ spec:
   template:
     metadata:  
       annotations:
+      {{- if not .Values.disableAnnotationTimestamp }}      
         deployment-timestamp: "{{ date "20060102150405" .Release.Time }}"    
+      {{- end }}          
+      {{- if .Values.additionalAnnotations }}                                   
+        {{- tpl  .Values.additionalAnnotations . | nindent 8 }}
+      {{- end }}        
       labels:
       {{- include "common.labels" . | nindent 8 }}            
     spec:
@@ -45,7 +50,7 @@ spec:
         emptyDir: {}               
     {{- end }}     
       {{- with .Values.extraVolumes }}
-        {{- tpl . $ | nindent 8 }}
+        {{- tpl . $ | nindent 6 }}
       {{- end }}     
     {{- end }}        
     {{- if .Values.affinity.preferSpreadAcrossAZ }}
@@ -127,7 +132,7 @@ spec:
             mountPath: "/work-dir"
         {{- end }}             
         {{- with .Values.extraVolumeMounts }}
-          {{- tpl . $ | nindent 12 }}
+          {{- tpl . $ | nindent 10 }}
         {{- end }}          
         {{- end }}     
       {{- if or .Values.env (eq .Values.appType "java-spring") (index .Values "tracing-enabled") }}                         

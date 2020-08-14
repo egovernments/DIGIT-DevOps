@@ -1,5 +1,6 @@
 global:
   domain: staging.egovernments.org
+  tracing-enabled: true
 
 cluster-configs:
   namespaces:
@@ -54,7 +55,7 @@ cluster-configs:
         egov-indexer-yaml-repo-path: "https://raw.githubusercontent.com/egovernments/playground-rainmaker-customization/master/configs/egov-indexer/egov-telemetry-indexer.yml,https://raw.githubusercontent.com/egovernments/playground-rainmaker-customization/master/configs/egov-indexer/rainmaker-pgr-indexer.yml,https://raw.githubusercontent.com/egovernments/playground-rainmaker-customization/master/configs/egov-indexer/rainmaker-pt-indexer.yml,https://raw.githubusercontent.com/egovernments/playground-rainmaker-customization/master/configs/egov-indexer/billingservices-indexer.yml,https://raw.githubusercontent.com/egovernments/playground-rainmaker-customization/master/configs/egov-indexer/tradelicense-indexer.yml,https://raw.githubusercontent.com/egovernments/playground-rainmaker-customization/master/configs/egov-indexer/collection-indexer.yml,https://raw.githubusercontent.com/egovernments/playground-rainmaker-customization/master/configs/egov-indexer/egov-uploader-indexer.yml"
         tracer-errors-provideexceptionindetails: "true"
         timezone: "Asia/Kolkata"
-
+        es-infra-host: elasticsearch-data-v1.es-cluster
 
     egov-service-host:
       data:
@@ -451,13 +452,14 @@ logging-config:
   es-host: "es-client.es-cluster"
   es-port: "9200"
 
-jaeger-config:
+jaeger:
   host: "jaeger-agent.monitoring"
   port: "6831"
   sampler-type: const
   sampler-param: 1
-  sampling-strategies: |
-    {
+  collector:
+    samplingConfig: |
+      {
         "service_strategies": [
           {
             "service": "tl-services",
@@ -495,6 +497,11 @@ jaeger-config:
             "param": 0.2
           },
           {
+            "service": "egov-data-uploader",
+            "type": "probabilistic",
+            "param": 0.2
+          },
+          {
             "service": "egov-hrms",
             "type": "probabilistic",
             "param": 0.5
@@ -510,7 +517,6 @@ jaeger-config:
           "param": 0.05
         }
       }
-
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # redis >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

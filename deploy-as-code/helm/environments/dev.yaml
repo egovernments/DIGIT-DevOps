@@ -1,5 +1,6 @@
 global:
   domain: egov-micro-dev.egovernments.org
+  tracing-enabled: true
 
 cluster-configs:
   namespaces:
@@ -16,6 +17,7 @@ cluster-configs:
     cert-issuer: "letsencrypt-prod"
   configmaps:
     egov-config:
+      namespace: [ egov ]
       data:
         db-host: egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com
         db-name: egov_dev_ms
@@ -41,6 +43,7 @@ cluster-configs:
         spring-jpa-show-sql: "true"
         timezone: Asia/Kolkata
         tracer-errors-provideexceptionindetails: "true"
+        es-infra-host: elasticsearch-data-v1.es-cluster
 
     egov-service-host:
       data:
@@ -304,6 +307,7 @@ git-sync:
 
 billing-service:
   java-enable-debug: "true"
+  tracing-enabled: true
 
 collection-services:
   receiptnumber-servicebased: "false"
@@ -405,13 +409,14 @@ logging-config:
   es-host: "elasticsearch-data-v1.es-cluster"
   es-port: "9200"
 
-jaeger-config:
+jaeger:
   host: ""
   port: ""
   sampler-type: ""
   sampler-param: ""
-  sampling-strategies: |
-    {
+  collector:
+    samplingConfig: |
+      {
         "service_strategies": [
           {
             "service": "tl-services",
@@ -470,6 +475,7 @@ jaeger-config:
         }
       }
 
+    
 pgadmin:
   images:
     - egovio/pgadmin:v0.1
@@ -611,7 +617,8 @@ minio:
         zone: ap-south-1b  
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-es-curator:
+es-curator-infra:
+  namespace: es-cluster
   schedule: "45 18 * * *"
   images:
     - bobrik/curator:5.6.0

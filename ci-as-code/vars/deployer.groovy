@@ -30,8 +30,13 @@ spec:
         cpu: "200m"  
   volumes:
   - name: service-account
-    secret:
-        secretName: "gcp-kms-decryptor-sa"    
+    projected:
+      sources:
+      - secret:
+          name: jenkins-credentials
+          items:
+            - key: gcpKmsServiceAccount
+              path: service-account.json   
   - name: kube-config
     secret:
         secretName: "${pipelineParams.environment}-kube-config"                    

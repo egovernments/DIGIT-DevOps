@@ -1,13 +1,22 @@
 global:
-  domain: 3.6.223.48.nip.io
+  domain: builds.egovernments.org
 cluster-configs:
+  namespaces:
+    create: false
+    values: [ monitoring, jenkins ]
   root-ingress:
     namespace: jenkins
-    appRoot: common
-    serviceName: jenkins.jenkins
-    cert-issuer: "letsencrypt-staging"
+    serviceName: jenkins
+    servicePort: 8080
+    appRoot: ""
+    cert-issuer: "letsencrypt-prod"
 
 jenkins:
+  persistence:
+    enabled: true
+    aws:
+      - volumeId: "vol-065e6d826a6f4273b"
+        zone: ap-south-1b
   oauth:
     enabled: true
     acl:
@@ -51,29 +60,26 @@ jenkins:
     - name: qa
       acl: [egovernments*micro-service-qa] 
     - name: uat
-      acl: [egovernments*micro-service-uat 
-    - name: ukd-prod
-      acl: [egovernments*ukd-prod] 
+      acl: [egovernments*micro-service-uat] 
     - name: ukd-dev
       acl: [egovernments*ukd-dev] 
     - name: ukd-prod-sdc
       acl: [egovernments*ukd-prod] 
     - name: ukd-sdc-uat
-      acl: [egovernments*ukd-uat]   
-    - name: ukd-uat
-      acl: [egovernments*ukd-uat]     
+      acl: [egovernments*ukd-uat]    
+    - name: pb-uat-v2
+      acl: [egovernments*pb-uat]     
+    - name: pb-prod-v2
+      acl: [egovernments*PB-PROD]             
 
   master:
     ingress:
       enabled: true
-    # resources:
-    #   requests:
-    #     cpu: "50m"
-    #     memory: "256Mi"
-    #   limits:
-    #     cpu: "2000m"
-    #     memory: "4096Mi"
-    # javaOpts: "-Xms2560M -Xmx2560M -Duser.timezone=Asia/Calcutta"
+    resources:
+      limits:
+        cpu: "2000m"
+        memory: "4096Mi"
+    javaOpts: "-Xms2560M -Xmx2560M -Duser.timezone=Asia/Calcutta"
 
 nginx-ingress:
   replicas: 1
@@ -87,10 +93,6 @@ nginx-ingress:
     image:
       repository: egovio/nginx-ingress-controller
       tag: "0.26.1"
-    metrics:
-      enabled: true
-      serviceMonitor:
-        enabled: true
 
 cert-manager:
   namespace: jenkins

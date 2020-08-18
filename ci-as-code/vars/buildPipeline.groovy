@@ -58,15 +58,20 @@ spec:
       claimName: kaniko-cache-claim
       readOnly: true      
   - name: service-account
-    secret:
-        secretName: "gcp-docker-push-sa"      
+    projected:
+      sources:
+      - secret:
+          name: jenkins-credentials
+          items:
+            - key: gcpServiceAccount
+              path: service-account.json   
   - name: jenkins-docker-cfg
     projected:
       sources:
       - secret:
-          name: regcred
+          name: jenkins-credentials
           items:
-            - key: .dockerconfigjson
+            - key: dockerConfigJson
               path: .docker/config.json          
 """
     ) {

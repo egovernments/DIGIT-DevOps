@@ -250,6 +250,10 @@ nginx-ingress:
     ssl-protocols: TLSv1.2 TLSv1.3
     ssl-ciphers: EECDH+AESGCM:EDH+AESGCM
     ssl-ecdh-curve: secp384r1
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
     service:
       type: NodePort
       externalTrafficPolicy: Cluster
@@ -258,6 +262,8 @@ nginx-ingress:
         https: 32443
     proxy-protocol:
       lb-ip: 10.67.53.155
+      prometheusRule:
+        enabled: true
 
 cert-manager:
   email: "nithin.dv@egovernments.org"
@@ -633,3 +639,20 @@ es-curator:
   logs-cleanup-enabled: "true"
   jaeger-cleanup-enabled: "true"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+oauth2-proxy:
+  config:
+    configFile: |-
+      email_domains = [ "*" ]
+      github_org = "egovernments"
+      github_team = "ukd-prod,DevOps"
+      upstreams = [ "file:///dev/null" ]  
+
+#grafana >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+grafana:
+  dashboardsFolder: /work-dir/ukd-rainmaker-customization/configs/monitoring-dashboards      
+  initContainers:
+    gitSync:
+      enabled: true
+      repo: "git@github.com:egovernments/ukd-rainmaker-customization/configs"
+      branch: "UAT"  

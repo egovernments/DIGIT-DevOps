@@ -68,6 +68,19 @@ env: |
   {{- if index .Values "is-s3-enabled" }}
   - name: ISS3ENABLED
     value: "true"
+  {{- end }}  
+  {{- if index .Values "minio-enabled" }}
+  - name: AWS_KEY
+    valueFrom:
+      secretKeyRef:
+        key: accesskey
+        name: minio
+  - name: AWS_SECRETKEY
+    valueFrom:
+      secretKeyRef:
+        key: secretkey
+        name: minio
+  {{else}}
   - name: AWS_KEY
     valueFrom:
       secretKeyRef:
@@ -91,5 +104,10 @@ env: |
     value: {{ index .Values "heap" | quote }}
   - name: ALLOWED_FORMATS_MAP
     value: {{ index .Values "allowed-file-formats-map" | quote }}
+  {{- if index .Values "minio-enabled" }}  
   - name: MINIO_URL
-    value: {{ index .Values "minio.url" | quote }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: minio-url
+  {{- end }}

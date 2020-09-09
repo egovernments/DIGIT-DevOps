@@ -35,6 +35,7 @@ cluster-configs:
               timezone: "Asia/Kolkata"
 
         egov-service-host:
+            namespace: [ egov, monitoring ]
             data:
               asset-services: "http://asset-services:8080/"
               asset-services-maha: "http://asset-services-maha:8080/"
@@ -74,7 +75,6 @@ cluster-configs:
               egov-indexer: "http://egov-indexer:8080/"
               egov-hrms: "http://egov-hrms:8080/"
               egov-apportion-service: "http://egov-apportion-service:8080/"
-              es-client: "http://es-client:9200"
               hr-masters: "http://hr-masters:8080/"
               hr-employee: "http://hr-employee:8080/"
               hr-masters-v2: "http://hr-masters-v2:8080/"
@@ -117,6 +117,7 @@ cluster-configs:
               property-services: "http://property-services.egov:8080/"
               egov-url-shortening: "http://egov-url-shortening:8080/"
               es-client: http://elasticsearch-data-v1.es-cluster:9200
+              es-client-infra: http://elasticsearch-data-infra-v1.es-cluster-infra:9200
               egov-user-chatbot: "http://egov-user-chatbot:8080/"
               case-management: "http://case-management.egov:8080/"
               home-isolation-chatbot: "http://home-isolation-chatbot.egov:8080/"    
@@ -154,13 +155,13 @@ egov-filestore:
   allowed-file-formats-map: "{jpg:{'image/jpg','image/jpeg'},jpeg:{'image/jpeg','image/jpg'},png:{'image/png'},pdf:{'application/pdf'},odt:{'application/vnd.oasis.opendocument.text'},ods:{'application/vnd.oasis.opendocument.spreadsheet'},docx:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text'},doc:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text'},dxf:{'text/plain'},csv:{'text/plain'},txt:{'text/plain'},xlsx:{'application/x-tika-ooxml','application/x-tika-msoffice'},xls:{'application/x-tika-ooxml','application/x-tika-msoffice'}}"
 egov-localization:
   replicas: 3
-  heap: "-Xmx384m -Xms384m" 
-  memory_limits: 640Mi
+  heap: "-Xmx512m -Xms512m" 
+  memory_limits: 768Mi
 
 egov-location:
   replicas: 2
-  memory_limits: 512Mi
-  heap: "-Xmx192m -Xms192m -XX:TieredStopAtLevel=1"
+  memory_limits: 640Mi
+  heap: "-Xmx384m -Xms384m -XX:TieredStopAtLevel=1"
 
 egov-notification-sms:
   sms-provider-url: "https://smsgw.sms.gov.in/failsafe/HttpLink"
@@ -666,13 +667,15 @@ logging-config:
   es-host: "elasticsearch-client-infra-v1.es-cluster-infra"
   es-port: "9200"
 
-jaeger-config:
+
+jaeger:
   host: ""
   port: ""
   sampler-type: ""
   sampler-param: ""
-  sampling-strategies: |
-    {
+  collector:
+    samplingConfig: |
+      {
         "service_strategies": [
           {
             "service": "tl-services",
@@ -710,11 +713,6 @@ jaeger-config:
             "param": 0.2
           },
           {
-            "service": "egov-data-uploader",
-            "type": "probabilistic",
-            "param": 0.2
-          },
-          {
             "service": "egov-hrms",
             "type": "probabilistic",
             "param": 0.5
@@ -727,9 +725,10 @@ jaeger-config:
         ],
         "default_strategy": {
           "type": "probabilistic",
-          "param": 0.05
+          "param": 0.2
         }
       }
+
 
 # redis >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 redis:

@@ -1,0 +1,36 @@
+labels:
+  app: "postgres"
+  group: "db"
+namespace: egov
+
+image:
+  repository: "docker.io/postgres"
+  tag: "9.6"
+replicas: "1"
+httpPort: 5432
+
+resources: |
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+tracing-enabled: false
+
+env: |
+  - name: POSTGRES_PASSWORD
+      valueFrom:
+      secretKeyRef:
+        name: jenkins-credentials
+        key: ciDbpassword
+  - name:  POSTGRES_USER
+      valueFrom:
+      secretKeyRef:
+        name: jenkins-credentials
+        key: ciDbUsername
+  - name: POSTGRES_DB
+    value: {{ default "" .Values.postgresDatabase | quote }}
+extraVolumeMounts: |
+  - name: postgres-volume
+    mountPath: /var/lib/postgresql/data
+extraVolumes: |
+  - name: postgres-volume

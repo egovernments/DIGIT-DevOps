@@ -154,7 +154,7 @@ spec:
                                     --build-arg WORK_DIR=${workDir} \
                                     --build-arg token=\$GIT_ACCESS_TOKEN \
                                     --build-arg nexusUsername=\$NEXUS_USERNAME \
-                                    --build-arg nexusPassword=\$NEXUS_USERNAME \
+                                    --build-arg nexusPassword=\$NEXUS_PASSWORD \
                                     --build-arg ciDbUsername=\$CI_DB_USER \
                                     --build-arg ciDbpassword=\$CI_DB_PWD \
                                     --cache=true --cache-dir=/cache \
@@ -174,7 +174,7 @@ spec:
                                     --build-arg WORK_DIR=${workDir} \
                                     --build-arg token=\$GIT_ACCESS_TOKEN \
                                     --build-arg nexusUsername=\$NEXUS_USERNAME \
-                                    --build-arg nexusPassword=\$NEXUS_USERNAME \
+                                    --build-arg nexusPassword=\$NEXUS_PASSWORD \
                                     --build-arg ciDbUsername=\$CI_DB_USER \
                                     --build-arg ciDbpassword=\$CI_DB_PWD \
                                     --cache=true --cache-dir=/cache \

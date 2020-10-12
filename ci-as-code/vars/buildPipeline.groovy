@@ -54,7 +54,7 @@ spec:
             key: ciDbpassword                      
     volumeMounts:
       - name: jenkins-docker-cfg
-        mountPath: /root
+        mountPath: /root/.docker
       - name: kaniko-cache
         mountPath: /cache  
       - name: service-account
@@ -92,7 +92,7 @@ spec:
           name: jenkins-credentials
           items:
             - key: dockerConfigJson
-              path: .docker/config.json          
+              path: config.json          
 """
     ) {
         node(POD_LABEL) {

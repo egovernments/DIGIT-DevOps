@@ -126,17 +126,28 @@ cluster-configs:
 
 # billingservices >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 billing-service:
-  replicas: 2
+  replicas: 3
   memory_limits: 512Mi
-  heap: "-Xmx256m -Xms256m -XX:TieredStopAtLevel=1"
+  resources: |
+    limits:
+      cpu: 500m
+      memory: 600Mi
+    requests:
+      cpu: 500m
+      memory: 600Mi  
+  heap: "'-Xmx400m -Xms400m -XX:TieredStopAtLevel=1"
   java-args: "-Dspring.profiles.active=production"
+  server-tomcat-max-threads: "30"
+  server-tomcat-max-connections: "1500"
+  spring-datasource-tomcat-max-active: "10"  
   tracing-enabled: "true"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # core >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 egov-accesscontrol:
-  replicas: 1
+  replicas: 2 
   java-args: "-Dspring.profiles.active=production"
+  heap: "-Xmx376m -Xms376m"   
 
 egov-common-masters:
   replicas: 1
@@ -146,19 +157,44 @@ finance-collections-voucher-consumer:
   erp-domain-name: "egovernments.org"
 
 egov-filestore:
+  replicas: 2
+  resources: |
+    limits:
+      cpu: 600m
+      memory: 512Mi
+    requests:
+      cpu: 300m
+      memory: 512Mi
   volume: /opt/eGov/filestore
+  healthChecks:
+    enabled: false
+    livenessProbePath: "/filestore/health"
+    readinessProbePath: "/filestore/health"  
   is-bucket-fixed: "true"
   is-s3-enabled: "true"
   fixed-bucketname: egov-filestore-uat-v2 # Only got UAT
+  server-tomcat-max-threads: "30"   
   allowed-file-formats: "jpg,jpeg,png,doc,docx,pdf"
   allowed-file-formats-map: "{jpg:{'image/jpg','image/jpeg'},jpeg:{'image/jpeg','image/jpg'},png:{'image/png'},pdf:{'application/pdf'},odt:{'application/vnd.oasis.opendocument.text'},ods:{'application/vnd.oasis.opendocument.spreadsheet'},docx:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text'},doc:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text'},dxf:{'text/plain'},csv:{'text/plain'},txt:{'text/plain'},xlsx:{'application/x-tika-ooxml','application/x-tika-msoffice'},xls:{'application/x-tika-ooxml','application/x-tika-msoffice'}}"
+
 egov-localization:
-  replicas: 2
+  replicas: 3
+  heap: "-Xmx850m -Xms850m"
+  server-tomcat-max-threads: "50"
+  server-tomcat-max-connections: "1500"
+  spring-datasource-tomcat-max-active: "10"  
+  resources: |
+    limits:
+      memory: 1280Mi
+    requests:
+      memory: 1Gi 
 
 egov-location:
-  replicas: 2
+  replicas: 3
   memory_limits: 512Mi
-  heap: "-Xmx192m -Xms192m -XX:TieredStopAtLevel=1"
+  heap: "-Xmx356m -Xms356m -XX:TieredStopAtLevel=1"
+  server-tomcat-max-threads: "10"
+  server-tomcat-max-connections: "1500"
 
 egov-notification-sms:
   sms-provider-url: "https://smsgw.sms.gov.in/failsafe/HttpLink"
@@ -179,7 +215,7 @@ egov-otp:
 
 egov-user:
   replicas: 3
-  heap: "-Xmx640m -Xms640m -XX:TieredStopAtLevel=1"
+  heap: "-Xmx756m -Xms756m -XX:TieredStopAtLevel=1"
   memory_limits: 1Gi
   otp-validation: "true"
   citizen-otp-enabled: "true"
@@ -193,6 +229,9 @@ egov-user:
   citizen-otp-fixed: "123456"
   citizen-otp-fixed-enabled: "false"
   java-args: "-Dspring.profiles.active=production"
+  server-tomcat-max-threads: "50"
+  server-tomcat-max-connections: "2500"
+  spring-datasource-tomcat-max-active: "25"    
   egov-state-level-tenant-id: "pb"
   decryption-abac-enabled: "false"
   tracing-enabled: "true"
@@ -203,13 +242,17 @@ tenant:
 
 egov-idgen:
   replicas: 2
-  heap: "-Xmx192m -Xms192m -XX:TieredStopAtLevel=1"
+  heap: "-Xmx376m -Xms376m -XX:TieredStopAtLevel=1"
+  server-tomcat-max-threads: "50"
+  server-tomcat-max-connections: "2000"
+  spring-datasource-tomcat-max-active: "30"  
   idformat-from-mdms: "true"
   autocreate-new-seq: "true"
 
 egov-mdms-service:
-  replicas: 2
+  replicas: 3
   memory_limits: 768Mi
+  heap: "-Xmx512m -Xms512m"  
   mdms-path: "/work-dir/punjab-mdms-data/data"
   ingress:
     zuul: false
@@ -220,6 +263,8 @@ egov-mdms-service:
   mdms-folder: "punjab-mdms-data"
   masters-config-url: "file:///work-dir/punjab-mdms-data/mdms-masters-config.json"
   java-args: -Dspring.profiles.active=monitoring
+  server-tomcat-max-threads: "500"
+  server-tomcat-max-connections: "10000"  
 
 egov-indexer:
   replicas: 2
@@ -232,10 +277,13 @@ egov-indexer:
   egov-indexer-yaml-repo-path: "file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/collection-indexer.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/finance-rolloutadoption-indexer.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/rainmaker-tl-indexer.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/payment-indexer.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/water-service.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/water-services-meter.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/sewerage-service.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/tradelicense-indexer.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/property-services.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/error-queue.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/payment-indexer.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/rainmaker-firenoc-indexer.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/payment-indexer-migration.yml,file:///work-dir/punjab-rainmaker-customization/configs/egov-indexer/property-services-migration-temp.yml"
 
 egov-workflow-v2:
-  replicas: 2
+  replicas: 3
   memory_limits: 756Mi
   heap: "-Xmx512m -Xms512m -XX:TieredStopAtLevel=1"
   java-args: "-Dspring.profiles.active=production"
+  server-tomcat-max-threads: "35"
+  server-tomcat-max-connections: "2500"
+  spring-datasource-tomcat-max-active: "25"  
   wf-max-limit: "10000"
 
 egov-persister:
@@ -313,6 +361,13 @@ egov-apportion-service:
 
 pdf-service:
   replicas: 2
+  resources: |
+    limits:
+      cpu: 600m
+      memory: 512Mi
+    requests:
+      cpu: 300m
+      memory: 512Mi   
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/punjab-rainmaker-customization"
@@ -349,7 +404,9 @@ zuul:
   heap: "-Xmx1024m -Xms1024m -XX:TieredStopAtLevel=1"
   memory_limits: 1536Mi  
   server-tomcat-max-threads: "350"
-  server-tomcat-max-connections: "1500"
+  server-tomcat-max-connections: "2500"
+  zuul-host-connect-timeout-millis: "30000"
+  zuul-host-socket-timeout-millis: "80000"   
   java-args: "-Dspring.profiles.active=production"
   egov-open-endpoints-whitelist: "/user/citizen/_create,/user/oauth/token,/user-otp/v1/_send,/otp/v1/_validate,/localization/messages,/localization/messages/v1/_search,/user/password/nologin/_update,/egov-location/boundarys,/egov-location/boundarys/boundariesByBndryTypeNameAndHierarchyTypeName,/egov-location/boundarys/getLocationByLocationName,/egov-mdms-service/v1/_search,/egov-indexer/index-operations/_index,/egov-indexer/index-operations/_reload,/filestore/v1/files/url,/egov-mdms-service/v1/_get,/egov-url-shortening"
   egov-mixed-mode-endpoints-whitelist: "/filestore/v1/files/id,/filestore/v1/files,/filestore/v1/files/tag,/user/_search,/access/v1/actions/mdms/_get"
@@ -471,6 +528,9 @@ report:
   replicas: 2
   heap: "-Xmx712m -Xms712m"  
   tracing-enabled: "true"
+  server-tomcat-max-threads: "30"
+  server-tomcat-max-connections: "1000"
+  spring-datasource-tomcat-max-active: "100"  
   java-args: "-Dspring.profiles.active=production"
   spring-datasource-tomcat-max-active: 10
   report-locationsfile-path: "file:///work-dir/punjab-rainmaker-customization/configs/reports/report.config"
@@ -503,14 +563,25 @@ pt-services-v2:
   replicas: 2
   heap: "-Xmx384m -Xms384m -XX:TieredStopAtLevel=1"
   memory_limits: "512Mi"
+  resources: |
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 500m
+      memory: 512Mi  
   notification-sms-enabled: "false"
   java-args: "-Dspring.profiles.active=production"
   tracing-enabled: "true"
   pt-userevents-pay-link: "citizen/otpLogin?mobileNo=$mobile&redirectTo=egov-common/pay?consumerCode=$applicationNo&tenantId=$tenantId"
 
 property-services:
-  replicas: 3
-  heap: "-Xmx384m -Xms384m -XX:TieredStopAtLevel=1"  
+  replicas: 4
+  heap: "-Xmx384m -Xms384m -XX:TieredStopAtLevel=1"
+  memory_limits: "756Mi"
+  server-tomcat-max-threads: "15"
+  server-tomcat-max-connections: "1000"
+  spring-datasource-tomcat-max-active: "15"   
   egov-idgen-ack-format: "AC-[cy:yyyy-MM-dd]-[SEQ_EG_PT_ACK]"
   egov-idgen-mutation-format: "MT-[cy:yyyy-MM-dd]-[SEQ_EG_PT_MUTATION]"
   egov-idgen-assm-format: "AS-[cy:yyyy-MM-dd]-[SEQ_EG_PT_ASSM]"
@@ -518,7 +589,9 @@ property-services:
 
 pt-calculator-v2:
   replicas: 2
-  memory_limits: 1Gi  
+  memory_limits: 1Gi
+  server-tomcat-max-threads: "20"
+  server-tomcat-max-connections: "1500  
   logging-level: "DEBUG"
   heap: "-Xmx756m -Xms756m -XX:TieredStopAtLevel=1 "
   JAVA_ENABLE_DEBUG: "true"
@@ -532,9 +605,12 @@ pt-calculator-v2:
 
 
 tl-services:
-  replicas: 2
+  replicas: 3
   heap: "-Xmx192m -Xms192m -XX:TieredStopAtLevel=1"
   memory_limits: 384Mi
+  server-tomcat-max-threads: "35"
+  server-tomcat-max-connections: "1500"
+  spring-datasource-tomcat-max-active: "10"  
   java-args: "-Dspring.profiles.active=production"
   tracing-enabled: "true"
   tl-license-num-format: "PB-TL-[cy:yyyy-MM-dd]-[SEQ_EG_PT_LN]"
@@ -545,8 +621,11 @@ tl-services:
 
 
 tl-calculator:
-  replicas: 2
+  replicas: 3
   heap: "-Xmx192m -Xms192m -XX:TieredStopAtLevel=1"
+  server-tomcat-max-threads: "35"
+  server-tomcat-max-connections: "1500"
+  spring-datasource-tomcat-max-active: "10"   
   java-args: "-Dspring.profiles.active=production"
   tracing-enabled: "true"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -554,7 +633,14 @@ tl-calculator:
 # Collections >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 collection-services:
-  replicas: 2
+  replicas: 3
+  resources: |
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 500m
+      memory: 512Mi  
   receiptnumber-servicebased: "true"
   search-ignore-status: "Cancelled,Rejected"
   java-args: "-Dspring.profiles.active=production"
@@ -562,6 +648,9 @@ collection-services:
   receipt-search-paginate: "true"
   receipt-search-defaultsize: 30
   user-create-enabled: "true"
+  server-tomcat-max-threads: "25"
+  server-tomcat-max-connections: "1500"
+  spring-datasource-tomcat-max-active: "10"    
 
 # financials >>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -688,8 +777,15 @@ pgadmin-config:
   maintenance-db-name: "egov_prod_db"
 
 egov-enc-service:
-  replicas: 2
+  replicas: 3
   state-level-tenant-id: "pb"
+  resources: |
+    limits:
+      cpu: 300m
+      memory: 512Mi
+    requests:
+      cpu: 300m
+      memory: 512Mi   
 #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # kafka-v2 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>REMOVED-TEMP

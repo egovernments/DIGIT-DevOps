@@ -15,9 +15,13 @@ cluster-configs:
         db-name: "ukd_sdc_uat"
         kafka-brokers: "kafka-v2.kafka-cluster:9092"
         spring-datasource-tomcat-initialSize: "1"
-        spring-datasource-tomcat-max-active: "2"
+        spring-datasource-tomcat-max-active: "5"
         server-tomcat-max-threads: "10"
         server-tomcat-max-connections: "500"
+        server-tomcat-max-threads-medium: "20"
+        server-tomcat-max-connections-medium: "1500"
+        server-tomcat-max-threads-high: "350"
+        server-tomcat-max-connections-high: "2000"
         es-indexer-host: "http://elasticsearch-data-v1.es-cluster:9200/"
         es-host: "elasticsearch-data-v1.es-cluster"
         egov-services-fqdn-name: "https://nagarsewa-uat.uk.gov.in/"
@@ -89,6 +93,7 @@ cluster-configs:
         egov-url-shortening: "http://egov-url-shortening:8080/"
 
 egov-filestore:
+  replicas: 1
   volume: /opt/eGov/filestore
   is-nfs-enabled: true
   is-s3-enabled: false
@@ -112,19 +117,46 @@ egov-filestore:
       persistentVolumeClaim:
         claimName: filestore-data-egov-filestore
 
+egov-accesscontrol:
+  replicas: 3
+  java-args: "-Dspring.profiles.active=production"
+  heap: "-Xmx376m -Xms376m"
+
+ukd-custom-service:
+  replicas: 2
+  memory_limits: 768Mi
+  heap: "-Xmx512m -Xms512m"  
+  enable-sms: "true"
+
 egov-localization:
-  memory_limits: 384Mi
+  replicas: 2
+  heap: "-Xmx850m -Xms850m"
+  server-tomcat-max-threads: "50"
+  server-tomcat-max-connections: "1500"
+  spring-datasource-tomcat-max-active: "10" 
+  memory_limits: 768Mi
+
 
 egov-location:
+  replicas: 2
   memory_limits: 512Mi
+  heap: "-Xmx356m -Xms356m -XX:TieredStopAtLevel=1"
+  server-tomcat-max-threads: "10"
+  server-tomcat-max-connections: "1500"
 
 egov-notification-sms:
+  replicas: 2
   sms-gateway-to-use: "HOLY_SMS"
   sms-provider-url: "http://sms.holymarkindia.in/API/WebSMS/Http/v1.0a/index.php"
   sms-sender: "HOLSMS"
   sms-config-map: "{'username':'$username', 'password': '$password', 'sender':'$senderid', 'to':'$mobileno', 'message':'$message', 'msgtype':'unicode', 'format':'text'}"
+  java-args: "-Dspring.profiles.active=production"
 
+egov-otp:
+  replicas: 3
+  
 egov-url-shortening:
+  replicas: 2
   server-context: "/eus"
   ingress:
     context: "eus"
@@ -134,13 +166,13 @@ egov-url-shortening:
 
 egov-user:
   replicas: 2
-  heap: "-Xmx256m -Xms256m"
-  memory_limits: 512Mi
+  heap: "-Xmx756m -Xms756m -XX:TieredStopAtLevel=1"	
+  memory_limits: 1Gi
   otp-validation: "true"
   citizen-otp-enabled: "true"
   employee-otp-enabled: "false"
-  access-token-validity: 90
-  refresh-token-validity: 90
+  access-token-validity: 10080
+  refresh-token-validity: 20160
   default-password-expiry: 90
   mobile-number-validation: "false"
   roles-state-level: "true"
@@ -149,15 +181,31 @@ egov-user:
   citizen-otp-fixed-enabled: "true"
   egov-state-level-tenant-id: "uk"
   decryption-abac-enabled: "false"
+  java-args: "-Dspring.profiles.active=production"
+  server-tomcat-max-threads: "50"
+  server-tomcat-max-connections: "2500"
+  spring-datasource-tomcat-max-active: "25" 
 
 egov-workflow:
-  heap: "-Xmx256m -Xms256m"
+  replicas: 2
+  heap: "-Xmx256m -Xms256m -XX:TieredStopAtLevel=1"	
   memory_limits: 512Mi
+  java-args: "-Dspring.profiles.active=production"
+  server-tomcat-max-threads: "35"
+  server-tomcat-max-connections: "2500"
+  spring-datasource-tomcat-max-active: "25"
 
 egov-idgen:
+  replicas: 2
   idformat-from-mdms: "true"
+  heap: "-Xmx376m -Xms376m -XX:TieredStopAtLevel=1"
+  server-tomcat-max-threads: "50"
+  server-tomcat-max-connections: "2000"
+  spring-datasource-tomcat-max-active: "30"  
+
 
 egov-mdms-service:
+  replicas: 2
   mdms-path: "/work-dir/ukd-mdms-data/data"
   initContainers:
     gitSync:
@@ -165,9 +213,12 @@ egov-mdms-service:
       branch: "SDC"
   masters-config-url: "file:///work-dir/ukd-mdms-data/data/mdms-masters-config.json"
   java-args: -Dspring.profiles.active=monitoring
+  server-tomcat-max-threads: "500"
+  server-tomcat-max-connections: "10000"
 
 egov-indexer:
-  heap: "-Xmx512m -Xms512m"
+  replicas: 2
+  heap: "-Xmx512m -Xms512m -XX:TieredStopAtLevel=1"	
   memory_limits: "768Mi"
   initContainers:
     gitSync:
@@ -176,13 +227,16 @@ egov-indexer:
   egov-indexer-yaml-repo-path: "file:///work-dir/ukd-rainmaker-customization/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-indexer/collection-indexer.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-indexer/rainmaker-tl-indexer.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-indexer/payment-indexer.yml"
 
 egov-persister:
+  replicas: 2
   persist-yml-path: "file:///work-dir/ukd-rainmaker-customization/configs/egov-persister/pg-service-persister.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-persister/pgr-v3-persister.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-persister/property-services-persister.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-persister/pt-calculator-v2-persister.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-persister/pt-drafts-persister.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-persister/tradelicense-persister.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-persister/indexer-job-persister.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-persister/tl-calculation-persister.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-persister/tl-billing-slab-persister.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-persister/uploader-persister.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-persister/hrms-employee-persister.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-persister/collection-migration-persister.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-persister/egov-user-event-persister.yml"
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/ukd-rainmaker-customization"
       branch: "UAT"
-
+  java-args: "-Dspring.profiles.active=production"
+  
 egov-data-uploader:
+  replicas: 2
   heap: "-Xmx512m -Xms512m -XX:TieredStopAtLevel=1"
   upload-assessment: "YES"
   upload-json-path: "file:///work-dir/ukd-rainmaker-customization/configs/egov-uploader/property-upload.json,file:///work-dir/ukd-rainmaker-customization/configs/egov-uploader/localization-upload.json,file:///work-dir/ukd-rainmaker-customization/configs/egov-uploader/CollectionReceiptWorkflow.json"
@@ -195,13 +249,16 @@ egov-data-uploader:
   java-args: "-Dspring.profiles.active=production"
 
 egov-searcher:
+  replicas: 2
   search-yaml-path: "file:///work-dir/ukd-rainmaker-customization/configs/egov-searcher/rainmaker-pgr-v2-searcher.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-searcher/rainmaker-pt-customsearch-punjab.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-searcher/rainmaker-pt-gissearch.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-searcher/weekly-impact-emailer-searcher.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-searcher/tradelicense-searcher.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-searcher/bill-genie.yml,file:///work-dir/ukd-rainmaker-customization/configs/egov-searcher/localitySearcher.yml"
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/ukd-rainmaker-customization"
       branch: "UAT"
+  java-args: "-Dspring.profiles.active=production"
 
 egov-pg-service:
+  replicas: 2
   axis: "false"
   ccavenue: "true"
   easypay-sub-merchant-id: 1
@@ -218,8 +275,10 @@ egov-custom-consumer:
   erp-host: "https://mohali-qa.egovernments.org/"
 
 egov-apportion-service:
+  replicas: 2
   memory_limits: 512Mi
-  heap: -Xmx256m -Xms256m
+  heap: -Xmx256m -Xms256m    
+  java-args: "-Dspring.profiles.active=production"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # financials >>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -229,7 +288,7 @@ egf-masters:
 egf-master:
   db-url: "jdbc:postgresql://10.67.54.101:5432/ukd_sdc_uat"
   memory_limits: 512Mi
-  heap: "-Xmx256m -Xms256m"
+  heap: "-Xmx256m -Xms256m -XX:TieredStopAtLevel=1"
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -243,6 +302,7 @@ redoc:
   
 # DSS Dashboards >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 dashboard-analytics:
+  replicas: 2
   heap: "-Xmx704m -Xms512m"
   config-schema-paths: "file:///work-dir/ukd-rainmaker-customization/configs/egov-dss-dashboards/dashboard-analytics/*.json"
   initContainers:
@@ -251,6 +311,7 @@ dashboard-analytics:
         branch: "UAT"        
 
 dashboard-ingest:
+  replicas: 2
   heap: "-Xmx704m -Xms512m -XX:TieredStopAtLevel=1"
   topic-incoming-collection: "paymentsindex-v1-enriched"
   es-index-name: "dss-collection_v2"
@@ -265,8 +326,8 @@ dashboard-ingest:
 # gateway >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 nginx-ingress:
-  controller:
-    replicas: 1
+    controller:
+      replicas: 2
     default-backend-service: egov/nginx
     namespace: egov
     cert-issuer: letsencrypt-prod
@@ -289,6 +350,7 @@ nginx-ingress:
         enabled: true
 
 cert-manager:
+  replicas: 1
   email: "nithin.dv@egovernments.org"
   images:
     - "quay.io/jetstack/cert-manager-controller:v0.10.1"
@@ -299,9 +361,9 @@ zuul:
   custom-filter-property: "true"
   prehook-config: "https://raw.githubusercontent.com/egovernments/ukd-rainmaker-customization/master/configs/egov-zuul/pre-hook.json"
   tracing-enabled: "true"
-  heap: "-Xmx704m -Xms512m"
   server-tomcat-max-threads: "350"
-  server-tomcat-max-connections: "1500"
+  server-tomcat-max-connections: "2500"
+  java-args: "-Dspring.profiles.active=production"
   egov-open-endpoints-whitelist: "/user/oauth/token,/user-otp/v1/_send,/otp/v1/_validate,/user/citizen/_create,/localization/messages,/localization/messages/v1/_search,/user/password/nologin/_update,/pgr/servicedefinition/v1/_search,/pgr/servicecategories/v1/_search,/pgr/v1/otp/_send,/pgr-master/receivingmode/v1/_search,/tenant/v1/tenant/_search,/egov-location/boundarys,/egov-location/boundarys/boundariesByBndryTypeNameAndHierarchyTypeName,/pgr-master/service/v1/_search,/egov-location/boundarys/getLocationByLocationName,/pgr-master/OTPConfig/_search,/pgr-master/serviceGroup/v1/_search,/egov-location/boundarys/isshapefileexist,/pgr/services/v1/_search,/hr-masters/hrconfigurations/_search,/collection-services/receipts/_view,/pgr-master/service/v2/_search,/pgr-master/servicedefinition/v1/_search,/citizen-services,/citizen-services/v1/requests/receipt/_create,/citizen-services/v1/pgresponse,/citizen-services/v1/requests/anonymous/_search,/egov-mdms-service/v1/_search,/egov-mdms-service/v1/_get,/egov-mdms-service/v1/_reload,/egov-mdms-service/v1/_reloadobj,/egov-location/boundarys/getshapefile,/egov-indexer/index-operations/_index,/egov-indexer/index-operations/_reload,/egov-mdms-service-test/v1/_search,/egov-mdms-create/v1/_update,/egov-mdms-create/v1/_create,/egov-mdms-service-test/v1/_reload,/data-uploader/v1/jobs/_create,/data-uploader/v1/jobs/_search,/data-uploader/v1/upload-definitions/_search,/data-uploader/v1/upload-definitions/_test,/filestore/v1/files/url,/egov-searcher/tl-searcher/opensearch/_get,/pg-service/transaction/v1/_redirect,/egov-url-shortening"
   egov-mixed-mode-endpoints-whitelist: "/pgr/seva/v1/_create,/pgr/seva/v1/_search,/pgr/seva/v1/_count,/workflow/history/v1/_search,/filestore/v1/files/id,/filestore/v1/files,/filestore/v1/files/tag,/egov-common-masters/departments/_search,/pt-property/property/propertytypes/_search,/pt-property/properties/_search,/pt-property/property/usages/_search,/egov-idgen/id/_generate,/egf-masters/financialyears/_search,/egov-common-workflows/process/_start,/egov-common-workflows/process/_search,/egov-common-workflows/tasks,/egov-common-workflows/tasks/{id}/_update,/user/_search,/user/users/_createnovalidate,/user/users/{id}/_update,/billing-service/demand/_dues,/billing-service/bill/_generate,/billing-service/demand/_create,/wcms/masters/waterchargesconfig/_search,/wcms/masters/usagetypes/_search,/wcms/masters/pipesizes/_search,/wcms-connection/connection/_getbillingtypes,/wcms-connection/connection/_getconnectiontypes,/wcms/masters/sourcetypes/_search,/wcms/masters/supplytypes/_search,/wcms/masters/storagereservoirs/_search,/wcms/masters/treatmentplants/_search,/wcms/masters/documenttypes-applicationtypes/_search,/wcms/masters/donations/_search,/wcms/masters/nonmeterwaterrates/_search,/wcms-connection/connection/_create,/egov-common-masters/genders/_search,/egov-common-workflows/designations/_search,/access/v1/actions/mdms/_get"
 
@@ -310,9 +372,57 @@ zuul:
 # collections >>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 collection-services:
+  replicas: 3
   receiptnumber-servicebased: "false"
+  java-args: "-Dspring.profiles.active=production"
+  server-tomcat-max-threads: "25"
+  server-tomcat-max-connections: "1500"
+  spring-datasource-tomcat-max-active: "10" 
+
+billing-service:
+  replicas: 3
+  heap: "-Xmx400m -Xms400m -XX:TieredStopAtLevel=1"	
+  java-args: "-Dspring.profiles.active=production"	
+  server-tomcat-max-threads: "30"	
+  server-tomcat-max-connections: "1500"	
+  spring-datasource-tomcat-max-active: "10"
+  
+egov-user-event:
+  replicas: 2
+
+common-screen:
+  replicas: 2
+  
+dss-dashboard:
+  replicas: 2
+
+employee-tradelicence:
+  replicas: 2
+
+hrms-web:
+  replicas: 2
+
+telemetry:
+  replicas: 2
+
+ui-uploader:
+  replicas: 2
+
+user-otp:
+  replicas: 2     
+  java-args: "-Dspring.profiles.active=production"	
+  
+ukd-assets:
+  replicas: 2
+
+egov-common-masters:
+  replicas: 2
+ 
+ui-localisation:
+  replicas: 2
 
 employee:
+  replicas: 2
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
@@ -320,6 +430,7 @@ employee:
       ';"
 
 citizen:
+  replicas: 2
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
@@ -329,6 +440,7 @@ citizen:
 
 # reportinfra >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 report:
+  replicas: 2
   tracing-enabled: "true"
   report-locationsfile-path: "file:///work-dir/ukd-rainmaker-customization/configs/reports/report.config"
   spring-datasource-tomcat-max-active: 5
@@ -336,10 +448,14 @@ report:
     gitSync:
       repo: "git@github.com:egovernments/ukd-rainmaker-customization"
       branch: "UAT"
+  server-tomcat-max-threads: "30"
+  server-tomcat-max-connections: "1000"
+  java-args: "-Dspring.profiles.active=production"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # rainmaker-pgr >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 rainmaker-pgr:
+  replicas: 2
   notification-sms-enabled: "true"
   notification-email-enabled: "false"
   new-complaint-enabled: "true"
@@ -349,20 +465,49 @@ rainmaker-pgr:
   notification-allowed-status: "open,assigned,rejected,resolved"
 
 pt-services-v2:
+  replicas: 2
+  heap: "-Xmx384m -Xms384m -XX:TieredStopAtLevel=1"
+  resources: |
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 500m
+      memory: 512Mi  
   employee-allowed-search-params: accountId,ids,propertyDetailids,mobileNumber,oldpropertyids,doorNo,locality
   citizen-allowed-search-params: accountId,ids,propertyDetailids,mobileNumber,oldpropertyids,doorNo,locality
   notification-sms-enabled: "true"
+  java-args: "-Dspring.profiles.active=production"
+
+pt-calculator-v2:
+  replicas: 2
+  java-args: "-Dspring.profiles.active=production"
+  server-tomcat-max-threads: "20"
+  server-tomcat-max-connections: "1500"
 
 tl-services:
-  heap: "-Xmx128m -Xms64m"
+  replicas: 3
+  heap: "-Xmx192m -Xms192m -XX:TieredStopAtLevel=1"
   memory_limits: 384Mi
   java-args: -Dspring.profiles.active=monitoring
   tl-application-num-format: "UK-TL-[cy:yyyy-MM-dd]-[SEQ_EG_TL_APL]"
   tl-license-num-format: "UK-TL-[cy:yyyy-MM-dd]-[SEQ_EG_PT_LN]"
   tl-payment-topic-name: "egov.collection.payment-create"
   tl-search-default-limit: 50
+  server-tomcat-max-threads: "35"
+  server-tomcat-max-connections: "1500"
+  spring-datasource-tomcat-max-active: "10"  
+
+tl-calculator:
+  replicas: 3
+  heap: "-Xmx192m -Xms192m -XX:TieredStopAtLevel=1"
+  server-tomcat-max-threads: "35"
+  server-tomcat-max-connections: "1500"
+  spring-datasource-tomcat-max-active: "10"  
+  java-args: "-Dspring.profiles.active=production"
 
 pdf-service:
+  replicas: 3
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/ukd-rainmaker-customization"
@@ -373,9 +518,14 @@ pdf-service:
 egov-workflow-v2:
   logging-level: "DEBUG"
   java-args: -Dspring.profiles.active=monitoring
-  heap: "-Xmx192m -Xms192m"
+  heap: "-Xmx192m -Xms192m -XX:TieredStopAtLevel=1"
+  server-tomcat-max-threads: "35"
+  server-tomcat-max-connections: "2500"
+  spring-datasource-tomcat-max-active: "25"
+
 
 egov-hrms:
+  replicas: 2
   java-args: -Dspring.profiles.active=monitoring
   heap: "-Xmx192m -Xms192m"
   employee-applink: "https://egov-micro-qa.egovernments.org/employee/user/login"
@@ -699,4 +849,5 @@ grafana:
     gitSync:
       enabled: true
       repo: "git@github.com:egovernments/ukd-rainmaker-customization/configs"
+      branch: "UAT"  
       branch: "UAT"  

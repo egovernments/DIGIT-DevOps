@@ -1,0 +1,47 @@
+# Common Labels
+labels:
+  app: "egf-voucher-indexer"
+  group: "financials"
+
+# Init Containers Configs
+initContainers: {}
+
+# Container Configs
+image:
+  repository: "egf-voucher-indexer"
+replicas: "1"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx64m -Xms64m"
+
+# Additional Container Envs
+env: |
+  - name: KAFKA_TOPICS_EGF_VOUCHER_COMPLETED_ID
+    value: egov.egf.voucher.service.completed.id
+  - name: KAFKA_TOPICS_EGF_VOUCHER_COMPLETED_GROUP
+    value: egov.egf.voucher.service.completed.group
+  - name: KAFKA_TOPICS_EGF_VOUCHER_COMPLETED_TOPIC
+    value: egov.egf.voucher.completed
+  - name: KAFKA_TOPICS_EGF_VOUCHERSUBTYPE_COMPLETED_ID
+    value: egov.egf.vouchersubtype.service.completed.id
+  - name: KAFKA_TOPICS_EGF_VOUCHERSUBTYPE_COMPLETED_GROUP
+    value: egov.egf.vouchersubtype.service.completed.group
+  - name: KAFKA_TOPICS_EGF_VOUCHERSUBTYPE_COMPLETED_TOPIC
+    value: egov.egf.vouchersubtype.completed
+  - name: EGOV_SERVICES_ESINDEXER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: es-indexer-host
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: egf-master-indexer
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  {{- if index .Values "global" "serializers-timezone-in-ist" }}
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+  {{- end }}
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SERVER_PORT
+    value: "8080"

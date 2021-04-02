@@ -1,0 +1,212 @@
+# Common Labels
+labels:
+  app: "ecurfew"
+  group: "ispirit"
+namespace: ispirit
+
+# Ingress Configs
+ingress:
+  enabled: true
+  context: "ecurfew"
+  serviceName: epasszuul
+  servicePort: 8080
+  host: |
+    - host: {{ index .Values "global" "moca-domain" }}
+  tls: |
+      - hosts:
+        - {{ index .Values "global" "moca-domain" }}
+        secretName: {{ index .Values "global" "moca-domain" }}-tls-certs    
+  additionalAnnotations: |
+    certmanager.k8s.io/cluster-issuer: {{ index $.Values "cluster-configs" "root-ingress" "cert-issuer" | quote }}  
+
+service:
+  additionalAnnotations: |
+    zuul/route-path: {{ .Values.ingress.context }}    
+
+# Container Configs
+image:
+  repository: "ecurfew"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/ecurfew/actuator/health"
+  readinessProbePath: "/ecurfew/actuator/health"
+heap: "-Xmx2G -Xms2G"
+java-args: "-Dspring.profiles.active=monitoring"
+memory_limits: 2560Mi
+from-address: no-reply@anumati.gov
+cronInstance: false
+fixed-otp-enabled: false
+pdf-with-qr-code-enabled: false
+aws-ses-sendemail: true
+storage:
+  aws:
+    region: us-east-2
+    bucket: ecurfew
+resources: |
+  requests:
+    memory: {{ .Values.memory_limits | quote }}
+    cpu: 500m
+  limits:
+    memory: {{ .Values.memory_limits | quote }}
+    cpu: 1
+
+# Additional Container Envs
+env: |
+  - name: SPRING_DATASOURCE_URL
+    value: "{{ index .Values "db-url" }}"   
+  - name: APP_TIMEZONE
+    value: "Asia/Kolkata"     
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: db-username
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: db-password       
+  - name: AWS_S3_ACCESSKEYID
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: s3-accesskey        
+  - name: AWS_S3_SECRETACCESSKEY
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: s3-secretaccesskey 
+  - name: AWS_KMS_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: kms-accesskey  
+  - name: AWS_SES_ACCESSKEYID
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: kms-accesskey             
+  - name: AWS_KMS_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: kms-secretaccesskey 
+  - name: AWS_SES_SECRETACCESSKEY
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: kms-secretaccesskey 
+  - name: TWILIO_ACCOUNT_SID
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: twilio-account-sid  
+  - name: TWILIO_AUTH_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: twilio-auth-token 
+  - name: TWILIO_FROM_PHONE
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: twilio-phone  
+  - name: SPRING_SENDGRID_API-KEY
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: sendgrid-api-key     
+  - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+    value: {{ index $.Values "cluster-configs" "configmaps" "egov-config" "data" "kafka-brokers" }}
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    value: {{ index $.Values "cluster-configs" "configmaps" "egov-config" "data" "kafka-brokers" }}                              
+  - name: SIGNATUREPRIVATEKEYNAME
+    value: "/etc/ispirit/private_key.pem"
+  - name: SIGNATUREPUBLICKEYNAME
+    value: "/etc/ispirit/public_key.pem"                
+  - name: AWS_S3_REGION
+    value: {{ .Values.storage.aws.region }}     
+  - name: AWS_KMS_REGION
+    value: {{ .Values.storage.aws.region }}
+  - name: AWS_SES_REGION
+    value: {{ .Values.storage.aws.region }}    
+  - name: AWS_KMS_SIGNATURE_KEY_ID
+    value: {{ index .Values "aws-kms-signature-key-id" | quote }}
+  - name: AWS_S3_BUCKET
+    value: {{ .Values.storage.aws.bucket }}         
+  - name: SECURITY_REQUIRE_SSL
+    value: "false" 
+  - name: SPRING_REDIS_HOST
+    value: redis.backbone
+  - name: SPRING_REDIS_PORT
+    value: "6379"
+  - name: REDISHOST
+    value: redis.backbone
+  - name: REDISPORT
+    value: "6379"            
+  - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+    value: "10"
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    value: /ecurfew    
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SECRET
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: secret     
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}   
+  - name: EMAIL_FROM_ADDRESS
+    value: {{ index .Values "from-address" | quote }} 
+  - name: CRONINSTANCE
+    value: {{ index .Values "cronInstance" | quote }}
+  - name: SUPERUSER_ID
+    value: "1"         
+  - name: AAROGYA_SETU_URL
+    value: {{ index .Values "aarogya-setu-url" | quote }}
+  - name: AAROGYA_SETU_CHECK_ENABLED
+    value: {{ index .Values "aarogya-setu-check-enabled" | quote }}
+  - name: AAROGYA_SETU_AUTH_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: auth-token 
+  - name: AAROGYA_SETU_JWT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: jwt-secret    
+  - name: AAROGYA_SETU_JWT_TOKEN_EXPIRY_MINUTES
+    value: {{ index .Values "aarogya-setu-jwt-token-expiry-minutes" | quote }}       
+  - name: FIXED_OTP_ENABLED
+    value: {{ index .Values "fixed-otp-enabled" | quote }}              
+  - name: TENANT_ID_FOR_ENCRYPTION
+    value: "in"
+  - name: EGOV_ENC_SERVICE_HOST
+    value: "http://egov-enc-service.egov:8080"        
+  - name: TRAI_GATEWAY_HOST
+    value: "http://trai-gateway.ispirit:8080"       
+  - name: AWS_SES_SENDEMAILUSINGSES
+    value: {{ index .Values "aws-ses-sendemail" | quote }}
+  - name: AWS_SES_FROMEMAILADDRESS
+    value: {{ index .Values "from-email-address" | quote }}    
+  - name: AWS_SES_USESTATEREPLYTOEMAIL
+    value: "false" 
+  - name: PDF_WITH_QR_CODE_ENABLED
+    value: {{ index .Values "pdf-with-qr-code-enabled" | quote }}
+
+extraVolumes: |
+  - name: crypto-keys
+    secret:
+      secretName: ispirit-ecurfew
+      defaultMode: 288 # = mode 0440    
+
+extraVolumeMounts: |
+  - mountPath: /etc/ispirit/public_key.pem
+    name: crypto-keys
+    subPath: public_key.pem
+  - mountPath: /etc/ispirit/private_key.pem
+    name: crypto-keys
+    subPath: private_key.pem     

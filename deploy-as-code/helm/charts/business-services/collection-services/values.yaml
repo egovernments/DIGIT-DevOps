@@ -1,0 +1,136 @@
+# Common Labels
+labels:
+  app: "collection-services"
+  group: "collections"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "collection-services"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "egov_collection_services_schema"
+    image:
+      repository: "collection-services-db"
+
+# Container Configs
+image:
+  repository: "collection-services"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/collection-services/health"
+  readinessProbePath: "/collection-services/health"
+appType: "java-spring"
+tracing-enabled: true
+receipt-search-paginate: "false"
+receipt-search-defaultsize: "30"
+user-create-enabled: "true"
+search-ignore-status: ""
+heap: "-Xmx256m -Xms256m"
+java-args: "-Dspring.profiles.active=monitoring"
+java-debug: ""
+receiptnumber-servicebased: "false"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: COLLECTION_RECEIPTS_SEARCH_PAGINATE
+    value: {{ index .Values "receipt-search-paginate" | quote }}
+  - name: COLLECTION_RECEIPTS_SEARCH_DEFAULT_SIZE
+    value: {{ index .Values "receipt-search-defaultsize" | quote }}
+  - name: COLLECTION_IS_USER_CREATE_ENABLED
+    value: {{ index .Values "user-create-enabled" | quote }}
+  - name: SEARCH_IGNORE_STATUS
+    value: {{ index .Values "search-ignore-status" | quote }}
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: JAVA_ENABLE_DEBUG
+    value: {{ index .Values "java-debug" | quote }}
+  - name: KAFKA_TOPICS_RECEIPT_CREATE_NAME
+    value: {{ index .Values "receipt-create-topic" | quote }}
+  - name: KAFKA_TOPICS_WORKFLOW_START_NAME
+    value: egov.collection.workflow-start
+  - name: KAFKA_TOPICS_WORKFLOW_START_KEY
+    value: workflow-start
+  - name: KAFKA_TOPICS_WORKFLOW_UPDATE_NAME
+    value: egov.collection.workflow-update
+  - name: KAFKA_TOPICS_PAYMENT_RECEIPTLINK_NAME
+    value: egov.collection.payment-create
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: collection-persist
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.springframework.kafka.support.serializer.JsonSerializer
+  - name: USER_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: EGOV_EGFCOMMONMASTERS_HOSTNAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-common-masters
+  - name: EGOV_EGFMASTERS_HOSTNAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egf-master
+  - name: EGOV_IDGEN_HOSTNAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-idgen
+  - name: EGOV_COMMON_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-common-masters
+  - name: EGOV_EGFMASTER_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egf-master
+  - name: EGOV_SERVICES_BILLING_SERVICE_HOSTNAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: billing-service
+  - name: EGOV_APPORTION_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-apportion-service
+  - name: RECEIPTNUMBER_SERVICEBASED
+    value: {{ index .Values "receiptnumber-servicebased" | quote }}
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"       
+  - name: EGOV_LOCALIZATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-localization
+  - name: COLL_NOTIFICATION_UI_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}
+  {{- if index .Values "apportion-endpoint" }}
+  - name: EGOV_APPORTION_APPORTION_ENDPOINT
+    value: {{ index .Values "apportion-endpoint" | quote }} 
+  {{- end }}

@@ -1,0 +1,50 @@
+{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
+{{- if .Values.check.essync.enabled }}
+---
+apiVersion: comcast.github.io/v1
+kind: KuberhealthyCheck
+metadata:
+  name: check-es-sync-tl
+  namespace: {{ .Values.checks_namespace }}
+spec:
+  runInterval: 5m
+  timeout: 2m
+  successfulJobsHistoryLimit: 1
+  podSpec:
+    containers:
+      - env:
+          - name: CHECK_NAME
+            value: "db_es_sync"
+          - name: DB_COUNT_QUERY
+            value: "SELECT count(*) from eg_tl_tradelicense"
+          - name: ES_INDEX_NAME
+            value: "tlindex-v1"
+          - name: ES_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: egov-config
+                key: es-host
+{{- range $key, $value := .Values.check.db.extraEnvs }}
+          - name: {{ $key }}
+            value: {{ $value | quote }}
+{{- end }}
+    {{- if .Values.check.db.env }}
+    {{- tpl  .Values.check.db.env . | nindent 10 }}
+    {{- end}}
+        image: {{ .Values.check.egov.image.repository }}:{{ .Values.check.egov.image.tag }}
+        imagePullPolicy: IfNotPresent
+        name: main
+        resources:
+          requests:
+            cpu: 10m
+            memory: 50Mi
+    {{- if .Values.check.db.nodeSelector }}
+    nodeSelector:
+{{- toYaml .Values.check.db.nodeSelector | nindent 6 }}
+    {{- end }}
+    restartPolicy: Never
+{{- end }}
+{{- end }}

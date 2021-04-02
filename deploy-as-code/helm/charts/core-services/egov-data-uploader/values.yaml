@@ -1,0 +1,76 @@
+# Common Labels
+labels:
+  app: "egov-data-uploader"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "data-uploader"
+
+# Init Containers Configs
+initContainers:
+  gitSync:
+    enabled: true
+    repo: "git@github.com:egovernments/configs"
+    branch: "master"
+
+# Container Configs
+image:
+  repository: "egov-data-uploader"
+replicas: "1"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx64m -Xms64m"
+upload-json-path: ""
+template-download-prefix: ""
+internal-file-folder-path: ""
+
+# Additional Container Envs
+env: |
+  - name: UPLOAD_JSON_PATH
+    value: file:///work-dir/configs/egov-uploader/billing-service.json
+  - name: SEARCH_YAML_PATH
+    value: "https://raw.githubusercontent.com/egovernments/egov-services/master/core/egov-data-uploader/src/main/resources/citizen-data-upload.yml"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: INTERNAL_FILE_FOLDER_PATH
+    value: "/tmp"
+  - name: PROPERTY_MODULE_NAME
+    value: "property-upload"
+  - name: PROPERTY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: pt-services-v2
+  - name: PROPERTY_CREATE
+    value: "pt-services-v2/property/_create"
+  - name: BUSINESS_MODULE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  - name: FILESTORE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-filestore
+  {{- if index .Values "upload-assessment" }}
+  - name: UPLOAD_JSON_PATH
+    value: {{ index .Values "upload-json-path" | quote }}
+  - name: TEMPLATE_DOWNLOAD_PREFIX
+    value: {{ index .Values "template-download-prefix" | quote }}
+  - name: INTERNAL_FILE_FOLDER_PATH
+    value: {{ index .Values "internal-file-folder-path" | quote }}
+  {{- end }}
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"           
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}

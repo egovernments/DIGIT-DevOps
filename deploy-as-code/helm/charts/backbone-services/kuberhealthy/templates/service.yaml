@@ -1,0 +1,32 @@
+{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ template "kuberhealthy.name" . }}
+  name: {{ template "kuberhealthy.name" . }}
+  namespace: {{ .Values.namespace }}
+  {{- if or .Values.prometheus.enabled .Values.service.annotations }}
+  annotations:
+  {{- if and .Values.prometheus.enabled (not .Values.prometheus.serviceMonitor) }}
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "80"
+    prometheus.io/path: "/metrics"
+  {{- end }}
+  {{- range $key, $value := .Values.service.annotations }}
+    {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+  - port: {{ .Values.service.externalPort }}
+    name: http
+    targetPort: http
+  selector:
+    app: {{ template "kuberhealthy.name" . }}
+{{- end -}}

@@ -1,0 +1,32 @@
+# Common Labels
+labels:
+  app: "requester-dashboard"
+  group: "ispirt"
+
+namespace: ispirit  
+
+# Ingress Configs
+ingress:
+  enabled: true
+  context: "requester-dashboard"
+  host: |
+    - host: {{ index .Values "global" "moca-domain" }}
+  tls: |
+      - hosts:
+        - {{ index .Values "global" "moca-domain" }}
+        secretName: {{ index .Values "global" "moca-domain" }}-tls-certs    
+  additionalAnnotations: |
+    certmanager.k8s.io/cluster-issuer: {{ index $.Values "cluster-configs" "root-ingress" "cert-issuer" | quote }}
+
+# Init Containers Configs
+initContainers: {}
+
+# Container Configs
+image:
+  repository: "requester-dashboard"
+replicas: "1"
+httpPort: 80
+healthChecks:
+  enabled: true
+  livenessProbePath: "/requester-dashboard/"
+  readinessProbePath: "/requester-dashboard/"

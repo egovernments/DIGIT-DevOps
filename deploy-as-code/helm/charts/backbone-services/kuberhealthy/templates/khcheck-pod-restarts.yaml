@@ -1,0 +1,40 @@
+{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
+{{- if .Values.check.podRestarts.enabled }}
+---
+apiVersion: comcast.github.io/v1
+kind: KuberhealthyCheck
+metadata:
+  name: pod-restarts
+  namespace: {{ .Values.checks_namespace }}
+spec:
+  runInterval: 5m
+  timeout: 10m
+  successfulJobsHistoryLimit: 1
+  podSpec:
+    containers:
+      - env:
+          - name: POD_NAMESPACE
+            value: "egov"
+          - name: CHECK_POD_TIMEOUT
+            value: "10m"
+{{- range $key, $value := .Values.check.podRestarts.extraEnvs }}
+          - name: {{ $key }}
+            value: {{ $value | quote }}
+{{- end }}
+        image: {{ .Values.check.podRestarts.image.repository }}:{{ .Values.check.podRestarts.image.tag }}
+        imagePullPolicy: IfNotPresent
+        name: main
+        resources:
+          requests:
+            cpu: 10m
+            memory: 50Mi
+    {{- if .Values.check.podRestarts.nodeSelector }}
+    nodeSelector:
+{{- toYaml .Values.check.podRestarts.nodeSelector | nindent 6 }}
+    {{- end }}
+    restartPolicy: Never
+{{- end }}
+{{- end }}

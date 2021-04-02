@@ -1,0 +1,37 @@
+{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
+{{- if .Values.check.dnsInternal.enabled }}
+---
+apiVersion: comcast.github.io/v1
+kind: KuberhealthyCheck
+metadata:
+  name: dns-status-internal
+  namespace: {{ .Values.checks_namespace }}
+spec:
+  runInterval: 2m
+  timeout: 15m
+  successfulJobsHistoryLimit: 1
+  podSpec:
+    containers:
+      - env:
+          - name: CHECK_POD_TIMEOUT
+            value: "110s"
+{{- range $key, $value := .Values.check.dnsInternal.extraEnvs }}
+          - name: {{ $key }}
+            value: {{ $value | quote }}
+{{- end }}
+        image: {{ .Values.check.dnsInternal.image.repository }}:{{ .Values.check.dnsInternal.image.tag }}
+        imagePullPolicy: IfNotPresent
+        name: main
+        resources:
+          requests:
+            cpu: 10m
+            memory: 50Mi
+    {{- if .Values.check.dnsInternal.nodeSelector }}
+    nodeSelector:
+{{- toYaml .Values.check.dnsInternal.nodeSelector | nindent 6 }}
+    {{- end }}
+{{- end }}
+{{- end }}

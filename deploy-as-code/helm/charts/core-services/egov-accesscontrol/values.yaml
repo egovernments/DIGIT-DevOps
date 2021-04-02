@@ -1,0 +1,48 @@
+# Common Labels
+labels:
+  app: "egov-accesscontrol"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "access"
+
+# Init Containers Configs
+initContainers: {}
+
+# Container Configs
+image:
+  repository: "egov-accesscontrol"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/access/health"
+  readinessProbePath: "/access/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+java-args: ""
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"         

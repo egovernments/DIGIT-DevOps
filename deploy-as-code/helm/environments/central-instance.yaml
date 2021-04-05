@@ -1,47 +1,38 @@
 global:
-  domain: uat.digit.org
+  domain: central-instance.digit.org
   tracing-enabled: true
 
 cluster-configs:
   namespaces:
     create: false
     values:
-      [
-        backbone,
-        cert-manager,
-        egov,
-        es-cluster,
-        kafka-cluster,
-        logging,
-        monitoring,
-        playground,
-        zookeeper-cluster,
-      ]
+      [ backbone, digit , cert-manager ]
 
   rbac:
     - role: user
-      namespaces: [egov]
+      namespaces: [backbone, digit ]
     - role: admin
-      namespaces: [playground]
+      namespaces: [digit ]
 
   root-ingress:
     cert-issuer: letsencrypt-prod
   configmaps:
     egov-config:
+      namespace: [digit ]
       data:
-        db-host: "egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com"
-        db-name: "egov_uat_db"
-        db-url: "jdbc:postgresql://egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com:5432/egov_uat_db"
-        bpa-db-url: "jdbc:postgresql://egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com:5432/bpa_uat_db"
-        erp-db-url: "jdbc:postgresql://egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com:5432/finance_uat_db"
-        domain: "uat.digit.org"
-        egov-services-fqdn-name: "https://uat.digit.org/"
+        db-host: "central-instance-db.cqqfmghbjssw.ap-south-1.rds.amazonaws.com"
+        db-name: "central_instance_db"
+        db-url: "jdbc:postgresql://central-instance-db.cqqfmghbjssw.ap-south-1.rds.amazonaws.com:5432/central_instance_db"
+        bpa-db-url: "jdbc:postgresql://central-instance-db.cqqfmghbjssw.ap-south-1.rds.amazonaws.com:5432/bpa_central_instance_db"
+        erp-db-url: "jdbc:postgresql://central-instance-db.cqqfmghbjssw.ap-south-1.rds.amazonaws.com:5432/finance_central_instance_db"
+        domain: "central-instance.digit.org"
+        egov-services-fqdn-name: "https://central-instance.digit.org/"
         egov-state-level-tenant-id: "pg"
-        es-host: "elasticsearch-data-v1.es-cluster"
-        es-indexer-host: "http://elasticsearch-data-v1.es-cluster:9200/"
+        es-host: "elasticsearch-data-v1.backbone"
+        es-indexer-host: "http://elasticsearch-data-v1.backbone:9200/"
         flyway-locations: "filesystem:/flyway/sql,filesystem:/flyway/seed,filesystem:/flyway/qa"
-        kafka-brokers: "kafka-v2.kafka-cluster:9092"
-        kafka-infra-brokers: "kafka-v2.kafka-cluster:9092"
+        kafka-brokers: "kafka-v2.backbone:9092"
+        kafka-infra-brokers: "kafka-v2.backbone:9092"
         logging-level-jdbc: "debug"
         mobile-validation-workaround: "true"
         s3-assets-bucket: "(pb-egov-assets|egov-playground-assets)"
@@ -55,102 +46,103 @@ cluster-configs:
         egov-indexer-yaml-repo-path: "https://raw.githubusercontent.com/egovernments/playground-rainmaker-customization/master/configs/egov-indexer/egov-telemetry-indexer.yml,https://raw.githubusercontent.com/egovernments/playground-rainmaker-customization/master/configs/egov-indexer/rainmaker-pgr-indexer.yml,https://raw.githubusercontent.com/egovernments/playground-rainmaker-customization/master/configs/egov-indexer/rainmaker-pt-indexer.yml,https://raw.githubusercontent.com/egovernments/playground-rainmaker-customization/master/configs/egov-indexer/billingservices-indexer.yml,https://raw.githubusercontent.com/egovernments/playground-rainmaker-customization/master/configs/egov-indexer/tradelicense-indexer.yml,https://raw.githubusercontent.com/egovernments/playground-rainmaker-customization/master/configs/egov-indexer/collection-indexer.yml,https://raw.githubusercontent.com/egovernments/playground-rainmaker-customization/master/configs/egov-indexer/egov-uploader-indexer.yml"
         tracer-errors-provideexceptionindetails: "true"
         timezone: "Asia/Kolkata"
-        es-infra-host: elasticsearch-data-v1.es-cluster
+        es-infra-host: elasticsearch-data-v1.backbone
 
     egov-service-host:
+      namespace: [ digit ]
       data:
-        asset-services: "http://asset-services:8080/"
-        asset-services-maha: "http://asset-services-maha:8080/"
-        billing-service: "http://billing-service:8080/"
-        collection-services: "http://collection-services:8080/"
-        collection-masters: "http://collection-masters:8080/"
-        collection-search-indexer: "http://collection-search-indexer:8080/"
-        citizen-indexer: "http://citizen-indexer:8080/"
-        citizen-services: "http://citizen-services:8080/"
-        dashboard-analytics: http://dashboard-analytics.egov:8080/
-        dashboard-ingest: http://dashboard-ingest.egov:8080/
-        demand-services: "http://demand-services:8080/"
-        data-sync-employee: "http://data-sync-employee:8080/"
-        egov-common-masters: "http://egov-common-masters:8080/"
-        egf-masters: "http://egf-masters:8080/"
-        egf-master: "http://egf-master:8080/"
-        egf-instrument: "http://egf-instrument:8080/"
-        egf-voucher: "http://egf-voucher:8080/"
-        egf-bill: "http://egf-bill:8080/"
-        egov-enc-service: "http://egov-enc-service.egov:8080/"
-        egf-voucher-workflow: "http://egf-voucher-workflow:8080/"
-        egov-accesscontrol: "http://egov-accesscontrol:8080/"
-        egov-user: "http://egov-user:8080/"
-        egov-user-egov: "http://egov-user.egov:8080/"
-        egov-location: "http://egov-location:8080/"
-        egov-filestore: "http://egov-filestore:8080/"
-        egov-localization: "http://egov-localization:8080/"
-        egov-idgen: "http://egov-idgen:8080/"
-        egov-otp: "http://egov-otp:8080/"
-        egov-common-workflows: "http://egov-common-workflows:8080/"
-        egov-mdms-service: "http://egov-mdms-service:8080/"
-        egov-mdms-service-test: "http://egov-mdms-service-test:8080/"
-        egov-mdms-create: "http://egov-mdms-create:8080/"
-        egov-eis: "http://egov-eis:8080/"
-        egov-workflow: "http://egov-workflow:8080/"
-        egov-workflow-v2: "http://egov-workflow-v2:8080/"
-        egov-searcher: "http://egov-searcher:8080/"
-        egov-data-uploader: "http://egov-data-uploader:8080/"
-        egov-indexer: "http://egov-indexer:8080/"
-        egov-hrms: "http://egov-hrms:8080/"
-        es-client: "http://elasticsearch-data-v1.es-cluster:9200"
-        hr-masters: "http://hr-masters:8080/"
-        hr-employee: "http://hr-employee:8080/"
-        hr-masters-v2: "http://hr-masters-v2:8080/"
-        hr-employee-v2: "http://hr-employee-v2:8080/"
-        hr-attendance: "http://hr-attendance:8080/"
-        hr-leave: "http://hr-leave:8080/"
-        hr-employee-movement: "http://hr-employee-movement:8080/"
-        inventory-services: "http://inventory-services:8080/"
-        lams-services: "http://lams-services:8080/"
-        lcms-workflow: "http://lcms-workflow:8080/"
-        lcms-services: "http://lcms-services:8080/"
-        location: "http://location:8080/"
-        performance-assessment: "http://performance-assessment:8080/"
-        pt-property: "http://pt-property:8080/"
-        pt-workflow: "http://pt-workflow:8080/"
-        pt-tax-enrichment: "http://pt-tax-enrichment:8080/"
-        pt-calculator: "http://pt-calculator:8080/"
-        pt-calculator-v2: "http://pt-calculator-v2:8080/"
-        pt-services-v2: "http://pt-services-v2:8080/"
-        property-services: "http://property-services.egov:8080/"
-        pgr-master: "http://pgr-master:8080/"
-        pgr-rest: "http://pgr-rest:8080/"
-        pdf-service: "http://pdf-service.egov:8080/"
-        report: "http://report:8080/"
-        swm-services: "http://swm-services:8080/"
-        tenant: "http://tenant:8080/"
-        tl-masters: "http://tl-masters:8080/"
-        tl-services: "http://tl-services:8080/"
-        tl-workflow: "http://tl-workflow:8080/"
-        tl-indexer: "http://tl-indexer:8080/"
-        tl-calculator: "http://tl-calculator:8080/"
-        user-otp: "http://user-otp:8080/"
-        firenoc-services: "http://firenoc-services:8080/"
-        firenoc-calculator: "http://firenoc-calculator:8080/"
-        egov-apportion-service: "http://egov-apportion-service:8080/"
-        bpa-services: "http://bpa-services.egov:8080/"
-        bpa-calculator: "http://bpa-calculator.egov:8080/"
-        rainmaker-pgr: "http://rainmaker-pgr:8080/"
-        ws-calculator: "http://ws-calculator.egov:8080/"
-        ws-services: "http://ws-services.egov:8080/"
-        sw-services: "http://sw-services.egov:8080/"
-        sw-calculator: "http://sw-calculator.egov:8080/"
-        land-services: "http://land-services.egov:8080/"
-        noc-services: "http://noc-services.egov:8080/"
-        minio-url: "https://minio-uat.digit.org/"
-        egov-user-chatbot: "http://egov-user-chatbot:8080/"
+        asset-services: "http://asset-services.digit:8080/"
+        asset-services-maha: "http://asset-services-maha.digit:8080/"
+        billing-service: "http://billing-service.digit:8080/"
+        collection-services: "http://collection-services.digit:8080/"
+        collection-masters: "http://collection-masters.digit:8080/"
+        collection-search-indexer: "http://collection-search-indexer.digit:8080/"
+        citizen-indexer: "http://citizen-indexer.digit:8080/"
+        citizen-services: "http://citizen-services.digit:8080/"
+        dashboard-analytics: http://dashboard-analytics.digit:8080/
+        dashboard-ingest: http://dashboard-ingest.digit:8080/
+        demand-services: "http://demand-services.digit:8080/"
+        data-sync-employee: "http://data-sync-employee.digit:8080/"
+        egov-common-masters: "http://egov-common-masters.digit:8080/"
+        egf-masters: "http://egf-masters.digit:8080/"
+        egf-master: "http://egf-master.digit:8080/"
+        egf-instrument: "http://egf-instrument.digit:8080/"
+        egf-voucher: "http://egf-voucher.digit:8080/"
+        egf-bill: "http://egf-bill.digit:8080/"
+        egov-enc-service: "http://egov-enc-service.digit:8080/"
+        egf-voucher-workflow: "http://egf-voucher-workflow.digit:8080/"
+        egov-accesscontrol: "http://egov-accesscontrol.digit:8080/"
+        egov-user: "http://egov-user.digit:8080/"
+        egov-user-egov: "http://egov-user.digit:8080/"
+        egov-location: "http://egov-location.digit:8080/"
+        egov-filestore: "http://egov-filestore.digit:8080/"
+        egov-localization: "http://egov-localization.digit:8080/"
+        egov-idgen: "http://egov-idgen.digit:8080/"
+        egov-otp: "http://egov-otp.digit:8080/"
+        egov-common-workflows: "http://egov-common-workflows.digit:8080/"
+        egov-mdms-service: "http://egov-mdms-service.digit:8080/"
+        egov-mdms-service-test: "http://egov-mdms-service-test.digit:8080/"
+        egov-mdms-create: "http://egov-mdms-create.digit:8080/"
+        egov-eis: "http://egov-eis.digit:8080/"
+        egov-workflow: "http://egov-workflow.digit:8080/"
+        egov-workflow-v2: "http://egov-workflow-v2.digit:8080/"
+        egov-searcher: "http://egov-searcher.digit:8080/"
+        egov-data-uploader: "http://egov-data-uploader.digit:8080/"
+        egov-indexer: "http://egov-indexer.digit:8080/"
+        egov-hrms: "http://egov-hrms.digit:8080/"
+        es-client: "http://elasticsearch-data-v1.backbone:9200"
+        hr-masters: "http://hr-masters.digit:8080/"
+        hr-employee: "http://hr-employee.digit:8080/"
+        hr-masters-v2: "http://hr-masters-v2.digit:8080/"
+        hr-employee-v2: "http://hr-employee-v2.digit:8080/"
+        hr-attendance: "http://hr-attendance.digit:8080/"
+        hr-leave: "http://hr-leave.digit:8080/"
+        hr-employee-movement: "http://hr-employee-movement.digit:8080/"
+        inventory-services: "http://inventory-services.digit:8080/"
+        lams-services: "http://lams-services.digit:8080/"
+        lcms-workflow: "http://lcms-workflow.digit:8080/"
+        lcms-services: "http://lcms-services.digit:8080/"
+        location: "http://location.digit:8080/"
+        performance-assessment: "http://performance-assessment.digit:8080/"
+        pt-property: "http://pt-property.digit:8080/"
+        pt-workflow: "http://pt-workflow.digit:8080/"
+        pt-tax-enrichment: "http://pt-tax-enrichment.digit:8080/"
+        pt-calculator: "http://pt-calculator.digit:8080/"
+        pt-calculator-v2: "http://pt-calculator-v2.digit:8080/"
+        pt-services-v2: "http://pt-services-v2.digit:8080/"
+        property-services: "http://property-services.digit:8080/"
+        pgr-master: "http://pgr-master.digit:8080/"
+        pgr-rest: "http://pgr-rest.digit:8080/"
+        pdf-service: "http://pdf-service.digit:8080/"
+        report: "http://report.digit:8080/"
+        swm-services: "http://swm-services.digit:8080/"
+        tenant: "http://tenant.digit:8080/"
+        tl-masters: "http://tl-masters.digit:8080/"
+        tl-services: "http://tl-services.digit:8080/"
+        tl-workflow: "http://tl-workflow.digit:8080/"
+        tl-indexer: "http://tl-indexer.digit:8080/"
+        tl-calculator: "http://tl-calculator.digit:8080/"
+        user-otp: "http://user-otp.digit:8080/"
+        firenoc-services: "http://firenoc-services.digit:8080/"
+        firenoc-calculator: "http://firenoc-calculator.digit:8080/"
+        egov-apportion-service: "http://egov-apportion-service.digit:8080/"
+        bpa-services: "http://bpa-services.digit:8080/"
+        bpa-calculator: "http://bpa-calculator.digit:8080/"
+        rainmaker-pgr: "http://rainmaker-pgr.digit:8080/"
+        ws-calculator: "http://ws-calculator.digit:8080/"
+        ws-services: "http://ws-services.digit:8080/"
+        sw-services: "http://sw-services.digit:8080/"
+        sw-calculator: "http://sw-calculator.digit:8080/"
+        land-services: "http://land-services.digit:8080/"
+        noc-services: "http://noc-services.digit:8080/"
+        minio-url: "https://minio-central-instance.digit.org/"
+        egov-user-chatbot: "http://egov-user-chatbot.digit:8080/"
         zuul: "http://zuul:8080/"
-        egov-url-shortening: "http://egov-url-shortening:8080/"
-        fsm-calculator: "http://fsm-calculator.egov:8080/"
-        fsm: "http://fsm.egov:8080/"
-        vehicle: "http://vehicle.egov:8080"
-        vendor: "http://vendor.egov:8080"
+        egov-url-shortening: "http://egov-url-shortening.digit:8080/"
+        fsm-calculator: "http://fsm-calculator.digit:8080/"
+        fsm: "http://fsm.digit:8080/"
+        vehicle: "http://vehicle.digit:8080"
+        vendor: "http://vendor.digit:8080"
 
 billing-service:
   memory_limits: 512Mi
@@ -388,7 +380,7 @@ dashboard-ingest:
 nginx-ingress:
   replicas: 1
   default-backend-service: "egov/nginx"
-  namespace: egov
+  namespace: digit
   cert-issuer: "letsencrypt-prod"
   ssl-protocols: "TLSv1.2 TLSv1.3"
   ssl-ciphers: "EECDH+CHACHA20:EECDH+AES"
@@ -399,8 +391,8 @@ nginx-ingress:
       tag: "0.26.1"
     metrics:
       enabled: true
-      serviceMonitor:
-        enabled: true
+      #serviceMonitor:
+      #  enabled: true
     service:
       annotations:
         service.beta.kubernetes.io/aws-load-balancer-type: nlb
@@ -411,7 +403,7 @@ cert-manager:
   email: "nithin.dv@egovernments.org"
   images:
     - "quay.io/jetstack/cert-manager-controller:v0.10.1"
-  namespace: egov
+  namespace: digit
 
 egov-custom-consumer:
   erp-host: "https://citya-uat.digit.org/"
@@ -565,6 +557,7 @@ logging-config:
   es-port: "9200"
 
 jaeger:
+  namespace: backbone
   host: "jaeger-agent.monitoring"
   port: "6831"
   sampler-type: const
@@ -634,22 +627,26 @@ jaeger:
 
 # redis >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 redis:
+  namespace: backbone
   replicas: 1
   images:
     - egovio/redis:3.2
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 kafka-v2:
+  namespace: backbone
+  image:
+    tag: "5.4.1"
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-01cb09c8d7eb8e264"
+      - volumeId: "vol-012c64a6e80f6f141"
         zone: ap-south-1b
-      - volumeId: "vol-08e32a868ad3eef25"
+      - volumeId: "vol-03de4321b1d75a62e"
         zone: ap-south-1b
-      - volumeId: "vol-094ba231e7c6a337e"
+      - volumeId: "vol-0e49583165c853528"
         zone: ap-south-1b
-  zookeeperHosts: "zookeeper-v2.zookeeper-cluster:2181/kafka-v2"
+  zookeeperHosts: "zookeeper-v2.backbone:2181/kafka-v2"
 
   heapOptions: "-Xms704M -Xmx704M"
   memory_limits: 1408Mi
@@ -660,17 +657,29 @@ kafka-v2:
   offsetsReplicationFactor: "3"
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+kafka-connect:
+  namespace: backbone
+  image:
+    tag: "5.4.1" 
+
+# <<<<<<<<<<<<<<<<<<<<<<<<<<
+kafka-connect-restart-tasks:
+  namespace: backbone
+  kafka-connect-hosts: "kafka-connect-infra.backbone:8083,kafka-connect.backbone:8083"     
 
 # zookeeper-v2 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 zookeeper-v2:
+  namespace: backbone
+  image:
+    tag: "5.4.1"
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-0d7f7e2f2ab3258c0"
+      - volumeId: "vol-0e42d9427229ebbd6"
         zone: ap-south-1b
-      - volumeId: "vol-07b99362e510f99d6"
+      - volumeId: "vol-03d4567a5045cdbed"
         zone: ap-south-1b
-      - volumeId: "vol-0e7b0a346d4e67d49"
+      - volumeId: "vol-0f66315189738e1ac"
         zone: ap-south-1b
 
   ## Zookeeper JVM Heap Option
@@ -691,16 +700,17 @@ zookeeper-v2:
 
 # es-v1-cluster >>>>>>>>>>>>>>>>>>>>>>>>>>>>
 elasticsearch-data-v1:
+  namespace: backbone
   image:
     tag: 6.6.2
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-0615d97585fde6dd2"
+      - volumeId: "vol-01662a60ec6138a5a"
         zone: ap-south-1b
-      - volumeId: "vol-0a4bb63e3b0b7a6e5"
+      - volumeId: "vol-05fae86bda5669ba3"
         zone: ap-south-1b
-      - volumeId: "vol-0613fdd01a7131127"
+      - volumeId: "vol-051db52df4ffef8a0"
         zone: ap-south-1b
 
   esJavaOpts: "-Xmx1g -Xms1g"
@@ -713,17 +723,18 @@ elasticsearch-data-v1:
       memory: "2Gi"
 
 elasticsearch-master-v1:
+  namespace: backbone
   replicas: 3
   image:
     tag: 6.6.2
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-0df4b687fa1115158"
+      - volumeId: "vol-08fc19b9a26078e83"
         zone: ap-south-1b
-      - volumeId: "vol-05bd14c37e2cd64e9"
+      - volumeId: "vol-0b7178613b71e1510"
         zone: ap-south-1b
-      - volumeId: "vol-00e016f7f82725568"
+      - volumeId: "vol-0dd38bbc54eba2a07"
         zone: ap-south-1b
 
   esJavaOpts: "-Xmx448m -Xms448m"
@@ -765,6 +776,7 @@ logrotate:
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 playground:
+  namespace: digit
   replicas: 1
   images:
     - egovio/playground:1.0
@@ -812,6 +824,7 @@ whatsapp-webhook:
     - rushang7/push-to-kafka:1.0.0-bronze
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 grafana:
+  namespace: backbone
   initContainers:
     gitSync:
       enabled: true
@@ -820,6 +833,7 @@ grafana:
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 minio:
+  namespace: backbone
   mode: distributed
   disableWebUI: false
   persistence:
@@ -835,15 +849,16 @@ minio:
       - volumeId: "vol-015c0f14cb3927c68"
         zone: ap-south-1a
   ingress:
-    hostName: minio-uat.digit.org
+    hostName: minio-uat.digit.org  
 
 
 oauth2-proxy:
+  namespace: digit
   config:
     configFile: |-
       email_domains = [ "*" ]
       github_org = "egovernments"
-      github_team = "micro-service-uat,devops"
+      github_team = "micro-service-dev,devops"
       upstreams = [ "file:///dev/null" ]
 
 # eGov-eDCR Tenants

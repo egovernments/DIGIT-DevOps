@@ -5,6 +5,7 @@ provider "google" {
 
 module "kubernetes" {
   source = "../modules/kubernetes/gke"
+  project_id = "${var.project_id}"
   region = "${var.region}"
   gke_username = "${var.gke_username}"
   gke_password = "${var.gke_password}"
@@ -59,6 +60,8 @@ module "es-data-v1" {
 
 module "postgres-db" {
   source = "../modules/db/gke"
+  env_name = "${var.env_name}"
+  region = "${var.region}"
   db_version = "POSTGRES_11"
   db_tier = "db-f1-micro"
   db_activation_policy = "ALWAYS"

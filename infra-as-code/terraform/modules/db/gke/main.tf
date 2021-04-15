@@ -31,6 +31,19 @@ resource "google_sql_database_instance" "postgresql" {
   }
 }
 
+resource "null_resource" "module_depends_on" {
+  triggers = {
+    value = length(var.module_depends_on)
+ }
+}
+resource "random_id" "user_password" {
+  keepers = {
+    name = google_sql_database_instance.postgresql.name
+  }
+  byte_length = 8
+  depends_on  = [null_resource.module_depends_on, google_sql_database_instance.postgresql]
+}
+
 # create database
 resource "google_sql_database" "postgresql_db" {
   name = "${var.db_name}"
@@ -38,3 +51,4 @@ resource "google_sql_database" "postgresql_db" {
   charset = "${var.db_charset}"
   collation = "${var.db_collation}"
 }
+

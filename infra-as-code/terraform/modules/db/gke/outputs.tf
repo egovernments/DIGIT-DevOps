@@ -1,11 +1,10 @@
 output "db_instance_address" {
   description = "IP address of the master database instance"
-  value = "${google_sql_database_instance.my_sql.ip_address.0.
-    ip_address}"
+  value = "${google_sql_database_instance.postgresql.ip_address.0.ip_address}"
 }
 output "db_instance_name" {
   description = "Name of the database instance"
-  value = "${google_sql_database_instance.my_sql.name}"
+  value = "${google_sql_database_instance.postgresql.name}"
 }
 output "db_instance_username" {
   description = "Name of the database user" 

@@ -1,6 +1,9 @@
 variable db_version {
   description = "The version of of the database"
 }
+variable region {
+  description = "The region of of the database"
+}
 variable db_tier {
   description = "The machine tier (First Generation) or type (Second Generation). Reference: https://cloud.google.com/sql/pricing"
 }
@@ -47,6 +50,11 @@ variable db_user_password {
   default = ""
 }
 
-variable env_name {
-  default = "${var.env_name}"
+variable env_name{
+}
+
+variable "module_depends_on" {
+  description = "List of modules or resources this module depends on."
+  type        = list(any)
+  default     = []
 }

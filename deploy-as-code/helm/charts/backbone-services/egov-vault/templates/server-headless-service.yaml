@@ -1,0 +1,26 @@
+{{ template "vault.mode" . }}
+{{- if ne .mode "external" }}
+{{- if and (eq (.Values.server.service.enabled | toString) "true" ) (eq (.Values.global.enabled | toString) "true") }}
+# Service for Vault cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "name" . }}-internal
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ template "name" . }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: "{{ include "vault.scheme" . }}"
+      port: {{ .Values.server.service.port }}
+      targetPort: {{ .Values.server.service.targetPort }}
+    - name: https-internal
+      port: 8201
+      targetPort: 8201
+  selector:
+    app.kubernetes.io/name: {{ template "name" . }}
+    component: server
+{{- end }}
+{{- end }}

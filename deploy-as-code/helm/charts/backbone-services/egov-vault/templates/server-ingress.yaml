@@ -1,0 +1,39 @@
+{{- if .Values.server.ingress.enabled -}}
+{{ if .Capabilities.APIVersions.Has "networking.k8s.io/v1beta1" }}
+apiVersion: networking.k8s.io/v1beta1
+{{ else }}
+apiVersion: extensions/v1beta1
+{{ end }}
+kind: Ingress
+metadata:
+  name: {{ template "name" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ template "name" . }}
+  annotations:
+  {{- toYaml .Values.server.ingress.annotations  | nindent 4 }}    
+spec:
+  rules:
+{{- if .Values.server.ingress.hostName }} 
+  - host: {{ .Values.server.ingress.hostName }}
+{{- else }}  
+  - host: {{ .Values.global.domain }}
+{{- end }}
+    http:
+      paths:
+      - backend:
+          serviceName: {{ template "name" . }}
+          servicePort: {{ .Values.server.service.port }}
+        path: /{{ .Values.server.ingress.context }}
+            
+  tls: 
+{{- if .Values.server.ingress.hostName }}
+  - hosts: 
+    - {{ .Values.server.ingress.hostName }}
+    secretName: {{ .Values.server.ingress.hostName }}-tls-certs  
+{{- else }}      
+  - hosts:
+    - {{ .Values.global.domain }}
+    secretName: {{ .Values.global.domain }}-tls-certs 
+{{- end }} 
+{{- end }}

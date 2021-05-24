@@ -2,39 +2,45 @@ provider "aws" {
   region = "ap-south-1"
 }
 
-
-module "eks-node-group" {
-  source = "umotif-public/eks-node-group/aws"
-  version = "~> 3.0.0"
-
+resource "aws_eks_node_group" "main" {
   cluster_name = "${var.cluster_name}"
-
-
   node_group_name = "${var.node_group_name}"
-  node_role_arn = "arn:aws:iam::680148267093:role/central-instance20210323100117412900000009"
-  launch_template = {
-    name = "central-instance-spot2021032310012670630000000e"
-    version = "1"
+  node_role_arn = "${var.node_role_arn}"
+
+  subnet_ids = "${var.subnet_ids}"
+  ami_type = "AL2_x86_64"
+  disk_size = 100
+  instance_types = "${var.instance_types}"
+  capacity_type = "SPOT"
+  version = 1.15 
+
+  labels = {
+    lifecycle = "spot"
+    Name = "${var.node_group_name}"
+    Environment  = "${var.node_group_name}"
   }
 
-  subnet_ids = ["subnet-0f7580acc0543e17b"]
+  scaling_config {
+    desired_size = 1
+    min_size     = 1
+    max_size     = 1
+  }
 
-  desired_size = 1
-  min_size     = 1
-  max_size     = 1
-
-
-  ec2_ssh_key = "eks-test"
-
-  kubernetes_labels = {
-    lifecycle = "OnDemand"
-    name = "${var.node_group_name}"
+  dynamic "remote_access" {
+    for_each = var.ec2_ssh_key != null && var.ec2_ssh_key != "" ? ["true"] : []
+    content {
+      ec2_ssh_key               = var.ec2_ssh_key
+      source_security_group_ids = var.source_security_group_ids
+    }
   }
 
   force_update_version = true
 
 
   tags = {
-    Environment = "test"
+    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
+     KubernetesCluster = "${var.cluster_name}"
+     Environment = "${var.node_group_name}"
+     Name = "${var.node_group_name}"
   }
 }

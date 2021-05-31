@@ -1,0 +1,29 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ .Values.namespace }} 
+  labels:
+{{- include "common.labels" . | nindent 4 }} 
+  annotations:
+{{- toYaml .Values.ingress.annotations | nindent 4 }}              
+spec:
+  rules: 
+  - host: {{ .Values.ingress.hostName }}  
+    http:
+      paths:
+      - backend:
+          serviceName: {{ .Values.ingress.serviceName }}
+          servicePort: {{ .Values.ingress.servicePort }}       
+        path: /{{ .Values.ingress.context }}
+  - host: {{ .Values.ingress.hostName }}  
+    http:
+      paths:
+      - backend:
+          serviceName: {{ .Values.ingress.serviceName2 }}
+          servicePort: {{ .Values.ingress.servicePort2 }}       
+        path: /{{ .Values.ingress.context2 }}
+  tls:
+  - hosts: 
+    - {{ .Values.ingress.hostName }}
+    secretName: {{ .Values.ingress.hostName }}-tls-certs

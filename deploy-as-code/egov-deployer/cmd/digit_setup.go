@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"container/list"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -42,10 +43,14 @@ func (set *Set) Get(i string) bool {
 func main() {
 	//Input the yaml file and the required service using flag
 	var argFile string
+	var env string
+	svclist := list.New()
 	fmt.Print("INFO: 1. Validating if chart file exists....")
 	flag.StringVar(&argFile, "f", "", "YAML file to parse.")
 	service := flag.String("s", "", "a string")
+	flag.StringVar(&env, "e", "", "a string var")
 	flag.Parse()
+
 	if argFile == "" {
 		fmt.Println("\n\tWARNING: Please provide yaml file by using -f option")
 		return
@@ -82,42 +87,28 @@ func main() {
 		m[s.Name] = s.Services
 	}
 	fmt.Print("Success\n")
-	//fmt.Print("Printing map after the mapping", m)
 
 	//Checking dependencies of service on core or buisness services etc.
 	fmt.Println("INFO: 5. Mapping dependancies to the service category....")
-	var argStr string
-	for _, s := range fullChart.Modules {
-		if s.Name == *service {
-			if s.Dependencies != nil {
-				for _, deps := range s.Dependencies {
-					for _, service := range m[deps] {
-						set.Add(service) //Put array of images into the set
-						if len(argStr) == 0 {
-							argStr = service + ","
-						} else {
-							argStr = argStr + service + ","
-						}
-					}
-				}
+	var argStr string = ""
+
+	getService(fullChart, *service, *set, svclist)
+
+	for element := svclist.Front(); element != nil; element = element.Next() {
+		for _, service := range m[element.Value.(string)] {
+			argStr = argStr + service
+			if element.Next() != nil {
+				argStr = argStr + ","
 			}
-			for _, service := range s.Services {
-				set.Add(service)
-				if len(argStr) == 0 {
-					argStr = service + ","
-				} else {
-					argStr = argStr + service + ","
-				}
-			}
+
 		}
 	}
-	fmt.Println(argStr)
-	//str := fmt.Sprintf("%v", set)
 
-	//fmt.Println(str)
-	parts := strings.Fields("go run main.go deploy -e <desiredEnv> -p <desiredProject>")
+	goDeployCmd := fmt.Sprintf("go run deploy-as-code/egov-deployer/main.go deploy -e %s '%s' -p", env, argStr)
 
-	fmt.Println("Printing full command part %s", parts)
+	parts := strings.Fields(goDeployCmd)
+
+	fmt.Println("Printing full command part", parts)
 
 	//	The first part is the command, the rest are the args:
 	head := parts[0]
@@ -136,8 +127,27 @@ func main() {
 	cmd.Stderr = &stderr
 
 	//	Run the command
-	cmd.Run()
+	err = cmd.Run()
 
-	//fmt.Printf("Result: %v / %v", out.String(), stderr.String())
+	if err != nil {
+		fmt.Printf("Error phrase: %q\n", err)
+	}
 
+	fmt.Printf("Result: %v / %v", out.String(), stderr.String())
+
+}
+
+func getService(fullChart Digit, service string, set Set, svclist *list.List) {
+	for _, s := range fullChart.Modules {
+		if s.Name == service {
+			if set.Add(service) {
+				svclist.PushFront(service) //Add services into the list
+				if s.Dependencies != nil {
+					for _, deps := range s.Dependencies {
+						getService(fullChart, deps, set, svclist)
+					}
+				}
+			}
+		}
+	}
 }

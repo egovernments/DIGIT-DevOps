@@ -1,4 +1,4 @@
-module github.com/egovernments/eGov-infraOps/egov-deployer
+module github.com/egovernments/DIGIT-DevOps/deploy-as-code/egov-deployer
 
 go 1.13
 

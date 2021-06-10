@@ -1,0 +1,147 @@
+# Common Labels
+labels:
+  app: "care-celery-beat"
+  group: "core"
+
+
+# Ingress Configs
+ingress:
+  enabled: false
+  zuul: false
+  waf: 
+    enabled: false
+
+# Init Containers Configs
+initContainers: {}
+
+# Container Configs
+image:
+  repository: "care-celery-beat"
+replicas: "1"
+appType: "java-spring"
+tracing-enabled: true
+healthChecks:
+  enabled: false
+  livenessProbePath: ""
+  readinessProbePath: ""
+heap: "-Xmx256m -Xms256m"
+java-args: ""
+httpPort: 9000
+
+# Additional Container Envs
+env: |
+  - name: POSTGIS_URL
+    valueFrom: 
+      secretKeyRef: 
+        name: care
+        key: postgis-url
+  - name: DJANGO_ADMIN_URL
+    value: {{ index .Values "django-admin-url" | quote }}
+  - name: DJANGO_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: care
+        key: django-secret-key
+  - name: FERNET_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: care
+        key: fernet-secret-key  
+  - name: DJANGO_SETTINGS_MODULE
+    value: {{ index .Values "django-settings-module" | quote }}   
+  - name: USE_S3
+    value: {{ index .Values "use-s3" | quote }}         
+  {{- if eq (index .Values "use-s3") "true" }}
+  - name: AWS_STORAGE_BUCKET_NAME
+    value: {{ index .Values "aws-storage-bucket-name" | quote }}      
+  - name: AWS_ACCESS_KEY_ID
+    valueFrom:
+      secretKeyRef:
+        name: care
+        key: aws-access-key-id
+  - name: AWS_SECRET_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: care
+        key: aws-secret-access-key
+  {{- end }}
+  - name: REDIS_URL
+    value: {{ index .Values "redis-url" | quote }} 
+  - name: CELERY_BROKER_URL
+    value: {{ index .Values "celery-broker-url" | quote }} 
+  - name: SENTRY_DSN
+    value: {{ index .Values "sentry-dsn" | quote }} 
+  - name: GOOGLE_RECAPTCHA_SITE_KEY
+    valueFrom:
+      secretKeyRef:
+        name: care
+        key: google-replica-site-key
+  - name: GOOGLE_RECAPTCHA_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: care
+        key: google-replica-secret-key
+  - name: CSRF_TRUSTED_ORIGINS
+    value: {{ index .Values "csrf-trusted-origins" | quote }} 
+  - name: DJANGO_SECURE_SSL_REDIRECT
+    value: {{ index .Values "django-secure-ssl-redirect" | quote }} 
+  - name: RATE_LIMIT
+    value: {{ index .Values "rate-limit" | quote }} 
+  - name: MAINTENANCE_MODE
+    value: {{ index .Values "maintenance-mode" | quote }} 
+  - name: POSTGRES_DB
+    valueFrom: 
+      configMapKeyRef: 
+        name: egov-config
+        key: care-db-name
+  - name: POSTGRES_HOST
+    valueFrom: 
+      configMapKeyRef: 
+        name: egov-config
+        key: db-host
+  - name: POSTGRES_USER
+    valueFrom: 
+      secretKeyRef: 
+        name: db
+        key: username
+  - name: POSTGRES_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: POSTGRES_PORT
+    valueFrom: 
+      configMapKeyRef: 
+        name: egov-config
+        key: care-db-port  
+  - name: FILE_UPLOAD_BUCKET
+    value: {{ index .Values "file-upload-bucket" | quote }}
+  - name: EMAIL_HOST
+    value: {{ index .Values "email-host" | quote }}
+  - name: EMAIL_USER
+    value: {{ index .Values "email-user" | quote }}
+  - name: EMAIL_PASSWORD
+    valueFrom: 
+      secretKeyRef: 
+        name: care
+        key: email-password
+  - name: SNS_ACCESS_KEY
+    valueFrom: 
+      secretKeyRef: 
+        name: care
+        key: sns-access-key
+  - name: SNS_SECRET_KEY
+    valueFrom: 
+      secretKeyRef: 
+        name: care
+        key: sns-secret-key
+  - name: FILE_UPLOAD_KEY
+    valueFrom: 
+      secretKeyRef: 
+        name: care
+        key: aws-access-key-id
+  - name: FILE_UPLOAD_SECRET
+    valueFrom: 
+      secretKeyRef: 
+        name: care
+        key: aws-secret-access-key

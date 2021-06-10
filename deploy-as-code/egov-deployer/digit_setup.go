@@ -5,7 +5,10 @@ import (
 	"container/list"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"log"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -106,14 +109,14 @@ func main() {
 		}
 	}
 
-	goPrintCmd := fmt.Sprintf("go run main.go deploy -e %s '%s' -p", env, argStr)
+	goPrintCmd := fmt.Sprintf("go run main.go deploy -e %s %s -p", env, argStr)
 	execCommand(goPrintCmd)
 
 	var deploy string
 	fmt.Print("Do you want to deploy the mamifest to cluster? yes/no: ")
 	fmt.Scanf("%s", &deploy)
 	if deploy == "yes" || deploy == "YES" || deploy == "y" || deploy == "Y" {
-		goDeployCmd := fmt.Sprintf("go run main.go deploy -e %s '%s'", env, argStr)
+		goDeployCmd := fmt.Sprintf("go run main.go deploy -e %s %s", env, argStr)
 		execCommand(goDeployCmd)
 	}
 }
@@ -136,21 +139,19 @@ func getService(fullChart Digit, service string, set Set, svclist *list.List) {
 func execCommand(command string) {
 	var err error
 	parts := strings.Fields(command)
-	fmt.Println("Printing full command part", parts)
+	log.Println("Printing full command part", parts)
 	//	The first part is the command, the rest are the args:
 	head := parts[0]
 	args := parts[1:len(parts)]
 	//	Format the command
 	cmd := exec.Command(head, args...)
-	//capture stdout and stderr:
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-	//	Run the command
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
+
 	err = cmd.Run()
 	if err != nil {
-		fmt.Printf("Error phrase: %q\n", err)
+		log.Fatalf("cmd.Run() failed with %s\n", err)
 	}
-	fmt.Printf("Result: %v / %v", out.String(), stderr.String())
 }

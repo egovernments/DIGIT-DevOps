@@ -15,8 +15,8 @@ limitations under the License.
 */
 package main
 
-import "github.com/egovernments/DIGIT-DevOps/deploy-as-code/egov-deployer/cmd"
+import "github.com/egovernments/eGov-infraOps/egov-deployer/cmd"
 
 func main() {
-	cmd.Execute()
+  cmd.Execute()
 }

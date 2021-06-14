@@ -2,24 +2,26 @@
 # Variables Configuration
 #
 
+## Add Cluster Name
 variable "cluster_name" {
-  default = "egov-qa"
+  default = "Cluster name"  
 }
 
+## Add vpc_cidr_block
 variable "vpc_cidr_block" {
-  default = "10.0.0.0/16"
+  default = "CIDR" 
 }
 
 variable "network_availability_zones" {
-  default = ["ap-south-1a", "ap-south-1b"]
+  default = ["ap-south-1b", "ap-south-1a"]
 }
 
 variable "availability_zones" {
-  default = ["ap-south-1a"]
+  default = ["ap-south-1b"]
 }
 
 variable "kubernetes_version" {
-  default = "1.15"
+  default = "1.18"
 }
 
 variable "instance_type" {
@@ -32,12 +34,18 @@ variable "override_instance_types" {
 }
 
 variable "number_of_worker_nodes" {
-  default = "4"
+  default = "3"
 }
 
+##Add ssh key
 variable "ssh_key_name" {
-default = "egov-dev"
+  default = "ssh key name"
 }
+
+
 variable "iam_keybase_user" {
   default = "keybase:egovterraform"
 }
+
+variable "db_password" {}
+

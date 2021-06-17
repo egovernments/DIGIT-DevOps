@@ -125,12 +125,18 @@ spec:
         volumeMounts:
         - name: zookeeper-data
           mountPath: /var/lib/zookeeper/
-      {{- if .Values.prometheus.jmx.enabled }}          
+    {{- if or .Values.prometheus.jmx.enabled (not .Values.persistence.enabled) }}           
       volumes:
+      {{ if not .Values.persistence.enabled }}
+      - name: zookeeper-data
+        emptyDir: {}
+      {{- end }}
+      {{ if .Values.prometheus.jmx.enabled }}       
       - name: jmx-config
         configMap:
           name: {{ template "name" . }}-jmx-configmap
       {{- end }} 
+    {{- end }} 
 {{- if .Values.persistence.enabled }}                
   volumeClaimTemplates:
   - metadata:

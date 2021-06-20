@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"container/list"
-	"flag"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -11,7 +11,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	s "strings"
 
+	"github.com/manifoldco/promptui"
 	"gopkg.in/yaml.v2"
 )
 
@@ -44,59 +46,60 @@ func (set *Set) Get(i string) bool {
 }
 
 func main() {
-	//Input the yaml file and the required service using flag
-	var argFile string
-	var env string
+	var versionfiles []string
+	var envfiles []string
+	var modules []string
+	var selectedMod []string
 	svclist := list.New()
-	fmt.Print("INFO: 1. Validating if chart file exists....")
-	flag.StringVar(&argFile, "f", "", "YAML file to parse.")
-	service := flag.String("s", "", "a string")
-	flag.StringVar(&env, "e", "", "a string var")
-	flag.Parse()
+	set := NewSet()
+	var argStr string = ""
 
-	if argFile == "" {
-		fmt.Println("\n\tWARNING: Please provide yaml file by using -f option")
-		return
-	} else {
-		fmt.Print("Success\n")
+	fmt.Println("Welcome to DIGIT DEPLOYMENT!!!")
+
+	setClusterContext()
+
+	files, err := ioutil.ReadDir("../helm/digit-release-versions/")
+	if err != nil {
+		log.Fatal(err)
 	}
+	for _, f := range files {
+		name := f.Name()
+		versionfiles = append(versionfiles, name[s.Index(name, "-v")+1:s.Index(name, ".y")])
+	}
+	version := sel(versionfiles, "Select the Version You would like to install")
+	argFile := "../helm/digit-release-versions/digit_dependancy_chart-" + version + ".yaml"
 
 	// Decode the yaml file and assigning the values to a map
-	fmt.Print("INFO: 2. Reading chart file to install DIGIT Services....")
 	chartFile, err := ioutil.ReadFile(argFile)
 	if err != nil {
 		fmt.Println("\n\tERROR: Reading file =>", argFile, err)
 		return
-	} else {
-		fmt.Print("Success\n")
 	}
 
 	// Parse the yaml values
-	fmt.Print("INFO: 3. Parsing chart file details....")
 	fullChart := Digit{}
 	err = yaml.Unmarshal(chartFile, &fullChart)
 	if err != nil {
 		fmt.Println("\n\tERROR: Parsing => ", argFile, err)
 		return
-	} else {
-		fmt.Print("Success\n")
 	}
 
 	// Mapping the images to servicename
-	fmt.Print("INFO: 4. Reading all services undier the service category....")
 	var m = make(map[string][]string)
-	set := NewSet()
 	for _, s := range fullChart.Modules {
 		m[s.Name] = s.Services
+		modules = append(modules, s.Name)
 	}
-	fmt.Print("Success\n")
+	modules = append(modules, "Exit")
+	result := sel(modules, "Select the modules you want to install, choose Exit to complete selection")
+	for result != "Exit" {
+		selectedMod = append(selectedMod, result)
+		result = sel(modules, "Select the modules you want to install, choose Exit to complete selection")
+	}
 
-	//Checking dependencies of service on core or buisness services etc.
-	fmt.Println("INFO: 5. Mapping dependancies to the service category....")
-	var argStr string = ""
-
-	getService(fullChart, *service, *set, svclist)
-
+	for _, mod := range selectedMod {
+		getService(fullChart, mod, *set, svclist)
+	}
 	for element := svclist.Front(); element != nil; element = element.Next() {
 		imglist := m[element.Value.(string)]
 		imglistsize := len(imglist)
@@ -109,14 +112,35 @@ func main() {
 		}
 	}
 
-	goPrintCmd := fmt.Sprintf("go run main.go deploy -e %s %s -p", env, argStr)
-	execCommand(goPrintCmd)
+	envfilesFromDir, err := ioutil.ReadDir("../helm/environments/")
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, envfile := range envfilesFromDir {
+		filename := envfile.Name()
+		if !s.Contains(filename, "secrets") {
+			envfiles = append(envfiles, filename[0:s.Index(filename, ".yaml")])
+		}
+	}
 
-	var deploy string
-	fmt.Print("Do you want to deploy the mamifest to cluster? yes/no: ")
-	fmt.Scanf("%s", &deploy)
-	if deploy == "yes" || deploy == "YES" || deploy == "y" || deploy == "Y" {
-		goDeployCmd := fmt.Sprintf("go run main.go deploy -e %s %s", env, argStr)
+	env := sel(envfiles, "Select the environment you want to install the Modules")
+	fmt.Print("")
+	var goDeployCmd string
+	confirm := []string{"Yes", "No"}
+
+	clusterConf := sel(confirm, "Do you want to install the cluster configs?")
+	if clusterConf == "Yes" {
+		goDeployCmd = fmt.Sprintf("go run main.go deploy -c -e %s %s", env, argStr)
+	} else {
+		goDeployCmd = fmt.Sprintf("go run main.go deploy -e %s %s", env, argStr)
+	}
+	preview := sel(confirm, "Do you want to preview the installation manifests?")
+	if preview == "Yes" {
+		goDeployCmd = fmt.Sprintf("%s -p", goDeployCmd)
+		execCommand(goDeployCmd)
+	}
+	consent := sel(confirm, "Please provide you consent to proceed with the installation?")
+	if consent == "Yes" {
 		execCommand(goDeployCmd)
 	}
 }
@@ -136,10 +160,10 @@ func getService(fullChart Digit, service string, set Set, svclist *list.List) {
 	}
 }
 
-func execCommand(command string) {
+func execCommand(command string) error {
 	var err error
 	parts := strings.Fields(command)
-	log.Println("Printing full command part", parts)
+	//log.Println("Printing full command part", parts)
 	//	The first part is the command, the rest are the args:
 	head := parts[0]
 	args := parts[1:len(parts)]
@@ -154,4 +178,65 @@ func execCommand(command string) {
 	if err != nil {
 		log.Fatalf("cmd.Run() failed with %s\n", err)
 	}
+	return err
+}
+
+func setClusterContext() {
+	validatepath := func(input string) error {
+		_, err := os.Stat(input)
+		if os.IsNotExist(err) {
+			return errors.New("File does not exist")
+		}
+		return nil
+	}
+
+	kubeconfig := enterValue(validatepath, "Please enter the fully qualified path of the kubeconfig file")
+	getcontextcmd := fmt.Sprintf("kubectl config get-contexts --kubeconfig=%s", kubeconfig)
+
+	execCommand(getcontextcmd)
+	context := enterValue(nil, "Please enter the cluster context to be used from the avaliable contexts")
+	usecontextcmd := fmt.Sprintf("kubectl config use-context %s --kubeconfig=%s", context, kubeconfig)
+	execCommand(usecontextcmd)
+
+}
+
+func usecontext(kubeconfig string) {
+	validatecontext := func(context string) error {
+		fmt.Println(context)
+		usecontextcmd := fmt.Sprintf("kubectl config use-context %s --kubeconfig=%s", context, kubeconfig)
+		return execCommand(usecontextcmd)
+	}
+
+	enterValue(validatecontext, "Please the cluster context")
+}
+
+func sel(items []string, label string) string {
+	var result string
+	var err error
+	prompt := promptui.Select{
+		Label: label,
+		Items: items,
+		Size:  10,
+	}
+	_, result, err = prompt.Run()
+
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+	}
+	return result
+
+}
+
+func enterValue(validate promptui.ValidateFunc, label string) string {
+	var result string
+	prompt := promptui.Prompt{
+		Label:    label,
+		Validate: validate,
+	}
+	result, err := prompt.Run()
+
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+	}
+	return result
 }

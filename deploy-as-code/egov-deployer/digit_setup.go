@@ -18,7 +18,6 @@ import (
 )
 
 //Defining a struct to parse the yaml file
-
 type Digit struct {
 	Version string `yaml:"version"`
 	Modules []struct {
@@ -54,10 +53,24 @@ func main() {
 	set := NewSet()
 	var argStr string = ""
 
-	fmt.Println("Welcome to DIGIT DEPLOYMENT!!!")
+	fmt.Println("\n*******  Welcome to DIGIT INSTALLATION!!! Please ensure the Pre-requsites before you proceed *********\n")
+	const sPreReq = "\bPre-requsites (Please Read Carefully):\n\tDIGIT Platform is a combination of multiple microservices that are packaged as docker containers that can be run on any supported infra like dockercompose, kubernetes, etc. Here we'll have a setup baselined for kubernetes.\nHence the following are mandatory to have it before you proceed.\n\t1. Kubernetes(K8s) Cluster.\n\t\t[a] Local: If you do not have k8s, using this link you can create k8s cluster on your local or on a VM.\n\t\t[b] Cloud: If you have your cloud account like AWS, Azure, GCP, SDC or NIC you can follow this link to create k8s.\n\t2. Post the k8s cluster creation you should get the Kubeconfig file, which you have saved in your local machine.\n\t3. Helm installed on your local, follow this link to install\n\t4. Target Env Deployment config file, refer here for the sample template and fill your env specific values.\n\t5. If you want to use encrypted values instead of plain-text for your sensitive configuration, install sops by using this link.\n\nWell! We are good to get started when all the above pre-requistes are met, if not abort it here (Ctl+c) set-it up, come back and rerun the script."
+	// Get the Proceedual of the user
+	fmt.Println(sPreReq)
+	//var proceedQuestion string
+	preReqConfirm := []string{"Yes", "No"}
 
-	setClusterContext()
+	proceed := sel(preReqConfirm, "Are you good to proceed?")
+	if proceed == "Yes" {
+		// proceedQuestion = fmt.Sprintf("%s -p", proceedQuestion)
+		// execCommand(proceedQuestion)
+		setClusterContext()
+	} else {
+		fmt.Println("That's great too ... Take your time")
+		return
+	}
 
+	// Get the versions from the chart and display it to user to select
 	files, err := ioutil.ReadDir("../helm/digit-release-versions/")
 	if err != nil {
 		log.Fatal(err)
@@ -66,7 +79,7 @@ func main() {
 		name := f.Name()
 		versionfiles = append(versionfiles, name[s.Index(name, "-v")+1:s.Index(name, ".y")])
 	}
-	version := sel(versionfiles, "Select the Version You would like to install")
+	version := sel(versionfiles, "Which DIGIT Version You would like to install, Select below")
 	argFile := "../helm/digit-release-versions/digit_dependancy_chart-" + version + ".yaml"
 
 	// Decode the yaml file and assigning the values to a map
@@ -91,7 +104,7 @@ func main() {
 		modules = append(modules, s.Name)
 	}
 	modules = append(modules, "Exit")
-	result := sel(modules, "Select the modules you want to install, choose Exit to complete selection")
+	result := sel(modules, "Select the DIGIT modules that you want to install, choose Exit to complete selection")
 	for result != "Exit" {
 		selectedMod = append(selectedMod, result)
 		result = sel(modules, "Select the modules you want to install, choose Exit to complete selection")
@@ -123,25 +136,29 @@ func main() {
 		}
 	}
 
-	env := sel(envfiles, "Select the environment you want to install the Modules")
+	// Choose the env
+	env := sel(envfiles, "Choose the target env files that are identified from your local configs")
 	fmt.Print("")
 	var goDeployCmd string
 	confirm := []string{"Yes", "No"}
 
-	clusterConf := sel(confirm, "Do you want to install the cluster configs?")
+	clusterConf := sel(confirm, "Are we good to proceed generating k8s Deployment manifests for the chosen DIGIT Modules?")
 	if clusterConf == "Yes" {
 		goDeployCmd = fmt.Sprintf("go run main.go deploy -c -e %s %s", env, argStr)
 	} else {
 		goDeployCmd = fmt.Sprintf("go run main.go deploy -e %s %s", env, argStr)
 	}
-	preview := sel(confirm, "Do you want to preview the installation manifests?")
+	preview := sel(confirm, "Do you want to preview the manifests before the actual Deployment")
 	if preview == "Yes" {
 		goDeployCmd = fmt.Sprintf("%s -p", goDeployCmd)
 		execCommand(goDeployCmd)
 	}
-	consent := sel(confirm, "Please provide you consent to proceed with the installation?")
+	consent := sel(confirm, "Are we good to proceed with the actual deployment?")
 	if consent == "Yes" {
+		fmt.Println("Whola!, That's great... Sit back and wait for the deployment to complete in about 10 min")
 		execCommand(goDeployCmd)
+	} else {
+		fmt.Println("That's great too ... Take your time")
 	}
 }
 
@@ -197,7 +214,6 @@ func setClusterContext() {
 	context := enterValue(nil, "Please enter the cluster context to be used from the avaliable contexts")
 	usecontextcmd := fmt.Sprintf("kubectl config use-context %s --kubeconfig=%s", context, kubeconfig)
 	execCommand(usecontextcmd)
-
 }
 
 func usecontext(kubeconfig string) {
@@ -206,8 +222,7 @@ func usecontext(kubeconfig string) {
 		usecontextcmd := fmt.Sprintf("kubectl config use-context %s --kubeconfig=%s", context, kubeconfig)
 		return execCommand(usecontextcmd)
 	}
-
-	enterValue(validatecontext, "Please the cluster context")
+	enterValue(validatecontext, "Please confirm the cluster context from the selected kubeconfig")
 }
 
 func sel(items []string, label string) string {
@@ -224,7 +239,6 @@ func sel(items []string, label string) string {
 		fmt.Printf("Prompt failed %v\n", err)
 	}
 	return result
-
 }
 
 func enterValue(validate promptui.ValidateFunc, label string) string {

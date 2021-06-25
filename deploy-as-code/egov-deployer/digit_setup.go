@@ -59,107 +59,116 @@ func main() {
 	fmt.Println(sPreReq)
 	//var proceedQuestion string
 	preReqConfirm := []string{"Yes", "No"}
-
-	proceed := sel(preReqConfirm, "Are you good to proceed?")
+	var proceed string = ""
+	proceed, _ = sel(preReqConfirm, "Are you good to proceed?")
 	if proceed == "Yes" {
-		// proceedQuestion = fmt.Sprintf("%s -p", proceedQuestion)
-		// execCommand(proceedQuestion)
-		setClusterContext()
-	} else {
-		fmt.Println("That's great too ... Take your time")
-		return
-	}
-
-	// Get the versions from the chart and display it to user to select
-	files, err := ioutil.ReadDir("../helm/digit-release-versions/")
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, f := range files {
-		name := f.Name()
-		versionfiles = append(versionfiles, name[s.Index(name, "-v")+1:s.Index(name, ".y")])
-	}
-	version := sel(versionfiles, "Which DIGIT Version You would like to install, Select below")
-	argFile := "../helm/digit-release-versions/digit_dependancy_chart-" + version + ".yaml"
-
-	// Decode the yaml file and assigning the values to a map
-	chartFile, err := ioutil.ReadFile(argFile)
-	if err != nil {
-		fmt.Println("\n\tERROR: Reading file =>", argFile, err)
-		return
-	}
-
-	// Parse the yaml values
-	fullChart := Digit{}
-	err = yaml.Unmarshal(chartFile, &fullChart)
-	if err != nil {
-		fmt.Println("\n\tERROR: Parsing => ", argFile, err)
-		return
-	}
-
-	// Mapping the images to servicename
-	var m = make(map[string][]string)
-	for _, s := range fullChart.Modules {
-		m[s.Name] = s.Services
-		modules = append(modules, s.Name)
-	}
-	modules = append(modules, "Exit")
-	result := sel(modules, "Select the DIGIT modules that you want to install, choose Exit to complete selection")
-	for result != "Exit" {
-		selectedMod = append(selectedMod, result)
-		result = sel(modules, "Select the modules you want to install, choose Exit to complete selection")
-	}
-
-	for _, mod := range selectedMod {
-		getService(fullChart, mod, *set, svclist)
-	}
-	for element := svclist.Front(); element != nil; element = element.Next() {
-		imglist := m[element.Value.(string)]
-		imglistsize := len(imglist)
-		for i, service := range imglist {
-			argStr = argStr + service
-			if !(element.Next() == nil && i == imglistsize-1) {
-				argStr = argStr + ","
+		contextset := setClusterContext()
+		if contextset {
+			// Get the versions from the chart and display it to user to select
+			files, err := ioutil.ReadDir("../helm/digit-release-versions/")
+			if err != nil {
+				log.Fatal(err)
 			}
+			for _, f := range files {
+				name := f.Name()
+				versionfiles = append(versionfiles, name[s.Index(name, "-")+1:s.Index(name, ".y")])
+			}
+			var version string = ""
+			version, _ = sel(versionfiles, "Which DIGIT Version You would like to install, Select below")
+			if version != "" {
+				argFile := "../helm/digit-release-versions/dependancy_chart-" + version + ".yaml"
 
+				// Decode the yaml file and assigning the values to a map
+				chartFile, err := ioutil.ReadFile(argFile)
+				if err != nil {
+					fmt.Println("\n\tERROR: Reading file =>", argFile, err)
+					return
+				}
+
+				// Parse the yaml values
+				fullChart := Digit{}
+				err = yaml.Unmarshal(chartFile, &fullChart)
+				if err != nil {
+					fmt.Println("\n\tERROR: Parsing => ", argFile, err)
+					return
+				}
+
+				// Mapping the images to servicename
+				var m = make(map[string][]string)
+				for _, s := range fullChart.Modules {
+					m[s.Name] = s.Services
+					if strings.Contains(s.Name, "m_") {
+						modules = append(modules, s.Name)
+					}
+				}
+				modules = append(modules, "Exit")
+				result, err := sel(modules, "Select the DIGIT modules that you want to install, choose Exit to complete selection")
+				//if err == nil {
+				for result != "Exit" && err == nil {
+					selectedMod = append(selectedMod, result)
+					result, err = sel(modules, "Select the modules you want to install, choose Exit to complete selection")
+				}
+				if selectedMod != nil {
+					for _, mod := range selectedMod {
+						getService(fullChart, mod, *set, svclist)
+					}
+					for element := svclist.Front(); element != nil; element = element.Next() {
+						imglist := m[element.Value.(string)]
+						imglistsize := len(imglist)
+						for i, service := range imglist {
+							argStr = argStr + service
+							if !(element.Next() == nil && i == imglistsize-1) {
+								argStr = argStr + ","
+							}
+
+						}
+					}
+
+					envfilesFromDir, err := ioutil.ReadDir("../helm/environments/")
+					if err != nil {
+						log.Fatal(err)
+					}
+					for _, envfile := range envfilesFromDir {
+						filename := envfile.Name()
+						if !s.Contains(filename, "secrets") {
+							envfiles = append(envfiles, filename[0:s.Index(filename, ".yaml")])
+						}
+					}
+
+					// Choose the env
+					var env string = ""
+					env, err = sel(envfiles, "Choose the target env files that are identified from your local configs")
+					fmt.Print("")
+					if env != "" {
+						var goDeployCmd string
+						confirm := []string{"Yes", "No"}
+
+						goDeployCmd = fmt.Sprintf("go run main.go deploy -c -e %s %s", env, argStr)
+
+						preview, _ := sel(confirm, "Do you want to preview the manifests before the actual Deployment")
+						if preview == "Yes" {
+							goDeployCmd = fmt.Sprintf("%s -p", goDeployCmd)
+							fmt.Println("That's cool... The preview is getting loaded. Please review it and proceed with the deployment")
+							execCommand(goDeployCmd)
+						}
+
+						consent, _ := sel(confirm, "Are we good to proceed with the actual deployment?")
+						if consent == "Yes" {
+							fmt.Println("Whola!, That's great... Sit back and wait for the deployment to complete in about 10 min")
+							err := execCommand(goDeployCmd)
+							if err == nil {
+								fmt.Println("We are done with the deployment. You can start using the services. Thank You!!!")
+								return
+							}
+						}
+					}
+				}
+				//}
+			}
 		}
 	}
-
-	envfilesFromDir, err := ioutil.ReadDir("../helm/environments/")
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, envfile := range envfilesFromDir {
-		filename := envfile.Name()
-		if !s.Contains(filename, "secrets") {
-			envfiles = append(envfiles, filename[0:s.Index(filename, ".yaml")])
-		}
-	}
-
-	// Choose the env
-	env := sel(envfiles, "Choose the target env files that are identified from your local configs")
-	fmt.Print("")
-	var goDeployCmd string
-	confirm := []string{"Yes", "No"}
-
-	clusterConf := sel(confirm, "Are we good to proceed generating k8s Deployment manifests for the chosen DIGIT Modules?")
-	if clusterConf == "Yes" {
-		goDeployCmd = fmt.Sprintf("go run main.go deploy -c -e %s %s", env, argStr)
-	} else {
-		goDeployCmd = fmt.Sprintf("go run main.go deploy -e %s %s", env, argStr)
-	}
-	preview := sel(confirm, "Do you want to preview the manifests before the actual Deployment")
-	if preview == "Yes" {
-		goDeployCmd = fmt.Sprintf("%s -p", goDeployCmd)
-		execCommand(goDeployCmd)
-	}
-	consent := sel(confirm, "Are we good to proceed with the actual deployment?")
-	if consent == "Yes" {
-		fmt.Println("Whola!, That's great... Sit back and wait for the deployment to complete in about 10 min")
-		execCommand(goDeployCmd)
-	} else {
-		fmt.Println("That's great too ... Take your time")
-	}
+	fmt.Println("")
+	endScript()
 }
 
 func getService(fullChart Digit, service string, set Set, svclist *list.List) {
@@ -198,47 +207,51 @@ func execCommand(command string) error {
 	return err
 }
 
-func setClusterContext() {
+func setClusterContext() bool {
+	var contextset bool = false
+	var kubeconfig string = ""
+
 	validatepath := func(input string) error {
 		_, err := os.Stat(input)
 		if os.IsNotExist(err) {
-			return errors.New("File does not exist")
+			return errors.New("The File does not exist in the given path")
 		}
 		return nil
 	}
 
-	kubeconfig := enterValue(validatepath, "Please enter the fully qualified path of the kubeconfig file")
-	getcontextcmd := fmt.Sprintf("kubectl config get-contexts --kubeconfig=%s", kubeconfig)
+	kubeconfig = enterValue(validatepath, "Please enter the fully qualified path of the kubeconfig file")
 
-	execCommand(getcontextcmd)
-	context := enterValue(nil, "Please enter the cluster context to be used from the avaliable contexts")
-	usecontextcmd := fmt.Sprintf("kubectl config use-context %s --kubeconfig=%s", context, kubeconfig)
-	execCommand(usecontextcmd)
-}
-
-func usecontext(kubeconfig string) {
-	validatecontext := func(context string) error {
-		fmt.Println(context)
-		usecontextcmd := fmt.Sprintf("kubectl config use-context %s --kubeconfig=%s", context, kubeconfig)
-		return execCommand(usecontextcmd)
+	if kubeconfig != "" {
+		getcontextcmd := fmt.Sprintf("kubectl config get-contexts --kubeconfig=%s", kubeconfig)
+		err := execCommand(getcontextcmd)
+		if err == nil {
+			context := enterValue(nil, "Please enter the cluster context to be used from the avaliable contexts")
+			if context != "" {
+				usecontextcmd := fmt.Sprintf("kubectl config use-context %s --kubeconfig=%s", context, kubeconfig)
+				err := execCommand(usecontextcmd)
+				if err == nil {
+					contextset = true
+				}
+			}
+		}
 	}
-	enterValue(validatecontext, "Please confirm the cluster context from the selected kubeconfig")
+	return contextset
 }
 
-func sel(items []string, label string) string {
+func sel(items []string, label string) (string, error) {
 	var result string
 	var err error
 	prompt := promptui.Select{
 		Label: label,
 		Items: items,
-		Size:  10,
+		Size:  30,
 	}
 	_, result, err = prompt.Run()
 
-	if err != nil {
-		fmt.Printf("Prompt failed %v\n", err)
-	}
-	return result
+	//if err != nil {
+	//	fmt.Printf("Invalid Selection %v\n", err)
+	//}
+	return result, err
 }
 
 func enterValue(validate promptui.ValidateFunc, label string) string {
@@ -247,10 +260,15 @@ func enterValue(validate promptui.ValidateFunc, label string) string {
 		Label:    label,
 		Validate: validate,
 	}
-	result, err := prompt.Run()
+	result, _ = prompt.Run()
 
-	if err != nil {
-		fmt.Printf("Prompt failed %v\n", err)
-	}
+	//if err != nil {
+	//	fmt.Printf("Invalid Selection %v\n", err)
+	//}
 	return result
+}
+
+func endScript() {
+	fmt.Println("You can come at any time ... Take your time ... Thank You!!!")
+	return
 }

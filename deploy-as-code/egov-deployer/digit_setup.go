@@ -17,6 +17,16 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+var Reset = "\033[0m"
+var Red = "\033[31m"
+var Green = "\033[32m"
+var Yellow = "\033[33m"
+var Blue = "\033[34m"
+var Purple = "\033[35m"
+var Cyan = "\033[36m"
+var Gray = "\033[37m"
+var White = "\033[97m"
+
 //Defining a struct to parse the yaml file
 type Digit struct {
 	Version string `yaml:"version"`
@@ -53,10 +63,10 @@ func main() {
 	set := NewSet()
 	var argStr string = ""
 
-	fmt.Println("\n*******  Welcome to DIGIT INSTALLATION!!! Please ensure the Pre-requsites before you proceed *********\n")
+	fmt.Println(string(Green), "\n*******  Welcome to DIGIT INSTALLATION!!! Please ensure the Pre-requsites before you proceed *********\n")
 	const sPreReq = "\bPre-requsites (Please Read Carefully):\n\tDIGIT Platform is a combination of multiple microservices that are packaged as docker containers that can be run on any supported infra like dockercompose, kubernetes, etc. Here we'll have a setup baselined for kubernetes.\nHence the following are mandatory to have it before you proceed.\n\t1. Kubernetes(K8s) Cluster.\n\t\t[a] Local: If you do not have k8s, using this link you can create k8s cluster on your local or on a VM.\n\t\t[b] Cloud: If you have your cloud account like AWS, Azure, GCP, SDC or NIC you can follow this link to create k8s.\n\t2. Post the k8s cluster creation you should get the Kubeconfig file, which you have saved in your local machine.\n\t3. Helm installed on your local, follow this link to install\n\t4. Target Env Deployment config file, refer here for the sample template and fill your env specific values.\n\t5. If you want to use encrypted values instead of plain-text for your sensitive configuration, install sops by using this link.\n\nWell! We are good to get started when all the above pre-requistes are met, if not abort it here (Ctl+c) set-it up, come back and rerun the script."
 	// Get the Proceedual of the user
-	fmt.Println(sPreReq)
+	fmt.Println(string(Cyan), sPreReq)
 	//var proceedQuestion string
 	preReqConfirm := []string{"Yes", "No"}
 	var proceed string = ""
@@ -269,6 +279,6 @@ func enterValue(validate promptui.ValidateFunc, label string) string {
 }
 
 func endScript() {
-	fmt.Println("You can come at any time ... Take your time ... Thank You!!!")
+	fmt.Println("Take your time, You can come back at any time ... Thank You!!!")
 	return
 }

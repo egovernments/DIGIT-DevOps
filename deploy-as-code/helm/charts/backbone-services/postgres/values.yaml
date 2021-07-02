@@ -20,17 +20,32 @@ env: |
   - name: POSTGRES_PASSWORD
     valueFrom:
       secretKeyRef:
-        name: jenkins-credentials
-        key: ciDbpassword
+        name: db
+        key: password
   - name:  POSTGRES_USER
-    valueFrom:
-      secretKeyRef:
-        name: jenkins-credentials
-        key: ciDbUsername
+    valueFrom: 
+      secretKeyRef: 
+        name: db
+        key: username
   - name: POSTGRES_DB
     value: {{ default "" .Values.postgresDatabase | quote }}
+
+postgresDatabase: ifix_dev_db
+
+persistence:
+  enabled: true
+  aws:
+    volumeId: "vol-0220f0d34ed269ca5"
+  storageClassName: default
+  accessMode: ReadWriteOnce
+  dataDirSize: 20Gi 
+  volumeMode: Filesystem
+
 extraVolumeMounts: |
-  - name: postgres-volume
-    mountPath: /var/lib/postgresql/data
+  - mountPath: /var/lib/postgresql/data
+    name: postgres-data
+    subPath: html
 extraVolumes: |
-  - name: postgres-volume
+  - name: postgres-data
+    persistentVolumeClaim:
+      claimName: postgres-data

@@ -1,6 +1,6 @@
 terraform {
   backend "s3" {
-    bucket = "egov-dev-terraform-state-store"
+    bucket = "try-workshop"
     key = "terraform"
     region = "ap-south-1"
   }
@@ -13,21 +13,6 @@ module "network" {
   availability_zones = "${var.network_availability_zones}"
 }
 
-module "db" {
-  source                        = "../modules/db/aws"
-  subnet_ids                    = "${module.network.private_subnets}"
-  vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
-  availability_zone             = "${element(var.availability_zones, 0)}"
-  instance_class                = "db.t3.medium"
-  engine_version                = "11.5"
-  storage_type                  = "gp2"
-  storage_gb                    = "100"
-  backup_retention_days         = "7"
-  administrator_login           = "egovdev"
-  administrator_login_password  = "${var.db_password}"
-  db_name                       = "${var.cluster_name}-db"
-  environment                   = "${var.cluster_name}"
-}
 
 module "iam_user_deployer" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-user"
@@ -100,10 +85,9 @@ module "eks" {
       name                    = "spot"
       subnets                 = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)), slice(module.network.public_subnets, 0, length(var.availability_zones)))}"
       override_instance_types = "${var.override_instance_types}"
-      asg_max_size            = 4
-      asg_desired_capacity    = 4
+      asg_max_size            = 3
+      asg_desired_capacity    = 3
       kubelet_extra_args      = "--node-labels=node.kubernetes.io/lifecycle=spot"
-      additional_security_group_ids = ["${module.network.worker_nodes_sg_id}"]
       spot_allocation_strategy= "capacity-optimized"
       spot_instance_pools     = null
     },
@@ -111,18 +95,18 @@ module "eks" {
   
   map_users    = [
     {
-      userarn  = "${module.iam_user_deployer.this_iam_user_arn}"
-      username = "${module.iam_user_deployer.this_iam_user_name}"
+      userarn  = "${module.iam_user_deployer.iam_user_arn}"
+      username = "${module.iam_user_deployer.iam_user_name}"
       groups   = ["system:masters"]
     },
     {
-      userarn  = "${module.iam_user_admin.this_iam_user_arn}"
-      username = "${module.iam_user_admin.this_iam_user_name}"
+      userarn  = "${module.iam_user_admin.iam_user_arn}"
+      username = "${module.iam_user_admin.iam_user_name}"
       groups   = ["global-readonly", "digit-user"]
     },
     {
-      userarn  = "${module.iam_user_user.this_iam_user_arn}"
-      username = "${module.iam_user_user.this_iam_user_name}"
+      userarn  = "${module.iam_user_user.iam_user_arn}"
+      username = "${module.iam_user_user.iam_user_name}"
       groups   = ["global-readonly"]
     },    
   ]

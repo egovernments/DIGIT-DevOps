@@ -2,22 +2,20 @@
 # Variables Configuration
 #
 
-## Add Cluster Name
 variable "cluster_name" {
-  default = "Cluster name"  
+  default = "my-first-eks"
 }
 
-## Add vpc_cidr_block
 variable "vpc_cidr_block" {
-  default = "CIDR" 
+  default = "192.172.0.0/16"
 }
 
 variable "network_availability_zones" {
-  default = ["ap-south-1b", "ap-south-1a"]
+  default = ["ap-south-1a", "ap-south-1b"]
 }
 
 variable "availability_zones" {
-  default = ["ap-south-1b"]
+  default = ["ap-south-1a"]
 }
 
 variable "kubernetes_version" {
@@ -25,11 +23,11 @@ variable "kubernetes_version" {
 }
 
 variable "instance_type" {
-  default = "r5a.large"
+  default = "m4.xlarge"
 }
 
 variable "override_instance_types" {
-  default = ["r5a.large", "r5ad.large", "r5d.large", "t3a.xlarge"]
+  default = ["r5a.large", "r5ad.large", "r5d.large", "m4.xlarge"]
   
 }
 
@@ -37,15 +35,12 @@ variable "number_of_worker_nodes" {
   default = "3"
 }
 
-##Add ssh key
 variable "ssh_key_name" {
-  default = "ssh key name"
+  default = "my-first-eks"
 }
-
-
 variable "iam_keybase_user" {
-  default = "keybase:egovterraform"
+ default = "keybase:mytf-key"
 }
+
 
 variable "db_password" {}
-

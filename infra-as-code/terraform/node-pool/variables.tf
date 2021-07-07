@@ -28,6 +28,6 @@ variable "ec2_ssh_key" {
 
 
 variable "source_security_group_ids" {
-  description = "set eks worker node security group id"
+  description = "set Security group for all nodes in the cluster."
   default = ["sg-061cbd0161f705f74"]
 }

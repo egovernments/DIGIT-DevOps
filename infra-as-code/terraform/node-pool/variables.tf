@@ -1,6 +1,6 @@
 
 variable "cluster_name" {
-  default = "egov-qa"
+  default = "ifix-dev"
 }
 
 variable "node_group_name" {
@@ -9,12 +9,12 @@ variable "node_group_name" {
 
 variable "node_role_arn" {
   description = "IAM EC2 worker node role arn that will be used by managed node group"
-  default = "arn:aws:iam::680148267093:role/egov-qa20210318051125110500000009"
+  default = "arn:aws:iam::680148267093:role/ifix-dev20210622123436976900000009"
 }
 
 variable "subnet_ids" {
   description = "A node Private Subnet ids to launch resources in"
-  default = ["subnet-098b9f7432948e4b6"]
+  default = ["subnet-05291070617444d58"]
 }
 
 
@@ -26,8 +26,11 @@ variable "ec2_ssh_key" {
   default = "egov-test"
 }
 
+variable "cluster_version" {
+  default = "1.18"
+}
 
 variable "source_security_group_ids" {
   description = "set eks worker node security group id"
-  default = ["sg-061cbd0161f705f74"]
+  default = ["sg-035bd2b16d1a37dba"]
 }

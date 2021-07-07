@@ -9,30 +9,30 @@ resource "aws_eks_node_group" "main" {
 
   subnet_ids = "${var.subnet_ids}"
   ami_type = "AL2_x86_64"
-  disk_size = 100
+  disk_size = 50
   instance_types = "${var.instance_types}"
   capacity_type = "SPOT"
-  version = 1.15 
+  version = "${var.cluster_version}"
+  
+  taint {
+    key = "dedicated"
+    value = "${var.node_group_name}"
+    effect = "NO_SCHEDULE"
+  }
+   
 
   labels = {
     lifecycle = "spot"
     Name = "${var.node_group_name}"
     Environment  = "${var.node_group_name}"
   }
-
+   
   scaling_config {
     desired_size = 1
     min_size     = 1
     max_size     = 1
   }
-
-  dynamic "remote_access" {
-    for_each = var.ec2_ssh_key != null && var.ec2_ssh_key != "" ? ["true"] : []
-    content {
-      ec2_ssh_key               = var.ec2_ssh_key
-      source_security_group_ids = var.source_security_group_ids
-    }
-  }
+  
 
   force_update_version = true
 

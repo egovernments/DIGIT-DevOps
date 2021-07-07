@@ -42,5 +42,4 @@ variable "iam_keybase_user" {
  default = "keybase:mytf-key"
 }
 
-
 variable "db_password" {}

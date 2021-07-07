@@ -14,6 +14,22 @@ module "network" {
 }
 
 
+module "db" {
+  source                        = "../modules/db/aws"
+  subnet_ids                    = "${module.network.private_subnets}"
+  vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
+  availability_zone             = "${element(var.availability_zones, 0)}"
+  instance_class                = "db.t3.medium"
+  engine_version                = "11.5"
+  storage_type                  = "gp2"
+  storage_gb                    = "100"
+  backup_retention_days         = "7"
+  administrator_login           = "egovdev"
+  administrator_login_password  = "${var.db_password}"
+  db_name                       = "${var.cluster_name}-db"
+  environment                   = "${var.cluster_name}"
+}
+
 module "iam_user_deployer" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-user"
 

@@ -1,20 +1,16 @@
 
 variable "cluster_name" {
-  default = "ifix-dev"
+  default = "egov-staging"
 }
 
 variable "node_group_name" {
-  default = "test-egov-qa-ng"
+  default = "egov-staging-ng"
 }
 
-variable "node_role_arn" {
-  description = "IAM EC2 worker node role arn that will be used by managed node group"
-  default = "arn:aws:iam::680148267093:role/ifix-dev20210622123436976900000009"
-}
 
 variable "subnet_ids" {
   description = "A node Private Subnet ids to launch resources in"
-  default = ["subnet-05291070617444d58"]
+  default = ["subnet-027b302468708a158"]
 }
 
 
@@ -23,11 +19,11 @@ variable "instance_types" {
 }
 
 variable "cluster_version" {
-  default = "1.18"
+  default = "1.15"
 }
 
 variable "source_security_group_ids" {
   description = "set Security group for all nodes in the cluster"
-  default = ["sg-035bd2b16d1a37dba"]
+  default = ["sg-09999a357c0dbe1f3"]
 }
 

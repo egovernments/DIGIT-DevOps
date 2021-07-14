@@ -162,10 +162,13 @@ module "kafka" {
 module "node-group-1" {  
   source = "../modules/node-pool/aws"
 
-  cluster_name       = "${var.cluster_name}"
-  node_group_name    = "${var.cluster_name}-ng"
-  kubernetes_version = "${var.kubernetes_version}"
-  security_groups    =  ["${module.network.worker_nodes_sg_id}"]
-  subnet             = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)))}"
+  cluster_name        = "${var.cluster_name}"
+  node_group_name     = "${var.cluster_name}-ng"
+  kubernetes_version  = "${var.kubernetes_version}"
+  security_groups     =  ["${module.network.worker_nodes_sg_id}"]
+  subnet              = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)))}"
+  node_group_max_size = 1
+  node_group_desired_size = 1
 }  
+
 

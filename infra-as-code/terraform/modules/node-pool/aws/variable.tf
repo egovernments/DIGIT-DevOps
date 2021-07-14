@@ -17,4 +17,7 @@ variable "kubernetes_version" {}
 
 variable "security_groups" {}
 
+variable "node_group_max_size" {}
+
+variable "node_group_desired_size" {}
 

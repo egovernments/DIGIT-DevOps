@@ -159,11 +159,12 @@ module "kafka" {
   
 }
 
-module "node-group-1" {  
+module "node-group" {  
+  for_each = toset(["ifix-dev", "mgramseva"])
   source = "../modules/node-pool/aws"
 
   cluster_name        = "${var.cluster_name}"
-  node_group_name     = "${var.cluster_name}-ng"
+  node_group_name     = "${each.key}-ng"
   kubernetes_version  = "${var.kubernetes_version}"
   security_groups     =  ["${module.network.worker_nodes_sg_id}"]
   subnet              = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)))}"

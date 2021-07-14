@@ -1,7 +1,3 @@
-provider "aws" {
-  region = "ap-south-1"
-}
-
 resource "aws_iam_role" "ec2_iam" {
   name = "${var.node_group_name}-ec2-iam"
 
@@ -99,9 +95,9 @@ resource "aws_eks_node_group" "ng" {
   }
    
   scaling_config {
-    desired_size = 1
+    desired_size = "${var.node_group_desired_size}"
     min_size     = 1
-    max_size     = 1
+    max_size     = "${var.node_group_max_size}"
   }
   
 

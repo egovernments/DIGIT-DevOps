@@ -46,13 +46,20 @@ data "aws_ami" "eks_worker" {
   owners      = ["602401143452"] # Amazon EKS AMI Account ID
 }
 
+data "aws_security_group" "security_group" {
+  filter {
+    name = "tag:Name"
+    values = ["${var.cluster_name}-eks_worker_sg"]
+  }
+}
+
 resource "aws_launch_template" "launch_template" {
   name              = "template-${var.node_group_name}"
   image_id          = "${data.aws_ami.eks_worker.id}"
   ebs_optimized     = true
 
   network_interfaces {
-    security_groups = "${var.source_security_group_ids}"  
+    security_groups = ["${data.aws_security_group.security_group.id}"]  
   }
 
   block_device_mappings {
@@ -76,12 +83,19 @@ Content-Type: text/x-shellscript; charset="us-ascii"
   )  
 }
 
+data "aws_subnet" "subnet" {
+  filter {
+    name = "tag:Name"
+    values = ["${var.availability_zones}-${var.cluster_name}"]
+  }
+}
+
 resource "aws_eks_node_group" "main" {
   cluster_name       = "${var.cluster_name}"
   node_group_name    = "${var.node_group_name}"
   instance_types     = "${var.instance_types}"
   node_role_arn      = "${aws_iam_role.ec2_iam.arn}"
-  subnet_ids         = "${var.subnet_ids}"
+  subnet_ids         = ["${data.aws_subnet.subnet.id}"]
   capacity_type      = "SPOT"  
   
   taint {
@@ -98,9 +112,9 @@ resource "aws_eks_node_group" "main" {
   }
    
   scaling_config {
-    desired_size = var.node_group_desired_size
+    desired_size = 1
     min_size     = 1
-    max_size     = var.node_group_max_size
+    max_size     = 1
   }
   
 

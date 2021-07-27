@@ -8,29 +8,22 @@ cron:
 
 # Container Configs
 image:
-  repository: "egovio/api-cronjob"
-  tag:"v1"
+  repository: "api-cronjob"
+  tag: "v1"
 
+command: 
+  - "python3"
+  - "cronJobAPIConfig.py"
+args: 
+  - "daily"
 
 # Additional Container Envs
 env: |
-  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+  - name: JOB_NAME
     valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: kafka-brokers       
-  - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
-    value: org.egov.tracer.kafka.deserializer.HashMapDeserializer
-  - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
-    value: org.apache.kafka.common.serialization.StringDeserializer
-  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: "egov-weekly-impact-notifier"
-  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
-    value: org.apache.kafka.common.serialization.StringSerializer
-  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
-    value: org.springframework.kafka.support.serializer.JsonSerializer                     
+      fieldRef:
+        fieldPath: metadata.name                    
 resources: |
-  requests:
-    memory: {{ .Values.memory_limits | quote }}
-  limits:
-    memory: {{ .Values.memory_limits | quote }}
+  requests: {}
+  
+    

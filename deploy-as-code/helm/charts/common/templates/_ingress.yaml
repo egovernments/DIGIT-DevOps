@@ -18,37 +18,44 @@ metadata:
 {{- include "common.labels" . | nindent 4 }}                            
 spec:
   rules:
-{{- if .Values.ingress.host }}   
-  {{- tpl  .Values.ingress.host . | nindent 2 }}
-{{- else if .Values.ingress.hostName }} 
-  - host: {{ .Values.ingress.hostName }}
-{{- else }}  
-  - host: {{ .Values.global.domain }}
-{{- end }}  
+{{- if .Values.ingress.zuul }}
+  {{- range .Values.global.hosts }}  
+  - host: {{ . }}
     http:
       paths:
       - backend:
-{{- if .Values.ingress.zuul }}          
+      {{- if $.Values.ingress.zuul }}          
           serviceName: zuul
           servicePort: 8080
-{{ else }}
-          serviceName: {{ .Values.ingress.serviceName | default (include "common.name" .) }}
-          servicePort: {{ .Values.ingress.servicePort | default .Values.httpPort }}
-{{- end }}            
-        path: /{{ .Values.ingress.context }}
+      {{ else }}
+          serviceName: {{ $.Values.ingress.serviceName | default $.Chart.Name }}
+          servicePort: {{ $.Values.ingress.servicePort | default $.Values.httpPort }}
+      {{- end }}            
+        path: /{{ $.Values.ingress.context }}
+  {{- end }}
   tls:
-{{- if .Values.ingress.tls }}
-  {{- tpl  .Values.ingress.tls . | nindent 2 }}
-{{- else }} 
-{{- if .Values.ingress.hostName }}
-  - hosts: 
-    - {{ .Values.ingress.hostName }}
-    secretName: {{ .Values.ingress.hostName }}-tls-certs  
-{{- else }}      
+  {{- range .Values.global.hosts }}      
+  - hosts:
+    - {{ . }}
+    secretName: {{ . }}-tls-certs 
+  {{- end }}  
+{{- else }}   
+  - host: {{ .Values.global.domain }}
+    http:
+      paths:
+      - backend:
+      {{- if $.Values.ingress.zuul }}          
+          serviceName: zuul
+          servicePort: 8080
+      {{ else }}
+          serviceName: {{ $.Values.ingress.serviceName | default $.Chart.Name }}
+          servicePort: {{ $.Values.ingress.servicePort | default $.Values.httpPort }}
+      {{- end }}            
+        path: /{{ $.Values.ingress.context }}
+  tls:      
   - hosts:
     - {{ .Values.global.domain }}
-    secretName: {{ .Values.global.domain }}-tls-certs 
-{{- end }} 
-{{- end }} 
+    secretName: {{ .Values.global.domain }}-tls-certs   
+{{- end }}
 {{- end -}} 
 {{- end -}} 

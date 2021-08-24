@@ -23,8 +23,6 @@ variable "tenancy_id" {
 
 variable "user_id" {
   description = "The id of the user that terraform will use to create the resources."
-  type        = string
-  default = "ocid1.user.oc1..aaaaaaaamdyszcddszxay7uajmgekwew53g5oy66amfp7nl2gkawp5ygl5fa"
 }
 
 # general oci parameters
@@ -35,7 +33,7 @@ variable "compartment_id" {
 }
 
 variable "private_key_path" {
-  default = "~/.oci/oci_api_key.pem"
+  description = "private key path"
 }
 
 variable "compartment_ocid" {

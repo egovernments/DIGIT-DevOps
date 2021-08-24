@@ -8,6 +8,7 @@ module "network" {
   vcn_cidr           = var.vcn_cidr
   tenancy_id         = var.tenancy_id
   ClusterName        = var.ClusterName
+  dns-label          = var.dns-label
 }
 
 module "oke" {
@@ -26,7 +27,7 @@ module "oke" {
 
 module "es-master" {
   source = "../modules/storage/oci"
-  instance_count = 1
+  instance_count = 3
   compartment_id = var.compartment_id
   vol_name = "es-master"
   block_storage_sizes_in_gbs = 50
@@ -34,7 +35,7 @@ module "es-master" {
 }
 module "es-data-v1" {
   source = "../modules/storage/oci"
-  instance_count = 1
+  instance_count = 3
   compartment_id = var.compartment_id
   vol_name = "es-data-v1"
   block_storage_sizes_in_gbs = 50
@@ -43,7 +44,7 @@ module "es-data-v1" {
 
 module "zookeeper" {
   source = "../modules/storage/oci"
-  instance_count = 1
+  instance_count = 3
   compartment_id = var.compartment_id
   vol_name = "zookeeper"
   block_storage_sizes_in_gbs = 50
@@ -52,7 +53,7 @@ module "zookeeper" {
 
 module "kafka" {
   source = "../modules/storage/oci"
-  instance_count = 1
+  instance_count = 3
   compartment_id = var.compartment_id
   vol_name = "kafka"
   block_storage_sizes_in_gbs = 50

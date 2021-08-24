@@ -5,7 +5,7 @@
 variable "api_fingerprint" {
   description = "Fingerprint of oci api private key."
   type        = string
-  default = "67:e6:70:0d:e3:09:4d:4c:48:62:78:e2:f8:0c:7f:d8"
+  default = "1d:02:e6:2b:87:99:cd:ec:ca:e9:f6:7a:ef:fa:01:32"
 }
 
 variable "region" {
@@ -35,7 +35,7 @@ variable "compartment_id" {
 }
 
 variable "private_key_path" {
-  default = ""
+  default = "~/.oci/oci_api_key.pem"
 }
 
 variable "compartment_ocid" {
@@ -43,11 +43,15 @@ variable "compartment_ocid" {
 }
 
 variable "private_key_oci" {
-  default = ""
+  default = "~/.oci/oci_api_key.pem"
 }
 
 variable "public_key_oci" {
-  default = ""
+  default = "~/.oci/oci_api_key_public.pem"
+}
+
+variable "dns-label" {
+  default = "test"
 }
 
 variable "vcn_cidr" {
@@ -55,7 +59,7 @@ variable "vcn_cidr" {
 }
 
 variable "kubernetes_version" {
-   default = "v1.20.8"
+   default = "v1.18"
 }
 
 variable "node_pool_size" {
@@ -68,20 +72,5 @@ variable "Shape" {
 }
 
 variable "ClusterName" {
-  default = "OKECluster"
-}
-
-variable "vol_instance_count" {
-  default = 1
-}
-
-variable "vol_name" {
-  default = "egov_test"
-}
-variable "block_storage_sizes_in_gbs" {
-  default = 50
-}
-
-variable "nodepoolname" {
-  default = "OKENodePool"
+  default = "oci-test"
 }

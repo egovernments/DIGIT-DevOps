@@ -11,8 +11,7 @@ resource "oci_core_vcn" "VCN" {
   dns_label     = var.dns-label
   freeform_tags = "${
     map(
-      "Name", "${var.ClusterName}",
-      "kubernetes.io/cluster/${var.ClusterName}", "shared",
+      "Name", "${var.ClusterName}"
     )
   }"
 }
@@ -30,8 +29,6 @@ resource "oci_core_subnet" "public_subnet" {
 
   freeform_tags = "${
     map(
-      "kubernetes.io/cluster/${var.ClusterName}", "shared",
-      "kubernetes.io/role/elb", 1,
       "SubnetType", "Utility",
       "KubernetesCluster", "${var.ClusterName}"
     )
@@ -52,7 +49,6 @@ resource "oci_core_subnet" "private_subnet" {
 
   freeform_tags = "${
     map(
-      "kubernetes.io/cluster/${var.ClusterName}", "shared",
       "SubnetType", "Private",
       "KubernetesCluster", "${var.ClusterName}"
     )
@@ -67,7 +63,6 @@ resource "oci_core_internet_gateway" "InternetGateway" {
 
   freeform_tags = "${
     map(
-      "kubernetes.io/cluster/${var.ClusterName}", "shared",
       "KubernetesCluster", "${var.ClusterName}"
     )
   }"
@@ -84,7 +79,6 @@ resource "oci_core_nat_gateway" "nat_gateway" {
 
     freeform_tags = "${
     map(
-      "kubernetes.io/cluster/${var.ClusterName}", "shared",
       "KubernetesCluster", "${var.ClusterName}"
     )
   }"
@@ -103,7 +97,6 @@ resource "oci_core_public_ip" "public_ip" {
 
     freeform_tags = "${
     map(
-      "kubernetes.io/cluster/${var.ClusterName}", "shared",
       "KubernetesCluster", "${var.ClusterName}"
     )
   }"
@@ -123,7 +116,6 @@ resource "oci_core_route_table" "private_route_table" {
 
   freeform_tags = "${
     map(
-      "kubernetes.io/cluster/${var.ClusterName}", "shared",
       "KubernetesCluster", "${var.ClusterName}"
     )
   }"
@@ -141,7 +133,6 @@ resource "oci_core_route_table" "public_route_table" {
 
   freeform_tags = "${
     map(
-      "kubernetes.io/cluster/${var.ClusterName}", "shared",
       "KubernetesCluster", "${var.ClusterName}"
     )
   }"
@@ -197,7 +188,6 @@ resource "oci_core_security_list" "worker-security-list" {
 
   freeform_tags = "${
     map(
-      "kubernetes.io/cluster/${var.ClusterName}", "shared",
       "KubernetesCluster", "${var.ClusterName}"
     )
   }"
@@ -225,7 +215,6 @@ resource "oci_core_security_list" "public-security-list" {
 
   freeform_tags = "${
     map(
-      "kubernetes.io/cluster/${var.ClusterName}", "shared",
       "KubernetesCluster", "${var.ClusterName}"
     )
   }"

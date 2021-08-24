@@ -59,7 +59,7 @@ variable "vcn_cidr" {
 }
 
 variable "kubernetes_version" {
-   default = "v1.18"
+   default = "v1.20.8"
 }
 
 variable "node_pool_size" {

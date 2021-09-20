@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "ifix-dev-terraform-state-1"
+  bucket = "test-ng-terraform-state-1"
 
   versioning {
     enabled = true
@@ -15,7 +15,7 @@ resource "aws_s3_bucket" "terraform_state" {
 }
 
 resource "aws_dynamodb_table" "terraform_state_lock" {
-  name           = "ifix-dev-terraform-state-1"
+  name           = "test-ng-terraform-state-1"
   read_capacity  = 1
   write_capacity = 1
   hash_key       = "LockID"

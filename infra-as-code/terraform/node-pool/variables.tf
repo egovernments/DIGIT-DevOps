@@ -1,10 +1,10 @@
 
 variable "cluster_name" {
-  default = "egov-staging"
+  default = "ifix-qa"
 }
 
 variable "node_group_name" {
-  default = "egov-staging-ng"
+  default = "ifix-qa-ng"
 }
 
 variable "instance_types" {
@@ -12,7 +12,7 @@ variable "instance_types" {
 }
 
 variable "cluster_version" {
-  default = "1.15"
+  default = "1.18"
 }
 
 variable "availability_zones" {

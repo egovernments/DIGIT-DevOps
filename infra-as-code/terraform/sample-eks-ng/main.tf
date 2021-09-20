@@ -1,29 +1,9 @@
-terraform {
-  backend "s3" {
-    bucket = "ifix-dev-terraform-state-1"
-    key = "terraform"
-    region = "ap-south-1"
-  }
-}
 
 module "network" {
   source             = "../modules/kubernetes/aws/network"
   vpc_cidr_block     = "${var.vpc_cidr_block}"
   cluster_name       = "${var.cluster_name}"
   availability_zones = "${var.network_availability_zones}"
-}
-
-
-module "iam_user_deployer" {
-  source  = "terraform-aws-modules/iam/aws//modules/iam-user"
-
-  name          = "${var.cluster_name}-kube-deployer"
-  force_destroy = true  
-  create_iam_user_login_profile = false
-  create_iam_access_key         = true
-
-  # User "egovterraform" has uploaded his public key here - https://keybase.io/egovterraform/pgp_keys.asc
-  pgp_key = "${var.iam_keybase_user}"
 }
 
 module "iam_user_admin" {
@@ -79,30 +59,12 @@ module "eks" {
   }"
 
   vpc_id = "${module.network.vpc_id}"
-
-  worker_groups_launch_template = [
-    {
-      name                    = "spot"
-      subnets                 = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)), slice(module.network.public_subnets, 0, length(var.availability_zones)))}"
-      override_instance_types = "${var.override_instance_types}"
-      asg_max_size            = 1
-      asg_desired_capacity    = 1
-      kubelet_extra_args      = "--node-labels=node.kubernetes.io/lifecycle=spot"
-      spot_allocation_strategy= "capacity-optimized"
-      spot_instance_pools     = null
-    },
-  ]
   
   map_users    = [
     {
-      userarn  = "${module.iam_user_deployer.iam_user_arn}"
-      username = "${module.iam_user_deployer.iam_user_name}"
-      groups   = ["system:masters"]
-    },
-    {
       userarn  = "${module.iam_user_admin.iam_user_arn}"
       username = "${module.iam_user_admin.iam_user_name}"
-      groups   = ["global-readonly", "digit-user"]
+      groups   = ["system:masters"]
     },
     {
       userarn  = "${module.iam_user_user.iam_user_arn}"
@@ -111,6 +73,44 @@ module "eks" {
     },    
   ]
 }
+
+data "aws_security_group" "security_group" {
+  filter {
+    name = "tag:Name"
+    values = ["${var.cluster_name}-eks_worker_sg"]
+  }
+  depends_on = [
+    module.network,
+    module.eks
+    ]
+}
+
+data "aws_subnet" "subnet" {
+  filter {
+    name = "tag:Name"
+    values = ["${var.ng_availability_zones}-${var.cluster_name}"]
+
+  }
+  depends_on = [
+    module.network,
+    module.eks
+    ]
+}
+
+module "node-group" {  
+  for_each = toset(["ifix-dev", "mgramseva"])
+  source = "../modules/node-pool/aws"
+
+  cluster_name        = "${var.cluster_name}"
+  node_group_name     = "${each.key}-ng"
+  kubernetes_version  = "${var.kubernetes_version}"
+  security_groups     =  ["${data.aws_security_group.security_group.id}"]
+  subnet              =  ["${data.aws_subnet.subnet.id}"]
+  node_group_max_size = 1
+  node_group_desired_size = 1
+}  
+
+
 
 module "es-master" {
 
@@ -156,20 +156,11 @@ module "kafka" {
   availability_zones = "${var.availability_zones}"
   storage_sku = "gp2"
   disk_size_gb = "50"
+
   
 }
 
-module "node-group" {  
-  for_each = toset(["ifix-dev", "mgramseva"])
-  source = "../modules/node-pool/aws"
 
-  cluster_name        = "${var.cluster_name}"
-  node_group_name     = "${each.key}-ng"
-  kubernetes_version  = "${var.kubernetes_version}"
-  security_groups     =  ["${module.network.worker_nodes_sg_id}"]
-  subnet              = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)))}"
-  node_group_max_size = 1
-  node_group_desired_size = 1
-}  
+
 
 

@@ -3,11 +3,11 @@
 #
 
 variable "cluster_name" {
-  default = "ifix-dev-test"
+  default = "test-ng"
 }
 
 variable "vpc_cidr_block" {
-  default = "192.172.32.0/19"
+  default = "10.2.0.0/16"
 }
 
 variable "network_availability_zones" {
@@ -17,6 +17,7 @@ variable "network_availability_zones" {
 variable "availability_zones" {
   default = ["ap-south-1a"]
 }
+
 
 variable "kubernetes_version" {
   default = "1.18"
@@ -43,4 +44,7 @@ variable "iam_keybase_user" {
 }
 
 
+variable "ng_availability_zones" {
+ default = "ap-south-1a"
+}
 

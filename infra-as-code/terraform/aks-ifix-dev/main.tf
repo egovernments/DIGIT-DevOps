@@ -34,8 +34,8 @@ module "node-group" {
   source = "../modules/node-pool/azure"
   node_group_name     = "${each.key}ng"
   cluster_id          = "${module.kubernetes.cluster_id}"
-  vm_size             = "Standard_DS2_v2"
-  nodes          = 3
+  vm_size             = "Standard_D4_v4"
+  nodes          = 2
 }
 
 module "zookeeper" {
@@ -83,22 +83,5 @@ module "es-data-v1" {
   disk_size_gb = "50"
   
 }
-
-module "postgres-db" {
-  source = "../modules/db/azure"
-  server_name = "${var.environment}"
-  resource_group = "${module.kubernetes.node_resource_group}"  
-  sku_cores = "2"
-  location = "${azurerm_resource_group.resource_group.location}"
-  sku_tier = "B_Gen5_1"
-  storage_mb = "51200"
-  backup_retention_days = "7"
-  administrator_login = "egovdemo"
-  administrator_login_password = "${var.db_password}"
-  ssl_enforce = "Disabled"
-  db_name = "egov_demo"
-  environment= "${var.environment}"
-  
-} 
 
 

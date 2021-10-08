@@ -35,7 +35,7 @@ module "node-group" {
   node_group_name     = "${each.key}ng"
   cluster_id          = "${module.kubernetes.cluster_id}"
   vm_size             = "Standard_D4_v4"
-  nodes          = 2
+  nodes          = 3
 }
 
 module "zookeeper" {

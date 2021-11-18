@@ -1,0 +1,24 @@
+name: CICD
+
+on: 
+  push: 
+    branches: 
+    — deploy_test
+
+name: deploy
+jobs:
+  deploy:
+    name: deploy to cluster
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+     
+    - name: deploy to cluster
+      uses: kodermax/kubectl-aws-eks@master
+      env:
+        KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA_DEV }}
+      run: |
+        docker run -it -v ~/workspace/DIGIT-DevOps/deploy-as-code/helm:/opt/egov/helm ghcr-deployer ./egov-deployer deploy --helm-dir /opt/egov/helm -c=false -e dev `cat deploy-to-dev-images` -p
+      

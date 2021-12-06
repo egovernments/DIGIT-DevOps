@@ -450,8 +450,55 @@ master:
                         """)
                       }
                   }
-              }   
+              }  
 
+      seed-job-deployer: |
+        jobs:
+          - script: >
+              folder("deployer") 
+              pipelineJob("deployer/deploy-to-envs") {
+                description()
+                authorization {
+                    blocksInheritance()
+                    permission('hudson.model.Item.Build:{{ .Values.oauth.acl.admin }}')
+                    permission('hudson.model.Item.Cancel:{{ .Values.oauth.acl.admin }}')
+                    permission('hudson.model.Item.Read:{{ .Values.oauth.acl.admin}}')
+                    permission('hudson.model.Item.Workspace:{{ .Values.oauth.acl.admin }}')
+                } 
+                keepDependencies(false)
+                parameters {
+                    activeChoiceParam('Environments') {
+                        description('choose environment from multiple choices')
+                        filterable()
+                        choiceType('SINGLE_SELECT')
+                        groovyScript {
+                            script('return ["{{- include "allowedJobs" . }}"]')
+                            fallbackScript('"fallback choice"')
+                        }
+                    }
+                    activeChoiceParam('Release-Chart-Version') {
+                        description('choose release chart version from multiple choices')
+                        filterable()
+                        choiceType('SINGLE_SELECT')
+                        groovyScript {
+                            script('return [{{ index .Values.release.version }}]')
+                            fallbackScript('"fallback choice"')
+                        }
+                    }
+                    booleanParam("Cluster_Configs", false, "Whenever you made changes to the deployment conifg ensure the cluster_config check is checked to pick the latest configs from the deployment")
+                    booleanParam("Print_Manifest", true, "Whenever you want to deployment manifest ensure the uncheck checked box")
+
+                  }  
+                  definition {
+                      cps {
+                        script("""library 'ci-libs'
+              infradeployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'mater', helmDir: 'deploy-as-code/helm')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              
       seed-deployment-jobs: |
         jobs:
           - script: >

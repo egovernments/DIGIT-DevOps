@@ -385,3 +385,14 @@ Create the name of the service account for Jenkins agents to use
 {{- define "common.labels" -}}
 app: {{ template "jenkins.name" . }}    
 {{- end }}
+
+{{/*
+Create list of allowed jobs
+*/}}
+{{- define "allowedJobs" -}}
+{{- $jobs := list -}}
+{{- range .Values.deploymentJobs }}
+{{- $jobs = .name | append $jobs -}}
+{{- end -}}
+{{- join "\",\""  $jobs }}
+{{- end -}}

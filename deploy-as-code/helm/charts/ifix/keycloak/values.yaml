@@ -1,0 +1,59 @@
+# Common Labels
+labels:
+  app: "keycloak"
+  group: "ifix"
+
+namespace: ifix
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: false
+  context: "auth"
+
+# Container Configs
+image:
+  repository: "jboss/keycloak"
+  tag: "13.0.1"
+replicas: "1"
+
+# Additional Container Envs
+env: |  
+  - name: SERVER_PORT
+    value: "8080"
+  - name: PROXY_ADDRESS_FORWARDING
+    value: "true"
+  - name: DB_VENDOR
+    value: postgres
+  - name: DB_ADDR
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_DATABASE
+    valueFrom: 
+      configMapKeyRef:
+        name: egov-config
+        key: keycloak-db-name
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: KEYCLOAK_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: keycloak-username
+  - name: KEYCLOAK_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: keycloak-password

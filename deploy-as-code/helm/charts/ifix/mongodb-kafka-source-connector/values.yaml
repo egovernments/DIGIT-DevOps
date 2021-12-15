@@ -1,0 +1,36 @@
+# Common Labels
+labels:
+  app: "mongodb-kafka-source-connector"
+  group: "ifix"
+
+
+# Container Configs
+image:
+  repository: "mongodb-kafka-source-connector"
+
+appType: "java-spring"
+
+mongodb-collection-name: "fiscal_event"
+kafka-topic: "fiscal-event-request-dereferenced"
+
+# Additional Container Envs
+env: |
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: KAFKA_TOPIC
+    value: {{ index .Values "kafka-topic" | quote }}
+  - name: MONGODB_COLLECTION_NAME
+    value: {{ index .Values "mongodb-collection-name" | quote }}
+  - name: SPRING_DATA_MONGODB_URI
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: mongo-db-authenticated-uri
+  - name: SPRING_DATA_MONGODB_DATABASE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: mongo-db-name

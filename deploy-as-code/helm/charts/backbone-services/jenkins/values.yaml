@@ -456,16 +456,16 @@ master:
         jobs:
           - script: >
               folder("deployer") 
-        {{- range $deployerjob := .Values.deployerJobs }} 
-          - script: >     
-              pipelineJob("deployer/{{ $deployerjob.name }}") {
+         {{- range $job := .Values.deployerJobs }}  
+          - script: >    
+              pipelineJob("deployer/{{ $job.name }}") {
                 description()
                 authorization {
                     blocksInheritance()
-                    permission('hudson.model.Item.Build:{{ .Values.oauth.acl.admin }}')
-                    permission('hudson.model.Item.Cancel:{{ .Values.oauth.acl.admin }}')
-                    permission('hudson.model.Item.Read:{{ .Values.oauth.acl.admin}}')
-                    permission('hudson.model.Item.Workspace:{{ .Values.oauth.acl.admin }}')
+                    permission('hudson.model.Item.Build:{{ $.Values.oauth.acl.admin }}')
+                    permission('hudson.model.Item.Cancel:{{ $.Values.oauth.acl.admin }}')
+                    permission('hudson.model.Item.Read:{{ $.Values.oauth.acl.admin}}')
+                    permission('hudson.model.Item.Workspace:{{ $.Values.oauth.acl.admin }}')
                 } 
                 keepDependencies(false)
                 parameters {
@@ -474,7 +474,7 @@ master:
                         filterable()
                         choiceType('SINGLE_SELECT')
                         groovyScript {
-                            script('return ["{{- include "allowedJobs" . }}"]')
+                            script('return ["{{- template "allowedJobs" $ }}"]')
                             fallbackScript('"fallback choice"')
                         }
                     }
@@ -483,7 +483,7 @@ master:
                         filterable()
                         choiceType('SINGLE_SELECT')
                         groovyScript {
-                            script('return [{{ index .Values.deployerJob.version }}]')
+                            script('return [{{ index $job.version }}]')
                             fallbackScript('"fallback choice"')
                         }
                     }
@@ -499,7 +499,7 @@ master:
                 }
                 disabled(false)
               }
-        {{- end }} 
+           {{- end }}   
               
       seed-deployment-jobs: |
         jobs:

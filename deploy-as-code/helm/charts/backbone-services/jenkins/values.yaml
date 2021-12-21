@@ -456,7 +456,9 @@ master:
         jobs:
           - script: >
               folder("deployer") 
-              pipelineJob("deployer/deploy-to-envs") {
+        {{- range $deployerjob := .Values.deployerJobs }} 
+          - script: >     
+              pipelineJob("deployer/{{ $deployerjob.name }}") {
                 description()
                 authorization {
                     blocksInheritance()
@@ -481,7 +483,7 @@ master:
                         filterable()
                         choiceType('SINGLE_SELECT')
                         groovyScript {
-                            script('return [{{ index .Values.release.version }}]')
+                            script('return [{{ index .Values.deployerJob.version }}]')
                             fallbackScript('"fallback choice"')
                         }
                     }
@@ -497,6 +499,7 @@ master:
                 }
                 disabled(false)
               }
+        {{- end }} 
               
       seed-deployment-jobs: |
         jobs:

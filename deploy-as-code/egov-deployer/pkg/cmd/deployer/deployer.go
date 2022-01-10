@@ -79,7 +79,6 @@ func getServicesList(helmDir string, productName string, version string) string 
 		}
 		for element := svclist.Front(); element != nil; element = element.Next() {
 			imglist := m[element.Value.(string)]
-			print(imglist) //remove
 			imglistsize := len(imglist)
 			for i, service := range imglist {
 				argStr = argStr + service

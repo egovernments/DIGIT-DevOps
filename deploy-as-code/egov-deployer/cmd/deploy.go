@@ -37,10 +37,13 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 
 	PreRunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) < 1 {
-			return errors.New("At least require one image to deploy")
+		if options.DesiredProduct == "" && len(args) < 1 {
+			return errors.New("Image Deploy: At least require one image to deploy")
 		}
-		options.Images = args[0]
+
+		if options.DesiredProduct == "" && len(args) >= 1 {
+			options.Images = args[0]
+		}
 
 		return nil
 	},
@@ -58,6 +61,8 @@ func init() {
 	deployCmd.Flags().String("helm-dir", "../helm", "Helm Charts / Configs directory")
 	viper.BindPFlag("helm-dir", deployCmd.Flags().Lookup("helm-dir"))
 
+	deployCmd.Flags().StringVarP(&options.DesiredProduct, "product", "s", "", "Desired Product stack")
+	deployCmd.Flags().StringVarP(&options.ProductVersion, "version", "v", "", "Intented product version to be applied")
 	deployCmd.Flags().StringVarP(&options.Environment, "environment", "e", "", "Environment override to be applied")
 	deployCmd.Flags().BoolVarP(&options.ClusterConfigs, "cluster-configs", "c", false, "Deploy cluster configs")
 	deployCmd.Flags().BoolVarP(&options.Print, "print", "p", false, "Print templates to stdout")
@@ -65,13 +70,4 @@ func init() {
 	deployCmd.MarkFlagRequired("environment")
 	rootCmd.AddCommand(deployCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// deployCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// deployCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

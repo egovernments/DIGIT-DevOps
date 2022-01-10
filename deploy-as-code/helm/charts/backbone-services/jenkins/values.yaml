@@ -452,54 +452,41 @@ master:
                   }
               }  
 
-      seed-deployer-job: |
+      seed-deploy-job-builder: |
         jobs:
           - script: >
-              folder("deployer") 
-         {{- range $job := .Values.deployerJobs }}  
+              folder("self-provision")
+                authorization {
+                  blocksInheritance()
+                  {{- range $group := .Values.oauth.acl.admin }}
+                  permission('hudson.model.Item.Build:{{ $group }}')
+                  permission('hudson.model.Item.Cancel:{{ $group }}')
+                  permission('hudson.model.Item.Read:{{ $group }}')
+                  permission('hudson.model.Item.Workspace:{{ $group }}')
+                  {{- end }}
+                }  
           - script: >    
-              pipelineJob("deployer/{{ $job.name }}") {
+              pipelineJob("self-provision/Self-Provision_Job_Builder") {
                 description()
                 authorization {
                     blocksInheritance()
-                    permission('hudson.model.Item.Build:{{ $.Values.oauth.acl.admin }}')
-                    permission('hudson.model.Item.Cancel:{{ $.Values.oauth.acl.admin }}')
-                    permission('hudson.model.Item.Read:{{ $.Values.oauth.acl.admin}}')
-                    permission('hudson.model.Item.Workspace:{{ $.Values.oauth.acl.admin }}')
-                } 
-                keepDependencies(false)
-                parameters {
-                    activeChoiceParam('Environments') {
-                        description('choose environment from multiple choices')
-                        filterable()
-                        choiceType('SINGLE_SELECT')
-                        groovyScript {
-                            script('["{{- template "allowedJobs" $ }}"]')
-                            fallbackScript('"fallback choice"')
-                        }
-                    }
-                    activeChoiceParam('Release-Chart-Version') {
-                        description('choose release chart version from multiple choices')
-                        filterable()
-                        choiceType('SINGLE_SELECT')
-                        groovyScript {
-                            script('[{{ index $job.version }}]')
-                            fallbackScript('"fallback choice"')
-                        }
-                    }
-                    booleanParam("Cluster_Configs", false, "Whenever you made changes to the deployment conifg ensure the cluster_config check is checked to pick the latest configs from the deployment")
-                    booleanParam("Print_Manifest", true, "Whenever you want to deployment manifest ensure the uncheck checked box")
-                }  
-                definition {
-                  cps {
-                      script("""library 'ci-libs'
-              infradeployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'master', helmDir: 'deploy-as-code/helm')""")
-                      sandbox() 
-                    }
+                    {{- range $group := .Values.oauth.acl.admin }}
+                    permission('hudson.model.Item.Build:{{ $group }}')
+                    permission('hudson.model.Item.Cancel:{{ $group }}')
+                    permission('hudson.model.Item.Read:{{ $group }}')
+                    permission('hudson.model.Item.Workspace:{{ $group }}')
+                    {{- end }}
                 }
-                disabled(false)
-              }
-           {{- end }}   
+                logRotator(-1, 5, -1, -1)
+                definition {
+                      cps {
+                        script("""
+                        library 'ci-libs'
+                        deployjobBuilder(url: {{ .Values.deployjobBuilder.repo }})
+                        """)  
+                      }
+                  }
+              }    
               
       seed-deployment-jobs: |
         jobs:

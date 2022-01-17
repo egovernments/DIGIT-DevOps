@@ -3,11 +3,11 @@
 #
 
 variable "cluster_name" {
-  default = "ifix-dev"
+  default = "test-singleinstance"
 }
 
 variable "vpc_cidr_block" {
-  default = "192.172.32.0/19"
+  default = "192.168.0.0/16"
 }
 
 variable "network_availability_zones" {
@@ -32,11 +32,11 @@ variable "override_instance_types" {
 }
 
 variable "number_of_worker_nodes" {
-  default = "3"
+  default = "2"
 }
 
 variable "ssh_key_name" {
-  default = "ifix-dev"
+  default = "test-singleinstance"
 }
 variable "iam_keybase_user" {
  default = "keybase:egovterraform"

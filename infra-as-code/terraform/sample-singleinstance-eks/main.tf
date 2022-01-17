@@ -1,10 +1,3 @@
-terraform {
-  backend "s3" {
-    bucket = "ifix-dev-terraform-state"
-    key = "terraform"
-    region = "ap-south-1"
-  }
-}
 
 module "network" {
   source             = "../modules/kubernetes/aws/network"
@@ -69,7 +62,7 @@ module "eks" {
   source          = "terraform-aws-modules/eks/aws"
   cluster_name    = "${var.cluster_name}"
   cluster_version = "${var.kubernetes_version}"
-  subnets         = "${concat(module.network.private_subnets, module.network.public_subnets)}"
+  subnet_ids         = "${concat(module.network.private_subnets, module.network.public_subnets)}"
 
   tags = "${
     map(
@@ -80,36 +73,24 @@ module "eks" {
 
   vpc_id = "${module.network.vpc_id}"
 
-  worker_groups_launch_template = [
-    {
-      name                    = "spot"
-      subnets                 = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)), slice(module.network.public_subnets, 0, length(var.availability_zones)))}"
-      override_instance_types = "${var.override_instance_types}"
-      asg_max_size            = 3
-      asg_desired_capacity    = 3
-      kubelet_extra_args      = "--node-labels=node.kubernetes.io/lifecycle=spot"
-      spot_allocation_strategy= "capacity-optimized"
-      spot_instance_pools     = null
-    },
-  ]
-  
-  map_users    = [
-    {
-      userarn  = "${module.iam_user_deployer.iam_user_arn}"
-      username = "${module.iam_user_deployer.iam_user_name}"
-      groups   = ["system:masters"]
-    },
-    {
-      userarn  = "${module.iam_user_admin.iam_user_arn}"
-      username = "${module.iam_user_admin.iam_user_name}"
-      groups   = ["global-readonly", "digit-user"]
-    },
-    {
-      userarn  = "${module.iam_user_user.iam_user_arn}"
-      username = "${module.iam_user_user.iam_user_name}"
-      groups   = ["global-readonly"]
-    },    
-  ]
+  eks_managed_node_groups = {
+    "${var.cluster_name}-core" = {
+      min_size     = 1
+      max_size     = "${var.number_of_worker_nodes}"
+      desired_size = "${var.number_of_worker_nodes}"
+      node_group_name = "${var.cluster_name}"
+      instance_types = "${var.override_instance_types}"
+      capacity_type  = "SPOT"
+      subnet_ids = "${slice(module.network.private_subnets, 0, length(var.availability_zones))}"
+      labels = {
+        Environment = "${var.cluster_name}"
+      }
+      tags = {
+        ExtraTag = "${var.cluster_name}"
+      }
+    }
+  }
+ 
 }
 
 module "es-master" {
@@ -158,3 +139,20 @@ module "kafka" {
   disk_size_gb = "50"
   
 }
+
+module "node-group" {  
+  for_each = toset(["qa", "dev", "uat"])
+  source = "../modules/node-pool/aws"
+
+  cluster_name        = "${var.cluster_name}"
+  node_group_name     = "${each.key}-ng"
+  kubernetes_version  = "${var.kubernetes_version}"
+  security_groups     =  ["${module.network.worker_nodes_sg_id}"]
+  subnet              = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)))}"
+  node_group_max_size = 2
+  node_group_desired_size = 2
+
+  depends_on = [
+    module.network
+  ]  
+} 

@@ -123,7 +123,8 @@ cluster-configs:
         xstate-webchat-services: "ws://xstate-webchat.egov:8080/"
 
 egov-filestore:
-  heap: "-Xmx768m -Xms768m"
+  replicas: 2
+  heap: "-Xmx832m -Xms832m"
   memory_limits: 1024Mi
   volume: /opt/eGov/filestore
   is-bucket-fixed: "true"
@@ -251,6 +252,7 @@ bpa-services:
   java-debug: true
   tracing-enabled: "true"
   egov.idgen.bpa.applicationNum.format: PB-BP-[cy:yyyy-MM-dd]-[SEQ_EG_BP_APN]
+  bpa-userevents-pay-link: "digit-ui/citizen/payment/my-bills/$businessService/$applicationNo?tenantId=$tenantId"
 
 bpa-calculator:
   memory_limits: 384Mi
@@ -267,7 +269,7 @@ egov-indexer:
     gitSync:
       repo: "git@github.com:egovernments/configs"
       branch: "qa"
-  egov-indexer-yaml-repo-path: "file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml,file:///work-dir/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/configs/egov-indexer/error-queue.yml,file:///work-dir/configs/egov-indexer/finance-rolloutadotpion-indexer.yml,file:///work-dir/configs/egov-indexer/payment-indexer.yml,file:///work-dir/configs/egov-indexer/pgr-services.yml,file:///work-dir/configs/egov-indexer/pgr-migration-batch-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-tl-indexer.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry.yaml,file:///work-dir/configs/egov-indexer/water-service.yml,file:///work-dir/configs/egov-indexer/water-services-meter.yml,file:///work-dir/configs/egov-indexer/sewerage-service.yml,file:///work-dir/configs/egov-indexer/property-services.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry-v2.yaml,file:///work-dir/configs/egov-indexer/egov-fsm.yml,file:///work-dir/configs/egov-indexer/egov-vehicle.yaml,file:///work-dir/configs/egov-indexer/egov-vendor.yaml,file:///work-dir/configs/egov-indexer/egov-url-shortening-indexer.yaml"
+  egov-indexer-yaml-repo-path: "file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml,file:///work-dir/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/configs/egov-indexer/error-queue.yml,file:///work-dir/configs/egov-indexer/finance-rolloutadotpion-indexer.yml,file:///work-dir/configs/egov-indexer/payment-indexer.yml,file:///work-dir/configs/egov-indexer/pgr-services.yml,file:///work-dir/configs/egov-indexer/pgr-migration-batch-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-tl-indexer.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry.yaml,file:///work-dir/configs/egov-indexer/water-service.yml,file:///work-dir/configs/egov-indexer/water-services-meter.yml,file:///work-dir/configs/egov-indexer/sewerage-service.yml,file:///work-dir/configs/egov-indexer/property-services.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry-v2.yaml,file:///work-dir/configs/egov-indexer/egov-fsm.yml,file:///work-dir/configs/egov-indexer/egov-vehicle.yaml,file:///work-dir/configs/egov-indexer/egov-vendor.yaml,file:///work-dir/configs/egov-indexer/egov-url-shortening-indexer.yaml,file:///work-dir/configs/egov-indexer/fire-noc-service.yml,file:///work-dir/configs/egov-indexer/egov-echallan.yml"
 
 egov-pg-service:
   axis: true
@@ -352,6 +354,13 @@ nginx-ingress:
         enabled: true
 
 
+national-dashboard-ingest:
+  module-index-mapping: '{"PT": "pt-national-dashboard", "PGR": "pgr-national-dashboard", "WS": "ws-national-dashboard", "FIRENOC": "firenoc-national-dashboard", "TL": "tl-national-dashboard", "MCOLLECT": "mcollect-national-dashboard", "OBPS": "obps-national-dashboard", "COMMON": "common-national-dashboard", "BPA": "bpa-national-dashboard"}'
+  master-data-index: "master-data-index"
+  module-fields-mapping: '{"PT":{"transactions","totalApplications","assessedProperties","propertiesRegistered","todaysCollection","propertyTax","cess","rebate","penalty","interest"}, "TL": {"transactions","todaysApplications","todaysLicenseIssued","tlTax","adhocPenalty","adhocRebate","todaysCollection","todaysTradeLicenses","applicationsMovedToday"}, "PGR": {"closedComplaints","slaAchievement","completionRate","uniqueCitizens","resolvedComplaints","todaysComplaints","todaysReopenedComplaints","todaysOpenComplaints","todaysAssignedComplaints","todaysRejectedComplaints","todaysReassignedComplaints"}, "WS": {"transactions","connectionsCreated","todaysCollection","sewerageConnections","waterConnections","pendingConnections"}, "MCOLLECT": {"numberOfCategories","todaysCollection","numberOfReceipts","numberOfChallans"}, "OBPS": {"ocPlansScrutinized","plansScrutinized","ocSubmitted","applicationsSubmitted","ocIssued","landAreaAppliedInSystemForBPA","averageDaysToIssuePermit","averageDaysToIssueOC","todaysCollection","permitsIssuedByRiskType","permitsIssuedByOccupancyType","permitsIssuedBySubOccupancyType"}, "FIRENOC": {"todaysApplications","todaysCollection","NOCIssuedtoday","provisionalNOCIssued","actualNOCIssued","avgDaysToIssueProvisionalNOC","slaComplianceActual","slaComplianceProvisional","avgDaysToIssueActualNOC"}, "COMMON": {"onboardedUlbsCount","totalCitizensCount","slaAchievement","liveUlbsCount","activeUlbsCount"}}'
+  master-module-fields-mapping: '{"PT":{"snoForMunicipalCorporation","ulbName","budgetProposedForMunicipalCorporation"}, "PGR":{"snoForMunicipalCorporation","ulbName","budgetProposedForMunicipalCorporation"}, "TL":{"snoForMunicipalCorporation","ulbName","budgetProposedForMunicipalCorporation"},"WS":{"snoForMunicipalCorporation","ulbName","budgetProposedForMunicipalCorporation"},"MCOLLECT":{"snoForMunicipalCorporation","ulbName","budgetProposedForMunicipalCorporation"},"OBPS":{"snoForMunicipalCorporation","ulbName","budgetProposedForMunicipalCorporation"},"FIRENOC":{"snoForMunicipalCorporation","ulbName","budgetProposedForMunicipalCorporation"}}'
+
+
 cert-manager:
   email: "nithin.dv@egovernments.org"
   images:
@@ -396,7 +405,7 @@ employee:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
-      <script src=https://s3.ap-south-1.amazonaws.com/egov-telemetry-data/egov-telemetry-1557467338.js type=text/javascript></script>
+      <script src=https://unpkg.com/@egovernments/telemetry@0.0.2/dist/egov-telemetry-1557467338.js type=text/javascript></script>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-qa-assets/globalConfigs.js type=text/javascript></script>
       ';"
 
@@ -423,7 +432,7 @@ citizen:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
-      <script src=https://s3.ap-south-1.amazonaws.com/egov-telemetry-data/egov-telemetry-1557467338.js type=text/javascript></script>
+      <script src=https://unpkg.com/@egovernments/telemetry@0.0.2/dist/egov-telemetry-1557467338.js type=text/javascript></script>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-qa-assets/globalConfigs.js type=text/javascript></script>
       ';"
 
@@ -432,6 +441,13 @@ digit-ui:
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-qa-assets/globalConfigs.js type=text/javascript></script>
+      ';"
+
+dashboard:
+  custom-js-injection: |
+    sub_filter.conf: "
+      sub_filter  '<head>' '<head>
+      <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
       ';"
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

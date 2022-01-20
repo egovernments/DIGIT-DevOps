@@ -75,105 +75,120 @@ func main() {
 		contextset := setClusterContext()
 		if contextset {
 			// Get the versions from the chart and display it to user to select
-			files, err := ioutil.ReadDir("../helm/digit-release-versions/")
+			file, err := os.Open("../helm/product-release-charts/")
 			if err != nil {
-				log.Fatal(err)
+				log.Fatalf("failed opening directory: %s", err)
 			}
-			for _, f := range files {
-				name := f.Name()
-				versionfiles = append(versionfiles, name[s.Index(name, "-")+1:s.Index(name, ".y")])
+			defer file.Close()
+
+			prodList, _ := file.Readdirnames(0) // 0 to read all files and folders
+			for _, name := range prodList {
+				fmt.Println(name)
 			}
-			var version string = ""
-			version, _ = sel(versionfiles, "Which DIGIT Version You would like to install, Select below")
-			if version != "" {
-				argFile := "../helm/digit-release-versions/dependancy_chart-" + version + ".yaml"
 
-				// Decode the yaml file and assigning the values to a map
-				chartFile, err := ioutil.ReadFile(argFile)
+			var product string = ""
+			product, _ = sel(prodList, "Which Product would you like to install, Please Select")
+			if product != "" {
+				files, err := ioutil.ReadDir("../helm/product-release-charts/" + product)
 				if err != nil {
-					fmt.Println("\n\tERROR: Reading file =>", argFile, err)
-					return
+					log.Fatal(err)
 				}
 
-				// Parse the yaml values
-				fullChart := Digit{}
-				err = yaml.Unmarshal(chartFile, &fullChart)
-				if err != nil {
-					fmt.Println("\n\tERROR: Parsing => ", argFile, err)
-					return
+				for _, f := range files {
+					name := f.Name()
+					versionfiles = append(versionfiles, name[s.Index(name, "-")+1:s.Index(name, ".y")])
 				}
+				var version string = ""
+				version, _ = sel(versionfiles, "Which version of the product would like to install, Select below")
+				if version != "" {
+					argFile := "../helm/product-release-charts/" + product + "/dependancy_chart-" + version + ".yaml"
 
-				// Mapping the images to servicename
-				var m = make(map[string][]string)
-				for _, s := range fullChart.Modules {
-					m[s.Name] = s.Services
-					if strings.Contains(s.Name, "m_") {
-						modules = append(modules, s.Name)
-					}
-				}
-				modules = append(modules, "Exit")
-				result, err := sel(modules, "Select the DIGIT modules that you want to install, choose Exit to complete selection")
-				//if err == nil {
-				for result != "Exit" && err == nil {
-					selectedMod = append(selectedMod, result)
-					result, err = sel(modules, "Select the modules you want to install, choose Exit to complete selection")
-				}
-				if selectedMod != nil {
-					for _, mod := range selectedMod {
-						getService(fullChart, mod, *set, svclist)
-					}
-					for element := svclist.Front(); element != nil; element = element.Next() {
-						imglist := m[element.Value.(string)]
-						imglistsize := len(imglist)
-						for i, service := range imglist {
-							argStr = argStr + service
-							if !(element.Next() == nil && i == imglistsize-1) {
-								argStr = argStr + ","
-							}
-
-						}
-					}
-
-					envfilesFromDir, err := ioutil.ReadDir("../helm/environments/")
+					// Decode the yaml file and assigning the values to a map
+					chartFile, err := ioutil.ReadFile(argFile)
 					if err != nil {
-						log.Fatal(err)
-					}
-					for _, envfile := range envfilesFromDir {
-						filename := envfile.Name()
-						if !s.Contains(filename, "secrets") {
-							envfiles = append(envfiles, filename[0:s.Index(filename, ".yaml")])
-						}
+						fmt.Println("\n\tERROR: Reading file =>", argFile, err)
+						return
 					}
 
-					// Choose the env
-					var env string = ""
-					env, err = sel(envfiles, "Choose the target env files that are identified from your local configs")
-					fmt.Print("")
-					if env != "" {
-						var goDeployCmd string
-						confirm := []string{"Yes", "No"}
+					// Parse the yaml values
+					fullChart := Digit{}
+					err = yaml.Unmarshal(chartFile, &fullChart)
+					if err != nil {
+						fmt.Println("\n\tERROR: Parsing => ", argFile, err)
+						return
+					}
 
-						goDeployCmd = fmt.Sprintf("go run main.go deploy -c -e %s %s", env, argStr)
+					// Mapping the images to servicename
+					var m = make(map[string][]string)
+					for _, s := range fullChart.Modules {
+						m[s.Name] = s.Services
+						if strings.Contains(s.Name, "m_") {
+							modules = append(modules, s.Name)
+						}
+					}
+					modules = append(modules, "Exit")
+					result, err := sel(modules, "Select the DIGIT modules that you want to install, choose Exit to complete selection")
+					//if err == nil {
+					for result != "Exit" && err == nil {
+						selectedMod = append(selectedMod, result)
+						result, err = sel(modules, "Select the modules you want to install, choose Exit to complete selection")
+					}
+					if selectedMod != nil {
+						for _, mod := range selectedMod {
+							getService(fullChart, mod, *set, svclist)
+						}
+						for element := svclist.Front(); element != nil; element = element.Next() {
+							imglist := m[element.Value.(string)]
+							imglistsize := len(imglist)
+							for i, service := range imglist {
+								argStr = argStr + service
+								if !(element.Next() == nil && i == imglistsize-1) {
+									argStr = argStr + ","
+								}
 
-						preview, _ := sel(confirm, "Do you want to preview the manifests before the actual Deployment")
-						if preview == "Yes" {
-							goDeployCmd = fmt.Sprintf("%s -p", goDeployCmd)
-							fmt.Println("That's cool... The preview is getting loaded. Please review it and proceed with the deployment")
-							execCommand(goDeployCmd)
+							}
 						}
 
-						consent, _ := sel(confirm, "Are we good to proceed with the actual deployment?")
-						if consent == "Yes" {
-							fmt.Println("Whola!, That's great... Sit back and wait for the deployment to complete in about 10 min")
-							err := execCommand(goDeployCmd)
-							if err == nil {
-								fmt.Println("We are done with the deployment. You can start using the services. Thank You!!!")
-								return
+						envfilesFromDir, err := ioutil.ReadDir("../helm/environments/")
+						if err != nil {
+							log.Fatal(err)
+						}
+						for _, envfile := range envfilesFromDir {
+							filename := envfile.Name()
+							if !s.Contains(filename, "secrets") {
+								envfiles = append(envfiles, filename[0:s.Index(filename, ".yaml")])
+							}
+						}
+
+						// Choose the env
+						var env string = ""
+						env, err = sel(envfiles, "Choose the target env files that are identified from your local configs")
+						fmt.Print("")
+						if env != "" {
+							var goDeployCmd string
+							confirm := []string{"Yes", "No"}
+
+							goDeployCmd = fmt.Sprintf("go run main.go deploy -c -e %s %s", env, argStr)
+
+							preview, _ := sel(confirm, "Do you want to preview the manifests before the actual Deployment")
+							if preview == "Yes" {
+								goDeployCmd = fmt.Sprintf("%s -p", goDeployCmd)
+								fmt.Println("That's cool... The preview is getting loaded. Please review it and proceed with the deployment")
+								execCommand(goDeployCmd)
+							}
+
+							consent, _ := sel(confirm, "Are we good to proceed with the actual deployment?")
+							if consent == "Yes" {
+								fmt.Println("Whola!, That's great... Sit back and wait for the deployment to complete in about 10 min")
+								err := execCommand(goDeployCmd)
+								if err == nil {
+									fmt.Println("We are done with the deployment. You can start using the services. Thank You!!!")
+									return
+								}
 							}
 						}
 					}
 				}
-				//}
 			}
 		}
 	}

@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"bytes"
+	"container/list"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -9,11 +10,112 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"gopkg.in/yaml.v2"
 )
+
+//Defining a struct to parse the yaml file
+type Chart struct {
+	Version string `yaml:"version"`
+	Modules []struct {
+		Name         string   `yaml:"name"`
+		Services     []string `yaml:"services"`
+		Dependencies []string `yaml:"dependencies,omitempty"`
+	} `yaml:"modules"`
+}
+
+type mSet struct {
+	set map[string]bool
+}
+
+func createSet() *mSet {
+	return &mSet{make(map[string]bool)}
+}
+func (set *mSet) Add(i string) bool {
+	_, found := set.set[i]
+	set.set[i] = true
+	return !found //False if it existed already
+}
+func (set *mSet) Get(i string) bool {
+	_, found := set.set[i]
+	return found
+}
+
+func getServicesList(helmDir string, productName string, version string) string {
+	var modules []string
+	svclist := list.New()
+	mset := createSet()
+	var argStr string = ""
+
+	argFile := helmDir + "/product-release-charts/" + productName + "/dependancy_chart-" + version + ".yaml"
+	// Decode the yaml file and assigning the values to a map
+	chartFile, err := ioutil.ReadFile(argFile)
+	if err != nil {
+		fmt.Println("\n\tERROR: Reading file =>", argFile, err)
+		return err.Error()
+	}
+
+	// Parse the yaml values
+	fullChart := Chart{}
+	err = yaml.Unmarshal(chartFile, &fullChart)
+	if err != nil {
+		fmt.Println("\n\tERROR: Parsing => ", argFile, err)
+		return err.Error()
+	}
+
+	// Mapping the images to servicename
+	var m = make(map[string][]string)
+	for _, s := range fullChart.Modules {
+		m[s.Name] = s.Services
+		if strings.Contains(s.Name, "m_") {
+			modules = append(modules, s.Name)
+		}
+
+	}
+
+	if modules != nil {
+		for _, module := range modules {
+			getServices(fullChart, module, *mset, svclist)
+		}
+		for element := svclist.Front(); element != nil; element = element.Next() {
+			imglist := m[element.Value.(string)]
+			imglistsize := len(imglist)
+			for i, service := range imglist {
+				argStr = argStr + service
+				if !(element.Next() == nil && i == imglistsize-1) {
+					argStr = argStr + ","
+				}
+
+			}
+		}
+
+		return argStr
+	}
+
+	return ""
+
+}
+
+func getServices(fullChart Chart, targetModule string, set mSet, svclist *list.List) {
+	for _, featureModule := range fullChart.Modules {
+		if featureModule.Name == targetModule {
+			if set.Add(targetModule) {
+				svclist.PushFront(targetModule) //Add services into the list
+				if featureModule.Dependencies != nil {
+					for _, deps := range featureModule.Dependencies {
+						getServices(fullChart, deps, set, svclist)
+					}
+				}
+
+			}
+		}
+	}
+}
 
 // DeployCharts deploys render all charts using helm template and deploy them using kubectl apply --recursive
 func DeployCharts(options Options) {
 
+	var serviceList string = ""
 	helmDir, _ := filepath.Abs(options.HelmDir)
 	log.Println("Helm Directory - " + helmDir)
 
@@ -25,7 +127,15 @@ func DeployCharts(options Options) {
 		deployClusterConfigs(index, helmDir, envOverrideFile, envSecretFile)
 	}
 
-	services := strings.Split(options.Images, ",")
+	if options.DesiredProduct != "" && options.ProductVersion != "" {
+		serviceList = getServicesList(helmDir, options.DesiredProduct, options.ProductVersion)
+	} else {
+		serviceList = options.Images
+	}
+
+	fmt.Println(serviceList)
+
+	services := strings.Split(serviceList, ",")
 	for _, service := range services {
 
 		var name, helmTemplate, args = "", "", make([]string, 0, 10)

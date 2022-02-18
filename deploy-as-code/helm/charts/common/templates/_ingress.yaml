@@ -1,7 +1,7 @@
 {{- define "common.ingress" -}}
 {{- if .Values.ingress.enabled -}}
 ---
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ template "common.name" . }}
@@ -20,14 +20,20 @@ spec:
   rules:
   - http:
       paths:
-      - backend:
+      - path: /{{ .Values.ingress.context }}
+        pathType: Prefix
+        backend:
 {{- if .Values.ingress.zuul }}          
-          serviceName: zuul
-          servicePort: 8080
+          service:
+           name: zuul
+           port: 
+            number: 8080
 {{ else }}
-          serviceName: {{ .Values.ingress.serviceName | default (include "common.name" .) }}
-          servicePort: {{ .Values.ingress.servicePort | default .Values.httpPort }}
+          service:
+           name: {{ .Values.ingress.serviceName | default (include "common.name" .) }}
+           port:
+            number: {{ .Values.ingress.servicePort | default .Values.httpPort }}
 {{- end }}            
-        path: /{{ .Values.ingress.context }}
+
 {{- end -}} 
 {{- end -}}

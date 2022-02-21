@@ -3,7 +3,7 @@
 #
 
 variable "cluster_name" {
-  default = "test-singleinstance"
+  default = "single-instance"
 }
 
 variable "vpc_cidr_block" {
@@ -11,15 +11,15 @@ variable "vpc_cidr_block" {
 }
 
 variable "network_availability_zones" {
-  default = ["ap-south-1a", "ap-south-1b"]
+  default = ["ap-south-1b", "ap-south-1a"]
 }
 
 variable "availability_zones" {
-  default = ["ap-south-1a"]
+  default = ["ap-south-1b"]
 }
 
 variable "kubernetes_version" {
-  default = "1.18"
+  default = "1.20"
 }
 
 variable "instance_type" {

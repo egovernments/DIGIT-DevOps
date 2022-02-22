@@ -1,42 +1,42 @@
 global:
-  domain: core.digit.org
-  namespace: core
+  domain: digit.digit.org
+  namespace: digit
   tracing-enabled: true
   nodepool:
     nodeAffinity: false
-    selector: core-ng
-    toleration: core-ng
+    selector: digit-ng
+    toleration: digit-ng
 
 cluster-configs:
   namespaces:
     create: false
-    values: [ core, qa , dev, uat, staging ]
+    values: [ digit, qa , dev, uat, staging ]
 
   rbac:
   - role: user
-    namespaces: [ core ]
+    namespaces: [ digit ]
   - role: admin
-    namespaces: [ core ]
+    namespaces: [ digit ]
 
   root-ingress:
     cert-issuer: "letsencrypt-prod"
-    namespace: dev
+    namespace: digit
   configmaps:
     egov-config:
-      namespace: [ core, qa , dev, uat, staging ]
+      namespace: [ digit, qa , dev, uat, staging ]
       data:
         db-host: egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com
         db-name: egov_dev_ms
         erp-db-url: jdbc:postgresql://egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com:5432/punjab_impl_app
         db-url: jdbc:postgresql://egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com:5432/egov_dev_ms
         bpa-db-url: jdbc:postgresql://egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com:5432/bpa_dev_ms
-        egov-services-fqdn-name: https://dev.digit.org/
+        egov-services-fqdn-name: https://digit.digit.org/
         egov-state-level-tenant-id: pb
-        es-host: elasticsearch-data-v1.es-cluster
-        es-indexer-host: http://elasticsearch-data-v1.es-cluster:9200/
+        es-host: elasticsearch-data-v1.digit
+        es-indexer-host: http://elasticsearch-data-v1.digit:9200/
         flyway-locations: filesystem:/flyway/sql,filesystem:/flyway/seed,filesystem:/flyway/qa
-        kafka-brokers: kafka-v2.kafka-cluster:9092
-        kafka-infra-brokers: kafka-v2.kafka-cluster:9092
+        kafka-brokers: kafka-v2.digit:9092
+        kafka-infra-brokers: kafka-v2.digit:9092
         logging-level-jdbc: debug
         mobile-validation-workaround: "true"
         s3-assets-bucket: (pb-egov-assets|egov-dev-assets)
@@ -49,10 +49,10 @@ cluster-configs:
         spring-jpa-show-sql: "true"
         timezone: Asia/Kolkata
         tracer-errors-provideexceptionindetails: "true"
-        es-infra-host: elasticsearch-data-v1.es-cluster
+        es-infra-host: elasticsearch-data-v1.digit
 
     egov-service-host:
-      namespace: [ core, qa , dev, uat, staging ] 
+      namespace: [ digit,  qa , dev, uat, staging ] 
       data:
         billing-service: http://billing-service.egov:8080/
         collection-services: http://collection-services.egov:8080/
@@ -310,7 +310,7 @@ redoc:
 nginx-ingress:
   replicas: 1
   default-backend-service: "egov/nginx"
-  namespace: egov
+  namespace: digit
   cert-issuer: "letsencrypt-prod"
   ssl-protocols: "TLSv1.2 TLSv1.3"
   ssl-ciphers: "EECDH+CHACHA20:EECDH+AES"
@@ -321,8 +321,8 @@ nginx-ingress:
       tag: "0.26.1"     
     metrics:
       enabled: true
-      serviceMonitor:
-        enabled: true
+     # serviceMonitor:
+     #   enabled: true
     service:
       annotations: 
         service.beta.kubernetes.io/aws-load-balancer-type: nlb           
@@ -331,10 +331,10 @@ nginx-ingress:
         enabled: true        
 
 cert-manager:
-  email: "nithin.dv@egovernments.org"
+  email: "nikesh.umredkar@egovernments.org"
   images:
     - "quay.io/jetstack/cert-manager-controller:v0.10.1"
-  namespace: egov
+  namespace: digit
 
 zuul:
   replicas: 2
@@ -480,7 +480,7 @@ zookeeper-config:
   data: "tickTime=2000\n    initLimit=10\n    syncLimit=5\n    dataDir=/opt/zookeeper/data\n    clientPort=2181\n    autopurge.snapRetainCount=3\n    autopurge.purgeInterval=1\n    server.1=zookeeper-0.zookeeper:2888:3888"
 
 kafka-config:
-  topics: "egov-dev-docker-logs:1:1,egov.pgr.validated:1:1,egov.pgr.locationupdated:1:1,egov.pgr.workflowupdated:1:1,egov.pgr.saved:1:1,egov.pgr.indexing:1:1,egov.core.notification.email:1:1,egov.core.notification.sms:1:1,attendance-save-db:1:1,egov.employee:1:1,save-asset-db:1:1,update-asset-db:1:1,save-assetcategory-db:1:1,agreement-save-db:1:1,agreement-update-db:1:1,lams-workflow-start:1:1,lams-workflow-update:1:1,egov-common-holiday:1:1,egov.leaveopeningbalance-create:1:1,egov.leaveopeningbalance-update:1:1,egov-hr-leavetype:1:1,egov.leaveallotment-create:1:1,egov.leaveallotment-update:1:1,egov.designation-create:1:1,egov.designation-update:1:1,egov.position-create:1:1,egov.position-update:1:1,egov.egf.masters.validated.topic:1:1,egov.egf.masters.completed:1:1,egov.wcms.category-create:1:1,property-create-validated:1:1,property-create-tax-calculated:1:1,property-create-user-validated:1:1,property-create-workflow-started:1:1,property-create-workflow-updated:1:1,save-bill-db:1:1,update-bill-db:1:1,save-bill:1:1,update-bill:1:1,save-demand:1:1,update-demand:1:1,egov.collection.receipt-create:1:1,save-taxHeadMaster-db:1:1,update-taxHeadMaster:1:1,save-glCodeMaster-db:1:1,save-glCodeMaster:1:1,update-glCodeMaster-db:1:1,update-glCodeMaster:1:1,save-taxperiod-db:1:1,save-taxperiod:1:1,update-taxperiod-db:1:1,update-taxperiod:1:1,save-businessservicedetail-db:1:1,save-businessservicedetail:1:1,update-businessservicedetail-db:1:1,update-businessservicedetail:1:1,property-update-workflow-approved:1:1,property-update-user-validated:1:1,property-update-workflow-started:1:1,property-titletransfer-create-user-validated:1:1,property-titletransfer-update-user-validated:1:1,property-titletransfer-create-workflow-started:1:1,property-titletransfer-approved:1:1,property-titletransfer-workflow-updated:1:1,property-update-tax-calculated:1:1,property-update-validated:1:1,property-titletransfer-cretae-validated:1:1,property-titletransfer-update-validated:1:1,property-create-tax-generated:1:1,create-legacy-tradelicense-validated:1:1,egov.pgr.servicedefinition-create:1:1,demand-bill-update:1:1,egov.pgr.servicedefinition-update:1:1,egov-common-department-create:1:1,egov-common-department-update:1:1,egov.services.tl-services.create.legacy.tradelicense.validated:1:1,save-service-db:1:1,update-service-db:1:1,update-legacy-tradelicense-validated:1:1,tradelicense-validated:1:1,tradelicense-persisted:1:1,tradelicense-workflow-populated:1:1,demand-bill-update:1:1,egov.wcms.newconnection-create:1:1,egov.wcms.newconnection-update:1:1,update-newconn-workflow:1:1,initiated-newconn-workflow:1:1,works-offlinestatus-create-validated:1:1,works-offlinestatus-update-validated:1:1,works-contractor-create-validated:1:1,works-contractor-update-validated:1:1,works-letterofacceptance-create-validated:1:1,works-letterofacceptance-update-validated:1:1,works-measurementbook-create-update:1:1,works-revision-detailed-estimate-create-update:1:1,works-workorder-createupdate-validated:1:1,lcms-create-summon-validated:1:1,lcms-create-case:1:1,lcms-create-vakalatnama:1:1,lcms-parawisecomment-create:1:1,lcms-parawisecomment-update:1:1,lcms-assign-advocate:1:1,lcms-update-assign-advocate:1:1,lcms-advocate-create:1:1,lcms-advocate-update:1:1,advocate-payment-create:1:1,advocate-payment-update:1:1,lcms-opinion-create:1:1,lcms-opinion-update:1:1,legacy-case-create:1:1,legacy-hearing-create:1:1,legacy-case-voucher-create:1:1,legacy-case-advocate-create:1:1,lcms-hearingdetails-create:1:1,lcms-hearingdetails-update:1:1,lcms-notice-create:1:1,lcms-notice-update:1:1,lcms-register-create:1:1,lcms-register-update:1:1,lcms-evidence-create:1:1,lcms-evidence-update:1:1,lcms-agency-create:1:1,lcms-agency-update:1:1,lcms-personal-details-create:1:1,Lcms-event-create:1:1,lcms-create-summon-indexer:1:1,lcms-legacy-casecreate-indexer:1:1,works-abstract-estimate-createandupdate:1:1,works-detailed-estimate-createandupdate:1:1,works-revision-loa-create-update:1:1,works-sorrate-saveorupdate-validated:1:1,works-estimatetemplate-saveorupdate-validated:1:1,lcms-update-summon-validated:1:1,works-remarks-createandupdate:1:1,mdms.create.gitpushprocess:1:1,works-contractoradvance-saveorupdate-validated:1:1,works-qualitytesting-createandupdate:1:1,works-abstract-estimate-backupdate:1:1,works-detailedestimate-backupdate:1:1,works-abstract-estimate-backupdate-oncreate-detailedestimate:1:1,works-abstract-estimate-backupdate-oncancel-detailedestimate:1:1,works-detailedestimate-backupdate-oncreate-loa:1:1,works-detailedestimate-backupdate-oncancel-loa:1:1,swm-vehicleschedule-save-topic:1:1,works-projectcode-create:1:1,works-projectcode-update:1:1,works-masters-remarks-createandupdate:1:1,works-milestonetemplate-saveorupdate-validated:1:1,works-contractorbill-create-update:1:1,works-measurementbook-backupdate-for-billstatus:1:1,works-notice-createupdate-validated:1:1,works-milestone-saveorupdate-validated:1:1,works-trackmilestone-saveorupdate-validated:1:1,swm-shift-save-topic:1:1,swm-shift-update-topic:1:1,swm-shift-indexer-topic:1:1,works-letterofacceptance-backupdate-oncreate-workorder:1:1,works-letterofacceptance-backupdate-oncancel-workorder:1:1,works-loa-backupdate-oncreate-milestone:1:1,works-loa-backupdate-oncancel-milestone:1:1,works-loa-backupdate-oncreate-contractoradvance:1:1,works-loa-backupdate-oncancel-contractoradvance:1:1,works-loa-backupdate-onupdate-withallofflinestatusandworkorder:1:1,works-workorder-backupdate-oncreate-milestone:1:1,works-workorder-backupdate-oncancel-contractoradvance:1:1,works-loa-backupdate-onupdate-offlinestatus:1:1,works-workorder-backupdate-onupdate-offlinestatus:1:1,works-loa-backupdate-onupdate-withallofflinestatus:1:1,works-workorder-backupdate-onupdate-withallofflinestatus:1:1,works-loa-backupdate-oncreate-bill:1:1,works-loa-backupdate-oncancel-bill:1:1,works-loa-backupdate-oncreatemb:1:1,works-loa-backupdate-oncancelmb:1:1,works-loa-backupdate-oncreatembandnobill:1:1,works-loa-backupdate-oncreatembandbill:1:1,works-workorder-backupdate-oncreate-bill:1:1,works-workorder-backupdate-oncancel-bill:1:1,works-workorder-backupdate-oncreatembandnobill:1:1,works-workorder-backupdate-oncreatembandbill:1:1,egov.error:1:1,save-pt-property:1:1,update-pt-property:1:1,save-pt-billingslab:1:1,update-pt-billingslab:1:1,save-pg-txns:1:1,update-pg-txns:1:1,save-pg-txns-dump:1:1,update-pg-txns-dump:1:1,save-pt-drafts:1:1,update-pt-drafts:1:1,egov.collectionmasters.bankaccountservicemapping-create:1:1,bankaccountservicemapping-create:1:1,res-custom-filter:1:1,update-pt-property-index:1:1"
+  topics: "egov-dev-docker-logs:1:1,egov.pgr.validated:1:1,egov.pgr.locationupdated:1:1,egov.pgr.workflowupdated:1:1,egov.pgr.saved:1:1,egov.pgr.indexing:1:1,egov.digit.notification.email:1:1,egov.digit.notification.sms:1:1,attendance-save-db:1:1,egov.employee:1:1,save-asset-db:1:1,update-asset-db:1:1,save-assetcategory-db:1:1,agreement-save-db:1:1,agreement-update-db:1:1,lams-workflow-start:1:1,lams-workflow-update:1:1,egov-common-holiday:1:1,egov.leaveopeningbalance-create:1:1,egov.leaveopeningbalance-update:1:1,egov-hr-leavetype:1:1,egov.leaveallotment-create:1:1,egov.leaveallotment-update:1:1,egov.designation-create:1:1,egov.designation-update:1:1,egov.position-create:1:1,egov.position-update:1:1,egov.egf.masters.validated.topic:1:1,egov.egf.masters.completed:1:1,egov.wcms.category-create:1:1,property-create-validated:1:1,property-create-tax-calculated:1:1,property-create-user-validated:1:1,property-create-workflow-started:1:1,property-create-workflow-updated:1:1,save-bill-db:1:1,update-bill-db:1:1,save-bill:1:1,update-bill:1:1,save-demand:1:1,update-demand:1:1,egov.collection.receipt-create:1:1,save-taxHeadMaster-db:1:1,update-taxHeadMaster:1:1,save-glCodeMaster-db:1:1,save-glCodeMaster:1:1,update-glCodeMaster-db:1:1,update-glCodeMaster:1:1,save-taxperiod-db:1:1,save-taxperiod:1:1,update-taxperiod-db:1:1,update-taxperiod:1:1,save-businessservicedetail-db:1:1,save-businessservicedetail:1:1,update-businessservicedetail-db:1:1,update-businessservicedetail:1:1,property-update-workflow-approved:1:1,property-update-user-validated:1:1,property-update-workflow-started:1:1,property-titletransfer-create-user-validated:1:1,property-titletransfer-update-user-validated:1:1,property-titletransfer-create-workflow-started:1:1,property-titletransfer-approved:1:1,property-titletransfer-workflow-updated:1:1,property-update-tax-calculated:1:1,property-update-validated:1:1,property-titletransfer-cretae-validated:1:1,property-titletransfer-update-validated:1:1,property-create-tax-generated:1:1,create-legacy-tradelicense-validated:1:1,egov.pgr.servicedefinition-create:1:1,demand-bill-update:1:1,egov.pgr.servicedefinition-update:1:1,egov-common-department-create:1:1,egov-common-department-update:1:1,egov.services.tl-services.create.legacy.tradelicense.validated:1:1,save-service-db:1:1,update-service-db:1:1,update-legacy-tradelicense-validated:1:1,tradelicense-validated:1:1,tradelicense-persisted:1:1,tradelicense-workflow-populated:1:1,demand-bill-update:1:1,egov.wcms.newconnection-create:1:1,egov.wcms.newconnection-update:1:1,update-newconn-workflow:1:1,initiated-newconn-workflow:1:1,works-offlinestatus-create-validated:1:1,works-offlinestatus-update-validated:1:1,works-contractor-create-validated:1:1,works-contractor-update-validated:1:1,works-letterofacceptance-create-validated:1:1,works-letterofacceptance-update-validated:1:1,works-measurementbook-create-update:1:1,works-revision-detailed-estimate-create-update:1:1,works-workorder-createupdate-validated:1:1,lcms-create-summon-validated:1:1,lcms-create-case:1:1,lcms-create-vakalatnama:1:1,lcms-parawisecomment-create:1:1,lcms-parawisecomment-update:1:1,lcms-assign-advocate:1:1,lcms-update-assign-advocate:1:1,lcms-advocate-create:1:1,lcms-advocate-update:1:1,advocate-payment-create:1:1,advocate-payment-update:1:1,lcms-opinion-create:1:1,lcms-opinion-update:1:1,legacy-case-create:1:1,legacy-hearing-create:1:1,legacy-case-voucher-create:1:1,legacy-case-advocate-create:1:1,lcms-hearingdetails-create:1:1,lcms-hearingdetails-update:1:1,lcms-notice-create:1:1,lcms-notice-update:1:1,lcms-register-create:1:1,lcms-register-update:1:1,lcms-evidence-create:1:1,lcms-evidence-update:1:1,lcms-agency-create:1:1,lcms-agency-update:1:1,lcms-personal-details-create:1:1,Lcms-event-create:1:1,lcms-create-summon-indexer:1:1,lcms-legacy-casecreate-indexer:1:1,works-abstract-estimate-createandupdate:1:1,works-detailed-estimate-createandupdate:1:1,works-revision-loa-create-update:1:1,works-sorrate-saveorupdate-validated:1:1,works-estimatetemplate-saveorupdate-validated:1:1,lcms-update-summon-validated:1:1,works-remarks-createandupdate:1:1,mdms.create.gitpushprocess:1:1,works-contractoradvance-saveorupdate-validated:1:1,works-qualitytesting-createandupdate:1:1,works-abstract-estimate-backupdate:1:1,works-detailedestimate-backupdate:1:1,works-abstract-estimate-backupdate-oncreate-detailedestimate:1:1,works-abstract-estimate-backupdate-oncancel-detailedestimate:1:1,works-detailedestimate-backupdate-oncreate-loa:1:1,works-detailedestimate-backupdate-oncancel-loa:1:1,swm-vehicleschedule-save-topic:1:1,works-projectcode-create:1:1,works-projectcode-update:1:1,works-masters-remarks-createandupdate:1:1,works-milestonetemplate-saveorupdate-validated:1:1,works-contractorbill-create-update:1:1,works-measurementbook-backupdate-for-billstatus:1:1,works-notice-createupdate-validated:1:1,works-milestone-saveorupdate-validated:1:1,works-trackmilestone-saveorupdate-validated:1:1,swm-shift-save-topic:1:1,swm-shift-update-topic:1:1,swm-shift-indexer-topic:1:1,works-letterofacceptance-backupdate-oncreate-workorder:1:1,works-letterofacceptance-backupdate-oncancel-workorder:1:1,works-loa-backupdate-oncreate-milestone:1:1,works-loa-backupdate-oncancel-milestone:1:1,works-loa-backupdate-oncreate-contractoradvance:1:1,works-loa-backupdate-oncancel-contractoradvance:1:1,works-loa-backupdate-onupdate-withallofflinestatusandworkorder:1:1,works-workorder-backupdate-oncreate-milestone:1:1,works-workorder-backupdate-oncancel-contractoradvance:1:1,works-loa-backupdate-onupdate-offlinestatus:1:1,works-workorder-backupdate-onupdate-offlinestatus:1:1,works-loa-backupdate-onupdate-withallofflinestatus:1:1,works-workorder-backupdate-onupdate-withallofflinestatus:1:1,works-loa-backupdate-oncreate-bill:1:1,works-loa-backupdate-oncancel-bill:1:1,works-loa-backupdate-oncreatemb:1:1,works-loa-backupdate-oncancelmb:1:1,works-loa-backupdate-oncreatembandnobill:1:1,works-loa-backupdate-oncreatembandbill:1:1,works-workorder-backupdate-oncreate-bill:1:1,works-workorder-backupdate-oncancel-bill:1:1,works-workorder-backupdate-oncreatembandnobill:1:1,works-workorder-backupdate-oncreatembandbill:1:1,egov.error:1:1,save-pt-property:1:1,update-pt-property:1:1,save-pt-billingslab:1:1,update-pt-billingslab:1:1,save-pg-txns:1:1,update-pg-txns:1:1,save-pg-txns-dump:1:1,update-pg-txns-dump:1:1,save-pt-drafts:1:1,update-pt-drafts:1:1,egov.collectionmasters.bankaccountservicemapping-create:1:1,bankaccountservicemapping-create:1:1,res-custom-filter:1:1,update-pt-property-index:1:1"
   zookeeper-connect: "zookeeper-v2.zookeeper-cluster:2181"
   kafka-brokers: "kafka-v2.kafka-cluster:9092"
 
@@ -575,18 +575,20 @@ egov-enc-service:
 
 # kafka-v2 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 kafka-v2:
+  namespace: digit 
   image:
     tag: "5.4.1"
   persistence:
     enabled: true
+    dataDirSize: 100Gi
     aws:
-      - volumeId: "vol-044f507404d8db05d"
+      - volumeId: "vol-0480d1e56fb61e77d"
         zone: ap-south-1b
-      - volumeId: "vol-0796cb7e37f7031c5"
+      - volumeId: "vol-0f6fe9041a4d4eafd"
         zone: ap-south-1b
-      - volumeId: "vol-029a62d841ca22dfb"
+      - volumeId: "vol-07ca1cfac248db9d9"
         zone: ap-south-1b
-  zookeeperHosts: "zookeeper-v2.zookeeper-cluster:2181/kafka-v2"
+  zookeeperHosts: "zookeeper-v2.digit:2181/kafka-v2"
 
   heapOptions: "-Xms704M -Xmx704M"
   memory_limits: 1408Mi
@@ -597,6 +599,7 @@ kafka-v2:
   offsetsReplicationFactor: "2"
 
 kafka-connect:
+  namespace: digit 
   image:
     tag: "5.4.1"
     
@@ -611,16 +614,18 @@ sw-services:
 
 # zookeeper-v2 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 zookeeper-v2:
+  namespace: digit 
   image:
     tag: "5.4.1"
   persistence:
     enabled: true
+    dataDirSize: 10Gi
     aws:
-      - volumeId: "vol-0f72c349722e0d09f"
+      - volumeId: "vol-07730108783c07b00"
         zone: ap-south-1b
-      - volumeId: "vol-0dd0b882cfbf1c57b"
+      - volumeId: "vol-023cce670487f27df"
         zone: ap-south-1b
-      - volumeId: "vol-03858c4fc9486719a"
+      - volumeId: "vol-05e99a576ecd7f55b"
         zone: ap-south-1b
 
   ## Zookeeper JVM Heap Option
@@ -643,14 +648,16 @@ zookeeper-v2:
 elasticsearch-data-v1:
   image:
     tag: 6.6.2
+  namespace: digit  
   persistence:
     enabled: true
+    dataDirSize: 100Gi
     aws:
-      - volumeId: "vol-02bf593e989cfa744"
+      - volumeId: "vol-0b23294f1416f5bcc"
         zone: ap-south-1b
-      - volumeId: "vol-0c12dae9ee7529c39"
+      - volumeId: "vol-098194658bf9529b4"
         zone: ap-south-1b
-      - volumeId: "vol-0eb857058075878b4"
+      - volumeId: "vol-0eb5a9e77e255bd73"
         zone: ap-south-1b
 
   esJavaOpts: "-Xmx1g -Xms1g"
@@ -663,17 +670,19 @@ elasticsearch-data-v1:
       memory: "2Gi"
 
 elasticsearch-master-v1:
+  namespace: digit
   replicas: 3
   image:
     tag: 6.6.2
   persistence:
     enabled: true
+    dataDirSize: 10Gi
     aws:
-      - volumeId: "vol-0c8da0e27533c8d70"
+      - volumeId: "vol-07b121bf53d14c87c"
         zone: ap-south-1b
-      - volumeId: "vol-0483380d9c577ecb9"
+      - volumeId: "vol-0d087fd7b3f75d417"
         zone: ap-south-1b
-      - volumeId: "vol-03e7840a6539c893b"
+      - volumeId: "vol-0eafcfc3ae1383ee9"
         zone: ap-south-1b
 
   esJavaOpts: "-Xmx448m -Xms448m"
@@ -684,6 +693,7 @@ elasticsearch-master-v1:
       memory: "896Mi"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 minio:
+  namespace: digit
   mode: distributed
   persistence:
     enabled: true
@@ -701,7 +711,7 @@ minio:
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 es-curator-infra:
-  namespace: es-cluster
+  namespace: digit
   schedule: "45 18 * * *"
   images:
     - bobrik/curator:5.6.0
@@ -715,6 +725,7 @@ kuberhealthy:
     replicas: 1
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 oauth2-proxy:
+  namespace: digit
   config:
     configFile: |-
       email_domains = [ "*" ]

@@ -1,0 +1,44 @@
+{{- with index .Values "cluster-configs" "networkpolicy" }}
+{{- range .namespaces }}
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: Role
+metadata:
+  name: {{ . }}-admin-role
+  namespace: {{ . }}
+rules:
+- apiGroups: ["apps", "extensions"]  
+  resources: ["deployments", "ingresses"] 
+  verbs: ["patch", "create", "delete", "get", "list", "update"]
+- apiGroups: [""]
+  resources: ["services", "endpoints", "pods", "configmaps", "secrets"]
+  verbs: ["get", "watch", "create", "delete", "update", "list", "patch"]    
+- apiGroups: [""]
+  resources: ["pods/portforward", "pods/proxy", "pods/exec", "pods/log"] 
+  verbs: ["create", "delete", "get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: Role
+metadata:
+  name: {{ . }}-user-role
+  namespace: {{ . }}
+rules:
+- apiGroups:
+  - "extensions"
+  resources:
+  - deployments
+  verbs:
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - pods/portforward
+  - pods/proxy 
+  - pods/log
+  verbs:
+  - create  
+  - delete
+  - get
+  - list
+{{- end }}
+{{- end }}
+---

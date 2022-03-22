@@ -84,8 +84,8 @@ module "eks" {
       name                    = "spot"
       subnets                 = "${slice(module.network.private_subnets, 0, length(var.availability_zones))}"
       override_instance_types = "${var.override_instance_types}"
-      asg_max_size            = 4
-      asg_desired_capacity    = 4
+      asg_max_size            = 1
+      asg_desired_capacity    = 1
       kubelet_extra_args      = "--node-labels=node.kubernetes.io/lifecycle=spot"
       additional_security_group_ids = ["${module.network.worker_nodes_sg_id}"]
       spot_allocation_strategy= "capacity-optimized"
@@ -112,26 +112,26 @@ module "eks" {
   ]
 }
 
-module "es-master" {
+module "wordpress" {
 
   source = "../modules/storage/aws"
-  storage_count = 3
+  storage_count = 1
   environment = "${var.cluster_name}"
-  disk_prefix = "es-master"
+  disk_prefix = "wordpress"
   availability_zones = "${var.availability_zones}"
   storage_sku = "gp2"
-  disk_size_gb = "2"
+  disk_size_gb = "10"
   
 }
-module "es-data-v1" {
+module "mysql" {
 
   source = "../modules/storage/aws"
-  storage_count = 3
+  storage_count = 1
   environment = "${var.cluster_name}"
-  disk_prefix = "es-data-v1"
+  disk_prefix = "mysql"
   availability_zones = "${var.availability_zones}"
   storage_sku = "gp2"
-  disk_size_gb = "25"
+  disk_size_gb = "10"
   
 }
 
@@ -144,17 +144,5 @@ module "zookeeper" {
   availability_zones = "${var.availability_zones}"
   storage_sku = "gp2"
   disk_size_gb = "2"
-  
-}
-
-module "kafka" {
-
-  source = "../modules/storage/aws"
-  storage_count = 3
-  environment = "${var.cluster_name}"
-  disk_prefix = "kafka"
-  availability_zones = "${var.availability_zones}"
-  storage_sku = "gp2"
-  disk_size_gb = "50"
   
 }

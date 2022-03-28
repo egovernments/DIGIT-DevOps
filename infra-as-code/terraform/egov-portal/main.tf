@@ -66,20 +66,21 @@ provider "kubernetes" {
 
 module "eks" {
   source          = "terraform-aws-modules/eks/aws"
+  version = "17.24.0"
   cluster_name    = "${var.cluster_name}"
   cluster_version = "${var.kubernetes_version}"
   subnets         = "${concat(module.network.private_subnets, module.network.public_subnets)}"
 
   tags = "${
-    map(
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
-      "KubernetesCluster", "${var.cluster_name}"
+    tomap({
+      "kubernetes.io/cluster/${var.cluster_name}" = "owned",
+      "KubernetesCluster"= "${var.cluster_name}"}
     )
   }"
 
   vpc_id = "${module.network.vpc_id}"
 
-  worker_groups_launch_template = [
+  worker_groups= [
     {
       name                    = "spot"
       subnets                 = "${slice(module.network.private_subnets, 0, length(var.availability_zones))}"
@@ -95,18 +96,18 @@ module "eks" {
   
   map_users    = [
     {
-      userarn  = "${module.iam_user_deployer.this_iam_user_arn}"
-      username = "${module.iam_user_deployer.this_iam_user_name}"
+      userarn  = "${module.iam_user_deployer.iam_user_arn}"
+      username = "${module.iam_user_deployer.iam_user_name}"
       groups   = ["system:masters"]
     },
     {
-      userarn  = "${module.iam_user_admin.this_iam_user_arn}"
-      username = "${module.iam_user_admin.this_iam_user_name}"
+      userarn  = "${module.iam_user_admin.iam_user_arn}"
+      username = "${module.iam_user_admin.iam_user_name}"
       groups   = ["system:masters"]
     },
     {
-      userarn  = "${module.iam_user_user.this_iam_user_arn}"
-      username = "${module.iam_user_user.this_iam_user_name}"
+      userarn  = "${module.iam_user_user.iam_user_arn}"
+      username = "${module.iam_user_user.iam_user_name}"
       groups   = ["global-readonly", "digit-user"]
     },    
   ]

@@ -7,7 +7,7 @@ variable "cluster_name" {
 }
 
 variable "vpc_cidr_block" {
-  default = "10.0.0.0/16"
+  default = "192.168.0.0/16"
 }
 
 variable "network_availability_zones" {
@@ -19,7 +19,7 @@ variable "availability_zones" {
 }
 
 variable "kubernetes_version" {
-  default = "1.15"
+  default = "1.20"
 }
 
 variable "instance_type" {
@@ -27,7 +27,7 @@ variable "instance_type" {
 }
 
 variable "override_instance_types" {
-  default = ["t2.large"]
+  default = ["t2.large","m5.large","m4.large","t3a.large"]
   
 }
 

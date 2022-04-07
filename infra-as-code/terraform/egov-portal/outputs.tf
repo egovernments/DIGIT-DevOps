@@ -37,6 +37,10 @@ output "wordpress_volume_ids" {
   value = "${module.wordpress.volume_ids}"
 }
 
+output "mysql_volume_ids" {
+  value = "${module.mysql.volume_ids}"
+}
+
 output "deployer_secret_key_cmd" {
   value = "${tomap({(module.iam_user_deployer.iam_access_key_id)= (module.iam_user_deployer.keybase_secret_key_decrypt_command)})}"
 }

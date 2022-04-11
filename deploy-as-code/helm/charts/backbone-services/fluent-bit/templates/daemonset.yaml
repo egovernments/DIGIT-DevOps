@@ -1,4 +1,4 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: {{ template "name" . }}
@@ -7,6 +7,10 @@ metadata:
     app: {{ template "name" . }}
     kubernetes.io/cluster-service: "true"
 spec:
+  selector:
+    matchLabels:
+      app: {{ template "name" . }}
+      kubernetes.io/cluster-service: "true"
   template:
     metadata:
       labels:
@@ -33,6 +37,22 @@ spec:
               readOnly: true
             - name: {{ template "name" . }}-config
               mountPath: /fluent-bit/etc/
+      affinity:       
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+           nodeSelectorTerms:
+            - matchExpressions:
+              - key: Environment
+                operator: In
+                values:
+                - {{ .Values.global.nodepool.selector }}     
+      tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "{{ .Values.global.nodepool.toleration }}"
+        effect: "NoSchedule"
+      nodeSelector:
+        Environment: {{ .Values.global.nodepool.selector }}        
       terminationGracePeriodSeconds: 10
       volumes:
         - name: varlog
@@ -45,4 +65,4 @@ spec:
           configMap:
             name: {{ template "name" . }}-config
       serviceAccountName: {{ template "name" . }}
-      serviceAccount: {{ template "name" . }}    
+      serviceAccount: {{ template "name" . }} 

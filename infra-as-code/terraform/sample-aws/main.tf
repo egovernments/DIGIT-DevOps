@@ -1,4 +1,10 @@
-
+terraform {
+  backend "s3" {
+    bucket = "try-workshop"
+    key = "terraform"
+    region = "ap-south-1"
+  }
+}
 
 module "network" {
   source             = "../modules/kubernetes/aws/network"

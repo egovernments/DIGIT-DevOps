@@ -7,19 +7,19 @@ variable "cluster_name" {
 }
 
 variable "vpc_cidr_block" {
-  default = "192.172.0.0/16"
+  default = "192.168.0.0/16"
 }
 
 variable "network_availability_zones" {
-  default = ["ap-south-1a", "ap-south-1b"]
+  default = ["ap-south-1b", "ap-south-1a"]
 }
 
 variable "availability_zones" {
-  default = ["ap-south-1a"]
+  default = ["ap-south-1b"]
 }
 
 variable "kubernetes_version" {
-  default = "1.18"
+  default = "1.20"
 }
 
 variable "instance_type" {
@@ -38,8 +38,9 @@ variable "number_of_worker_nodes" {
 variable "ssh_key_name" {
   default = "my-first-eks"
 }
+
 variable "iam_keybase_user" {
- default = "keybase:mytf-key"
+ default = "keybase:egovterraform"
 }
 
-variable "db_password" {}
+

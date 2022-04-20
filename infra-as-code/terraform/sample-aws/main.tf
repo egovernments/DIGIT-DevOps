@@ -105,12 +105,4 @@ module "kafka" {
   
 }
 
-data "aws_security_group" "node_sg" {
- tags = {
-    Name = "${var.cluster_name}-eks_worker_sg"
-  }
-  depends_on = [
-   module.eks
-  ]
-}
 

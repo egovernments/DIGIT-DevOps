@@ -43,4 +43,5 @@ variable "iam_keybase_user" {
  default = "keybase:egovterraform"
 }
 
+variable "db_password" {}
 

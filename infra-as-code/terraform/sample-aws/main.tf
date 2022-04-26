@@ -13,6 +13,23 @@ module "network" {
   availability_zones = "${var.network_availability_zones}"
 }
 
+# PostGres DB
+module "db" {
+  source                        = "../modules/db/aws"
+  subnet_ids                    = "${module.network.private_subnets}"
+  vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
+  availability_zone             = "${element(var.availability_zones, 0)}"
+  instance_class                = "db.t3.medium"
+  engine_version                = "11.13"
+  storage_type                  = "gp2"
+  storage_gb                    = "100"
+  backup_retention_days         = "7"
+  administrator_login           = "egovdemo"
+  administrator_login_password  = "${var.db_password}"
+  db_name                       = "${var.cluster_name}-db"
+  environment                   = "${var.cluster_name}"
+}
+
 data "aws_eks_cluster" "cluster" {
   name = "${module.eks.cluster_id}"
 }
@@ -43,8 +60,8 @@ module "eks" {
       override_instance_types       = "${var.override_instance_types}"
       kubelet_extra_args            = "--node-labels=node.kubernetes.io/lifecycle=spot"
       additional_security_group_ids = ["${module.network.worker_nodes_sg_id}"]
-      asg_max_size                  = 4
-      asg_desired_capacity          = 4
+      asg_max_size                  = 5
+      asg_desired_capacity          = 5
       spot_allocation_strategy      = "capacity-optimized"
       spot_instance_pools           = null
     }

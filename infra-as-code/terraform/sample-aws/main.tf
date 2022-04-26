@@ -1,6 +1,6 @@
 terraform {
   backend "s3" {
-    bucket = "try-workshop"
+    bucket = "${var.bucket_name}"
     key = "terraform"
     region = "ap-south-1"
   }
@@ -60,8 +60,8 @@ module "eks" {
       override_instance_types       = "${var.override_instance_types}"
       kubelet_extra_args            = "--node-labels=node.kubernetes.io/lifecycle=spot"
       additional_security_group_ids = ["${module.network.worker_nodes_sg_id}"]
-      asg_max_size                  = 5
-      asg_desired_capacity          = 5
+      asg_max_size                  = ${var.number_of_worker_nodes}
+      asg_desired_capacity          = ${var.number_of_worker_nodes}
       spot_allocation_strategy      = "capacity-optimized"
       spot_instance_pools           = null
     }

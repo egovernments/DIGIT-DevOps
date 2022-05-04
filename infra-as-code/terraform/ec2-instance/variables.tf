@@ -27,5 +27,5 @@ variable "public_key" {
 
 variable "key_name" {
   default = "k3d-demo"  
-  description = "ssh key name 
+  description = "ssh key name"
 }

@@ -10,10 +10,10 @@ variable "instance_type" {
   default = "c5.2xlarge"
 }
 
-## change tag name eg. k3d-demo-your_name
+## change tag name eg. digit-quickstart_your-name
 
 variable "tag" {
-    default = "k3d-demo"
+    default = "digit-quickstart"
 }
 
 ## change ssh public_key with your public ssh key
@@ -23,9 +23,9 @@ variable "public_key" {
   description = "ssh key"
 }
 
-## change ssh key_name eg. k3d-demo-your_name
+## change ssh key_name eg. digit-quickstart_your-name
 
 variable "key_name" {
-  default = "k3d-demo"  
+  default = "digit-quickstart"  
   description = "ssh key name"
 }

@@ -151,7 +151,7 @@ func main() {
 		gitCmd := ""
 		_, err := os.Stat(dir)
 		if os.IsNotExist(err) {
-			gitCmd = fmt.Sprintf("git clone -b release-infra-demo https://github.com/egovernments/DIGIT-DevOps.git %s", dir)
+			gitCmd = fmt.Sprintf("git clone -b release https://github.com/egovernments/DIGIT-DevOps.git %s", dir)
 		} else {
 			gitCmd = fmt.Sprintf("git -C %s pull", dir)
 		}
@@ -365,7 +365,7 @@ func selectGovServicesToInstall() {
 	var argStr string = ""
 
 	// Get the versions from the chart and display it to user to select
-	file, err := os.Open("../helm/product-release-charts/")
+	file, err := os.Open("../../config-as-code/product-release-charts/")
 	if err != nil {
 		log.Fatalf("failed opening directory: %s", err)
 	}
@@ -377,7 +377,7 @@ func selectGovServicesToInstall() {
 	optedProduct, _ = sel(prodList, "Choose the Gov stack services that you would you like to install")
 
 	if optedProduct != "" {
-		files, err := ioutil.ReadDir("../helm/product-release-charts/" + optedProduct)
+		files, err := ioutil.ReadDir("../../config-as-code/product-release-charts/" + optedProduct)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -389,7 +389,7 @@ func selectGovServicesToInstall() {
 		var version string = ""
 		version, _ = sel(versionfiles, "Which version of the selected product would like to install?")
 		if version != "" {
-			argFile := "../helm/product-release-charts/" + optedProduct + "/dependancy_chart-" + version + ".yaml"
+			argFile := "../../config-as-code/product-release-charts/" + optedProduct + "/dependancy_chart-" + version + ".yaml"
 
 			// Decode the yaml file and assigning the values to a map
 			chartFile, err := ioutil.ReadFile(argFile)
@@ -448,7 +448,7 @@ func deployScript(argStr string, envfile string) {
 	contextset := setClusterContext()
 
 	if contextset {
-		envfilesFromDir, err := ioutil.ReadDir("../helm/environments/")
+		envfilesFromDir, err := ioutil.ReadDir("../../config-as-code/enironments/")
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -464,19 +464,18 @@ func deployScript(argStr string, envfile string) {
 		env, err = sel(envfiles, "Choose the target env for the installation")
 
 		if env != "" {
-			var goDeployCmd string
+
+			var goDeployCmd string = fmt.Sprintf("go run main.go deploy -c -e %s%s", env, argStr)
+			var previewDeployCmd string = fmt.Sprintf("%s -p", goDeployCmd)
+
 			confirm := []string{"Yes", "No"}
-
-			goDeployCmd = fmt.Sprintf("go run main.go deploy -c -e %s %s", env, argStr)
-
-			preview, _ := sel(confirm, "Do you want to preview the manifests before the actual Deployment")
+			preview, _ := sel(confirm, "Do you want to preview the k8s manifests before the actual Deployment")
 			if preview == "Yes" {
-				goDeployCmd = fmt.Sprintf("%s -p", goDeployCmd)
-				fmt.Println("That's cool... The preview is getting loaded. Please review it and decide to proceed with the deployment")
-				err := execCommand(goDeployCmd)
+
+				fmt.Println("That's cool... Thepreview is getting loaded. Please review it and decide to proceed with the deployment")
+				err := execCommand(previewDeployCmd)
 				if err == nil {
 					fmt.Println("You can now start actual deployment")
-					goDeployCmd = fmt.Sprintf("go run main.go deploy -c -e %s %s", env, argStr)
 					err := execCommand(goDeployCmd)
 					if err == nil {
 						fmt.Println("We are done with the deployment. You can start using the services. Thank You!!!")

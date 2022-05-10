@@ -14,14 +14,16 @@ import (
 // DeployCharts deploys render all charts using helm template and deploy them using kubectl apply --recursive
 func DeployCharts(options Options) {
 
-	helmDir, _ := filepath.Abs(options.HelmDir)
+	configDir, _ := filepath.Abs(options.ConfigDir)
+	var helmDir = configDir + "/helm"
+	log.Println(configDir)
 	log.Println("Helm Directory - " + helmDir)
 
 	index := buildIndex(helmDir)
-	envOverrideFile := filepath.FromSlash(fmt.Sprintf(helmDir+"/environments/%s.yaml", options.Environment))
+	envOverrideFile := filepath.FromSlash(fmt.Sprintf(configDir+"/environments/%s.yaml", options.Environment))
 
 	if options.ClusterConfigs && !options.Print {
-		envSecretFile := filepath.FromSlash(fmt.Sprintf(helmDir+"/environments/%s-secrets.yaml", options.Environment))
+		envSecretFile := filepath.FromSlash(fmt.Sprintf(configDir+"/environments/%s-secrets.yaml", options.Environment))
 		deployClusterConfigs(index, helmDir, envOverrideFile, envSecretFile)
 	}
 
@@ -117,7 +119,7 @@ func getImageTagFromCluster(service string) (tag string) {
 
 }
 
-func deployClusterConfigs(index map[string]string, helmDir string, envOverrideFile string, envSecretFile string) {
+func deployClusterConfigs(index map[string]string, configDir string, envOverrideFile string, envSecretFile string) {
 
 	log.Println("------------------------------------ DEPLOYING CLUSTER CONFIGS ------------------------------------")
 	clusterConfigDir, ok := index["cluster-configs"]
@@ -145,11 +147,11 @@ func deployClusterConfigs(index map[string]string, helmDir string, envOverrideFi
 	defer os.RemoveAll(tmpDir)
 	args = append(args, fmt.Sprintf("--output-dir %s", tmpDir))
 
-	if _, err := os.Stat(helmDir + "/.sops.yaml"); os.IsNotExist(err) {
+	if _, err := os.Stat(configDir + "/.sops.yaml"); os.IsNotExist(err) {
 		args = append(args, fmt.Sprintf("-f %s", envSecretFile))
 	} else {
 		sopsDecryptCmd := fmt.Sprintf("sops -d --output %s %s", tmpDecFile.Name(), envSecretFile)
-		execCommand(sopsDecryptCmd, helmDir)
+		execCommand(sopsDecryptCmd, configDir)
 		args = append(args, fmt.Sprintf("-f %s", tmpDecFile.Name()))
 	}
 

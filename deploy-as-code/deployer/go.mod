@@ -1,11 +1,13 @@
-module egov-deployer
+module deployer
 
 go 1.13
 
 require (
-	github.com/manifoldco/promptui v0.8.0
-	deploy-as-code/egov-deployer v0.0.0-20220506120657-78f3ada606fa
+	github.com/juju/ansiterm v0.0.0-20180109212912-720a0952cc2a // indirect
+	github.com/lunixbochs/vtclean v0.0.0-20180621232353-2d01aacdc34a // indirect
 	github.com/manifoldco/promptui v0.9.0
+	github.com/mattn/go-colorable v0.0.9 // indirect
+	github.com/mattn/go-isatty v0.0.4 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.6.1

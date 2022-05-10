@@ -1,11 +1,3 @@
-terraform {
-  backend "s3" {
-    bucket = "${var.bucket_name}"
-    key = "terraform"
-    region = "ap-south-1"
-  }
-}
-
 module "network" {
   source             = "../modules/kubernetes/aws/network"
   vpc_cidr_block     = "${var.vpc_cidr_block}"

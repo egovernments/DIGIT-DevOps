@@ -15,7 +15,7 @@ limitations under the License.
 */
 package main
 
-import "egov-deployer/cmd"
+import "deployer/cmd"
 
 func main() {
 	cmd.Execute()

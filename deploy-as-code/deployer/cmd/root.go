@@ -29,7 +29,7 @@ var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "egov-deployer",
+	Use:   "deployer",
 	Short: "A brief description of your application",
 	Long: `A longer description that spans multiple lines and likely contains
 examples and usage of using your application. For example:
@@ -58,7 +58,7 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.egov-deployer.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.deployer.yaml)")
 
 }
 
@@ -75,9 +75,9 @@ func initConfig() {
 			os.Exit(1)
 		}
 
-		// Search config in home directory with name ".egov-deployer" (without extension).
+		// Search config in home directory with name ".deployer" (without extension).
 		viper.AddConfigPath(home)
-		viper.SetConfigName(".egov-deployer")
+		viper.SetConfigName(".deployer")
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match

@@ -32,11 +32,15 @@ variable "override_instance_types" {
 }
 
 variable "number_of_worker_nodes" {
-  default = "3"
+  default = "5"
 }
 
 variable "ssh_key_name" {
   default = "my-first-eks"
+}
+
+variable "bucket_name" {
+  default = "try-workshop"
 }
 
 variable "iam_keybase_user" {

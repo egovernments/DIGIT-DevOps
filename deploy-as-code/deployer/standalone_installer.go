@@ -62,6 +62,7 @@ func main() {
 	svclist := list.New()
 	set := NewSet()
 	var argStr string = ""
+	var releaseChartDir string = "../../config-as-code/product-release-charts/"
 
 	fmt.Println(string(Green), "\n*******  Welcome to DIGIT INSTALLATION!!! Please ensure the Pre-requsites before you proceed *********\n")
 	const sPreReq = "\bPre-requsites (Please Read Carefully):\n\tDIGIT Platform is a combination of multiple microservices that are packaged as docker containers that can be run on any supported infra like dockercompose, kubernetes, etc. Here we'll have a setup baselined for kubernetes.\nHence the following are mandatory to have it before you proceed.\n\t1. Kubernetes(K8s) Cluster.\n\t\t[a] Local: If you do not have k8s, using this link you can create k8s cluster on your local or on a VM.\n\t\t[b] Cloud: If you have your cloud account like AWS, Azure, GCP, SDC or NIC you can follow this link to create k8s.\n\t2. Post the k8s cluster creation you should get the Kubeconfig file, which you have saved in your local machine.\n\t3. Helm installed on your local, follow this link to install\n\t4. Target Env Deployment config file, refer here for the sample template and fill your env specific values.\n\t5. If you want to use encrypted values instead of plain-text for your sensitive configuration, install sops by using this link.\n\nWell! We are good to get started when all the above pre-requistes are met, if not abort it here (Ctl+c) set-it up, come back and rerun the script."
@@ -75,7 +76,7 @@ func main() {
 		contextset := setClusterContext()
 		if contextset {
 			// Get the versions from the chart and display it to user to select
-			file, err := os.Open("../../config-as-code/product-release-charts/")
+			file, err := os.Open(releaseChartDir)
 			if err != nil {
 				log.Fatalf("failed opening directory: %s", err)
 			}
@@ -86,7 +87,7 @@ func main() {
 			var product string = ""
 			product, _ = sel(prodList, "Which Product would you like to install, Please Select")
 			if product != "" {
-				files, err := ioutil.ReadDir("../../config-as-code/product-release-charts/" + product)
+				files, err := ioutil.ReadDir(releaseChartDir + product)
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -98,7 +99,7 @@ func main() {
 				var version string = ""
 				version, _ = sel(versionfiles, "Which version of the product would like to install, Select below")
 				if version != "" {
-					argFile := "../../config-as-code/product-release-charts/" + product + "/dependancy_chart-" + version + ".yaml"
+					argFile := releaseChartDir + product + "/dependancy_chart-" + version + ".yaml"
 
 					// Decode the yaml file and assigning the values to a map
 					chartFile, err := ioutil.ReadFile(argFile)
@@ -260,7 +261,7 @@ func setClusterContext() bool {
 		return nil
 	}
 
-	kubeconfig = enterValue(validatepath, "Please enter the fully qualified path of the kubeconfig file")
+	kubeconfig = enterValue(validatepath, "Please enter the fully qualified path of your kubeconfig file")
 
 	if kubeconfig != "" {
 		getcontextcmd := fmt.Sprintf("kubectl config get-contexts --kubeconfig=%s", kubeconfig)

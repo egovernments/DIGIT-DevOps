@@ -181,17 +181,19 @@ func main() {
 
 		//db_name := enterValue(nil, "As part of the DIGIT setup, you need DB to created, what do you want to name the database")
 
-		db_pswd := enterValue(nil, "What should be the database password to be created")
+		db_pswd := enterValue(nil, "What should be the database password to be created, it should be 8 char min")
 
-		tfInitCmd := fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s/remote-state", dir, cloudTemplate)
-		execSingleCommand(tfInitCmd)
+		/*
+			tfInitCmd := fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s/remote-state", dir, cloudTemplate)
+			execSingleCommand(tfInitCmd)
 
-		tfPlan := fmt.Sprintf("terraform plan -var=\"bucket_name=%s\" %s/infra-as-code/terraform/%s/remote-state", s3_bucket_tfstore, dir, cloudTemplate)
-		fmt.Println(tfPlan)
-		execSingleCommand(tfPlan)
+			tfPlan := fmt.Sprintf("terraform plan -var=\"bucket_name=%s\" %s/infra-as-code/terraform/%s/remote-state", s3_bucket_tfstore, dir, cloudTemplate)
+			fmt.Println(tfPlan)
+			execSingleCommand(tfPlan)
 
-		tfApply := fmt.Sprintf("terraform apply -var=\"bucket_name=%s\" -auto-approve %s/infra-as-code/terraform/%s/remote-state", s3_bucket_tfstore, dir, cloudTemplate)
-		execSingleCommand(tfApply)
+			tfApply := fmt.Sprintf("terraform apply -var=\"bucket_name=%s\" -auto-approve %s/infra-as-code/terraform/%s/remote-state", s3_bucket_tfstore, dir, cloudTemplate)
+			execSingleCommand(tfApply)
+		*/
 
 		tfMainInit := fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s", dir, cloudTemplate)
 		execSingleCommand(tfMainInit)
@@ -491,7 +493,7 @@ func awslogin(accessKey string, secretKey string) bool {
 	var cloudLoginCredentials bool = false
 
 	if accessKey != "" && secretKey != "" {
-		awslogincommand := fmt.Sprintf("aws configure --profile digit-infra-aws set aws_access_key_id \"%s\" && aws configure set aws_secret_access_key \"%s\" && aws configure set region \"ap-south-1\"", accessKey, secretKey)
+		awslogincommand := fmt.Sprintf("aws configure --profile digit-infra-aws set aws_access_key_id \"%s\" && aws configure --profile digit-infra-aws set aws_secret_access_key \"%s\" && aws configure --profile digit-infra-aws set region \"ap-south-1\"", accessKey, secretKey)
 		fmt.Println(awslogincommand)
 		err := execSingleCommand(awslogincommand)
 		if err == nil {
@@ -506,7 +508,7 @@ func awsloginWithSession(accessKey string, secretKey string, sessionToken string
 	var cloudLoginCredentials bool = false
 
 	if accessKey != "" && secretKey != "" {
-		awslogincommand := fmt.Sprintf("aws configure --profile digit-infra-aws set aws_access_key_id \"%s\" && aws configure set aws_secret_access_key \"%s\" && aws configure set aws_session_token \"%s\"  && aws configure set region \"ap-south-1\"", accessKey, secretKey, sessionToken)
+		awslogincommand := fmt.Sprintf("aws configure --profile digit-infra-aws set aws_access_key_id \"%s\" && aws configure --profile digit-infra-aws set aws_secret_access_key \"%s\" && aws configure --profile digit-infra-aws set aws_session_token \"%s\"  && aws configure --profile digit-infra-aws set region \"ap-south-1\"", accessKey, secretKey, sessionToken)
 		fmt.Println(awslogincommand)
 		err := execSingleCommand(awslogincommand)
 		if err == nil {

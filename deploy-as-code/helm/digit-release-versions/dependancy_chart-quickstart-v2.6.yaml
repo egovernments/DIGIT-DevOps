@@ -1,0 +1,47 @@
+version: v2.6
+modules:
+    - name: backbone
+      services:
+        - zookeeper
+        - kafka
+        - postgres
+    - name: authn-authz
+      services:
+        - redis
+        - nginx-ingress
+        - zuul:v1.3.1-96b24b0d72-39      
+    - name: core
+      dependencies:
+        - "backbone"
+        - "authn-authz"    
+      services:
+        - egovio/egov-accesscontrol:v1.1.3-72f8a8f87b-24
+        - egovio/egov-enc-service:v1.1.2-72f8a8f87b-9
+        - egovio/egov-idgen:v1.2.3-72f8a8f87b-7
+        - egovio/egov-indexer:v1.1.6-72f8a8f87b-10
+        - egovio/egov-localization:v1.1.3-72f8a8f87b-6
+        - egovio/egov-location:v1.1.4-72f8a8f87b-6
+        - egovio/egov-mdms-service:v1.3.2-72f8a8f87b-12
+        - egovio/egov-otp:v1.2.2-72f8a8f87b-12
+        - egovio/egov-persister:v1.1.4-72f8a8f87b-6
+        - egovio/egov-user:v1.2.6-96b24b0d72-87
+        - egovio/user-otp:v1.1.4-96b24b0d72-15
+        - egovio/egov-workflow-v2:v1.2.1-96b24b0d72-72
+        - egovio/egov-user-event:v1.1.4-48a03ad7bb-18
+    - name: business
+      dependencies:
+        - "core"
+      services:
+        - egovio/egov-hrms:v1.2.4-72f8a8f87b-27
+    - name: "frontend"             
+      dependencies:
+        - "business"
+      services:
+        - egovio/employee:v1.7.0-83c152772f-172
+        - egovio/digit-ui:v1.4.0-29d4be1d4f-704  
+    - name: m_pgr             #PGR
+      dependencies:
+        - "core"
+        - "business"
+      services:
+        - egovio/pgr-services:v1.1.4-96b24b0d72-21

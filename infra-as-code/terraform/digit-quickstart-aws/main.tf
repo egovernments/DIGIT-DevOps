@@ -7,7 +7,7 @@ module "ssh_key" {
   public_key         =  "${var.public_key}"
 } 
 
-resource "aws_instance" "k3d-demo" {
+resource "aws_instance" "digit-quickstart-vm" {
   ami                    = "${var.ami_name_value}"
   instance_type          = "${var.instance_type}"
   key_name               = module.ssh_key.ssh_key_name

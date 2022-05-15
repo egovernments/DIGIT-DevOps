@@ -59,12 +59,12 @@ func (set *Set) Get(i string) bool {
 
 func main() {
 
-	var optedInfraType string      // Infra types supported to deploy DIGIT
-	var servicesToDeploy string    // Modules to be deployed
-	var number_of_worker_nodes int // No of VMs for the k8s worker nodes
-	var optedCloud string          // Desired InfraType to deploy
-	var cloudTemplate string       // Which terraform template to choose
-	var cloudLoginCredentials bool // Is there a valid cloud account and credentials
+	var optedInfraType string          // Infra types supported to deploy DIGIT
+	var servicesToDeploy string        // Modules to be deployed
+	var number_of_worker_nodes int = 1 // No of VMs for the k8s worker nodes
+	var optedCloud string              // Desired InfraType to deploy
+	var cloudTemplate string           // Which terraform template to choose
+	var cloudLoginCredentials bool     // Is there a valid cloud account and credentials
 
 	infraType := []string{
 		"0. You have an existing kubernetes Cluster ready, you would like to leverage it to setup DIGIT on that",
@@ -75,7 +75,14 @@ func main() {
 		"5. High (99.99% reliability), 1000 concurrent gov services per sec",
 		"6. For custom options, use this calcualtor to determine the required nodes (https://docs.digit.org/Infra-calculator)"}
 
-	cloudPlatforms := []string{"Local machine/VM", "AWS", "AZURE", "GOOGLE CLOUD (GCP)", "On-prem/Private Cloud"}
+	cloudPlatforms := []string{
+		"0. Local machine/Your Existing VM",
+		"1. AWS-EC2 - Quickstart with a Single EC2 Instace on AWS",
+		"2. AWS-EKS - Production grade Elastic Kubernetes Service (EKS)",
+		"3. AZURE-AKS - Production grade Azure Kubernetes Service (AKS)",
+		"4. GOOGLE CLOUD - Production grade Google Kubernetes Engine (GKE)",
+		"5. On-prem/Private Cloud - Quickstart with Single VM",
+		"6. On-prem/Privare Cloud - Production grade Kubernetes Cluster Setup"}
 
 	fmt.Println(string(Green), "\n*******  Welcome to DIGIT Server setup & Deployment !!! ******** \n\n Please read the detailed Pre-requsites from the below link before you proceed *********\n https://docs.digit.org/Infra-calculator\n")
 	const sPreReq = "Pre-requsites (Please Read Carefully):\nvDIGIT Stack is a combination of many microservices that are packaged as docker containers that can be run on any container supported platforms like dockercompose, kubernetes, etc. Here we'll have a setup baselined for kubernetes.\nHence the following are mandatory to have it before you proceed.\n\t1. Kubernetes(K8s) Cluster.\n\t\t[a] Local: If you do not have k8s, using this link you can create k8s cluster on your local or on a VM.\n\t\t[b] Cloud: If you have your cloud account like AWS, Azure, GCP, SDC or NIC you can follow this link to create k8s.\n\t2. Post the k8s cluster creation you should get the Kubeconfig file, which you have saved in your local machine.\n\t\n\n Well! Let's get started with the DIGIT Setup process, if you want to abort any time press (Ctl+c), you can always come back and rerun the script."
@@ -109,10 +116,35 @@ func main() {
 
 		optedCloud, _ = sel(cloudPlatforms, "Choose the cloud type to provision the required servers for the selectdd gov stack services?")
 
-		switch {
-		case optedCloud == "Local":
+		switch optedCloud {
+		case cloudPlatforms[1]:
+			var optedAccessType string
+			var aws_access_key string
+			var aws_secret_key string
+			var aws_session_key string
 
-		case optedCloud == "AWS":
+			cloudTemplate = "quickstart-aws-ec2"
+
+			accessTypes := []string{"Root Admin", "Temprory Admin"}
+			optedAccessType, _ = sel(accessTypes, "Choose your AWS access type? eg: If your access is session based unlike root admin")
+
+			fmt.Println("\n Great, you need to input your " + optedCloud + "credentials to provision the cloud resources ..\n")
+			fmt.Println("Input the AWS access key id")
+			fmt.Scanln(&aws_access_key)
+
+			fmt.Println("\nInput the AWS secret key")
+			fmt.Scanln(&aws_secret_key)
+
+			fmt.Println("\nInput the AWS Session Token")
+			fmt.Scanln(&aws_session_key)
+
+			if optedAccessType == "Temprory Admin" {
+				cloudLoginCredentials = awsloginWithSession(aws_access_key, aws_secret_key, aws_session_key)
+			} else {
+				cloudLoginCredentials = awslogin(aws_access_key, aws_secret_key)
+			}
+
+		case cloudPlatforms[2]:
 			var optedAccessType string
 			var aws_access_key string
 			var aws_secret_key string
@@ -124,13 +156,13 @@ func main() {
 			optedAccessType, _ = sel(accessTypes, "Choose your AWS access type? eg: If your access is session based unlike root admin")
 
 			fmt.Println("\n Great, you need to input your " + optedCloud + "credentials to provision the cloud resources ..\n")
-			fmt.Println("Input the AWS access key id\n")
+			fmt.Println("Input the AWS access key id")
 			fmt.Scanln(&aws_access_key)
 
-			fmt.Println("Input the AWS secret key\n")
+			fmt.Println("\nInput the AWS secret key")
 			fmt.Scanln(&aws_secret_key)
 
-			fmt.Println("Input the AWS Session Token\n")
+			fmt.Println("\nInput the AWS Session Token")
 			fmt.Scanln(&aws_session_key)
 
 			if optedAccessType == "Temprory Admin" {
@@ -139,19 +171,19 @@ func main() {
 				cloudLoginCredentials = awslogin(aws_access_key, aws_secret_key)
 			}
 
-		case optedCloud == "AZURE":
+		case cloudPlatforms[3]:
 			cloudTemplate = "sample-azure"
 			fmt.Println("\n Great, you need to input your " + optedCloud + "credentials to provision the cloud resources ..\n")
 			azure_username := enterValue(nil, "Please enter your AZURE UserName")
 			azure_password := enterValue(nil, "Enter your AZURE Password")
 			cloudLoginCredentials = azurelogin(azure_username, azure_password)
 
-		case optedCloud == "GOOGLE CLOUD (GCP)":
+		case cloudPlatforms[4]:
 			cloudTemplate = "sample-gcp"
 			fmt.Println("\n Great, you need to input your " + optedCloud + "credentials to provision the cloud resources ..\n")
 			fmt.Println("Support for the " + optedCloud + "is still underway ... you need to wait")
 
-		case optedCloud == "On-prem/Private Cloud":
+		case cloudPlatforms[5]:
 			cloudTemplate = "sample-private-cloud"
 			fmt.Println("\n Great, you need to input your " + optedCloud + "credentials to provision the cloud resources ..\n")
 			fmt.Println("Support for the " + optedCloud + "is still underway ... you need to wait")
@@ -164,7 +196,7 @@ func main() {
 
 	if cloudLoginCredentials {
 		fmt.Println(string(Green), "\n*******  Let's proceed with cluster creation, please input the requested details below *********\n")
-		cluster_name := enterValue(nil, "How do you want to name the Cluster? eg: dev-your-name or org-name")
+		cluster_name := enterValue(nil, "How do you want to name the Cluster? \n eg: your-name_dev or your-name_poc \n Make sure that this name is unique if you are trying for the consecutive times, possibly a duplicate DNS entry under digit.org domain could be mapped already")
 		s3_bucket_tfstore := cluster_name + "-tf-store-" + strconv.Itoa(rand.Int())
 		dir := "DIGIT-DevOps"
 		gitCmd := ""
@@ -176,33 +208,14 @@ func main() {
 		}
 		execCommand(gitCmd)
 
-		//fmt.Println(string(Green), "\n*******  The number of nodes depend on the the following options *********\n")
-		//worker_nodes := enterValue(nil, "How many VM/nodes is required")
-
-		//db_name := enterValue(nil, "As part of the DIGIT setup, you need DB to created, what do you want to name the database")
-
 		db_pswd := enterValue(nil, "What should be the database password to be created, it should be 8 char min")
 
-		/*
-			tfInitCmd := fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s/remote-state", dir, cloudTemplate)
-			execSingleCommand(tfInitCmd)
+		execSingleCommand(fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s", dir, cloudTemplate))
 
-			tfPlan := fmt.Sprintf("terraform plan -var=\"bucket_name=%s\" %s/infra-as-code/terraform/%s/remote-state", s3_bucket_tfstore, dir, cloudTemplate)
-			fmt.Println(tfPlan)
-			execSingleCommand(tfPlan)
+		execSingleCommand(fmt.Sprintf("terraform plan -var=\"bucket_name=%s\" -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", s3_bucket_tfstore, cluster_name, db_pswd, number_of_worker_nodes, dir, cloudTemplate))
 
-			tfApply := fmt.Sprintf("terraform apply -var=\"bucket_name=%s\" -auto-approve %s/infra-as-code/terraform/%s/remote-state", s3_bucket_tfstore, dir, cloudTemplate)
-			execSingleCommand(tfApply)
-		*/
+		execSingleCommand(fmt.Sprintf("terraform apply -var=\"bucket_name=%s\" -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", s3_bucket_tfstore, cluster_name, db_pswd, number_of_worker_nodes, dir, cloudTemplate))
 
-		tfMainInit := fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s", dir, cloudTemplate)
-		execSingleCommand(tfMainInit)
-		tfMainPlan := fmt.Sprintf("terraform plan -var=\"bucket_name=%s\" -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%s\" %s/infra-as-code/terraform/%s", s3_bucket_tfstore, cluster_name, db_pswd, number_of_worker_nodes, dir, cloudTemplate)
-		fmt.Println()
-		fmt.Println(tfMainPlan)
-		execSingleCommand(tfMainPlan)
-		//tfMainApply := fmt.Sprintf("terraform apply -var=\"bucket_name=%s\" -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%s\" -auto-approve %s/infra-as-code/terraform/%s", s3_bucket_tfstore, cluster_name, db_pswd, worker_nodes, dir, cloud)
-		//execCommand(tfMainApply)
 	}
 
 	contextset := setClusterContext()
@@ -237,11 +250,12 @@ func getService(fullChart Digit, service string, set Set, svclist *list.List) {
 func execCommand(command string) error {
 	var err error
 	parts := strings.Fields(command)
-	//log.Println("Printing full command part", parts)
 	//	The first part is the command, the rest are the args:
 	head := parts[0]
 	args := parts[1:len(parts)]
 	//	Format the command
+
+	log.Println(string(Blue), " ==> "+command)
 	cmd := exec.Command(head, args...)
 
 	var stdoutBuf, stderrBuf bytes.Buffer
@@ -381,47 +395,6 @@ func prepareDeploymentConfig(installType string) string {
 
 	fmt.Sprintf("Prepare deployment configuration eessentially means the following, please read carefully and ensure it is available:\n\n\t 1. You need to specify your URL in which you want to application to be available\n\t 2. Depending the Gov services that you chose, following specific details should be configured\n\t\t\t 1. Notification services like SMS, Email, gateway details for OTPs, Notifications\n\t\t\t 2. Whatsapp Integration configuration for chartBot services\n\t\t\t 3. Payment Gateways if PT, TL services chosen for making the payment transactions\n\t\t\t 4. Google GeoCoding API credentials, for the location services\n\t\t\t 5.Your MDMS and configuration with your tenant and role access details\n\t 3. Your DB details \n\t 4. As per your Infra type and the actual cloud resource provisioning the Disk volumes should be mapped to the stateful services like ElasticService, Kafka, Zookeeper, etc")
 
-	/*
-		envfilesFromDir, err := ioutil.ReadDir("../../config-as-code/enironments/")
-		if err != nil {
-			log.Fatal(err)
-		}
-
-				switch {
-				case infraType[0]:
-					targetConfig = ""
-				case infraType[1]:
-					targetConfig = "egov-demo"
-				case infraType[2]:
-					targetConfig = "egov-demo"
-				case infraType[3]:
-					targetConfig = "egov-demo"
-				case infraType[4]:
-					targetConfig = "egov-demo"
-				case infraType[5]:
-					targetConfig = "egov-demo"
-				case infraType[6]:
-					targetConfig = "egov-demo"
-				default:
-					targetConfig = "egov-demo"
-				}
-
-
-			var envfile string = ""
-
-			for _, envfile := range envfilesFromDir {
-				filename := envfile.Name()
-				if !s.Contains(filename, "secrets") {
-					envfiles = append(envfiles, filename[0:s.Index(filename, ".yaml")])
-				}
-			}
-
-			// Choose the env
-			var env string = ""
-			env, err = sel(envfiles, "Choose the target env for the installation")
-
-	*/
-
 	return targetConfig
 }
 
@@ -475,6 +448,8 @@ func execSingleCommand(command string) error {
 	var err error
 
 	cmd := exec.Command("sh", "-c", command)
+
+	log.Println(string(Blue), " ==> "+command)
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)
@@ -561,6 +536,20 @@ func enterValue(validate promptui.ValidateFunc, label string) string {
 	//	fmt.Printf("Invalid Selection %v\n", err)
 	//}
 	return result
+}
+
+func addDNS(dnsDomain string, dnsType string, dnsName string, dnsValue string) bool {
+
+	var headers string = "Authorization: sso-key 3mM44UcBKoVvB2_Xspi4jKZqJSQUkdouMV4Ck:3pzZiuUPNxzZKu2FfUD9Sm"
+
+	dnsCommand := fmt.Sprintf("curl -X PATCH \"https://api.godaddy.com/v1/domains/%s/records -H %s -H Content-Type: application/json --data-raw [{\"data\":\"%s\",\"name\":\"%s\",\"type\":\"%s\"}]", dnsDomain, headers, dnsValue, dnsName, dnsType)
+	fmt.Println(dnsCommand)
+	err := execSingleCommand(dnsCommand)
+	if err == nil {
+		return true
+	} else {
+		return false
+	}
 }
 
 func endScript() {

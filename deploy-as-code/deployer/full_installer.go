@@ -196,7 +196,8 @@ func main() {
 
 	if cloudLoginCredentials {
 		fmt.Println(string(Green), "\n*******  Let's proceed with cluster creation, please input the requested details below *********\n")
-		cluster_name := enterValue(nil, "How do you want to name the Cluster? \n eg: your-name_dev or your-name_poc \n Make sure that this name is unique if you are trying for the consecutive times, possibly a duplicate DNS entry under digit.org domain could be mapped already")
+		fmt.Println(string(Green), "Make sure that the cluster name is unique if you are trying consecutively, duplicate DNS/hosts file entry under digit.org domain could have been mapped already")
+		cluster_name := enterValue(nil, "How do you want to name the Cluster? \n eg: your-name_dev or your-name_poc")
 		s3_bucket_tfstore := cluster_name + "-tf-store-" + strconv.Itoa(rand.Int())
 		dir := "DIGIT-DevOps"
 		gitCmd := ""

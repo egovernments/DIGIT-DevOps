@@ -1,6 +1,6 @@
 provider "aws" {
   region = "${var.region}"
-  profile = "digit-quickstart"
+  profile = "digit-infra-aws"
 }
 module "ssh_key" {
   source             = "../modules/instance/aws-ec2"

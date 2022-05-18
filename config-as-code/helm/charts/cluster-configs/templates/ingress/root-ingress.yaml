@@ -5,9 +5,11 @@ metadata:
   annotations:
   {{- if ne .appRoot ""}}
     nginx.ingress.kubernetes.io/app-root: /{{ .appRoot }}
-  {{- end }}    
+  {{- end }}
+  {{- if ne $.Values.global.setup "quickstart" }}     
     #certmanager.k8s.io/cluster-issuer: {{ index . "cert-issuer" }}
     cert-manager.io/cluster-issuer: {{ index . "cert-issuer" }}
+  {{- end }}  
   name: {{ .name }}
   namespace: {{ .namespace }}
 spec:
@@ -19,8 +21,10 @@ spec:
           serviceName: {{ .serviceName }}
           servicePort: {{ .servicePort }}
         path: /
+{{- if ne $.Values.global.setup "quickstart" }}        
   tls:
   - hosts:
     - {{ $.Values.global.domain }}
-    secretName: {{ $.Values.global.domain }}-tls-certs         
+    secretName: {{ $.Values.global.domain }}-tls-certs    
+{{- end }}         
 {{- end -}}

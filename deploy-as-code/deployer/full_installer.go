@@ -3,19 +3,24 @@ package main
 import (
 	"bytes"
 	"container/list"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	s "strings"
 
+	"github.com/jcelliott/lumber"
 	"github.com/manifoldco/promptui"
+	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
 	//"bufio"
 )
@@ -65,6 +70,7 @@ func main() {
 	var optedCloud string              // Desired InfraType to deploy
 	var cloudTemplate string           // Which terraform template to choose
 	var cloudLoginCredentials bool     // Is there a valid cloud account and credentials
+	var isProductionSetup bool = false
 
 	infraType := []string{
 		"0. You have an existing kubernetes Cluster ready, you would like to leverage it to setup DIGIT on that",
@@ -78,14 +84,14 @@ func main() {
 	cloudPlatforms := []string{
 		"0. Local machine/Your Existing VM",
 		"1. AWS-EC2 - Quickstart with a Single EC2 Instace on AWS",
-		"2. AWS-EKS - Production grade Elastic Kubernetes Service (EKS)",
-		"3. AZURE-AKS - Production grade Azure Kubernetes Service (AKS)",
-		"4. GOOGLE CLOUD - Production grade Google Kubernetes Engine (GKE)",
-		"5. On-prem/Private Cloud - Quickstart with Single VM",
+		"2. On-prem/Private Cloud - Quickstart with Single VM",
+		"3. AWS-EKS - Production grade Elastic Kubernetes Service (EKS)",
+		"4. AZURE-AKS - Production grade Azure Kubernetes Service (AKS)",
+		"5. GOOGLE CLOUD - Production grade Google Kubernetes Engine (GKE)",
 		"6. On-prem/Privare Cloud - Production grade Kubernetes Cluster Setup"}
 
 	fmt.Println(string(Green), "\n*******  Welcome to DIGIT Server setup & Deployment !!! ******** \n\n Please read the detailed Pre-requsites from the below link before you proceed *********\n https://docs.digit.org/Infra-calculator\n")
-	const sPreReq = "Pre-requsites (Please Read Carefully):\nvDIGIT Stack is a combination of many microservices that are packaged as docker containers that can be run on any container supported platforms like dockercompose, kubernetes, etc. Here we'll have a setup baselined for kubernetes.\nHence the following are mandatory to have it before you proceed.\n\t1. Kubernetes(K8s) Cluster.\n\t\t[a] Local: If you do not have k8s, using this link you can create k8s cluster on your local or on a VM.\n\t\t[b] Cloud: If you have your cloud account like AWS, Azure, GCP, SDC or NIC you can follow this link to create k8s.\n\t2. Post the k8s cluster creation you should get the Kubeconfig file, which you have saved in your local machine.\n\t\n\n Well! Let's get started with the DIGIT Setup process, if you want to abort any time press (Ctl+c), you can always come back and rerun the script."
+	const sPreReq = "Pre-requsites (Please Read Carefully):\n\tDIGIT Stack is a combination of many microservices that are packaged as docker containers that can be run on any container supported platforms like dockercompose, kubernetes, etc. Here we'll have a setup a kubernetes.\nHence the following are mandatory to have it before you proceed.\n\t1. Kubernetes(K8s) Cluster.\n\t\t[Option a] Local/VM: If you do not have k8s, using this link you can create k8s cluster on your local or on a VM.\n\t\t[b] Cloud: If you have your cloud account like AWS, Azure, GCP, SDC or NIC you can follow this link to create k8s.\n\t2. Post the k8s cluster creation you should get the Kubeconfig file, which you have saved in your local machine.\n\t\n\n Well! Let's get started with the DIGIT Setup process, if you want to abort any time press (Ctl+c), you can always come back and rerun the script."
 	fmt.Println(string(Cyan), sPreReq)
 
 	preReqConfirm := []string{"Yes", "No"}
@@ -99,15 +105,18 @@ func main() {
 		case infraType[1]:
 			number_of_worker_nodes = 1
 		case infraType[2]:
-			number_of_worker_nodes = 2
+			number_of_worker_nodes = 1
 		case infraType[3]:
 			number_of_worker_nodes = 3 //TBD
+			isProductionSetup = true
 		case infraType[4]:
 			number_of_worker_nodes = 4 //TBD
+			isProductionSetup = true
 		case infraType[5]:
 			number_of_worker_nodes = 5 //TBD
 		case infraType[6]:
 			number_of_worker_nodes, _ = strconv.Atoi(enterValue(nil, "How many VM/nodes are required based on the calculation"))
+			isProductionSetup = true
 		default:
 			number_of_worker_nodes = 0
 		}
@@ -125,26 +134,40 @@ func main() {
 
 			cloudTemplate = "quickstart-aws-ec2"
 
-			accessTypes := []string{"Root Admin", "Temprory Admin"}
+			accessTypes := []string{"Root Admin", "Temprory Admin", "Already configuredd"}
 			optedAccessType, _ = sel(accessTypes, "Choose your AWS access type? eg: If your access is session based unlike root admin")
 
 			fmt.Println("\n Great, you need to input your " + optedCloud + "credentials to provision the cloud resources ..\n")
-			fmt.Println("Input the AWS access key id")
-			fmt.Scanln(&aws_access_key)
-
-			fmt.Println("\nInput the AWS secret key")
-			fmt.Scanln(&aws_secret_key)
-
-			fmt.Println("\nInput the AWS Session Token")
-			fmt.Scanln(&aws_session_key)
 
 			if optedAccessType == "Temprory Admin" {
-				cloudLoginCredentials = awsloginWithSession(aws_access_key, aws_secret_key, aws_session_key)
-			} else {
-				cloudLoginCredentials = awslogin(aws_access_key, aws_secret_key)
-			}
 
+				fmt.Println("Input the AWS access key id")
+				fmt.Scanln(&aws_access_key)
+
+				fmt.Println("\nInput the AWS secret key")
+				fmt.Scanln(&aws_secret_key)
+
+				fmt.Println("\nInput the AWS Session Token")
+				fmt.Scanln(&aws_session_key)
+
+				cloudLoginCredentials = awslogin(aws_access_key, aws_secret_key, aws_session_key, "")
+			} else if optedAccessType == "Root Admin" {
+
+				fmt.Println("Input the AWS access key id")
+				fmt.Scanln(&aws_access_key)
+
+				fmt.Println("\nInput the AWS secret key")
+				fmt.Scanln(&aws_secret_key)
+
+				cloudLoginCredentials = awslogin(aws_access_key, aws_secret_key, "", "")
+			} else {
+				cloudLoginCredentials = awslogin("", "", "", "digit-infra-aws")
+				fmt.Println("Proceeding with the existing AWS profile configured")
+			}
 		case cloudPlatforms[2]:
+			//TBD
+
+		case cloudPlatforms[3]:
 			var optedAccessType string
 			var aws_access_key string
 			var aws_secret_key string
@@ -152,38 +175,50 @@ func main() {
 
 			cloudTemplate = "sample-aws"
 
-			accessTypes := []string{"Root Admin", "Temprory Admin"}
+			accessTypes := []string{"Root Admin", "Temprory Admin", "Already configuredd"}
 			optedAccessType, _ = sel(accessTypes, "Choose your AWS access type? eg: If your access is session based unlike root admin")
 
 			fmt.Println("\n Great, you need to input your " + optedCloud + "credentials to provision the cloud resources ..\n")
-			fmt.Println("Input the AWS access key id")
-			fmt.Scanln(&aws_access_key)
-
-			fmt.Println("\nInput the AWS secret key")
-			fmt.Scanln(&aws_secret_key)
-
-			fmt.Println("\nInput the AWS Session Token")
-			fmt.Scanln(&aws_session_key)
 
 			if optedAccessType == "Temprory Admin" {
-				cloudLoginCredentials = awsloginWithSession(aws_access_key, aws_secret_key, aws_session_key)
+
+				fmt.Println("Input the AWS access key id")
+				fmt.Scanln(&aws_access_key)
+
+				fmt.Println("\nInput the AWS secret key")
+				fmt.Scanln(&aws_secret_key)
+
+				fmt.Println("\nInput the AWS Session Token")
+				fmt.Scanln(&aws_session_key)
+
+				cloudLoginCredentials = awslogin(aws_access_key, aws_secret_key, aws_session_key, "")
+			} else if optedAccessType == "Root Admin" {
+
+				fmt.Println("Input the AWS access key id")
+				fmt.Scanln(&aws_access_key)
+
+				fmt.Println("\nInput the AWS secret key")
+				fmt.Scanln(&aws_secret_key)
+
+				cloudLoginCredentials = awslogin(aws_access_key, aws_secret_key, "", "")
 			} else {
-				cloudLoginCredentials = awslogin(aws_access_key, aws_secret_key)
+				cloudLoginCredentials = awslogin("", "", "", "digit-infra-aws")
+				fmt.Println("Proceeding with the existing AWS profile configured")
 			}
 
-		case cloudPlatforms[3]:
+		case cloudPlatforms[4]:
 			cloudTemplate = "sample-azure"
 			fmt.Println("\n Great, you need to input your " + optedCloud + "credentials to provision the cloud resources ..\n")
 			azure_username := enterValue(nil, "Please enter your AZURE UserName")
 			azure_password := enterValue(nil, "Enter your AZURE Password")
 			cloudLoginCredentials = azurelogin(azure_username, azure_password)
 
-		case cloudPlatforms[4]:
+		case cloudPlatforms[5]:
 			cloudTemplate = "sample-gcp"
 			fmt.Println("\n Great, you need to input your " + optedCloud + "credentials to provision the cloud resources ..\n")
 			fmt.Println("Support for the " + optedCloud + "is still underway ... you need to wait")
 
-		case cloudPlatforms[5]:
+		case cloudPlatforms[6]:
 			cloudTemplate = "sample-private-cloud"
 			fmt.Println("\n Great, you need to input your " + optedCloud + "credentials to provision the cloud resources ..\n")
 			fmt.Println("Support for the " + optedCloud + "is still underway ... you need to wait")
@@ -196,9 +231,10 @@ func main() {
 
 	if cloudLoginCredentials {
 		fmt.Println(string(Green), "\n*******  Let's proceed with cluster creation, please input the requested details below *********\n")
-		fmt.Println(string(Green), "Make sure that the cluster name is unique if you are trying consecutively, duplicate DNS/hosts file entry under digit.org domain could have been mapped already")
+		fmt.Println(string(Green), "Make sure that the cluster name is unique if you are trying consecutively, duplicate DNS/hosts file entry under digit.org domain could have been mapped already\n")
+
 		cluster_name := enterValue(nil, "How do you want to name the Cluster? \n eg: your-name_dev or your-name_poc")
-		s3_bucket_tfstore := cluster_name + "-tf-store-" + strconv.Itoa(rand.Int())
+		//s3_bucket_tfstore := cluster_name + "-tf-store-" + strconv.Itoa(rand.Int())
 		dir := "DIGIT-DevOps"
 		gitCmd := ""
 		_, err := os.Stat(dir)
@@ -211,11 +247,32 @@ func main() {
 
 		db_pswd := enterValue(nil, "What should be the database password to be created, it should be 8 char min")
 
-		execSingleCommand(fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s", dir, cloudTemplate))
+		if !isProductionSetup {
 
-		execSingleCommand(fmt.Sprintf("terraform plan -var=\"bucket_name=%s\" -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", s3_bucket_tfstore, cluster_name, db_pswd, number_of_worker_nodes, dir, cloudTemplate))
+			var sshFile string = "./digit-ssh.pem"
+			var keyName string = "digit-aws-vm"
 
-		execSingleCommand(fmt.Sprintf("terraform apply -var=\"bucket_name=%s\" -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", s3_bucket_tfstore, cluster_name, db_pswd, number_of_worker_nodes, dir, cloudTemplate))
+			pubKey, _, err := GetKeyPair(sshFile)
+
+			if err != nil {
+				log.Fatalf("Failed to generate SSH Key %s\n", err)
+			} else {
+
+				execSingleCommand(fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s", dir, cloudTemplate))
+
+				execSingleCommand(fmt.Sprintf("terraform plan -var=\"public_key=%s\" -var=\"key_name=%s\" %s/infra-as-code/terraform/%s", pubKey, keyName, dir, cloudTemplate))
+
+				execSingleCommand(fmt.Sprintf("terraform apply -auto-approve -var=\"public_key=%s\" -var=\"key_name=%s\" %s/infra-as-code/terraform/%s", pubKey, keyName, dir, cloudTemplate))
+			}
+
+		} else {
+			execSingleCommand(fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s", dir, cloudTemplate))
+
+			execSingleCommand(fmt.Sprintf("terraform plan -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", cluster_name, db_pswd, number_of_worker_nodes, dir, cloudTemplate))
+
+			execSingleCommand(fmt.Sprintf("terraform apply -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", cluster_name, db_pswd, number_of_worker_nodes, dir, cloudTemplate))
+
+		}
 
 	}
 
@@ -464,32 +521,23 @@ func execSingleCommand(command string) error {
 }
 
 // Cloud cloudLoginCredentials functions
-func awslogin(accessKey string, secretKey string) bool {
+func awslogin(accessKey string, secretKey string, sessionToken string, profile string) bool {
 
 	var cloudLoginCredentials bool = false
+	var awslogincommand string = ""
 
-	if accessKey != "" && secretKey != "" {
-		awslogincommand := fmt.Sprintf("aws configure --profile digit-infra-aws set aws_access_key_id \"%s\" && aws configure --profile digit-infra-aws set aws_secret_access_key \"%s\" && aws configure --profile digit-infra-aws set region \"ap-south-1\"", accessKey, secretKey)
-		fmt.Println(awslogincommand)
-		err := execSingleCommand(awslogincommand)
-		if err == nil {
-			cloudLoginCredentials = true
-		}
+	if accessKey != "" && secretKey != "" && sessionToken == "" {
+		awslogincommand = fmt.Sprintf("aws configure --profile digit-infra-aws set aws_access_key_id \"%s\" && aws configure --profile digit-infra-aws set aws_secret_access_key \"%s\" && aws configure --profile digit-infra-aws set region \"ap-south-1\"", accessKey, secretKey)
+	} else if sessionToken != "" {
+		awslogincommand = fmt.Sprintf("aws configure --profile digit-infra-aws set aws_access_key_id \"%s\" && aws configure --profile digit-infra-aws set aws_secret_access_key \"%s\" && aws configure --profile digit-infra-aws set aws_session_token \"%s\"  && aws configure --profile digit-infra-aws set region \"ap-south-1\"", accessKey, secretKey, sessionToken)
+	} else {
+		awslogincommand = fmt.Sprintf("aws configure list")
 	}
-	return cloudLoginCredentials
-}
 
-func awsloginWithSession(accessKey string, secretKey string, sessionToken string) bool {
-
-	var cloudLoginCredentials bool = false
-
-	if accessKey != "" && secretKey != "" {
-		awslogincommand := fmt.Sprintf("aws configure --profile digit-infra-aws set aws_access_key_id \"%s\" && aws configure --profile digit-infra-aws set aws_secret_access_key \"%s\" && aws configure --profile digit-infra-aws set aws_session_token \"%s\"  && aws configure --profile digit-infra-aws set region \"ap-south-1\"", accessKey, secretKey, sessionToken)
-		fmt.Println(awslogincommand)
-		err := execSingleCommand(awslogincommand)
-		if err == nil {
-			cloudLoginCredentials = true
-		}
+	log.Println(awslogincommand)
+	err := execSingleCommand(awslogincommand)
+	if err == nil {
+		cloudLoginCredentials = true
 	}
 	return cloudLoginCredentials
 }
@@ -551,6 +599,60 @@ func addDNS(dnsDomain string, dnsType string, dnsName string, dnsValue string) b
 	} else {
 		return false
 	}
+}
+
+func GetKeyPair(file string) (string, string, error) {
+	// read keys from file
+	_, err := os.Stat(file)
+	if err == nil {
+		priv, err := ioutil.ReadFile(file)
+		if err != nil {
+			lumber.Debug("Failed to read file - %s", err)
+			goto genKeys
+		}
+		pub, err := ioutil.ReadFile(file + ".pub")
+		if err != nil {
+			lumber.Debug("Failed to read pub file - %s", err)
+			goto genKeys
+		}
+		return string(pub), string(priv), nil
+	}
+
+	// generate keys and save to file
+genKeys:
+	pub, priv, err := GenKeyPair()
+	err = ioutil.WriteFile(file, []byte(priv), 0600)
+	if err != nil {
+		return "", "", fmt.Errorf("Failed to write file - %s", err)
+	}
+	err = ioutil.WriteFile(file+".pub", []byte(pub), 0644)
+	if err != nil {
+		return "", "", fmt.Errorf("Failed to write pub file - %s", err)
+	}
+
+	return pub, priv, nil
+}
+
+func GenKeyPair() (string, string, error) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return "", "", err
+	}
+
+	privateKeyPEM := &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)}
+	var private bytes.Buffer
+	if err := pem.Encode(&private, privateKeyPEM); err != nil {
+		return "", "", err
+	}
+
+	// generate public key
+	pub, err := ssh.NewPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		return "", "", err
+	}
+
+	public := ssh.MarshalAuthorizedKey(pub)
+	return string(public), private.String(), nil
 }
 
 func endScript() {

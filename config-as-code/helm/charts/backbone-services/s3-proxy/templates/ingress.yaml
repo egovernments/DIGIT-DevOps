@@ -1,4 +1,4 @@
-apiVersion: networking.k8s.io/v1
+apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   annotations:
@@ -10,13 +10,10 @@ metadata:
   namespace: {{ .Values.namespace }}  
 spec:
   rules:
-  - http:
+  - host: {{ .Values.global.domain }}
+    http:
       paths:
-      - path: /{{ index $.Values "cluster-configs" "configmaps" "egov-config" "data" "s3-assets-bucket" }}/
-        pathType: Prefix
-        backend:
-         service:
-            name: {{ .Values.name }}
-            port: 
-             number: {{ .Values.httpPort }}
-        
+      - backend:
+          serviceName: {{ .Values.name }}
+          servicePort: {{ .Values.httpPort }}
+        path: /{{ index $.Values "cluster-configs" "configmaps" "egov-config" "data" "s3-assets-bucket" }}/

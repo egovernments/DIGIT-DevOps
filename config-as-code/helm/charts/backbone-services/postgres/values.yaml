@@ -20,13 +20,13 @@ env: |
   - name: POSTGRES_PASSWORD
     valueFrom:
       secretKeyRef:
-        name: jenkins-credentials
-        key: ciDbpassword
+        name: db
+        key: password
   - name:  POSTGRES_USER
     valueFrom:
       secretKeyRef:
-        name: jenkins-credentials
-        key: ciDbUsername
+        name: db
+        key: username
   - name: POSTGRES_DB
     value: {{ default "" .Values.postgresDatabase | quote }}
 extraVolumeMounts: |
@@ -34,3 +34,10 @@ extraVolumeMounts: |
     mountPath: /var/lib/postgresql/data
 extraVolumes: |
   - name: postgres-volume
+  {{- if eq .Values.global.setup "quickstart" }} 
+    persistentVolumeClaim:
+      claimName: pvc-postgres
+  {{- end}}    
+
+
+postgresDatabase: egov_ms      

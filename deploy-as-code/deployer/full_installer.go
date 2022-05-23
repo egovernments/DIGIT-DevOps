@@ -71,14 +71,15 @@ func main() {
 	var cloudTemplate string           // Which terraform template to choose
 	var cloudLoginCredentials bool     // Is there a valid cloud account and credentials
 	var isProductionSetup bool = false
+	var cluster_name string
 
 	infraType := []string{
 		"0. You have an existing kubernetes Cluster ready, you would like to leverage it to setup DIGIT on that",
-		"1. Pilot/POC (Just for a POC to Quickstart and explore",
-		"2. DevTest Setup (You to setup and build/customize and test",
-		"3. Bare Minimal (95% reliability), 10 concurrent gov services per sec",
-		"4. Medium (99.99% reliability), 100 concurrent gov services per sec",
-		"5. High (99.99% reliability), 1000 concurrent gov services per sec",
+		"1. Pilot/POC (Just for a POC to Quickstart and explore)",
+		"2. DevTest Setup (To setup and build/customize and test)",
+		"3. Production: Bare Minimal (90% reliability), 10 gov services, 10 concurrent users/sec",
+		"4. Production: Medium (95% reliability), 50+ concurrent gov services 100 concurrent users/sec",
+		"5. Production: HA/DRS Setup (99.99% reliability), 50+ concurrent gov services 1000 concurrent users/sec",
 		"6. For custom options, use this calcualtor to determine the required nodes (https://docs.digit.org/Infra-calculator)"}
 
 	cloudPlatforms := []string{
@@ -90,8 +91,8 @@ func main() {
 		"5. GOOGLE CLOUD - Production grade Google Kubernetes Engine (GKE)",
 		"6. On-prem/Privare Cloud - Production grade Kubernetes Cluster Setup"}
 
-	fmt.Println(string(Green), "\n*******  Welcome to DIGIT Server setup & Deployment !!! ******** \n\n Please read the detailed Pre-requsites from the below link before you proceed *********\n https://docs.digit.org/Infra-calculator\n")
-	const sPreReq = "Pre-requsites (Please Read Carefully):\n\tDIGIT Stack is a combination of many microservices that are packaged as docker containers that can be run on any container supported platforms like dockercompose, kubernetes, etc. Here we'll have a setup a kubernetes.\nHence the following are mandatory to have it before you proceed.\n\t1. Kubernetes(K8s) Cluster.\n\t\t[Option a] Local/VM: If you do not have k8s, using this link you can create k8s cluster on your local or on a VM.\n\t\t[b] Cloud: If you have your cloud account like AWS, Azure, GCP, SDC or NIC you can follow this link to create k8s.\n\t2. Post the k8s cluster creation you should get the Kubeconfig file, which you have saved in your local machine.\n\t\n\n Well! Let's get started with the DIGIT Setup process, if you want to abort any time press (Ctl+c), you can always come back and rerun the script."
+	fmt.Println(string(Green), "\n*******  Welcome to DIGIT Server setup & Deployment !!! ******** \n\n *********\n https://docs.digit.org/Infra-calculator\n")
+	const sPreReq = "Pre-requsites (Please Read Carefully):\n\tDIGIT comprises of many microservices that are packaged as docker containers that can be run on any container supported platforms like dockercompose, kubernetes, etc. Here we'll have a setup a kubernetes.\nHence the following are mandatory to have it before you proceed.\n\t1. Kubernetes(K8s) Cluster.\n\t\t[Option a] Local/VM: If you do not have k8s, using this link you can create k8s cluster on your local or on a VM.\n\t\t[b] Cloud: If you have your cloud account like AWS, Azure, GCP, SDC or NIC you can follow this link to create k8s.\n\t2. Post the k8s cluster creation you should get the Kubeconfig file, which you have saved in your local machine.\n\t\n\n Well! Let's get started with the DIGIT Setup process, if you want to abort any time press (Ctl+c), you can always come back and rerun the script."
 	fmt.Println(string(Cyan), sPreReq)
 
 	preReqConfirm := []string{"Yes", "No"}
@@ -233,15 +234,18 @@ func main() {
 		fmt.Println(string(Green), "\n*******  Let's proceed with cluster creation, please input the requested details below *********\n")
 		fmt.Println(string(Green), "Make sure that the cluster name is unique if you are trying consecutively, duplicate DNS/hosts file entry under digit.org domain could have been mapped already\n")
 
-		cluster_name := enterValue(nil, "How do you want to name the Cluster? \n eg: your-name_dev or your-name_poc")
-		//s3_bucket_tfstore := cluster_name + "-tf-store-" + strconv.Itoa(rand.Int())
-		dir := "DIGIT-DevOps"
+		cluster_name = enterValue(nil, "How do you want to name the Cluster? eg: your-name_dev or your-name_poc")
+
+		// fmt.Println("How do you want to name the Cluster? \n eg: your-name_dev or your-name_poc")
+		// fmt.Scanln(&cluster_name)
+
+		repoDirRoot := "DIGIT-DevOps"
 		gitCmd := ""
-		_, err := os.Stat(dir)
+		_, err := os.Stat(repoDirRoot)
 		if os.IsNotExist(err) {
-			gitCmd = fmt.Sprintf("git clone -b release https://github.com/egovernments/DIGIT-DevOps.git %s", dir)
+			gitCmd = fmt.Sprintf("git clone -b release https://github.com/egovernments/DIGIT-DevOps.git %s", repoDirRoot)
 		} else {
-			gitCmd = fmt.Sprintf("git -C %s pull", dir)
+			gitCmd = fmt.Sprintf("git -C %s pull", repoDirRoot)
 		}
 		execCommand(gitCmd)
 
@@ -258,23 +262,24 @@ func main() {
 				log.Fatalf("Failed to generate SSH Key %s\n", err)
 			} else {
 
-				execSingleCommand(fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s", dir, cloudTemplate))
+				execSingleCommand(fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
 
-				execSingleCommand(fmt.Sprintf("terraform plan -var=\"public_key=%s\" -var=\"key_name=%s\" %s/infra-as-code/terraform/%s", pubKey, keyName, dir, cloudTemplate))
+				execSingleCommand(fmt.Sprintf("terraform plan -var=\"public_key=%s\" -var=\"key_name=%s\" %s/infra-as-code/terraform/%s", pubKey, keyName, repoDirRoot, cloudTemplate))
 
-				execSingleCommand(fmt.Sprintf("terraform apply -auto-approve -var=\"public_key=%s\" -var=\"key_name=%s\" %s/infra-as-code/terraform/%s", pubKey, keyName, dir, cloudTemplate))
+				execSingleCommand(fmt.Sprintf("terraform apply -auto-approve -var=\"public_key=%s\" -var=\"key_name=%s\" %s/infra-as-code/terraform/%s", pubKey, keyName, repoDirRoot, cloudTemplate))
 			}
 
 		} else {
-			execSingleCommand(fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s", dir, cloudTemplate))
+			execSingleCommand(fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
 
-			execSingleCommand(fmt.Sprintf("terraform plan -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", cluster_name, db_pswd, number_of_worker_nodes, dir, cloudTemplate))
+			execSingleCommand(fmt.Sprintf("terraform plan -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", cluster_name, db_pswd, number_of_worker_nodes, repoDirRoot, cloudTemplate))
 
-			execSingleCommand(fmt.Sprintf("terraform apply -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", cluster_name, db_pswd, number_of_worker_nodes, dir, cloudTemplate))
+			execSingleCommand(fmt.Sprintf("terraform apply -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", cluster_name, db_pswd, number_of_worker_nodes, repoDirRoot, cloudTemplate))
 
 		}
-
 	}
+
+
 
 	contextset := setClusterContext()
 	if contextset {
@@ -303,6 +308,33 @@ func getService(fullChart Digit, service string, set Set, svclist *list.List) {
 			}
 		}
 	}
+}
+
+func createK3d(clusterName string, publicIp string, keyName string) kubeConfig string {
+
+	commands := []string {
+		"mkdir ~/kube && sudo chmod 777 ~/kube",
+		"ip addr | grep /'state UP/' -A2 | tail -n1 | awk /'{print $2}/' | cut -f1  -d/'///'",
+		"sudo k3d kubeconfig get k3s-default > " + clusterName + "_k3dconfig",	
+	}
+
+	//"sudo scp /home/ubuntu/"+ clusterName + "_k3dconfig ."
+
+	execCommand(commands[0])
+	privateIp = execRemoteCommand(commands[1])
+	
+	createClusterCmd = fmt.sprintf("sudo k3d cluster create --api-port %s:6550 --k3s-server-arg --no-deploy=traefik --agents 2 -v /home/ubuntu/kube:/kube@agent[0,1] -v /home/ubuntu/kube:/kube@server[0] --port 8333:9000@loadbalancer --k3s-server-arg --tls-san=%s", privateIp, publicIp)
+
+	err, out := execRemoteCommand(createClusterCmd)
+
+	if err != nil {
+		log.Fatalf("Failed to create the k3d cluster %s\n", err)
+		return ""
+	} else {
+
+	}
+
+
 }
 
 func execCommand(command string) error {
@@ -500,6 +532,29 @@ func deployCharts(argStr string, configFile string) {
 
 	}
 
+}
+
+func execRemoteCommand(user string, ip string, sshFileLocation string, command string) error, output string {
+	var err error
+	sshPreFix = fmt.sprintf("ssh %s@%s -i %s ", user, ip, sshFileLocation)
+
+	command = sshPreFix + command
+
+	cmd := exec.Command("sh", "-c", command)
+
+	log.Println(string(Blue), " ==> "+command)
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
+
+	err = cmd.Run()
+	if err != nil {
+		log.Fatalf("cmd.Run() failed with %s\n", err)
+		return err
+	} else {
+		return cmd.Stdout
+	}	
 }
 
 func execSingleCommand(command string) error {

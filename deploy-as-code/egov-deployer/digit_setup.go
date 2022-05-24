@@ -155,12 +155,12 @@ func main() {
 
 						goDeployCmd = fmt.Sprintf("go run main.go deploy -c -e %s %s", env, argStr)
 
-						preview, _ := sel(confirm, "Do you want to preview the manifests before the actual Deployment")
-						if preview == "Yes" {
-							goDeployCmd = fmt.Sprintf("%s -p", goDeployCmd)
-							fmt.Println("That's cool... The preview is getting loaded. Please review it and proceed with the deployment")
-							execCommand(goDeployCmd)
-						}
+						// preview, _ := sel(confirm, "Do you want to preview the manifests before the actual Deployment")
+						// if preview == "Yes" {
+						// 	goDeployCmd = fmt.Sprintf("%s -p", goDeployCmd)
+						// 	fmt.Println("That's cool... The preview is getting loaded. Please review it and proceed with the deployment")
+						// 	execCommand(goDeployCmd)
+						// }
 
 						consent, _ := sel(confirm, "Are we good to proceed with the actual deployment?")
 						if consent == "Yes" {

@@ -18,6 +18,8 @@ import (
 	"strings"
 	s "strings"
 
+	scp "github.com/bramvdbogaerde/go-scp"
+	"github.com/bramvdbogaerde/go-scp/auth"
 	"github.com/jcelliott/lumber"
 	"github.com/manifoldco/promptui"
 	"golang.org/x/crypto/ssh"
@@ -315,12 +317,13 @@ func createK3d(clusterName string, publicIp string, keyName string) kubeConfig s
 	commands := []string {
 		"mkdir ~/kube && sudo chmod 777 ~/kube",
 		"ip addr | grep /'state UP/' -A2 | tail -n1 | awk /'{print $2}/' | cut -f1  -d/'///'",
-		"sudo k3d kubeconfig get k3s-default > " + clusterName + "_k3dconfig",	
+		"sudo k3d kubeconfig get k3s-default > " + clusterName + "_k3dconfig",
+			
 	}
 
 	//"sudo scp /home/ubuntu/"+ clusterName + "_k3dconfig ."
 
-	execCommand(commands[0])
+	execRemoteCommand(commands[0])
 	privateIp = execRemoteCommand(commands[1])
 	
 	createClusterCmd = fmt.sprintf("sudo k3d cluster create --api-port %s:6550 --k3s-server-arg --no-deploy=traefik --agents 2 -v /home/ubuntu/kube:/kube@agent[0,1] -v /home/ubuntu/kube:/kube@server[0] --port 8333:9000@loadbalancer --k3s-server-arg --tls-san=%s", privateIp, publicIp)
@@ -330,7 +333,8 @@ func createK3d(clusterName string, publicIp string, keyName string) kubeConfig s
 	if err != nil {
 		log.Fatalf("Failed to create the k3d cluster %s\n", err)
 		return ""
-	} else {
+	} else { 
+
 
 	}
 
@@ -450,7 +454,7 @@ func selectGovServicesToInstall() string {
 				}
 			}
 			modules = append(modules, "Exit")
-			result, err := sel(modules, "Select the DIGIT gov services that you want to install, choose Exit to complete selection")
+			result, err := sel(modules, "Select the DIGIT's Gov services that you want to install, choose Exit to complete selection")
 			//if err == nil {
 			for result != "Exit" && err == nil {
 				selectedMod = append(selectedMod, result)
@@ -555,6 +559,79 @@ func execRemoteCommand(user string, ip string, sshFileLocation string, command s
 	} else {
 		return cmd.Stdout
 	}	
+}
+
+func remoteScpFile(host string, username string, sshKeyPath string, remoteFilePath string, localFilePath string) success bool {
+	// Use SSH key authentication from the auth package
+	// we ignore the host key in this example, please change this if you use this library
+
+
+	ssh := chilkat.NewSsh()
+
+    // Hostname may be an IP address or hostname:
+    hostname := "www.some-ssh-server.com"
+    port := 22
+
+	puttyKey := chilkat.NewSshKey()
+    ppkText := puttyKey.LoadText(sshKeyPath)
+
+	success := puttyKey.FromPuttyPrivateKey(*ppkText)
+    if success != true {
+        fmt.Println(puttyKey.LastErrorText())
+        ssh.DisposeSsh()
+        puttyKey.DisposeSshKey()
+        return false
+    }
+
+    // Connect to an SSH server:
+    success := ssh.Connect(hostname,port)
+    if success != true {
+        fmt.Println(ssh.LastErrorText())
+        ssh.DisposeSsh()
+        return false
+    }
+
+    // Wait a max of 5 seconds when reading responses..
+    ssh.SetIdleTimeoutMs(5000)
+
+    // Authenticate using login/password:
+    success = ssh.AuthenticatePk("myLogin",puttyKey)
+    if success != true {
+        fmt.Println(ssh.LastErrorText())
+        ssh.DisposeSsh()
+        return false
+    }
+
+    // Once the SSH object is connected and authenticated, we use it
+    // in our SCP object.
+    scp := chilkat.NewScp()
+
+    success = scp.UseSsh(ssh)
+    if success != true {
+        fmt.Println(scp.LastErrorText())
+        ssh.DisposeSsh()
+        scp.DisposeScp()
+        return false
+    }
+
+    success = scp.DownloadFile(remoteFilePath,localFilePath)
+    if success != true {
+        fmt.Println(scp.LastErrorText())
+        ssh.DisposeSsh()
+        scp.DisposeScp()
+        return false
+    }
+
+    fmt.Println("SCP download file success.")
+
+    // Disconnect
+    ssh.Disconnect()
+
+    ssh.DisposeSsh()
+    scp.DisposeScp()
+
+	return true
+
 }
 
 func execSingleCommand(command string) error {

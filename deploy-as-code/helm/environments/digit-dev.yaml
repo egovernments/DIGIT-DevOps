@@ -1,11 +1,11 @@
 global:
-  domain: digit.digit.org
-  namespace: digit
+  domain: digit-dev.digit.org
+  namespace: dev
   tracing-enabled: true
   nodepool:
     nodeAffinity: false
-    selector: digit-ng
-    toleration: digit-ng
+    selector: dev-ng
+    toleration: dev-ng
 
 cluster-configs:
   namespaces:
@@ -21,6 +21,14 @@ cluster-configs:
   - role: admin
     namespaces: [ digit ]
 
+  secrets:
+    db: 
+      namespace: [ dev ]
+      name: db
+    git-sync: 
+        namespace: [ dev ]
+        name: git-creds    
+
   root-ingress:
     cert-issuer: "letsencrypt-prod"
     namespace: digit
@@ -28,12 +36,12 @@ cluster-configs:
     egov-config:
       namespace: [ digit, qa , dev, uat, staging ]
       data:
-        db-host: egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com
-        db-name: egov_dev_ms
-        erp-db-url: jdbc:postgresql://egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com:5432/punjab_impl_app
-        db-url: jdbc:postgresql://egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com:5432/egov_dev_ms
-        bpa-db-url: jdbc:postgresql://egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com:5432/bpa_dev_ms
-        egov-services-fqdn-name: https://digit.digit.org/
+        db-host: "postgres.dev"
+        db-name: "dev_db"
+        erp-db-url: jdbc:postgresql://postgres.dev:5432/punjab_impl_app
+        db-url: jdbc:postgresql://postgres.dev:5432/dev_db
+        bpa-db-url: jdbc:postgresql://postgres.dev:5432/bpa_dev_ms
+        egov-services-fqdn-name: https://digit-dev.digit.org/
         egov-state-level-tenant-id: pb
         es-host: elasticsearch-data-v1.digit
         es-indexer-host: http://elasticsearch-data-v1.digit:9200/
@@ -272,7 +280,7 @@ inbox:
 # financials >>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 egf-master:
-  db-url: "jdbc:postgresql://egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com:5432/egov_dev_ms?currentSchema=egov_master"
+  db-url: "jdbc:postgresql://postgres.dev:5432/egov_dev_ms?currentSchema=egov_master"
 
 finance-collections-voucher-consumer:
   erp-env-name: "dev"
@@ -558,7 +566,7 @@ pgadmin:
     - egovio/pgadmin:v0.1
 
 pgadmin-config:
-  host: "egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com"
+  host: "postgres.dev"
   db-admin-username: "egovdev"
   db-read-username: "egov_ro_user"
   port: "5432"
@@ -770,3 +778,12 @@ egov-edcr:
 turn-io-adapter:
   pgrv1enabled: true  
 
+# postgres >>>>>>>>>>
+postgres:
+  namespace: dev
+  postgresDatabase: dev_db
+  persistence:
+    enabled: true
+    aws:
+      volumeId: "vol-07df72571755c8315"
+    dataDirSize: 100Gi 

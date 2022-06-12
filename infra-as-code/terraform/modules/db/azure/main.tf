@@ -3,18 +3,21 @@ resource "azurerm_postgresql_server" "postgresql_server" {
   location             = "${var.location}"
   resource_group_name  = "${var.resource_group}"
 
-  sku_name = "${var.sku_tier}"
+  
 
-  storage_profile {
-    storage_mb            = "${var.storage_mb}"
-    backup_retention_days = "${var.backup_retention_days}"
-    geo_redundant_backup  = "Disabled"
-  }
+  administrator_login              = "${var.administrator_login}"
+  administrator_login_password     = "${var.administrator_login_password}"
 
-  administrator_login          = "${var.administrator_login}"
-  administrator_login_password = "${var.administrator_login_password}"
-  version                      = "10"
-  ssl_enforcement              = "${var.ssl_enforce}"
+  sku_name                         = "${var.sku_tier}"
+  version                          = "${var.db_version}"
+  storage_mb                       = "${var.storage_mb}"
+
+  backup_retention_days            = "${var.backup_retention_days}"
+  geo_redundant_backup_enabled     = false
+
+  ssl_enforcement_enabled          = "${var.ssl_enforce}"
+  ssl_minimal_tls_version_enforced = "TLSEnforcementDisabled"
+
 
   tags = {
     environment = "${var.environment}"

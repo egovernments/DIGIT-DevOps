@@ -19,7 +19,7 @@ variable "availability_zones" {
 }
 
 variable "kubernetes_version" {
-  default = "1.15"
+  default = "1.20"
 }
 
 variable "instance_type" {
@@ -34,6 +34,7 @@ variable "number_of_worker_nodes" {
   default = "1"
 }
 
+
 variable "spot_max_price" {
   default = "0.0538"
 }
@@ -41,6 +42,4 @@ variable "spot_max_price" {
 variable "ssh_key_name" {
   default = "egov-cicd"
 }
-variable "iam_keybase_user" {
-  default = "keybase:egovterraform"
-}
+

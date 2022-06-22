@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "egov-cicd-terraform-state-store"
+  bucket = "try-cicd-workshop-yourname"  
 
   versioning {
     enabled = true
@@ -15,7 +15,7 @@ resource "aws_s3_bucket" "terraform_state" {
 }
 
 resource "aws_dynamodb_table" "terraform_state_lock" {
-  name           = "egov-cicd-terraform-state-store"
+  name           = "try-cicd-workshop-yourname"
   read_capacity  = 1
   write_capacity = 1
   hash_key       = "LockID"

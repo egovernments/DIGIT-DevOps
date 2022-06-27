@@ -159,7 +159,8 @@ resource "aws_security_group" "worker_nodes_sg" {
 
   tags = "${
     map(
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
+      "Name", "masters-${var.cluster_name}",
+      "kubernetes.io/cluster/${var.cluster_name}", "shared",
       "KubernetesCluster", "${var.cluster_name}"
     )
   }"

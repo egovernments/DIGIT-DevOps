@@ -16,15 +16,12 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	s "strings"
-
-	scp "github.com/bramvdbogaerde/go-scp"
-	"github.com/bramvdbogaerde/go-scp/auth"
 	"github.com/jcelliott/lumber"
 	"github.com/manifoldco/promptui"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
 	//"bufio"
+	"deployer/configs"
 )
 
 var Reset = "\033[0m"
@@ -71,6 +68,7 @@ func main() {
 	var number_of_worker_nodes int = 1 // No of VMs for the k8s worker nodes
 	var optedCloud string              // Desired InfraType to deploy
 	var cloudTemplate string           // Which terraform template to choose
+	var repoDirRoot string
 	var cloudLoginCredentials bool     // Is there a valid cloud account and credentials
 	var isProductionSetup bool = false
 	var cluster_name string
@@ -241,7 +239,7 @@ func main() {
 		// fmt.Println("How do you want to name the Cluster? \n eg: your-name_dev or your-name_poc")
 		// fmt.Scanln(&cluster_name)
 
-		repoDirRoot := "DIGIT-DevOps"
+		repoDirRoot = "DIGIT-DevOps"
 		gitCmd := ""
 		_, err := os.Stat(repoDirRoot)
 		if os.IsNotExist(err) {
@@ -281,8 +279,6 @@ func main() {
 		}
 	}
 
-
-
 	contextset := setClusterContext()
 	if contextset {
 		deployCharts(servicesToDeploy, prepareDeploymentConfig(optedInfraType))
@@ -312,32 +308,28 @@ func getService(fullChart Digit, service string, set Set, svclist *list.List) {
 	}
 }
 
-func createK3d(clusterName string, publicIp string, keyName string) kubeConfig string {
-
-	commands := []string {
+func createK3d(clusterName string, publicIp string, keyName string) (kubeConfig string) {
+	var err error
+	commands := []string{
 		"mkdir ~/kube && sudo chmod 777 ~/kube",
 		"ip addr | grep /'state UP/' -A2 | tail -n1 | awk /'{print $2}/' | cut -f1  -d/'///'",
 		"sudo k3d kubeconfig get k3s-default > " + clusterName + "_k3dconfig",
-			
 	}
 
 	//"sudo scp /home/ubuntu/"+ clusterName + "_k3dconfig ."
 
-	execRemoteCommand(commands[0])
-	privateIp = execRemoteCommand(commands[1])
-	
-	createClusterCmd = fmt.sprintf("sudo k3d cluster create --api-port %s:6550 --k3s-server-arg --no-deploy=traefik --agents 2 -v /home/ubuntu/kube:/kube@agent[0,1] -v /home/ubuntu/kube:/kube@server[0] --port 8333:9000@loadbalancer --k3s-server-arg --tls-san=%s", privateIp, publicIp)
+	execCommand(commands[0])
+	privateIp := execCommand(commands[1])
+	kubecon, err := exec.Command(commands[2]).Output()
+	kubeConfig = string(kubecon)
+	createClusterCmd := fmt.Sprintf("sudo k3d cluster create --api-port %s:6550 --k3s-server-arg --no-deploy=traefik --agents 2 -v /home/ubuntu/kube:/kube@agent[0,1] -v /home/ubuntu/kube:/kube@server[0] --port 8333:9000@loadbalancer --k3s-server-arg --tls-san=%s", privateIp, publicIp)
 
-	err, out := execRemoteCommand(createClusterCmd)
+	execCommand(createClusterCmd)
 
 	if err != nil {
 		log.Fatalf("Failed to create the k3d cluster %s\n", err)
-		return ""
-	} else { 
-
-
 	}
-
+	return kubeConfig
 
 }
 
@@ -423,7 +415,7 @@ func selectGovServicesToInstall() string {
 
 		for _, f := range files {
 			name := f.Name()
-			versionfiles = append(versionfiles, name[s.Index(name, "-")+1:s.Index(name, ".y")])
+			versionfiles = append(versionfiles, name[strings.Index(name, "-")+1:strings.Index(name, ".y")])
 		}
 		var version string = ""
 		version, _ = sel(versionfiles, "Which version of the selected product would like to install?")
@@ -538,9 +530,9 @@ func deployCharts(argStr string, configFile string) {
 
 }
 
-func execRemoteCommand(user string, ip string, sshFileLocation string, command string) error, output string {
+func execRemoteCommand(user string, ip string, sshFileLocation string, command string) (output string) {
 	var err error
-	sshPreFix = fmt.sprintf("ssh %s@%s -i %s ", user, ip, sshFileLocation)
+	sshPreFix := fmt.Sprintf("ssh %s@%s -i %s ", user, ip, sshFileLocation)
 
 	command = sshPreFix + command
 
@@ -555,84 +547,81 @@ func execRemoteCommand(user string, ip string, sshFileLocation string, command s
 	err = cmd.Run()
 	if err != nil {
 		log.Fatalf("cmd.Run() failed with %s\n", err)
-		return err
-	} else {
-		return cmd.Stdout
-	}	
+	}
+	return 
 }
 
-func remoteScpFile(host string, username string, sshKeyPath string, remoteFilePath string, localFilePath string) success bool {
-	// Use SSH key authentication from the auth package
-	// we ignore the host key in this example, please change this if you use this library
+// func remoteScpFile(host string, username string, sshKeyPath string, remoteFilePath string, localFilePath string) (success bool) {
+// 	// Use SSH key authentication from the auth package
+// 	// we ignore the host key in this example, please change this if you use this library
 
+// 	ssh := chilkat.NewSsh()
 
-	ssh := chilkat.NewSsh()
+// 	// Hostname may be an IP address or hostname:
+// 	hostname := "www.some-ssh-server.com"
+// 	port := 22
 
-    // Hostname may be an IP address or hostname:
-    hostname := "www.some-ssh-server.com"
-    port := 22
+// 	puttyKey := chilkat.NewSshKey()
+// 	ppkText := puttyKey.LoadText(sshKeyPath)
 
-	puttyKey := chilkat.NewSshKey()
-    ppkText := puttyKey.LoadText(sshKeyPath)
+// 	success := puttyKey.FromPuttyPrivateKey(*ppkText)
+// 	if success != true {
+// 		fmt.Println(puttyKey.LastErrorText())
+// 		ssh.DisposeSsh()
+// 		puttyKey.DisposeSshKey()
+// 		return false
+// 	}
 
-	success := puttyKey.FromPuttyPrivateKey(*ppkText)
-    if success != true {
-        fmt.Println(puttyKey.LastErrorText())
-        ssh.DisposeSsh()
-        puttyKey.DisposeSshKey()
-        return false
-    }
+// 	// Connect to an SSH server:
+// 	success := ssh.Connect(hostname, port)
+// 	if success != true {
+// 		fmt.Println(ssh.LastErrorText())
+// 		ssh.DisposeSsh()
+// 		return false
+// 	}
 
-    // Connect to an SSH server:
-    success := ssh.Connect(hostname,port)
-    if success != true {
-        fmt.Println(ssh.LastErrorText())
-        ssh.DisposeSsh()
-        return false
-    }
+// 	// Wait a max of 5 seconds when reading responses..
+// 	ssh.SetIdleTimeoutMs(5000)
 
-    // Wait a max of 5 seconds when reading responses..
-    ssh.SetIdleTimeoutMs(5000)
+// 	// Authenticate using login/password:
+// 	success = ssh.AuthenticatePk("myLogin", puttyKey)
+// 	if success != true {
+// 		fmt.Println(ssh.LastErrorText())
+// 		ssh.DisposeSsh()
+// 		return false
+// 	}
 
-    // Authenticate using login/password:
-    success = ssh.AuthenticatePk("myLogin",puttyKey)
-    if success != true {
-        fmt.Println(ssh.LastErrorText())
-        ssh.DisposeSsh()
-        return false
-    }
+// 	// Once the SSH object is connected and authenticated, we use it
+// 	// in our SCP object.
+// 	scp := chilkat.NewScp()
 
-    // Once the SSH object is connected and authenticated, we use it
-    // in our SCP object.
-    scp := chilkat.NewScp()
+// 	success = scp.UseSsh(ssh)
+// 	if success != true {
+// 		fmt.Println(scp.LastErrorText())
+// 		ssh.DisposeSsh()
+// 		scp.DisposeScp()
+// 		return false
+// 	}
 
-    success = scp.UseSsh(ssh)
-    if success != true {
-        fmt.Println(scp.LastErrorText())
-        ssh.DisposeSsh()
-        scp.DisposeScp()
-        return false
-    }
+// 	success = scp.DownloadFile(remoteFilePath, localFilePath)
+// 	if success != true {
+// 		fmt.Println(scp.LastErrorText())
+// 		ssh.DisposeSsh()
+// 		scp.DisposeScp()
+// 		return false
+// 	}
 
-    success = scp.DownloadFile(remoteFilePath,localFilePath)
-    if success != true {
-        fmt.Println(scp.LastErrorText())
-        ssh.DisposeSsh()
-        scp.DisposeScp()
-        return false
-    }
+// 	fmt.Println("SCP download file success.")
 
-    fmt.Println("SCP download file success.")
+// 	// Disconnect
+// 	ssh.Disconnect()
 
-    // Disconnect
-    ssh.Disconnect()
+// 	ssh.DisposeSsh()
+// 	scp.DisposeScp()
 
-    ssh.DisposeSsh()
-    scp.DisposeScp()
+// 	return true
 
-	return true
-
-}
+// }
 
 func execSingleCommand(command string) error {
 	var err error
@@ -785,6 +774,50 @@ func GenKeyPair() (string, string, error) {
 
 	public := ssh.MarshalAuthorizedKey(pub)
 	return string(public), private.String(), nil
+}
+func Configsfile(){
+	var Env Environment
+	Path, err := ioutil.ReadFile("%s/config-as-code/environments/egov-demo-template.yaml ")
+	if err != nil {
+		log.Printf("%v", err)
+	}
+	err = yaml.Unmarshal(Path, &Env)
+	domain := enterValue(nil,"Enter a valid Domain name:" )
+	s3_bucket := enterValue(nil,"Enter the bucket name:")
+	branch_name := enterValue(nil,"Enter Branch name:")
+	Env.Global.Domain=domain
+	Env.ClusterConfigs.Configmaps.EgovConfig.Data.Domain=domain
+	Env.ClusterConfigs.Configmaps.EgovConfig.Data.S3AssetsBucket=s3_bucket
+	db_host := execSingleCommand(fmt.Sprintf("terraform output -raw db_instance_endpoint %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	Env.ClusterConfigs.Configmaps.EgovConfig.Data.DbHost=db_host
+	db_name := execSingleCommand(fmt.Sprintf("terraform output -raw db_instance_name %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	Env.ClusterConfigs.Configmaps.EgovConfig.Data.DbName=db_name
+	db_url := execSingleCommand(fmt.Sprintf("terraform output -raw db_instance_endpoint %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	Env.ClusterConfigs.Configmaps.EgovConfig.Data.DbURL=db_url
+	Env.EgovMdmsService.InitContainers.GitSync.Branch=branch_name
+	Env.EgovIndexer.InitContainers.GitSync.Branch=branch_name
+	Env.EgovPersister.InitContainers.GitSync.Branch=branch_name
+	Env.EgovDataUploader.InitContainers.GitSync.Branch=branch_name
+	Env.EgovSearcher.InitContainers.GitSync.Branch=branch_name
+	Env.DashboardAnalytics.InitContainers.GitSync.Branch=branch_name
+	Env.DashboardIngest.InitContainers.GitSync.Branch=branch_name
+	Env.Report.InitContainers.GitSync.Branch=branch_name
+	Env.PdfService.InitContainers.GitSync.Branch=branch_name
+	Env.KafkaV2.Persistence.Aws[0].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json kafka_vol_ids | jq -r '.[0]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	Env.KafkaV2.Persistence.Aws[1].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json kafka_vol_ids | jq -r '.[1]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	Env.KafkaV2.Persistence.Aws[2].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json kafka_vol_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	Env.ZookeeperV2.Persistence.Aws[0].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json zookeeper_volume_ids | jq -r '.[0]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	Env.ZookeeperV2.Persistence.Aws[1].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json zookeeper_volume_ids | jq -r '.[1]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	Env.ZookeeperV2.Persistence.Aws[2].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json zookeeper_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	Env.ElasticsearchDataV1.Persistence.Aws[0].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json es_data_volume_ids | jq -r '.[0]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	Env.ElasticsearchDataV1.Persistence.Aws[1].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json es_data_volume_ids | jq -r '.[1]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	Env.ElasticsearchDataV1.Persistence.Aws[2].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json es_data_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	Env.ElasticsearchMasterV1.Persistence.Aws[2].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json es_master_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	Env.ElasticsearchMasterV1.Persistence.Aws[2].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json es_master_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	Env.ElasticsearchMasterV1.Persistence.Aws[2].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json es_master_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	
+	update, err := yaml.Marshal(&Env)
+	ioutil.WriteFile("updated.yaml", update, 0644)
 }
 
 func endScript() {

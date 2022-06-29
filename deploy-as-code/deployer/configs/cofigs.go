@@ -1,13 +1,5 @@
 package configs
 
-import (
-	"fmt"
-	"io/ioutil"
-	"log"
-
-	"gopkg.in/yaml.v2"
-)
-
 type Environment struct {
 	Global struct {
 		Domain string `yaml:"domain"`
@@ -445,16 +437,4 @@ type Environment struct {
 		JaegerCleanupEnabled string   `yaml:"jaeger-cleanup-enabled"`
 		LogsToRetain         string   `yaml:"logs-to-retain"`
 	} `yaml:"es-curator"`
-}
-func Configsfile(){
-	var Env Environment
-	Path, err := ioutil.ReadFile("")
-	if err != nil {
-		log.Printf("%v", err)
-	}
-	err = yaml.Unmarshal(Path, &Env)
-	Env.Global.Domain=
-	fmt.Println(Env.EgovFilestore.AllowedFileFormatsMap)
-	update, err := yaml.Marshal(&Env)
-	ioutil.WriteFile("updated.yaml", update, 0644)
 }

@@ -23,6 +23,8 @@ import (
 	//"bufio"
 	"deployer/configs"
 )
+var cloudTemplate string           // Which terraform template to choose
+var repoDirRoot string
 
 var Reset = "\033[0m"
 var Red = "\033[31m"
@@ -67,8 +69,6 @@ func main() {
 	var servicesToDeploy string        // Modules to be deployed
 	var number_of_worker_nodes int = 1 // No of VMs for the k8s worker nodes
 	var optedCloud string              // Desired InfraType to deploy
-	var cloudTemplate string           // Which terraform template to choose
-	var repoDirRoot string
 	var cloudLoginCredentials bool     // Is there a valid cloud account and credentials
 	var isProductionSetup bool = false
 	var cluster_name string
@@ -776,7 +776,7 @@ func GenKeyPair() (string, string, error) {
 	return string(public), private.String(), nil
 }
 func Configsfile(){
-	var Env Environment
+	var Env configs.Environment
 	Path, err := ioutil.ReadFile("%s/config-as-code/environments/egov-demo-template.yaml ")
 	if err != nil {
 		log.Printf("%v", err)
@@ -788,12 +788,12 @@ func Configsfile(){
 	Env.Global.Domain=domain
 	Env.ClusterConfigs.Configmaps.EgovConfig.Data.Domain=domain
 	Env.ClusterConfigs.Configmaps.EgovConfig.Data.S3AssetsBucket=s3_bucket
-	db_host := execSingleCommand(fmt.Sprintf("terraform output -raw db_instance_endpoint %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
-	Env.ClusterConfigs.Configmaps.EgovConfig.Data.DbHost=db_host
-	db_name := execSingleCommand(fmt.Sprintf("terraform output -raw db_instance_name %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
-	Env.ClusterConfigs.Configmaps.EgovConfig.Data.DbName=db_name
-	db_url := execSingleCommand(fmt.Sprintf("terraform output -raw db_instance_endpoint %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
-	Env.ClusterConfigs.Configmaps.EgovConfig.Data.DbURL=db_url
+	db_host,err := exec.Command("terraform output -raw db_instance_endpoint %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
+	Env.ClusterConfigs.Configmaps.EgovConfig.Data.DbHost=string(db_host)
+	db_name,err := exec.Command("terraform output -raw db_instance_name %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
+	Env.ClusterConfigs.Configmaps.EgovConfig.Data.DbName=string(db_name)
+	db_url,err := exec.Command("terraform output -raw db_instance_endpoint %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
+	Env.ClusterConfigs.Configmaps.EgovConfig.Data.DbURL=string(db_url)
 	Env.EgovMdmsService.InitContainers.GitSync.Branch=branch_name
 	Env.EgovIndexer.InitContainers.GitSync.Branch=branch_name
 	Env.EgovPersister.InitContainers.GitSync.Branch=branch_name
@@ -803,18 +803,30 @@ func Configsfile(){
 	Env.DashboardIngest.InitContainers.GitSync.Branch=branch_name
 	Env.Report.InitContainers.GitSync.Branch=branch_name
 	Env.PdfService.InitContainers.GitSync.Branch=branch_name
-	Env.KafkaV2.Persistence.Aws[0].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json kafka_vol_ids | jq -r '.[0]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
-	Env.KafkaV2.Persistence.Aws[1].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json kafka_vol_ids | jq -r '.[1]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
-	Env.KafkaV2.Persistence.Aws[2].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json kafka_vol_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
-	Env.ZookeeperV2.Persistence.Aws[0].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json zookeeper_volume_ids | jq -r '.[0]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
-	Env.ZookeeperV2.Persistence.Aws[1].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json zookeeper_volume_ids | jq -r '.[1]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
-	Env.ZookeeperV2.Persistence.Aws[2].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json zookeeper_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
-	Env.ElasticsearchDataV1.Persistence.Aws[0].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json es_data_volume_ids | jq -r '.[0]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
-	Env.ElasticsearchDataV1.Persistence.Aws[1].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json es_data_volume_ids | jq -r '.[1]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
-	Env.ElasticsearchDataV1.Persistence.Aws[2].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json es_data_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
-	Env.ElasticsearchMasterV1.Persistence.Aws[2].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json es_master_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
-	Env.ElasticsearchMasterV1.Persistence.Aws[2].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json es_master_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
-	Env.ElasticsearchMasterV1.Persistence.Aws[2].VolumeID = execSingleCommand(fmt.Sprintf("terraform output -json es_master_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+	kv1,err := exec.Command("terraform output -json kafka_vol_ids | jq -r '.[0]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
+	Env.KafkaV2.Persistence.Aws[0].VolumeID=string(kv1)
+	kv2,err := exec.Command("terraform output -json kafka_vol_ids | jq -r '.[1]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
+	Env.KafkaV2.Persistence.Aws[1].VolumeID=string(kv2)
+	kv3,err := exec.Command("terraform output -json kafka_vol_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
+	Env.KafkaV2.Persistence.Aws[2].VolumeID=string(kv3)
+	zv1,err := exec.Command("terraform output -json zookeeper_volume_ids | jq -r '.[0]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
+	Env.ZookeeperV2.Persistence.Aws[0].VolumeID=string(zv1)
+	zv2,err := exec.Command("terraform output -json zookeeper_volume_ids | jq -r '.[1]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
+	Env.ZookeeperV2.Persistence.Aws[1].VolumeID=string(zv2)
+	zv3,err := exec.Command("terraform output -json zookeeper_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
+	Env.ZookeeperV2.Persistence.Aws[2].VolumeID=string(zv3)
+	esdv1,err:= exec.Command("terraform output -json es_data_volume_ids | jq -r '.[0]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
+	Env.ElasticsearchDataV1.Persistence.Aws[0].VolumeID=string(esdv1)
+	esdv2,err:= exec.Command("terraform output -json es_data_volume_ids | jq -r '.[1]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
+	Env.ElasticsearchDataV1.Persistence.Aws[1].VolumeID=string(esdv2)
+	esdv3,err:= exec.Command("terraform output -json es_data_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
+	Env.ElasticsearchDataV1.Persistence.Aws[2].VolumeID=string(esdv3)
+	esmv1,err := exec.Command("terraform output -json es_master_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
+	Env.ElasticsearchMasterV1.Persistence.Aws[2].VolumeID=string(esmv1)
+	esmv2,err := exec.Command("terraform output -json es_master_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
+	Env.ElasticsearchMasterV1.Persistence.Aws[2].VolumeID=string(esmv2)
+	esmv3,err := exec.Command("terraform output -json es_master_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
+	Env.ElasticsearchMasterV1.Persistence.Aws[2].VolumeID=string(esmv3)
 	
 	update, err := yaml.Marshal(&Env)
 	ioutil.WriteFile("updated.yaml", update, 0644)

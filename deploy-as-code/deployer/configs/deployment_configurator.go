@@ -49,13 +49,14 @@ type Output struct {
 		} `json:"zookeeper_volume_ids"`
 	} `json:"outputs"`
 }
-func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,esdids []string,esmids []string,modules []string){
+func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,esdids []string,esmids []string,modules []string,smsproceed string,fileproceed string,botproceed string,flag string){
 	
 	file, err := ioutil.ReadFile("DIGIT-DevOps/config-as-code/environments/egov-demo.yaml")
     if err != nil {
         log.Printf("%v",err)
     }
 	var data map[string]interface{}
+	ModData:= make(map[string]interface{})
 	err = yaml.Unmarshal(file,&data)
 	if err!=nil{
 		log.Printf("%v",err)
@@ -87,8 +88,7 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 									Data:= EgovConfig[l].(map[string]interface{})
 									for m := range Data{
 										if m=="db-host"{
-											Data[m]=""
-											// fmt.Println(Data[m])
+											Data[m]=Config["db-host"]
 										}
 										if m=="db-name"{
 											
@@ -97,7 +97,7 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 											
 										} 
 										if m=="domain"{
-											
+											Data[m]=Config["Domain"]
 										}
 										if m=="egov-services-fqdn-name"{
 											
@@ -232,9 +232,9 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 		}
 		if i=="kafka-v2"{
 			KafkaV2:=data[i].(map[string]interface{})
-			for j:= range Kafkav2{
+			for j:= range KafkaV2{
 				if j=="persistence"{
-					Persistence:=Kafkav2[j].(map[string]interface{})
+					Persistence:=KafkaV2[j].(map[string]interface{})
 					for k:= range Persistence{
 						if k=="aws"{
 							Aws:=Persistence[k].([]interface{})
@@ -365,7 +365,7 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 				if j=="custom-js-injection"{}
 			}
 		}
-		if i=="egov-filestore"{
+		if i=="egov-filestore"&&fileproceed=="yes"{
 			NestedMap:=data[i].(map[string]interface{})
 			for j:=range NestedMap{
 				if j=="volume"{
@@ -396,15 +396,16 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 
 				}
 				if j=="fixed-bucketname"{
-
+					NestedMap[j]=Config["fixed-bucket"]
 				}
 			}
+
 		}
-		if i=="egov-notification-sms"{
+		if i=="egov-notification-sms"&&smsproceed=="yes"{
 			NestedMap:=data[i].(map[string]interface{})
 			for j:= range NestedMap{
 				if j=="sms-provider-url"{
-
+					NestedMap[j]=Config["sms-provider-url"]
 				}
 				if j=="sms.provider.class"{
 				
@@ -416,10 +417,10 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 				
 				}
 				if j=="sms-gateway-to-use"{
-				
+					NestedMap[j]=Config["sms-gateway-to-use"]
 				}
 				if j=="sms-sender"{
-				
+					NestedMap[j]=Config["sms-sender"]
 				}
 				if j=="sms-sender-requesttype"{
 				
@@ -449,6 +450,7 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 				
 				}
 			}
+			ModData["egov-notification-sms"]=data["egov-notification-sms"]
 		}
 		if i=="egov-user"{
 			NestedMap:=data[i].(map[string]interface{})
@@ -500,7 +502,7 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 				}
 			}
 		}
-		if i=="chatbot"{
+		if i=="chatbot"&&botproceed=="yes"{
 			NestedMap:=data[i].(map[string]interface{})
 			for j:= range NestedMap{
 				if j=="kafka-topics-partition-count"{
@@ -552,6 +554,7 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 				  
 				}
 			}
+			ModData["chatbot"]=data["chatbot"]
 		}
 		if i=="bpa-services"{
 			NestedMap:=data[i].(map[string]interface{})
@@ -1050,586 +1053,87 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 			}
 		}
 	}
-	n:=len(modules)
-	for _,i:= range modules{
-		if i=="m_pgr"&&n==1{
-			
-		}
-		if i=="m_property-tax"&&n==1{
-			
-		}
-		if i=="m_sewerage"&&n==1{
-			
-		}
-		if i=="m_bpa"&&n==1{
-			
-		}
-		if i=="m_trade-license"&&n==1{
-			
-		}
-		if i=="m_firenoc"&&n==1{
-			
-		}
-		if i=="m_water-service"&&n==1{
-			
-		}
-		if i=="m_dss"&&n==1{
-			
-		}
-		if i=="m_fsm"&&n==1{
-			
-		}
-		if i=="m_echallan"&&n==1{
-			
-		}
-		if i=="m_edcr"&&n==1{
-			
-		}
-		if i=="m_finance"&&n==1{
-			
-		}
-		if i=="m_pgr"&&i=="m_property-tax"&&n==2{
-			
-		}
-		if i=="m_pgr"&&i=="m_sewerage"&&n==2{
-	
-		}
-		if i=="m_pgr"&&i=="m_bpa"&&n==2{
-			
-		}
-		if i=="m_pgr"&&i=="m_trade-license"&&n==2{
-			
-		}
-		if i=="m_pgr"&&i=="m_firenoc"&&n==2{
-			
-		}
-		if i=="m_pgr"&&i=="m_water-service"&&n==2{
-			
-		}
-		if i=="m_pgr"&&i=="m_dss"&&n==2{
-			
-		}
-		if i=="m_pgr"&&i=="m_fsm"&&n==2{
-			
-		}
-		if i=="m_pgr"&&i=="m_echallan"&&n==2{
-			
-		}
-		if i=="m_pgr"&&i=="m_edcr"&&n==2{
-			
-		}
-		if i=="m_pgr"&&i=="m_finance"&&n==2{
-			
-		}
-		if i=="m_property-tax"&&i=="m_sewerage"&&n==2{
-	
-		}
-		if i=="m_property-tax"&&i=="m_bpa"&&n==2{
-			
-		}
-		if i=="m_property-tax"&&i=="m_trade-license"&&n==2{
-			
-		}
-		if i=="m_property-tax"&&i=="m_firenoc"&&n==2{
-			
-		}
-		if i=="m_property-tax"&&i=="m_water-service"&&n==2{
-			
-		}
-		if i=="m_property-tax"&&i=="m_dss"&&n==2{
-			
-		}
-		if i=="m_property-tax"&&i=="m_fsm"&&n==2{
-			
-		}
-		if i=="m_property-tax"&&i=="m_echallan"&&n==2{
-			
-		}
-		if i=="m_property-tax"&&i=="m_edcr"&&n==2{
-			
-		}
-		if i=="m_property-tax"&&i=="m_finance"&&n==2{
-			
-		}
-		if i=="m_sewerage"&&i=="m_bpa"&&n==2{
-	
-		}
-		if i=="m_sewerage"&&i=="m_trade-license"&&n==2{
-			
-		}
-		if i=="m_sewerage"&&i=="m_firenoc"&&n==2{
-			
-		}
-		if i=="m_sewerage"&&i=="m_water-service"&&n==2{
-			
-		}
-		if i=="m_sewerage"&&i=="m_dss"&&n==2{
-			
-		}
-		if i=="m_sewerage"&&i=="m_fsm"&&n==2{
-			
-		}
-		if i=="m_sewerage"&&i=="m_echallan"&&n==2{
-			
-		}
-		if i=="m_sewerage"&&i=="m_edcr"&&n==2{
-			
-		}
-		if i=="m_sewerage"&&i=="m_finance"&&n==2{
-			
-		}
-		if i=="m_bpa"&&i=="m_trade-license"&&n==2{
-	
-		}
-		if i=="m_bpa"&&i=="m_firenoc"&&n==2{
-			
-		}
-		if i=="m_bpa"&&i=="m_water-service"&&n==2{
-			
-		}
-		if i=="m_bpa"&&i=="m_dss"&&n==2{
-			
-		}
-		if i=="m_bpa"&&i=="m_fsm"&&n==2{
-			
-		}
-		if i=="m_bpa"&&i=="m_echallan"&&n==2{
-			
-		}
-		if i=="m_bpa"&&i=="m_edcr"&&n==2{
-			
-		}
-		if i=="m_bpa"&&i=="m_finance"&&n==2{
-			
-		}
-		if i=="m_trade-license"&&i=="m_firenoc"&&n==2{
-	
-		}
-		if i=="m_trade-license"&&i=="m_water-service"&&n==2{
-			
-		}
-		if i=="m_trade-license"&&i=="m_dss"&&n==2{
-			
-		}
-		if i=="m_trade-license"&&i=="m_fsm"&&n==2{
-			
-		}
-		if i=="m_trade-license"&&i=="m_echallan"&&n==2{
-			
-		}
-		if i=="m_trade-license"&&i=="m_edcr"&&n==2{
-			
-		}
-		if i=="m_trade-license"&&i=="m_finance"&&n==2{
-			
-		}
-		if i=="m_firenoc"&&i=="m_water-service"&&n==2{
-	
-		}
-		if i=="m_firenoc"&&i=="m_dss"&&n==2{
-			
-		}
-		if i=="m_firenoc"&&i=="m_fsm"&&n==2{
-			
-		}
-		if i=="m_firenoc"&&i=="m_echallan"&&n==2{
-			
-		}
-		if i=="m_firenoc"&&i=="m_edcr"&&n==2{
-			
-		}
-		if i=="m_firenoc"&&i=="m_finance"&&n==2{
-			
-		}
-		if i=="m_water-service"&&i=="m_dss"&&n==2{
-	
-		}
-		if i=="m_water-service"&&i=="m_fsm"&&n==2{
-			
-		}
-		if i=="m_water-service"&&i=="m_echallan"&&n==2{
-			
-		}
-		if i=="m_water-service"&&i=="m_edcr"&&n==2{
-			
-		}
-		if i=="m_water-service"&&i=="m_finance"&&n==2{
-			
-		}
-		if i=="m_dss"&&i=="m_fsm"&&n==2{
-	
-		}
-		if i=="m_dss"&&i=="m_echallan"&&n==2{
-			
-		}
-		if i=="m_dss"&&i=="m_edcr"&&n==2{
-			
-		}
-		if i=="m_dss"&&i=="m_finance"&&n==2{
-			
-		}
-		if i=="m_fsm"&&i=="m_echallan"&&n==2{
-	
-		}
-		if i=="m_fsm"&&i=="m_edcr"&&n==2{
-			
-		}
-		if i=="m_fsm"&&i=="m_finance"&&n==2{
-			
-		}
-		if i=="m_echallan"&&i=="m_edcr"&&n==2{
-	
-		}
-		if i=="m_echallan"&&i=="m_finance"&&n==2{
-			
-		}
-		if i=="m_edcr"&&i=="m_finance"&&n==2{
-	
-		}		
-		if i=="m_pgr"&&i=="m_property-tax"&&i=="m_sewerage"&&n==3{
-	
-		}
-		if i=="m_bpa"&&i=="m_property-tax"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_trade-license"&&i=="m_property-tax"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_firenoc"&&i=="m_property-tax"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_property-tax"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_dss"&&i=="m_property-tax"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_fsm"&&i=="m_property-tax"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_property-tax"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_edcr"&&i=="m_property-tax"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_finance"&&i=="m_property-tax"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_bpa"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_trade-license"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_firenoc"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_water-service"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_dss"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_fsm"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_echallan"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_edcr"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_finance"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_property-tax"&&i=="m_bpa"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_property-tax"&&i=="m_trade-license"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_property-tax"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_property-tax"&&i=="m_water-service"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_property-tax"&&i=="m_dss"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_property-tax"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_property-tax"&&i=="m_echallan"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_property-tax"&&i=="m_edcr"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_property-tax"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_property-tax"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_trade-license"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_trade-license"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_property-tax"&&i=="m_trade-license"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_sewerage"&&i=="m_trade-license"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_trade-license"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_dss"&&i=="m_trade-license"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_fsm"&&i=="m_trade-license"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_trade-license"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_edcr"&&i=="m_trade-license"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_finance"&&i=="m_trade-license"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_pgr"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_property-tax"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_sewerage"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_water-service"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_dss"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_fsm"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_echallan"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_edcr"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_finance"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_trade-license"&&i=="m_pgr"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_trade-license"&&i=="m_property-tax"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_trade-license"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_trade-license"&&i=="m_water-service"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_trade-license"&&i=="m_dss"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_trade-license"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_trade-license"&&i=="m_echallan"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_trade-license"&&i=="m_edcr"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_trade-license"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_dss"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_dss"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_property-tax"&&i=="m_dss"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_sewerage"&&i=="m_dss"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_dss"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_trade-license"&&i=="m_dss"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_firenoc"&&i=="m_dss"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_dss"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_edcr"&&i=="m_dss"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_finance"&&i=="m_dss"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_pgr"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_property-tax"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_sewerage"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_bpa"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_trade-license"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_firenoc"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_echallan"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_edcr"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_finance"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_dss"&&i=="m_pgr"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_dss"&&i=="m_property-tax"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_dss"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_dss"&&i=="m_bpa"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_dss"&&i=="m_trade-license"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_dss"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_dss"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_dss"&&i=="m_echallan"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_dss"&&i=="m_edcr"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_dss"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_edcr"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_pgr"&&i=="m_edcr"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_property-tax"&&i=="m_edcr"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_sewerage"&&i=="m_edcr"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_bpa"&&i=="m_edcr"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_trade-license"&&i=="m_edcr"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_firenoc"&&i=="m_edcr"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_water-service"&&i=="m_edcr"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_dss"&&i=="m_edcr"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_fsm"&&i=="m_edcr"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_property-tax"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_sewerage"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_bpa"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_trade-license"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_firenoc"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_water-service"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_dss"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_fsm"&&i=="m_finance"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_edcr"&&i=="m_pgr"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_edcr"&&i=="m_property-tax"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_edcr"&&i=="m_sewerage"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_edcr"&&i=="m_bpa"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_edcr"&&i=="m_trade-license"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_edcr"&&i=="m_firenoc"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_edcr"&&i=="m_water-service"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_edcr"&&i=="m_dss"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_edcr"&&i=="m_fsm"&&n==3{
-			
-		}
-		if i=="m_echallan"&&i=="m_edcr"&&i=="m_finance"&&n==3{
+	ModData["global"]=data["global"]
+	ModData["cluster-configs"]=data["cluster-configs"]
+	ModData["employee"]=data["employee"]
+	ModData["citizen"]=data["citizen"]
+	ModData["digit-ui"]=data["digit-ui"]
+	ModData["egov-filestore"]=data["egov-filestore"]
+	ModData["egov-idgen"]=data["egov-idgen"]
+	ModData["egov-user"]=data["egov-user"]
+	ModData["egov-indexer"]=data["egov-indexer"]
+	ModData["egov-persister"]=data["egov-persister"]
+	ModData["egov-data-uploader"]=data["egov-data-uploader"]
+	ModData["egov-searcher"]=data["egov-searcher"]
+	ModData["report"]=data["report"]
+	ModData["pdf-service"]=data["pdf-service"]
+	ModData["egf-master"]=data["egf-master"]
+	ModData["egov-custom-consumer"]=data["egov-custom-consumer"]
+	ModData["egov-apportion-service"]=data["egov-apportion-service"]
+	ModData["redoc"]=data["redoc"]
+	ModData["nginx-ingress"]=data["nginx-ingress"]
+	ModData["cert-manager"]=data["cert-manager"]
+	ModData["zuul"]=data["zuul"]
+	ModData["collection-services"]=data["collection-services"]
+	ModData["collection-receipt-voucher-consumer"]=data["collection-receipt-voucher-consumer"]
+	ModData["finance-collections-voucher-consumer"]=data["finance-collections-voucher-consumer"]
+	ModData["egov-workflow-v2"]=data["egov-workflow-v2"]
+	ModData["egov-hrms"]=data["egov-hrms"]
+	ModData["egov-weekly-impact-notifier"]=data["egov-weekly-impact-notifier"]
+	ModData["kafka-config"]=data["kafka-config"]
+	ModData["logging-config"]=data["logging-config"]
+	ModData["jaeger-config"]=data["jaeger-config"]
+	ModData["redis"]=data["redis"]
+	ModData["playground"]=data["playground"]
+	ModData["fluent-bit"]=data["fluent-bit"]
+	ModData["kafka-v2"]=data["kafka-v2"]
+	ModData["zookeeper-v2"]=data["zookeeper-v2"]
+	ModData["elasticsearch-data-v1"]=data["elasticsearch-data-v1"]
+	ModData["elasticsearch-master-v1"]=data["elasticsearch-master-v1"]
+	ModData["es-curator"]=data["es-curator"]
+	for i:=range modules{
+		if modules[i]=="m_pgr"{
+			ModData["egov-pg-service"]=data["egov-pg-service"]
+			ModData["rainmaker-pgr"]=data["rainmaker-pgr"]
+		}
+		if modules[i]=="m_property-tax"{
+			ModData["pt-services-v2"]=data["pt-services-v2"]
+			ModData["pt-calculator-v2"]=data["pt-calculator-v2"]
+		}
+		if modules[i]=="m_sewerage"{
+			ModData["sw-services"]=data["sw-services"]
+		}
+		if modules[i]=="m_bpa"{
+			ModData["bpa-services"]=data["bpa-services"]
+			ModData["bpa-calculator"]=data["bpa-calculator"]
+		}
+		if modules[i]=="m_trade-license"{
+			ModData["tl-services"]=data["tl-services"]
+		}
+		if modules[i]=="m_firenoc"{
+			
+		}
+		if modules[i]=="m_water-service"{
+			ModData["ws-services"]=data["ws-services"]
+		}
+		if modules[i]=="m_dss"{
+			ModData["dashboard-analytics"]=data["dashboard-analytics"]
+			ModData["dashboard-ingest"]=data["dashboard-ingest"]
+		}
+		if modules[i]=="m_fsm"{
+			
+		}
+		if modules[i]=="m_echallan"{
+			
+		}
+		if modules[i]=="m_edcr"{
+			
+		}
+		if modules[i]=="m_finance"{
 			
 		}
 	}
-	newfile,err := yaml.Marshal(&data)
+	newfile,err := yaml.Marshal(&ModData)
 	if err!=nil{
 		log.Printf("%v",err)
 

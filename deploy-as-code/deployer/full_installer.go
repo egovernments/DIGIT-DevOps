@@ -28,7 +28,7 @@ import (
 var cloudTemplate string // Which terraform template to choose
 var repoDirRoot string
 var selectedMod []string
-
+var Flag string
 
 var Reset = "\033[0m"
 var Red = "\033[31m"
@@ -177,7 +177,7 @@ func main() {
 			var aws_access_key string
 			var aws_secret_key string
 			var aws_session_key string
-
+			Flag="aws";
 			cloudTemplate = "sample-aws"
 
 			accessTypes := []string{"Root Admin", "Temprory Admin", "Already configuredd"}
@@ -801,6 +801,15 @@ func execCommandWithOutput(command string) (string, error) {
 
 // write configs to environment file
 func Configsfile() {
+	smsConfirm := []string{"Yes", "No"}
+	var smsproceed string = ""
+	smsproceed, _ = sel(smsConfirm, "Do You have your sms Gateway?")
+	filestoreConfirm := []string{"Yes", "No"}
+	var fileproceed string = ""
+	fileproceed, _ = sel(filestoreConfirm, "Do You need filestore?")
+	botConfirm := []string{"Yes", "No"}
+	var botproceed string = ""
+	botproceed, _ = sel(botConfirm, "Do You need chatbot?")
 	var out configs.Output
 	State, err := ioutil.ReadFile("terraform.tfstate")
 	if err != nil {
@@ -818,7 +827,26 @@ func Configsfile() {
 	Config["Domain"]=Domain
 	Config["S3bucket"]=S3bucket  
 	Config["BranchName"]=BranchName
-	configs.DeployConfig(Config,Kvids,Zvids,Esdids,Esmvids,selectedMod)
+	Config["db-host"]=out.Outputs.DbInstanceEndpoint
+	if smsproceed=="yes"{
+		SmsUrl := enterValue(nil, "Enter your SMS provider url:")
+		SmsGateway := enterValue(nil, "Enter your SMS provider url:")
+		SmsSender := enterValue(nil, "Enter your SMS provider url:")
+		Config["sms-provider-url"]=SmsUrl
+		Config["sms-gateway-to-use"]=SmsGateway
+		Config["sms-sender"]=SmsSender
+	}
+	if fileproceed=="yes"{
+		if Flag=="aws"{
+			bucket := enterValue(nil, "Enter the filestore bucket name:")
+			Config["fixed-bucket"]=bucket
+		}
+		if Flag=="sdc"{
+			bucket := enterValue(nil, "Enter the filestore bucket name:")
+			Config["fixed-bucket"]=bucket
+		}
+	}
+	configs.DeployConfig(Config,Kvids,Zvids,Esdids,Esmvids,selectedMod,smsproceed,fileproceed,botproceed,Flag)
 }
 func endScript() {
 	fmt.Println("Take your time, You can come back at any time ... Thank for leveraging me :)!!!")

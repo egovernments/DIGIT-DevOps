@@ -9,6 +9,10 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/jcelliott/lumber"
+	"github.com/manifoldco/promptui"
+	"golang.org/x/crypto/ssh"
+	"gopkg.in/yaml.v3"
 	"io"
 	"io/ioutil"
 	"log"
@@ -16,15 +20,15 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"github.com/jcelliott/lumber"
-	"github.com/manifoldco/promptui"
-	"golang.org/x/crypto/ssh"
-	"gopkg.in/yaml.v2"
 	//"bufio"
 	"deployer/configs"
+	"encoding/json"
 )
-var cloudTemplate string           // Which terraform template to choose
+
+var cloudTemplate string // Which terraform template to choose
 var repoDirRoot string
+var selectedMod []string
+
 
 var Reset = "\033[0m"
 var Red = "\033[31m"
@@ -274,11 +278,11 @@ func main() {
 
 			execSingleCommand(fmt.Sprintf("terraform plan -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", cluster_name, db_pswd, number_of_worker_nodes, repoDirRoot, cloudTemplate))
 
-			execSingleCommand(fmt.Sprintf("terraform apply -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", cluster_name, db_pswd, number_of_worker_nodes, repoDirRoot, cloudTemplate))
+			execSingleCommand(fmt.Sprintf("terraform apply -auto-approve -var=\"cluster_name=%s\" -var=\"db_password=\"%s\" \"-var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", cluster_name, db_pswd, number_of_worker_nodes, repoDirRoot, cloudTemplate))
 
 		}
 	}
-
+	Configsfile()
 	contextset := setClusterContext()
 	if contextset {
 		deployCharts(servicesToDeploy, prepareDeploymentConfig(optedInfraType))
@@ -288,7 +292,6 @@ func main() {
 	//replace the env values with the tf output
 	//save the kubetconfig and set the currentcontext
 	//set dns in godaddy using the api's
-
 	fmt.Println("")
 	endScript()
 }
@@ -320,7 +323,7 @@ func createK3d(clusterName string, publicIp string, keyName string) (kubeConfig 
 
 	execCommand(commands[0])
 	privateIp := execCommand(commands[1])
-	kubecon, err := exec.Command(commands[2]).Output()
+	kubecon, err := execCommandWithOutput(commands[2])
 	kubeConfig = string(kubecon)
 	createClusterCmd := fmt.Sprintf("sudo k3d cluster create --api-port %s:6550 --k3s-server-arg --no-deploy=traefik --agents 2 -v /home/ubuntu/kube:/kube@agent[0,1] -v /home/ubuntu/kube:/kube@server[0] --port 8333:9000@loadbalancer --k3s-server-arg --tls-san=%s", privateIp, publicIp)
 
@@ -389,7 +392,6 @@ func selectGovServicesToInstall() string {
 
 	var versionfiles []string
 	var modules []string
-	var selectedMod []string
 	svclist := list.New()
 	set := NewSet()
 	var argStr string = ""
@@ -548,7 +550,7 @@ func execRemoteCommand(user string, ip string, sshFileLocation string, command s
 	if err != nil {
 		log.Fatalf("cmd.Run() failed with %s\n", err)
 	}
-	return 
+	return
 }
 
 // func remoteScpFile(host string, username string, sshKeyPath string, remoteFilePath string, localFilePath string) (success bool) {
@@ -775,63 +777,49 @@ func GenKeyPair() (string, string, error) {
 	public := ssh.MarshalAuthorizedKey(pub)
 	return string(public), private.String(), nil
 }
-func Configsfile(){
-	var Env configs.Environment
-	Path, err := ioutil.ReadFile("%s/config-as-code/environments/egov-demo-template.yaml ")
+
+// below function can be used to store output of command to variable
+func execCommandWithOutput(command string) (string, error) {
+
+	parts := strings.Fields(command)
+	//	The first part is the command, the rest are the args:
+	head := parts[0]
+	args := parts[1:len(parts)]
+	//	Format the command
+
+	log.Println(string(Blue), " ==> "+command)
+	cmd := exec.Command(head, args...)
+	out, err := cmd.Output()
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
+	if err != nil {
+		log.Fatalf("%s", err)
+	}
+	return string(out), err
+}
+
+// write configs to environment file
+func Configsfile() {
+	var out configs.Output
+	State, err := ioutil.ReadFile("terraform.tfstate")
 	if err != nil {
 		log.Printf("%v", err)
 	}
-	err = yaml.Unmarshal(Path, &Env)
-	domain := enterValue(nil,"Enter a valid Domain name:" )
-	s3_bucket := enterValue(nil,"Enter the bucket name:")
-	branch_name := enterValue(nil,"Enter Branch name:")
-	Env.Global.Domain=domain
-	Env.ClusterConfigs.Configmaps.EgovConfig.Data.Domain=domain
-	Env.ClusterConfigs.Configmaps.EgovConfig.Data.S3AssetsBucket=s3_bucket
-	db_host,err := exec.Command("terraform output -raw db_instance_endpoint %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
-	Env.ClusterConfigs.Configmaps.EgovConfig.Data.DbHost=string(db_host)
-	db_name,err := exec.Command("terraform output -raw db_instance_name %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
-	Env.ClusterConfigs.Configmaps.EgovConfig.Data.DbName=string(db_name)
-	db_url,err := exec.Command("terraform output -raw db_instance_endpoint %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
-	Env.ClusterConfigs.Configmaps.EgovConfig.Data.DbURL=string(db_url)
-	Env.EgovMdmsService.InitContainers.GitSync.Branch=branch_name
-	Env.EgovIndexer.InitContainers.GitSync.Branch=branch_name
-	Env.EgovPersister.InitContainers.GitSync.Branch=branch_name
-	Env.EgovDataUploader.InitContainers.GitSync.Branch=branch_name
-	Env.EgovSearcher.InitContainers.GitSync.Branch=branch_name
-	Env.DashboardAnalytics.InitContainers.GitSync.Branch=branch_name
-	Env.DashboardIngest.InitContainers.GitSync.Branch=branch_name
-	Env.Report.InitContainers.GitSync.Branch=branch_name
-	Env.PdfService.InitContainers.GitSync.Branch=branch_name
-	kv1,err := exec.Command("terraform output -json kafka_vol_ids | jq -r '.[0]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
-	Env.KafkaV2.Persistence.Aws[0].VolumeID=string(kv1)
-	kv2,err := exec.Command("terraform output -json kafka_vol_ids | jq -r '.[1]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
-	Env.KafkaV2.Persistence.Aws[1].VolumeID=string(kv2)
-	kv3,err := exec.Command("terraform output -json kafka_vol_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
-	Env.KafkaV2.Persistence.Aws[2].VolumeID=string(kv3)
-	zv1,err := exec.Command("terraform output -json zookeeper_volume_ids | jq -r '.[0]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
-	Env.ZookeeperV2.Persistence.Aws[0].VolumeID=string(zv1)
-	zv2,err := exec.Command("terraform output -json zookeeper_volume_ids | jq -r '.[1]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
-	Env.ZookeeperV2.Persistence.Aws[1].VolumeID=string(zv2)
-	zv3,err := exec.Command("terraform output -json zookeeper_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
-	Env.ZookeeperV2.Persistence.Aws[2].VolumeID=string(zv3)
-	esdv1,err:= exec.Command("terraform output -json es_data_volume_ids | jq -r '.[0]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
-	Env.ElasticsearchDataV1.Persistence.Aws[0].VolumeID=string(esdv1)
-	esdv2,err:= exec.Command("terraform output -json es_data_volume_ids | jq -r '.[1]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
-	Env.ElasticsearchDataV1.Persistence.Aws[1].VolumeID=string(esdv2)
-	esdv3,err:= exec.Command("terraform output -json es_data_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
-	Env.ElasticsearchDataV1.Persistence.Aws[2].VolumeID=string(esdv3)
-	esmv1,err := exec.Command("terraform output -json es_master_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
-	Env.ElasticsearchMasterV1.Persistence.Aws[2].VolumeID=string(esmv1)
-	esmv2,err := exec.Command("terraform output -json es_master_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
-	Env.ElasticsearchMasterV1.Persistence.Aws[2].VolumeID=string(esmv2)
-	esmv3,err := exec.Command("terraform output -json es_master_volume_ids | jq -r '.[2]' %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate).Output()
-	Env.ElasticsearchMasterV1.Persistence.Aws[2].VolumeID=string(esmv3)
-	
-	update, err := yaml.Marshal(&Env)
-	ioutil.WriteFile("updated.yaml", update, 0644)
+	err = json.Unmarshal(State, &out)
+	Config :=make(map[string]interface{})
+	Domain := enterValue(nil, "Enter a valid Domain name:")
+	S3bucket := enterValue(nil, "Enter the bucket name:")
+	BranchName := enterValue(nil, "Enter Branch name:")
+	Kvids := out.Outputs.KafkaVolIds.Value
+	Zvids := out.Outputs.ZookeeperVolumeIds.Value
+	Esdids := out.Outputs.EsDataVolumeIds.Value
+	Esmvids := out.Outputs.EsMasterVolumeIds.Value
+	Config["Domain"]=Domain
+	Config["S3bucket"]=S3bucket  
+	Config["BranchName"]=BranchName
+	configs.DeployConfig(Config,Kvids,Zvids,Esdids,Esmvids,selectedMod)
 }
-
 func endScript() {
 	fmt.Println("Take your time, You can come back at any time ... Thank for leveraging me :)!!!")
 	fmt.Println("Hope I made your life easy with the deployment ... Have a goodd day !!!")

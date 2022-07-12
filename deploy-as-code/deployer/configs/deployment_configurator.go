@@ -6,6 +6,34 @@ import(
 
 	"gopkg.in/yaml.v3"
 )
+type Config struct {
+	APIVersion string `yaml:"apiVersion"`
+	Clusters   []struct {
+		Cluster struct {
+			CertificateAuthorityData string `yaml:"certificate-authority-data"`
+			Server                   string `yaml:"server"`
+		} `yaml:"cluster"`
+		Name string `yaml:"name"`
+	} `yaml:"clusters"`
+	Contexts []struct {
+		Context struct {
+			Cluster string `yaml:"cluster"`
+			User    string `yaml:"user"`
+		} `yaml:"context"`
+		Name string `yaml:"name"`
+	} `yaml:"contexts"`
+	CurrentContext string `yaml:"current-context"`
+	Kind           string `yaml:"kind"`
+	Preferences    struct {
+	} `yaml:"preferences"`
+	Users []struct {
+		Name string `yaml:"name"`
+		User struct {
+			ClientCertificateData string `yaml:"client-certificate-data"`
+			ClientKeyData         string `yaml:"client-key-data"`
+		} `yaml:"user"`
+	} `yaml:"users"`
+}
 type Output struct {
 	Outputs          struct {
 		ClusterEndpoint struct {
@@ -48,6 +76,20 @@ type Output struct {
 			Value []string      `json:"value"`
 		} `json:"zookeeper_volume_ids"`
 	} `json:"outputs"`
+}
+type Quickstart struct {
+	Outputs          struct {
+		PublicIP struct {
+			Value string `json:"value"`
+		} `json:"public_ip"`
+	} `json:"outputs"`
+	Resources []struct {
+		Instances []struct {
+			Attributes    struct {
+				PrivateIP       string `json:"private_ip"`
+			} `json:"attributes"`
+		} `json:"instances"`
+	} `json:"resources"`
 }
 func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,esdids []string,esmids []string,modules []string,smsproceed string,fileproceed string,botproceed string,flag string){
 	

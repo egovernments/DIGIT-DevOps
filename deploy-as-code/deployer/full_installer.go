@@ -29,6 +29,8 @@ var cloudTemplate string // Which terraform template to choose
 var repoDirRoot string
 var selectedMod []string
 var Flag string
+var db_pswd string
+var sshFile string
 
 var Reset = "\033[0m"
 var Red = "\033[31m"
@@ -139,7 +141,7 @@ func main() {
 
 			cloudTemplate = "quickstart-aws-ec2"
 
-			accessTypes := []string{"Root Admin", "Temprory Admin", "Already configuredd"}
+			accessTypes := []string{"Root Admin", "Temprory Admin", "Already configured"}
 			optedAccessType, _ = sel(accessTypes, "Choose your AWS access type? eg: If your access is session based unlike root admin")
 
 			fmt.Println("\n Great, you need to input your " + optedCloud + "credentials to provision the cloud resources ..\n")
@@ -166,7 +168,7 @@ func main() {
 
 				cloudLoginCredentials = awslogin(aws_access_key, aws_secret_key, "", "")
 			} else {
-				cloudLoginCredentials = awslogin("", "", "", "digit-infra-aws")
+				cloudLoginCredentials = awslogin("", "", "","" )
 				fmt.Println("Proceeding with the existing AWS profile configured")
 			}
 		case cloudPlatforms[2]:
@@ -180,7 +182,7 @@ func main() {
 			Flag="aws";
 			cloudTemplate = "sample-aws"
 
-			accessTypes := []string{"Root Admin", "Temprory Admin", "Already configuredd"}
+			accessTypes := []string{"Root Admin", "Temprory Admin", "Already configured"}
 			optedAccessType, _ = sel(accessTypes, "Choose your AWS access type? eg: If your access is session based unlike root admin")
 
 			fmt.Println("\n Great, you need to input your " + optedCloud + "credentials to provision the cloud resources ..\n")
@@ -207,7 +209,7 @@ func main() {
 
 				cloudLoginCredentials = awslogin(aws_access_key, aws_secret_key, "", "")
 			} else {
-				cloudLoginCredentials = awslogin("", "", "", "digit-infra-aws")
+				cloudLoginCredentials = awslogin("","","","")
 				fmt.Println("Proceeding with the existing AWS profile configured")
 			}
 
@@ -253,36 +255,51 @@ func main() {
 		}
 		execCommand(gitCmd)
 
-		db_pswd := enterValue(nil, "What should be the database password to be created, it should be 8 char min")
-
 		if !isProductionSetup {
 
-			var sshFile string = "./digit-ssh.pem"
+			sshFile = "./digit-ssh.pem"
 			var keyName string = "digit-aws-vm"
-
 			pubKey, _, err := GetKeyPair(sshFile)
+			// to pick public ip and private ip from terraform state
+			quickState, err := ioutil.ReadFile("terraform.tfstate")
+			if err != nil {
+				log.Printf("%v", err)
+			}
+			var quick configs.Quickstart
+			err = json.Unmarshal(quickState, &quick)
+			//publicip
+			ip := quick.Outputs.PublicIP.Value
+			//privateip
+			privateip:=quick.Resources[0].Instances[0].Attributes.PrivateIP
 
 			if err != nil {
 				log.Fatalf("Failed to generate SSH Key %s\n", err)
-			} else {
-
+			} else {				
 				execSingleCommand(fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
 
 				execSingleCommand(fmt.Sprintf("terraform plan -var=\"public_key=%s\" -var=\"key_name=%s\" %s/infra-as-code/terraform/%s", pubKey, keyName, repoDirRoot, cloudTemplate))
 
 				execSingleCommand(fmt.Sprintf("terraform apply -auto-approve -var=\"public_key=%s\" -var=\"key_name=%s\" %s/infra-as-code/terraform/%s", pubKey, keyName, repoDirRoot, cloudTemplate))
+				//ssh into remote machine
+				createK3d(cluster_name,ip,keyName,privateip)
+				changePrivateIp(cluster_name,privateip)
+
+
 			}
 
 		} else {
+			db_pswd = enterValue(nil, "What should be the database password to be created, it should be 8 char min")
 			execSingleCommand(fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
 
 			execSingleCommand(fmt.Sprintf("terraform plan -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", cluster_name, db_pswd, number_of_worker_nodes, repoDirRoot, cloudTemplate))
 
 			execSingleCommand(fmt.Sprintf("terraform apply -auto-approve -var=\"cluster_name=%s\" -var=\"db_password=\"%s\" \"-var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", cluster_name, db_pswd, number_of_worker_nodes, repoDirRoot, cloudTemplate))
 
+			//calling funtion to write config file
+			Configsfile()
+
 		}
 	}
-	Configsfile()
 	contextset := setClusterContext()
 	if contextset {
 		deployCharts(servicesToDeploy, prepareDeploymentConfig(optedInfraType))
@@ -311,28 +328,41 @@ func getService(fullChart Digit, service string, set Set, svclist *list.List) {
 	}
 }
 
-func createK3d(clusterName string, publicIp string, keyName string) (kubeConfig string) {
-	var err error
+func createK3d(clusterName string, publicIp string, keyName string,privateIp string) {
+	execRemoteCommand("ubuntu",publicIp,sshFile,"")
 	commands := []string{
 		"mkdir ~/kube && sudo chmod 777 ~/kube",
-		"ip addr | grep /'state UP/' -A2 | tail -n1 | awk /'{print $2}/' | cut -f1  -d/'///'",
 		"sudo k3d kubeconfig get k3s-default > " + clusterName + "_k3dconfig",
 	}
-
-	//"sudo scp /home/ubuntu/"+ clusterName + "_k3dconfig ."
-
-	execCommand(commands[0])
-	privateIp := execCommand(commands[1])
-	kubecon, err := execCommandWithOutput(commands[2])
-	kubeConfig = string(kubecon)
 	createClusterCmd := fmt.Sprintf("sudo k3d cluster create --api-port %s:6550 --k3s-server-arg --no-deploy=traefik --agents 2 -v /home/ubuntu/kube:/kube@agent[0,1] -v /home/ubuntu/kube:/kube@server[0] --port 8333:9000@loadbalancer --k3s-server-arg --tls-san=%s", privateIp, publicIp)
-
-	execCommand(createClusterCmd)
-
-	if err != nil {
-		log.Fatalf("Failed to create the k3d cluster %s\n", err)
+	command:=fmt.Sprintf("%s&&%s&&%s",commands[0],createClusterCmd,commands[1])
+	execRemoteCommand("ubuntu",publicIp,sshFile,command)
+	copyConfig := fmt.Sprintf("scp ubuntu@%s:%s_k3dconfig  .",publicIp,clusterName)
+	execCommand(copyConfig)
+}
+//changes the private ip in k3dconfig
+func changePrivateIp(clusterName string,privateIp string){
+	path:=fmt.Sprintf("%s_k3dconfig",clusterName)
+	file, err := ioutil.ReadFile(path)
+    if err != nil {
+        log.Printf("%v",err)
+    }
+	var con configs.Config
+	err=yaml.Unmarshal(file,&con)
+	if err!=nil{
+		log.Printf("%v",err)
 	}
-	return kubeConfig
+	server:=fmt.Sprintf("https://%s:6550",privateIp)
+	con.Clusters[0].Cluster.Server=server
+	newfile,err := yaml.Marshal(&con)
+	if err!=nil{
+		log.Printf("%v",err)
+
+	}
+	err=ioutil.WriteFile("new_k3dconfig",newfile,0644)
+	if err!=nil{
+		log.Printf("%v",err)
+	}
 
 }
 
@@ -532,15 +562,13 @@ func deployCharts(argStr string, configFile string) {
 
 }
 
-func execRemoteCommand(user string, ip string, sshFileLocation string, command string) (output string) {
-	var err error
-	sshPreFix := fmt.Sprintf("ssh %s@%s -i %s ", user, ip, sshFileLocation)
+func execRemoteCommand(user string, ip string, sshFileLocation string, command string) error {
+	var err error	
+	sshPreFix := fmt.Sprintf("ssh %s@%s -i %s \"%s\" ", user, ip, sshFileLocation,command)
 
-	command = sshPreFix + command
+	cmd := exec.Command("sh", "-c", sshPreFix)
 
-	cmd := exec.Command("sh", "-c", command)
-
-	log.Println(string(Blue), " ==> "+command)
+	log.Println(string(Blue), " ==> "+sshPreFix)
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = io.MultiWriter(os.Stdout, &stdoutBuf)
@@ -550,7 +578,7 @@ func execRemoteCommand(user string, ip string, sshFileLocation string, command s
 	if err != nil {
 		log.Fatalf("cmd.Run() failed with %s\n", err)
 	}
-	return
+	return err
 }
 
 // func remoteScpFile(host string, username string, sshKeyPath string, remoteFilePath string, localFilePath string) (success bool) {
@@ -654,7 +682,18 @@ func awslogin(accessKey string, secretKey string, sessionToken string, profile s
 	} else if sessionToken != "" {
 		awslogincommand = fmt.Sprintf("aws configure --profile digit-infra-aws set aws_access_key_id \"%s\" && aws configure --profile digit-infra-aws set aws_secret_access_key \"%s\" && aws configure --profile digit-infra-aws set aws_session_token \"%s\"  && aws configure --profile digit-infra-aws set region \"ap-south-1\"", accessKey, secretKey, sessionToken)
 	} else {
-		awslogincommand = fmt.Sprintf("aws configure list")
+		awsProf:=""
+		profile:=""
+		awsProf=fmt.Sprintf("aws configure list-profiles")
+		out,err:=execCommandWithOutput(awsProf)
+		if err!=nil{
+			log.Printf("%s",err)
+		}
+		profList:=strings.Fields(out)
+		profile, _ = sel(profList, "choose the profile with right access")
+		awslogincommand = fmt.Sprintf("aws configure --profile %s set region \"ap-south-1\"",profile)
+		execCommand(fmt.Sprintf("aws configure list"))
+		
 	}
 
 	log.Println(awslogincommand)

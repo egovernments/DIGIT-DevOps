@@ -12,7 +12,7 @@ import (
 	"github.com/jcelliott/lumber"
 	"github.com/manifoldco/promptui"
 	"golang.org/x/crypto/ssh"
-	"gopkg.in/yaml.v3"
+	yaml "gopkg.in/yaml.v3"
 	"io"
 	"io/ioutil"
 	"log"
@@ -261,16 +261,6 @@ func main() {
 			var keyName string = "digit-aws-vm"
 			pubKey, _, err := GetKeyPair(sshFile)
 			// to pick public ip and private ip from terraform state
-			quickState, err := ioutil.ReadFile("terraform.tfstate")
-			if err != nil {
-				log.Printf("%v", err)
-			}
-			var quick configs.Quickstart
-			err = json.Unmarshal(quickState, &quick)
-			//publicip
-			ip := quick.Outputs.PublicIP.Value
-			//privateip
-			privateip:=quick.Resources[0].Instances[0].Attributes.PrivateIP
 
 			if err != nil {
 				log.Fatalf("Failed to generate SSH Key %s\n", err)
@@ -280,7 +270,17 @@ func main() {
 				execSingleCommand(fmt.Sprintf("terraform plan -var=\"public_key=%s\" -var=\"key_name=%s\" %s/infra-as-code/terraform/%s", pubKey, keyName, repoDirRoot, cloudTemplate))
 
 				execSingleCommand(fmt.Sprintf("terraform apply -auto-approve -var=\"public_key=%s\" -var=\"key_name=%s\" %s/infra-as-code/terraform/%s", pubKey, keyName, repoDirRoot, cloudTemplate))
-				//ssh into remote machine
+				//taking public ip and private ip from terraform.tfstate
+				quickState, err := ioutil.ReadFile("terraform.tfstate")
+				if err != nil {
+					log.Printf("%v", err)
+				}
+				var quick configs.Quickstart
+				err = json.Unmarshal(quickState, &quick)
+				//publicip
+				ip := quick.Outputs.PublicIP.Value
+				//privateip
+				privateip:=quick.Resources[0].Instances[0].Attributes.PrivateIP
 				createK3d(cluster_name,ip,keyName,privateip)
 				changePrivateIp(cluster_name,privateip)
 
@@ -327,7 +327,7 @@ func getService(fullChart Digit, service string, set Set, svclist *list.List) {
 		}
 	}
 }
-
+// create a cluster in vm
 func createK3d(clusterName string, publicIp string, keyName string,privateIp string) {
 	execRemoteCommand("ubuntu",publicIp,sshFile,"")
 	commands := []string{

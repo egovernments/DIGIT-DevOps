@@ -6,6 +6,7 @@ import(
 
 	"gopkg.in/yaml.v3"
 )
+var region = "ap-south-1b"
 type Config struct {
 	APIVersion string `yaml:"apiVersion"`
 	Clusters   []struct {
@@ -133,16 +134,18 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 											Data[m]=Config["db-host"]
 										}
 										if m=="db-name"{
-											
+											Data[m]=Config["db-nmae"]
 										}
 										if m=="db-url"{
-											
+											url:=fmt.Sprintf("jdbc:postgresql://%s:5432/%s",Config["db-host"],Config["db-nmae"])
+											Data[m]=url
 										} 
 										if m=="domain"{
 											Data[m]=Config["Domain"]
 										}
 										if m=="egov-services-fqdn-name"{
-											
+											fqdn:=fmt.Sprintf("https://%s/",Config["Domain"])
+											Data[m]=fqdn
 										}
 										if m=="s3-assets-bucket"{
 											
@@ -288,7 +291,7 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 										Volume[m]=kvids[l]
 									}
 									if m=="zone"{
-
+										Volume[m]=region
 									}
 								}
 								N++;
@@ -315,7 +318,7 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 										Volume[m]=zvids[l]
 									}
 									if m=="zone"{
-										
+										Volume[m]=region
 									}
 								}
 								N++;
@@ -342,7 +345,7 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 										NesteM[m]=esdids[l]
 									}
 									if m=="zone"{
-										
+										NesteM[m]=region
 									}
 								}
 								N++;
@@ -369,7 +372,7 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 										NesteM[m]=esmids[l]
 									}
 									if m=="zone"{
-										
+										NesteM[m]=region
 									}
 								}
 								N++;

@@ -329,7 +329,6 @@ func getService(fullChart Digit, service string, set Set, svclist *list.List) {
 }
 // create a cluster in vm
 func createK3d(clusterName string, publicIp string, keyName string,privateIp string) {
-	execRemoteCommand("ubuntu",publicIp,sshFile,"")
 	commands := []string{
 		"mkdir ~/kube && sudo chmod 777 ~/kube",
 		"sudo k3d kubeconfig get k3s-default > " + clusterName + "_k3dconfig",

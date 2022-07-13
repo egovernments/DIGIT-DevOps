@@ -265,13 +265,13 @@ func main() {
 			if err != nil {
 				log.Fatalf("Failed to generate SSH Key %s\n", err)
 			} else {				
-				execSingleCommand(fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+				execSingleCommand(fmt.Sprintf("terraform -chdir=%s/infra-as-code/terraform/%s init", repoDirRoot, cloudTemplate))
 
-				execSingleCommand(fmt.Sprintf("terraform plan -var=\"public_key=%s\" -var=\"key_name=%s\" %s/infra-as-code/terraform/%s", pubKey, keyName, repoDirRoot, cloudTemplate))
+				execSingleCommand(fmt.Sprintf("terraform -chdir=%s/infra-as-code/terraform/%s plan -var=\"public_key=%s\" -var=\"key_name=%s\"", repoDirRoot, cloudTemplate, pubKey, keyName))
 
-				execSingleCommand(fmt.Sprintf("terraform apply -auto-approve -var=\"public_key=%s\" -var=\"key_name=%s\" %s/infra-as-code/terraform/%s", pubKey, keyName, repoDirRoot, cloudTemplate))
+				execSingleCommand(fmt.Sprintf("terraform  -chdir=%s/infra-as-code/terraform/%s apply -auto-approve -var=\"public_key=%s\" -var=\"key_name=%s\"", repoDirRoot, cloudTemplate, pubKey, keyName, ))
 				//taking public ip and private ip from terraform.tfstate
-				quickState, err := ioutil.ReadFile("terraform.tfstate")
+				quickState, err := ioutil.ReadFile("DIGIT-DevOps/infra-as-code/terraform/quickstart-aws-ec2/terraform.tfstate")
 				if err != nil {
 					log.Printf("%v", err)
 				}
@@ -289,11 +289,11 @@ func main() {
 
 		} else {
 			db_pswd = enterValue(nil, "What should be the database password to be created, it should be 8 char min")
-			execSingleCommand(fmt.Sprintf("terraform init %s/infra-as-code/terraform/%s", repoDirRoot, cloudTemplate))
+			execSingleCommand(fmt.Sprintf("terraform -chdir=%s/infra-as-code/terraform/%s init", repoDirRoot, cloudTemplate))
 
-			execSingleCommand(fmt.Sprintf("terraform plan -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", cluster_name, db_pswd, number_of_worker_nodes, repoDirRoot, cloudTemplate))
+			execSingleCommand(fmt.Sprintf("terraform -chdir=%s/infra-as-code/terraform/%s plan -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\"", cluster_name, db_pswd, number_of_worker_nodes, repoDirRoot, cloudTemplate))
 
-			execSingleCommand(fmt.Sprintf("terraform apply -auto-approve -var=\"cluster_name=%s\" -var=\"db_password=\"%s\" \"-var=\"number_of_worker_nodes=%d\" %s/infra-as-code/terraform/%s", cluster_name, db_pswd, number_of_worker_nodes, repoDirRoot, cloudTemplate))
+			execSingleCommand(fmt.Sprintf("terraform -chdir=%s/infra-as-code/terraform/%s apply -auto-approve -var=\"cluster_name=%s\" -var=\"db_password=\"%s\" \"-var=\"number_of_worker_nodes=%d\"", cluster_name, db_pswd, number_of_worker_nodes, repoDirRoot, cloudTemplate))
 
 			//calling funtion to write config file
 			Configsfile()

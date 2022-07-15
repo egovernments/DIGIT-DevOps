@@ -110,7 +110,6 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 			for j := range Global{
 				if j== "domain"{
 					Global[j]= Config["Domain"]
-					fmt.Println(Global[j])
 				}
 			}
 		}
@@ -384,7 +383,6 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 			}
 		}
 		if i=="employee"{
-			// delete(data,"employee")
 			NestedMap:=data[i].(map[string]interface{})
 			for j := range NestedMap{
 				if j=="dashboard-url"{
@@ -404,7 +402,6 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 			}
 		}
 		if i=="digit-ui"{
-			delete(data,"employee")
 			NestedMap:=data[i].(map[string]interface{})
 			for j := range NestedMap{
 				if j=="custom-js-injection"{}
@@ -1183,7 +1180,7 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 		log.Printf("%v",err)
 
 	}
-	err=ioutil.WriteFile("new_cr.yaml",newfile,0644)
+	err=ioutil.WriteFile("new_env.yaml",newfile,0644)
 	if err!=nil{
 		log.Printf("%v",err)
 	}

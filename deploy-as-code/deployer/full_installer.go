@@ -291,9 +291,9 @@ func main() {
 			db_pswd = enterValue(nil, "What should be the database password to be created, it should be 8 char min")
 			execSingleCommand(fmt.Sprintf("terraform -chdir=%s/infra-as-code/terraform/%s init", repoDirRoot, cloudTemplate))
 
-			execSingleCommand(fmt.Sprintf("terraform -chdir=%s/infra-as-code/terraform/%s plan -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\"", cluster_name, db_pswd, number_of_worker_nodes, repoDirRoot, cloudTemplate))
+			execSingleCommand(fmt.Sprintf("terraform -chdir=%s/infra-as-code/terraform/%s plan -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\"", repoDirRoot, cloudTemplate, cluster_name, db_pswd, number_of_worker_nodes))
 
-			execSingleCommand(fmt.Sprintf("terraform -chdir=%s/infra-as-code/terraform/%s apply -auto-approve -var=\"cluster_name=%s\" -var=\"db_password=\"%s\" \"-var=\"number_of_worker_nodes=%d\"", cluster_name, db_pswd, number_of_worker_nodes, repoDirRoot, cloudTemplate))
+			execSingleCommand(fmt.Sprintf("terraform -chdir=%s/infra-as-code/terraform/%s apply -auto-approve -var=\"cluster_name=%s\" -var=\"db_password=%s\" -var=\"number_of_worker_nodes=%d\"", repoDirRoot, cloudTemplate, cluster_name, db_pswd, number_of_worker_nodes))
 
 			//calling funtion to write config file
 			Configsfile()
@@ -691,7 +691,7 @@ func awslogin(accessKey string, secretKey string, sessionToken string, profile s
 		profList:=strings.Fields(out)
 		profile, _ = sel(profList, "choose the profile with right access")
 		awslogincommand = fmt.Sprintf("aws configure --profile %s set region \"ap-south-1\"",profile)
-		execCommand(fmt.Sprintf("aws configure list"))
+		// execCommand(fmt.Sprintf("aws configure list"))
 		
 	}
 
@@ -849,7 +849,7 @@ func Configsfile() {
 	var botproceed string = ""
 	botproceed, _ = sel(botConfirm, "Do You need chatbot?")
 	var out configs.Output
-	State, err := ioutil.ReadFile("terraform.tfstate")
+	State, err := ioutil.ReadFile("DIGIT-DevOps/infra-as-code/terraform/sample-aws/terraform.tfstate")
 	if err != nil {
 		log.Printf("%v", err)
 	}
@@ -858,6 +858,7 @@ func Configsfile() {
 	Domain := enterValue(nil, "Enter a valid Domain name:")
 	S3bucket := enterValue(nil, "Enter the bucket name:")
 	BranchName := enterValue(nil, "Enter Branch name:")
+	DbName := enterValue(nil,"Enter db_name:")
 	Kvids := out.Outputs.KafkaVolIds.Value
 	Zvids := out.Outputs.ZookeeperVolumeIds.Value
 	Esdids := out.Outputs.EsDataVolumeIds.Value
@@ -866,6 +867,7 @@ func Configsfile() {
 	Config["S3bucket"]=S3bucket  
 	Config["BranchName"]=BranchName
 	Config["db-host"]=out.Outputs.DbInstanceEndpoint
+	Config["db_name"]=DbName
 	if smsproceed=="yes"{
 		SmsUrl := enterValue(nil, "Enter your SMS provider url:")
 		SmsGateway := enterValue(nil, "Enter your SMS provider url:")

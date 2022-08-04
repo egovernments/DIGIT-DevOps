@@ -43,8 +43,12 @@ variable "bucket_name" {
   default = "try-workshop"
 }
 
-variable "iam_keybase_user" {
- default = "keybase:egovterraform"
+variable "db_name" {
+default = "digit_test"
+}
+
+variable "db_username" {
+default = "egovdemo"
 }
 
 variable "db_password" {}

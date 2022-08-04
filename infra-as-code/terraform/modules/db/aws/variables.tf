@@ -9,4 +9,5 @@ variable "backup_retention_days" {}
 variable "administrator_login" {}
 variable "administrator_login_password" {}
 variable "db_name" {}
+variable "identifier" {}
 variable "environment" {}

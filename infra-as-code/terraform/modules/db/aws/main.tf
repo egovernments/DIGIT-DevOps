@@ -3,10 +3,11 @@ resource "aws_db_subnet_group" "db_subnet_group" {
   subnet_ids = "${var.subnet_ids}"
 
     tags = "${
-    map(
-      "Name", "db-subnet-group-${var.environment}",
-      "environment", "${var.environment}"
-    )
+    
+    {
+      "Name" = "db-subnet-group-${var.environment}",
+      "environment" = "${var.environment}"
+    }
   }"
 }
 
@@ -26,9 +27,9 @@ resource "aws_db_instance" "rds_postgres" {
   copy_tags_to_snapshot   = "true"
 
     tags = "${
-    map(
-      "Name", "${var.environment}-db",
-      "environment", "${var.environment}"
-    )
+    {
+      "Name" = "${var.environment}-db",
+      "environment" = "${var.environment}"
+    }
   }"  
 }

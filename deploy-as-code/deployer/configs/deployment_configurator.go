@@ -243,7 +243,7 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 							GitSync:= InitContainers[k].(map[string]interface{})
 							for l:=range GitSync{
 								if l=="branch"{
-									GitSync[l]=""
+									GitSync[l]=Config["BranchName"]
 								}
 								if l=="repo"{
 
@@ -681,7 +681,7 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 							
 								}
 								if l=="branch"{
-									
+									Neste[l]=Config["BranchName"]
 								}
 							}
 						}
@@ -705,7 +705,7 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 							
 								}
 								if l=="branch"{
-									
+									Neste[l]=Config["BranchName"]
 								}
 							}
 						}
@@ -1180,7 +1180,7 @@ func DeployConfig(Config map[string]interface{},kvids []string,zvids []string,es
 		log.Printf("%v",err)
 
 	}
-	err=ioutil.WriteFile("new_env.yaml",newfile,0644)
+	err=ioutil.WriteFile("../../config-as-code/environments/new_env.yaml",newfile,0644)
 	if err!=nil{
 		log.Printf("%v",err)
 	}

@@ -517,7 +517,7 @@ func prepareDeploymentConfig(installType string) string {
 
 func deployCharts(argStr string, configFile string) {
 
-	var goDeployCmd string = fmt.Sprintf("go run main.go deploy -c -e %s%s", configFile, argStr)
+	var goDeployCmd string = fmt.Sprintf("go run main.go deploy -c -e %s %s", configFile, argStr)
 	var previewDeployCmd string = fmt.Sprintf("%s -p", goDeployCmd)
 
 	confirm := []string{"Yes", "No"}

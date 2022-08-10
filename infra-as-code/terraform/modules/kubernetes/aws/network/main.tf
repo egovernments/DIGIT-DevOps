@@ -157,13 +157,7 @@ resource "aws_security_group" "worker_nodes_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = "${
-    map(
-      "Name", "nodes-${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "shared",
-      "KubernetesCluster", "${var.cluster_name}"
-    )
-  }"
+  
 }
 
 resource "aws_security_group" "master_nodes_sg" {

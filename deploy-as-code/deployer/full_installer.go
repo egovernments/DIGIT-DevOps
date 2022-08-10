@@ -9,10 +9,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"github.com/jcelliott/lumber"
-	"github.com/manifoldco/promptui"
-	"golang.org/x/crypto/ssh"
-	yaml "gopkg.in/yaml.v3"
 	"io"
 	"io/ioutil"
 	"log"
@@ -20,6 +16,12 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/jcelliott/lumber"
+	"github.com/manifoldco/promptui"
+	"golang.org/x/crypto/ssh"
+	yaml "gopkg.in/yaml.v3"
+
 	//"bufio"
 	"deployer/configs"
 	"encoding/json"
@@ -168,7 +170,7 @@ func main() {
 
 				cloudLoginCredentials = awslogin(aws_access_key, aws_secret_key, "", "")
 			} else {
-				cloudLoginCredentials = awslogin("", "", "","" )
+				cloudLoginCredentials = awslogin("", "", "", "")
 				fmt.Println("Proceeding with the existing AWS profile configured")
 			}
 		case cloudPlatforms[2]:
@@ -179,7 +181,7 @@ func main() {
 			var aws_access_key string
 			var aws_secret_key string
 			var aws_session_key string
-			Flag="aws";
+			Flag = "aws"
 			cloudTemplate = "sample-aws"
 
 			accessTypes := []string{"Root Admin", "Temprory Admin", "Already configured"}
@@ -209,7 +211,7 @@ func main() {
 
 				cloudLoginCredentials = awslogin(aws_access_key, aws_secret_key, "", "")
 			} else {
-				cloudLoginCredentials = awslogin("","","","")
+				cloudLoginCredentials = awslogin("", "", "", "")
 				fmt.Println("Proceeding with the existing AWS profile configured")
 			}
 
@@ -264,12 +266,12 @@ func main() {
 
 			if err != nil {
 				log.Fatalf("Failed to generate SSH Key %s\n", err)
-			} else {				
+			} else {
 				execSingleCommand(fmt.Sprintf("terraform -chdir=%s/infra-as-code/terraform/%s init", repoDirRoot, cloudTemplate))
 
 				execSingleCommand(fmt.Sprintf("terraform -chdir=%s/infra-as-code/terraform/%s plan -var=\"public_key=%s\" -var=\"key_name=%s\"", repoDirRoot, cloudTemplate, pubKey, keyName))
 
-				execSingleCommand(fmt.Sprintf("terraform  -chdir=%s/infra-as-code/terraform/%s apply -auto-approve -var=\"public_key=%s\" -var=\"key_name=%s\"", repoDirRoot, cloudTemplate, pubKey, keyName, ))
+				execSingleCommand(fmt.Sprintf("terraform  -chdir=%s/infra-as-code/terraform/%s apply -auto-approve -var=\"public_key=%s\" -var=\"key_name=%s\"", repoDirRoot, cloudTemplate, pubKey, keyName))
 				//taking public ip and private ip from terraform.tfstate
 				quickState, err := ioutil.ReadFile("DIGIT-DevOps/infra-as-code/terraform/quickstart-aws-ec2/terraform.tfstate")
 				if err != nil {
@@ -280,10 +282,9 @@ func main() {
 				//publicip
 				ip := quick.Outputs.PublicIP.Value
 				//privateip
-				privateip:=quick.Resources[0].Instances[0].Attributes.PrivateIP
-				createK3d(cluster_name,ip,keyName,privateip)
-				changePrivateIp(cluster_name,privateip)
-
+				privateip := quick.Resources[0].Instances[0].Attributes.PrivateIP
+				createK3d(cluster_name, ip, keyName, privateip)
+				changePrivateIp(cluster_name, privateip)
 
 			}
 
@@ -327,40 +328,42 @@ func getService(fullChart Digit, service string, set Set, svclist *list.List) {
 		}
 	}
 }
+
 // create a cluster in vm
-func createK3d(clusterName string, publicIp string, keyName string,privateIp string) {
+func createK3d(clusterName string, publicIp string, keyName string, privateIp string) {
 	commands := []string{
 		"mkdir ~/kube && sudo chmod 777 ~/kube",
 		"sudo k3d kubeconfig get k3s-default > " + clusterName + "_k3dconfig",
 	}
 	createClusterCmd := fmt.Sprintf("sudo k3d cluster create --api-port %s:6550 --k3s-server-arg --no-deploy=traefik --agents 2 -v /home/ubuntu/kube:/kube@agent[0,1] -v /home/ubuntu/kube:/kube@server[0] --port 8333:9000@loadbalancer --k3s-server-arg --tls-san=%s", privateIp, publicIp)
-	command:=fmt.Sprintf("%s&&%s&&%s",commands[0],createClusterCmd,commands[1])
-	execRemoteCommand("ubuntu",publicIp,sshFile,command)
-	copyConfig := fmt.Sprintf("scp ubuntu@%s:%s_k3dconfig  .",publicIp,clusterName)
+	command := fmt.Sprintf("%s&&%s&&%s", commands[0], createClusterCmd, commands[1])
+	execRemoteCommand("ubuntu", publicIp, sshFile, command)
+	copyConfig := fmt.Sprintf("scp ubuntu@%s:%s_k3dconfig  .", publicIp, clusterName)
 	execCommand(copyConfig)
 }
+
 //changes the private ip in k3dconfig
-func changePrivateIp(clusterName string,privateIp string){
-	path:=fmt.Sprintf("%s_k3dconfig",clusterName)
+func changePrivateIp(clusterName string, privateIp string) {
+	path := fmt.Sprintf("%s_k3dconfig", clusterName)
 	file, err := ioutil.ReadFile(path)
-    if err != nil {
-        log.Printf("%v",err)
-    }
-	var con configs.Config
-	err=yaml.Unmarshal(file,&con)
-	if err!=nil{
-		log.Printf("%v",err)
+	if err != nil {
+		log.Printf("%v", err)
 	}
-	server:=fmt.Sprintf("https://%s:6550",privateIp)
-	con.Clusters[0].Cluster.Server=server
-	newfile,err := yaml.Marshal(&con)
-	if err!=nil{
-		log.Printf("%v",err)
+	var con configs.Config
+	err = yaml.Unmarshal(file, &con)
+	if err != nil {
+		log.Printf("%v", err)
+	}
+	server := fmt.Sprintf("https://%s:6550", privateIp)
+	con.Clusters[0].Cluster.Server = server
+	newfile, err := yaml.Marshal(&con)
+	if err != nil {
+		log.Printf("%v", err)
 
 	}
-	err=ioutil.WriteFile("new_k3dconfig",newfile,0644)
-	if err!=nil{
-		log.Printf("%v",err)
+	err = ioutil.WriteFile("new_k3dconfig", newfile, 0644)
+	if err != nil {
+		log.Printf("%v", err)
 	}
 
 }
@@ -562,8 +565,8 @@ func deployCharts(argStr string, configFile string) {
 }
 
 func execRemoteCommand(user string, ip string, sshFileLocation string, command string) error {
-	var err error	
-	sshPreFix := fmt.Sprintf("ssh %s@%s -i %s \"%s\" ", user, ip, sshFileLocation,command)
+	var err error
+	sshPreFix := fmt.Sprintf("ssh %s@%s -i %s \"%s\" ", user, ip, sshFileLocation, command)
 
 	cmd := exec.Command("sh", "-c", sshPreFix)
 
@@ -681,18 +684,18 @@ func awslogin(accessKey string, secretKey string, sessionToken string, profile s
 	} else if sessionToken != "" {
 		awslogincommand = fmt.Sprintf("aws configure --profile digit-infra-aws set aws_access_key_id \"%s\" && aws configure --profile digit-infra-aws set aws_secret_access_key \"%s\" && aws configure --profile digit-infra-aws set aws_session_token \"%s\"  && aws configure --profile digit-infra-aws set region \"ap-south-1\"", accessKey, secretKey, sessionToken)
 	} else {
-		awsProf:=""
-		profile:=""
-		awsProf=fmt.Sprintf("aws configure list-profiles")
-		out,err:=execCommandWithOutput(awsProf)
-		if err!=nil{
-			log.Printf("%s",err)
+		awsProf := ""
+		profile := ""
+		awsProf = fmt.Sprintf("aws configure list-profiles")
+		out, err := execCommandWithOutput(awsProf)
+		if err != nil {
+			log.Printf("%s", err)
 		}
-		profList:=strings.Fields(out)
+		profList := strings.Fields(out)
 		profile, _ = sel(profList, "choose the profile with right access")
-		awslogincommand = fmt.Sprintf("aws configure --profile %s set region \"ap-south-1\"",profile)
+		awslogincommand = fmt.Sprintf("aws configure --profile %s set region \"ap-south-1\"", profile)
 		// execCommand(fmt.Sprintf("aws configure list"))
-		
+
 	}
 
 	log.Println(awslogincommand)
@@ -839,57 +842,51 @@ func execCommandWithOutput(command string) (string, error) {
 
 // write configs to environment file
 func Configsfile() {
-	smsConfirm := []string{"Yes", "No"}
-	var smsproceed string = ""
-	smsproceed, _ = sel(smsConfirm, "Do You have your sms Gateway?")
-	filestoreConfirm := []string{"Yes", "No"}
-	var fileproceed string = ""
-	fileproceed, _ = sel(filestoreConfirm, "Do You need filestore?")
-	botConfirm := []string{"Yes", "No"}
-	var botproceed string = ""
-	botproceed, _ = sel(botConfirm, "Do You need chatbot?")
+	Confirm := []string{"Yes", "No"}
 	var out configs.Output
 	State, err := ioutil.ReadFile("DIGIT-DevOps/infra-as-code/terraform/sample-aws/terraform.tfstate")
 	if err != nil {
 		log.Printf("%v", err)
 	}
 	err = json.Unmarshal(State, &out)
-	Config :=make(map[string]interface{})
+	Config := make(map[string]interface{})
 	Domain := enterValue(nil, "Enter a valid Domain name:")
-	S3bucket := enterValue(nil, "Enter the bucket name:")
 	BranchName := enterValue(nil, "Enter Branch name:")
-	DbName := enterValue(nil,"Enter db_name:")
+	DbName := enterValue(nil, "Enter db_name:")
 	Kvids := out.Outputs.KafkaVolIds.Value
 	Zvids := out.Outputs.ZookeeperVolumeIds.Value
 	Esdids := out.Outputs.EsDataVolumeIds.Value
 	Esmvids := out.Outputs.EsMasterVolumeIds.Value
-	Config["Domain"]=Domain
-	Config["S3bucket"]=S3bucket  
-	Config["BranchName"]=BranchName
-	Config["db-host"]=out.Outputs.DbInstanceEndpoint
-	Config["db_name"]=DbName
-	if smsproceed=="yes"{
-		SmsUrl := enterValue(nil, "Enter your SMS provider url:")
-		SmsGateway := enterValue(nil, "Enter your SMS provider url:")
-		SmsSender := enterValue(nil, "Enter your SMS provider url:")
-		Config["sms-provider-url"]=SmsUrl
-		Config["sms-gateway-to-use"]=SmsGateway
-		Config["sms-sender"]=SmsSender
+	Config["Domain"] = Domain
+	Config["BranchName"] = BranchName
+	Config["db-host"] = out.Outputs.DbInstanceEndpoint
+	Config["db_name"] = DbName
+	smsproceed, _ := sel(Confirm, "Do You have your sms Gateway?")
+	if smsproceed == "Yes" {
+		SmsUrl := enterValue(nil, "Enter your SMS provider url")
+		SmsGateway := enterValue(nil, "Enter your SMS Gateway")
+		SmsSender := enterValue(nil, "Enter your SMS sender")
+		Config["sms-provider-url"] = SmsUrl
+		Config["sms-gateway-to-use"] = SmsGateway
+		Config["sms-sender"] = SmsSender
 	}
-	if fileproceed=="yes"{
-		if Flag=="aws"{
+	fileproceed, _ := sel(Confirm, "Do You need filestore?")
+	if fileproceed == "Yes" {
+		if Flag == "aws" {
 			bucket := enterValue(nil, "Enter the filestore bucket name:")
-			Config["fixed-bucket"]=bucket
+			Config["fixed-bucket"] = bucket
 		}
-		if Flag=="sdc"{
+		if Flag == "sdc" {
 			bucket := enterValue(nil, "Enter the filestore bucket name:")
-			Config["fixed-bucket"]=bucket
+			Config["fixed-bucket"] = bucket
 		}
 	}
-	configs.DeployConfig(Config,Kvids,Zvids,Esdids,Esmvids,selectedMod,smsproceed,fileproceed,botproceed,Flag)
+	botproceed, _ := sel(Confirm, "Do You need chatbot?")
+	//write chatbot
+	configs.DeployConfig(Config, Kvids, Zvids, Esdids, Esmvids, selectedMod, smsproceed, fileproceed, botproceed, Flag)
 }
 func endScript() {
 	fmt.Println("Take your time, You can come back at any time ... Thank for leveraging me :)!!!")
-	fmt.Println("Hope I made your life easy with the deployment ... Have a goodd day !!!")
+	fmt.Println("Hope I made your life easy with the deployment ... Have a good day !!!")
 	return
 }

@@ -1,26 +1,16 @@
+terraform {
+  backend "s3" {
+    bucket = "works-terraform-state"
+    key = "terraform"
+    region = "ap-south-1"
+  }
+}
+
 module "network" {
   source             = "../modules/kubernetes/aws/network"
   vpc_cidr_block     = "${var.vpc_cidr_block}"
   cluster_name       = "${var.cluster_name}"
   availability_zones = "${var.network_availability_zones}"
-}
-
-# PostGres DB
-module "db" {
-  source                        = "../modules/db/aws"
-  subnet_ids                    = "${module.network.private_subnets}"
-  vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
-  availability_zone             = "${element(var.availability_zones, 0)}"
-  instance_class                = "db.t3.medium"
-  engine_version                = "11.13"
-  storage_type                  = "gp2"
-  storage_gb                    = "100"
-  backup_retention_days         = "7"
-  administrator_login           = "${var.db_username}"
-  administrator_login_password  = "${var.db_password}"
-  identifier                    = "${var.cluster_name}-db"
-  db_name                       = "${var.db_name}"
-  environment                   = "${var.cluster_name}"
 }
 
 data "aws_eks_cluster" "cluster" {

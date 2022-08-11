@@ -1,3 +1,3 @@
 variable "bucket_name" {
-  default = "try-workshop"
+  default = "works-terraform-state"
 }

@@ -3,7 +3,7 @@
 #
 
 variable "cluster_name" {
-  default = "my-first-eks"
+  default = "works-dev"
 }
 
 variable "vpc_cidr_block" {
@@ -11,11 +11,11 @@ variable "vpc_cidr_block" {
 }
 
 variable "network_availability_zones" {
-  default = ["ap-south-1b", "ap-south-1a"]
+  default = ["ap-south-1a", "ap-south-1b"]
 }
 
 variable "availability_zones" {
-  default = ["ap-south-1b"]
+  default = ["ap-south-1a"]
 }
 
 variable "kubernetes_version" {
@@ -32,7 +32,7 @@ variable "override_instance_types" {
 }
 
 variable "number_of_worker_nodes" {
-  default = "5"
+  default = "4"
 }
 
 variable "ssh_key_name" {
@@ -40,18 +40,5 @@ variable "ssh_key_name" {
 }
 
 variable "bucket_name" {
-  default = "rushang-remote-state-bucket"
+  default = "works-terraform-state"
 }
-
-variable "db_name" {
-default = "digit_test"
-}
-
-variable "db_username" {
-default = "egovdemo"
-}
-
-variable "db_password" {
-  default = "asdqwe123"
-}
-

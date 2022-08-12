@@ -35,3 +35,7 @@ output "zookeeper_volume_ids" {
 output "kafka_vol_ids" {
   value = "${module.kafka.volume_ids}"
 }
+
+output "postgres_vol_ids" {
+  value = "${module.postgres.volume_ids}"
+}

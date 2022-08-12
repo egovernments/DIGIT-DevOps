@@ -4,9 +4,6 @@
 
 provider "aws" {
   region = "ap-south-1"
-  shared_config_files      = ["~/.aws/config"]
-  shared_credentials_files = ["~/.aws/credentials"]
-  profile = "digit-infra-aws"
 }
 
 # Using these data sources allows the configuration to be

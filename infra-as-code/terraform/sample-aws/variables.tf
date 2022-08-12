@@ -28,27 +28,29 @@ variable "kubernetes_version" {
 }
 
 variable "instance_type" {
-  description = "eGov recommended below instance type as a defaults"
+  description = "eGov recommended below instance type as a default"
   default = "m4.xlarge"
 }
 
 variable "override_instance_types" {
+  description = "Arry of instance types for SPOT instances"
   default = ["r5a.large", "r5ad.large", "r5d.large", "m4.xlarge"]
   
 }
 
 variable "number_of_worker_nodes" {
-  description = "Worker node counts"
+  description = "eGov recommended below worker node counts as default"
   default = "5" #REPLACE IF NEEDED
 }
 
 variable "ssh_key_name" {
+  description = "ssh key name, not required if your using spot instance types"
   default = "my-first-eks" #REPLACE
 }
 
 variable "db_name" {
   description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
-  default = "digit_test" #REPLACE
+  default = "digitdb" #REPLACE
 }
 
 variable "db_username" {

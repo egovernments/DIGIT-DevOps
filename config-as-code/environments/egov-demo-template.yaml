@@ -155,6 +155,9 @@ egov-filestore:
 
 egov-idgen:
   idformat-from-mdms: "true"
+  java-args: -Dspring.profiles.active=monitoring
+  heap: "-Xmx192m -Xms192m"
+  autocreate-new-seq: "true"
 
 ## Below options to be configured for SMS notifications to work. Note that deployment will still go ahead
 ## even if these values are not filled in.
@@ -195,6 +198,31 @@ chatbot:
   valuefirst-send-message-url: "https://api.myvaluefirst.com/psms/servlet/psms.JsonEservice"
 
   user-service-chatbot-citizen-passwrord: "123456"
+
+ws-services:
+  wcid-format: "WS/[CITY.CODE]/[fy:yyyy-yy]/[SEQ_EGOV_COMMON]"
+  is-external-workflow-enabled: "true"
+
+bpa-services:
+  memory_limits: 384Mi
+  java-args: -Dspring.profiles.active=monitoring
+  java-debug: true
+  tracing-enabled: "true"
+  egov.idgen.bpa.applicationNum.format: PB-BP-[cy:yyyy-MM-dd]-[SEQ_EG_BP_APN]
+
+bpa-calculator:
+  memory_limits: 384Mi
+  java-args: -Dspring.profiles.active=monitoring
+  java-debug: true
+  tracing-enabled: "true"
+
+sw-services:
+  scid-format: "SW/[CITY.CODE]/[fy:yyyy-yy]/[SEQ_EGOV_COMMON]"
+  is-external-workflow-enabled: "true" 
+
+egov-pg-service:
+  axis: true  
+  egov-pg-reconciliation-system-user-uuid: "db4fe8ed-c0e0-4c2a-829b-72296d8d156f"
 
 ## Configure MDMS GitHub repository access below. Make sure GitHub has the user's public SSH key added and user has
 ## access to the GitHub MDMS repository. Add corresponding private key to the corresponding egov-demo-template-secrets.yaml file.
@@ -248,11 +276,74 @@ egov-custom-consumer:
   erp-host: "https://mohali-qa.egovernments.org/"
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
+jaeger:
+  host: "jaeger-agent.monitoring"
+  port: "6831"
+  sampler-type: const
+  sampler-param: 1
+  collector:
+    samplingConfig: |
+      {
+        "service_strategies": [
+          {
+            "service": "tl-services",
+            "type": "probabilistic",
+            "param": 0.5
+          },
+          {
+            "service": "tl-calculator",
+            "type": "probabilistic",
+            "param": 0.5
+          },
+          {
+            "service": "report-service",
+            "type": "probabilistic",
+            "param": 0.5
+          },
+          {
+            "service": "pt-services-v2",
+            "type": "probabilistic",
+            "param": 0.5
+          },
+          {
+            "service": "pt-calculator-v2",
+            "type": "probabilistic",
+            "param": 0.5
+          },
+          {
+            "service": "collection-services",
+            "type": "probabilistic",
+            "param": 0.2
+          },
+          {
+            "service": "billing-service",
+            "type": "probabilistic",
+            "param": 0.2
+          },
+          {
+            "service": "egov-data-uploader",
+            "type": "probabilistic",
+            "param": 0.2
+          },
+          {
+            "service": "egov-hrms",
+            "type": "probabilistic",
+            "param": 0.5
+          },
+          {
+            "service": "rainmaker-pgr",
+            "type": "probabilistic",
+            "param": 0.5
+          }
+        ],
+        "default_strategy": {
+          "type": "probabilistic",
+          "param": 0.05
+        }
+      }
 # financials >>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 egf-master:
-  db-url: "db-url" ## Add db-url
   memory_limits: 512Mi
   heap: "-Xmx256m -Xms256m"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -377,6 +468,8 @@ pdf-service:
 ## variables.tf file will provision three volumes in the 3 zones above.
 # kafka-v2 AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 kafka-v2:
+  image:
+    tag: "5.4.1"
   persistence:
     enabled: true
     aws:
@@ -395,6 +488,11 @@ kafka-v2:
   replicationFactor: "2"
   minInsyncReplicas: "1"
   offsetsReplicationFactor: "3"
+
+### Kafka Connect <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+kafka-connect:
+  image:
+    tag: "5.4.1"
 
 ## kafka-v2 Azure <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 #kafka-v2:
@@ -446,6 +544,8 @@ kafka-v2:
 ## variables.tf file will provision three volumes in the 3 zones above.
 # zookeeper-v2 AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 zookeeper-v2:
+  image:
+    tag: "5.4.1"
   persistence:
     enabled: true
     aws:

@@ -117,3 +117,14 @@ module "postgres" {
 
 }
 
+module "minio" {
+
+  source = "../modules/storage/aws"
+  storage_count = 4
+  environment = "${var.cluster_name}"
+  disk_prefix = "minio"
+  availability_zones = "${var.availability_zones}"
+  storage_sku = "gp2"
+  disk_size_gb = "20"
+  
+}

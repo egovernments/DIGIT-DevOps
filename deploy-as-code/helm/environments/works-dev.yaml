@@ -72,6 +72,7 @@ cluster-configs:
         egov-localization: "http://egov-localization.egov:8080/"
         egov-filestore: "http://egov-filestore.egov:8080/"
         egov-idgen: "http://egov-idgen:8080/"
+        egov-workflow-v2: "http://egov-workflow-v2:8080/"
 
         estimate-service: "http://estimate-service.works:8080/"
         loi-service: "http://loi-service.works:8080/"
@@ -103,7 +104,6 @@ cluster-configs:
         egov-mdms-create: "http://egov-mdms-create:8080/"
         egov-eis: "http://egov-eis:8080/"
         egov-workflow: "http://egov-workflow:8080/"
-        egov-workflow-v2: "http://egov-workflow-v2:8080/"
         egov-searcher: "http://egov-searcher:8080/"
         egov-data-uploader: "http://egov-data-uploader:8080/"
         egov-indexer: "http://egov-indexer:8080/"
@@ -170,12 +170,15 @@ cluster-configs:
         birth-death-services: "http://birth-death-services.egov:8080/"
         egov-pdf: "http://egov-pdf.egov:8080/"        
 
+#########---Works---#########
 
 estimate-service:
   tracing-enabled: true
 
 loi-service:
   tracing-enabled: true
+
+#########---core-services---#########
 
 egov-mdms-service:
   mdms-path: "/work-dir/works-mdms-data/data"
@@ -186,6 +189,23 @@ egov-mdms-service:
   mdms-folder: "works-mdms-data"
   java-args: -Dspring.profiles.active=monitoring
   masters-config-url: "file:///work-dir/works-mdms-data/master-config.json"
+
+egov-user:
+  replicas: "1"
+  heap: "-Xmx256m -Xms256m"
+  memory_limits: 512Mi
+  otp-validation: "true"
+  citizen-otp-enabled: "true"
+  employee-otp-enabled: "false"
+  access-token-validity: 10080
+  refresh-token-validity: 20160
+  default-password-expiry: 90
+  mobile-number-validation: "false"
+  roles-state-level: "true"
+  citizen-registration-withlogin: "true"
+  citizen-otp-fixed: "123456"
+  citizen-otp-fixed-enabled: "true"
+  egov-state-level-tenant-id: "pb"
 
 egov-idgen:
   idformat-from-mdms: "true"
@@ -212,6 +232,15 @@ egov-indexer:
       branch: "DEV"
   egov-indexer-yaml-repo-path: "file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml"
 
+egov-workflow-v2:
+  logging-level: "DEBUG"
+  java-args: -Dspring.profiles.active=monitoring
+  heap: "-Xmx192m -Xms192m"
+  workflow-statelevel: "true"
+  wf-max-limit: "10000"
+
+##########################################
+
 billing-service:
   memory_limits: 512Mi
 
@@ -223,16 +252,6 @@ egov-url-shortening:
 
 egov-common-workflows:
   db-url: "jdbc:postgresql://egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com:5432/egov_staging_db?currentSchema=egov_common_workflows"
-
-egov-filestore:
-  minio-enabled: false
-  is-s3-enabled: "true"
-  aws.s3.url : "https://s3.amazonaws.com"
-  fixed-bucketname: "works-dev-filestore"
-  is-bucket-fixed: "true"
-  allowed-file-formats-map: "{jpg:{'image/jpg','image/jpeg'},jpeg:{'image/jpeg','image/jpg'},png:{'image/png'},pdf:{'application/pdf'},odt:{'application/vnd.oasis.opendocument.text'},ods:{'application/vnd.oasis.opendocument.spreadsheet'},docx:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},doc:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},dxf:{'text/plain','application/dxf','application/octet-stream','image/vnd.dxf','image/vnd.dxf; format=ascii','image/vnd.dxf; format=binary','image/vnd.dxb'},csv:{'text/plain'},txt:{'text/plain'},xlsx:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel'},xls:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel'}}"
-  allowed-file-formats: "jpg,jpeg,png,doc,docx,pdf,odt,ods,text,dxf,xls,xlsx"
-  filestore-url-validity: 3600
 
 egov-notification-sms:
   sms-provider-url: "http://api.smscountry.com/SMSCwebservice_bulk.aspx"
@@ -252,23 +271,6 @@ egov-notification-sms:
   sms-message-req-param-name: "message"
   sms-error-codes: "401,403,404,405,406,407,408,409,410,411,412,413,414"
 
-egov-user:
-  replicas: "1"
-  heap: "-Xmx256m -Xms256m"
-  memory_limits: 512Mi
-  otp-validation: "true"
-  citizen-otp-enabled: "true"
-  employee-otp-enabled: "false"
-  access-token-validity: 10080
-  refresh-token-validity: 20160
-  default-password-expiry: 90
-  mobile-number-validation: "false"
-  roles-state-level: "true"
-  citizen-registration-withlogin: "true"
-  citizen-otp-fixed: "123456"
-  citizen-otp-fixed-enabled: "true"
-  egov-state-level-tenant-id: "pb"
-  
 chatbot:
   kafka-topics-partition-count: 3
   kafka-topics-replication-factor: 2
@@ -600,13 +602,6 @@ property-services:
   egov-idgen-mutation-format: "PG-MT-[CITY]-[SEQ_EG_PT_MUTATION]"
   egov-idgen-assm-format: "PG-AS-[cy:yyyy-MM-dd]-[SEQ_EG_PT_ASSM]"
   property-userevents-pay-link: "digit-ui/citizen/payment/my-bills/$businessService/$propertyId?tenantId=$tenantId"
-
-egov-workflow-v2:
-  logging-level: "DEBUG"
-  java-args: -Dspring.profiles.active=monitoring
-  heap: "-Xmx192m -Xms192m"
-  workflow-statelevel: "true"
-  wf-max-limit: "10000"
 
 egov-hrms:
   java-args: -Dspring.profiles.active=monitoring

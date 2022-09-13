@@ -39,7 +39,3 @@ output "kafka_vol_ids" {
 output "postgres_vol_ids" {
   value = "${module.postgres.volume_ids}"
 }
-
-output "minio_vol_ids" {
-  value = "${module.minio.volume_ids}"
-}

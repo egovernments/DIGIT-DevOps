@@ -1,10 +1,10 @@
 global:
-  domain: works-dev.digit.org
+  domain: works-qa.digit.org
   tracing-enabled: true
 
 cluster-configs:
   namespaces:
-    create: false
+    create: true
     values:
       [
         backbone,
@@ -36,10 +36,10 @@ cluster-configs:
       namespace: [ egov , works ]
       data:
         db-host: "postgres.egov"
-        db-name: "works_dev_db"
-        db-url: "jdbc:postgresql://postgres.egov:5432/works_dev_db"
-        domain: "works-dev.digit.org"
-        egov-services-fqdn-name: "https://works-dev.digit.org/"
+        db-name: "works_qa_db"
+        db-url: "jdbc:postgresql://postgres.egov:5432/works_qa_db"
+        domain: "works-qa.digit.org"
+        egov-services-fqdn-name: "https://works-qa.digit.org/"
         egov-state-level-tenant-id: "pb"
         es-host: "elasticsearch-data-v1.es-cluster"
         es-indexer-host: "http://elasticsearch-data-v1.es-cluster:9200/"
@@ -186,14 +186,14 @@ egov-mdms-service:
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/works-mdms-data"
-      branch: "DEV"
+      branch: "QA"
   mdms-folder: "works-mdms-data"
   java-args: -Dspring.profiles.active=monitoring
   masters-config-url: "file:///work-dir/works-mdms-data/master-config.json"
 
 egov-filestore:
   is-s3-enabled: "true"
-  fixed-bucketname: "works-dev-filestore"
+  fixed-bucketname: "works-qa-filestore"
   minio-enabled: false
   aws.s3.url : "https://s3.amazonaws.com"
   is-bucket-fixed: "true"
@@ -229,7 +229,7 @@ egov-persister:
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/works-configs"
-      branch: "DEV"
+      branch: "QA"
 
 egov-indexer:
   heap: "-Xmx512m -Xms512m"
@@ -237,7 +237,7 @@ egov-indexer:
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/works-configs"
-      branch: "DEV"
+      branch: "QA"
   egov-indexer-yaml-repo-path: "file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml"
 
 egov-workflow-v2:
@@ -250,7 +250,7 @@ egov-workflow-v2:
 egov-hrms:
   java-args: -Dspring.profiles.active=monitoring
   heap: "-Xmx192m -Xms192m"
-  employee-applink: "https://works-dev.digit.org/employee/user/login"
+  employee-applink: "https://works-qa.digit.org/employee/user/login"
 
 egov-notification-sms:
   sms.provider.class: "Console"
@@ -267,7 +267,7 @@ egov-notification-sms:
 # gateway >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 zuul:
-  replicas: 2
+  replicas: 1
   custom-filter-property: "false"
   tracing-enabled: "true"
   heap: "-Xmx704m -Xms512m"
@@ -728,18 +728,18 @@ postgres:
     enabled: true
     dataDirSize: 30Gi
     aws:
-      volumeId: "vol-0dae5eae2cb06009c"
-  postgresDatabase: works_dev_db
+      volumeId: "vol-0cd581235fc577fbf"
+  postgresDatabase: works_qa_db
 
 kafka-v2:
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-0ada98badba828121"
+      - volumeId: "vol-06e1bfdc067286d92"
         zone: ap-south-1a
-      - volumeId: "vol-06f14a402f6a4e393"
+      - volumeId: "vol-06f19fc74f9e66c6b"
         zone: ap-south-1a
-      - volumeId: "vol-06aa546865f96bf9d"
+      - volumeId: "vol-05d04c8e05bbe19cb"
         zone: ap-south-1a
   zookeeperHosts: "zookeeper-v2.zookeeper-cluster:2181/kafka-v2"
 
@@ -758,11 +758,11 @@ zookeeper-v2:
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-0b04da159ca5cb333"
+      - volumeId: "vol-02461920d5bc17e2c"
         zone: ap-south-1a
-      - volumeId: "vol-0e953ab20516b6874"
+      - volumeId: "vol-027adf626596b0600"
         zone: ap-south-1a
-      - volumeId: "vol-026ac89a9ba812586"
+      - volumeId: "vol-0121393132c8de41b"
         zone: ap-south-1a
 
   ## Zookeeper JVM Heap Option
@@ -788,11 +788,11 @@ elasticsearch-data-v1:
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-03fdd115ece13fcf6"
+      - volumeId: "vol-036a386d7058d1fa8"
         zone: ap-south-1a
-      - volumeId: "vol-03fa12d6acf3ee6e6"
+      - volumeId: "vol-0be443e8b49ecf3bc"
         zone: ap-south-1a
-      - volumeId: "vol-0ee45d588c0950dd6"
+      - volumeId: "vol-050c6a2beed14aeec"
         zone: ap-south-1a
 
   esJavaOpts: "-Xmx1g -Xms1g"
@@ -811,11 +811,11 @@ elasticsearch-master-v1:
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-03fc47da18c414fee"
+      - volumeId: "vol-031b81b02807f409a"
         zone: ap-south-1a
-      - volumeId: "vol-0743bade66fe9a18c"
+      - volumeId: "vol-032f19b57fb1741b6"
         zone: ap-south-1a
-      - volumeId: "vol-07675366adde7b23e"
+      - volumeId: "vol-08ee85f411cdd45be"
         zone: ap-south-1a
 
   esJavaOpts: "-Xmx448m -Xms448m"

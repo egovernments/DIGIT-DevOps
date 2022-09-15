@@ -17,11 +17,7 @@ metadata:
     {{- toYaml .Values.triggerer.annotations | nindent 4 }}
   {{- end }}
   labels:
-    app: {{ include "airflow.labels.app" . }}
-    component: triggerer
-    chart: {{ include "airflow.labels.chart" . }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
+    app: {{ include "airflow.fullname" . }}-triggerer
     {{- if .Values.triggerer.labels }}
     {{- toYaml .Values.triggerer.labels | nindent 4 }}
     {{- end }}
@@ -35,14 +31,12 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app: {{ include "airflow.labels.app" . }}
+      app: {{ include "airflow.fullname" . }}-triggerer
       component: triggerer
       release: {{ .Release.Name }}
   template:
     metadata:
       annotations:
-        checksum/secret-config-envs: {{ include (print $.Template.BasePath "/config/secret-config-envs.yaml") . | sha256sum }}
-        checksum/secret-local-settings: {{ include (print $.Template.BasePath "/config/secret-local-settings.yaml") . | sha256sum }}
         {{- if .Values.airflow.podAnnotations }}
         {{- toYaml .Values.airflow.podAnnotations | nindent 8 }}
         {{- end }}
@@ -53,7 +47,7 @@ spec:
         cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
         {{- end }}
       labels:
-        app: {{ include "airflow.labels.app" . }}
+        app: {{ include "airflow.fullname" . }}-triggerer
         component: triggerer
         release: {{ .Release.Name }}
         {{- if .Values.triggerer.podLabels }}

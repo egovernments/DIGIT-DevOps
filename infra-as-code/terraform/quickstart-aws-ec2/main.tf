@@ -2,7 +2,7 @@ provider "aws" {
   region = "${var.region}"
 }
 module "ssh_key" {
-  source             = "../modules/instance/aws-ec2"
+  source             = "../modules/Instance/aws-ec2"
   key_name           =  "${var.key_name}"
   public_key         =  "${var.public_key}"
 } 

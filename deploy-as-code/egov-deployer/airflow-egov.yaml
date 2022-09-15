@@ -1,0 +1,2972 @@
+# Source: airflow/templates/rbac/airflow-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: airflow
+  namespace: egov
+  labels:
+    app: airflow
+---
+# Source: airflow/charts/redis/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: airflow-redis
+  namespace: egov
+  labels:
+    app: redis
+type: Opaque
+data:
+  redis-password: "YWlyZmxvdw=="
+---  
+# Source: airflow/templates/config/secret-config-envs.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: airflow-config-envs
+  namespace: egov
+  labels:
+    app: airflow
+## we must use `data` rather than `stringData` (see: https://github.com/helm/helm/issues/10010)
+data:
+  ## ================
+  ## Linux Configs
+  ## ================
+  TZ: "RXRjL1VUQw=="
+
+  ## ================
+  ## Database Configs
+  ## ================
+  ## database host/port
+  DATABASE_HOST: "YWlyZmxvdy1wZ2JvdW5jZXIuZWdvdi5zdmMuY2x1c3Rlci5sb2NhbA=="
+  DATABASE_PORT: "NjQzMg=="
+
+  ## database configs
+  DATABASE_DB: "YWlyZmxvdw=="
+  DATABASE_PROPERTIES: ""
+
+  ## bash command which echos the URL encoded value of $DATABASE_USER
+  DATABASE_USER_CMD: "ZWNobyAiJHtEQVRBQkFTRV9VU0VSfSIgfCBweXRob24zIC1jICJpbXBvcnQgdXJsbGliLnBhcnNlOyBlbmNvZGVkX3VzZXIgPSB1cmxsaWIucGFyc2UucXVvdGUoaW5wdXQoKSk7IHByaW50KGVuY29kZWRfdXNlciki"
+
+  ## bash command which echos the URL encoded value of $DATABASE_PASSWORD
+  DATABASE_PASSWORD_CMD: "ZWNobyAiJHtEQVRBQkFTRV9QQVNTV09SRH0iIHwgcHl0aG9uMyAtYyAiaW1wb3J0IHVybGxpYi5wYXJzZTsgZW5jb2RlZF9wYXNzID0gdXJsbGliLnBhcnNlLnF1b3RlKGlucHV0KCkpOyBwcmludChlbmNvZGVkX3Bhc3MpIg=="
+
+  ## bash command which echos the DB connection string in SQLAlchemy format
+  DATABASE_SQLALCHEMY_CMD: "ZWNobyAtbiAicG9zdGdyZXNxbCtwc3ljb3BnMjovLyQoZXZhbCAkREFUQUJBU0VfVVNFUl9DTUQpOiQoZXZhbCAkREFUQUJBU0VfUEFTU1dPUkRfQ01EKUAke0RBVEFCQVNFX0hPU1R9OiR7REFUQUJBU0VfUE9SVH0vJHtEQVRBQkFTRV9EQn0ke0RBVEFCQVNFX1BST1BFUlRJRVN9Ig=="
+
+  ## bash command which echos the DB connection string in Celery result_backend format
+  DATABASE_CELERY_CMD: "ZWNobyAtbiAiZGIrcG9zdGdyZXNxbDovLyQoZXZhbCAkREFUQUJBU0VfVVNFUl9DTUQpOiQoZXZhbCAkREFUQUJBU0VfUEFTU1dPUkRfQ01EKUAke0RBVEFCQVNFX0hPU1R9OiR7REFUQUJBU0VfUE9SVH0vJHtEQVRBQkFTRV9EQn0ke0RBVEFCQVNFX1BST1BFUlRJRVN9Ig=="
+
+  ## bash command which echos the DB connection string in `psql` cli format
+  DATABASE_PSQL_CMD: "ZWNobyAtbiAicG9zdGdyZXNxbDovLyQoZXZhbCAkREFUQUJBU0VfVVNFUl9DTUQpOiQoZXZhbCAkREFUQUJBU0VfUEFTU1dPUkRfQ01EKUAke0RBVEFCQVNFX0hPU1R9OiR7REFUQUJBU0VfUE9SVH0vJHtEQVRBQkFTRV9EQn0ke0RBVEFCQVNFX1BST1BFUlRJRVN9Ig=="
+
+  ## ================
+  ## Redis Configs
+  ## ================
+  ## connection string components
+  REDIS_HOST: "YWlyZmxvdy1yZWRpcy1tYXN0ZXIuZWdvdi5zdmMuY2x1c3Rlci5sb2NhbA=="
+  REDIS_PORT: "NjM3OQ=="
+  REDIS_DBNUM: "MQ=="
+
+  ## bash command which echos the URL encoded value of $REDIS_PASSWORD
+  ## NOTE: if $REDIS_PASSWORD is non-empty, prints `:${REDIS_PASSWORD}@`, else ``
+  REDIS_PASSWORD_CMD: "ZWNobyAiJHtSRURJU19QQVNTV09SRH0iIHwgcHl0aG9uMyAtYyAiaW1wb3J0IHVybGxpYi5wYXJzZTsgZW5jb2RlZF9wYXNzID0gdXJsbGliLnBhcnNlLnF1b3RlKGlucHV0KCkpOyBwcmludChmXCI6e2VuY29kZWRfcGFzc31AXCIpIGlmIGxlbihlbmNvZGVkX3Bhc3MpID4gMCBlbHNlIE5vbmUi"
+
+  ## bash command which echos the Redis connection string
+  REDIS_CONNECTION_CMD: "ZWNobyAtbiAicmVkaXM6Ly8kKGV2YWwgJFJFRElTX1BBU1NXT1JEX0NNRCkke1JFRElTX0hPU1R9OiR7UkVESVNfUE9SVH0vJHtSRURJU19EQk5VTX0ke1JFRElTX1BST1BFUlRJRVN9Ig=="
+
+  ## ================
+  ## Airflow Configs (General)
+  ## ================
+  AIRFLOW__CORE__DAGS_FOLDER: "L29wdC9haXJmbG93L2RhZ3MvcmVwby9lZ292LW5hdGlvbmFsLWRhc2hib2FyZC1hY2NlbGVyYXRvci9kYWdz"
+  AIRFLOW__CORE__EXECUTOR: "Q2VsZXJ5RXhlY3V0b3I="
+  AIRFLOW__CORE__FERNET_KEY: "N1Q1MTJVWFNTbUJPa3BXaW1GSElWYjhqSzZsZm1TQXZ4NG1PNkFyZWhuYz0="
+  AIRFLOW__WEBSERVER__SECRET_KEY: "VEhJUyBJUyBVTlNBRkUh"
+  AIRFLOW__WEBSERVER__WEB_SERVER_PORT: "ODA4MA=="
+  AIRFLOW__CELERY__FLOWER_PORT: "NTU1NQ=="
+  ## refresh the dags folder at the same frequency as git-sync
+  AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: "NjA="
+
+  ## ================
+  ## Airflow Configs (Database)
+  ## ================
+  AIRFLOW__CORE__SQL_ALCHEMY_CONN_CMD: "YmFzaCAtYyAnZXZhbCAiJERBVEFCQVNFX1NRTEFMQ0hFTVlfQ01EIic="
+  ## `core.sql_alchemy_conn` moved to `database.sql_alchemy_conn` in airflow 2.3.0
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD: "YmFzaCAtYyAnZXZhbCAiJERBVEFCQVNFX1NRTEFMQ0hFTVlfQ01EIic="
+
+  ## ================
+  ## Airflow Configs (Triggerer)
+  ## ================
+  AIRFLOW__TRIGGERER__DEFAULT_CAPACITY: "MTAwMA=="
+
+  ## ================
+  ## Airflow Configs (Logging)
+  ## ================
+  AIRFLOW__LOGGING__BASE_LOG_FOLDER: "L29wdC9haXJmbG93L2xvZ3M="
+  AIRFLOW__LOGGING__DAG_PROCESSOR_MANAGER_LOG_LOCATION: "L29wdC9haXJmbG93L2xvZ3MvZGFnX3Byb2Nlc3Nvcl9tYW5hZ2VyL2RhZ19wcm9jZXNzb3JfbWFuYWdlci5sb2c="
+  AIRFLOW__SCHEDULER__CHILD_PROCESS_LOG_DIRECTORY: "L29wdC9haXJmbG93L2xvZ3Mvc2NoZWR1bGVy"
+
+  ## ================
+  ## Airflow Configs (Celery)
+  ## ================
+ 
+  AIRFLOW__CELERY__WORKER_LOG_SERVER_PORT: "ODc5Mw=="
+  AIRFLOW__CELERY__BROKER_URL_CMD: "YmFzaCAtYyAnZXZhbCAiJFJFRElTX0NPTk5FQ1RJT05fQ01EIic="
+  AIRFLOW__CELERY__RESULT_BACKEND_CMD: "YmFzaCAtYyAnZXZhbCAiJERBVEFCQVNFX0NFTEVSWV9DTUQiJw=="
+
+  ## ================
+  ## Airflow Configs (Kubernetes)
+  ## ================
+
+  ## ================
+  ## User Configs
+  ## ================
+  AIRFLOW__CELERY__FLOWER_URL_PREFIX: "L2FpcmZsb3cvZmxvd2Vy"
+  AIRFLOW__WEBSERVER__BASE_URL: "aHR0cHM6Ly9xYS5kaWdpdC5vcmcvYWlyZmxvdw=="
+---
+# Source: airflow/templates/config/secret-webserver-config.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: airflow-webserver-config
+  namespace: egov
+  labels:
+    app: airflow
+data:
+  webserver_config.py: "ZnJvbSBmbGFza19hcHBidWlsZGVyLnNlY3VyaXR5Lm1hbmFnZXIgaW1wb3J0IEFVVEhfREIKCiMgdXNlIGVtYmVkZGVkIERCIGZvciBhdXRoCkFVVEhfVFlQRSA9IEFVVEhfREIK"
+---
+# Source: airflow/templates/db-migrations/db-migrations-secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: airflow-db-migrations
+  namespace: egov
+  labels:
+    app: airflow
+    component: db-migrations
+data:
+  db_migrations.py: "CiMjIyMjIyMjIyMjIyMKIyMgSW1wb3J0cyAjIwojIyMjIyMjIyMjIyMjCmltcG9ydCBsb2dnaW5nCmltcG9ydCB0aW1lCmZyb20gYWlyZmxvdy51dGlscy5kYiBpbXBvcnQgdXBncmFkZWRiCgoKIyMjIyMjIyMjIyMjIwojIyBDb25maWdzICMjCiMjIyMjIyMjIyMjIyMKbG9nID0gbG9nZ2luZy5nZXRMb2dnZXIoX19maWxlX18pCmxvZy5zZXRMZXZlbCgiSU5GTyIpCgojIGhvdyBmcmVxdWVudGx5IHRvIGNoZWNrIGZvciB1bmFwcGxpZWQgbWlncmF0aW9ucwpDT05GX19DSEVDS19NSUdSQVRJT05TX0lOVEVSVkFMID0gMzAwCgoKIyMjIyMjIyMjIyMjIyMjCiMjIEZ1bmN0aW9ucyAjIwojIyMjIyMjIyMjIyMjIyMKZnJvbSBhaXJmbG93LnV0aWxzLmRiIGltcG9ydCBjaGVja19taWdyYXRpb25zCgoKZGVmIG5lZWRzX2RiX21pZ3JhdGlvbnMoKSAtPiBib29sOgogICAgIiIiCiAgICBSZXR1cm4gYSBib29sZWFuIHJlcHJlc2VudGluZyBpZiB0aGUgZGF0YWJhc2UgaGFzIHVuYXBwbGllZCBtaWdyYXRpb25zLgogICAgIiIiCiAgICBsb2dfYWxlbWJpYyA9IGxvZ2dpbmcuZ2V0TG9nZ2VyKCJhbGVtYmljLnJ1bnRpbWUubWlncmF0aW9uIikKICAgIGxvZ19hbGVtYmljX2xldmVsID0gbG9nX2FsZW1iaWMubGV2ZWwKICAgIHRyeToKICAgICAgICBsb2dfYWxlbWJpYy5zZXRMZXZlbCgiV0FSTiIpCiAgICAgICAgY2hlY2tfbWlncmF0aW9ucygxKQogICAgICAgIGxvZ19hbGVtYmljLnNldExldmVsKGxvZ19hbGVtYmljX2xldmVsKQogICAgICAgIHJldHVybiBGYWxzZQogICAgZXhjZXB0IFRpbWVvdXRFcnJvcjoKICAgICAgICByZXR1cm4gVHJ1ZQoKCmRlZiBhcHBseV9kYl9taWdyYXRpb25zKCkgLT4gTm9uZToKICAgICIiIgogICAgQXBwbHkgYW55IHBlbmRpbmcgREIgbWlncmF0aW9ucy4KICAgICIiIgogICAgbG9nLmluZm8oIi0tLS0tLS0tIFNUQVJUIC0gQVBQTFkgREIgTUlHUkFUSU9OUyAtLS0tLS0tLSIpCiAgICB1cGdyYWRlZGIoKQogICAgbG9nLmluZm8oIi0tLS0tLS0tIEZJTklTSCAtIEFQUExZIERCIE1JR1JBVElPTlMgLS0tLS0tLS0iKQoKCmRlZiBtYWluKHN5bmNfZm9yZXZlcjogYm9vbCk6CiAgICAjIGluaXRpYWwgY2hlY2sgJiBhcHBseQogICAgaWYgbmVlZHNfZGJfbWlncmF0aW9ucygpOgogICAgICAgIGxvZy53YXJuaW5nKCJ0aGVyZSBhcmUgdW5hcHBsaWVkIGRiIG1pZ3JhdGlvbnMsIHRyaWdnZXJpbmcgYXBwbHkuLi4iKQogICAgICAgIGFwcGx5X2RiX21pZ3JhdGlvbnMoKQogICAgZWxzZToKICAgICAgICBsb2cuaW5mbygidGhlcmUgYXJlIG5vIHVuYXBwbGllZCBkYiBtaWdyYXRpb25zLCBjb250aW51aW5nLi4uIikKCiAgICBpZiBzeW5jX2ZvcmV2ZXI6CiAgICAgICAgIyBkZWZpbmUgdmFyaWFibGUgdG8gdHJhY2sgaG93IGxvbmcgc2luY2UgbGFzdCBtaWdyYXRpb25zIGNoZWNrCiAgICAgICAgbWlncmF0aW9uc19jaGVja19lcG9jaCA9IHRpbWUudGltZSgpCgogICAgICAgICMgbWFpbiBsb29wCiAgICAgICAgd2hpbGUgVHJ1ZToKICAgICAgICAgICAgaWYgKHRpbWUudGltZSgpIC0gbWlncmF0aW9uc19jaGVja19lcG9jaCkgPiBDT05GX19DSEVDS19NSUdSQVRJT05TX0lOVEVSVkFMOgogICAgICAgICAgICAgICAgbG9nLmRlYnVnKGYiY2hlY2sgaW50ZXJ2YWwgcmVhY2hlZCwgY2hlY2tpbmcgZm9yIHVuYXBwbGllZCBkYiBtaWdyYXRpb25zLi4uIikKICAgICAgICAgICAgICAgIGlmIG5lZWRzX2RiX21pZ3JhdGlvbnMoKToKICAgICAgICAgICAgICAgICAgICBsb2cud2FybmluZygidGhlcmUgYXJlIHVuYXBwbGllZCBkYiBtaWdyYXRpb25zLCB0cmlnZ2VyaW5nIGFwcGx5Li4uIikKICAgICAgICAgICAgICAgICAgICBhcHBseV9kYl9taWdyYXRpb25zKCkKICAgICAgICAgICAgICAgIG1pZ3JhdGlvbnNfY2hlY2tfZXBvY2ggPSB0aW1lLnRpbWUoKQoKICAgICAgICAgICAgIyBlbnN1cmUgd2UgZG9udCBsb29wIHRvbyBmYXN0CiAgICAgICAgICAgIHRpbWUuc2xlZXAoMC41KQoKCiMjIyMjIyMjIyMjIyMjCiMjIFJ1biBNYWluICMjCiMjIyMjIyMjIyMjIyMjCm1haW4oc3luY19mb3JldmVyPVRydWUp"
+---
+# Source: airflow/templates/pgbouncer/pgbouncer-secret-certs.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: airflow-pgbouncer-certs
+  namespace: egov
+  labels:
+    app: airflow
+    component: pgbouncer
+data:
+  client.key: "LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcEFJQkFBS0NBUUVBOVlCdStjVi9Wb2I4ektleHZrZEovaER4dytMMWd3eXVpMm5qUVlLOElrbldMVEhhCjJyS1BvaFZ4WTZnWUlRZ3hSK1JZSk1CTnovUFhsZHV5aXZnRE5KNDU4NmdKNWNGVWdER0pkRzdKTkg5ZkUyUVkKam5uOUdRS25aalJUeTFDc0FSdlI1RTc0eWxIUkZ1RVM0M1RocGxDSDA3c0drNlgxd1hyVEV2MnAyK2V0Y0t4UApPL2djUHdZSGZQZ0RNSW5td3dLQmFhVVREL0pFSEtEc2VZK1IveW5GcVNEaGVzbHVWRVpKaGhBMlhGUnd4dVA4CnNzdDhFNEpha3Y1ZDFMUEUyelFMTy9ZYWFRNjZZWEFGV0dRZ1FkMWJ1T2dSb1ZybXhOUFVaYy9pR2hCYysycU0KWDZvMTJ4M0h2YVE4aHROcUkwKzZCYmJPZkN1QVBDc0M2TlhZeVFJREFRQUJBb0lCQVFEY245OGJkL0ZId1dmTwpRNlhvYWdpRTJwVnFoTHcrV1ZkQzBwWDRlWlM0KzhJT080K0NtcFdhQThzeTFBMWJJaEdubWYzY2lUVmtmSzV4CmJrNjF0TXlzck1WSHd1dWlIbXZpQ0tLT2tFRWhmSlhreHorS1N2YTVVems5RUNsOXZiSFdEVHBEQXZWeVhMU2EKNndvZWZ4dUthelNsZ3A0V2NqNjQ4YmhlaUxmdGRqUSszamJBSUpyY2NmMXJKMExTNE9aM3JEVkFBTncycXd6TApNUWNHaVlvek1rNVpVSkt3QStZMXlvekZlaUVPVXZ3Yy9UUFdaTk1YV3krK3VtNkhOS3pkN2t5MVhIa2NqUjJqCkZ0OXFPdHlpNXhlc2pRWXFMTEk2RzVVL3Q0eFNqWmttRFMreFpSNXNCMndtZ0J1VjVNK1VOU1hoblQrZGM5Y2wKOHhWT1lWMEJBb0dCQVBsbWwyRjF1Sk4yV1A3ZnpVV3gxRStQb1IwZHFtQkFJR1dYWXdzRVpNQ0h3UmNodFVnLwpXdmcxb0NWRDFEbnNGaVRWczNRaFFDOGxOUXJQT1ptYVFvQzNDWDNMVEkwZDFjcXBxdm93R0h5KzVHNzlOWVcwCmFMcWlaTU9yaUxuQVZZVkVuLzl5djZiQVU2U0NhdVpSZ3RjQUNTR0NQaFRPV2RPcWkxOE9iUTNGQW9HQkFQdi8KYmpPcytJeWZLNkoyZXBhVEVmb2d1dnNXOVZ3ZjFnYm1WbjJPYVAxTGVJZ1d3b3lBcThZeDZQYnFGdEhvcmhUdQpYZ05mSjZ0QWxURU5QQjZ6Y0duMmtKbXFFVkpaVURDc1dERlZZdWdwM2dpc3kwc1R2WXFlVGl3NENCaW9ueTZQCnY0bUdHeHBtbzZTWXRlS1lvQXJiZThFOUFlOVNmVjBzaHovNmNQTTFBb0dBUWxoU1NQRGlDd2hlb0Y2MDRxZHQKelVSdUhhcTRtaVkwK0JHUG5XeXJ5TFBVWCt6dHBxeUQ3S2VIVktKNG9IZjNaQkVkVGZWU2Q3ZzBKZzMrU3FoSQpyS2tFYzF4VG51Nmk0dWpEdlE1eVZTMEs0Nk9rUzA4MDFRRkNRUE11eWdzcU5PdU9qSXZnQStJQjNpOTdkSTJXCmVzOWRublpoUVhPclhhMXVxZmpTZGVrQ2dZRUEyUWk1WlJCSVVQU1ZwQ3Jla2VqQXh1aUJvZGU0SWt2WkRjQTgKSlk4TnBYbm1xVzdReUNuWng2MGNzK3dSRTJDTzdjQU9nR0RuelhxbUE4VWVUbUxGSXI0VTlBT2hQNGRrcFVjSgovaE5JU0NRbTh0bS9qVDNITlNmNnMrTGVOajZrT25uYndSb2JKYlhZb3Q1VGFJR0M5VmJyVXhhMEgrYXZ5aHViCnNPS0ZmVEVDZ1lCbUw4Y0cyeXpuRjRMa0d3aEdKcXZ2VDZNYkp1UGIyVzZMdHBmQk5SMTFGdWVKMzU4Sk16M2MKMDlQTXpMWmI3Ri9mRkkvQUxSRURNanBSNEY5cUZGNjRJWHRGdVRBdk5qRjBGZFZ6UXdnZTlDOUtCQTBEQ2xFZgpTRFdpZnlQV3l6bXFjZXl0YkdFbUI5d3NtOHQxUlBBeWRVa0ZNSXJZQUxCME9QQ2x1QkVqanc9PQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo="
+  client.crt: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM4VENDQWRtZ0F3SUJBZ0lRVituOHUzQWpyQ1lRV1AvNEFUYWwwVEFOQmdrcWhraUc5dzBCQVFzRkFEQVUKTVJJd0VBWURWUVFERXdsc2IyTmhiR2h2YzNRd0hoY05Nakl3T1RFek1EVTBOelV6V2hjTk1qTXdPVEV6TURVMApOelV6V2pBVU1SSXdFQVlEVlFRREV3bHNiMk5oYkdodmMzUXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUFBNElCCkR3QXdnZ0VLQW9JQkFRRDFnRzc1eFg5V2h2ek1wN0crUjBuK0VQSEQ0dldEREs2TGFlTkJncndpU2RZdE1kcmEKc28raUZYRmpxQmdoQ0RGSDVGZ2t3RTNQODllVjI3S0srQU0wbmpuenFBbmx3VlNBTVlsMGJzazBmMThUWkJpTwplZjBaQXFkbU5GUExVS3dCRzlIa1R2aktVZEVXNFJMamRPR21VSWZUdXdhVHBmWEJldE1TL2FuYjU2MXdyRTg3CitCdy9CZ2Q4K0FNd2llYkRBb0ZwcFJNUDhrUWNvT3g1ajVIL0tjV3BJT0Y2eVc1VVJrbUdFRFpjVkhERzQveXkKeTN3VGdscVMvbDNVczhUYk5Bczc5aHBwRHJwaGNBVllaQ0JCM1Z1NDZCR2hXdWJFMDlSbHorSWFFRno3YW94ZgpxalhiSGNlOXBEeUcwMm9qVDdvRnRzNThLNEE4S3dMbzFkakpBZ01CQUFHalB6QTlNQTRHQTFVZER3RUIvd1FFCkF3SUZvREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0RBWURWUjBUQVFIL0JBSXcKQURBTkJna3Foa2lHOXcwQkFRc0ZBQU9DQVFFQUorN1NmSy9BMVl3MU13WWUxcFZxMGhLbEo4VEpXVDZKU3lYWQpKM3RVNHNnenllNE5acFE1WWFGUnFBbit5RVBTb2QxdUJ4Mlk5WTltQkp4dGN5Sk44dk8rNUd3M2k4MjdIZmYwCjk3NDIyMHU3amxPWUM5UVpLaTJtZm90ZGsrRVQzMzB5UTNyWU1GeTJMaHJXaE5JM1l6NjdjZlVhUmFJVmxrUHgKaGs5c2xTY2NjT00wWVBhUkl4b2hvS3cwTzVNK2xXeWszTTFjU3Vsa2tDalg0ZmVqc2tQNGxPaXVmaTFjb0pTSQpKQThyUFZUaGoyZTFObXJKNk1IQVpzVWx1NFJSQ3NOK1VCWThvUG5nRW5ncWpLU1RNUHlYM0ZRbUczT2tsam12CnVKMG5weDVXY21YMU5IL0Z4RWNMeGdjOC9kUGZyM3RpY2htQ0t0TXVBV1RaSDZ2RW9nPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo="
+---
+# Source: airflow/templates/pgbouncer/pgbouncer-secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: airflow-pgbouncer
+  namespace: egov
+  labels:
+    app: airflow
+    component: pgbouncer
+data:
+  pgbouncer.ini: "CltkYXRhYmFzZXNdCiogPSBob3N0PWVnb3YtZGV2LWRiLmN0bTZqYm1yNW1uai5hcC1zb3V0aC0xLnJkcy5hbWF6b25hd3MuY29tIHBvcnQ9NTQzMgoKW3BnYm91bmNlcl0KcG9vbF9tb2RlID0gdHJhbnNhY3Rpb24KbWF4X2NsaWVudF9jb25uID0gMTAwMApkZWZhdWx0X3Bvb2xfc2l6ZSA9ICAyMAppZ25vcmVfc3RhcnR1cF9wYXJhbWV0ZXJzID0gZXh0cmFfZmxvYXRfZGlnaXRzCgpsaXN0ZW5fcG9ydCA9IDY0MzIKbGlzdGVuX2FkZHIgPSAqCgphdXRoX3R5cGUgPSBtZDUKYXV0aF9maWxlID0gL2hvbWUvcGdib3VuY2VyL3VzZXJzLnR4dAoKbG9nX2Rpc2Nvbm5lY3Rpb25zID0gMApsb2dfY29ubmVjdGlvbnMgPSAwCgojIGxvY2tzIHdpbGwgbmV2ZXIgYmUgcmVsZWFzZWQgd2hlbiBgcG9vbF9tb2RlPXRyYW5zYWN0aW9uYCAoYWlyZmxvdyBpbml0ZGIvdXBncmFkZWRiIHNjcmlwdHMgY3JlYXRlIGxvY2tzKQpzZXJ2ZXJfcmVzZXRfcXVlcnkgPSBTRUxFQ1QgcGdfYWR2aXNvcnlfdW5sb2NrX2FsbCgpCnNlcnZlcl9yZXNldF9xdWVyeV9hbHdheXMgPSAxCgojIyBDTElFTlQgVExTIFNFVFRJTkdTICMjCmNsaWVudF90bHNfc3NsbW9kZSA9IHByZWZlcgpjbGllbnRfdGxzX2NpcGhlcnMgPSBub3JtYWwKY2xpZW50X3Rsc19rZXlfZmlsZSA9IC9ob21lL3BnYm91bmNlci9jZXJ0cy9jbGllbnQua2V5CmNsaWVudF90bHNfY2VydF9maWxlID0gL2hvbWUvcGdib3VuY2VyL2NlcnRzL2NsaWVudC5jcnQKCiMjIFNFUlZFUiBUTFMgU0VUVElOR1MgIyMKc2VydmVyX3Rsc19zc2xtb2RlID0gcHJlZmVyCnNlcnZlcl90bHNfY2lwaGVycyA9IG5vcm1hbA=="
+  gen_auth_file.sh: "CiMhL2Jpbi9zaCAtZQoKIyBERVNDUklQVElPTjoKIyAtIHVwZGF0ZXMgdGhlIHBnYm91bmNlciBgYXV0aF9maWxlYCBmcm9tIGVudmlyb25tZW50IHZhcmlhYmxlcwojIC0gY2FsbGVkIGluIG1haW4gcGdib3VuY2VyIGNvbnRhaW5lciBzdGFydC1jb21tYW5kIHNvIHRoYXQgYGF1dGhfZmlsZWAgaXMgdXBkYXRlZCBlYWNoIHJlc3RhcnQsCiMgICBmb3IgZXhhbXBsZSwgd2hlbiB0aGUgbGl2ZW5lc3NQcm9iZSBmYWlscyBkdWUgdG8gYSBEQVRBQkFTRV9QQVNTV09SRCBzZWNyZXQgdXBkYXRlCgojIHZhcmlhYmxlcyB0byBpbmNyZWFzZSBjbGFyaXR5IG9mIHBhdHRlcm4gbWF0Y2hpbmcKT05FX1FVT1RFPSciJwpUV09fUVVPVEU9JyIiJwoKIyBwZ2JvdW5jZXIgcmVxdWlyZXMgYCJgIHRvIGJlIGVzY2FwZWQgYXMgYCIiYApFU0NBUEVEX0RBVEFCQVNFX1VTRVI9IiR7REFUQUJBU0VfVVNFUi8kT05FX1FVT1RFLyRUV09fUVVPVEV9IgpFU0NBUEVEX0RBVEFCQVNFX1BBU1NXT1JEPSIke0RBVEFCQVNFX1BBU1NXT1JELyRPTkVfUVVPVEUvJFRXT19RVU9URX0iCgojIHBnYm91bmNlciByZXF1aXJlcyBhdXRoX2ZpbGUgaW4gZm9ybWF0IGAibXktdXNlcm5hbWUiICJteS1wYXNzd29yZCJgCmVjaG8gXCIkRVNDQVBFRF9EQVRBQkFTRV9VU0VSXCIgXCIkRVNDQVBFRF9EQVRBQkFTRV9QQVNTV09SRFwiID4gL2hvbWUvcGdib3VuY2VyL3VzZXJzLnR4dAplY2hvICJTdWNjZXNzZnVsbHkgZ2VuZXJhdGVkIGF1dGhfZmlsZTogL2hvbWUvcGdib3VuY2VyL3VzZXJzLnR4dCI="
+---
+# Source: airflow/templates/sync/sync-users-secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: airflow-sync-users
+  namespace: egov
+  labels:
+    app: airflow
+    component: sync-users
+data:
+  sync_users.py: "CiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMKIyMjIyBCRUdJTjogR0xPQkFMIENPREUgIyMjIwojIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjCiMjIyMjIyMjIyMjIyMjIyMjIyMjCiMjIEdsb2JhbCBJbXBvcnRzICMjCiMjIyMjIyMjIyMjIyMjIyMjIyMjCmltcG9ydCBsb2dnaW5nCmltcG9ydCBvcwppbXBvcnQgdGltZQpmcm9tIHN0cmluZyBpbXBvcnQgVGVtcGxhdGUKZnJvbSB0eXBpbmcgaW1wb3J0IExpc3QsIERpY3QsIE9wdGlvbmFsCgoKIyMjIyMjIyMjIyMjIyMjIyMjIyMKIyMgR2xvYmFsIENvbmZpZ3MgIyMKIyMjIyMjIyMjIyMjIyMjIyMjIyMKIyB0aGUgcGF0aCB3aGljaCBTZWNyZXQvQ29uZmlnTWFwIGFyZSBtb3VudGVkIHRvCkNPTkZfX1RFTVBMQVRFU19QQVRIID0gIi9tbnQvdGVtcGxhdGVzIgoKIyBob3cgZnJlcXVlbnRseSB0byBjaGVjayBmb3IgU2VjcmV0L0NvbmZpZ01hcCB1cGRhdGVzCkNPTkZfX1RFTVBMQVRFU19TWU5DX0lOVEVSVkFMID0gMTAKCiMgaG93IGZyZXF1ZW50bHkgdG8gcmUtc3luYyBvYmplY3RzIChDb25uZWN0aW9ucywgUG9vbHMsIFVzZXJzLCBWYXJpYWJsZXMpCkNPTkZfX09CSkVDVFNfU1lOQ19JTlRFUlZBTCA9IDYwCgoKIyMjIyMjIyMjIyMjIyMjIyMjIyMjIwojIyBHbG9iYWwgRnVuY3Rpb25zICMjCiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMKZGVmIHN0cmluZ19zdWJzdGl0dXRpb24ocmF3X3N0cmluZzogT3B0aW9uYWxbc3RyXSwgc3Vic3RpdHV0aW9uX21hcDogRGljdFtzdHIsIHN0cl0pIC0+IHN0cjoKICAgICIiIgogICAgQXBwbHkgYmFzaC1saWtlIHN1YnN0aXR1dGlvbnMgdG8gYSByYXcgc3RyaW5nLgoKICAgIEV4YW1wbGU6CiAgICAtIHN0cmluZ19zdWJzdGl0dXRpb24oIkhlbGxvISIsIE5vbmUpIC0+ICJIZWxsbyEiCiAgICAtIHN0cmluZ19zdWJzdGl0dXRpb24oIkhlbGxvICR7TkFNRX0hIiwgeyJOQU1FIjogIkFpcmZsb3cifSkgLT4gIkhlbGxvIEFpcmZsb3chIgogICAgIiIiCiAgICBpZiByYXdfc3RyaW5nIGFuZCBsZW4oc3Vic3RpdHV0aW9uX21hcCkgPiAwOgogICAgICAgIHRwbCA9IFRlbXBsYXRlKHJhd19zdHJpbmcpCiAgICAgICAgcmV0dXJuIHRwbC5zYWZlX3N1YnN0aXR1dGUoc3Vic3RpdHV0aW9uX21hcCkKICAgIGVsc2U6CiAgICAgICAgcmV0dXJuIHJhd19zdHJpbmcKCgpkZWYgdGVtcGxhdGVfbXRpbWUodGVtcGxhdGVfbmFtZTogc3RyKSAtPiBmbG9hdDoKICAgICIiIgogICAgUmV0dXJuIHRoZSBtb2RpZmljYXRpb24tdGltZSBvZiB0aGUgZmlsZSBzdG9yaW5nIGB0ZW1wbGF0ZV9uYW1lYAogICAgIiIiCiAgICBmaWxlX3BhdGggPSBmIntDT05GX19URU1QTEFURVNfUEFUSH0ve3RlbXBsYXRlX25hbWV9IgogICAgcmV0dXJuIG9zLnN0YXQoZmlsZV9wYXRoKS5zdF9tdGltZQoKCmRlZiB0ZW1wbGF0ZV92YWx1ZSh0ZW1wbGF0ZV9uYW1lOiBzdHIpIC0+IHN0cjoKICAgICIiIgogICAgUmV0dXJuIHRoZSBjb250ZW50cyBvZiB0aGUgZmlsZSBzdG9yaW5nIGB0ZW1wbGF0ZV9uYW1lYAogICAgIiIiCiAgICBmaWxlX3BhdGggPSBmIntDT05GX19URU1QTEFURVNfUEFUSH0ve3RlbXBsYXRlX25hbWV9IgogICAgd2l0aCBvcGVuKGZpbGVfcGF0aCwgInIiKSBhcyBmOgogICAgICAgIHJldHVybiBmLnJlYWQoKQoKCmRlZiByZWZyZXNoX3RlbXBsYXRlX2NhY2hlKHRlbXBsYXRlX25hbWVzOiBMaXN0W3N0cl0sCiAgICAgICAgICAgICAgICAgICAgICAgICAgIHRlbXBsYXRlX210aW1lX2NhY2hlOiBEaWN0W3N0ciwgZmxvYXRdLAogICAgICAgICAgICAgICAgICAgICAgICAgICB0ZW1wbGF0ZV92YWx1ZV9jYWNoZTogRGljdFtzdHIsIHN0cl0pIC0+IExpc3Rbc3RyXToKICAgICIiIgogICAgUmVmcmVzaCB0aGUgcHJvdmlkZWQgZGljdGlvbmFyeSBjYWNoZXMgb2YgdGVtcGxhdGUgdmFsdWVzICYgbXRpbWVzLgoKICAgIDpwYXJhbSB0ZW1wbGF0ZV9uYW1lczogdGhlIG5hbWVzIG9mIGFsbCB0ZW1wbGF0ZXMgdG8gcmVmcmVzaAogICAgOnBhcmFtIHRlbXBsYXRlX210aW1lX2NhY2hlOiB0aGUgZGljdGlvbmFyeSBjYWNoZSBvZiB0ZW1wbGF0ZSBmaWxlIG1vZGlmaWNhdGlvbi10aW1lcwogICAgOnBhcmFtIHRlbXBsYXRlX3ZhbHVlX2NhY2hlOiB0aGUgZGljdGlvbmFyeSBjYWNoZSBvZiB0ZW1wbGF0ZSB2YWx1ZXMKICAgIDpyZXR1cm46IHRoZSBuYW1lcyBvZiB0ZW1wbGF0ZXMgd2hpY2ggY2hhbmdlZAogICAgIiIiCiAgICBjaGFuZ2VkX3RlbXBsYXRlcyA9IFtdCiAgICBmb3IgdGVtcGxhdGVfbmFtZSBpbiB0ZW1wbGF0ZV9uYW1lczoKICAgICAgICBvbGRfbXRpbWUgPSB0ZW1wbGF0ZV9tdGltZV9jYWNoZS5nZXQodGVtcGxhdGVfbmFtZSwgTm9uZSkKICAgICAgICBuZXdfbXRpbWUgPSB0ZW1wbGF0ZV9tdGltZSh0ZW1wbGF0ZV9uYW1lKQogICAgICAgICMgZmlyc3QsIGNoZWNrIGlmIHRoZSBmaWxlcyB3ZXJlIG1vZGlmaWVkCiAgICAgICAgaWYgb2xkX210aW1lICE9IG5ld19tdGltZToKICAgICAgICAgICAgb2xkX3ZhbHVlID0gdGVtcGxhdGVfdmFsdWVfY2FjaGUuZ2V0KHRlbXBsYXRlX25hbWUsIE5vbmUpCiAgICAgICAgICAgIG5ld192YWx1ZSA9IHRlbXBsYXRlX3ZhbHVlKHRlbXBsYXRlX25hbWUpCiAgICAgICAgICAgICMgc2Vjb25kLCBjaGVjayBpZiB0aGUgdmFsdWUgYWN0dWFsbHkgY2hhbmdlZAogICAgICAgICAgICBpZiBvbGRfdmFsdWUgIT0gbmV3X3ZhbHVlOgogICAgICAgICAgICAgICAgdGVtcGxhdGVfdmFsdWVfY2FjaGVbdGVtcGxhdGVfbmFtZV0gPSBuZXdfdmFsdWUKICAgICAgICAgICAgICAgIGNoYW5nZWRfdGVtcGxhdGVzICs9IFt0ZW1wbGF0ZV9uYW1lXQogICAgICAgICAgICB0ZW1wbGF0ZV9tdGltZV9jYWNoZVt0ZW1wbGF0ZV9uYW1lXSA9IG5ld19tdGltZQogICAgcmV0dXJuIGNoYW5nZWRfdGVtcGxhdGVzCgoKZGVmIG1haW4oc3luY19mb3JldmVyOiBib29sKToKICAgICMgaW5pdGlhbCBzeW5jIG9mIHRlbXBsYXRlIGNhY2hlCiAgICByZWZyZXNoX3RlbXBsYXRlX2NhY2hlKAogICAgICAgIHRlbXBsYXRlX25hbWVzPVZBUl9fVEVNUExBVEVfTkFNRVMsCiAgICAgICAgdGVtcGxhdGVfbXRpbWVfY2FjaGU9VkFSX19URU1QTEFURV9NVElNRV9DQUNIRSwKICAgICAgICB0ZW1wbGF0ZV92YWx1ZV9jYWNoZT1WQVJfX1RFTVBMQVRFX1ZBTFVFX0NBQ0hFCiAgICApCgogICAgIyBpbml0aWFsIHN5bmMgb2Ygb2JqZWN0cyBpbnRvIEFpcmZsb3cgREIKICAgIHN5bmNfd2l0aF9haXJmbG93KCkKCiAgICBpZiBzeW5jX2ZvcmV2ZXI6CiAgICAgICAgIyBkZWZpbmUgdmFyaWFibGVzIHVzZWQgdG8gdHJhY2sgaG93IGxvbmcgc2luY2UgbGFzdCByZWZyZXNoL3N5bmMKICAgICAgICB0ZW1wbGF0ZXNfc3luY19lcG9jaCA9IHRpbWUudGltZSgpCiAgICAgICAgb2JqZWN0c19zeW5jX2Vwb2NoID0gdGltZS50aW1lKCkKCiAgICAgICAgIyBtYWluIGxvb3AKICAgICAgICB3aGlsZSBUcnVlOgogICAgICAgICAgICAjIG1vbml0b3IgZm9yIHRlbXBsYXRlIHNlY3JldC9jb25maWdtYXAgdXBkYXRlcwogICAgICAgICAgICBpZiAodGltZS50aW1lKCkgLSB0ZW1wbGF0ZXNfc3luY19lcG9jaCkgPiBDT05GX19URU1QTEFURVNfU1lOQ19JTlRFUlZBTDoKICAgICAgICAgICAgICAgIGxvZ2dpbmcuZGVidWcoZiJ0ZW1wbGF0ZSBzeW5jIGludGVydmFsIHJlYWNoZWQsIHJlLXN5bmNpbmcgYWxsIHRlbXBsYXRlcy4uLiIpCiAgICAgICAgICAgICAgICBjaGFuZ2VkX3RlbXBsYXRlcyA9IHJlZnJlc2hfdGVtcGxhdGVfY2FjaGUoCiAgICAgICAgICAgICAgICAgICAgdGVtcGxhdGVfbmFtZXM9VkFSX19URU1QTEFURV9OQU1FUywKICAgICAgICAgICAgICAgICAgICB0ZW1wbGF0ZV9tdGltZV9jYWNoZT1WQVJfX1RFTVBMQVRFX01USU1FX0NBQ0hFLAogICAgICAgICAgICAgICAgICAgIHRlbXBsYXRlX3ZhbHVlX2NhY2hlPVZBUl9fVEVNUExBVEVfVkFMVUVfQ0FDSEUKICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgICAgIHRlbXBsYXRlc19zeW5jX2Vwb2NoID0gdGltZS50aW1lKCkKICAgICAgICAgICAgICAgIGlmIGNoYW5nZWRfdGVtcGxhdGVzOgogICAgICAgICAgICAgICAgICAgIGxvZ2dpbmcuaW5mbyhmInRlbXBsYXRlIHZhbHVlcyBoYXZlIGNoYW5nZWQ6IFt7JywnLmpvaW4oY2hhbmdlZF90ZW1wbGF0ZXMpfV0iKQogICAgICAgICAgICAgICAgICAgIHN5bmNfd2l0aF9haXJmbG93KCkKICAgICAgICAgICAgICAgICAgICBvYmplY3RzX3N5bmNfZXBvY2ggPSB0aW1lLnRpbWUoKQoKICAgICAgICAgICAgIyBtb25pdG9yIGZvciBleHRlcm5hbCBjaGFuZ2VzIHRvIG9iamVjdHMgKGxpa2UgZnJvbSBVSSkKICAgICAgICAgICAgaWYgKHRpbWUudGltZSgpIC0gb2JqZWN0c19zeW5jX2Vwb2NoKSA+IENPTkZfX09CSkVDVFNfU1lOQ19JTlRFUlZBTDoKICAgICAgICAgICAgICAgIGxvZ2dpbmcuZGVidWcoZiJzeW5jIGludGVydmFsIHJlYWNoZWQsIHJlLXN5bmNpbmcgYWxsIG9iamVjdHMuLi4iKQogICAgICAgICAgICAgICAgc3luY193aXRoX2FpcmZsb3coKQogICAgICAgICAgICAgICAgb2JqZWN0c19zeW5jX2Vwb2NoID0gdGltZS50aW1lKCkKCiAgICAgICAgICAgICMgZW5zdXJlIHdlIGRvbnQgbG9vcCB0b28gZmFzdAogICAgICAgICAgICB0aW1lLnNsZWVwKDAuNSkKIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMKIyMjIyBFTkQ6IEdMT0JBTCBDT0RFICMjIyMKIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMKCgojIyMjIyMjIyMjIyMjCiMjIEltcG9ydHMgIyMKIyMjIyMjIyMjIyMjIwppbXBvcnQgc3lzCmZyb20gZmxhc2tfYXBwYnVpbGRlci5zZWN1cml0eS5zcWxhLm1vZGVscyBpbXBvcnQgVXNlciwgUm9sZQpmcm9tIHdlcmt6ZXVnLnNlY3VyaXR5IGltcG9ydCBjaGVja19wYXNzd29yZF9oYXNoLCBnZW5lcmF0ZV9wYXNzd29yZF9oYXNoCmltcG9ydCBhaXJmbG93Lnd3dy5hcHAgYXMgd3d3X2FwcApmbGFza19hcHAgPSB3d3dfYXBwLmNyZWF0ZV9hcHAoKQpmbGFza19hcHBidWlsZGVyID0gZmxhc2tfYXBwLmFwcGJ1aWxkZXIKCgojIyMjIyMjIyMjIyMjCiMjIENsYXNzZXMgIyMKIyMjIyMjIyMjIyMjIwpjbGFzcyBVc2VyV3JhcHBlcihvYmplY3QpOgogICAgZGVmIF9faW5pdF9fKAogICAgICAgICAgICBzZWxmLAogICAgICAgICAgICB1c2VybmFtZTogc3RyLAogICAgICAgICAgICBmaXJzdF9uYW1lOiBPcHRpb25hbFtzdHJdID0gTm9uZSwKICAgICAgICAgICAgbGFzdF9uYW1lOiBPcHRpb25hbFtzdHJdID0gTm9uZSwKICAgICAgICAgICAgZW1haWw6IE9wdGlvbmFsW3N0cl0gPSBOb25lLAogICAgICAgICAgICByb2xlczogT3B0aW9uYWxbTGlzdFtzdHJdXSA9IE5vbmUsCiAgICAgICAgICAgIHBhc3N3b3JkOiBPcHRpb25hbFtzdHJdID0gTm9uZQogICAgKToKICAgICAgICBzZWxmLnVzZXJuYW1lID0gdXNlcm5hbWUKICAgICAgICBzZWxmLl9maXJzdF9uYW1lID0gZmlyc3RfbmFtZQogICAgICAgIHNlbGYuX2xhc3RfbmFtZSA9IGxhc3RfbmFtZQogICAgICAgIHNlbGYuX2VtYWlsID0gZW1haWwKICAgICAgICBzZWxmLnJvbGVzID0gcm9sZXMKICAgICAgICBzZWxmLl9wYXNzd29yZCA9IHBhc3N3b3JkCgogICAgQHByb3BlcnR5CiAgICBkZWYgZmlyc3RfbmFtZShzZWxmKSAtPiBzdHI6CiAgICAgICAgcmV0dXJuIHN0cmluZ19zdWJzdGl0dXRpb24oc2VsZi5fZmlyc3RfbmFtZSwgVkFSX19URU1QTEFURV9WQUxVRV9DQUNIRSkKCiAgICBAcHJvcGVydHkKICAgIGRlZiBsYXN0X25hbWUoc2VsZikgLT4gc3RyOgogICAgICAgIHJldHVybiBzdHJpbmdfc3Vic3RpdHV0aW9uKHNlbGYuX2xhc3RfbmFtZSwgVkFSX19URU1QTEFURV9WQUxVRV9DQUNIRSkKCiAgICBAcHJvcGVydHkKICAgIGRlZiBlbWFpbChzZWxmKSAtPiBzdHI6CiAgICAgICAgcmV0dXJuIHN0cmluZ19zdWJzdGl0dXRpb24oc2VsZi5fZW1haWwsIFZBUl9fVEVNUExBVEVfVkFMVUVfQ0FDSEUpCgogICAgQHByb3BlcnR5CiAgICBkZWYgcGFzc3dvcmQoc2VsZikgLT4gc3RyOgogICAgICAgIHJldHVybiBzdHJpbmdfc3Vic3RpdHV0aW9uKHNlbGYuX3Bhc3N3b3JkLCBWQVJfX1RFTVBMQVRFX1ZBTFVFX0NBQ0hFKQoKICAgIGRlZiBhc19kaWN0KHNlbGYpIC0+IERpY3Rbc3RyLCBzdHJdOgogICAgICAgIHJldHVybiB7CiAgICAgICAgICAgICJ1c2VybmFtZSI6IHNlbGYudXNlcm5hbWUsCiAgICAgICAgICAgICJmaXJzdF9uYW1lIjogc2VsZi5maXJzdF9uYW1lLAogICAgICAgICAgICAibGFzdF9uYW1lIjogc2VsZi5sYXN0X25hbWUsCiAgICAgICAgICAgICJlbWFpbCI6IHNlbGYuZW1haWwsCiAgICAgICAgICAgICJyb2xlcyI6IFtmaW5kX3JvbGUocm9sZV9uYW1lPXJvbGVfbmFtZSkgZm9yIHJvbGVfbmFtZSBpbiBzZWxmLnJvbGVzXSwKICAgICAgICAgICAgInBhc3N3b3JkIjogc2VsZi5wYXNzd29yZAogICAgICAgIH0KCgojIyMjIyMjIyMjIyMjIyMKIyMgVmFyaWFibGVzICMjCiMjIyMjIyMjIyMjIyMjIwpWQVJfX1RFTVBMQVRFX05BTUVTID0gWwpdClZBUl9fVEVNUExBVEVfTVRJTUVfQ0FDSEUgPSB7fQpWQVJfX1RFTVBMQVRFX1ZBTFVFX0NBQ0hFID0ge30KVkFSX19VU0VSX1dSQVBQRVJTID0gewogICJhZG1pbiI6IFVzZXJXcmFwcGVyKAogICAgdXNlcm5hbWU9ImFkbWluIiwKICAgIGZpcnN0X25hbWU9ImFkbWluIiwKICAgIGxhc3RfbmFtZT0iYWRtaW4iLAogICAgZW1haWw9ImFkbWluQGV4YW1wbGUuY29tIiwKICAgIHJvbGVzPVsgICAgICAgICJBZG1pbiIsCiAgICBdLAogICAgcGFzc3dvcmQ9ImFkbWluIiwKICApLAp9CgoKIyMjIyMjIyMjIyMjIyMjCiMjIEZ1bmN0aW9ucyAjIwojIyMjIyMjIyMjIyMjIyMKZGVmIGZpbmRfcm9sZShyb2xlX25hbWU6IHN0cikgLT4gUm9sZToKICAgICIiIgogICAgR2V0IHRoZSBGQUIgUm9sZSBtb2RlbCBhc3NvY2lhdGVkIHdpdGggYSBgcm9sZV9uYW1lYC4KICAgICIiIgogICAgZm91bmRfcm9sZSA9IGZsYXNrX2FwcGJ1aWxkZXIuc20uZmluZF9yb2xlKHJvbGVfbmFtZSkKICAgIGlmIGZvdW5kX3JvbGU6CiAgICAgICAgcmV0dXJuIGZvdW5kX3JvbGUKICAgIGVsc2U6CiAgICAgICAgdmFsaWRfcm9sZXMgPSBmbGFza19hcHBidWlsZGVyLnNtLmdldF9hbGxfcm9sZXMoKQogICAgICAgIGxvZ2dpbmcuZXJyb3IoZiJGYWlsZWQgdG8gZmluZCByb2xlPWB7cm9sZV9uYW1lfWAsIHZhbGlkIHJvbGVzIGFyZToge3ZhbGlkX3JvbGVzfSIpCiAgICAgICAgc3lzLmV4aXQoMSkKCgpkZWYgY29tcGFyZV9yb2xlX2xpc3RzKHJvbGVfbGlzdF8xOiBMaXN0W1JvbGVdLCByb2xlX2xpc3RfMjogTGlzdFtSb2xlXSkgLT4gYm9vbDoKICAgICIiIgogICAgQ2hlY2sgaWYgdHdvIGxpc3RzIG9mIEZBQiBSb2xlcyBjb250YWluIHRoZSBzYW1lIHJvbGVzIChpZ25vcmVzIGR1cGxpY2F0ZXMgYW5kIG9yZGVyKS4KICAgICIiIgogICAgbmFtZV9zZXRfMSA9IHNldChyb2xlLm5hbWUgZm9yIHJvbGUgaW4gcm9sZV9saXN0XzEpCiAgICBuYW1lX3NldF8yID0gc2V0KHJvbGUubmFtZSBmb3Igcm9sZSBpbiByb2xlX2xpc3RfMikKICAgIHJldHVybiBuYW1lX3NldF8xID09IG5hbWVfc2V0XzIKCgoKZGVmIGNvbXBhcmVfdXNlcnModXNlcl9kaWN0OiBEaWN0LCB1c2VyX21vZGVsOiBVc2VyKSAtPiBib29sOgogICAgIiIiCiAgICBDaGVjayBpZiB1c2VyIGluZm8gKHN0b3JlZCBpbiBkaWN0KSBpcyBpZGVudGljYWwgdG8gYSBGQUIgVXNlciBtb2RlbC4KICAgICIiIgogICAgcmV0dXJuICgKICAgICAgICAgICAgdXNlcl9kaWN0WyJ1c2VybmFtZSJdID09IHVzZXJfbW9kZWwudXNlcm5hbWUKICAgICAgICAgICAgYW5kIHVzZXJfZGljdFsiZmlyc3RfbmFtZSJdID09IHVzZXJfbW9kZWwuZmlyc3RfbmFtZQogICAgICAgICAgICBhbmQgdXNlcl9kaWN0WyJsYXN0X25hbWUiXSA9PSB1c2VyX21vZGVsLmxhc3RfbmFtZQogICAgICAgICAgICBhbmQgdXNlcl9kaWN0WyJlbWFpbCJdID09IHVzZXJfbW9kZWwuZW1haWwKICAgICAgICAgICAgYW5kIGNvbXBhcmVfcm9sZV9saXN0cyh1c2VyX2RpY3RbInJvbGVzIl0sIHVzZXJfbW9kZWwucm9sZXMpCiAgICAgICAgICAgIGFuZCBjaGVja19wYXNzd29yZF9oYXNoKHB3aGFzaD11c2VyX21vZGVsLnBhc3N3b3JkLCBwYXNzd29yZD11c2VyX2RpY3RbInBhc3N3b3JkIl0pCiAgICApCgoKZGVmIHN5bmNfdXNlcih1c2VyX3dyYXBwZXI6IFVzZXJXcmFwcGVyKSAtPiBOb25lOgogICAgIiIiCiAgICBTeW5jIHRoZSBVc2VyIGRlZmluZWQgYnkgYSBwcm92aWRlZCBVc2VyV3JhcHBlciBpbnRvIHRoZSBGQUIgREIuCiAgICAiIiIKICAgIHVzZXJuYW1lID0gdXNlcl93cmFwcGVyLnVzZXJuYW1lCiAgICB1X25ldyA9IHVzZXJfd3JhcHBlci5hc19kaWN0KCkKICAgIHVfb2xkID0gZmxhc2tfYXBwYnVpbGRlci5zbS5maW5kX3VzZXIodXNlcm5hbWU9dXNlcm5hbWUpCgogICAgaWYgbm90IHVfb2xkOgogICAgICAgIGxvZ2dpbmcuaW5mbyhmIlVzZXI9YHt1c2VybmFtZX1gIGlzIG1pc3NpbmcsIGFkZGluZy4uLiIpCiAgICAgICAgY3JlYXRlZF91c2VyID0gZmxhc2tfYXBwYnVpbGRlci5zbS5hZGRfdXNlcigKICAgICAgICAgICAgdXNlcm5hbWU9dV9uZXdbInVzZXJuYW1lIl0sCiAgICAgICAgICAgIGZpcnN0X25hbWU9dV9uZXdbImZpcnN0X25hbWUiXSwKICAgICAgICAgICAgbGFzdF9uYW1lPXVfbmV3WyJsYXN0X25hbWUiXSwKICAgICAgICAgICAgZW1haWw9dV9uZXdbImVtYWlsIl0sCiAgICAgICAgICAgICMgaW4gb2xkIHZlcnNpb25zIG9mIGZsYXNrX2FwcGJ1aWxkZXIgYGFkZF91c2VyKHJvbGU9YCBjYW4gb25seSBhZGQgZXhhY3RseSBvbmUgcm9sZQogICAgICAgICAgICAjICh1bmNoZWNrZWQgMCBpbmRleCBpcyBzYWZlIGJlY2F1c2Ugd2UgcmVxdWlyZSBhdCBsZWFzdCBvbmUgcm9sZSB1c2luZyBoZWxtIHZhbHVlcyB2YWxpZGF0aW9uKQogICAgICAgICAgICByb2xlPXVfbmV3WyJyb2xlcyJdWzBdLAogICAgICAgICAgICBwYXNzd29yZD11X25ld1sicGFzc3dvcmQiXQogICAgICAgICkKICAgICAgICBpZiBjcmVhdGVkX3VzZXI6CiAgICAgICAgICAgICMgYWRkIHRoZSBmdWxsIGxpc3Qgb2Ygcm9sZXMgKHdlIG9ubHkgYWRkZWQgdGhlIGZpcnN0IG9uZSBhYm92ZSkKICAgICAgICAgICAgY3JlYXRlZF91c2VyLnJvbGVzID0gdV9uZXdbInJvbGVzIl0KICAgICAgICAgICAgbG9nZ2luZy5pbmZvKGYiVXNlcj1ge3VzZXJuYW1lfWAgd2FzIHN1Y2Nlc3NmdWxseSBhZGRlZC4iKQogICAgICAgIGVsc2U6CiAgICAgICAgICAgIGxvZ2dpbmcuZXJyb3IoZiJGYWlsZWQgdG8gYWRkIFVzZXI9YHt1c2VybmFtZX1gIikKICAgICAgICAgICAgc3lzLmV4aXQoMSkKICAgIGVsc2U6CiAgICAgICAgaWYgY29tcGFyZV91c2Vycyh1X25ldywgdV9vbGQpOgogICAgICAgICAgICBwYXNzCiAgICAgICAgZWxzZToKICAgICAgICAgICAgbG9nZ2luZy5pbmZvKGYiVXNlcj1ge3VzZXJuYW1lfWAgZXhpc3RzIGJ1dCBoYXMgY2hhbmdlZCwgdXBkYXRpbmcuLi4iKQogICAgICAgICAgICB1X29sZC5maXJzdF9uYW1lID0gdV9uZXdbImZpcnN0X25hbWUiXQogICAgICAgICAgICB1X29sZC5sYXN0X25hbWUgPSB1X25ld1sibGFzdF9uYW1lIl0KICAgICAgICAgICAgdV9vbGQuZW1haWwgPSB1X25ld1siZW1haWwiXQogICAgICAgICAgICB1X29sZC5yb2xlcyA9IHVfbmV3WyJyb2xlcyJdCiAgICAgICAgICAgIHVfb2xkLnBhc3N3b3JkID0gZ2VuZXJhdGVfcGFzc3dvcmRfaGFzaCh1X25ld1sicGFzc3dvcmQiXSkKICAgICAgICAgICAgIyBzdHJhbmdlIGNoZWNrIGZvciBGYWxzZSBpcyBiZWNhdXNlIHVwZGF0ZV91c2VyKCkgcmV0dXJucyBOb25lIGZvciBzdWNjZXNzCiAgICAgICAgICAgICMgYnV0IGluIGZ1dHVyZSBtaWdodCByZXR1cm4gdGhlIFVzZXIgbW9kZWwKICAgICAgICAgICAgaWYgbm90IChmbGFza19hcHBidWlsZGVyLnNtLnVwZGF0ZV91c2VyKHVfb2xkKSBpcyBGYWxzZSk6CiAgICAgICAgICAgICAgICBsb2dnaW5nLmluZm8oZiJVc2VyPWB7dXNlcm5hbWV9YCB3YXMgc3VjY2Vzc2Z1bGx5IHVwZGF0ZWQuIikKICAgICAgICAgICAgZWxzZToKICAgICAgICAgICAgICAgIGxvZ2dpbmcuZXJyb3IoZiJGYWlsZWQgdG8gdXBkYXRlIFVzZXI9YHt1c2VybmFtZX1gIikKICAgICAgICAgICAgICAgIHN5cy5leGl0KDEpCgoKZGVmIHN5bmNfYWxsX3VzZXJzKHVzZXJfd3JhcHBlcnM6IERpY3Rbc3RyLCBVc2VyV3JhcHBlcl0pIC0+IE5vbmU6CiAgICAiIiIKICAgIFN5bmMgYWxsIHVzZXJzIGluIHByb3ZpZGVkIGB1c2VyX3dyYXBwZXJzYC4KICAgICIiIgogICAgbG9nZ2luZy5pbmZvKCJCRUdJTjogYWlyZmxvdyB1c2VycyBzeW5jIikKICAgIGZvciB1c2VyX3dyYXBwZXIgaW4gdXNlcl93cmFwcGVycy52YWx1ZXMoKToKICAgICAgICBzeW5jX3VzZXIodXNlcl93cmFwcGVyKQogICAgbG9nZ2luZy5pbmZvKCJFTkQ6IGFpcmZsb3cgdXNlcnMgc3luYyIpCgogICAgIyBlbnN1cmVzIHRoYW4gYW55IFNRTEFsY2hlbXkgc2Vzc2lvbnMgYXJlIGNsb3NlZCAoc28gd2UgZG9uJ3QgaG9sZCBhIGNvbm5lY3Rpb24gdG8gdGhlIGRhdGFiYXNlKQogICAgZmxhc2tfYXBwLmRvX3RlYXJkb3duX2FwcGNvbnRleHQoKQoKCmRlZiBzeW5jX3dpdGhfYWlyZmxvdygpIC0+IE5vbmU6CiAgICAiIiIKICAgIFByZWZvcm0gYSBzeW5jIG9mIGFsbCBvYmplY3RzIHdpdGggYWlyZmxvdyAobm90ZSwgYHN5bmNfd2l0aF9haXJmbG93KClgIGlzIGNhbGxlZCBpbiBgbWFpbigpYCB0ZW1wbGF0ZSkuCiAgICAiIiIKICAgIHN5bmNfYWxsX3VzZXJzKHVzZXJfd3JhcHBlcnM9VkFSX19VU0VSX1dSQVBQRVJTKQoKCiMjIyMjIyMjIyMjIyMjCiMjIFJ1biBNYWluICMjCiMjIyMjIyMjIyMjIyMjCm1haW4oc3luY19mb3JldmVyPVRydWUp"
+---
+# Source: airflow/charts/redis/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airflow-redis
+  namespace: egov
+  labels:
+    app: redis
+data:
+  redis.conf: |-
+    # User-supplied configuration:
+    # Enable AOF https://redis.io/topics/persistence#append-only-file
+    appendonly yes
+    # Disable RDB persistence, AOF persistence already enabled.
+    save ""
+  master.conf: |-
+    dir /data
+    rename-command FLUSHDB ""
+    rename-command FLUSHALL ""
+  replica.conf: |-
+    dir /data
+    slave-read-only yes
+    rename-command FLUSHDB ""
+    rename-command FLUSHALL ""
+---
+# Source: airflow/charts/redis/templates/health-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airflow-redis-health
+  namespace: egov
+  labels:
+    app: redis
+data:
+  ping_readiness_local.sh: |-
+    response=$(
+      timeout -s 9 $1 \
+      redis-cli \
+        -a $REDIS_PASSWORD --no-auth-warning \
+        -h localhost \
+        -p $REDIS_PORT \
+        ping
+    )
+    if [ "$response" != "PONG" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_liveness_local.sh: |-
+    response=$(
+      timeout -s 9 $1 \
+      redis-cli \
+        -a $REDIS_PASSWORD --no-auth-warning \
+        -h localhost \
+        -p $REDIS_PORT \
+        ping
+    )
+    if [ "$response" != "PONG" ] && [ "$response" != "LOADING Redis is loading the dataset in memory" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_readiness_master.sh: |-
+    response=$(
+      timeout -s 9 $1 \
+      redis-cli \
+        -a $REDIS_MASTER_PASSWORD --no-auth-warning \
+        -h $REDIS_MASTER_HOST \
+        -p $REDIS_MASTER_PORT_NUMBER \
+        ping
+    )
+    if [ "$response" != "PONG" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_liveness_master.sh: |-
+    response=$(
+      timeout -s 9 $1 \
+      redis-cli \
+        -a $REDIS_MASTER_PASSWORD --no-auth-warning \
+        -h $REDIS_MASTER_HOST \
+        -p $REDIS_MASTER_PORT_NUMBER \
+        ping
+    )
+    if [ "$response" != "PONG" ] && [ "$response" != "LOADING Redis is loading the dataset in memory" ]; then
+      echo "$response"
+      exit 1
+    fi
+  ping_readiness_local_and_master.sh: |-
+    script_dir="$(dirname "$0")"
+    exit_status=0
+    "$script_dir/ping_readiness_local.sh" $1 || exit_status=$?
+    "$script_dir/ping_readiness_master.sh" $1 || exit_status=$?
+    exit $exit_status
+  ping_liveness_local_and_master.sh: |-
+    script_dir="$(dirname "$0")"
+    exit_status=0
+    "$script_dir/ping_liveness_local.sh" $1 || exit_status=$?
+    "$script_dir/ping_liveness_master.sh" $1 || exit_status=$?
+    exit $exit_status
+---    
+# Source: airflow/templates/rbac/airflow-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: airflow
+  namespace: egov
+  labels:
+    app: airflow
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - "get"
+  - "list"
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - "create"
+  - "get"
+  - "delete"
+  - "list"
+  - "patch"
+  - "watch"
+- apiGroups:
+  - ""
+  resources:
+  - "pods/log"
+  verbs:
+  - "get"
+  - "list"
+- apiGroups:
+  - ""
+  resources:
+  - "pods/exec"
+  verbs:
+  - "create"
+  - "get"
+---
+# Source: airflow/templates/rbac/airflow-rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: airflow
+  namespace: egov
+  labels:
+    app: airflow
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: airflow
+subjects:
+- kind: ServiceAccount
+  name: airflow
+  namespace: egov
+---
+# Source: airflow/charts/redis/templates/headless-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-redis-headless
+  namespace: egov
+  labels:
+    app: redis
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: redis
+  selector:
+    app: redis
+---  
+# Source: airflow/charts/redis/templates/redis-master-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-redis-master
+  namespace: egov
+  labels:
+    app: redis
+spec:
+  type: ClusterIP
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: redis
+  selector:
+    app: redis
+---      
+# Source: airflow/templates/flower/flower-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-flower
+  namespace: egov
+  labels:
+    app: airflow
+    component: flower
+spec:
+  type: ClusterIP
+  selector:
+    app: airflow
+    component: flower
+  ports:
+    - name: flower
+      protocol: TCP
+      port: 5555
+      targetPort: 5555
+---
+# Source: airflow/templates/pgbouncer/pgbouncer-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-pgbouncer
+  namespace: egov
+  labels:
+    app: airflow
+    component: pgbouncer
+spec:
+  type: ClusterIP
+  selector:
+    app: airflow
+    component: pgbouncer
+  ports:
+    - name: pgbouncer
+      protocol: TCP
+      port: 6432
+---
+# Source: airflow/templates/webserver/webserver-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-web
+  namespace: egov
+  labels:
+    app: airflow
+    component: web
+spec:
+  type: ClusterIP
+  selector:
+    app: airflow
+    component: web
+  sessionAffinity: None
+  ports:
+    - name: web
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+---
+# Source: airflow/templates/worker/worker-service.yaml
+apiVersion: v1
+## this Service gives stable DNS entries for workers, used by webserver for logs
+kind: Service
+metadata:
+  name: airflow-worker
+  namespace: egov
+  labels:
+    app: airflow
+    component: worker
+spec:
+  ports:
+    - name: worker
+      protocol: TCP
+      port: 8793
+  clusterIP: None
+  selector:
+    app: airflow
+    component: worker
+---
+# Source: airflow/templates/db-migrations/db-migrations-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-db-migrations
+  namespace: egov
+  labels:
+    app: airflow
+    component: db-migrations
+spec:
+  replicas: 1
+  strategy:
+    ## only 1 replica should run at a time
+    type: Recreate
+  selector:
+    matchLabels:
+      app: airflow
+      component: db-migrations
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: airflow
+        component: db-migrations
+    spec:
+      restartPolicy: Always
+      nodeSelector:
+        {}
+      affinity:
+        {}
+      tolerations:
+        []
+      securityContext:
+        fsGroup: 0
+      serviceAccountName: airflow
+      initContainers:
+        ## git-sync is included so "airflow plugins" & "python packages" can be stored in the dags repo        
+        - name: dags-git-clone
+          image: k8s.gcr.io/git-sync/git-sync:v3.5.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 65533
+            runAsGroup: 65533
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: GIT_SYNC_ONE_TIME
+              value: "true"
+            - name: GIT_SYNC_ROOT
+              value: "/dags"
+            - name: GIT_SYNC_DEST
+              value: "repo"
+            - name: GIT_SYNC_REPO
+              value: "https://github.com/egovernments/utilities.git"
+            - name: GIT_SYNC_BRANCH
+              value: "develop"
+            - name: GIT_SYNC_REV
+              value: "HEAD"
+            - name: GIT_SYNC_DEPTH
+              value: "1"
+            - name: GIT_SYNC_WAIT
+              value: "60"
+            - name: GIT_SYNC_TIMEOUT
+              value: "120"
+            - name: GIT_SYNC_ADD_USER
+              value: "true"
+            - name: GIT_SYNC_MAX_SYNC_FAILURES
+              value: "0"
+            - name: GIT_KNOWN_HOSTS
+              value: "false"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          volumeMounts:
+            - name: dags-data
+              mountPath: /dags        
+        - name: check-db  
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:    
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec timeout 60s airflow db check"
+          volumeMounts:    
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs
+      containers:
+        - name: db-migrations          
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          resources:
+            {}
+          envFrom:            
+            - secretRef:
+                name: airflow-config-envs
+          env:            
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:            
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "python"
+            - "-u"
+            - "/mnt/scripts/db_migrations.py"
+          volumeMounts:            
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs
+            - name: scripts
+              mountPath: /mnt/scripts
+              readOnly: true
+        ## git-sync is included so "airflow plugins" & "python packages" can be stored in the dags repo        
+        - name: dags-git-sync
+          image: k8s.gcr.io/git-sync/git-sync:v3.5.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 65533
+            runAsGroup: 65533
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: GIT_SYNC_ROOT
+              value: "/dags"
+            - name: GIT_SYNC_DEST
+              value: "repo"
+            - name: GIT_SYNC_REPO
+              value: "https://github.com/egovernments/utilities.git"
+            - name: GIT_SYNC_BRANCH
+              value: "develop"
+            - name: GIT_SYNC_REV
+              value: "HEAD"
+            - name: GIT_SYNC_DEPTH
+              value: "1"
+            - name: GIT_SYNC_WAIT
+              value: "60"
+            - name: GIT_SYNC_TIMEOUT
+              value: "120"
+            - name: GIT_SYNC_ADD_USER
+              value: "true"
+            - name: GIT_SYNC_MAX_SYNC_FAILURES
+              value: "0"
+            - name: GIT_KNOWN_HOSTS
+              value: "false"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                 secretKeyRef:
+                   name: airflow-redis
+                   key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          volumeMounts:
+            - name: dags-data
+              mountPath: /dags
+      volumes:        
+        - name: dags-data
+          emptyDir: {}
+        - name: logs-data
+          emptyDir: {}
+        - name: scripts
+          secret:
+            secretName: airflow-db-migrations
+---
+# Source: airflow/templates/flower/flower-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-flower
+  namespace: egov
+  labels:
+    app: airflow
+    component: flower
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      ## multiple flower pods can safely run concurrently
+      maxSurge: 25%
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: airflow
+      component: flower
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: airflow
+        component: flower
+    spec:
+      restartPolicy: Always
+      nodeSelector:
+        {}
+      affinity:
+        {}
+      tolerations:
+        []
+      securityContext:
+        fsGroup: 0
+      serviceAccountName: airflow
+      initContainers:
+        ## git-sync is included so "airflow plugins" & "python packages" can be stored in the dags repo        
+        - name: dags-git-clone
+          image: k8s.gcr.io/git-sync/git-sync:v3.5.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 65533
+            runAsGroup: 65533
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: GIT_SYNC_ONE_TIME
+              value: "true"
+            - name: GIT_SYNC_ROOT
+              value: "/dags"
+            - name: GIT_SYNC_DEST
+              value: "repo"
+            - name: GIT_SYNC_REPO
+              value: "https://github.com/egovernments/utilities.git"
+            - name: GIT_SYNC_BRANCH
+              value: "develop"
+            - name: GIT_SYNC_REV
+              value: "HEAD"
+            - name: GIT_SYNC_DEPTH
+              value: "1"
+            - name: GIT_SYNC_WAIT
+              value: "60"
+            - name: GIT_SYNC_TIMEOUT
+              value: "120"
+            - name: GIT_SYNC_ADD_USER
+              value: "true"
+            - name: GIT_SYNC_MAX_SYNC_FAILURES
+              value: "0"
+            - name: GIT_KNOWN_HOSTS
+              value: "false"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          volumeMounts:
+            - name: dags-data
+              mountPath: /dags        
+        - name: check-db  
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:    
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec timeout 60s airflow db check"
+          volumeMounts:    
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs        
+        - name: wait-for-db-migrations  
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:    
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec airflow db check-migrations -t 60"
+          volumeMounts:    
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs
+      containers:
+        - name: airflow-flower          
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          resources:
+            {}
+          envFrom:            
+            - secretRef:
+                name: airflow-config-envs
+          env:            
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          ports:
+            - name: flower
+              containerPort: 5555
+              protocol: TCP
+          command:            
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec airflow celery flower"
+          readinessProbe:
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+            exec:
+              command:
+                - "bash"
+                - "-c"
+                - "exec curl 'http://localhost:5555/airflow/flower'"
+          livenessProbe:
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+            exec:
+              command:
+                - "bash"
+                - "-c"
+                - "exec curl 'http://localhost:5555/airflow/flower'"
+          volumeMounts:            
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs
+        ## git-sync is included so "airflow plugins" & "python packages" can be stored in the dags repo        
+        - name: dags-git-sync
+          image: k8s.gcr.io/git-sync/git-sync:v3.5.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 65533
+            runAsGroup: 65533
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: GIT_SYNC_ROOT
+              value: "/dags"
+            - name: GIT_SYNC_DEST
+              value: "repo"
+            - name: GIT_SYNC_REPO
+              value: "https://github.com/egovernments/utilities.git"
+            - name: GIT_SYNC_BRANCH
+              value: "develop"
+            - name: GIT_SYNC_REV
+              value: "HEAD"
+            - name: GIT_SYNC_DEPTH
+              value: "1"
+            - name: GIT_SYNC_WAIT
+              value: "60"
+            - name: GIT_SYNC_TIMEOUT
+              value: "120"
+            - name: GIT_SYNC_ADD_USER
+              value: "true"
+            - name: GIT_SYNC_MAX_SYNC_FAILURES
+              value: "0"
+            - name: GIT_KNOWN_HOSTS
+              value: "false"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          volumeMounts:
+            - name: dags-data
+              mountPath: /dags
+      volumes:        
+        - name: dags-data
+          emptyDir: {}
+        - name: logs-data
+          emptyDir: {}
+---
+# Source: airflow/templates/pgbouncer/pgbouncer-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-pgbouncer
+  namespace: egov
+  labels:
+    app: airflow
+    component: pgbouncer
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      ## multiple pgbouncer pods can safely run concurrently
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: airflow
+      component: pgbouncer
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: airflow
+        component: pgbouncer
+    spec:
+      restartPolicy: Always
+      nodeSelector:
+        {}
+      affinity:
+        {}
+      tolerations:
+        []
+      securityContext:
+        fsGroup: 0
+      terminationGracePeriodSeconds: 120
+      serviceAccountName: airflow
+      containers:
+        - name: pgbouncer
+          image: ghcr.io/airflow-helm/pgbouncer:1.17.0-patch.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 1001
+            runAsGroup: 1001
+          resources:
+            {}
+          envFrom:            
+            - secretRef:
+                name: airflow-config-envs
+          env:            
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          ports:
+            - name: pgbouncer
+              containerPort: 6432
+              protocol: TCP
+          command:
+            - "/usr/bin/dumb-init"
+            ## rewrite SIGTERM as SIGINT, so pgbouncer does a safe shutdown
+            - "--rewrite=15:2"
+            - "--"
+          args:
+            - "/bin/sh"
+            - "-c"
+            ## we generate users.txt on startup, because DATABASE_PASSWORD is defined from a Secret,
+            ## and we want to pickup the new values on container restart (possibly due to livenessProbe failure)
+            - |-
+              /home/pgbouncer/config/gen_auth_file.sh && \
+              exec pgbouncer /home/pgbouncer/config/pgbouncer.ini
+          livenessProbe:
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            timeoutSeconds: 60
+            failureThreshold: 3
+            exec:
+              command:
+                - "/bin/sh"
+                - "-c"
+                ## this check is intended to fail when the DATABASE_PASSWORD secret is updated,
+                ## which would cause `gen_auth_file.sh` to run again on container start
+                - psql $(eval $DATABASE_PSQL_CMD) --tuples-only --command="SELECT 1;" | grep -q "1"
+          startupProbe:
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 15
+            failureThreshold: 30
+            tcpSocket:
+              port: 6432
+          volumeMounts:
+            - name: pgbouncer-config
+              mountPath: /home/pgbouncer/config
+              readOnly: true
+            - name: pgbouncer-certs
+              mountPath: /home/pgbouncer/certs
+              readOnly: true
+      volumes:
+        - name: pgbouncer-config
+          secret:
+            secretName: airflow-pgbouncer
+            items:
+              - key: gen_auth_file.sh
+                path: gen_auth_file.sh
+                mode: 0755
+              - key: pgbouncer.ini
+                path: pgbouncer.ini
+        - name: pgbouncer-certs
+          projected:
+            sources:
+              ## CLIENT TLS FILES (CHART GENERATED)
+              - secret:
+                  name: airflow-pgbouncer-certs
+                  items:
+                    - key: client.key
+                      path: client.key
+                    - key: client.crt
+                      path: client.crt
+---
+# Source: airflow/templates/scheduler/scheduler-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-scheduler
+  namespace: egov
+  labels:
+    app: airflow
+    component: scheduler
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      ## multiple schedulers can run concurrently (Airflow 2.0)
+      maxSurge: 25%
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: airflow
+      component: scheduler
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: airflow
+        component: scheduler
+    spec:
+      restartPolicy: Always
+      nodeSelector:
+        {}
+      affinity:
+        {}
+      tolerations:
+        []
+      securityContext:
+        fsGroup: 0
+      serviceAccountName: airflow
+      initContainers:        
+        - name: dags-git-clone
+          image: k8s.gcr.io/git-sync/git-sync:v3.5.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 65533
+            runAsGroup: 65533
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: scheduler_health_check_threshold
+              value: "240"
+            - name: orphaned_tasks_check_interval 
+              value: "300"
+            - name: GIT_SYNC_ONE_TIME
+              value: "true"
+            - name: GIT_SYNC_ROOT
+              value: "/dags"
+            - name: GIT_SYNC_DEST
+              value: "repo"
+            - name: GIT_SYNC_REPO
+              value: "https://github.com/egovernments/utilities.git"
+            - name: GIT_SYNC_BRANCH
+              value: "develop"
+            - name: GIT_SYNC_REV
+              value: "HEAD"
+            - name: GIT_SYNC_DEPTH
+              value: "1"
+            - name: GIT_SYNC_WAIT
+              value: "60"
+            - name: GIT_SYNC_TIMEOUT
+              value: "120"
+            - name: GIT_SYNC_ADD_USER
+              value: "true"
+            - name: GIT_SYNC_MAX_SYNC_FAILURES
+              value: "0"
+            - name: GIT_KNOWN_HOSTS
+              value: "false"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          volumeMounts:
+            - name: dags-data
+              mountPath: /dags        
+        - name: check-db  
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:    
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec timeout 60s airflow db check"
+          volumeMounts:    
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs        
+        - name: wait-for-db-migrations  
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:    
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec airflow db check-migrations -t 60"
+          volumeMounts:    
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs
+      containers:
+        - name: airflow-scheduler          
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          resources:
+            {}
+          envFrom:            
+            - secretRef:
+                name: airflow-config-envs
+          env: 
+            - name: scheduler_health_check_threshold
+              value: "240"
+            - name: orphaned_tasks_check_interval 
+              value: "300"
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:            
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec airflow scheduler -n -1"
+          livenessProbe:
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 5
+            timeoutSeconds: 60
+            exec:
+              command:                
+                - "/usr/bin/dumb-init"
+                - "--"
+                - "/entrypoint"
+                - "python"
+                - "-Wignore"
+                - "-c"
+                - |
+                  import os
+                  import sys
+
+                  # suppress logs triggered from importing airflow packages
+                  os.environ["AIRFLOW__LOGGING__LOGGING_LEVEL"] = "ERROR"
+
+                  from airflow.jobs.scheduler_job import SchedulerJob
+                  from airflow.utils.db import create_session
+                  from airflow.utils.net import get_hostname
+
+                  with create_session() as session:
+                      # ensure the SchedulerJob with most recent heartbeat for this `hostname` is alive
+                      hostname = get_hostname()
+                      scheduler_job = session \
+                          .query(SchedulerJob) \
+                          .filter_by(hostname=hostname) \
+                          .order_by(SchedulerJob.latest_heartbeat.desc()) \
+                          .limit(1) \
+                          .first()
+                      if (scheduler_job is not None) and scheduler_job.is_alive():
+                          pass
+                      else:
+                          sys.exit(f"The SchedulerJob (id={scheduler_job.id}) for hostname '{hostname}' is not alive")
+          volumeMounts:            
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs        
+        - name: dags-git-sync
+          image: k8s.gcr.io/git-sync/git-sync:v3.5.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 65533
+            runAsGroup: 65533
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: scheduler_health_check_threshold
+              value: "240"
+            - name: orphaned_tasks_check_interval 
+              value: "300"
+            - name: GIT_SYNC_ROOT
+              value: "/dags"
+            - name: GIT_SYNC_DEST
+              value: "repo"
+            - name: GIT_SYNC_REPO
+              value: "https://github.com/egovernments/utilities.git"
+            - name: GIT_SYNC_BRANCH
+              value: "develop"
+            - name: GIT_SYNC_REV
+              value: "HEAD"
+            - name: GIT_SYNC_DEPTH
+              value: "1"
+            - name: GIT_SYNC_WAIT
+              value: "60"
+            - name: GIT_SYNC_TIMEOUT
+              value: "120"
+            - name: GIT_SYNC_ADD_USER
+              value: "true"
+            - name: GIT_SYNC_MAX_SYNC_FAILURES
+              value: "0"
+            - name: GIT_KNOWN_HOSTS
+              value: "false"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          volumeMounts:
+            - name: dags-data
+              mountPath: /dags        
+        - name: log-cleanup  
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: LOG_PATH
+              value: "/opt/airflow/logs"
+            - name: RETENTION_MINUTES
+              value: "21600"
+            - name: INTERVAL_SECONDS
+              value: "900"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:    
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - |
+              set -euo pipefail
+        
+              # break the infinite loop when we receive SIGINT or SIGTERM
+              trap "exit 0" SIGINT SIGTERM
+        
+              while true; do
+                START_EPOCH=$(date --utc +%s)
+                echo "[$(date --utc +%FT%T.%3N)] deleting log files older than $RETENTION_MINUTES minutes..."
+        
+                # delete all writable files ending in ".log" with modified-time older than $RETENTION_MINUTES
+                # NOTE: `-printf "."` prints a "." for each deleted file, which we count the bytes of with `wc -c`
+                DELETED_COUNT=$(
+                  find "$LOG_PATH" \
+                    -type f \
+                    -name "*.log" \
+                    -mmin +"$RETENTION_MINUTES" \
+                    -writable \
+                    -delete \
+                    -printf "." \
+                  | wc -c
+                )
+        
+                END_EPOCH=$(date --utc +%s)
+                LOOP_DURATION=$((END_EPOCH - START_EPOCH))
+                echo "[$(date --utc +%FT%T.%3N)] deleted $DELETED_COUNT files in $LOOP_DURATION seconds"
+        
+                SECONDS_TO_SLEEP=$((INTERVAL_SECONDS - LOOP_DURATION))
+                if (( SECONDS_TO_SLEEP > 0 )); then
+                  echo "[$(date --utc +%FT%T.%3N)] waiting $SECONDS_TO_SLEEP seconds..."
+                  sleep $SECONDS_TO_SLEEP
+                fi
+              done
+          volumeMounts:
+            - name: logs-data
+              mountPath: /opt/airflow/logs
+      volumes:        
+        - name: dags-data
+          emptyDir: {}
+        - name: logs-data
+          emptyDir: {}
+---
+# Source: airflow/templates/sync/sync-users-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-sync-users
+  namespace: egov
+  labels:
+    app: airflow
+    component: sync-users
+spec:
+  replicas: 1
+  strategy:
+    ## only 1 replica should run at a time
+    type: Recreate
+  selector:
+    matchLabels:
+      app: airflow
+      component: sync-users
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: airflow
+        component: sync-users
+    spec:
+      restartPolicy: Always
+      nodeSelector:
+        {}
+      affinity:
+        {}
+      tolerations:
+        []
+      securityContext:
+        fsGroup: 0
+      serviceAccountName: airflow
+      initContainers:
+        ## git-sync is included so "airflow plugins" & "python packages" can be stored in the dags repo        
+        - name: dags-git-clone
+          image: k8s.gcr.io/git-sync/git-sync:v3.5.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 65533
+            runAsGroup: 65533
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: GIT_SYNC_ONE_TIME
+              value: "true"
+            - name: GIT_SYNC_ROOT
+              value: "/dags"
+            - name: GIT_SYNC_DEST
+              value: "repo"
+            - name: GIT_SYNC_REPO
+              value: "https://github.com/egovernments/utilities.git"
+            - name: GIT_SYNC_BRANCH
+              value: "develop"
+            - name: GIT_SYNC_REV
+              value: "HEAD"
+            - name: GIT_SYNC_DEPTH
+              value: "1"
+            - name: GIT_SYNC_WAIT
+              value: "60"
+            - name: GIT_SYNC_TIMEOUT
+              value: "120"
+            - name: GIT_SYNC_ADD_USER
+              value: "true"
+            - name: GIT_SYNC_MAX_SYNC_FAILURES
+              value: "0"
+            - name: GIT_KNOWN_HOSTS
+              value: "false"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          volumeMounts:
+            - name: dags-data
+              mountPath: /dags        
+        - name: check-db  
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:    
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec timeout 60s airflow db check"
+          volumeMounts:    
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs        
+        - name: wait-for-db-migrations  
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:    
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec airflow db check-migrations -t 60"
+          volumeMounts:    
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs
+      containers:
+        - name: sync-airflow-users          
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          resources:
+            {}
+          envFrom:            
+            - secretRef:
+                name: airflow-config-envs
+          env:            
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:            
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "python"
+            - "-u"
+            - "/mnt/scripts/sync_users.py"
+          volumeMounts:            
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs
+            - name: scripts
+              mountPath: /mnt/scripts
+              readOnly: true
+        ## git-sync is included so "airflow plugins" & "python packages" can be stored in the dags repo        
+        - name: dags-git-sync
+          image: k8s.gcr.io/git-sync/git-sync:v3.5.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 65533
+            runAsGroup: 65533
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: GIT_SYNC_ROOT
+              value: "/dags"
+            - name: GIT_SYNC_DEST
+              value: "repo"
+            - name: GIT_SYNC_REPO
+              value: "https://github.com/egovernments/utilities.git"
+            - name: GIT_SYNC_BRANCH
+              value: "develop"
+            - name: GIT_SYNC_REV
+              value: "HEAD"
+            - name: GIT_SYNC_DEPTH
+              value: "1"
+            - name: GIT_SYNC_WAIT
+              value: "60"
+            - name: GIT_SYNC_TIMEOUT
+              value: "120"
+            - name: GIT_SYNC_ADD_USER
+              value: "true"
+            - name: GIT_SYNC_MAX_SYNC_FAILURES
+              value: "0"
+            - name: GIT_KNOWN_HOSTS
+              value: "false"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          volumeMounts:
+            - name: dags-data
+              mountPath: /dags
+      volumes:        
+        - name: dags-data
+          emptyDir: {}
+        - name: logs-data
+          emptyDir: {}
+        - name: scripts
+          secret:
+            secretName: airflow-sync-users
+---
+# Source: airflow/templates/webserver/webserver-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-web
+  namespace: egov
+  labels:
+    app: airflow
+    component: web
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      ## multiple web pods can safely run concurrently
+      maxSurge: 25%
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: airflow
+      component: web
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: airflow
+        component: web
+    spec:
+      restartPolicy: Always
+      nodeSelector:
+        {}
+      affinity:
+        {}
+      tolerations:
+        []
+      serviceAccountName: airflow
+      securityContext:
+        fsGroup: 0
+      initContainers:        
+        - name: dags-git-clone
+          image: k8s.gcr.io/git-sync/git-sync:v3.5.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 65533
+            runAsGroup: 65533
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: GIT_SYNC_ONE_TIME
+              value: "true"
+            - name: GIT_SYNC_ROOT
+              value: "/dags"
+            - name: GIT_SYNC_DEST
+              value: "repo"
+            - name: GIT_SYNC_REPO
+              value: "https://github.com/egovernments/utilities.git"
+            - name: GIT_SYNC_BRANCH
+              value: "develop"
+            - name: GIT_SYNC_REV
+              value: "HEAD"
+            - name: GIT_SYNC_DEPTH
+              value: "1"
+            - name: GIT_SYNC_WAIT
+              value: "60"
+            - name: GIT_SYNC_TIMEOUT
+              value: "120"
+            - name: GIT_SYNC_ADD_USER
+              value: "true"
+            - name: GIT_SYNC_MAX_SYNC_FAILURES
+              value: "0"
+            - name: GIT_KNOWN_HOSTS
+              value: "false"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          volumeMounts:
+            - name: dags-data
+              mountPath: /dags        
+        - name: check-db  
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:    
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec timeout 60s airflow db check"
+          volumeMounts:    
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs        
+        - name: wait-for-db-migrations  
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:    
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec airflow db check-migrations -t 60"
+          volumeMounts:    
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs
+      containers:
+        - name: airflow-web          
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          resources:
+            {}
+          ports:
+            - name: web
+              containerPort: 8080
+              protocol: TCP
+          envFrom:            
+            - secretRef:
+                name: airflow-config-envs
+          env:            
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:            
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec airflow webserver"
+          livenessProbe:
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+            httpGet:
+              scheme: HTTP
+              path: /airflow/health
+              port: web
+          readinessProbe:
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+            httpGet:
+              scheme: HTTP
+              path: /airflow/health
+              port: web
+          volumeMounts:            
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs
+            - name: webserver-config
+              mountPath: /opt/airflow/webserver_config.py
+              subPath: webserver_config.py
+              readOnly: true        
+        - name: dags-git-sync
+          image: k8s.gcr.io/git-sync/git-sync:v3.5.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 65533
+            runAsGroup: 65533
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: GIT_SYNC_ROOT
+              value: "/dags"
+            - name: GIT_SYNC_DEST
+              value: "repo"
+            - name: GIT_SYNC_REPO
+              value: "https://github.com/egovernments/utilities.git"
+            - name: GIT_SYNC_BRANCH
+              value: "develop"
+            - name: GIT_SYNC_REV
+              value: "HEAD"
+            - name: GIT_SYNC_DEPTH
+              value: "1"
+            - name: GIT_SYNC_WAIT
+              value: "60"
+            - name: GIT_SYNC_TIMEOUT
+              value: "120"
+            - name: GIT_SYNC_ADD_USER
+              value: "true"
+            - name: GIT_SYNC_MAX_SYNC_FAILURES
+              value: "0"
+            - name: GIT_KNOWN_HOSTS
+              value: "false"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          volumeMounts:
+            - name: dags-data
+              mountPath: /dags
+      volumes:        
+        - name: dags-data
+          emptyDir: {}
+        - name: logs-data
+          emptyDir: {}
+        - name: webserver-config
+          secret:
+            secretName: airflow-webserver-config
+            defaultMode: 0644
+---
+# Source: airflow/templates/worker/worker-statefulset.yaml
+apiVersion: apps/v1
+## StatefulSet gives workers consistent DNS names, allowing webserver access to log files
+kind: StatefulSet
+metadata:
+  name: airflow-worker
+  namespace: egov
+  labels:
+    app: airflow
+    component: worker
+spec:
+  serviceName: "airflow-worker"
+  replicas: 1
+  updateStrategy:
+    type: RollingUpdate
+  ## we do not need to guarantee the order in which workers are scaled
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: airflow
+      component: worker
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "true"
+      labels:
+        app: airflow
+        component: worker
+    spec:
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 60
+      serviceAccountName: airflow
+      nodeSelector:
+        {}
+      affinity:
+        {}
+      tolerations:
+        []
+      securityContext:
+        fsGroup: 0
+      initContainers:        
+        - name: dags-git-clone
+          image: k8s.gcr.io/git-sync/git-sync:v3.5.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 65533
+            runAsGroup: 65533
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: GIT_SYNC_ONE_TIME
+              value: "true"
+            - name: GIT_SYNC_ROOT
+              value: "/dags"
+            - name: GIT_SYNC_DEST
+              value: "repo"
+            - name: GIT_SYNC_REPO
+              value: "https://github.com/egovernments/utilities.git"
+            - name: GIT_SYNC_BRANCH
+              value: "develop"
+            - name: GIT_SYNC_REV
+              value: "HEAD"
+            - name: GIT_SYNC_DEPTH
+              value: "1"
+            - name: GIT_SYNC_WAIT
+              value: "60"
+            - name: GIT_SYNC_TIMEOUT
+              value: "120"
+            - name: GIT_SYNC_ADD_USER
+              value: "true"
+            - name: GIT_SYNC_MAX_SYNC_FAILURES
+              value: "0"
+            - name: GIT_KNOWN_HOSTS
+              value: "false"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          volumeMounts:
+            - name: dags-data
+              mountPath: /dags        
+        - name: check-db  
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:    
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec timeout 60s airflow db check"
+          volumeMounts:    
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs        
+        - name: wait-for-db-migrations  
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:    
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec airflow db check-migrations -t 60"
+          volumeMounts:    
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs
+      containers:
+        - name: airflow-worker          
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          resources:
+            {}
+          envFrom:            
+            - secretRef:
+                name: airflow-config-envs
+          env:            
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+            # have dumb-init only send signals to direct child process (needed for celery workers to warm shutdown)
+            - name: DUMB_INIT_SETSID
+              value: "0"
+          ports:
+            - name: wlog
+              containerPort: 8793
+              protocol: TCP
+          command:            
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec airflow celery worker"
+          volumeMounts:            
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs        
+        - name: dags-git-sync
+          image: k8s.gcr.io/git-sync/git-sync:v3.5.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 65533
+            runAsGroup: 65533
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: GIT_SYNC_ROOT
+              value: "/dags"
+            - name: GIT_SYNC_DEST
+              value: "repo"
+            - name: GIT_SYNC_REPO
+              value: "https://github.com/egovernments/utilities.git"
+            - name: GIT_SYNC_BRANCH
+              value: "develop"
+            - name: GIT_SYNC_REV
+              value: "HEAD"
+            - name: GIT_SYNC_DEPTH
+              value: "1"
+            - name: GIT_SYNC_WAIT
+              value: "60"
+            - name: GIT_SYNC_TIMEOUT
+              value: "120"
+            - name: GIT_SYNC_ADD_USER
+              value: "true"
+            - name: GIT_SYNC_MAX_SYNC_FAILURES
+              value: "0"
+            - name: GIT_KNOWN_HOSTS
+              value: "false"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          volumeMounts:
+            - name: dags-data
+              mountPath: /dags        
+        - name: log-cleanup  
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: LOG_PATH
+              value: "/opt/airflow/logs"
+            - name: RETENTION_MINUTES
+              value: "21600"
+            - name: INTERVAL_SECONDS
+              value: "900"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                   name: airflow-redis
+                   key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:    
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - |
+              set -euo pipefail
+        
+              # break the infinite loop when we receive SIGINT or SIGTERM
+              trap "exit 0" SIGINT SIGTERM
+        
+              while true; do
+                START_EPOCH=$(date --utc +%s)
+                echo "[$(date --utc +%FT%T.%3N)] deleting log files older than $RETENTION_MINUTES minutes..."
+        
+                # delete all writable files ending in ".log" with modified-time older than $RETENTION_MINUTES
+                # NOTE: `-printf "."` prints a "." for each deleted file, which we count the bytes of with `wc -c`
+                DELETED_COUNT=$(
+                  find "$LOG_PATH" \
+                    -type f \
+                    -name "*.log" \
+                    -mmin +"$RETENTION_MINUTES" \
+                    -writable \
+                    -delete \
+                    -printf "." \
+                  | wc -c
+                )
+        
+                END_EPOCH=$(date --utc +%s)
+                LOOP_DURATION=$((END_EPOCH - START_EPOCH))
+                echo "[$(date --utc +%FT%T.%3N)] deleted $DELETED_COUNT files in $LOOP_DURATION seconds"
+        
+                SECONDS_TO_SLEEP=$((INTERVAL_SECONDS - LOOP_DURATION))
+                if (( SECONDS_TO_SLEEP > 0 )); then
+                  echo "[$(date --utc +%FT%T.%3N)] waiting $SECONDS_TO_SLEEP seconds..."
+                  sleep $SECONDS_TO_SLEEP
+                fi
+              done
+          volumeMounts:
+            - name: logs-data
+              mountPath: /opt/airflow/logs
+      volumes:        
+        - name: dags-data
+          emptyDir: {}
+        - name: logs-data
+          emptyDir: {}
+---
+# Source: airflow/charts/redis/templates/redis-master-statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: airflow-redis-master
+  namespace: egov
+  labels:
+    app: redis
+spec:
+  selector:
+    matchLabels:
+      app: redis
+  serviceName: airflow-redis-headless
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:      
+      securityContext:
+        fsGroup: 1001
+      serviceAccountName: "default"
+      containers:
+      - name: airflow-redis
+        image: "docker.io/bitnami/redis:5.0.7-debian-10-r32"
+        imagePullPolicy: "IfNotPresent"
+        securityContext:
+          runAsUser: 1001
+        command:
+        - /bin/bash
+        - -c
+        - |
+          if [[ -n $REDIS_PASSWORD_FILE ]]; then
+            password_aux=`cat ${REDIS_PASSWORD_FILE}`
+            export REDIS_PASSWORD=$password_aux
+          fi
+          if [[ ! -f /opt/bitnami/redis/etc/master.conf ]];then
+            cp /opt/bitnami/redis/mounted-etc/master.conf /opt/bitnami/redis/etc/master.conf
+          fi
+          if [[ ! -f /opt/bitnami/redis/etc/redis.conf ]];then
+            cp /opt/bitnami/redis/mounted-etc/redis.conf /opt/bitnami/redis/etc/redis.conf
+          fi
+          ARGS=("--port" "${REDIS_PORT}")
+          ARGS+=("--requirepass" "${REDIS_PASSWORD}")
+          ARGS+=("--masterauth" "${REDIS_PASSWORD}")
+          ARGS+=("--include" "/opt/bitnami/redis/etc/redis.conf")
+          ARGS+=("--include" "/opt/bitnami/redis/etc/master.conf")
+          /run.sh ${ARGS[@]}
+        env:
+        - name: REDIS_REPLICATION_MODE
+          value: master
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: airflow-redis
+              key: redis-password
+        - name: REDIS_PORT
+          value: "6379"
+        ports:
+        - name: redis
+          containerPort: 6379
+        livenessProbe:
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 5
+          exec:
+            command:
+            - sh
+            - -c
+            - /health/ping_liveness_local.sh 5
+        readinessProbe:
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 5
+          exec:
+            command:
+            - sh
+            - -c
+            - /health/ping_readiness_local.sh 5
+        resources:
+          {}
+        volumeMounts:
+        - name: health
+          mountPath: /health
+        - name: redis-data
+          mountPath: /data
+          subPath: 
+        - name: config
+          mountPath: /opt/bitnami/redis/mounted-etc
+        - name: redis-tmp-conf
+          mountPath: /opt/bitnami/redis/etc/
+      volumes:
+      - name: health
+        configMap:
+          name: airflow-redis-health
+          defaultMode: 0755
+      - name: config
+        configMap:
+          name: airflow-redis
+      - name: "redis-data"
+        emptyDir: {}
+      - name: redis-tmp-conf
+        emptyDir: {}
+  updateStrategy:
+    type: RollingUpdate
+---
+# Source: airflow/templates/flower/flower-ingress-v1beta1.yaml
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: airflow-flower
+  namespace: egov
+  labels:
+    app: airflow
+    component: flower
+spec:
+  tls:
+    - hosts:
+        - qa.digit.org
+      secretName: qa.digit.org-tls-certs  
+  rules:
+    - host: qa.digit.org
+      http:
+        paths:
+          - path: /airflow/flower
+            backend:
+              serviceName: airflow-flower
+              servicePort: flower
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airflow-triggerer
+  namespace: egov
+  labels:
+    app: airflow
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      ## multiple triggerer pods can safely run concurrently
+      maxSurge: 25%
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: airflow
+  template:
+    metadata:
+      labels:
+        app: airflow
+    spec:
+      restartPolicy: Always
+      nodeSelector:
+        {}
+      affinity:
+        {}
+      tolerations:
+        []
+      serviceAccountName: airflow
+      securityContext:
+        fsGroup: 0
+      initContainers:        
+        - name: dags-git-clone
+          image: k8s.gcr.io/git-sync/git-sync:v3.5.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 65533
+            runAsGroup: 65533
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: GIT_SYNC_ONE_TIME
+              value: "true"
+            - name: GIT_SYNC_ROOT
+              value: "/dags"
+            - name: GIT_SYNC_DEST
+              value: "repo"
+            - name: GIT_SYNC_REPO
+              value: "https://github.com/egovernments/utilities.git"
+            - name: GIT_SYNC_BRANCH
+              value: "develop"
+            - name: GIT_SYNC_REV
+              value: "HEAD"
+            - name: GIT_SYNC_DEPTH
+              value: "1"
+            - name: GIT_SYNC_WAIT
+              value: "60"
+            - name: GIT_SYNC_TIMEOUT
+              value: "120"
+            - name: GIT_SYNC_ADD_USER
+              value: "true"
+            - name: GIT_SYNC_MAX_SYNC_FAILURES
+              value: "0"
+            - name: GIT_KNOWN_HOSTS
+              value: "false"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          volumeMounts:
+            - name: dags-data
+              mountPath: /dags        
+        - name: check-db  
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:    
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec timeout 60s airflow db check"
+          volumeMounts:    
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs        
+        - name: wait-for-db-migrations  
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:    
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec airflow db check-migrations -t 60"
+          volumeMounts:    
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs
+      containers:
+        - name: airflow-triggerer          
+          image: apache/airflow:2.2.5-python3.8
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 50000
+            runAsGroup: 0
+          resources:
+            {}
+          envFrom:            
+            - secretRef:
+                name: airflow-config-envs
+          env:            
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          command:            
+            - "/usr/bin/dumb-init"
+            - "--"
+            - "/entrypoint"
+          args:
+            - "bash"
+            - "-c"
+            - "exec airflow triggerer"
+          livenessProbe:
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 60
+            failureThreshold: 5
+            exec:
+              command:                
+                - "/usr/bin/dumb-init"
+                - "--"
+                - "/entrypoint"
+                - "python"
+                - "-Wignore"
+                - "-c"
+                - |
+                  import os
+                  import sys
+
+                  # suppress logs triggered from importing airflow packages
+                  os.environ["AIRFLOW__LOGGING__LOGGING_LEVEL"] = "ERROR"
+
+                  from airflow.jobs.triggerer_job import TriggererJob
+                  from airflow.utils.db import create_session
+                  from airflow.utils.net import get_hostname
+
+                  with create_session() as session:
+                      # ensure the TriggererJob with most recent heartbeat for this `hostname` is alive
+                      hostname = get_hostname()
+                      triggerer_job = session \
+                          .query(TriggererJob) \
+                          .filter_by(hostname=hostname) \
+                          .order_by(TriggererJob.latest_heartbeat.desc()) \
+                          .limit(1) \
+                          .first()
+                      if (triggerer_job is not None) and triggerer_job.is_alive():
+                          pass
+                      else:
+                          sys.exit(f"The TriggererJob (id={triggerer_job.id}) for hostname '{hostname}' is not alive")
+          volumeMounts:            
+            - name: dags-data
+              mountPath: /opt/airflow/dags
+            - name: logs-data
+              mountPath: /opt/airflow/logs        
+        - name: dags-git-sync
+          image: k8s.gcr.io/git-sync/git-sync:v3.5.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 65533
+            runAsGroup: 65533
+          resources:
+            {}
+          envFrom:    
+            - secretRef:
+                name: airflow-config-envs
+          env:
+            - name: GIT_SYNC_ROOT
+              value: "/dags"
+            - name: GIT_SYNC_DEST
+              value: "repo"
+            - name: GIT_SYNC_REPO
+              value: "https://github.com/egovernments/utilities.git"
+            - name: GIT_SYNC_BRANCH
+              value: "develop"
+            - name: GIT_SYNC_REV
+              value: "HEAD"
+            - name: GIT_SYNC_DEPTH
+              value: "1"
+            - name: GIT_SYNC_WAIT
+              value: "60"
+            - name: GIT_SYNC_TIMEOUT
+              value: "120"
+            - name: GIT_SYNC_ADD_USER
+              value: "true"
+            - name: GIT_SYNC_MAX_SYNC_FAILURES
+              value: "0"
+            - name: GIT_KNOWN_HOSTS
+              value: "false"    
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_user
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow
+                  key: db_password    
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-redis
+                  key: redis-password
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "0"
+          volumeMounts:
+            - name: dags-data
+              mountPath: /dags
+      volumes:        
+        - name: dags-data
+          emptyDir: {}
+        - name: logs-data
+          emptyDir: {}
+---          
+# Source: airflow/templates/webserver/webserver-ingress-v1beta1.yaml
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: airflow-web
+  namespace: egov
+  labels:
+    app: airflow
+    component: web
+spec:
+  tls:
+    - hosts:
+        - qa.digit.org
+      secretName: qa.digit.org-tls-certs  
+  rules:
+    - host: qa.digit.org
+      http:
+        paths:
+          - path: /airflow
+            backend:
+              serviceName: airflow-web
+              servicePort: web
+

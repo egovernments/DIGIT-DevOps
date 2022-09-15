@@ -256,6 +256,7 @@ EXAMPLE USAGE: {{ include "airflow.container.git_sync" (dict "Release" .Release 
     {{- end }}
     {{- /* this has user-defined variables, so must be included BELOW (so the ABOVE `env` take precedence) */ -}}
     {{- include "airflow.env" . | indent 4 }}
+    {{- include "airflow.env.scheduler" . | indent 4 }}
   volumeMounts:
     - name: dags-data
       mountPath: /dags
@@ -475,6 +476,14 @@ The list of `envFrom` for web/scheduler/worker/flower Pods
     name: {{ include "airflow.fullname" . }}-config-envs
 {{- end }}
 
+{{- define "airflow.env.scheduler" }}
+- name: scheduler_health_check_threshold
+  value: "240"
+- name: orphaned_tasks_check_interval 
+  value: "300"
+{{- end }}
+
+
 {{/*
 The list of `env` for web/scheduler/worker/flower Pods
 EXAMPLE USAGE: {{ include "airflow.env" (dict "Release" .Release "Values" .Values "CONNECTION_CHECK_MAX_COUNT" "0") }}
@@ -489,13 +498,12 @@ EXAMPLE USAGE: {{ include "airflow.env" (dict "Release" .Release "Values" .Value
   valueFrom:
     secretKeyRef:
       name: airflow
-      key: db_password    
-- name: REDIS_HOST
-  value: {{ .Values.externalRedis.host | quote }}
-- name: REDIS_PORT
-  value: {{ .Values.externalRedis.port | quote }}
-- name: REDIS_DBNUM
-  value: {{ .Values.externalRedis.databaseNumber | quote }}    
+      key: db_password
+- name: REDIS_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: airflow-redis
+      key: redis-password   
 
 {{- /* disable the `/entrypoint` db connection check */ -}}
 {{- if not .Values.airflow.legacyCommands }}
@@ -521,3 +529,4 @@ EXAMPLE USAGE: {{ include "airflow.env" (dict "Release" .Release "Values" .Value
 {{ toYaml .Values.airflow.extraEnv }}
 {{- end }}
 {{- end }}
+

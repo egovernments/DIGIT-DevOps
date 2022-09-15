@@ -6,7 +6,7 @@
 {{- $extraVolumeMounts := .Values.web.extraVolumeMounts }}
 {{- $volumeMounts := include "airflow.volumeMounts" (dict "Release" .Release "Values" .Values "extraPipPackages" $extraPipPackages "extraVolumeMounts" $extraVolumeMounts) }}
 {{- $extraVolumes := .Values.web.extraVolumes }}
-{{- $volumes := include "airflow.volumes" (dict "Release" .Release "Values" .Values "extraPipPackages" $extraPipPackages "extraVolumes" $extraVolumes) }}
+{{- $volumes := include "airflow.volumes" (dict "Release" .Release "Values" .Values "extraPipPackages" $extraPipPackages "extraVolumes" $extraVolumes "extraVolumeMounts" $extraVolumeMounts) }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -18,7 +18,6 @@ metadata:
   {{- end }}
   labels:
     app: {{ include "airflow.labels.app" . }}
-    component: web
     {{- if .Values.web.labels }}
     {{- toYaml .Values.web.labels | nindent 4 }}
     {{- end }}
@@ -33,7 +32,6 @@ spec:
   selector:
     matchLabels:
       app: {{ include "airflow.labels.app" . }}
-      component: web
   template:
     metadata:
       annotations:
@@ -48,7 +46,6 @@ spec:
         {{- end }}
       labels:
         app: {{ include "airflow.labels.app" . }}
-        component: web
         {{- if .Values.web.podLabels }}
         {{- toYaml .Values.web.podLabels | nindent 8 }}
         {{- end }}

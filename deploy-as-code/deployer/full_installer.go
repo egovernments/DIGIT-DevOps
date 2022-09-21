@@ -33,6 +33,7 @@ var selectedMod []string
 var Flag string
 var db_pswd string
 var sshFile string
+var cluster_name string
 
 var Reset = "\033[0m"
 var Red = "\033[31m"
@@ -79,7 +80,6 @@ func main() {
 	var optedCloud string              // Desired InfraType to deploy
 	var cloudLoginCredentials bool     // Is there a valid cloud account and credentials
 	var isProductionSetup bool = false
-	var cluster_name string
 
 	infraType := []string{
 		"0. You have an existing kubernetes Cluster ready, you would like to leverage it to setup DIGIT on that",
@@ -298,12 +298,14 @@ func main() {
 
 			//calling funtion to write config file
 			Configsfile()
+			//calling function to create secret file
+			envSecretsFile()
 
 		}
 	}
 	contextset := setClusterContext()
 	if contextset {
-		deployCharts(servicesToDeploy, prepareDeploymentConfig(optedInfraType))
+		deployCharts(servicesToDeploy, cluster_name)
 	}
 
 	//terraform output to a file
@@ -850,17 +852,18 @@ func Configsfile() {
 	}
 	err = json.Unmarshal(State, &out)
 	Config := make(map[string]interface{})
-	Domain := enterValue(nil, "Enter a valid Domain name:")
-	BranchName := enterValue(nil, "Enter Branch name:")
-	DbName := enterValue(nil, "Enter db_name:")
+	Domain := enterValue(nil, "Enter a valid Domain name")
+	BranchName := enterValue(nil, "Enter Branch name")
 	Kvids := out.Outputs.KafkaVolIds.Value
 	Zvids := out.Outputs.ZookeeperVolumeIds.Value
 	Esdids := out.Outputs.EsDataVolumeIds.Value
 	Esmvids := out.Outputs.EsMasterVolumeIds.Value
 	Config["Domain"] = Domain
 	Config["BranchName"] = BranchName
-	Config["db-host"] = out.Outputs.DbInstanceEndpoint
-	Config["db_name"] = DbName
+	Config["db-host"] = out.Outputs.DbInstanceEndpoint.Value
+	Config["db_name"] = out.Outputs.DbInstanceName.Value
+	println(out.Outputs.DbInstanceName.Value)
+	Config["file_name"] = cluster_name
 	smsproceed, _ := sel(Confirm, "Do You have your sms Gateway?")
 	if smsproceed == "Yes" {
 		SmsUrl := enterValue(nil, "Enter your SMS provider url")
@@ -873,17 +876,22 @@ func Configsfile() {
 	fileproceed, _ := sel(Confirm, "Do You need filestore?")
 	if fileproceed == "Yes" {
 		if Flag == "aws" {
-			bucket := enterValue(nil, "Enter the filestore bucket name:")
+			bucket := enterValue(nil, "Enter the filestore bucket name")
 			Config["fixed-bucket"] = bucket
 		}
 		if Flag == "sdc" {
-			bucket := enterValue(nil, "Enter the filestore bucket name:")
+			bucket := enterValue(nil, "Enter the filestore bucket name")
 			Config["fixed-bucket"] = bucket
 		}
 	}
 	botproceed, _ := sel(Confirm, "Do You need chatbot?")
-	//write chatbot
 	configs.DeployConfig(Config, Kvids, Zvids, Esdids, Esmvids, selectedMod, smsproceed, fileproceed, botproceed, Flag)
+
+}
+
+// write to secrets
+func envSecretsFile() {
+	configs.SecretFile(cluster_name)
 }
 func endScript() {
 	fmt.Println("Take your time, You can come back at any time ... Thank for leveraging me :)!!!")

@@ -322,7 +322,83 @@ config:
 
     # -- You can put here any additional scrape configs you want to add to the config file.
     # @default -- empty
-    extraScrapeConfigs: ""
+    extraScrapeConfigs: |
+      - job_name: custom_logs_scraping
+        kubernetes_sd_configs:
+        - role: pod
+        pipeline_stages:
+        - docker: {}
+          # Regex expressions for extraction of specific metrics/keywords from the logs
+          - regex:
+              expression: '\"traceId\"..\"(?P<traceId>.+?)\"'
+          - regex:
+              expression: \"ElapsedMilliseconds\"..(?P<responseTime>[\d\.]+)
+          - regex:
+              expression: '\"StatusCode\"..(?P<statusCode>.\d+)'
+          - regex: 
+              expression: ^.*(?P<finishedRequests>Request finished).*$
+          - regex:
+              expression: '\"correlationId\"..\"(?P<correlationId>.+?)\"' 
+          - regex:
+              expression: '\"tenantId\"..\"(?P<tenantId>.+?)\"'        
+          # Converts extracted values above into log labels
+          - labels:
+              traceId:
+              responseTime:
+              statusCode:
+              finishedRequests:
+              correlationId:
+              tenantId:
+          # Creates metrics from the extracted label
+          # The metrics can be viewed in Grafana with Prometheus as data source
+          - metrics:
+              total_finished_requests_counter:
+                type: Counter
+                description: "Total number of requests finished successfully"
+                prefix: myapp_log_metrics_
+                source: finishedRequests
+                config:
+                  action: inc
+          - metrics:
+              http_response_time_milliseconds:
+                type: Histogram
+                description: "HTTP Request response times"
+                prefix: myapp_log_metrics_
+                source: responseTime
+                config:
+                  buckets: [0.25,0.5,1.0,1.25,1.5,1.75]
+        relabel_configs:
+        - action: drop
+          regex: 'custom-metrics'
+          source_labels:
+          - __meta_kubernetes_namespace
+        - action: drop
+          regex: .+
+          source_labels:
+          - __meta_kubernetes_pod_label_name
+        - source_labels:
+          - __meta_kubernetes_pod_label_app
+          - __meta_kubernetes_pod_node_name
+          target_label: __host__
+        - action: drop
+          regex: ''
+          source_labels:
+          - __service__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - action: replace
+          replacement: $1
+          separator: /
+          source_labels:
+          - __meta_kubernetes_namespace
+          - __service__
+          target_label: job
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_namespace
+          target_label: namespace
+        - action: replace
+          source_labels:
 
     # -- You can put here any additional relabel_configs to "kubernetes-pods" job
     extraRelabelConfigs: []
@@ -335,6 +411,10 @@ config:
         kubernetes_sd_configs:
           - role: pod
         relabel_configs:
+          - action: drop
+            regex: 'kube-system'
+            source_labels:
+            - __meta_kubernetes_namespace
           - source_labels:
               - __meta_kubernetes_pod_controller_name
             regex: ([0-9a-z-.]+?)(-[0-9a-f]{8,10})?

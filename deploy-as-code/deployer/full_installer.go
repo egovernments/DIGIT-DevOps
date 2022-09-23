@@ -831,7 +831,7 @@ func envSecretsFile() {
 	configs.SecretFile(cluster_name, Out,SecretConfig)
 }
 
-// generate ssh key for configs file
+// generate ssh key to configs file
 func generateSsh() {
 	// generate key
 	privatekey, err := rsa.GenerateKey(rand.Reader, 2048)

@@ -336,7 +336,11 @@ func DeployConfig(Config map[string]interface{}, kvids []string, zvids []string,
 									GitSync[l] = Config["BranchName"]
 								}
 								if l == "repo" {
-
+									if data[i]=="egov-mdms-service"{
+										GitSync[l]=Config["mdms-branch"]
+									}else{
+										GitSync[l]=Config["configs-branch"]
+									}
 								}
 							}
 						}

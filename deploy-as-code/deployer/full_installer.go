@@ -786,10 +786,14 @@ func Configsfile() {
 	Zvids := out.Outputs.ZookeeperVolumeIds.Value
 	Esdids := out.Outputs.EsDataVolumeIds.Value
 	Esmvids := out.Outputs.EsMasterVolumeIds.Value
+	con_branch := enterValue(nil, "Enter your configs git url")
+	mdms_branch := enterValue(nil, "Enter your mdms git url")
 	Config["Domain"] = Domain
 	Config["BranchName"] = BranchName
 	Config["db-host"] = out.Outputs.DbInstanceEndpoint.Value
 	Config["db_name"] = out.Outputs.DbInstanceName.Value
+	Config["configs-branch"]= con_branch
+	Config["mdms-branch"]= mdms_branch
 	println(out.Outputs.DbInstanceName.Value)
 	Config["file_name"] = cluster_name
 	smsproceed, _ := sel(Confirm, "Do You have your sms Gateway?")
@@ -798,9 +802,11 @@ func Configsfile() {
 		SmsGateway := enterValue(nil, "Enter your SMS Gateway")
 		SmsSender := enterValue(nil, "Enter your SMS sender")
 		SmsUsername := enterValue(nil, "Enter EgovNotificationSms_Username")
+		
 		Config["sms-provider-url"] = SmsUrl
 		Config["sms-gateway-to-use"] = SmsGateway
 		Config["sms-sender"] = SmsSender
+		
 		SecretConfig["EgovNotificationSms_Username"]=SmsUsername
 	}
 	fileproceed, _ := sel(Confirm, "Do You need filestore?")

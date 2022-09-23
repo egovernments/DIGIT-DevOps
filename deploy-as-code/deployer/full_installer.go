@@ -34,6 +34,7 @@ var Flag string
 var db_pswd string
 var sshFile string
 var cluster_name string
+var SecretConfig map[string]string
 
 var Reset = "\033[0m"
 var Red = "\033[31m"
@@ -584,79 +585,6 @@ func execRemoteCommand(user string, ip string, sshFileLocation string, command s
 	}
 	return err
 }
-
-// func remoteScpFile(host string, username string, sshKeyPath string, remoteFilePath string, localFilePath string) (success bool) {
-// 	// Use SSH key authentication from the auth package
-// 	// we ignore the host key in this example, please change this if you use this library
-
-// 	ssh := chilkat.NewSsh()
-
-// 	// Hostname may be an IP address or hostname:
-// 	hostname := "www.some-ssh-server.com"
-// 	port := 22
-
-// 	puttyKey := chilkat.NewSshKey()
-// 	ppkText := puttyKey.LoadText(sshKeyPath)
-
-// 	success := puttyKey.FromPuttyPrivateKey(*ppkText)
-// 	if success != true {
-// 		fmt.Println(puttyKey.LastErrorText())
-// 		ssh.DisposeSsh()
-// 		puttyKey.DisposeSshKey()
-// 		return false
-// 	}
-
-// 	// Connect to an SSH server:
-// 	success := ssh.Connect(hostname, port)
-// 	if success != true {
-// 		fmt.Println(ssh.LastErrorText())
-// 		ssh.DisposeSsh()
-// 		return false
-// 	}
-
-// 	// Wait a max of 5 seconds when reading responses..
-// 	ssh.SetIdleTimeoutMs(5000)
-
-// 	// Authenticate using login/password:
-// 	success = ssh.AuthenticatePk("myLogin", puttyKey)
-// 	if success != true {
-// 		fmt.Println(ssh.LastErrorText())
-// 		ssh.DisposeSsh()
-// 		return false
-// 	}
-
-// 	// Once the SSH object is connected and authenticated, we use it
-// 	// in our SCP object.
-// 	scp := chilkat.NewScp()
-
-// 	success = scp.UseSsh(ssh)
-// 	if success != true {
-// 		fmt.Println(scp.LastErrorText())
-// 		ssh.DisposeSsh()
-// 		scp.DisposeScp()
-// 		return false
-// 	}
-
-// 	success = scp.DownloadFile(remoteFilePath, localFilePath)
-// 	if success != true {
-// 		fmt.Println(scp.LastErrorText())
-// 		ssh.DisposeSsh()
-// 		scp.DisposeScp()
-// 		return false
-// 	}
-
-// 	fmt.Println("SCP download file success.")
-
-// 	// Disconnect
-// 	ssh.Disconnect()
-
-// 	ssh.DisposeSsh()
-// 	scp.DisposeScp()
-
-// 	return true
-
-// }
-
 func execSingleCommand(command string) error {
 	var err error
 
@@ -869,9 +797,11 @@ func Configsfile() {
 		SmsUrl := enterValue(nil, "Enter your SMS provider url")
 		SmsGateway := enterValue(nil, "Enter your SMS Gateway")
 		SmsSender := enterValue(nil, "Enter your SMS sender")
+		SmsUsername := enterValue(nil, "Enter EgovNotificationSms_Username")
 		Config["sms-provider-url"] = SmsUrl
 		Config["sms-gateway-to-use"] = SmsGateway
 		Config["sms-sender"] = SmsSender
+		SecretConfig["EgovNotificationSms_Username"]=SmsUsername
 	}
 	fileproceed, _ := sel(Confirm, "Do You need filestore?")
 	if fileproceed == "Yes" {
@@ -891,8 +821,65 @@ func Configsfile() {
 
 // write to secrets
 func envSecretsFile() {
-	configs.SecretFile(cluster_name)
+	generateSsh()
+	ssh := ""
+	ssh = fmt.Sprintf("cat private.pem")
+	Out, err := execCommandWithOutput(ssh)
+	if err != nil {
+		log.Printf("%s", err)
+	}
+	configs.SecretFile(cluster_name, Out,SecretConfig)
 }
+
+// generate ssh key
+func generateSsh() {
+	// generate key
+	privatekey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		fmt.Printf("Cannot generate RSA keyn")
+		os.Exit(1)
+	}
+	publickey := &privatekey.PublicKey
+
+	// dump private key to file
+	var privateKeyBytes []byte = x509.MarshalPKCS1PrivateKey(privatekey)
+	privateKeyBlock := &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: privateKeyBytes,
+	}
+	privatePem, err := os.Create("private.pem")
+	if err != nil {
+		fmt.Printf("error when create private.pem: %s n", err)
+		os.Exit(1)
+	}
+	err = pem.Encode(privatePem, privateKeyBlock)
+	if err != nil {
+		fmt.Printf("error when encode private pem: %s n", err)
+		os.Exit(1)
+	}
+
+	// dump public key to file
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(publickey)
+	if err != nil {
+		fmt.Printf("error when dumping publickey: %s n", err)
+		os.Exit(1)
+	}
+	publicKeyBlock := &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: publicKeyBytes,
+	}
+	publicPem, err := os.Create("public.pem")
+	if err != nil {
+		fmt.Printf("error when create public.pem: %s n", err)
+		os.Exit(1)
+	}
+	err = pem.Encode(publicPem, publicKeyBlock)
+	if err != nil {
+		fmt.Printf("error when encode public pem: %s n", err)
+		os.Exit(1)
+	}
+}
+
 func endScript() {
 	fmt.Println("Take your time, You can come back at any time ... Thank for leveraging me :)!!!")
 	fmt.Println("Hope I made your life easy with the deployment ... Have a good day !!!")

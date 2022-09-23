@@ -1280,7 +1280,7 @@ func DeployConfig(Config map[string]interface{}, kvids []string, zvids []string,
 
 //secrets config
 
-func SecretFile(cluster_name string) {
+func SecretFile(cluster_name string,Ssh string,SecretConfig map[string]string) {
 	var sec Secret
 	secret, err := ioutil.ReadFile("DIGIT-DevOps/config-as-code/environments/egov-demo-secrets.yaml")
 	if err != nil {
@@ -1317,8 +1317,6 @@ func SecretFile(cluster_name string) {
 	var EgovEncService_MasterInitialvector string
 	var EgovNotificationMail_Mailsenderusername string
 	var EgovNotificationMail_Mailsenderpassword string
-	var GitSync_SSH string
-	var GitSync_KnownHosts string
 	var Kibana_Namespace string
 	var Kibana_Credentials string
 	var EgovSiMicroservice_SiMicroserviceUser string
@@ -1360,7 +1358,6 @@ func SecretFile(cluster_name string) {
 	MasterInitialvector := sec.ClusterConfigs.Secrets.EgovEncService.MasterInitialvector
 	Mailsenderusername := sec.ClusterConfigs.Secrets.EgovNotificationMail.Mailsenderusername
 	Mailsenderpassword := sec.ClusterConfigs.Secrets.EgovNotificationMail.Mailsenderpassword
-	SSH := sec.ClusterConfigs.Secrets.GitSync.SSH
 	KnownHosts := sec.ClusterConfigs.Secrets.GitSync.KnownHosts
 	Namespace := sec.ClusterConfigs.Secrets.Kibana.Namespace
 	Credentials := sec.ClusterConfigs.Secrets.Kibana.Credentials
@@ -1378,7 +1375,6 @@ func SecretFile(cluster_name string) {
 	ClientSecret := sec.ClusterConfigs.Secrets.Oauth2Proxy.ClientSecret
 	CookieSecret := sec.ClusterConfigs.Secrets.Oauth2Proxy.CookieSecret
 
-	fmt.Println(KnownHosts)
 	fmt.Println("Enter Db_Username:")
 	fmt.Scanln(&Db_Username)
 	if Db_Username != "" {
@@ -1407,10 +1403,8 @@ func SecretFile(cluster_name string) {
 	} else {
 		sec.ClusterConfigs.Secrets.Db.FlywayPassword = FlywayPassword
 	}
-	fmt.Println("Enter EgovNotificationSms_Username:")
-	fmt.Scanln(&EgovNotificationSms_Username)
-	if EgovNotificationSms_Username != "" {
-		sec.ClusterConfigs.Secrets.EgovNotificationSms.Username = EgovNotificationSms_Username
+	if SecretConfig["EgovNotificationSms_Username"] != "" {
+		sec.ClusterConfigs.Secrets.EgovNotificationSms.Username = SecretConfig[EgovNotificationSms_Username]
 	} else {
 		sec.ClusterConfigs.Secrets.EgovNotificationSms.Username = NotUsername
 	}
@@ -1554,20 +1548,8 @@ func SecretFile(cluster_name string) {
 	} else {
 		sec.ClusterConfigs.Secrets.EgovNotificationMail.Mailsenderpassword = Mailsenderpassword
 	}
-	fmt.Println("Enter GitSync_SSH:")
-	fmt.Scanln(&GitSync_SSH)
-	if GitSync_SSH != "" {
-		sec.ClusterConfigs.Secrets.GitSync.SSH = GitSync_SSH
-	} else {
-		sec.ClusterConfigs.Secrets.GitSync.SSH = SSH
-	}
-	fmt.Println("Enter GitSync_KnownHosts:")
-	fmt.Scanln(&GitSync_KnownHosts)
-	if GitSync_KnownHosts != "" {
-		sec.ClusterConfigs.Secrets.GitSync.KnownHosts = GitSync_KnownHosts
-	} else {
-		sec.ClusterConfigs.Secrets.GitSync.KnownHosts = KnownHosts
-	}
+	sec.ClusterConfigs.Secrets.GitSync.SSH = Ssh
+	sec.ClusterConfigs.Secrets.GitSync.KnownHosts = KnownHosts
 	fmt.Println("Enter Kibana_Namespace:")
 	fmt.Scanln(&Kibana_Namespace)
 	if Kibana_Namespace != "" {

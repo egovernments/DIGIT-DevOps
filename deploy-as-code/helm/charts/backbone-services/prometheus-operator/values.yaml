@@ -1473,6 +1473,7 @@ prometheus:
   prometheusSpec:
     ## If true, pass --storage.tsdb.max-block-duration=2h to prometheus. This is already done if using Thanos
     ##
+    kafkaJob: false
     disableCompaction: false
     ## APIServerConfig
     ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#apiserverconfig
@@ -1715,6 +1716,7 @@ prometheus:
     remoteRead: []
     # - url: http://remote1/read
 
+
     ## The remote_write spec configuration for Prometheus.
     ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#remotewritespec
     remoteWrite: []
@@ -1757,7 +1759,19 @@ prometheus:
     ## The scrape configuraiton example below will find master nodes, provided they have the name .*mst.*, relabel the
     ## port to 2379 and allow etcd scraping provided it is running on all Kubernetes master nodes
     ##
-    additionalScrapeConfigs: []
+    additionalScrapeConfigs:
+    - job_name: kafka
+      static_configs:
+      - targets:
+          - "kafka-v2.kafka-cluster:5556"
+        labels:
+           app: "kafka-v2-jmx"
+    - job_name: zookeeper
+      static_configs:
+      - targets:
+          - "zookeeper-v2.zookeeper-cluster:5556"
+        labels:
+           app: "zookeeper-v2-jmx"
     # - job_name: kube-etcd
     #   kubernetes_sd_configs:
     #     - role: node

@@ -1,4 +1,8 @@
+{{- if .Capabilities.APIVersions.Has "cert-manager.io/v1alpha1" }}
+apiVersion: cert-manager.io/v1alpha1
+{{- else }}
 apiVersion: cert-manager.io/v1alpha2
+{{- end }}
 kind: ClusterIssuer
 metadata:
   name: {{ .Values.clusterIssuer.stage.name }} 
@@ -7,19 +11,23 @@ spec:
     email: {{ .Values.clusterIssuer.stage.acme.email }}
     privateKeySecretRef:
       name: {{ .Values.clusterIssuer.stage.name }}
-    server: {{ .Values.clusterIssuer.stage.acme.secretName }}
+    server: {{ .Values.clusterIssuer.stage.acme.server }}
     solvers:
     - http01:
         ingress:
-          class: nginx
+          class: nginx          
 ---
+{{- if .Capabilities.APIVersions.Has "cert-manager.io/v1alpha1" }}
+apiVersion: cert-manager.io/v1alpha1
+{{- else }}
 apiVersion: cert-manager.io/v1alpha2
+{{- end }}
 kind: ClusterIssuer
 metadata:
   name: {{ .Values.clusterIssuer.prod.name }}
 spec:
   acme:
-    email: {{ .Values.clusterIssuer.prod.acme.email }}
+    email: {{ .Values.clusterIssuer.stage.acme.email }}
     privateKeySecretRef:
       name: {{ .Values.clusterIssuer.prod.name }}
     server: {{ .Values.clusterIssuer.prod.acme.server }}

@@ -11,14 +11,15 @@ module "db" {
   subnet_ids                    = "${module.network.private_subnets}"
   vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
   availability_zone             = "${element(var.availability_zones, 0)}"
-  instance_class                = "db.t3.medium"
-  engine_version                = "11.13"
+  instance_class                = "db.t3.medium"  ## postgres db instance type
+  engine_version                = "11.13"   ## postgres version
   storage_type                  = "gp2"
-  storage_gb                    = "100"
+  storage_gb                    = "100"     ## postgres disk size
   backup_retention_days         = "7"
-  administrator_login           = "egovdemo"
+  administrator_login           = "${var.db_username}"
   administrator_login_password  = "${var.db_password}"
-  db_name                       = "${var.cluster_name}-db"
+  identifier                    = "${var.cluster_name}-db"
+  db_name                       = "${var.db_name}"
   environment                   = "${var.cluster_name}"
 }
 
@@ -44,6 +45,8 @@ module "eks" {
   vpc_id          = "${module.network.vpc_id}"
   cluster_version = "${var.kubernetes_version}"
   subnets         = "${concat(module.network.private_subnets, module.network.public_subnets)}"
+
+##By default worker groups is Configured with SPOT, As per your requirement you can below values.
 
   worker_groups = [
     {

@@ -28,10 +28,6 @@ output "kubectl_config" {
   value       = module.eks.kubeconfig
 }
 
-output "config_map_aws_auth" {
-  description = "A kubernetes configuration to authenticate to this EKS cluster."
-  value       = module.eks.config_map_aws_auth
-}
 
 output "jenkins" {
   value = "${module.jenkins.volume_ids}"

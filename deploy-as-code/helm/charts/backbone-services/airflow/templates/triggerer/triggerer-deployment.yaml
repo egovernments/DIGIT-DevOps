@@ -12,12 +12,14 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "airflow.fullname" . }}-triggerer
+  namespace: {{ .Values.namespace }}
   {{- if .Values.triggerer.annotations }}
   annotations:
     {{- toYaml .Values.triggerer.annotations | nindent 4 }}
   {{- end }}
   labels:
     app: {{ include "airflow.fullname" . }}-triggerer
+    component: triggerer
     {{- if .Values.triggerer.labels }}
     {{- toYaml .Values.triggerer.labels | nindent 4 }}
     {{- end }}
@@ -33,7 +35,6 @@ spec:
     matchLabels:
       app: {{ include "airflow.fullname" . }}-triggerer
       component: triggerer
-      release: {{ .Release.Name }}
   template:
     metadata:
       annotations:
@@ -49,7 +50,6 @@ spec:
       labels:
         app: {{ include "airflow.fullname" . }}-triggerer
         component: triggerer
-        release: {{ .Release.Name }}
         {{- if .Values.triggerer.podLabels }}
         {{- toYaml .Values.triggerer.podLabels | nindent 8 }}
         {{- end }}

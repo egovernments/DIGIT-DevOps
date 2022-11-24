@@ -32,6 +32,7 @@ heap: "-Xmx192m -Xms192m"
 file-storage-mount-path: "/filestore"
 is-nfs-enabled: false
 is-s3-enabled: true
+is-aws-bucket: true
 
 persistence:
   enabled: false
@@ -85,7 +86,7 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: minio-url
-  {{else}}
+  {{ else if index .Values "is-aws-bucket" }}
   - name: AWS_KEY
     valueFrom:
       secretKeyRef:
@@ -96,6 +97,9 @@ env: |
       secretKeyRef:
         name: egov-filestore
         key: awssecretkey
+  - name: MINIO_URL
+    value: {{ index .Values "aws.s3.url" | quote }}
+  {{ else }}
   - name: ACCOUNT_NAME
     valueFrom:
       secretKeyRef:
@@ -106,8 +110,7 @@ env: |
       secretKeyRef:
         name: egov-filestore-azure
         key: accountKey
-  - name: MINIO_URL
-    value: {{ index .Values "aws.s3.url" | quote }}
+  
   {{- end }}
   {{- if index .Values "is-bucket-fixed" }}
   - name: IS_BUCKET_FIXED

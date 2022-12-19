@@ -167,3 +167,54 @@ cluster-autoscaler:
 postgres:
   namespace: jenkins
   postgresDatabase: ci_database
+
+grafana: 
+  image:
+    repository: grafana/grafana
+    tag: 9.0.0
+
+  initContainers:
+    gitSync:
+      enabled: true
+      repo: "git@github.com:egovernments/configs"
+      branch: "central-dashboard"
+
+  ingress:
+    hostName: central-dashboard.digit.org 
+    context: ""
+    additionalAnnotations: | 
+
+  grafana.ini:
+    server:
+      root_url: "%(protocol)s://%(domain)s"
+      serve_from_sub_path: true 
+
+  env: |
+    - name: GF_SERVER_DOMAIN
+      value: {{ .Values.ingress.hostName | quote }}    
+
+  datasources: 
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+      - name: DIGIT-Dev
+        type: prometheus
+        url: http://prometheus-dev.digit.org
+        isDefault: false 
+      - name: DIGIT-QA
+        type: prometheus
+        url: http://prometheus-qa.digit.org
+        isDefault: false
+      - name: DIGIT-UAT
+        type: prometheus
+        url: http://prometheus-uat.digit.org
+        isDefault: false
+      - name: DIGIT-Staging
+        type: prometheus
+        url: https://prometheus-staging.digit.org
+        isDefault: false
+    
+     
+
+
+       

@@ -1,0 +1,78 @@
+version: v1.2
+modules:
+    - name: backbone
+      services:
+        - zookeeper-v2
+        - kafka-v2
+        - kafka-connect
+        - kafka-connect-restart-tasks
+        - elasticsearch-data-v1
+        - elasticsearch-master-v1
+        - kibana-v1
+    - name: authn-authz
+      services:
+        - redis
+        - nginx-ingress
+        - zuul:v2.5-log4j-12a9331b-5
+        - oauth2-proxy
+    - name: core
+      dependencies:
+        - "backbone"
+        - "authn-authz" 
+      services:
+        - egovio/egov-accesscontrol:v2.5-log4j-12a9331b-2
+        - egovio/egov-enc-service:v2.5-log4j-12a9331b-2
+        - egovio/egov-filestore:v2.5-log4j-12a9331b-4
+        - egovio/egov-idgen:v1.2.4-92880bb4-5
+        - egovio/egov-indexer:v2.5-log4j-12a9331b-2
+        - egovio/egov-localization:v2.5-log4j-12a9331b-2
+        - egovio/egov-location:v2.5-log4j-12a9331b-2
+        - egovio/egov-mdms-service:v2.5-log4j-12a9331b-2
+        - egovio/egov-notification-mail:v2.5-log4j-12a9331b-2
+        - egovio/egov-notification-sms:v1.1.4-92880bb4-19
+        - egovio/egov-otp:v2.5-log4j-12a9331b-2
+        - egovio/egov-persister:v2.5-log4j-12a9331b-4
+        - egovio/egov-pg-service:v2.5-log4j-12a9331b-7
+        - egovio/egov-searcher:v2.5-log4j-12a9331b-2
+        - egovio/egov-url-shortening:v2.5-log4j-12a9331b-2
+        - egovio/egov-user:v1.2.7-92880bb4-4
+        - egovio/user-otp:v1.1.5-92880bb4-4
+        - egovio/egov-workflow-v2:v2.5-log4j-12a9331b-9
+        - egovio/pdf-service-db:v1.2.1-748014d886-41
+        - egovio/egov-user-event:v1.1.4-92880bb4-5
+        - egovio/playground:mongo-v1
+    - name: business
+      dependencies:
+        - "core"
+      services:
+        - egovio/collection-services:v2.5-log4j-f0f010a-19
+        - egovio/billing-service-db:v1.4.0-001e0bce-35
+        - egovio/egf-instrument:v2.5-log4j-f0f010a-3
+        - egovio/egf-master:v2.5-log4j-f0f010a-3
+        - egovio/egov-apportion-service:v2.5-log4j-f0f010a-2
+        - egovio/egov-hrms:v1.2.3-464d95d-17
+        - egovio/dashboard-analytics:v2.5-log4j-f0f010a-5
+        - egovio/dashboard-ingest:v2.5-log4j-f0f010a-7
+    - name: "frontend"             
+      dependencies:
+        - "business"
+      services:
+        - egovio/frontend-mgramseva:v1.2.0-69f600e2-3  
+    - name: m_water-service   #Water
+      dependencies:
+          - "frontend"
+          - "core"
+      services:
+        - egovio/ws-services-db:v1.6.0-001e0bce-136
+        - egovio/ws-calculator-db:v1.5.0-001e0bce-85
+        - egovio/property-services:v1.1.8-ee5485f1-6
+        - egovio/mgramseva-ifix-adapter:v1.1.0-17f8fe75-74
+    - name: m_expense   #Expense
+      dependencies:
+          - "frontend"
+          - "core"
+      services:
+        - egovio/echallan-services-db:v1.2.0-001e0bce-80
+        - egovio/echallan-calculator:v1.1.0-001e0bce-11       
+        - egovio/vendor:v1.0.4-92880bb4-11 
+    

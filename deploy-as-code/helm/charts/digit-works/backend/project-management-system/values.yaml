@@ -1,0 +1,64 @@
+# Common Labels
+labels:
+  app: "project-management-system"
+  group: "digit-works"
+
+namespace: works
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "project-management-system"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "project_management_system_schema"
+    image:
+      repository: "project-management-system-db"
+
+# Container Configs
+image:
+  repository: "project-management-system"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/project-management-system/health"
+  readinessProbePath: "/project-management-system/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+java-args: ""
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}
+  - name: SERVER_CONTEXT_PATH
+    value: /project-management-system
+  - name: SERVER_SERVLET_CONTEXT-PATH
+    value: /project-management-system 
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  {{- if index .Values "java-enable-debug" }}
+  - name: JAVA_ENABLE_DEBUG
+    value: "true"
+  {{- end }}
+  - name: PROJECT_MANAGEMENT_SYSTEM_KAFKA_CREATE_TOPIC
+      value: "save-project"
+  - name: PROJECT_MANAGEMENT_SYSTEM_KAFKA_UPDATE_TOPIC
+      value: "update-project"

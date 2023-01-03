@@ -16,7 +16,8 @@ resource "aws_db_instance" "rds_postgres" {
   engine                  = "postgres"
   engine_version          = "${var.engine_version}"
   instance_class          = "${var.instance_class}"
-  identifier              = "${var.db_name}"
+  identifier              = "${var.identifier}"
+  db_name                 = "${var.db_name}"
   availability_zone       = "${var.availability_zone}"
   username                = "${var.administrator_login}"
   password                = "${var.administrator_login_password}"
@@ -24,6 +25,7 @@ resource "aws_db_instance" "rds_postgres" {
   backup_retention_period = "${var.backup_retention_days}"
   db_subnet_group_name    = "${aws_db_subnet_group.db_subnet_group.name}"
   copy_tags_to_snapshot   = "true"
+  skip_final_snapshot     = "true"
 
     tags = "${
     map(

@@ -33,18 +33,22 @@ output "config_map_aws_auth" {
   value       = module.eks.config_map_aws_auth
 }
 
-output "jenkins" {
-  value = "${module.jenkins.volume_ids}"
+output "es_master_volume_ids" {
+  value = "${module.es-master.volume_ids}"
 }
 
-output "deployer_secret_key_cmd" {
-  value = "${map(module.iam_user_deployer.this_iam_access_key_id, module.iam_user_deployer.keybase_secret_key_decrypt_command)}"
+output "es_data_volume_ids" {
+  value = "${module.es-data-v1.volume_ids}"
 }
 
-output "admin_secret_key_cmd" {
-  value = "${map(module.iam_user_admin.this_iam_access_key_id, module.iam_user_admin.keybase_secret_key_decrypt_command)}"
+output "zookeeper_volume_ids" {
+  value = "${module.zookeeper.volume_ids}"
 }
 
-output "user_secret_key_cmd" {
-  value = "${map(module.iam_user_user.this_iam_access_key_id, module.iam_user_user.keybase_secret_key_decrypt_command)}"
+output "kafka_vol_ids" {
+  value = "${module.kafka.volume_ids}"
+}
+
+output "db_rds_postgres_address" {
+  value = "${module.db.rds_postgres_address}"
 }

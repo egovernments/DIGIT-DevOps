@@ -10,3 +10,4 @@ variable "administrator_login" {}
 variable "administrator_login_password" {}
 variable "db_name" {}
 variable "environment" {}
+variable "identifier" {}

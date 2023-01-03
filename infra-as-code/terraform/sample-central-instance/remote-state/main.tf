@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "egov-qa-terraform-state-store"
+  bucket = "central-instance-test-terraform-state"
 
   versioning {
     enabled = true
@@ -15,7 +15,7 @@ resource "aws_s3_bucket" "terraform_state" {
 }
 
 resource "aws_dynamodb_table" "terraform_state_lock" {
-  name           = "egov-qa-terraform-state-store"
+  name           = "central-instance-test-terraform-state"
   read_capacity  = 1
   write_capacity = 1
   hash_key       = "LockID"

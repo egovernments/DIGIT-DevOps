@@ -1,6 +1,6 @@
 terraform {
   backend "s3" {
-    bucket = "egov-qa-terraform-state-store"
+    bucket = "central-instance-test-terraform-state"
     key = "terraform"
     region = "ap-south-1"
   }
@@ -13,41 +13,23 @@ module "network" {
   availability_zones = "${var.network_availability_zones}"
 }
 
-module "iam_user_deployer" {
-  source  = "terraform-aws-modules/iam/aws//modules/iam-user"
-
-  name          = "${var.cluster_name}-kube-deployer"
-  force_destroy = true  
-  create_iam_user_login_profile = false
-  create_iam_access_key         = true
-
-  # User "egovterraform" has uploaded his public key here - https://keybase.io/egovterraform/pgp_keys.asc
-  pgp_key = "${var.iam_keybase_user}"
+module "db" {
+  source                        = "../modules/db/aws"
+  subnet_ids                    = "${module.network.private_subnets}"
+  vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
+  availability_zone             = "${element(var.availability_zones, 0)}"
+  instance_class                = "db.t3.medium"
+  engine_version                = "11.15"
+  storage_type                  = "gp2"
+  storage_gb                    = "100"
+  backup_retention_days         = "7"
+  administrator_login           = "mgramsevauat"
+  administrator_login_password  = "${var.db_password}"
+  identifier                    = "${var.cluster_name}-db"
+  db_name                       = "${var.db_name}"
+  environment                   = "${var.cluster_name}"
 }
 
-module "iam_user_admin" {
-  source  = "terraform-aws-modules/iam/aws//modules/iam-user"
-
-  name          = "${var.cluster_name}-kube-admin"
-  force_destroy = true  
-  create_iam_user_login_profile = false
-  create_iam_access_key         = true
-
-  # User "egovterraform" has uploaded his public key here - https://keybase.io/egovterraform/pgp_keys.asc
-  pgp_key = "${var.iam_keybase_user}"
-}
-
-module "iam_user_user" {
-  source  = "terraform-aws-modules/iam/aws//modules/iam-user"
-
-  name          = "${var.cluster_name}-kube-user"
-  force_destroy = true  
-  create_iam_user_login_profile = false
-  create_iam_access_key         = true
-
-  # User "test" has uploaded his public key here - https://keybase.io/test/pgp_keys.asc
-  pgp_key = "${var.iam_keybase_user}"
-}
 
 data "aws_eks_cluster" "cluster" {
   name = "${module.eks.cluster_id}"
@@ -66,6 +48,7 @@ provider "kubernetes" {
 
 module "eks" {
   source          = "terraform-aws-modules/eks/aws"
+  version         = "17.24.0"
   cluster_name    = "${var.cluster_name}"
   cluster_version = "${var.kubernetes_version}"
   subnets         = "${concat(module.network.private_subnets, module.network.public_subnets)}"
@@ -82,34 +65,16 @@ module "eks" {
   worker_groups_launch_template = [
     {
       name                    = "spot"
-      subnets                 = "${slice(module.network.private_subnets, 0, length(var.availability_zones))}"
+      subnets                 = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)), slice(module.network.public_subnets, 0, length(var.availability_zones)))}"
       override_instance_types = "${var.override_instance_types}"
-      asg_max_size            = 4
-      asg_desired_capacity    = 4
+      asg_max_size            = 1
+      asg_desired_capacity    = 1
       kubelet_extra_args      = "--node-labels=node.kubernetes.io/lifecycle=spot"
-      additional_security_group_ids = ["${module.network.worker_nodes_sg_id}"]
       spot_allocation_strategy= "capacity-optimized"
       spot_instance_pools     = null
     },
   ]
   
-  map_users    = [
-    {
-      userarn  = "${module.iam_user_deployer.this_iam_user_arn}"
-      username = "${module.iam_user_deployer.this_iam_user_name}"
-      groups   = ["system:masters"]
-    },
-    {
-      userarn  = "${module.iam_user_admin.this_iam_user_arn}"
-      username = "${module.iam_user_admin.this_iam_user_name}"
-      groups   = ["system:masters"]
-    },
-    {
-      userarn  = "${module.iam_user_user.this_iam_user_arn}"
-      username = "${module.iam_user_user.this_iam_user_name}"
-      groups   = ["global-readonly", "digit-user"]
-    },    
-  ]
 }
 
 module "es-master" {
@@ -158,3 +123,32 @@ module "kafka" {
   disk_size_gb = "50"
   
 }
+
+data "aws_security_group" "node_sg" {
+ tags = {
+    Name = "${var.cluster_name}-eks_worker_sg"
+  }
+  depends_on = [
+   module.eks
+  ]
+}
+  
+module "node-group" {  
+  for_each = toset(["digit", "urban", "sanitation", "ifix", "mgramseva"])
+  source = "../modules/node-pool/aws"
+
+  cluster_name        = "${var.cluster_name}"
+  node_group_name     = "${each.key}-ng"
+  kubernetes_version  = "${var.kubernetes_version}"
+  security_groups     =  ["${module.network.worker_nodes_sg_id}", "${data.aws_security_group.node_sg.id}"]
+  subnet              = "${concat(slice(module.network.private_subnets, 0, length(var.node_pool_zone)))}"
+  node_group_max_size = 1
+  node_group_desired_size = 1
+  depends_on = [
+    module.network,
+    module.eks
+  ]
+}  
+
+
+

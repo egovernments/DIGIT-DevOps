@@ -1,9 +1,3 @@
-provider "aws" {
-  region = "ap-south-1"
-
-}
-
-
 module "network" {
   source             = "../modules/kubernetes/aws/network"
   vpc_cidr_block     = "${var.vpc_cidr_block}"
@@ -60,7 +54,6 @@ module "eks" {
       subnets                       = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)))}"
       override_instance_types       = "${var.override_instance_types}"
       kubelet_extra_args            = "--node-labels=node.kubernetes.io/lifecycle=spot"
-      additional_security_group_ids = ["${module.network.worker_nodes_sg_id}"]
       asg_max_size                  = "${var.number_of_worker_nodes}"
       asg_desired_capacity          = "${var.number_of_worker_nodes}"
       spot_allocation_strategy      = "capacity-optimized"
@@ -74,6 +67,16 @@ module "eks" {
     })
   }"
  
+}
+
+resource "aws_security_group_rule" "rds_db_ingress_workers" {
+  description              = "Allow worker nodes to communicate with RDS database" 
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = "${module.network.rds_db_sg_id}"
+  source_security_group_id = "${module.eks.cluster_security_group_id}"
+  type                     = "ingress"
 }
 
 module "es-master" {

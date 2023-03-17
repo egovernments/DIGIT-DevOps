@@ -17,7 +17,7 @@ package cmd
 
 import (
 	"errors"
-
+	"fmt"
 	"deployer/pkg/cmd/deployer"
 
 	"github.com/spf13/cobra"
@@ -46,10 +46,11 @@ to quickly create a Cobra application.`,
 		return nil
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		// fmt.Println("deploy called with images: " + args[0])
 
 		options.ConfigDir = viper.GetString("helm-dir")
 		deployer.DeployCharts(options)
+		fmt.Println("options.ConfigDir: " + options.ConfigDir)
+
 	},
 }
 

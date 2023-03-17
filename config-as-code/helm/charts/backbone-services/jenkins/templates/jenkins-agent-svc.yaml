@@ -1,27 +1,43 @@
+{{- if .Values.controller.agentListenerEnabled }}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ template "jenkins.fullname" . }}-agent
   namespace: {{ template "jenkins.namespace" . }}
   labels:
-{{- include "common.labels" . | nindent 4 }} 
-{{- if .Values.master.slaveListenerServiceAnnotations }}
+    "app.kubernetes.io/name": '{{ template "jenkins.name" .}}'
+    {{- if .Values.renderHelmLabels }}
+    "helm.sh/chart": "{{ template "jenkins.label" .}}"
+    {{- end }}
+    "app.kubernetes.io/managed-by": "{{ .Release.Service }}"
+    "app.kubernetes.io/instance": "{{ .Release.Name }}"
+    "app.kubernetes.io/component": "{{ .Values.controller.componentName }}"
+  {{- if .Values.controller.agentListenerServiceAnnotations }}
   annotations:
-{{ toYaml .Values.master.slaveListenerServiceAnnotations | indent 4 }}
-{{- end }}
+    {{- toYaml .Values.controller.agentListenerServiceAnnotations | nindent 4 }}
+  {{- end }}
 spec:
+  {{- if .Values.controller.agentListenerExternalTrafficPolicy }}
+  externalTrafficPolicy: {{.Values.controller.agentListenerExternalTrafficPolicy}}
+  {{- end }}
   ports:
-    - port: {{ .Values.master.slaveListenerPort }}
-      targetPort: {{ .Values.master.slaveListenerPort }}
-      {{ if (and (eq .Values.master.slaveListenerServiceType "NodePort") (not (empty .Values.master.slaveListenerPort))) }}
-      nodePort: {{.Values.master.slaveListenerPort}}
-      {{end}}
-      name: slavelistener
+    - port: {{ .Values.controller.agentListenerPort }}
+      targetPort: {{ .Values.controller.agentListenerPort }}
+      {{- if (and (eq .Values.controller.agentListenerServiceType "NodePort") (not (empty .Values.controller.agentListenerNodePort))) }}
+      nodePort: {{ .Values.controller.agentListenerNodePort }}
+      {{- end }}
+      name: agent-listener
   selector:
-{{- include "common.labels" . | nindent 4 }} 
-  type: {{ .Values.master.slaveListenerServiceType }}
-  {{  if eq .Values.master.slaveListenerServiceType "LoadBalancer"  }}
-  {{  if .Values.master.slaveListenerLoadBalancerIP  }}
-  loadBalancerIP: {{  .Values.master.slaveListenerLoadBalancerIP  }}
-  {{end}}
-  {{end}}
+    "app.kubernetes.io/component": "{{ .Values.controller.componentName }}"
+    "app.kubernetes.io/instance": "{{ .Release.Name }}"
+  type: {{ .Values.controller.agentListenerServiceType }}
+  {{if eq .Values.controller.agentListenerServiceType "LoadBalancer"}}
+{{- if .Values.controller.agentListenerLoadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+{{ toYaml .Values.controller.agentListenerLoadBalancerSourceRanges | indent 4 }}
+{{- end }}
+  {{- end }}
+  {{- if and (eq .Values.controller.agentListenerServiceType "LoadBalancer") (.Values.controller.agentListenerLoadBalancerIP) }}
+  loadBalancerIP: {{  .Values.controller.agentListenerLoadBalancerIP }}
+  {{- end }}
+  {{- end }}

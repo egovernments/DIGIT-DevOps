@@ -1,28 +1,42 @@
 {{- $root := . }}
-{{- if and (.Values.master.JCasC.enabled) (.Values.master.sidecars.configAutoReload.enabled) }}
-{{- range $key, $val := .Values.master.JCasC.configScripts }}
+{{- if .Values.controller.sidecars.configAutoReload.enabled }}
+{{- range $key, $val := .Values.controller.JCasC.configScripts }}
+{{- if $val }}
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ template "jenkins.fullname" $root }}-jenkins-config-{{ $key }}
+  name: {{ template "jenkins.casc.configName" (list (printf "config-%s" $key) $ )}}
   namespace: {{ template "jenkins.namespace" $root }}
   labels:
-{{- include "common.labels" $root | nindent 4 }}
+    "app.kubernetes.io/name": {{ template "jenkins.name" $root}}
+    {{- if $root.Values.renderHelmLabels }}
+    "helm.sh/chart": "{{ $root.Chart.Name }}-{{ $root.Chart.Version }}"
+    {{- end }}
+    "app.kubernetes.io/managed-by": "{{ $.Release.Service }}"
+    "app.kubernetes.io/instance": "{{ $.Release.Name }}"
+    "app.kubernetes.io/component": "{{ $.Values.controller.componentName }}"
     {{ template "jenkins.fullname" $root }}-jenkins-config: "true"
 data:
   {{ $key }}.yaml: |-
 {{ tpl $val $| indent 4 }}
 {{- end }}
-{{- if .Values.master.JCasC.defaultConfig }}
+{{- end }}
+{{- if .Values.controller.JCasC.defaultConfig }}
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ template "jenkins.fullname" $root }}-jenkins-jcasc-config
+  name: {{ template "jenkins.casc.configName" (list "jcasc-config" $ )}}
   namespace: {{ template "jenkins.namespace" $root }}
   labels:
-{{- include "common.labels" . | nindent 4 }} 
+    "app.kubernetes.io/name": {{ template "jenkins.name" $root}}
+    {{- if .Values.renderHelmLabels }}
+    "helm.sh/chart": "{{ $root.Chart.Name }}-{{ $root.Chart.Version }}"
+    {{- end }}
+    "app.kubernetes.io/managed-by": "{{ $.Release.Service }}"
+    "app.kubernetes.io/instance": "{{ $.Release.Name }}"
+    "app.kubernetes.io/component": "{{ $.Values.controller.componentName }}"
     {{ template "jenkins.fullname" $root }}-jenkins-config: "true"
 data:
   jcasc-default-config.yaml: |-

@@ -146,10 +146,13 @@ func deployClusterConfigs(index map[string]string, configDir string, envOverride
 	// Clean up folder after function exists
 	defer os.RemoveAll(tmpDir)
 	args = append(args, fmt.Sprintf("--output-dir %s", tmpDir))
+	fmt.Println("Before Trimming"+configDir)
 
-	sopsDir:=strings.Trim(configDir, "/helm")
-	// fmt.Println("path too sops"+sopsDir)
+	sopsDir:=strings.Trim(configDir, "helm")
+	fmt.Println("path too sops"+sopsDir)
 	if _, err := os.Stat(sopsDir + "/.sops.yaml"); os.IsNotExist(err) {
+		fmt.Println("Error Condition: ")
+		fmt.Println(err)
 		args = append(args, fmt.Sprintf("-f %s", envSecretFile))
 	} else {
 		sopsDecryptCmd := fmt.Sprintf("sops -d --output %s %s", tmpDecFile.Name(), envSecretFile)

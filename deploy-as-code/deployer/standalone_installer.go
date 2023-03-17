@@ -153,7 +153,8 @@ func main() {
 						}
 						for _, envfile := range envfilesFromDir {
 							filename := envfile.Name()
-							if !s.Contains(filename, "secrets") {
+							if !s.Contains(filename, "secrets") && !s.Contains(filename,".DS_Store") {
+								log.Println(filename)
 								envfiles = append(envfiles, filename[0:s.Index(filename, ".yaml")])
 							}
 						}

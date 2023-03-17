@@ -3,10 +3,10 @@ resource "aws_db_subnet_group" "db_subnet_group" {
   subnet_ids = "${var.subnet_ids}"
 
     tags = "${
-    map(
-      "Name", "db-subnet-group-${var.environment}",
-      "environment", "${var.environment}"
-    )
+    tomap({
+      "Name" = "db-subnet-group-${var.environment}",
+      "environment" = "${var.environment}"
+    })
   }"
 }
 
@@ -28,9 +28,10 @@ resource "aws_db_instance" "rds_postgres" {
   skip_final_snapshot     = "true"
 
     tags = "${
-    map(
-      "Name", "${var.environment}-db",
-      "environment", "${var.environment}"
-    )
+    tomap({
+      "Name" =  "${var.environment}-db",
+      "environment" = "${var.environment}"
+    })
   }"  
 }
+

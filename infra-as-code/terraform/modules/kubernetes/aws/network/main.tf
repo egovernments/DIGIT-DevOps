@@ -144,42 +144,6 @@ resource "aws_route_table_association" "private" {
   route_table_id = "${aws_route_table.private_route_table.id}"
 }
 
-
-resource "aws_security_group" "worker_nodes_sg" {
-  name        = "nodes-${var.cluster_name}"
-  description = "Security group for all worker nodes in the cluster"
-  vpc_id      = "${aws_vpc.vpc.id}"
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = "${
-    tomap({
-      "Name" = "nodes-${var.cluster_name}"
-      "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-      "KubernetesCluster" = "${var.cluster_name}"
-    })
-  }"
-}
-
-resource "aws_security_group" "master_nodes_sg" {
-  name        = "masters-${var.cluster_name}"
-  description = "Master nodes security group"
-  vpc_id      = "${aws_vpc.vpc.id}"
-
-  tags = "${
-    tomap({
-      "Name" = "masters-${var.cluster_name}"
-      "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-      "KubernetesCluster" = "${var.cluster_name}"
-    })
-  }"
-}
-
 resource "aws_security_group" "rds_db_sg" {
   name        = "db-${var.cluster_name}"
   description = "RDS Database security group"
@@ -190,55 +154,4 @@ resource "aws_security_group" "rds_db_sg" {
       "Name" = "db-${var.cluster_name}"
     })
   }"
-}
-
-resource "aws_security_group_rule" "master_nodes_egress_workers" {
-  description              = "Allow outbound traffic to worker nodes" 
-  from_port                = 10250
-  to_port                  = 65535
-  protocol                 = "tcp"
-  security_group_id        = "${aws_security_group.master_nodes_sg.id}"
-  source_security_group_id = "${aws_security_group.worker_nodes_sg.id}"
-  type                     = "egress"
-}
-
-resource "aws_security_group_rule" "master_nodes_ingress_workers" {
-  description              = "Allow worker nodes to communicate with cluster API server" 
-  from_port                = 443
-  to_port                  = 443
-  protocol                 = "tcp"
-  security_group_id        = "${aws_security_group.master_nodes_sg.id}"
-  source_security_group_id = "${aws_security_group.worker_nodes_sg.id}"
-  type                     = "ingress"
-}
-
-
-resource "aws_security_group_rule" "worker_nodes_ingress_self" {
-  description              = "Allow node to communicate with each other"
-  from_port                = 0
-  to_port                  = 65535
-  protocol                 = "-1"
-  security_group_id        = "${aws_security_group.worker_nodes_sg.id}"
-  source_security_group_id = "${aws_security_group.worker_nodes_sg.id}"
-  type                     = "ingress"
-}
-
-resource "aws_security_group_rule" "worker_nodes_ingress_cluster" {
-  description              = "Allow worker Kubelets and pods to receive communication from the cluster control plane"
-  from_port                = 1025
-  to_port                  = 65535
-  protocol                 = "tcp"
-  security_group_id        = "${aws_security_group.worker_nodes_sg.id}"
-  source_security_group_id = "${aws_security_group.master_nodes_sg.id}"
-  type                     = "ingress"
-}
-
-resource "aws_security_group_rule" "rds_db_ingress_workers" {
-  description              = "Allow worker nodes to communicate with RDS database" 
-  from_port                = 5432
-  to_port                  = 5432
-  protocol                 = "tcp"
-  security_group_id        = "${aws_security_group.rds_db_sg.id}"
-  source_security_group_id = "${aws_security_group.worker_nodes_sg.id}"
-  type                     = "ingress"
 }

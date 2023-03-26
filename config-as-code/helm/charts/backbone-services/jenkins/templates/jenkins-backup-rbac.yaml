@@ -1,23 +1,11 @@
 {{- if .Values.backup.enabled }}
-{{- if .Values.backup.serviceAccount.create }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "backup.serviceAccountBackupName" . }}
+  name: {{ template "jenkins.fullname" . }}-backup
   namespace: {{ template "jenkins.namespace" . }}
   labels:
-    "app.kubernetes.io/name": '{{ template "jenkins.name" .}}'
-    {{- if .Values.renderHelmLabels }}
-    "helm.sh/chart": "{{ template "jenkins.label" .}}"
-    {{- end }}
-    "app.kubernetes.io/managed-by": "{{ .Release.Service }}"
-    "app.kubernetes.io/instance": "{{ .Release.Name }}"
-    "app.kubernetes.io/component": "{{ .Values.controller.componentName }}"
-  {{- if .Values.backup.serviceAccount.annotations }}
-  annotations:
-    {{- toYaml .Values.backup.serviceAccount.annotations | nindent 4 }}
-  {{- end }}
-{{- end }}
+{{- include "common.labels" . | nindent 4 }} 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -25,13 +13,7 @@ metadata:
   name: {{ template "jenkins.fullname" . }}-backup
   namespace: {{ template "jenkins.namespace" . }}
   labels:
-    "app.kubernetes.io/name": '{{ template "jenkins.name" .}}'
-    {{- if .Values.renderHelmLabels }}
-    "helm.sh/chart": "{{ template "jenkins.label" .}}"
-    {{- end }}
-    "app.kubernetes.io/managed-by": "{{ .Release.Service }}"
-    "app.kubernetes.io/instance": "{{ .Release.Name }}"
-    "app.kubernetes.io/component": "{{ .Values.controller.componentName }}"
+{{- include "common.labels" . | nindent 4 }} 
 rules:
 - apiGroups: [""]
   resources: ["pods", "pods/log"]
@@ -46,19 +28,13 @@ metadata:
   name: {{ template "jenkins.fullname" . }}-backup
   namespace: {{ template "jenkins.namespace" . }}
   labels:
-    "app.kubernetes.io/name": '{{ template "jenkins.name" .}}'
-    {{- if .Values.renderHelmLabels }}
-    "helm.sh/chart": "{{ template "jenkins.label" .}}"
-    {{- end }}
-    "app.kubernetes.io/managed-by": "{{ .Release.Service }}"
-    "app.kubernetes.io/instance": "{{ .Release.Name }}"
-    "app.kubernetes.io/component": "{{ .Values.controller.componentName }}"
+{{- include "common.labels" . | nindent 4 }} 
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: {{ template "jenkins.fullname" . }}-backup
 subjects:
 - kind: ServiceAccount
-  name: {{ include "backup.serviceAccountBackupName" . }}
+  name: {{ template "jenkins.fullname" . }}-backup
   namespace: {{ template "jenkins.namespace" . }}
 {{- end }}

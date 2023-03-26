@@ -1,0 +1,61 @@
+{{- if .Values.networkPolicy.enabled }}
+kind: NetworkPolicy
+apiVersion: {{ .Values.networkPolicy.apiVersion }}
+metadata:
+  name: "{{ template "jenkins.fullname" . }}-{{ .Values.master.componentName }}"
+  namespace: {{ template "jenkins.namespace" . }}
+  labels:
+{{- include "common.labels" . | nindent 4 }} 
+spec:
+  podSelector:
+    matchLabels:
+{{- include "common.labels" . | nindent 4 }} 
+  ingress:
+    # Allow web access to the UI
+    - ports:
+      - port: {{ .Values.master.targetPort }}
+    # Allow inbound connections from slave
+    - from:
+      {{- if .Values.networkPolicy.internalAgents.allowed }}
+      - podSelector:
+          matchLabels:
+            "jenkins/{{ template "jenkins.fullname" . }}-{{ .Values.agent.componentName }}": "true"
+            {{- range $k,$v:= .Values.networkPolicy.internalAgents.podLabels }}
+            {{ $k }}: {{ $v }}
+            {{- end }}
+        {{- if .Values.networkPolicy.internalAgents.namespaceLabels }}
+        namespaceSelector:
+          matchLabels:
+            {{- range $k,$v:= .Values.networkPolicy.internalAgents.namespaceLabels }}
+            {{ $k }}: {{ $v }}
+            {{- end }}
+        {{- end }}    
+      {{- end }}
+      {{- if .Values.networkPolicy.externalAgents }}      
+      - ipBlock:
+          cidr: {{ required "ipCIDR is required if you wish to allow external agents to connect to Master." .Values.networkPolicy.externalAgents.ipCIDR }}
+          {{- if .Values.networkPolicy.externalAgents.except }}
+          except:
+          {{- range .Values.networkPolicy.externalAgents.except }}
+          - {{ . }} 
+          {{- end }}
+          {{- end }}
+      {{- end }}              
+      ports:
+      - port: {{ .Values.master.slaveListenerPort }}
+{{- if .Values.agent.enabled }}
+---
+kind: NetworkPolicy
+apiVersion: {{ .Values.networkPolicy.apiVersion }}
+metadata:
+  name: "{{ template "jenkins.fullname" . }}-{{ .Values.agent.componentName }}"
+  namespace: {{ template "jenkins.namespace" . }}
+  labels:
+{{- include "common.labels" . | nindent 4 }} 
+spec:
+  podSelector:
+    matchLabels:
+      # DefaultDeny
+      "jenkins/{{ template "jenkins.fullname" . }}-{{ .Values.agent.componentName }}": "true"
+{{- end }}
+{{- end }}

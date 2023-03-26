@@ -13,8 +13,6 @@ namespaceOverride: jenkins
 # ref: https://github.com/kubernetes/dns/blob/master/docs/specification.md
 clusterZone: "cluster.local"
 
-fullnameOverride: jenkins
-
 oauth:
   enabled: false
   acl:
@@ -27,12 +25,7 @@ jobBuilder:
   repos: >-
     'git@github.com:egovernments/core-services.git','git@github.com:egovernments/business-services.git'
 
-controller:
-  googlePodMonitor:
-    # If enabled, It creates Google Managed Prometheus scraping config
-    enabled: false
-  podDisruptionBudget:
-    enabled: false    
+master:
   httpsKeyStore:
     jenkinsHttpsJksSecretName: ''
     enable: false
@@ -83,10 +76,10 @@ controller:
         6NnqtR4gEBF0ZVlQmkycFvD4EC2boP943dLqNUvop+4R3SM1QMM6P5u8iTXtHd/VN4MwMyy1wtog
         hYAzODo1Jt59pcqqKJEas0C/lFJEB3frw4ImNx5fNlJYOpx+ijfQs9m39CevDq0=
   # Used for label app.kubernetes.io/component
-  componentName: "jenkins-controller"
-  image: "jenkins/jenkins"
-  # tag: "2.387.1-jdk11"
-  tagLabel: jdk11
+  componentName: "jenkins-master"
+  image:
+    repository: "nithindv/jenkins"
+    tag: 2.242-alpine
   imagePullPolicy: "IfNotPresent"
   imagePullSecretName:
   # Optionally configure lifetime for master-container
@@ -138,8 +131,8 @@ controller:
   # maxUnavailable: 25%
   resources:
     requests:
-      cpu: "100m"
-      memory: "512Mi"
+      cpu: "50m"
+      memory: "256Mi"
     limits:
       cpu: "1000m"
       memory: "1024Mi"
@@ -169,7 +162,12 @@ controller:
       valueFrom:
         secretKeyRef:
           name: jenkins-credentials
-          key: gitReadSshPrivateKey  
+          key: gitReadSshPrivateKey
+    - name: SLACK_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: jenkins-credentials
+          key: slackToken   
   usePodSecurityContext: true
   # Set runAsUser to 1000 to let Jenkins run as non-root user 'jenkins' which exists in 'jenkins/jenkins' docker image.
   # When setting runAsUser to a different value than 0 also set fsGroup to the same value:
@@ -204,7 +202,7 @@ controller:
   healthProbeReadinessFailureThreshold: 3
   healthProbeLivenessInitialDelay: 90
   healthProbeReadinessInitialDelay: 60
-  agentListenerPort: 50000
+  slaveListenerPort: 50000
   slaveHostPort:
   disabledAgentProtocols:
     - JNLP-connect
@@ -220,12 +218,14 @@ controller:
   # Note if you set this to 'LoadBalancer', you *must* define annotations to secure it. By default
   # this will be an external load balancer and allowing inbound 0.0.0.0/0, a HUGE
   # security risk:  https://github.com/kubernetes/charts/issues/1341
-  agentListenerServiceType: "ClusterIP"
+  slaveListenerServiceType: "ClusterIP"
   # Optionally assign an IP to the LoadBalancer slaveListenerService LoadBalancer
   # GKE users: only regional static IPs will work for Service Load balancer.
   # slaveListenerLoadBalancerIP: 1.2.3.4
   slaveListenerServiceAnnotations: {}
   slaveDefaultsProviderTemplate: ""
+  slaveConnectTimeout: 5
+  slaveReadTimeout: 15
   slaveKubernetesNamespace:
   slaveJenkinsUrl:
   slaveJenkinsTunnel:
@@ -416,7 +416,7 @@ controller:
                   scm:
                     git:
                       credentialsId: "git_read"
-                      remote: "git@github.com:Gowtham-cicd/CIOps.git"
+                      remote: "git@github.com:egovernments/CIOps.git"
                       traits:
                       - "gitBranchDiscovery"
       system-message: | 
@@ -450,8 +450,35 @@ controller:
                         """)
                       }
                   }
-              }   
+              }  
 
+      seed-deploy-job-builder: |
+        jobs:
+          - script: >
+              folder("self-provision")  
+          - script: >    
+              pipelineJob("self-provision/Self-Provision_Job_Builder") {
+                description()
+                authorization {
+                    blocksInheritance()
+                    {{- range $group := .Values.oauth.acl.admin }}
+                    permission('hudson.model.Item.Build:{{ $group }}')
+                    permission('hudson.model.Item.Cancel:{{ $group }}')
+                    permission('hudson.model.Item.Read:{{ $group }}')
+                    permission('hudson.model.Item.Workspace:{{ $group }}')
+                    {{- end }}
+                }
+                logRotator(-1, 5, -1, -1)
+                definition {
+                      cps {
+                        script("""
+                        library 'ci-libs'
+                        deployjobBuilder(url: {{ .Values.deployjobBuilder.repo }})
+                        """)  
+                      }
+                  }
+              }    
+              
       seed-deployment-jobs: |
         jobs:
           - script: >
@@ -480,13 +507,197 @@ controller:
                 definition {
                   cps {
                       script("""library 'ci-libs'
-              
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'release', helmDir: 'config-as-code/helm', environment: '{{ $job.name }}')""")
+              {{- if (eq $job.name "central-instance") }}            
+              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'central-instance', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
                       sandbox() 
                     }
                 }
                 disabled(false)
-              }     
+              }
+              {{- else if (eq $job.name "ukd-sdc-uat") }}            
+              deployer(repo:'git@github.com:eNagarsewaU/DIGIT-DevOps.git', branch: 'master', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "ukd-prod-sdc") }}            
+              deployer(repo:'git@github.com:eNagarsewaU/DIGIT-DevOps.git', branch: 'master', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "ifix-dev") }}            
+              deployer(repo:'git@github.com:egovernments/iFix-DevOps.git', branch: 'ifix', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "mgramseva-dev") }}            
+              deployer(repo:'git@github.com:egovernments/iFix-DevOps.git', branch: 'mgramseva', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "mgramseva-qa") }}            
+              deployer(repo:'git@github.com:egovernments/iFix-DevOps.git', branch: 'mgramseva', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "ifix-qa") }}            
+              deployer(repo:'git@github.com:egovernments/iFix-DevOps.git', branch: 'ifix', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "ifix-uat") }}            
+              deployer(repo:'git@github.com:egovernments/iFix-DevOps.git', branch: 'ifix', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "ifix-prod") }}            
+              deployer(repo:'git@github.com:misdwss/iFix-DevOps.git', branch: 'ifix', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "mgramseva-uat") }}            
+              deployer(repo:'git@github.com:egovernments/iFix-DevOps.git', branch: 'mgramseva', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "mgramseva-prod") }}            
+              deployer(repo:'git@github.com:misdwss/iFix-DevOps.git', branch: 'mgramseva', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "dashboard-dev") }}            
+              deployer(repo:'git@github.com:egovernments/iFix-DevOps.git', branch: 'dashboard', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "bihar-mgramseva-uat") }}            
+              deployer(repo:'git@github.com:egovernments/iFix-DevOps.git', branch: 'bihar', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "works-dev") }}            
+              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'digit-works', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "works-qa") }}            
+              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'digit-works', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "statea") }}            
+              deployer(repo:'git@github.com:egovernments/stateA-DevOps.git', branch: 'master', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "digit") }}            
+              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'central-instance', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "stateb") }}            
+              deployer(repo:'git@github.com:egovernments/stateB-DevOps.git', branch: 'master', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "nugp-demo") }}            
+              deployer(repo:'git@github.com:upyog/UPYOG-DevOps.git', branch: 'master', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "upyog-uat") }}            
+              deployer(repo:'git@github.com:upyog/UPYOG-DevOps.git', branch: 'master', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "upyog-test") }}            
+              deployer(repo:'git@github.com:upyog/UPYOG-DevOps.git', branch: 'master', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "upyog-dev") }}            
+              deployer(repo:'git@github.com:upyog/UPYOG-DevOps.git', branch: 'master', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "health-dev") }}            
+              deployer(repo:'git@github.com:egovernments/health-campaign-devops.git', branch: 'master', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "health-qa") }}            
+              deployer(repo:'git@github.com:egovernments/health-campaign-devops.git', branch: 'master', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "health-demo") }}            
+              deployer(repo:'git@github.com:egovernments/health-campaign-devops.git', branch: 'master', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else if (eq $job.name "single-instance") }}            
+              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'master', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
+              {{- else }}
+              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'master', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }  
+              {{- end }}
+   
           {{- end }}
 
               
@@ -597,10 +808,14 @@ controller:
     #     serviceName: ssl-redirect
     #     servicePort: use-annotation
     - backend:
-        serviceName: >-
-          {{ template "jenkins.fullname" . }}
-        # Don't use string here, use only integer value!
-        servicePort: 8080
+        service:
+          name: >-
+            {{ template "jenkins.fullname" . }}
+          # Don't use string here, use only integer value!
+          port:
+            number: 8080
+      path: "/"      
+      pathType: Prefix      
     # For Kubernetes v1.14+, use 'networking.k8s.io/v1beta1'
     apiVersion: "networking.k8s.io/v1beta1"
     labels: {}
@@ -672,11 +887,9 @@ controller:
 
 agent:
   enabled: true
-  kubernetesConnectTimeout: 5
-  kubernetesReadTimeout: 15
   image: "jenkins/inbound-agent"
-  tag: "4.11.2-4"
-  workingDir: "/home/jenkins/agent"
+  tag: "4.3-4-alpine"
+  workingDir: "/home/jenkins"
   customJenkinsLabels: []
   # name of the secret to be used for image pulling
   imagePullSecretName:
@@ -760,7 +973,7 @@ agent:
   # Defines how the raw yaml field gets merged with yaml definitions from inherited pod templates: merge or override
   yamlMergeStrategy: "override"
   # Timeout in seconds for an agent to be online
-  connectTimeout: 100
+  slaveConnectTimeout: 100
 
   # Below is the implementation of custom pod templates for the default configured kubernetes cloud.
   # Add a key under podTemplates for each pod template. Each key (prior to | character) is just a label, and can be any value.
@@ -833,7 +1046,7 @@ persistence:
   storageClass:
   annotations: {}
   accessMode: "ReadWriteOnce"
-  size: "20Gi"
+  size: "50Gi"
   volumes:
   #  - name: nothing
   #    emptyDir: {}
@@ -929,6 +1142,3 @@ backup:
   # Ref: https://github.com/maorfr/skbn
   destination: "s3://jenkins-data/backup"
 checkDeprecation: true
-
-awsSecurityGroupPolicies:
-  enabled: false

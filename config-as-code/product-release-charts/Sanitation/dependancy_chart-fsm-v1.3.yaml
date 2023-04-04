@@ -1,0 +1,174 @@
+version: v2.8
+modules:
+    - name: backbone
+      services:
+        - zookeeper-v2
+        - kafka-v2
+        - kafka-connect
+        - kafka-connect-restart-tasks
+        - elasticsearch-data-v1
+        - elasticsearch-master-v1
+        - kibana-v1
+    - name: authn-authz
+      services:
+        - redis
+        - nginx-ingress
+        - cert-manager
+        - zuul:v1.3.1-96b24b0d72-39     
+    - name: core
+      dependencies:
+        - "backbone"
+        - "authn-authz"    
+      services:
+        - egovio/egov-accesscontrol:v1.1.4-6cfa52c1f9-1
+        - egovio/egov-enc-service:v1.1.4-6cfa52c1f9-1
+        - egovio/egov-filestore:v1.2.5-6cfa52c1f9-1
+        - egovio/egov-idgen:v1.2.4-6cfa52c1f9-1
+        - egovio/egov-indexer:v1.1.8-6cfa52c1f9-1
+        - egovio/egov-localization:v1.1.4-6cfa52c1f9-1
+        - egovio/egov-location:v1.1.5-6cfa52c1f9-1
+        - egovio/egov-mdms-service:v1.3.3-6cfa52c1f9-1
+        - egovio/national-dashboard-ingest:v1.0.1-6cfa52c1f9-1
+        - egovio/national-dashboard-kafka-pipeline:v1.0.1-6cfa52c1f9-1
+        - egovio/egov-notification-mail:v1.1.3-6cfa52c1f9-1
+        - egovio/egov-notification-sms:v1.1.4-6cfa52c1f9-1
+        - egovio/egov-otp:v1.2.3-6cfa52c1f9-1
+        - egovio/egov-persister:v1.1.5-6cfa52c1f9-2
+        - egovio/egov-pg-service:v1.2.4-6cfa52c1f9-1
+        - egovio/egov-searcher:v1.1.6-6cfa52c1f9-1
+        - egovio/egov-url-shortening:v1.1.3-6cfa52c1f9-1
+        - egovio/egov-user:v1.3.0-6cfa52c1f9-2
+        - egovio/user-otp:v1.1.6-6cfa52c1f9-2
+        - egovio/egov-workflow-v2:v1.2.2-6cfa52c1f9-1
+        - egovio/pdf-service:v1.2.1-6cfa52c1f9-1
+        - egovio/report:v1.3.5-6cfa52c1f9-1
+        - egovio/chatbot:v1.1.7-6cfa52c1f9-1
+        - egovio/xstate-chatbot:v1.1.1-96b24b0d72-1
+        - egovio/egov-user-chatbot:v1.3.0-6cfa52c1f9-1
+        - egovio/nlp-engine:v1.0.0-fbea6fba-21
+        - egovio/egov-document-uploader:v1.1.1-6cfa52c1f9-4
+        - egovio/playground:1.0
+    - name: business
+      dependencies:
+        - "core"
+      services:
+        - egovio/collection-services:v1.1.7-d93a120c25-2
+        - egovio/billing-service:v1.3.5-3d7f744977-1
+        - egovio/egf-instrument:v1.1.4-d93a120c25-2
+        - egovio/egf-master:v1.1.3-d93a120c25-2
+        - egovio/egov-apportion-service:v1.1.5-d93a120c25-2
+        - egovio/egov-hrms:v1.2.5-d93a120c25-2
+        - egovio/finance-collections-voucher-consumer:v1.1.6-d93a120c25-2
+     - name: utilities
+      dependencies:
+        - "core"
+      services:
+        - egovio/egov-custom-consumer:v1.1.1-d93a120c25-1
+        - egovio/egov-pdf:v1.2.0-f731839045-1
+    - name: "frontend"             
+      dependencies:
+        - "business"
+      services:
+        - egovio/citizen:v1.9.0-98adbd4488-17
+        - egovio/employee:v1.9.0-98adbd4488-17
+        - egovio/digit-ui:v1.6.0-98adbd4488-74
+    - name: m_pgr             #PGR
+      dependencies:
+        - "core"
+        - "business"
+      services:
+        - egovio/pgr-services:v1.1.7-3d7f744977-1
+        - egovio/rainmaker-pgr:v1.1.4-32caf0d992-4
+    - name: m_property-tax    #PT
+      dependencies:
+        - "core"
+        - "business"
+      services:
+        - egovio/property-services:v1.2.0-bb91a22308-1
+        - egovio/pt-calculator-v2:v1.1.5-32caf0d992-8
+        - egovio/pt-services-v2:v1.0.0-48a03ad7bb-4
+    - name: m_sewerage        #Sewerage
+      dependencies:
+        - "core"
+        - "business"
+      services:
+        - egovio/sw-calculator:v1.4.3-b8de94a8b0-5
+        - egovio/sw-services:v1.7.4-bb91a22308-1
+    - name: m_bpa             #BPA
+      dependencies:
+          - "core"
+          - "business"
+      services:
+          - egovio/bpa-services:v1.1.6-3d7f744977-2
+          - egovio/bpa-calculator:v1.1.1-3d7f744977-1
+          - egovio/land-services:v1.0.4-3d7f744977-1
+          - egovio/noc-services:v1.0.5-3d7f744977-5
+    - name: m_trade-license    #TL
+      dependencies:
+          - "core"
+          - "business"
+      services:
+        - egovio/tl-calculator:v1.1.5-3d7f744977-1
+        - egovio/tl-services:v1.1.8-3d7f744977-1  
+    - name: m_firenoc         #Fire NOC
+      dependencies:
+          - "core"
+          - "business"
+      services:
+          - egovio/firenoc-calculator:v1.2.1-3d7f744977-1
+          - egovio/firenoc-services:v1.3.2-b72211989e-13
+    - name: m_water-service   #Water
+      dependencies:
+          - "core"
+          - "business"
+      services:
+        - egovio/ws-calculator:v1.4.3-3d7f744977-1
+        - egovio/ws-services:v1.7.4-bb91a22308-1
+    - name: m_dss   #dss
+      dependencies:        
+          - "frontend"
+          - "core"
+          - "business"
+      services:
+        - egovio/dashboard-analytics:v1.1.8-d93a120c25-2
+        - egovio/dashboard-ingest:v1.1.4-d93a120c25-2
+        - egovio/dss-dashboard:v1.9.0-98adbd4488-1
+    - name: m_fsm   #fsm
+      dependencies:
+          - "core"
+          - "business"
+      services:
+        - egovio/fsm:v1.3.0-29c64d6941-24
+        - egovio/fsm-calculator:v1.2.0-01dd6c9b3a-14
+        - egovio/vehicle:v1.3.0-5682061fd3-18
+        - egovio/vendor:v1.3.0-d0ddde9f1b-45
+     - name: m_echallan   #eChallan
+      dependencies:
+          - "core"
+          - "business"
+      services:
+        - egovio/echallan-services:v1.1.0-3d7f744977-1
+        - egovio/echallan-calculator:v1.0.2-3d7f744977-1
+     - name: Other             #Other Services
+      dependencies:
+        - "core"
+        - "business"
+      services:
+        - egovio/egov-user-event:v1.2.0-32caf0d992-25
+        - egovio/inbox:v1.2.2-ecd7c10003-8
+        - egovio/turn-io-adapter:v1.0.1-3d7f744977-1
+    - name: m_edcr   #edcr
+      dependencies:
+          - "core"
+      services:
+        - egovio/egov-edcr:v2.1.1-d4e6df6b31-97
+    - name: m_finance         #Finance
+      dependencies:
+          - "core"
+      services:
+          - egovio/egov-finance:v3.0.2-0d0a8db8ff-28
+    - name: m_bnd           #Birth Death
+      dependencies:
+          - "core"
+      services:
+          - egovio/birth-death-services:v1.0.1-3d7f744977-1

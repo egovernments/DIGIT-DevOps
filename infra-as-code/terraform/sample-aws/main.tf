@@ -14,7 +14,7 @@ module "db" {
   instance_class                = "db.t3.medium"  ## postgres db instance type
   engine_version                = "11.13"   ## postgres version
   storage_type                  = "gp2"
-  storage_gb                    = "100"     ## postgres disk size
+  storage_gb                    = "10"     ## postgres disk size
   backup_retention_days         = "7"
   administrator_login           = "${var.db_username}"
   administrator_login_password  = "${var.db_password}"
@@ -87,7 +87,7 @@ module "es-master" {
   disk_prefix = "es-master"
   availability_zones = "${var.availability_zones}"
   storage_sku = "gp2"
-  disk_size_gb = "10"
+  disk_size_gb = "2"
   
 }
 module "es-data-v1" {
@@ -98,7 +98,7 @@ module "es-data-v1" {
   disk_prefix = "es-data-v1"
   availability_zones = "${var.availability_zones}"
   storage_sku = "gp2"
-  disk_size_gb = "100"
+  disk_size_gb = "25"
   
 }
 
@@ -110,7 +110,7 @@ module "zookeeper" {
   disk_prefix = "zookeeper"
   availability_zones = "${var.availability_zones}"
   storage_sku = "gp2"
-  disk_size_gb = "10"
+  disk_size_gb = "2"
   
 }
 
@@ -122,7 +122,7 @@ module "kafka" {
   disk_prefix = "kafka"
   availability_zones = "${var.availability_zones}"
   storage_sku = "gp2"
-  disk_size_gb = "100"
+  disk_size_gb = "50"
   
 }
 

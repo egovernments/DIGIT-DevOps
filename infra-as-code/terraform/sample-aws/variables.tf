@@ -31,7 +31,7 @@ variable "kubernetes_version" {
 
 variable "instance_type" {
   description = "eGov recommended below instance type as a default"
-  default = "m4.xlarge"
+  default = "r5ad.large"
 }
 
 variable "override_instance_types" {

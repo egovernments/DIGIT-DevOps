@@ -52,6 +52,7 @@ module "eks" {
     {
       name                          = "spot"
       subnets                       = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)))}"
+      instance_type                 = "${var.instance_type}"
       override_instance_types       = "${var.override_instance_types}"
       kubelet_extra_args            = "--node-labels=node.kubernetes.io/lifecycle=spot"
       asg_max_size                  = "${var.number_of_worker_nodes}"

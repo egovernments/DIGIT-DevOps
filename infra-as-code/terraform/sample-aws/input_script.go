@@ -21,21 +21,32 @@ func main() {
 	}
 
 	// Read the variables.tf file
-	tfFile, err := ioutil.ReadFile("variables.tf")
+	replaceInFile("/Users/aniket/Documents/DIGIT-Bootcamp/DIGIT-DevOps/infra-as-code/terraform/sample-aws/variables.tf", data)
+	fmt.Println("variables.tf file updated successfully!")
+
+	replaceInFile("/Users/aniket/Documents/DIGIT-Bootcamp/DIGIT-DevOps/config-as-code/environments/egov-demo.yaml", data)
+	fmt.Println("env yaml file updated successfully!")
+}
+
+func replaceInFile(filepath string, data map[string]interface{}) {
+
+	// Read the file
+	tfFile, err := ioutil.ReadFile(filepath)
 	if err != nil {
-		log.Fatalf("Failed to read variables.tf file: %v", err)
+		log.Fatalf("Failed to read file: %v", err)
 	}
 
-	// Replace the values in the variables.tf file
+	// Replace the values in the  file
 	newContent := replaceVariableValues(tfFile, data)
 
-	// Write the modified content to the variables.tf file
-	err = ioutil.WriteFile("variables.tf", newContent, 0644)
+	// Write the modified content to the  file
+	err = ioutil.WriteFile(filepath, newContent, 0644)
 	if err != nil {
-		log.Fatalf("Failed to write variables.tf file: %v", err)
+		log.Fatalf("Failed to write file: %v", err)
 	}
 
-	fmt.Println("variables.tf file updated successfully!")
+	fmt.Println("file updated successfully!")
+
 }
 
 // Function to parse the YAML content

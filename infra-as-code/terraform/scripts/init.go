@@ -87,5 +87,5 @@ func replaceVariableValues(content []byte, data map[string]interface{}) []byte {
 
 // Helper function to replace occurrences in byte slices
 func bytesReplace(content []byte, old, new []byte) []byte {
-	return []byte(strings.Replace(string(content), string(old), string(new), -1))
+	return []byte(strings.ReplaceAll(string(content), string(old), string(new)))
 }

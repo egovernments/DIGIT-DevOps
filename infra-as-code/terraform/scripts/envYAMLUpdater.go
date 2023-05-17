@@ -120,7 +120,7 @@ func main() {
 	fmt.Println(yamlString)
 
 	// Write the YAML to a new file
-	file, err := os.Create("kubeConfig")
+	file, err := os.Create("../../../deploy-as-code/deployer/kubeConfig")
 	if err != nil {
 		fmt.Println("Error creating file:", err)
 		return

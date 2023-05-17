@@ -65,14 +65,11 @@ variable "db_username" {
 variable "db_password" {}
 
 variable "public_key" {
-  default = <db_username>
+  default = <public_ssh_key>
   description = "ssh key"
 }
 
 ## change ssh key_name eg. digit-quickstart_your-name
 
-variable "key_name" {
-  default = <ssh_key_name>  
-  description = "ssh key name"
-}
+
 

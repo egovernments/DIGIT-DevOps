@@ -38,6 +38,9 @@ func main() {
 		Zones struct {
 			Value []string `json:"value"`
 		} `json:"zone"`
+		KubeConfig struct {
+			Value string `json:"value"`
+		} `json:"kubectl_config"`
 	}
 	var tfOutput TfOutput
 	err = json.Unmarshal(input, &tfOutput)
@@ -76,5 +79,60 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error writing YAML file: %v\n", err)
 		os.Exit(1)
 	}
+
+	kubeConfigString := tfOutput.KubeConfig.Value
+
+	// Unescape the input string
+	kubeConfigString = strings.ReplaceAll(kubeConfigString, "\\n", "\n")
+	kubeConfigString = strings.ReplaceAll(kubeConfigString, "\\\"", "\"")
+
+	// Split the string by newlines
+	lines := strings.Split(kubeConfigString, "\n")
+
+	// Remove leading and trailing whitespaces from each line
+	for i, line := range lines {
+		lines[i] = line
+	}
+
+	// Set initial indentation level to 0
+	indentationLevel := 0
+
+	// Build the properly indented YAML string
+	var builder strings.Builder
+	for _, line := range lines {
+
+		// Adjust the indentation level based on the line's content
+		if strings.Contains(line, "contexts:") || strings.Contains(line, "users:") {
+			indentationLevel = 0
+		} else if strings.Contains(line, "- name:") && indentationLevel > 0 {
+			indentationLevel--
+		}
+
+		// Apply indentation to the line
+		indentedLine := strings.Repeat("  ", indentationLevel) + line
+
+		// Append the indented line to the builder
+		builder.WriteString(indentedLine)
+		builder.WriteString("\n")
+	}
+
+	yamlString := builder.String()
+	fmt.Println(yamlString)
+
+	// Write the YAML to a new file
+	file, err := os.Create("kubeConfig")
+	if err != nil {
+		fmt.Println("Error creating file:", err)
+		return
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(yamlString)
+	if err != nil {
+		fmt.Println("Error writing to file:", err)
+		return
+	}
+
+	fmt.Println("YAML successfully written to file kubeConfig")
 
 }

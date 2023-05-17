@@ -58,3 +58,12 @@ output "db_instance_port" {
   description = "The database port"
   value       = module.db.db_instance_port
 }
+
+output "zone" {
+  value = var.availability_zones
+}
+
+output "worker_security_group_id" {
+  description = "The security group id of worker nodes"
+  value       = module.eks.worker_security_group_id
+}

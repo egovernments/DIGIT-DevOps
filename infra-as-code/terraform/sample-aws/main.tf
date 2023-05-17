@@ -1,3 +1,15 @@
+terraform {
+  backend "s3" {
+    bucket = "remotestate-digit"
+    key    = "digit-bootcamp-setup/terraform.tfstate"
+    region = "ap-south-1"
+    # The below line is optional depending on whether you are using DynamoDB for state locking and consistency
+    dynamodb_table = "remotestate-digit" 
+    # The below line is optional if your S3 bucket is encrypted
+    encrypt = true
+  }
+}
+
 module "network" {
   source             = "../modules/kubernetes/aws/network"
   vpc_cidr_block     = "${var.vpc_cidr_block}"
@@ -35,7 +47,6 @@ provider "kubernetes" {
   host                   = "${data.aws_eks_cluster.cluster.endpoint}"
   cluster_ca_certificate = "${base64decode(data.aws_eks_cluster.cluster.certificate_authority.0.data)}"
   token                  = "${data.aws_eks_cluster_auth.cluster.token}"
-  #load_config_file       = false
 }
 
 module "eks" {
@@ -76,7 +87,7 @@ resource "aws_security_group_rule" "rds_db_ingress_workers" {
   to_port                  = 5432
   protocol                 = "tcp"
   security_group_id        = "${module.network.rds_db_sg_id}"
-  source_security_group_id = "${module.eks.cluster_security_group_id}"
+  source_security_group_id = "${module.eks.worker_security_group_id}"
   type                     = "ingress"
 }
 

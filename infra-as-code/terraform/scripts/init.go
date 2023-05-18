@@ -15,44 +15,42 @@ func main() {
 	}
 
 	// Parse the YAML content
-	data, err := parseYAML(yamlFile)
+	data, err := parseYAML(string(yamlFile))
 	if err != nil {
 		log.Fatalf("Failed to parse YAML: %v", err)
 	}
 
 	// Read the variables.tf file
-	replaceInFile("../sample-aws/variables.tf", data)
+	replaceInFile("../sample-aws/variables.tf", data, false)
 	fmt.Println("variables.tf file updated successfully!")
 
-	replaceInFile("../../../config-as-code/environments/egov-demo.yaml", data)
+	replaceInFile("../../../config-as-code/environments/egov-demo.yaml", data, true)
 	fmt.Println("env yaml file updated successfully!")
 }
 
-func replaceInFile(filepath string, data map[string]interface{}) {
-
+func replaceInFile(filepath string, data map[string]interface{}, stripQuotes bool) {
 	// Read the file
-	tfFile, err := ioutil.ReadFile(filepath)
+	content, err := ioutil.ReadFile(filepath)
 	if err != nil {
 		log.Fatalf("Failed to read file: %v", err)
 	}
 
-	// Replace the values in the  file
-	newContent := replaceVariableValues(tfFile, data)
+	// Replace the values in the file
+	newContent := replaceVariableValues(string(content), data, stripQuotes)
 
-	// Write the modified content to the  file
-	err = ioutil.WriteFile(filepath, newContent, 0644)
+	// Write the modified content to the file
+	err = ioutil.WriteFile(filepath, []byte(newContent), 0644)
 	if err != nil {
 		log.Fatalf("Failed to write file: %v", err)
 	}
 
 	fmt.Println("file updated successfully!")
-
 }
 
 // Function to parse the YAML content
-func parseYAML(content []byte) (map[string]interface{}, error) {
+func parseYAML(content string) (map[string]interface{}, error) {
 	data := make(map[string]interface{})
-	lines := strings.Split(string(content), "\n")
+	lines := strings.Split(content, "\n")
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -76,16 +74,15 @@ func parseYAML(content []byte) (map[string]interface{}, error) {
 }
 
 // Function to replace the values in the variables.tf file
-func replaceVariableValues(content []byte, data map[string]interface{}) []byte {
+func replaceVariableValues(content string, data map[string]interface{}, stripQuotes bool) string {
 	for key, value := range data {
-		placeholder := fmt.Sprintf("<%v>", key)
+		placeholder := fmt.Sprintf("<%s>", key) // Include angle brackets in the placeholder
 		replacement := fmt.Sprintf("%v", value)
-		content = bytesReplace(content, []byte(placeholder), []byte(replacement))
+		replacement = strings.TrimSpace(replacement)
+		if stripQuotes {
+			replacement = replacement[1 : len(replacement)-1]
+		}
+		content = strings.ReplaceAll(content, placeholder, replacement)
 	}
 	return content
-}
-
-// Helper function to replace occurrences in byte slices
-func bytesReplace(content []byte, old, new []byte) []byte {
-	return []byte(strings.ReplaceAll(string(content), string(old), string(new)))
 }

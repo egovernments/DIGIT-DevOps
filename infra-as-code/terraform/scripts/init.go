@@ -44,7 +44,6 @@ func replaceInFile(filepath string, data map[string]interface{}, stripQuotes boo
 		log.Fatalf("Failed to write file: %v", err)
 	}
 
-	fmt.Println("file updated successfully!")
 }
 
 // Function to parse the YAML content
@@ -66,6 +65,11 @@ func parseYAML(content string) (map[string]interface{}, error) {
 
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
+
+		// Check if the value is enclosed in double quotes
+		if !strings.HasPrefix(value, "\"") || !strings.HasSuffix(value, "\"") {
+			return nil, fmt.Errorf("Values in YAML must be enclosed in double quotes")
+		}
 
 		data[key] = value
 	}

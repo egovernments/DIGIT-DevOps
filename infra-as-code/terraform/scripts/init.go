@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"regexp"
 	"strings"
 )
 
@@ -26,6 +27,9 @@ func main() {
 
 	replaceInFile("../../../config-as-code/environments/egov-demo.yaml", data, true)
 	fmt.Println("env yaml file updated successfully!")
+
+	replaceInFile("../../../config-as-code/environments/egov-demo-secrets.yaml", data, true)
+	fmt.Println("env secrets yaml file updated successfully!")
 }
 
 func replaceInFile(filepath string, data map[string]interface{}, stripQuotes bool) {
@@ -82,6 +86,11 @@ func replaceVariableValues(content string, data map[string]interface{}, stripQuo
 	for key, value := range data {
 		placeholder := fmt.Sprintf("<%s>", key) // Include angle brackets in the placeholder
 		replacement := fmt.Sprintf("%v", value)
+
+		if placeholder == "<db_name>" || placeholder == "<db_username>" {
+			isValidDBName(replacement)
+		}
+
 		replacement = strings.TrimSpace(replacement)
 		if stripQuotes {
 			replacement = replacement[1 : len(replacement)-1]
@@ -89,4 +98,25 @@ func replaceVariableValues(content string, data map[string]interface{}, stripQuo
 		content = strings.ReplaceAll(content, placeholder, replacement)
 	}
 	return content
+}
+
+func isValidDBName(dbName string) error {
+
+	dbName = strings.TrimSpace(dbName)
+	dbName = dbName[1 : len(dbName)-1]
+
+	fmt.Println("Validating DB name")
+	// Check if the DB name starts with a letter
+	matched, _ := regexp.MatchString("^[a-zA-Z]", dbName)
+	if !matched {
+		log.Fatalf("DB name must start with a letter")
+	}
+
+	// Check if the DB name contains only alphanumeric characters
+	matched, _ = regexp.MatchString("^[a-zA-Z0-9]+$", dbName)
+	if !matched {
+		log.Fatalf("DB name and DB user name must contain only alphanumeric characters")
+	}
+
+	return nil
 }

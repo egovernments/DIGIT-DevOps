@@ -149,9 +149,9 @@ func deployClusterConfigs(index map[string]string, configDir string, envOverride
 	fmt.Println("Before Trimming" + configDir)
 
 	sopsDir := strings.Trim(configDir, "helm")
-	fmt.Println("path too sops" + sopsDir)
+	fmt.Println("path to sops file: " + sopsDir)
 	if _, err := os.Stat(sopsDir + "/.sops.yaml"); os.IsNotExist(err) {
-		fmt.Println("Error Condition: ")
+		fmt.Println("Sops file not found")
 		fmt.Println(err)
 		args = append(args, fmt.Sprintf("-f %s", envSecretFile))
 	} else {

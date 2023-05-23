@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -120,7 +122,8 @@ func main() {
 	fmt.Println(yamlString)
 
 	// Write the YAML to a new file
-	file, err := os.Create("../../../deploy-as-code/deployer/kubeConfig")
+	relativePath := "../../../deploy-as-code/deployer/kubeConfig"
+	file, err := os.Create(relativePath)
 	if err != nil {
 		fmt.Println("Error creating file:", err)
 		return
@@ -134,5 +137,22 @@ func main() {
 	}
 
 	fmt.Println("YAML successfully written to file kubeConfig")
+
+	absolutePath, err := filepath.Abs(relativePath)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	// Set the KUBECONFIG environment variable to the absolute path
+	cmd := exec.Command("export", fmt.Sprintf("KUBECONFIG=%s", absolutePath))
+
+	errcmd := cmd.Run()
+	if errcmd != nil {
+		fmt.Println("Error:", errcmd)
+		return
+	}
+
+	fmt.Println("KUBECONFIG exported:", absolutePath)
 
 }

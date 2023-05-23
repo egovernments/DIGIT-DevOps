@@ -25,6 +25,12 @@ func main() {
 	replaceInFile("../sample-aws/variables.tf", data, false)
 	fmt.Println("variables.tf file updated successfully!")
 
+	replaceInFile("../sample-aws/remote-state/variables.tf", data, false)
+	fmt.Println("remote-state/variables.tf file updated successfully!")
+
+	replaceInFile("../sample-aws/main.tf", data, false)
+	fmt.Println("main.tf file updated successfully!")
+
 	replaceInFile("../../../config-as-code/environments/egov-demo.yaml", data, true)
 	fmt.Println("env yaml file updated successfully!")
 
@@ -105,7 +111,7 @@ func isValidDBName(dbName string) error {
 	dbName = strings.TrimSpace(dbName)
 	dbName = dbName[1 : len(dbName)-1]
 
-	fmt.Println("Validating DB name")
+	//fmt.Println("Validating DB name")
 	// Check if the DB name starts with a letter
 	matched, _ := regexp.MatchString("^[a-zA-Z]", dbName)
 	if !matched {

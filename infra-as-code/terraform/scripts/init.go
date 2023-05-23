@@ -21,6 +21,8 @@ func main() {
 		log.Fatalf("Failed to parse YAML: %v", err)
 	}
 
+	validateInputs(data)
+
 	// Read the variables.tf file
 	replaceInFile("../sample-aws/variables.tf", data, false)
 	fmt.Println("variables.tf file updated successfully!")
@@ -36,6 +38,24 @@ func main() {
 
 	replaceInFile("../../../config-as-code/environments/egov-demo-secrets.yaml", data, true)
 	fmt.Println("env secrets yaml file updated successfully!")
+}
+
+func validateInputs(data map[string]interface{}) {
+
+	for key, value := range data {
+		placeholder := fmt.Sprintf("<%s>", key) // Include angle brackets in the placeholder
+		replacement := fmt.Sprintf("%v", value)
+
+		if placeholder == "<db_name>" || placeholder == "<db_username>" {
+			isValidDBName(replacement)
+		}
+
+		if placeholder == "<cluster_name>" {
+			isValidClusterName(replacement)
+		}
+
+	}
+
 }
 
 func replaceInFile(filepath string, data map[string]interface{}, stripQuotes bool) {
@@ -124,5 +144,15 @@ func isValidDBName(dbName string) error {
 		log.Fatalf("DB name and DB user name must contain only alphanumeric characters")
 	}
 
+	return nil
+}
+
+func isValidClusterName(input string) error {
+	// Regular expression pattern for lowercase alphanumeric characters and hyphens
+	pattern := "^[a-z0-9-]+$"
+	matched, _ := regexp.MatchString(pattern, input)
+	if !matched {
+		log.Fatalf(" Cluster name can have only lowercase alphanumeric characters and hyphens")
+	}
 	return nil
 }

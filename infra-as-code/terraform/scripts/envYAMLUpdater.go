@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -144,15 +143,6 @@ func main() {
 		return
 	}
 
-	// Set the KUBECONFIG environment variable to the absolute path
-	cmd := exec.Command("export", fmt.Sprintf("KUBECONFIG=%s", absolutePath))
-
-	errcmd := cmd.Run()
-	if errcmd != nil {
-		fmt.Println("Error:", errcmd)
-		return
-	}
-
-	fmt.Println("KUBECONFIG exported:", absolutePath)
-
+	fmt.Println("Please run the below command to set the kube: ")
+	fmt.Printf("export KUBECONFIG=%s\n", strings.TrimSpace(absolutePath))
 }

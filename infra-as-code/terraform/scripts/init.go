@@ -150,6 +150,7 @@ func isValidDBName(dbName string) error {
 func isValidClusterName(input string) error {
 	// Regular expression pattern for lowercase alphanumeric characters and hyphens
 	pattern := "^[a-z0-9-]+$"
+	input = input[1 : len(input)-1]
 	matched, _ := regexp.MatchString(pattern, input)
 	if !matched {
 		log.Fatalf(" Cluster name can have only lowercase alphanumeric characters and hyphens")

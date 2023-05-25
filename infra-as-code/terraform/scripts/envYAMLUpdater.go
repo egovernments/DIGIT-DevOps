@@ -143,6 +143,7 @@ func main() {
 		return
 	}
 
-	fmt.Println("Please run the below command to set the kube: ")
-	fmt.Printf("export KUBECONFIG=%s\n", strings.TrimSpace(absolutePath))
+	fmt.Println("Please run the following command to set the kubeConfig:")
+	fmt.Printf("\texport KUBECONFIG=\"%s\"\n", strings.TrimSpace(absolutePath))
+
 }

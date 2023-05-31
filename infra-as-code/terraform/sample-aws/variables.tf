@@ -31,7 +31,7 @@ variable "kubernetes_version" {
 
 variable "instance_type" {
   description = "eGov recommended below instance type as a default"
-  default = "m4.xlarge"
+  default = "r5ad.large"
 }
 
 variable "override_instance_types" {
@@ -42,7 +42,7 @@ variable "override_instance_types" {
 
 variable "number_of_worker_nodes" {
   description = "eGov recommended below worker node counts as default"
-  default = "5" #REPLACE IF NEEDED
+  default = "3" #REPLACE IF NEEDED
 }
 
 variable "ssh_key_name" {

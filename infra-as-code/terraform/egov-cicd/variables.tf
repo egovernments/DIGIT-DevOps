@@ -27,7 +27,7 @@ variable "instance_type" {
 }
 
 variable "override_instance_types" {
-  default = ["t3.xlarge", "r5ad.xlarge", "r5a.xlarge", "t3a.xlarge"]
+  default = ["t3.xlarge", "t3a.xlarge"]
 }
 
 variable "number_of_worker_nodes" {

@@ -1,0 +1,84 @@
+# Common Labels
+labels:
+  app: "works-management-service"
+  group: "digit-works"
+
+namespace: works
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "wms"
+
+# Container Configs
+image:
+  repository: "works-management-service"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/wms/health"
+  readinessProbePath: "/wms/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx256m -Xms256m"
+java-args: ""
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}
+  - name: SERVER_CONTEXT_PATH
+    value: /wms
+  - name: SERVER_SERVLET_CONTEXT-PATH
+    value: /wms
+  {{- if index .Values "java-enable-debug" }}
+  - name: JAVA_ENABLE_DEBUG
+    value: "true"
+  {{- end }} 
+  - name: WORKFLOW_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-workflow-v2
+  - name: WORKFLOW_PROCESS_SEARCH_PATH
+    value: "egov-workflow-v2/egov-wf/process/_search"
+  - name: WORKFLOW_BUSINESSSERVICE_SEARCH_PATH
+    value: "egov-workflow-v2/egov-wf/businessservice/_search"
+  - name: WORKFLOW_PROCESS_COUNT_PATH
+    value: "egov-workflow-v2/egov-wf/process/_count"
+  - name: WORKFLOW_PROCESS_STATUSCOUNT_PATH
+    value: "egov-workflow-v2/egov-wf/process/_statuscount"   
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service 
+  - name: SERVICES_ESINDEXER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: es-indexer-host
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id
+  - name: PARENT_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"

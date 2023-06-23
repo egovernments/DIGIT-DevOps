@@ -15,7 +15,7 @@ import (
 func DeployCharts(options Options) {
 
 	configDir, _ := filepath.Abs(options.ConfigDir)
-	var helmDir = configDir + "/helm"
+	var helmDir = configDir
 	log.Println(configDir)
 	log.Println("Helm Directory - " + helmDir)
 
@@ -122,8 +122,7 @@ func getImageTagFromCluster(service string) (tag string) {
 func deployClusterConfigs(index map[string]string, configDir string, envOverrideFile string, envSecretFile string) {
 
 	log.Println("------------------------------------ DEPLOYING CLUSTER CONFIGS ------------------------------------")
-	clusterConfigDir, ok := index["cluster-configs"]
-
+	clusterConfigDir, ok := index["cluster-configs"]  
 	if ok && clusterConfigDir != "" {
 		fmt.Println(clusterConfigDir)
 	} else {

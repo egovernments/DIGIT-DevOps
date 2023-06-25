@@ -5,6 +5,21 @@ labels:
 
 namespace: works
 
+# Ingress Configs
+# ingress:
+#   namespace: egov
+#   enabled: true
+#   zuul: true
+#   context: "ifms-adapter"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "ifms_schema"
+    image:
+      repository: "ifms-adapter-db"
+
 # Container Configs
 image:
   repository: "ifms-adapter"
@@ -40,3 +55,45 @@ env: |
   - name: PAYMENT_STATUS_KAFKA_TOPIC
     value: {{ index .Values "payment-status-kafka-topic" | quote }}
   {{- end }}
+  {{- if index .Values "billing-payment-create" }}
+  - name: BILLING_PAYMENT_CREATE
+    value: {{ index .Values "billing-payment-create" | quote }}
+  {{- end }}
+  {{- if index .Values "state-level-tenant-id" }}
+  - name: STATE_LEVEL_TENANT_ID
+    value: {{ index .Values "state-level-tenant-id" | quote }}
+  {{- end }}
+  {{- if index .Values "egov-idgen-supervision-reference-number" }}
+  - name: EGOV_IDGEN_SUPERVISION_REFERENCE_NUMBER
+    value: {{ index .Values "egov-idgen-supervision-reference-number" | quote }}
+  {{- end }}
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: EGOV_BILL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: expense
+  - name: EGOV_BANK_ACCOUNT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: bankaccounts
+  - name: EGOV_INDIVIDUAL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: individual
+  - name: EGOV_ORGANISATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: organisation
+  - name: EGOV_IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-idgen

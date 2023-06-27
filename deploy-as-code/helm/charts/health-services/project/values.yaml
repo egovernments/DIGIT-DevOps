@@ -1,0 +1,233 @@
+# Common Labels
+labels:
+  app: "project"
+  group: "health"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "project"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "project_schema"
+    image:
+      repository: "project-db"
+
+# Container Configs
+image:
+  repository: "project"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/project/health"
+  readinessProbePath: "/project/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+java-args: ""
+persist-yml-path: "file:///work-dir/health-campaign-config/egov-persister/project-persister.yml"
+indexer-yml-path: "file:///work-dir/health-campaign-config/egov-indexer/project-indexer.yml"
+
+# Additional Container Envs
+env: |
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: health-project
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
+  - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: tracer-errors-provideexceptionindetails
+  {{- end }}
+  - name: EGOV_IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-idgen
+  - name: EGOV_IDGEN_PATH
+    value: "egov-idgen/id/_generate"
+  - name: EGOV_IDGEN_INTEGRATION_ENABLED
+    value: "true"
+  - name: PROJECT.STAFF.IDGEN.ID.FORMAT
+    value: "project.staff.id"
+  - name: PROJECT.FACILITY.IDGEN.ID.FORMAT
+    value: "project.facility.id"
+  - name: PROJECT.TASK.IDGEN.ID.FORMAT
+    value: "project.task.id"
+  - name: IDGEN.PROJECT.BENEFICIARY.ID.FORMAT
+    value: "project.beneficiary.id"
+  - name: SPRING_REDIS_HOST
+    value: redis.backbone
+  - name: SPRING_REDIS_PORT
+    value: "6379"
+  - name: SPRING_CACHE_TYPE
+    value: "redis"
+  - name: SPRING_CACHE_REDIS_TIME-TO-LIVE
+    value: "60"
+  - name: SPRING_CACHE_AUTOEXPIRY
+    value: "true"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: JAVA_ENABLE_DEBUG
+    value: {{ index .Values "java-enable-debug" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"
+  - name: EGOV_USER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user-egov
+  - name: EGOV_SEARCH_USER_URL
+    value: "/user/_search"
+  - name: EGOV_USER_INTEGRATION_ENABLED
+    value: "true"
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}
+  - name: EGOV_LOCATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-location
+  - name: EGOV_LOCATION_CONTEXT_PATH
+    value: "/egov-location/location/v11"
+  - name: EGOV_LOCATION_ENDPOINT
+    value: "/boundarys/_search"
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: EGOV_MDMS_SEARCH_ENDPOINT
+    value: "/egov-mdms-service/v1/_search"
+  - name: EGOV_MDMS_INTEGRATION_ENABLED
+    value: "true"
+  - name: EGOV_MDMS_MASTER_NAME
+    value: "project_master"
+  - name: EGOV_MDMS_MODULE_NAME
+    value: "project"
+  - name: EGOV_HOUSEHOLD_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: household
+  - name: EGOV_SEARCH_HOUSEHOLD_URL
+    value: "/household/v1/_search"
+  - name: EGOV_INDIVIDUAL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: individual
+  - name: EGOV_SEARCH_INDIVIDUAL_URL
+    value: "/individual/v1/_search"
+  - name: EGOV_PRODUCT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: product
+  - name: EGOV_SEARCH_PRODUCT_VARIANT_URL
+    value: "/product/variant/v1/_search"
+  - name: PROJECT.TASK.KAFKA.CREATE.TOPIC
+    value: "save-project-task-topic"
+  - name: PROJECT.TASK.CONSUMER.BULK.CREATE.TOPIC
+    value: "save-project-task-bulk-topic"
+  - name: PROJECT.TASK.KAFKA.UPDATE.TOPIC
+    value: "update-project-task-topic"
+  - name: PROJECT.TASK.CONSUMER.BULK.UPDATE.TOPIC
+    value: "update-project-task-bulk-topic"
+  - name: PROJECT.TASK.KAFKA.DELETE.TOPIC
+    value: "delete-project-task-topic"
+  - name: PROJECT.TASK.CONSUMER.BULK.DELETE.TOPIC
+    value: "delete-project-task-bulk-topic"
+  - name: PROJECT.BENEFICIARY.KAFKA.CREATE.TOPIC
+    value: "save-project-beneficiary-topic"
+  - name: PROJECT.BENEFICIARY.KAFKA.UPDATE.TOPIC
+    value: "update-project-beneficiary-topic"
+  - name: PROJECT.BENEFICIARY.KAFKA.DELETE.TOPIC
+    value: "delete-project-beneficiary-topic"
+  - name: PROJECT.BENEFICIARY.CONSUMER.BULK.CREATE.TOPIC
+    value: "project-beneficiary-consumer-bulk-create-topic"
+  - name: PROJECT.BENEFICIARY.CONSUMER.BULK.UPDATE.TOPIC
+    value: "project-beneficiary-consumer-bulk-update-topic"
+  - name: PROJECT.BENEFICIARY.CONSUMER.BULK.DELETE.TOPIC
+    value: "project-beneficiary-consumer-bulk-delete-topic"
+  - name: PROJECT.STAFF.KAFKA.DELETE.TOPIC
+    value: "delete-project-staff-topic"
+  - name: PROJECT.STAFF.KAFKA.CREATE.TOPIC
+    value: "save-project-staff-topic"
+  - name: PROJECT.STAFF.KAFKA.UPDATE.TOPIC
+    value: "update-project-staff-topic"
+  - name: PROJECT.STAFF.CONSUMER.BULK.DELETE.TOPIC
+    value: "delete-project-staff-bulk-topic"
+  - name: PROJECT.STAFF.CONSUMER.BULK.CREATE.TOPIC
+    value: "create-project-staff-bulk-topic"
+  - name: PROJECT.STAFF.CONSUMER.BULK.UPDATE.TOPIC
+    value: "update-project-staff-bulk-topic"
+  - name: SEARCH_API_LIMIT
+    value: "1000"
+  - name: PROJECT.DOCUMENT.ID.VERIFICATION.REQUIRED
+    value: "false"
+  - name: PROJECT.MANAGEMENT.SYSTEM.KAFKA.CREATE.TOPIC
+    value: "save-project"
+  - name: PROJECT.MANAGEMENT.SYSTEM.KAFKA.UPDATE.TOPIC
+    value: "update-project"
+  - name: PROJECT.DEFAULT.OFFSET
+    value: "0"
+  - name: PROJECT.DEFAULT.LIMIT
+    value: "100"
+  - name: PROJECT.SEARCH.MAX.LIMIT
+    value: "200"
+  - name: EGOV.IDGEN.PROJECT.NUMBER.NAME
+    value: "project.number"
+  - name: PROJECT.RESOURCE.IDGEN.ID.FORMAT
+    value: "project.resource.id"
+  - name: PROJECT.RESOURCE.KAFKA.CREATE.TOPIC
+    value: "save-project-resource-topic"
+  - name: PROJECT.RESOURCE.KAFKA.UPDATE.TOPIC
+    value: "update-project-resource-topic"
+  - name: PROJECT.RESOURCE.KAFKA.DELETE.TOPIC
+    value: "delete-project-resource-topic"
+  - name: PROJECT.RESOURCE.CONSUMER.BULK.CREATE.TOPIC
+    value: "save-project-resource-bulk-topic"
+  - name: PROJECT.RESOURCE.CONSUMER.BULK.UPDATE.TOPIC
+    value: "update-project-resource-bulk-topic"
+  - name: PROJECT.RESOURCE.CONSUMER.BULK.DELETE.TOPIC
+    value: "delete-project-resource-bulk-topic"
+  - name: PROJECT.FACILITY.KAFKA.DELETE.TOPIC
+    value: "delete-project-facility-topic"
+  - name: PROJECT.FACILITY.KAFKA.CREATE.TOPIC
+    value: "save-project-facility-topic"
+  - name: PROJECT.FACILITY.KAFKA.UPDATE.TOPIC
+    value: "update-project-facility-topic"
+  - name: PROJECT.FACILITY.CONSUMER.BULK.DELETE.TOPIC
+    value: "delete-project-facility-bulk-topic"
+  - name: PROJECT.FACILITY.CONSUMER.BULK.CREATE.TOPIC
+    value: "create-project-facility-bulk-topic"
+  - name: PROJECT.FACILITY.CONSUMER.BULK.UPDATE.TOPIC
+    value: "update-project-facility-bulk-topic"
+  - name: EGOV_FACILITY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: facility
+  - name: EGOV_SEARCH_FACILITY_URL
+    value: "/facility/v1/_search"
+  - name: PROJECT_MDMS_MODULE
+    value: "HCM-PROJECT-TYPES"
+  - name: EGOV_LOCATION_HIERARCHY_TYPE
+    value: "ADMIN"
+  - name: EGOV_LOCATION_CODE_QUERY_PARAM
+    value: "code"

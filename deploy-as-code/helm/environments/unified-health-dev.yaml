@@ -1,30 +1,30 @@
 global:
-  domain: health-dev.digit.org
-  setup: fullsetup
+   domain: unified-dev.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
+   setup: fullsetup
 
 cluster-configs:
-  namespaces:
+  namespaces:  
     create: true
     values: [ backbone, cert-manager, egov, es-cluster, kafka-cluster, logging, monitoring, playground, zookeeper-cluster ]
-
+      
   root-ingress:
     cert-issuer: letsencrypt-prod
   configmaps:
     egov-config:
       data:
-        db-host: "health-eks-dev-db.cqqfmghbjssw.ap-south-1.rds.amazonaws.com" ## Add db-host name eg: egov-demo.database.azure.com
-        db-name: "healthdev" ## Add db-name
-        db-url: "jdbc:postgresql://health-eks-dev-db.cqqfmghbjssw.ap-south-1.rds.amazonaws.com:5432/healthdev" ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
-        domain: "health-dev.digit.org" ## Add your Domain Name
-        egov-services-fqdn-name: "https://health-dev.digit.org/" ## Add your Domain Name
-
-        egov-state-level-tenant-id: "default"
-        s3-assets-bucket: "(pg-health-egov-assets|egov-health-playground-assets)"
+        db-host: unified-dev-db.czvokiourya9.ap-south-1.rds.amazonaws.com ## Add db-host name eg: egov-demo.database.azure.com
+        db-name: unifieddevdb ## Add db-name
+        db-url: jdbc:postgresql://unified-dev-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432/unifieddevdb ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
+        domain: "https://unified-dev.digit.org" ## Add your Domain Name    
+        egov-services-fqdn-name: "https://unified-dev.digit.org/" ## Add your Domain Name
+        
+        egov-state-level-tenant-id: "pb" 
+        s3-assets-bucket: "(pg-egov-assets|egov-playground-assets)"
         es-host: "elasticsearch-data-v1.es-cluster"
         es-indexer-host: "http://elasticsearch-data-v1.es-cluster:9200/"
         flyway-locations: "filesystem:/flyway/sql,filesystem:/flyway/seed,filesystem:/flyway/qa"
         kafka-brokers: "kafka-v2.kafka-cluster:9092"
-        kafka-infra-brokers: "kafka-v2-infra.kafka-cluster:9092"
+        kafka-infra-brokers: kafka-v2-infra.kafka-cluster:9092
         logging-level-jdbc: "DEBUG"
         mobile-validation-workaround: "true"
         serializers-timezone-in-ist: "true"
@@ -34,9 +34,10 @@ cluster-configs:
         spring-datasource-tomcat-initialSize: "1"
         spring-datasource-tomcat-max-active: "2"
         spring-jpa-show-sql: "true"
-        timezone: "Asia/Kolkata"
+        timezone: Asia/Kolkata
         tracer-errors-provideexceptionindetails: "true"
-        egov-internal-microservice-user-uuid: fa0f820c-49df-46bb-8e62-8a0ec5d9af5e
+        egov-bnd-freedownload-tenants: "pg.testing"
+        egov-bnd-live-citizen-tenants: "pg.testing"
 
     egov-service-host:
       data:
@@ -149,9 +150,6 @@ cluster-configs:
         stock: "http://stock:8080/"
         facility: "http://facility:8080/"
         service-request: "http://service-request:8080/"
-
-
-#>>>>>> Frontend Servies >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 employee:
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
   custom-js-injection: |
@@ -283,95 +281,118 @@ egov-mdms-service:
   replicas: 1
   images:
     - egovio/egov-mdms-service
-  mdms-path: "/work-dir/health-campaign-mdms/data"
+  mdms-path: "/work-dir/egov-mdms-data/data"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/health-campaign-mdms"   ##### Change repo url with Your fork Repo url
-      branch: "DEV"                                        ##### Change repo branch with Your fork Repo branch
-  mdms-folder: "health-campaign-mdms"
-  masters-config-url: "file:///work-dir/health-campaign-mdms/master-config.json"
+      repo: "git@github.com:egovernments/egov-mdms-data"   ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV"                                        ##### Change repo branch with Your fork Repo branch
+  mdms-folder: "egov-mdms-data"
+  masters-config-url: "file:///work-dir/egov-mdms-data/master-config.json"
   java-args: -Dspring.profiles.active=monitoring
+  heap: "-Xmx256m -Xms256m"
+  memory_limits: 512Mi
 
 egov-indexer:
   heap: "-Xmx512m -Xms512m"
   memory_limits: "768Mi"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/health-campaign-config"        ##### Change repo url with Your fork Repo url
-      branch: "DEV"                                      ##### Change repo branch with Your fork Repo branch
-  egov-indexer-yaml-repo-path: "file:///work-dir/health-campaign-config/egov-indexer/error-queue.yml,file:///work-dir/health-campaign-config/egov-indexer/product-indexer.yml,file:///work-dir/health-campaign-config/egov-indexer/project-indexer.yml,file:///work-dir/health-campaign-config/egov-indexer/individual-indexer.yml,file:///work-dir/health-campaign-config/egov-indexer/household-indexer.yml,file:///work-dir/health-campaign-config/egov-indexer/project-task-indexer.yml,file:///work-dir/health-campaign-config/egov-indexer/stock-indexer.yml,file:///work-dir/health-campaign-config/egov-indexer/facility-indexer.yml,file:///work-dir/health-campaign-config/egov-indexer/project-staff-indexer.yml,file:///work-dir/health-campaign-config/egov-indexer/egov-error-queue-indexer.yml,file:///work-dir/health-campaign-config/egov-indexer/pgr-services.yml,file:///work-dir/health-campaign-config/egov-indexer/service-request-indexer.yml"
+      repo: "git@github.com:egovernments/configs"        ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV"                                      ##### Change repo branch with Your fork Repo branch
+  egov-indexer-yaml-repo-path: "file:///work-dir/configs/egov-indexer/privacy-audit.yaml,file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml,file:///work-dir/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/configs/egov-indexer/error-queue.yml,file:///work-dir/configs/egov-indexer/finance-rolloutadotpion-indexer.yml,file:///work-dir/configs/egov-indexer/payment-indexer.yml,file:///work-dir/configs/egov-indexer/pgr-services.yml,file:///work-dir/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-tl-indexer.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry.yaml,file:///work-dir/configs/egov-indexer/water-service.yml,file:///work-dir/configs/egov-indexer/water-services-meter.yml,file:///work-dir/configs/egov-indexer/sewerage-service.yml,file:///work-dir/configs/egov-indexer/property-services.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry-v2.yaml,file:///work-dir/configs/egov-indexer/egov-vehicle.yaml,file:///work-dir/configs/egov-indexer/egov-vendor.yaml,file:///work-dir/configs/egov-indexer/egov-url-shortening-indexer.yaml,file:///work-dir/configs/egov-indexer/fire-noc-service.yml,file:///work-dir/configs/egov-indexer/egov-echallan.yml,file:///work-dir/configs/egov-indexer/egov-bpa-indexer.yml,file:///work-dir/configs/egov-indexer/edcr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-birth-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-death-indexer.yml,file:///work-dir/configs/egov-indexer/ws-event-indexer.yml,file:///work-dir/configs/egov-indexer/egov-error-queue-indexer.yml,file:///work-dir/configs/egov-indexer/citizen-feedback-indexer.yml,file:///work-dir/configs/egov-indexer/egov-fsm.yml"
 
 egov-persister:
   replicas: 1
+  heap: "-Xmx256m -Xms256m"
+  memory_limits: 512Mi
   images:
     - egovio/egov-persister
-  persist-yml-path: "file:///work-dir/health-campaign-config/egov-persister/hrms-employee-persister.yml,file:///work-dir/health-campaign-config/egov-persister/product-persister.yml,file:///work-dir/health-campaign-config/egov-persister/project-persister.yml,file:///work-dir/health-campaign-config/egov-persister/individual-persister.yml,file:///work-dir/health-campaign-config/egov-persister/household-persister.yml,file:///work-dir/health-campaign-config/egov-persister/project-task-persister.yml,file:///work-dir/health-campaign-config/egov-persister/stock-persister.yml,file:///work-dir/health-campaign-config/egov-persister/facility-persister.yml,file:///work-dir/health-campaign-config/egov-persister/service-request-persister.yml,file:///work-dir/health-campaign-config/egov-persister/pgr-services-persister.yml"
+  persist-yml-path: "file:///work-dir/configs/egov-persister/pt-mutation-calculator-persister.yml,file:///work-dir/configs/egov-persister/apportion-persister.yml,file:///work-dir/configs/egov-persister/billing-services-persist.yml,file:///work-dir/configs/egov-persister/egf-bill.yaml,file:///work-dir/configs/egov-persister/egov-user-event-persister.yml,file:///work-dir/configs/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/egov-persister/firenoc_persiter.yaml,file:///work-dir/configs/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/egov-persister/pdf-generator.yml,file:///work-dir/configs/egov-persister/pg-service-persister.yml,file:///work-dir/configs/egov-persister/pgr.v3.yml,file:///work-dir/configs/egov-persister/property-services.yml,file:///work-dir/configs/egov-persister/pt-calculator-v2-persister.yml,file:///work-dir/configs/egov-persister/pt-drafts.yml,file:///work-dir/configs/egov-persister/pt-persist.yml,file:///work-dir/configs/egov-persister/tl-billing-slab-persister.yml,file:///work-dir/configs/egov-persister/tl-calculation-persister.yml,file:///work-dir/configs/egov-persister/uploader-persister.yml,file:///work-dir/configs/egov-persister/collection-migration-persister.yml,file:///work-dir/configs/egov-persister/property-services-registry.yml,file:///work-dir/configs/egov-persister/tradelicense.yml,file:///work-dir/configs/egov-persister/sewerage-persist.yml,file:///work-dir/configs/egov-persister/water-persist.yml,file:///work-dir/configs/egov-persister/water-meter.yml,file:///work-dir/configs/egov-persister/bpa-persister.yml,file:///work-dir/configs/egov-persister/assessment-persister.yml,file:///work-dir/configs/egov-persister/chatbot.yml,file:///work-dir/configs/egov-persister/fsm-persister.yaml,file:///work-dir/configs/egov-persister/vehicle-persister.yaml,file:///work-dir/configs/egov-persister/vendor-persister.yaml,file:///work-dir/configs/egov-persister/fsm-calculator-persister.yaml"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/health-campaign-config"      ##### Change repo url with Your fork Repo url
-      branch: "DEV"                                    ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV"                                    ##### Change repo branch with Your fork Repo branch
+
+egov-localization:
+  replicas: 1
+  heap: "-Xmx256m -Xms256m"
+  memory_limits: 512Mi
 
 egov-data-uploader:
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/health-campaign-config"      ##### Change repo url with Your fork Repo url
-      branch: "DEV"                                    ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV"                                    ##### Change repo branch with Your fork Repo branch
 
 egov-searcher:
-  search-yaml-path: ""
+  search-yaml-path: "file:///work-dir/configs/egov-searcher/rainmaker-pgr-v2.yml,file:///work-dir/configs/egov-searcher/weekly-impact-emailer-searcher.yml,file:///work-dir/configs/egov-searcher/PTDemandBasedSearcher.yml,file:///work-dir/configs/egov-searcher/bill-genie.yml,file:///work-dir/configs/egov-searcher/rainmaker-tl.yml,file:///work-dir/configs/egov-searcher/localitySearcher.yml"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/health-campaign-config"     ##### Change repo url with Your fork Repo url
-      branch: "DEV"                                   ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs"     ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV"                                   ##### Change repo branch with Your fork Repo branch
 
 dashboard-analytics:
-  config-schema-paths: "file:///work-dir/health-campaign-config/egov-dss-dashboards/dashboard-analytics/*.json"
+  config-schema-paths: "file:///work-dir/configs/egov-dss-dashboards/dashboard-analytics/*.json"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/health-campaign-config"      ##### Change repo url with Your fork Repo url
-      branch: "DEV"                                    ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV"                                    ##### Change repo branch with Your fork Repo branch
 
 dashboard-ingest:
-  config-schema-paths: "file:///work-dir/health-campaign-config/egov-dss-dashboards/dashboard-ingest/*.json"
+  config-schema-paths: "file:///work-dir/configs/egov-dss-dashboards/dashboard-ingest/*.json"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/health-campaign-config"      ##### Change repo url with Your fork Repo url
-      branch: "DEV"                                    ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV"                                    ##### Change repo branch with Your fork Repo branch
 
 # reportinfra >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+national-dashboard-ingest:
+  heap: "-Xmx750m -Xms750m"
+  replicas: 1
+  server-tomcat-max-threads: 25
+  module-index-mapping: '{"PT": "pt-national-dashboard", "PGR": "pgr-national-dashboard", "WS": "ws-national-dashboard", "FIRENOC": "firenoc-national-dashboard", "TL": "tl-national-dashboard", "MCOLLECT": "mcollect-national-dashboard", "OBPS": "obps-national-dashboard", "COMMON": "common-national-dashboard", "BPA": "bpa-national-dashboard","BIRTH":"birth-cert-national-dashboard"}'
+  master-data-index: "master-national-dashboard"
+  module-fields-mapping: '{"PT":{"transactions":"array::number","todaysTotalApplications":"number","todaysClosedApplications":"number","assessments":"number","assessedProperties":"array::number","propertiesRegistered":"array::number","todaysCollection":"array::number","propertyTax":"array::number","cess":"array::number","rebate":"array::number","penalty":"array::number","interest":"array::number"},"TL":{"transactions":"number","todaysApplications":"number","todaysLicenseIssuedWithinSLA":"number","tlTax":"number","adhocPenalty":"number","adhocRebate":"number","todaysCollection":"array::number","todaysTradeLicenses":"array::number","applicationsMovedToday":"array::number"},"PGR":{"uniqueCitizens":"number","todaysComplaints":"array::number","todaysReopenedComplaints":"array::number","todaysOpenComplaints":"array::number","todaysAssignedComplaints":"array::number","todaysRejectedComplaints":"array::number","todaysReassignedComplaints":"array::number","todaysReassignRequestedComplaints":"array::number","todaysClosedComplaints":"array::number","todaysResolvedComplaints":"array::number","slaAchievement":"array::number","completionRate":"array::number","averageSolutionTime":"array::number"},"WS":{"transactions":"number","connectionsCreated":"array::number","todaysCollection":"array::number","sewerageConnections":"array::number","waterConnections":"array::number","pendingConnections":"array::number","slaCompliance":"number","todaysTotalApplications":"number","todaysClosedApplications":"number","todaysCompletedApplicationsWithinSLA":"number"},"MCOLLECT":{"numberOfCategories":"number","todaysCollection":"array::number","numberOfReceipts":"array::number","numberOfChallans":"array::number"},"OBPS":{"ocPlansScrutinized":"number","plansScrutinized":"number","ocSubmitted":"number","applicationsSubmitted":"number","ocIssued":"number","landAreaAppliedInSystemForBPA":"number","averageDaysToIssuePermit":"number","averageDaysToIssueOC":"number","todaysCollection":"array::number","permitsIssued":"array::number","todaysClosedApplicationsOC":"number","todaysCompletedApplicationsWithinSLAOC":"number","todaysClosedApplicationsPermit":"number","todaysCompletedApplicationsWithinSLAPermit":"number","slaComplianceOC":"number","slaCompliancePermit":"number","applicationsWithDeviation":"number","averageDeviation":"number","ocWithDeviation":"number"},"FIRENOC":{"todaysApplications":"array::number","todaysCollection":"array::number","nocIssuedToday":"array::number","provisionalNOCIssued":"array::number","actualNOCIssued":"array::number","avgDaysToIssueProvisionalNOC":"array::number","slaComplianceActual":"array::number","slaComplianceProvisional":"array::number","avgDaysToIssueActualNOC":"array::number","todaysClosedApplications":"number","todaysCompletedApplicationsWithinSLA":"number"},"COMMON":{"onboardedUlbsCount":"number","totalCitizensCount":"number","slaAchievement":"number","liveUlbsCount":"array::number","status":"string","totalLiveUlbsCount":"number","totalUlbCount":"number"},"BIRTH":{"todaysCollection":"array::number","numberOfCertificatesDownloadedToday":"array::number","numberOfBirthsToday":"array::number"},"DEATH":{"todaysCollection":"array::number","numberOfCertificatesDownloadedToday":"array::number","numberOfDeathsToday":"array::number"}}'
+  master-module-fields-mapping: '{"PT":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"PGR":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"TL":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"WS":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"MCOLLECT":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"OBPS":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"FIRENOC":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"BIRTH":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"DEATH":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"}}'
+  module-allowed-groupby-fields-mapping: '{"PT":{"financialYear","usageCategory"},"WS":{"connectionType","channelType","usageType","paymentChannelType","taxHeads","meterType","duration"},"FIRENOC":{"applicationType","department","paymentMode","type","usageType"},"OBPS":{"paymentMode","riskType","occupancyType","subOccupancyType"},"PGR":{"status","channel","department","category"},"TL":{"tradeType","status"},"MCOLLECT":{"paymentMode","status","category","challanStatus"},"COMMON":{"serviceModuleCode"},"BIRTH":{"channel","gender","boundary"},"DEATH":{"channel","gender","boundary","age"}}'
+
 report:
   heap: "-Xmx512m -Xms512m"
   tracing-enabled: "true"
   spring-datasource-tomcat-max-active: 5
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/health-campaign-config"     ##### Change repo url with Your fork Repo url
-      branch: "DEV"                                   ##### Change repo branch with Your fork Repo branch
-  report-locationsfile-path: "file:///work-dir/health-campaign-config/reports/reportFileLocationsv1.txt"
+      repo: "git@github.com:egovernments/configs"     ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV"                                   ##### Change repo branch with Your fork Repo branch
+  report-locationsfile-path: "file:///work-dir/configs/reports/reportFileLocationsv1.txt"
 
 pdf-service:
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/health-campaign-config"     ##### Change repo url with Your fork Repo url
-      branch: "DEV"                                   ##### Change repo branch with Your fork Repo branch
-  data-config-urls: "file:///work-dir/health-campaign-config/pdf-service/data-config/tradelicense-receipt.json,file:///work-dir/health-campaign-config/pdf-service/data-config/property-receipt.json,file:///work-dir/health-campaign-config/pdf-service/data-config/property-bill.json,file:///work-dir/health-campaign-config/pdf-service/data-config/tradelicense-bill.json,file:///work-dir/health-campaign-config/pdf-service/data-config/firenoc-receipt.json,file:///work-dir/health-campaign-config/pdf-service/data-config/pt-receipt.json,file:///work-dir/health-campaign-config/pdf-service/data-config/tl-receipt.json,file:///work-dir/health-campaign-config/pdf-service/data-config/consolidatedbill.json,file:///work-dir/health-campaign-config/pdf-service/data-config/consolidatedreceipt.json,file:///work-dir/health-campaign-config/pdf-service/data-config/tlapplication.json,file:///work-dir/health-campaign-config/pdf-service/data-config/passvehicle-certificate.json,file:///work-dir/health-campaign-config/pdf-service/data-config/ws-consolidatedacknowlegment.json,file:///work-dir/health-campaign-config/pdf-service/data-config/ws-consolidatedsewerageconnection.json,file:///work-dir/health-campaign-config/pdf-service/data-config/buildingpermit.json,file:///work-dir/health-campaign-config/pdf-service/data-config/ptmutationcertificate.json,file:///work-dir/health-campaign-config/pdf-service/data-config/tlrenewalcertificate.json,file:///work-dir/health-campaign-config/pdf-service/data-config/bpa-revocation.json,file:///work-dir/health-campaign-config/pdf-service/data-config/buildingpermit-low.json,file:///work-dir/health-campaign-config/pdf-service/data-config/misc-receipt.json,file:///work-dir/health-campaign-config/pdf-service/data-config/ws-applicationwater.json,file:///work-dir/health-campaign-config/pdf-service/data-config/ws-sanctionletter.json,file:///work-dir/health-campaign-config/pdf-service/data-config/ws-estimationnotice.json,file:///work-dir/health-campaign-config/pdf-service/data-config/ws-applicationsewerage.json,file:///work-dir/health-campaign-config/pdf-service/data-config/tlcertificate.json"
-  format-config-urls: "file:///work-dir/health-campaign-config/pdf-service/format-config/tradelicense-receipt.json,file:///work-dir/health-campaign-config/pdf-service/format-config/property-receipt.json,file:///work-dir/health-campaign-config/pdf-service/format-config/property-bill.json,file:///work-dir/health-campaign-config/pdf-service/format-config/tradelicense-bill.json,file:///work-dir/health-campaign-config/pdf-service/format-config/firenoc-receipt.json,file:///work-dir/health-campaign-config/pdf-service/format-config/pt-receipt.json,file:///work-dir/health-campaign-config/pdf-service/format-config/tl-receipt.json,file:///work-dir/health-campaign-config/pdf-service/format-config/consolidatedbill.json,file:///work-dir/health-campaign-config/pdf-service/format-config/consolidatedreceipt.json,file:///work-dir/health-campaign-config/pdf-service/format-config/tlapplication.json,file:///work-dir/health-campaign-config/pdf-service/format-config/passvehicle-certificate.json,file:///work-dir/health-campaign-config/pdf-service/format-config/ws-consolidatedacknowlegment.json,file:///work-dir/health-campaign-config/pdf-service/format-config/ws-consolidatedsewerageconnection.json,file:///work-dir/health-campaign-config/pdf-service/format-config/buildingpermit.json,file:///work-dir/health-campaign-config/pdf-service/format-config/ptmutationcertificate.json,file:///work-dir/health-campaign-config/pdf-service/format-config/tlrenewalcertificate.json,file:///work-dir/health-campaign-config/pdf-service/format-config/bpa-revocation.json,file:///work-dir/health-campaign-config/pdf-service/format-config/buildingpermit-low.json,file:///work-dir/health-campaign-config/pdf-service/format-config/misc-receipt.json,file:///work-dir/health-campaign-config/pdf-service/format-config/ws-applicationwater.json,file:///work-dir/health-campaign-config/pdf-service/format-config/ws-sanctionletter.json,file:///work-dir/health-campaign-config/pdf-service/format-config/ws-estimationnotice.json,file:///work-dir/health-campaign-config/pdf-service/format-config/ws-applicationsewerage.json,file:///work-dir/health-campaign-config/pdf-service/format-config/tlcertificate.json"
+      repo: "git@github.com:egovernments/configs"     ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV"                                   ##### Change repo branch with Your fork Repo branch
+  data-config-urls: "file:///work-dir/configs/pdf-service/data-config/tradelicense-receipt.json,file:///work-dir/configs/pdf-service/data-config/property-receipt.json,file:///work-dir/configs/pdf-service/data-config/property-bill.json,file:///work-dir/configs/pdf-service/data-config/tradelicense-bill.json,file:///work-dir/configs/pdf-service/data-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/data-config/pt-receipt.json,file:///work-dir/configs/pdf-service/data-config/tl-receipt.json,file:///work-dir/configs/pdf-service/data-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/data-config/consolidatedreceipt.json,file:///work-dir/configs/pdf-service/data-config/tlapplication.json,file:///work-dir/configs/pdf-service/data-config/passvehicle-certificate.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedacknowlegment.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedsewerageconnection.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit.json,file:///work-dir/configs/pdf-service/data-config/ptmutationcertificate.json,file:///work-dir/configs/pdf-service/data-config/tlrenewalcertificate.json,file:///work-dir/configs/pdf-service/data-config/bpa-revocation.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit-low.json,file:///work-dir/configs/pdf-service/data-config/misc-receipt.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationwater.json,file:///work-dir/configs/pdf-service/data-config/ws-sanctionletter.json,file:///work-dir/configs/pdf-service/data-config/ws-estimationnotice.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationsewerage.json,file:///work-dir/configs/pdf-service/data-config/tlcertificate.json,file:///work-dir/configs/pdf-service/data-config/fsm-receipt.json"
+  format-config-urls: "file:///work-dir/configs/pdf-service/format-config/tradelicense-receipt.json,file:///work-dir/configs/pdf-service/format-config/property-receipt.json,file:///work-dir/configs/pdf-service/format-config/property-bill.json,file:///work-dir/configs/pdf-service/format-config/tradelicense-bill.json,file:///work-dir/configs/pdf-service/format-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/format-config/pt-receipt.json,file:///work-dir/configs/pdf-service/format-config/tl-receipt.json,file:///work-dir/configs/pdf-service/format-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/format-config/consolidatedreceipt.json,file:///work-dir/configs/pdf-service/format-config/tlapplication.json,file:///work-dir/configs/pdf-service/format-config/passvehicle-certificate.json,file:///work-dir/configs/pdf-service/format-config/ws-consolidatedacknowlegment.json,file:///work-dir/configs/pdf-service/format-config/ws-consolidatedsewerageconnection.json,file:///work-dir/configs/pdf-service/format-config/buildingpermit.json,file:///work-dir/configs/pdf-service/format-config/ptmutationcertificate.json,file:///work-dir/configs/pdf-service/format-config/tlrenewalcertificate.json,file:///work-dir/configs/pdf-service/format-config/bpa-revocation.json,file:///work-dir/configs/pdf-service/format-config/buildingpermit-low.json,file:///work-dir/configs/pdf-service/format-config/misc-receipt.json,file:///work-dir/configs/pdf-service/format-config/ws-applicationwater.json,file:///work-dir/configs/pdf-service/format-config/ws-sanctionletter.json,file:///work-dir/configs/pdf-service/format-config/ws-estimationnotice.json,file:///work-dir/configs/pdf-service/format-config/ws-applicationsewerage.json,file:///work-dir/configs/pdf-service/format-config/tlcertificate.json,file:///work-dir/configs/pdf-service/format-config/fsm-receipt.json"
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 # financials >>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 egf-master:
-  db-url: "jdbc:postgresql://health-eks-dev-db.cqqfmghbjssw.ap-south-1.rds.amazonaws.com:5432/healthdev"
   memory_limits: 512Mi
-  heap: "-Xmx256m -Xms256m"
+  heap: "-Xmx128m -Xms128m"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 egov-custom-consumer:
   erp-host: "https://mohali-qa.egovernments.org/"
 
 egov-apportion-service:
-  memory_limits: 512Mi
-  heap: -Xmx256m -Xms256m
+  memory_limits: 256Mi
+  heap: -Xmx128m -Xms128m
+
+fsm:
+  memory_limits: 384Mi
+  heap: -Xmx384m -Xms256m  
 
 # docs >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 redoc:
@@ -385,7 +406,7 @@ redoc:
 
 nginx-ingress:
   images:
-    - quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.26.1
+    - quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.30.0
   replicas: 1
   default-backend-service: "egov/nginx"
   namespace: egov
@@ -393,30 +414,21 @@ nginx-ingress:
   ssl-protocols: "TLSv1.2 TLSv1.3"
   ssl-ciphers: "EECDH+CHACHA20:EECDH+AES"
   ssl-ecdh-curve: "X25519:prime256v1:secp521r1:secp384r1"
-  controller:
-    image:
-      repository: egovio/nginx-ingress-controller
-      tag: "0.26.1"     
-    metrics:            #To collect the matrics data from nginx-ingress.
-      enabled: true
-    serviceMonitor:   #To enable the service monitoring of nginx-ingress
-      enabled: true
-    service:
-      prometheusRule:
-        enabled: true
 
 cert-manager:
   email: "devops@egovernments.org"     ### Add email-id which used by cert-manager for certificates validation.
-
-
+  
+  
 zuul:
   replicas: 1
   custom-filter-property: "false"
   tracing-enabled: "true"
-  heap: "-Xmx704m -Xms512m"
+  memory_limits: 768Mi
+  heap: "-Xmx512m -Xms512m"
+  java-debug: "true"
   server-tomcat-max-threads: "350"
   server-tomcat-max-connections: "1500"
-  egov-open-endpoints-whitelist: "/user/oauth/token,/user-otp/v1/_send,/otp/v1/_validate,/user/citizen/_create,/localization/messages,/localization/messages/v1/_search,/user/password/nologin/_update,/pgr/servicedefinition/v1/_search,/pgr/servicecategories/v1/_search,/pgr/v1/otp/_send,/pgr-master/receivingmode/v1/_search,/tenant/v1/tenant/_search,/egov-location/boundarys,/egov-location/boundarys/boundariesByBndryTypeNameAndHierarchyTypeName,/pgr-master/service/v1/_search,/egov-location/boundarys/getLocationByLocationName,/pgr-master/OTPConfig/_search,/pgr-master/serviceGroup/v1/_search,/egov-location/boundarys/isshapefileexist,/pgr/services/v1/_search,/hr-masters/hrconfigurations/_search,/collection-services/receipts/_view,/pgr-master/service/v2/_search,/pgr-master/servicedefinition/v1/_search,/citizen-services,/citizen-services/v1/requests/receipt/_create,/citizen-services/v1/pgresponse,/citizen-services/v1/requests/anonymous/_search,/egov-mdms-service/v1/_search,/egov-mdms-service/v1/_get,/egov-mdms-service/v1/_reload,/egov-mdms-service/v1/_reloadobj,/egov-location/boundarys/getshapefile,/egov-indexer/index-operations/_index,/egov-indexer/index-operations/_reload,/egov-mdms-service-test/v1/_search,/egov-mdms-create/v1/_update,/egov-mdms-create/v1/_create,/egov-mdms-service-test/v1/_reload,/filestore/v1/files/url,/egov-url-shortening,/whatsapp-webhook/messages,/edcr/rest/dcr/downloadfile,/dashboard-ingest/ingest/upload,/egov-searcher/water-services/wateropensearch/_get,/egov-searcher/sewerage-services/sewerageopensearch/_get,/xstate-chatbot/status,/xstate-chatbot/reminder,/nlp-engine/fuzzy/city,/nlp-engine/fuzzy/locality"
+  egov-open-endpoints-whitelist: "/user/oauth/token,/user-otp/v1/_send,/otp/v1/_validate,/user/citizen/_create,/localization/messages,/localization/messages/v1/_search,/user/password/nologin/_update,/pgr/servicedefinition/v1/_search,/pgr/servicecategories/v1/_search,/pgr/v1/otp/_send,/pgr-master/receivingmode/v1/_search,/tenant/v1/tenant/_search,/egov-location/boundarys,/egov-location/boundarys/boundariesByBndryTypeNameAndHierarchyTypeName,/pgr-master/service/v1/_search,/egov-location/boundarys/getLocationByLocationName,/pgr-master/OTPConfig/_search,/pgr-master/serviceGroup/v1/_search,/egov-location/boundarys/isshapefileexist,/pgr/services/v1/_search,/hr-masters/hrconfigurations/_search,/collection-services/receipts/_view,/pgr-master/service/v2/_search,/pgr-master/servicedefinition/v1/_search,/citizen-services,/citizen-services/v1/requests/receipt/_create,/citizen-services/v1/pgresponse,/citizen-services/v1/requests/anonymous/_search,/egov-mdms-service/v1/_search,/egov-mdms-service/v1/_get,/egov-mdms-service/v1/_reload,/egov-mdms-service/v1/_reloadobj,/egov-location/boundarys/getshapefile,/egov-indexer/index-operations/_index,/egov-indexer/index-operations/_reload,/egov-mdms-service-test/v1/_search,/egov-mdms-create/v1/_update,/egov-mdms-create/v1/_create,/egov-mdms-service-test/v1/_reload,/filestore/v1/files/url,/eus,/whatsapp-webhook/messages,/edcr/rest/dcr/downloadfile,/dashboard-ingest/ingest/upload,/egov-searcher/water-services/wateropensearch/_get,/egov-searcher/sewerage-services/sewerageopensearch/_get,/xstate-chatbot/status,/xstate-chatbot/reminder,/nlp-engine/fuzzy/city,/nlp-engine/fuzzy/locality"
   egov-mixed-mode-endpoints-whitelist: "/pgr/seva/v1/_create,/pgr/seva/v1/_search,/pgr/seva/v1/_count,/workflow/history/v1/_search,/filestore/v1/files/id,/filestore/v1/files,/filestore/v1/files/tag,/egov-common-masters/departments/_search,/pt-property/property/propertytypes/_search,/pt-property/properties/_search,/pt-property/property/usages/_search,/egov-idgen/id/_generate,/egf-masters/financialyears/_search,/egov-common-workflows/process/_start,/egov-common-workflows/process/_search,/egov-common-workflows/tasks,/egov-common-workflows/tasks/{id}/_update,/user/_search,/billing-service/demand/_dues,/billing-service/bill/_generate,/billing-service/demand/_create,/wcms/masters/waterchargesconfig/_search,/wcms/masters/usagetypes/_search,/wcms/masters/pipesizes/_search,/wcms-connection/connection/_getbillingtypes,/wcms-connection/connection/_getconnectiontypes,/wcms/masters/sourcetypes/_search,/wcms/masters/supplytypes/_search,/wcms/masters/storagereservoirs/_search,/wcms/masters/treatmentplants/_search,/wcms/masters/documenttypes-applicationtypes/_search,/wcms/masters/donations/_search,/wcms/masters/nonmeterwaterrates/_search,/wcms-connection/connection/_create,/egov-common-masters/genders/_search,/egov-common-workflows/designations/_search,/access/v1/actions/mdms/_get,/tl-services/v1/BPAREG/_create,/tl-services/v1/BPAREG/_update,/tl-calculator/v1/BPAREG/_getbill,/property-services/property/_search,/billing-service/bill/v2/_search,/egov-location/location/v11/boundarys/_search,/pg-service/transaction/v1/_create,/collection-services/payments/_search,/pdf-service/v1/_create,/billing-service/bill/v2/_fetchbill,/pg-service/transaction/v1/_update,/ws-services/wc/_search,/sw-services/swc/_search,/edcr/rest/dcr/scrutinydetails,/edcr/rest/dcr/occomparison,/egov-pdf/download/PAYMENT/consolidatedreceipt,/collection-services/payments/PT/_search,/collection-services/payments/WS/_search,/collection-services/payments/SW/_search,/collection-services/payments/WS.ONE_TIME_FEE/_search,/collection-services/payments/SW.ONE_TIME_FEE/_search,/turn-io-adapter/_transform,/egov-user-event/v1/events/_search"
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -426,6 +438,8 @@ collection-services:
   receipt-search-paginate: "true"
   receipt-search-defaultsize: 30
   user-create-enabled: "true"
+  heap: "-Xmx512m -Xms256m"
+  memory_limits: 768Mi
 
 collection-receipt-voucher-consumer:
   jalandhar-erp-host: "https://jalandhar-qa.egovernments.org/"
@@ -438,6 +452,8 @@ collection-receipt-voucher-consumer:
 finance-collections-voucher-consumer:
   erp-env-name: "qa"
   erp-domain-name: "egovernments.org"
+  heap: "-Xmx256m -Xms256m"
+  memory_limits: 512Mi
 
 # rainmaker-pgr >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 rainmaker-pgr:
@@ -449,6 +465,17 @@ rainmaker-pgr:
   comment-by-employee-notif-enabled: "false"
   notification-allowed-status: "open,assigned,rejected,resolved"
 
+property-services:
+  replicas: 1
+  heap: "-Xmx256m -Xms256m"
+  memory_limits: 512Mi
+  egov-idgen-ack-format: "PB-AC-[cy:yyyy-MM-dd]-[SEQ_EG_PT_ACK]"
+  egov-idgen-ptid-format: "PB-PT-[cy:yyyy-MM-dd]-[SEQ_EG_PT_PTID]"
+  egov-idgen-mutation-format: "PB-MT-[CITY]-[SEQ_EG_PT_MUTATION]"
+  egov-idgen-assm-format: "PB-AS-[cy:yyyy-MM-dd]-[SEQ_EG_PT_ASSM]"
+  property-userevents-pay-link: "digit-ui/citizen/payment/my-bills/$businessService/$propertyId?tenantId=$tenantId"
+  property-decryption-abac-enabled: "true"
+  
 pt-services-v2:
   pt-userevents-pay-link: "/citizen/otpLogin?mobileNo=$mobile&redirectTo=egov-common/pay?consumerCode=$consumerCode&tenantId=$tenantId"
 
@@ -471,14 +498,16 @@ egov-workflow-v2:
   logging-level: "DEBUG"
   java-args: -Dspring.profiles.active=monitoring
   heap: "-Xmx192m -Xms192m"
+  memory_limits: 512Mi
   workflow-statelevel: "false"
   host-link: "https://egov-demo.egovernments.org/citizen/"
   pdf-link: "/download/epass?tenantId={TENANTID}&ids={UUID}"
 
 egov-hrms:
   java-args: -Dspring.profiles.active=monitoring
-  heap: "-Xmx192m -Xms192m"
   employee-applink: "https://egov-demo.egovernments.org/employee/user/login"
+  heap: "-Xmx256m -Xms256m"
+  memory_limits: 512Mi
 
 
 egov-weekly-impact-notifier:
@@ -499,12 +528,13 @@ logging-config:
   es-port: "9200"
 
 jaeger:
-  host: ""
-  port: ""
-  sampler-type: ""
-  sampler-param: ""
-  sampling-strategies: |
-    {
+  host: "jaeger-agent.monitoring"
+  port: "6831"
+  sampler-type: const
+  sampler-param: 1
+  collector:
+    samplingConfig: |
+      {
         "service_strategies": [
           {
             "service": "tl-services",
@@ -573,7 +603,7 @@ redis:
 playground:
   replicas: 1
   images:
-    - egovio/playground:1.0
+    - egovio/playground:1.3
 
 # fluent-bit >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 fluent-bit:
@@ -583,17 +613,24 @@ fluent-bit:
   egov-infra-log-topic: "egov-infra-logs"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
+egov-enc-service:
+  heap: "-Xmx256m -Xms256m"
+  memory_limits: 512Mi
+  state-level-tenant-id: "pb"
+
 # kafka-v2 AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 kafka-v2:
+  image:
+    tag: "5.4.1"
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-04252ba788d687a32" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1b
-      - volumeId: "vol-0999233fdb43fc001" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1b
-      - volumeId: "vol-09555d5b6f7474fd1" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1b
+      - volumeId: "vol-005465716b9ca6a9e" ## add your respective volume id eg. vol-0085073c65f76dre5
+        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
+      - volumeId: "vol-03252f4474ddb7300" ## add your respective volume id eg. vol-0085073c65f76dre5
+        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
+      - volumeId: "vol-0945c7000265a6390" ## add your respective volume id eg. vol-0085073c65f76dre5
+        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
   zookeeperHosts: "zookeeper-v2.zookeeper-cluster:2181/kafka-v2"
 
   heapOptions: "-Xms704M -Xmx704M"
@@ -604,59 +641,25 @@ kafka-v2:
   minInsyncReplicas: "1"
   offsetsReplicationFactor: "3"
 
-## kafka-v2 Azure <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-#kafka-v2:
-#  persistence:
-#    enabled: true
-#    azure:
-#      - diskName: "diskName" ## add diskName
-#        diskURI: ## Azure diskURI
-#      - diskName: "diskName" ## add diskName
-#        diskURI: ## Azure diskURI
-#      - diskName: "diskName"  ## add diskName
-#        diskURI:  ## Azure diskURI
-#  zookeeperHosts: "zookeeper-v2.zookeeper-cluster:2181/kafka-v2"
+### Kafka Connect <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+kafka-connect:
+  image:
+    tag: "5.4.1"  
 
-#  heapOptions: "-Xms704M -Xmx704M"
-#  memory_limits: 1408Mi
-#  lingerMs: "250"
-#  numberPartitions: "3"
-#  replicationFactor: "2"
-#  minInsyncReplicas: "1"
-#  offsetsReplicationFactor: "3"
-
-## kafka-v2 SDC >>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
-#kafka-v2:
-#  persistence:
-#    enabled: true
-#    iscsi:
-#      targetPortal: 10.67.49.8:3260 ## change the targetPortal with yours.
-#      iqn:
-#      - iqn.2010-06.com.nutanix:kubernete-72b39064-fdbf-48d3-abfa-7a36c956d535-tgt0   ## change the iqn with yours.
-#      - iqn.2010-06.com.nutanix:kubernete-72b39064-fdbf-48d3-abfa-7a36c956d535-tgt1   ## change the iqn with yours.
-#      - iqn.2010-06.com.nutanix:kubernete-72b39064-fdbf-48d3-abfa-7a36c956d535-tgt2   ## change the iqn with yours.
-#  zookeeperHosts: "zookeeper-v2.zookeeper-cluster:2181/kafka-v2"
-#  storage-size: "75Gi
-#  heapOptions: "-Xms704M -Xmx704M"
-#  memory_limits: 1408Mi
-#  lingerMs: "250"
-#  numberPartitions: "3"
-#  replicationFactor: "2"
-#  minInsyncReplicas: "1"
-#  offsetsReplicationFactor: "3"
 
 # zookeeper-v2 AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 zookeeper-v2:
+  image:
+    tag: "5.4.1"
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-0af907e3ec6b45dff" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1b
-      - volumeId: "vol-0c8ed5253e66a3b99" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1b
-      - volumeId: "vol-08667160508016b62" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1b
+      - volumeId: "vol-04ab05c5b41096c6a" ## add your respective volume id eg. vol-0085073c65f76dre5
+        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
+      - volumeId: "vol-0f7e8dcf98e087983" ## add your respective volume id eg. vol-0085073c65f76dre5
+        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
+      - volumeId: "vol-08a42f187f978e5f7" ## add your respective volume id eg. vol-0085073c65f76dre5
+        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
 
   ## Zookeeper JVM Heap Option
   heapOptions: "-Xms256M -Xmx256M"
@@ -668,50 +671,6 @@ zookeeper-v2:
       cpu: 300m
       memory: 384Mi
 
-  # zookeeper-v2 Azure >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-  #zookeeper-v2:
-  #  persistence:
-  #    enabled: true
-  #    azure:
-  #      - diskName: "diskName" ## add diskName
-  #        diskURI: ## Azure diskURI
-  #      - diskName: "diskName" ## add diskName
-  #        diskURI: ## Azure diskURI
-  #      - diskName: "diskName"  ## add diskName
-  #        diskURI:  ## Azure diskURI
-
-  ## Zookeeper JVM Heap Option
-#  heapOptions: "-Xms256M -Xmx256M"
-#  resources:
-#    limits:
-#      cpu: 300m
-#      memory: 384Mi
-#    requests:
-#      cpu: 300m
-#      memory: 384Mi
-
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-## zookeeper-v2 SDC <<<<<<<<<<<<<<<<<
-#zookeeper-v2:
-#  persistence:
-#    enabled: true
-#    iscsi:
-#      targetPortal: 10.67.49.8:3260  ## change the targetPortal with yours.
-#      iqn:
-#      - iqn.2010-06.com.nutanix:kubernete-72b39064-fdbf-48d3-abfa-7a36c956d535-tgt3  ## change the iqn with yours.
-#      - iqn.2010-06.com.nutanix:kubernete-72b39064-fdbf-48d3-abfa-7a36c956d535-tgt4  ## change the iqn with yours.
-#      - iqn.2010-06.com.nutanix:kubernete-72b39064-fdbf-48d3-abfa-7a36c956d535-tgt5  ## change the iqn with yours.
-
-#  storage-size: 5Gi
-#  heapOptions: "-Xms256M -Xmx256M"
-#  resources:
-#    limits:
-#      cpu: 300m
-#      memory: 384Mi
-#    requests:
-#      cpu: 300m
-#      memory: 384Mi
-
 
 # es-v1-cluster AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>
 elasticsearch-data-v1:
@@ -720,60 +679,19 @@ elasticsearch-data-v1:
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-0471fb65377b31af3" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1b
-      - volumeId: "vol-0d312161f24d7608d" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1b
-      - volumeId: "vol-0dcb03521a8befe8f" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1b
+      - volumeId: "vol-093ea5986f5b46a71" ## add your respective volume id eg. vol-0085073c65f76dre5
+        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
+      - volumeId: "vol-046900000f8ffe60d" ## add your respective volume id eg. vol-0085073c65f76dre5
+        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
+      - volumeId: "vol-0a718b7e384a2870c" ## add your respective volume id eg. vol-0085073c65f76dre5
+        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
 
-  esJavaOpts: "-Xmx1g -Xms1g"
+  esJavaOpts: "-Xmx550m -Xms550m"
   resources:
     requests:
-      memory: "2Gi"
+      memory: "1Gi"
     limits:
-      memory: "2Gi"
-## es-data-v1 Azure >>>>>>>>>>>>>>>>>>>>>
-#elasticsearch-data-v1:
-#  image:
-#    tag: 6.6.2
-#  persistence:
-#    enabled: true
-#    azure:
-#      - diskName: "diskName" ## add diskName
-#        diskURI: ## Azure diskURI
-#      - diskName: "diskName" ## add diskName
-#        diskURI: ## Azure diskURI
-#      - diskName: "diskName"  ## add diskName
-#        diskURI:  ## Azure diskURI
-#
-#  esJavaOpts: "-Xmx1g -Xms1g"
-#  resources:
-#    requests:
-#      memory: "896Mi"
-#    limits:
-#      memory: "896Mi"
-
-## es-data-v1 SDC<<<<<<<<<<<<<<<
-#elasticsearch-data-v1:
-#  image:
-#    tag: 6.6.2
-#  persistence:
-#    enabled: true
-#    iscsi:
-#       targetPortal: 10.67.49.8:3260  ## change the targetPortal with yours.
-#       iqn:
-#       - iqn.2010-06.com.nutanix:kubernete-72b39064-fdbf-48d3-abfa-7a36c956d535-tgt17  ## change the iqn with yours.
-#       - iqn.2010-06.com.nutanix:kubernete-72b39064-fdbf-48d3-abfa-7a36c956d535-tgt16  ## change the iqn with yours.
-#       - iqn.2010-06.com.nutanix:kubernete-72b39064-fdbf-48d3-abfa-7a36c956d535-tgt19  ## change the iqn with yours.
-#  storage-size: 25Gi
-#  esJavaOpts: "-Xmx1g -Xms1g"
-#   storage-size: 25Gi
-#  resources:
-#    requests:
-#      memory: "896Mi"
-#    limits:
-#      memory: "896Mi"
+      memory: "1Gi"
 
 ### es-master-v1 AWS >>>>>>>>>>>>>>>>>>>>
 
@@ -784,13 +702,13 @@ elasticsearch-master-v1:
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-08afd24346fb136f5" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1b
-      - volumeId: "vol-0c94e7b9cc22e555a" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1b
-      - volumeId: "vol-0986961f7968b5cd5" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1b
-
+      - volumeId: "vol-0dfb25024c9e8f35e" ## add your respective volume id eg. vol-0085073c65f76dre5
+        zone: ap-south-1b           ## add your respective zone eg. ap-south-1a
+      - volumeId: "vol-0a83e7431f2d5a2c2" ## add your respective volume id eg. vol-0085073c65f76dre5
+        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
+      - volumeId: "vol-03f793c66e07e9111" ## add your respective volume id eg. vol-0085073c65f76dre5
+        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
+ 
   esJavaOpts: "-Xmx448m -Xms448m"
   resources:
     requests:
@@ -798,48 +716,21 @@ elasticsearch-master-v1:
     limits:
       memory: "896Mi"
 
-## es-master-v1 Azure >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-#elasticsearch-master-v1:
-#  replicas: 3
-#  image:
-#    tag: 6.6.2
-#  persistence:
-#    enabled: true
-#    azure:
-#      - diskName: "diskName" ## add diskName
-#        diskURI: ## Azure diskURI
-#      - diskName: "diskName" ## add diskName
-#        diskURI: ## Azure diskURI
-#      - diskName: "diskName"  ## add diskName
-#        diskURI:  ## Azure diskURI
 
-#  esJavaOpts: "-Xmx448m -Xms448m"
-#  resources:
-#    requests:
-#      memory: "896Mi"
-#    limits:
-#      memory: "896Mi"
+pgadmin:
+  dbUrl: "unified-dev-db.czvokiourya9.ap-south-1.rds.amazonaws.com"
+  port: "5432"
+  environment: "unified-dev"
+  maintenance-db-name: "unifieddevdb"
+  db-admin-username: "unifieddev"
+  db-read-username: "dev_readonly"
 
-## es-master-v1 SDC <<<<<<<<<<<<<<<<<<<<
-#elasticsearch-master-v1:
-#  replicas: 3
-#  image:
-#    tag: 6.6.2
-#  persistence:
-#    enabled: true
-#    iscsi:
-#      targetPortal: 10.67.49.8:3260  ## change the targetPortal with yours.
-#      iqn:
-#      - iqn.2010-06.com.nutanix:kubernete-72b39064-fdbf-48d3-abfa-7a36c956d535-tgt14  ## change the iqn with yours.
-#      - iqn.2010-06.com.nutanix:kubernete-72b39064-fdbf-48d3-abfa-7a36c956d535-tgt15  ## change the iqn with yours.
-#      - iqn.2010-06.com.nutanix:kubernete-72b39064-fdbf-48d3-abfa-7a36c956d535-tgt16  ## change the iqn with yours.
-#  storage-size: 5Gi
-#  esJavaOpts: "-Xmx448m -Xms448m"
-#  resources:
-#    requests:
-#      memory: "896Mi"
-#    limits:
-#      memory: "896Mi"
+
+playground:
+  replicas: 1
+  images:
+    - egovio/playground:v2
+
 
 es-curator:
   schedule: "45 18 * * *"
@@ -850,19 +741,3 @@ es-curator:
   jaeger-cleanup-enabled: "true"
   logs-to-retain: "7"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-oauth2-proxy:
-  config:
-    configFile: |-
-      email_domains = [ "*" ]
-      github_org = "egovernments"
-      github_team = "micro-service-devops,health-dev"
-      upstreams = [ "file:///dev/null" ]
-
-grafana:
-  initContainers:
-    gitSync:
-      enabled: true
-      repo: "git@github.com:egovernments/health-campaign-config" #REPLACE with your configs repo
-      branch: "DEV" #REPLACE with config repo branch name
-  dashboardsFolder: /work-dir/health-campaign-config/monitoring-dashboards    

@@ -1,6 +1,6 @@
 # Common Labels
 labels:
-  app: "ws-calculator"
+  app: "noc-services"
   group: "rainmaker"
 
 namespace: urban
@@ -10,28 +10,29 @@ ingress:
   namespace: egov
   enabled: true
   zuul: true
-  context: "ws-calculator"
+  context: "noc-services"
 
 # Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
-    schemaTable: "ws_calculator_schema"
+    schemaTable: "noc_services_schema"
     image:
-      repository: "ws-calculator-db"
+      repository: "noc-services-db"
 
 # Container Configs
 image:
-  repository: "ws-calculator"
+  repository: "noc-services"
 replicas: "1"
 healthChecks:
   enabled: true
-  livenessProbePath: "/ws-calculator/health"
-  readinessProbePath: "/ws-calculator/health"
+  livenessProbePath: "/noc-services/health"
+  readinessProbePath: "/noc-services/health"
 appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx192m -Xms192m"
+heap: "-Xmx256m -Xms256m"
 java-args: "-Dspring.profiles.active=monitoring"
+egov.idgen.bpa.applicationNum.format: "PB-BP-[cy:yyyy-MM-dd]-[SEQ_EG_BP_APN]"
 
 # Additional Container Envs
 env: |
@@ -40,11 +41,6 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-idgen
-  - name: EGOV_PROPERTY_SERVICE_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: property-services
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
@@ -55,37 +51,26 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-user
-  - name: EGOV_LOCATION_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: egov-location
   - name: EGOV_LOCALIZATION_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: egov-localization
-  - name: EGOV_BILLINGSERVICE_HOST
+  - name: WORKFLOW_CONTEXT_PATH
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: billing-service
-  - name: EGOV_WS_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: ws-services
-  {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
-  - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: tracer-errors-provideexceptionindetails
-  {{- end }}
+        key: egov-workflow-v2 
+  - name: WORKFLOW_TRANSITION_PATH
+    value: "egov-workflow-v2/egov-wf/process/_transition"
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: egov-ws-calculator
-  - name: EGOV_METERSERVICE_CREATEMETERCONNECTION
-    value: save-ws-meter
+    value: egov-noc-services
+  - name: PERSISTER_SAVE_NOC_TOPIC
+    value: save-noc-application
+  - name: PERSISTER_UPDATE_NOC_TOPIC
+    value: update-noc-application
+  - name: PERSISTER_UPDATE_NOC_WORKFLOW_TOPIC
+    value: update-noc-workflow
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
@@ -96,13 +81,6 @@ env: |
     value: {{ index .Values "java-args" | quote }}
   - name: SERVER_PORT
     value: "8080"
-  - name: SERVER_CONTEXT_PATH
-    value: /ws-calculator                       
-  - name: NOTIFICATION_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: egov-services-fqdn-name
   - name: SECURITY_BASIC_ENABLED
     value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED

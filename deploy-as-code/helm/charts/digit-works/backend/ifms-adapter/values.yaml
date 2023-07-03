@@ -6,11 +6,11 @@ labels:
 namespace: works
 
 # Ingress Configs
-# ingress:
-#   namespace: egov
-#   enabled: true
-#   zuul: true
-#   context: "ifms-adapter"
+ingress:
+  namespace: works
+  enabled: true
+  zuul: true
+  context: "ifms-adapter"
 
 # Init Containers Configs
 initContainers:
@@ -67,6 +67,29 @@ env: |
   - name: EGOV_IDGEN_IFMS_BILL_REFERENCE_NUMBER
     value: {{ index .Values "egov-idgen-ifms-bill-reference-number" | quote }}
   {{- end }}
+  {{- if index .Values "ifms-jit-authenticate-endpoint" }}
+  - name: IFMS_JIT_AUTHENTICATE_ENDPOINT
+    value: {{ index .Values "ifms-jit-authenticate-endpoint" | quote }}
+  {{- end }}
+  {{- if index .Values "ifms-jit-request-data-endpoint" }}
+  - name: IFMS_JIT_REQUEST_DATA_ENDPOINT
+    value: {{ index .Values "ifms-jit-request-data-endpoint" | quote }}
+  {{- end }}
+  - name: IFMS_JIT_CLIENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: ifms-jit
+        key: clientid
+  - name: IFMS_JIT_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: ifms-jit
+        key: clientsecret
+  - name: IFMS_JIT_HOSTNAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifms-jit
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:

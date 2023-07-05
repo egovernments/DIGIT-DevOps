@@ -1,6 +1,6 @@
 # Common Labels
 labels:
-  app: "ws-services"
+  app: "sw-calculator"
   group: "rainmaker"
 
 namespace: urban
@@ -10,24 +10,24 @@ ingress:
   namespace: egov
   enabled: true
   zuul: true
-  context: "ws-services"
+  context: "sw-calculator"
 
 # Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
-    schemaTable: "ws_services_schema"
+    schemaTable: "sw_calculator_schema"
     image:
-      repository: "ws-services-db"
+      repository: "sw-calculator-db"
 
 # Container Configs
 image:
-  repository: "ws-services"
+  repository: "sw-calculator"
 replicas: "1"
 healthChecks:
   enabled: true
-  livenessProbePath: "/ws-services/health"
-  readinessProbePath: "/ws-services/health"
+  livenessProbePath: "/sw-calculator/health"
+  readinessProbePath: "/sw-calculator/health"
 appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
@@ -40,11 +40,6 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-idgen
-  - name: STATE_LEVEL_TENANT_ID
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: egov-state-level-tenant-id
   - name: EGOV_PROPERTY_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
@@ -75,39 +70,13 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: billing-service
-  - name: EGOV_WS_CALCULATION_HOST
+  - name: EGOV_SW_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: ws-calculator
-  - name: EGOV_FILESTORE_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: egov-filestore
-  - name: EGOV_PDFSERVICE_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: pdf-service
-  - name: WORKFLOW_CONTEXT_PATH
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: egov-workflow-v2
-  {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
-  - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: tracer-errors-provideexceptionindetails
-  {{- end }}
+        key: sw-services
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: egov-ws-services
-  - name: EGOV_WATERSERVICE_CREATEWATERCONNECTION
-    value: save-ws-connection
-  - name: EGOV_WATERSERVICE_UPDATEWATERCONNECTION
-    value: update-ws-connection
+    value: egov-sw-calculator
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
@@ -118,18 +87,18 @@ env: |
     value: {{ index .Values "java-args" | quote }}
   - name: SERVER_PORT
     value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: /sw-calculator                       
   - name: NOTIFICATION_URL
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: egov-services-fqdn-name
   - name: SECURITY_BASIC_ENABLED
-    value: "false"
+    value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED
     value: "false"
   {{- if index .Values "tracing-enabled" }}
   - name: TRACER_OPENTRACING_ENABLED
-    value: "true"
+    value: "true" 
   {{- end }}
-  - name: IS_EXTERNAL_WORKFLOW_ENABLED
-    value: {{ index .Values "is-external-workflow-enabled" | quote }}

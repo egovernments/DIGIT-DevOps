@@ -1,6 +1,6 @@
 # Common Labels
 labels:
-  app: "ws-services"
+  app: "pt-services-v2"
   group: "rainmaker"
 
 namespace: urban
@@ -10,28 +10,32 @@ ingress:
   namespace: egov
   enabled: true
   zuul: true
-  context: "ws-services"
+  context: "pt-services-v2"
 
 # Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
-    schemaTable: "ws_services_schema"
+    schemaTable: "pt_services_v2_schema"
     image:
-      repository: "ws-services-db"
+      repository: "pt-services-v2-db"
 
 # Container Configs
 image:
-  repository: "ws-services"
+  repository: "pt-services-v2"
 replicas: "1"
 healthChecks:
   enabled: true
-  livenessProbePath: "/ws-services/health"
-  readinessProbePath: "/ws-services/health"
+  livenessProbePath: "/pt-services-v2/health"
+  readinessProbePath: "/pt-services-v2/health"
 appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
 java-args: "-Dspring.profiles.active=monitoring"
+notification-sms-enabled: ""
+employee-allowed-search-params: ""
+citizen-allowed-search-params: ""
+pt-userevents-pay-link: "citizen/otpLogin?mobileNo=$mobile&redirectTo=egov-common/pay?consumerCode=$applicationNo&tenantId=$tenantId&businessService=PT"
 
 # Additional Container Envs
 env: |
@@ -40,16 +44,6 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-idgen
-  - name: STATE_LEVEL_TENANT_ID
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: egov-state-level-tenant-id
-  - name: EGOV_PROPERTY_SERVICE_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: property-services
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
@@ -70,31 +64,11 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-localization
-  - name: EGOV_BILLINGSERVICE_HOST
+  - name: EGOV_CALCULATION_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: billing-service
-  - name: EGOV_WS_CALCULATION_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: ws-calculator
-  - name: EGOV_FILESTORE_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: egov-filestore
-  - name: EGOV_PDFSERVICE_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: pdf-service
-  - name: WORKFLOW_CONTEXT_PATH
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: egov-workflow-v2
+        key: pt-calculator-v2
   {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
   - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
     valueFrom:
@@ -103,11 +77,11 @@ env: |
         key: tracer-errors-provideexceptionindetails
   {{- end }}
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: egov-ws-services
-  - name: EGOV_WATERSERVICE_CREATEWATERCONNECTION
-    value: save-ws-connection
-  - name: EGOV_WATERSERVICE_UPDATEWATERCONNECTION
-    value: update-ws-connection
+    value: egov-pt-services-v2
+  - name: PERSISTER_SAVE_PROPERTY_TOPIC
+    value: save-pt-property
+  - name: PERSISTER_UPDATE_PROPERTY_TOPIC
+    value: update-pt-property
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
@@ -118,18 +92,43 @@ env: |
     value: {{ index .Values "java-args" | quote }}
   - name: SERVER_PORT
     value: "8080"
+  - name: EGOV_IDGEN_PTID_FORMAT
+    value: "PT-[city]-[SEQ_EG_PT_PTID]"
+  - name: EGOV_IDGEN_ASSM_FORMAT
+    value: "AS-[cy:YYYY-MM-dd]-[SEQ_EG_PT_ASSM]"
   - name: NOTIFICATION_URL
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: egov-services-fqdn-name
   - name: SECURITY_BASIC_ENABLED
-    value: "false"
+    value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED
     value: "false"
+  - name: NOTIFICATION_SMS_ENABLED
+    value: {{ index .Values "notification-sms-enabled" | quote }}
+  - name: EGOV_USER_EVENT_NOTIFICATION_ENABLED
+    value: "true"
+  {{- if index .Values "employee-allowed-search-params" }}
+  - name: EMPLOYEE_ALLOWED_SEARCH_PARAMS
+    value: {{ index .Values "employee-allowed-search-params" | quote }}
+  {{- end }}
+  {{- if index .Values "citizen-allowed-search-params" }}
+  - name: CITIZEN_ALLOWED_SEARCH_PARAMS
+    value: {{ index .Values "citizen-allowed-search-params" | quote }}
+  {{- end }}
+  - name: EGOV_UI_APP_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  - name: EGOV_USR_EVENTS_CREATE_TOPIC
+    value: "persist-user-events-async"
+  - name: EGOV_USR_EVENTS_PAY_LINK
+    value: {{ index .Values "pt-userevents-pay-link" | quote }}
+  - name: EGOV_USR_EVENTS_PAY_CODE
+    value: "PAY"          
   {{- if index .Values "tracing-enabled" }}
   - name: TRACER_OPENTRACING_ENABLED
-    value: "true"
+    value: "true" 
   {{- end }}
-  - name: IS_EXTERNAL_WORKFLOW_ENABLED
-    value: {{ index .Values "is-external-workflow-enabled" | quote }}

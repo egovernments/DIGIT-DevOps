@@ -1,6 +1,6 @@
 # Common Labels
 labels:
-  app: "ws-services"
+  app: "bpa-services"
   group: "rainmaker"
 
 namespace: urban
@@ -10,28 +10,29 @@ ingress:
   namespace: egov
   enabled: true
   zuul: true
-  context: "ws-services"
+  context: "bpa-services"
 
 # Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
-    schemaTable: "ws_services_schema"
+    schemaTable: "bpa_services_schema"
     image:
-      repository: "ws-services-db"
+      repository: "bpa-services-db"
 
 # Container Configs
 image:
-  repository: "ws-services"
+  repository: "bpa-services"
 replicas: "1"
 healthChecks:
   enabled: true
-  livenessProbePath: "/ws-services/health"
-  readinessProbePath: "/ws-services/health"
+  livenessProbePath: "/bpa-services/health"
+  readinessProbePath: "/bpa-services/health"
 appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx192m -Xms192m"
+heap: "-Xmx256m -Xms256m"
 java-args: "-Dspring.profiles.active=monitoring"
+egov.idgen.bpa.applicationNum.format: "PB-BP-[cy:yyyy-MM-dd]-[SEQ_EG_BP_APN]"
 
 # Additional Container Envs
 env: |
@@ -40,16 +41,6 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-idgen
-  - name: STATE_LEVEL_TENANT_ID
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: egov-state-level-tenant-id
-  - name: EGOV_PROPERTY_SERVICE_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: property-services
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
@@ -65,49 +56,58 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-location
+  - name: EGOV_EDCR_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
   - name: EGOV_LOCALIZATION_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: egov-localization
+  - name: EGOV_NOC_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: noc-services
   - name: EGOV_BILLINGSERVICE_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: billing-service
-  - name: EGOV_WS_CALCULATION_HOST
+  - name: EGOV_BPA_CALCULATOR_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: ws-calculator
-  - name: EGOV_FILESTORE_HOST
+        key: bpa-calculator
+  - name: EGOV_LANDINFO_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-filestore
-  - name: EGOV_PDFSERVICE_HOST
+        key: land-services
+  - name: EGOV_UI_APP_HOST
     valueFrom:
       configMapKeyRef:
-        name: egov-service-host
-        key: pdf-service
+        name: egov-config
+        key: egov-services-fqdn-name
   - name: WORKFLOW_CONTEXT_PATH
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: egov-workflow-v2
-  {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
-  - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: tracer-errors-provideexceptionindetails
-  {{- end }}
+  - name: WORKFLOW_TRANSITION_PATH
+    value: "egov-workflow-v2/egov-wf/process/_transition"
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: egov-ws-services
-  - name: EGOV_WATERSERVICE_CREATEWATERCONNECTION
-    value: save-ws-connection
-  - name: EGOV_WATERSERVICE_UPDATEWATERCONNECTION
-    value: update-ws-connection
+    value: egov-bpa-services
+  - name: PERSISTER_SAVE_BUILDINGPLAN_TOPIC
+    value: save-bpa-buildingplan
+  - name: PERSISTER_UPDATE_BUILDINGPLAN_TOPIC
+    value: update-bpa-buildingplan
+  - name: PERSISTER_UPDATE_BUILDINGPLAN_WORKFLOW_TOPIC
+    value: update-bpa-workflow
+  - name: PERSISTER_UPDATE_BUILDINGPLAN_ADHOC_TOPIC
+    value: update-bpa-adhoc-buildingplan
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
@@ -118,18 +118,13 @@ env: |
     value: {{ index .Values "java-args" | quote }}
   - name: SERVER_PORT
     value: "8080"
-  - name: NOTIFICATION_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: egov-services-fqdn-name
+  - name: EGOV_IDGEN_BPA_FORMAT
+    value: {{ index .Values "egov.idgen.bpa.applicationNum.format" | quote }}
   - name: SECURITY_BASIC_ENABLED
-    value: "false"
+    value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED
     value: "false"
   {{- if index .Values "tracing-enabled" }}
   - name: TRACER_OPENTRACING_ENABLED
-    value: "true"
+    value: "true" 
   {{- end }}
-  - name: IS_EXTERNAL_WORKFLOW_ENABLED
-    value: {{ index .Values "is-external-workflow-enabled" | quote }}

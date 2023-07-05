@@ -1,6 +1,6 @@
 # Common Labels
 labels:
-  app: "ws-services"
+  app: "sw-services"
   group: "rainmaker"
 
 namespace: urban
@@ -10,24 +10,24 @@ ingress:
   namespace: egov
   enabled: true
   zuul: true
-  context: "ws-services"
+  context: "sw-services"
 
 # Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
-    schemaTable: "ws_services_schema"
+    schemaTable: "sw_services_schema"
     image:
-      repository: "ws-services-db"
+      repository: "sw-services-db"
 
 # Container Configs
 image:
-  repository: "ws-services"
+  repository: "sw-services"
 replicas: "1"
 healthChecks:
   enabled: true
-  livenessProbePath: "/ws-services/health"
-  readinessProbePath: "/ws-services/health"
+  livenessProbePath: "/sw-services/health"
+  readinessProbePath: "/sw-services/health"
 appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
@@ -44,7 +44,7 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-config
-        key: egov-state-level-tenant-id
+        key: egov-state-level-tenant-id      
   - name: EGOV_PROPERTY_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
@@ -75,11 +75,11 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: billing-service
-  - name: EGOV_WS_CALCULATION_HOST
+  - name: EGOV_SW_CALCULATION_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: ws-calculator
+        key: sw-calculator
   - name: EGOV_FILESTORE_HOST
     valueFrom:
       configMapKeyRef:
@@ -95,19 +95,12 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-workflow-v2
-  {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
-  - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: tracer-errors-provideexceptionindetails
-  {{- end }}
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: egov-ws-services
-  - name: EGOV_WATERSERVICE_CREATEWATERCONNECTION
-    value: save-ws-connection
-  - name: EGOV_WATERSERVICE_UPDATEWATERCONNECTION
-    value: update-ws-connection
+    value: egov-sw-services
+  - name: EGOV_SEWERAGESERVICE_CREATECONNECTION
+    value: save-sw-connection
+  - name: EGOV_SEWERAGESERVICE_UPDATECONNECTION
+    value: update-sw-connection
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
@@ -118,6 +111,8 @@ env: |
     value: {{ index .Values "java-args" | quote }}
   - name: SERVER_PORT
     value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: /sw-services
   - name: NOTIFICATION_URL
     valueFrom:
       configMapKeyRef:

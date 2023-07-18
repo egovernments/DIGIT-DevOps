@@ -1,8 +1,8 @@
 variable "environment" {
-    default = "azure-demo"
+    default = "<cluster_name>"
 }
 variable "resource_group" {
-    default = "azure-demo"
+    default = "<cluster_name>"
 }
 
 variable "location" {
@@ -14,11 +14,11 @@ variable "nodes" {
 }
 
 variable "db_version" {
-    default = "11"
+    default = "11.20"
 }
 
 variable "db_user" {
-    default = "demo"
+    default = "<db_username>"
 }
 
 variable "db_password" {

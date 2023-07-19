@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -20,25 +21,25 @@ func main() {
 	type TfOutput struct {
 		EsDataVolumeIDs struct {
 			Value []string `json:"value"`
-		} `json:"es_data_volume_ids"`
+		} `json:"es_data_v1_storage_ids"`
 		EsMasterVolumeIDs struct {
 			Value []string `json:"value"`
-		} `json:"es_master_volume_ids"`
+		} `json:"es_master_storage_ids"`
 		KafkaVolumeIDs struct {
 			Value []string `json:"value"`
-		} `json:"kafka_vol_ids"`
+		} `json:"kafka_storage_ids"`
 		ZookeeperVolumeIDs struct {
 			Value []string `json:"value"`
-		} `json:"zookeeper_volume_ids"`
+		} `json:"zookeeper_storage_ids"`
 		DBHost struct {
 			Value string `json:"value"`
-		} `json:"db_instance_endpoint"`
+		} `json:"db_host"`
 		DBName struct {
 			Value string `json:"value"`
-		} `json:"db_instance_name"`
-		Zones struct {
-			Value []string `json:"value"`
-		} `json:"zone"`
+		} `json:"db_name"`
+		// Zones struct {
+		// 	Value []string `json:"value"`
+		// } `json:"zone"`
 		KubeConfig struct {
 			Value string `json:"value"`
 		} `json:"kubectl_config"`
@@ -55,22 +56,65 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error reading YAML file: %v\n", err)
 		os.Exit(1)
 	}
-	// Replace the placeholders with the actual volume IDs
-	output := strings.ReplaceAll(string(yamlFile), "<elasticsearch-data_volume_id_1>", tfOutput.EsDataVolumeIDs.Value[0])
-	output = strings.ReplaceAll(output, "<elasticsearch-data_volume_id_2>", tfOutput.EsDataVolumeIDs.Value[1])
-	output = strings.ReplaceAll(output, "<elasticsearch-data_volume_id_3>", tfOutput.EsDataVolumeIDs.Value[2])
-	output = strings.ReplaceAll(output, "<elasticsearch-master_volume_id_1>", tfOutput.EsMasterVolumeIDs.Value[0])
-	output = strings.ReplaceAll(output, "<elasticsearch-master_volume_id_2>", tfOutput.EsMasterVolumeIDs.Value[1])
-	output = strings.ReplaceAll(output, "<elasticsearch-master_volume_id_3>", tfOutput.EsMasterVolumeIDs.Value[2])
-	output = strings.ReplaceAll(output, "<kafka-v2_volume_id_1>", tfOutput.KafkaVolumeIDs.Value[0])
-	output = strings.ReplaceAll(output, "<kafka-v2_volume_id_2>", tfOutput.KafkaVolumeIDs.Value[1])
-	output = strings.ReplaceAll(output, "<kafka-v2_volume_id_3>", tfOutput.KafkaVolumeIDs.Value[2])
-	output = strings.ReplaceAll(output, "<zookeeper-v2_volume_id_1>", tfOutput.ZookeeperVolumeIDs.Value[0])
-	output = strings.ReplaceAll(output, "<zookeeper-v2_volume_id_2>", tfOutput.ZookeeperVolumeIDs.Value[1])
-	output = strings.ReplaceAll(output, "<zookeeper-v2_volume_id_3>", tfOutput.ZookeeperVolumeIDs.Value[2])
-	output = strings.ReplaceAll(output, "<db_host_name>", tfOutput.DBHost.Value)
+	// Replace the ESData DiskURI placeholders
+	output := strings.ReplaceAll(string(yamlFile), "<ESDATA_DISKURI_1>", tfOutput.EsDataVolumeIDs.Value[0])
+	output = strings.ReplaceAll(output, "<ESDATA_DISKURI_2>", tfOutput.EsDataVolumeIDs.Value[1])
+	output = strings.ReplaceAll(output, "<ESDATA_DISKURI_3>", tfOutput.EsDataVolumeIDs.Value[2])
+
+	// Replace the ESData Diskname placeholders
+	_, ESDATA_DISKNAME_1 := path.Split(tfOutput.EsDataVolumeIDs.Value[0])
+	_, ESDATA_DISKNAME_2 := path.Split(tfOutput.EsDataVolumeIDs.Value[1])
+	_, ESDATA_DISKNAME_3 := path.Split(tfOutput.EsDataVolumeIDs.Value[2])
+
+	output = strings.ReplaceAll(output, "<ESDATA_DISKNAME_1>", ESDATA_DISKNAME_1)
+	output = strings.ReplaceAll(output, "<ESDATA_DISKNAME_2>", ESDATA_DISKNAME_2)
+	output = strings.ReplaceAll(output, "<ESDATA_DISKNAME_3>", ESDATA_DISKNAME_3)
+
+	// Replace the ESMaster DiskURI placeholders
+	output = strings.ReplaceAll(output, "<ESMASTER_DISKURI_1>", tfOutput.EsMasterVolumeIDs.Value[0])
+	output = strings.ReplaceAll(output, "<ESMASTER_DISKURI_2>", tfOutput.EsMasterVolumeIDs.Value[1])
+	output = strings.ReplaceAll(output, "<ESMASTER_DISKURI_3>", tfOutput.EsMasterVolumeIDs.Value[2])
+
+	// Replace the ESMaster DiskName placeholders
+	_, ESMASTER_DISKNAME_1 := path.Split(tfOutput.EsMasterVolumeIDs.Value[0])
+	_, ESMASTER_DISKNAME_2 := path.Split(tfOutput.EsMasterVolumeIDs.Value[1])
+	_, ESMASTER_DISKNAME_3 := path.Split(tfOutput.EsMasterVolumeIDs.Value[2])
+
+	output = strings.ReplaceAll(output, "<ESMASTER_DISKNAME_1>", ESMASTER_DISKNAME_1)
+	output = strings.ReplaceAll(output, "<ESMASTER_DISKNAME_2>", ESMASTER_DISKNAME_2)
+	output = strings.ReplaceAll(output, "<ESMASTER_DISKNAME_3>", ESMASTER_DISKNAME_3)
+
+	// Replace the Kafka DiskURI placeholders
+	output = strings.ReplaceAll(output, "<KAFKA_DISKURI_1>", tfOutput.KafkaVolumeIDs.Value[0])
+	output = strings.ReplaceAll(output, "<KAFKA_DISKURI_2>", tfOutput.KafkaVolumeIDs.Value[1])
+	output = strings.ReplaceAll(output, "<KAFKA_DISKURI_3>", tfOutput.KafkaVolumeIDs.Value[2])
+
+	// Replace the Kafka DiskName placeholders
+	_, KAFKA_DISKNAME_1 := path.Split(tfOutput.KafkaVolumeIDs.Value[0])
+	_, KAFKA_DISKNAME_2 := path.Split(tfOutput.KafkaVolumeIDs.Value[1])
+	_, KAFKA_DISKNAME_3 := path.Split(tfOutput.KafkaVolumeIDs.Value[2])
+
+	output = strings.ReplaceAll(output, "<KAFKA_DISKNAME_1>", KAFKA_DISKNAME_1)
+	output = strings.ReplaceAll(output, "<KAFKA_DISKNAME_2>", KAFKA_DISKNAME_2)
+	output = strings.ReplaceAll(output, "<KAFKA_DISKNAME_3>", KAFKA_DISKNAME_3)
+
+	// Replace the Zookeeper DiskURI placeholders
+	output = strings.ReplaceAll(output, "<ZOOKEEPER_DISKURI_1>", tfOutput.ZookeeperVolumeIDs.Value[0])
+	output = strings.ReplaceAll(output, "<ZOOKEEPER_DISKURI_2>", tfOutput.ZookeeperVolumeIDs.Value[1])
+	output = strings.ReplaceAll(output, "<ZOOKEEPER_DISKURI_3>", tfOutput.ZookeeperVolumeIDs.Value[2])
+
+	// Replace the Zookeeper DiskName placeholders
+	_, ZOOKEEPER_DISKNAME_1 := path.Split(tfOutput.ZookeeperVolumeIDs.Value[0])
+	_, ZOOKEEPER_DISKNAME_2 := path.Split(tfOutput.ZookeeperVolumeIDs.Value[1])
+	_, ZOOKEEPER_DISKNAME_3 := path.Split(tfOutput.ZookeeperVolumeIDs.Value[2])
+
+	output = strings.ReplaceAll(output, "<ZOOKEEPER_DISKNAME_1>", ZOOKEEPER_DISKNAME_1)
+	output = strings.ReplaceAll(output, "<ZOOKEEPER_DISKNAME_2>", ZOOKEEPER_DISKNAME_2)
+	output = strings.ReplaceAll(output, "<ZOOKEEPER_DISKNAME_3>", ZOOKEEPER_DISKNAME_3)
+
+	output = strings.ReplaceAll(output, "<db_host>", tfOutput.DBHost.Value)
 	output = strings.ReplaceAll(output, "<db_name>", tfOutput.DBName.Value)
-	output = strings.ReplaceAll(output, "<zone>", tfOutput.Zones.Value[0])
+	//output = strings.ReplaceAll(output, "<zone>", tfOutput.Zones.Value[0])
 
 	// Write the updated YAML to stdout
 	fmt.Println(output)

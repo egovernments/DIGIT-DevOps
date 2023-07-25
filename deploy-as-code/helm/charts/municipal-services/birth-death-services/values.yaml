@@ -16,6 +16,33 @@ initContainers:
     schemaTable: "birth_death_services_schema"
     image:
       repository: "birth-death-services-db"
+    env: |
+      {{- if index .Values "bnd-ismultischema-enabled" }}        
+      - name: SCHEMA_NAME
+        value: {{ index .Values "bnd-schemas" | quote }}
+      {{- end }}
+      - name: "DB_URL"
+        valueFrom: 
+          configMapKeyRef: 
+            name: egov-config
+            key: db-url
+      - name: "SCHEMA_TABLE"
+        value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}              
+      - name: "FLYWAY_USER"
+        valueFrom: 
+          secretKeyRef: 
+              name: db
+              key: flyway-username
+      - name: "FLYWAY_PASSWORD"
+        valueFrom:
+          secretKeyRef: 
+              name: db
+              key: flyway-password
+      - name: "FLYWAY_LOCATIONS"
+        valueFrom: 
+          configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations         
 
 # Container Configs
 image:

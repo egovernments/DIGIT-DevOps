@@ -6,8 +6,8 @@ terraform {
 
 provider "azurerm" {
   # whilst the `version` attribute is optional, we recommend pinning to a given version of the Provider
-  subscription_id  = "b4e1aa53-c521-44e6-8a4d-5ae107916b5b"
-  tenant_id        = "593ce202-d1a9-4760-ba26-ae35417c00cb" 
+  subscription_id  = "${var.subscription_id}"
+  tenant_id        = "${var.tenant_id}" 
   client_id        = "${var.client_id}"
   client_secret    = "${var.client_secret}"
   features {}

@@ -21,6 +21,12 @@ variable "db_user" {
     default = "<db_username>"
 }
 
+variable "subscription_id" {
+}
+
+variable "tenant_id" {
+}
+
 variable "db_password" {
 }
 
@@ -29,3 +35,4 @@ variable "client_id" {
 
 variable "client_secret" {
 }
+

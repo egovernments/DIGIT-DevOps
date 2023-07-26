@@ -24,7 +24,7 @@ func main() {
 	validateInputs(data)
 
 	// Read the variables.tf file
-	replaceInFile("../sample-azure/variables.tf", data, false)
+	replaceInFile("../sample-azure/variables.tf", data, true)
 	fmt.Println("variables.tf file updated successfully!")
 
 	replaceInFile("../sample-azure/remote-state/variables.tf", data, false)

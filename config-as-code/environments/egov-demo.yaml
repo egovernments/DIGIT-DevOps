@@ -1,23 +1,23 @@
 global:
-   domain: <domain_name> ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
+   domain: citest.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
    setup: fullsetup
 
 cluster-configs:
     namespaces:  
       create: true
-      values: [ backbone, cert-manager, egov, es-cluster, kafka-cluster, logging, monitoring, playground, zookeeper-cluster ]
+      values: [ backbone, cert-manager, upyog, es-cluster, kafka-cluster, logging, monitoring, playground, zookeeper-cluster ]
       
     root-ingress:
       cert-issuer: letsencrypt-prod
     configmaps:
         egov-config:
-            namespace: [ egov, monitoring ]
+            namespace: [ upyog, monitoring ]
             data:
-                db-host: <db_host_name> ## Add db-host name eg: egov-demo.database.azure.com
-                db-name: <db_name> ## Add db-name
-                db-url: jdbc:postgresql://<db_host_name>/<db_name> ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
-                domain: <domain_name> ## Add your Domain Name    
-                egov-services-fqdn-name: https://<domain_name>/ ## Add your Domain Name
+                db-host: citest-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432 ## Add db-host name eg: egov-demo.database.azure.com
+                db-name: citest ## Add db-name
+                db-url: jdbc:postgresql://citest-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432/citest ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
+                domain: citest.digit.org ## Add your Domain Name    
+                egov-services-fqdn-name: https://citest.digit.org/ ## Add your Domain Name
                 
                 egov-state-level-tenant-id: "pg" 
                 s3-assets-bucket: "(pg-egov-assets|egov-playground-assets)"
@@ -41,7 +41,7 @@ cluster-configs:
                 egov-bnd-live-citizen-tenants: "pg.testing"
 
         egov-service-host:
-            namespace: [ egov, monitoring ]
+            namespace: [ upyog, monitoring ]
             data:
                 asset-services: "http://asset-services:8080/"
                 asset-services-maha: "http://asset-services-maha:8080/"
@@ -384,7 +384,7 @@ nginx-ingress:
     - quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.26.1
   replicas: 1
   default-backend-service: "egov/nginx"
-  namespace: egov
+  namespace: upyog
   cert-issuer: "letsencrypt-prod"
   ssl-protocols: "TLSv1.2 TLSv1.3"
   ssl-ciphers: "EECDH+CHACHA20:EECDH+AES"
@@ -573,12 +573,12 @@ kafka-v2:
   persistence:
     enabled: true
     aws:
-      - volumeId: "<kafka-v2_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone>     ## REPLACE: add respective zone. 
-      - volumeId: "<kafka-v2_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<kafka-v2_volume_id_3>"  ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
+      - volumeId: "vol-05ef6ff9e5a2fcf72" ## REPLACE: add volume id
+        zone: ap-south-1b     ## REPLACE: add respective zone. 
+      - volumeId: "vol-02774a4e3405d698e" ## REPLACE: add volume id
+        zone: ap-south-1b ## REPLACE: add zone
+      - volumeId: "vol-0bb89fcbd4adf5c45"  ## REPLACE: add volume id
+        zone: ap-south-1b ## REPLACE: add zone
   zookeeperHosts: "zookeeper-v2.zookeeper-cluster:2181/kafka-v2"
 
   heapOptions: "-Xms704M -Xmx704M"
@@ -608,12 +608,12 @@ zookeeper-v2:
   persistence:
     enabled: true
     aws:
-      - volumeId: "<zookeeper-v2_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<zookeeper-v2_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<zookeeper-v2_volume_id_3>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
+      - volumeId: "vol-04eabc69298bc9297" ## REPLACE: add volume id
+        zone: ap-south-1b ## REPLACE: add zone
+      - volumeId: "vol-0869bd33970de4ab8" ## REPLACE: add volume id
+        zone: ap-south-1b ## REPLACE: add zone
+      - volumeId: "vol-02904a8ca2981ecc5" ## REPLACE: add volume id
+        zone: ap-south-1b ## REPLACE: add zone
 
   ## Zookeeper JVM Heap Option
   heapOptions: "-Xms256M -Xmx256M"
@@ -633,12 +633,12 @@ elasticsearch-data-v1:
   persistence:
     enabled: true
     aws:
-      - volumeId: "<elasticsearch-data_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<elasticsearch-data_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<elasticsearch-data_volume_id_3>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
+      - volumeId: "vol-043cb0dd569467847" ## REPLACE: add volume id
+        zone: ap-south-1b ## REPLACE: add zone
+      - volumeId: "vol-085424edf29ce71f5" ## REPLACE: add volume id
+        zone: ap-south-1b ## REPLACE: add zone
+      - volumeId: "vol-0007ce32009dbf5a7" ## REPLACE: add volume id
+        zone: ap-south-1b ## REPLACE: add zone
 
   esJavaOpts: "-Xmx1g -Xms1g"
   resources:
@@ -658,12 +658,12 @@ elasticsearch-master-v1:
   persistence:
     enabled: true
     aws:
-      - volumeId: "<elasticsearch-master_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone> ##REPLACE: add zone
-      - volumeId: "<elasticsearch-master_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ##REPLACE: add zone
-      - volumeId: "<elasticsearch-master_volume_id_3>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
+      - volumeId: "vol-0aa62abd061e91e1a" ## REPLACE: add volume id
+        zone: ap-south-1b ##REPLACE: add zone
+      - volumeId: "vol-08cdff2d16b39911b" ## REPLACE: add volume id
+        zone: ap-south-1b ##REPLACE: add zone
+      - volumeId: "vol-0cc05ddcd8a6da813" ## REPLACE: add volume id
+        zone: ap-south-1b ## REPLACE: add zone
  
   esJavaOpts: "-Xmx448m -Xms448m"
   resources:

@@ -5,7 +5,7 @@
 
 variable "cluster_name" {
   description = "Name of the Kubernetes cluster"
-  default = <cluster_name> #REPLACE
+  default = "citest" #REPLACE
 }
 
 variable "vpc_cidr_block" {
@@ -47,25 +47,25 @@ variable "number_of_worker_nodes" {
 
 variable "ssh_key_name" {
   description = "ssh key name, not required if your using spot instance types"
-  default = <ssh_key_name> #REPLACE
+  default = "citest-ssh-key" #REPLACE
 }
 
 
 variable "db_name" {
   description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
-  default = <db_name> #REPLACE
+  default = "citest" #REPLACE
 }
 
 variable "db_username" {
   description = "RDS database user name"
-  default = <db_username> #REPLACE
+  default = "citest" #REPLACE
 }
 
 #DO NOT fill in here. This will be asked at runtime
 variable "db_password" {}
 
 variable "public_key" {
-  default = <public_ssh_key>
+  default = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCQkmUj1RDiGs/zMd9AiEuZeb58o2k+g/ElOm91ttphSsw0myPAaJyhqLAYXWm0ijMgeMN9SbNCiHqB4nw1EO1C4CcRqbCcQ7XJMGSjrj9Yv0AwDA9Gv/l4NtowoWsfveAZIjK48ubjJu8fusskc4KE9lTHqhbU9OVJ2RNzEoeDUshJ5CLYvsEynT3Ejr0yBxMT65fbKKDxLZcHfDJF34vSQKYA3p/PyuA2awPeu9VVODlBHCA3gUe10PgNcdGQaULa98h040PdFd1p3q8/8WSwSJo5odrrScCsrUbeStd6v/1lXNFfFUiwBNO6DVvtVNqc+KL9RaVKi6nMEqgdvhCR"
   description = "ssh key"
 }
 

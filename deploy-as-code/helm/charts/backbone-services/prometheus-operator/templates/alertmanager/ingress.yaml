@@ -3,7 +3,7 @@
 {{- $servicePort := .Values.alertmanager.service.port -}}
 {{- $routePrefix := .Values.alertmanager.alertmanagerSpec.routePrefix }}
 ---
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ $serviceName }}
@@ -19,10 +19,14 @@ spec:
   - host: {{ .Values.global.domain }}
     http:
       paths:
-      - backend:
-          serviceName: {{ $serviceName }}
-          servicePort: {{ $servicePort }}         
-        path: {{ $routePrefix }}
+      - path: {{ $routePrefix }}
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $serviceName }}
+            port:
+              number: {{ $servicePort }}         
+        
   tls:
   - hosts:
     - {{ .Values.global.domain }}

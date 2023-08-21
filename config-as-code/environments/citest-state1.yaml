@@ -1,12 +1,23 @@
 global:
    domain: state1.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
-   setup: fullsetup
+   tracing-enabled: true
+   ingressnamespace: upyog
+   namespace: state1
+   nodepool:
+     nodeAffinity: false
+     selector: state1-ng
+     toleration: state1-ng
 
 cluster-configs:
     namespaces:  
-      create: true
+      create: false
       values: [ cert-manager, state1, logging, playground ]
-      
+
+    rbac:
+     - role: user
+       namespaces: [ stateb ]
+     - role: admin
+       namespaces: [ stateb ]
     root-ingress:
       cert-issuer: letsencrypt-prod
     configmaps:
@@ -43,6 +54,7 @@ cluster-configs:
         egov-service-host:
             namespace: [ state1, state1 ]
             data:
+                internal-gateway: "http://internal-gateway.upyog:8080/"
                 billing-service: "http://internal-gateway.state1:8080/"
                 collection-services: "http://internal-gateway.state1:8080/"
                 dashboard-analytics: http://dashboard-analytics.state1:8080/

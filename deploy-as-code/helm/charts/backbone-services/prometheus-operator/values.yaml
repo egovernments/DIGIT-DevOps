@@ -45,6 +45,7 @@ defaultRules:
     prometheus: true
     prometheusOperator: true
     time: false
+    ssl: true
 
   ## Runbook url prefix for default rules
   runbookUrl: https://github.com/kubernetes-monitoring/kubernetes-mixin/tree/master/runbook.md#
@@ -970,12 +971,15 @@ kubeProxy:
     ##
     relabelings: []
     # - action: keep
-    #   regex: 'kube_(daemonset|deployment|pod|namespace|node|statefulset).+'
+    #   regex: 'kube_(daemonset|deployment|pod|namekubeStatespace|node|statefulset).+'
     #   sourceLabels: [__name__]
 
 
 ## Component scraping kube state metrics
 ##
+BlackboxExporter:
+  enabled: true
+
 kubeStateMetrics:
   enabled: true
   serviceMonitor:
@@ -1287,9 +1291,7 @@ prometheusOperator:
 ## Deploy a Prometheus instance
 ##
 prometheus:
-
   enabled: true
-
   ## Annotations for Prometheus
   ##
   annotations: {}
@@ -1757,7 +1759,25 @@ prometheus:
     ## The scrape configuraiton example below will find master nodes, provided they have the name .*mst.*, relabel the
     ## port to 2379 and allow etcd scraping provided it is running on all Kubernetes master nodes
     ##
-    additionalScrapeConfigs: []
+    additionalScrapeConfigs: 
+      - job_name: 'blackbox'
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+        static_configs:
+          - targets:
+              - https://unified-dev.digit.org 
+              - https://builds.digit.org # Add your domains here
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - target_label: __address__
+            replacement: release-name-prometheus-blackbox-exporter:9115
+      - job_name: 'kafka-exporter'
+        static_configs:
+          - targets: ['prometheus-kafka-exporter.kafka-cluster:9308'] 
     # - job_name: kube-etcd
     #   kubernetes_sd_configs:
     #     - role: node

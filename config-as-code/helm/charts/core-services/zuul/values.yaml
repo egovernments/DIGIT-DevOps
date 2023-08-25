@@ -5,17 +5,24 @@ labels:
 
 serviceAccount: zuul
 namespace: upyog  
+discovery_namespaces: state1,state2,upyog
 
 # Init Containers Configs
 initContainers: 
   extraInitContainers: |
     - name: "zuul-kubernetes-discovery"
-      image: "{{ .Values.global.containerRegistry }}/zuul-kubernetes-discovery:2-master-91c9795"      
+      image: "{{ .Values.global.containerRegistry }}/zuul-kubernetes-discovery:internal-gateway-router-e2f1126dfe-4"      
       env: 
       - name: "OUTPUT_FILE_PATH"
         value: "/etc/zuul/routes.properties" 
       - name: "NAMESPACE"
-        value: "upyog"         
+        value: {{ index .Values "discovery_namespaces" | quote }}
+      - name: "INTERNAL_GATEWAY_HOST"
+        value: "internal-gateway"
+      - name: "INTERNAL_GATEWAY_NAMESPACE"
+        value: "upyog"
+      - name: "INTERNAL_ROUTER_MAP"
+        value: "inbox:internal-gateway,egov-searcher:internal-gateway,echallan-calculator:internal-gateway,pt-calculator-v2:internal-gateway,filestore:internal-gateway,pdf-service:internal-gateway,report:internal-gateway,firenoc-calculator:internal-gateway,sw-calculator:internal-gateway,ws-calculator:internal-gateway,dashboard-analytics:internal-gateway,pg-service:internal-gateway,tl-calculator:internal-gateway,egov-mdms-service:internal-gateway,pt-calculator-v2:internal-gateway,edcr:internal-gateway"
       volumeMounts:
       - name: zuul-routes
         mountPath: /etc/zuul
@@ -39,13 +46,13 @@ healthChecks:
 custom-filter-property: "false"
 posthook-config: ""
 prehook-config: ""
-heap: "-Xmx640m -Xms512m"
-memory_limits: 768Mi
+heap: "-Xmx192m -Xms192m"
 appType: "java-spring"
 tracing-enabled: true
 server-tomcat-max-threads: "350"
 server-tomcat-max-connections: "1500"
 java-args: ""
+egov-statelevel-tenant-map: {"state1.digit.org":"in.state1","state2.digit.org":"in.state2","citest.digit.org":"in"}
 egov-open-endpoints-whitelist: "/user/oauth/token,/user-otp/v1/_send,/otp/v1/_validate,/user/citizen/_create,/localization/messages,/localization/messages/v1/_search,/user/password/nologin/_update,/tenant/v1/tenant/_search,/egov-location/boundarys,/egov-location/boundarys/boundariesByBndryTypeNameAndHierarchyTypeName,/egov-location/boundarys/getLocationByLocationName,/egov-mdms-service/v1/_search,/egov-location/location/v11/geography/_search,/filestore/v1/files/url,/pt-calculator-v2/billing-slab/_search,/egov-searcher/property-services/propertyopensearch/_get,/edcr/rest/dcr/downloadfile"  
 egov-mixed-mode-endpoints-whitelist: "/filestore/v1/files/id,/filestore/v1/files,/filestore/v1/files/tag,/user/_search,/access/v1/actions/mdms/_get,/tl-services/v1/_search,/tl-services/v1/BPAREG/_search,/tl-services/v1/BPAREG/_create,/tl-services/v1/BPAREG/_update,/tl-calculator/v1/BPAREG/_getbill,/bpa-services/bpa/appl/_search,/edcr/rest/dcr/scrutinize,/edcr/rest/dcr/scrutinydetails"
 eventlog-enabled: "false"
@@ -55,6 +62,8 @@ home-isolation-chatbot-router-enabled: false
 
 # Additional Container Envs
 env: |
+  - name: EGOV_STATELEVEL_TENANT_MAP
+    value: {{ index .Values "egov-statelevel-tenant-map" | quote }}
   - name: URL_LISTS
     value: "/pt-services-v2/property/_create:http://rainmaker-custom-service:8000/customization/protected/punjab-pt/property/_create|/pt-services-v2/property/_update:http://rainmaker-custom-service:8000/customization/protected/punjab-pt/property/_update|/pt-calculator-v2/propertytax/_estimate:http://rainmaker-custom-service:8000/customization/protected/punjab-pt/pt-calculator-v2/_estimate"
   - name: CUSTOM_FILTER_PROPERTY
@@ -66,9 +75,7 @@ env: |
   - name: URL_POSTHOOK_LISTS
     value: {{ index .Values "posthook-config" | quote }}
   - name: URL_PREHOOK_LISTS        
-    value: {{ index .Values "prehook-config" | quote }}
-  - name: ZUUL_ROUTES_TL_CALCULATOR_URL
-    value: http://tl-calculator:8080/                                  
+    value: {{ index .Values "prehook-config" | quote }}                                  
   - name: SERVER_PORT
     value: "8080"
   - name: JAVA_OPTS
@@ -114,12 +121,7 @@ env: |
   - name: MANAGEMENT_SECURITY_ENABLED
     value: "false"
   - name: JAVA_ARGS
-    value: {{ index .Values "java-args" | quote }}
-  - name: EGOV_STATELEVEL_TENANT
-    valueFrom:
-      configMapKeyRef:
-        key: egov-state-level-tenant-id
-        name: egov-config    
+    value: {{ index .Values "java-args" | quote }}   
   - name: ZUUL_ROUTES_FILEPATH
     value: "file:/etc/zuul/routes.properties"   
   {{- if index .Values "home-isolation-chatbot-router-enabled" }}
@@ -138,3 +140,9 @@ env: |
         name: egov-service-host
         key: home-isolation-chatbot
   {{- end }}
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenant-id
+

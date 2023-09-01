@@ -62,6 +62,7 @@ module "eks" {
   worker_groups = [
     {
       name                          = "spot"
+      ami_id                        = "ami-0a82b544ef71a207d"   
       subnets                       = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)))}"
       instance_type                 = "${var.instance_type}"
       override_instance_types       = "${var.override_instance_types}"
@@ -89,6 +90,22 @@ resource "aws_security_group_rule" "rds_db_ingress_workers" {
   security_group_id        = "${module.network.rds_db_sg_id}"
   source_security_group_id = "${module.eks.worker_security_group_id}"
   type                     = "ingress"
+}
+
+resource "aws_eks_addon" "kube_proxy" {
+  cluster_name      = data.aws_eks_cluster.cluster.name
+  addon_name        = "kube-proxy"
+  resolve_conflicts = "OVERWRITE"
+}
+resource "aws_eks_addon" "core_dns" {
+  cluster_name      = data.aws_eks_cluster.cluster.name
+  addon_name        = "coredns"
+  resolve_conflicts = "OVERWRITE"
+}
+resource "aws_eks_addon" "aws_ebs_csi_driver" {
+  cluster_name      = data.aws_eks_cluster.cluster.name
+  addon_name        = "aws-ebs-csi-driver"
+  resolve_conflicts = "OVERWRITE"
 }
 
 module "es-master" {

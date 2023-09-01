@@ -13,8 +13,14 @@ initContainers:
 
 # Ingress Configs
 ingress:
+  enabled: true
   zuul: true
+  waf: 
+    enabled: false
   context: "filestore"
+  additionalAnnotations: |
+    nginx.ingress.kubernetes.io/proxy-body-size: 8m 
+
 
 # Container Configs
 image:
@@ -28,7 +34,7 @@ appType: "java-spring"
 tracing-enabled: true
 is-bucket-fixed: "true"
 fixed-bucketname: "egov-rainmaker"
-heap: "-Xmx384m -Xms256m"
+heap: "-Xmx192m -Xms192m"
 file-storage-mount-path: "/filestore"
 is-nfs-enabled: false
 is-s3-enabled: true
@@ -63,6 +69,8 @@ env: |
   - name: SOURCE_DISK
     value: "diskStorage"
   {{- end }}
+  - name: ISS3ENABLED
+    value: {{ index .Values "is-s3-enabled" | quote }}
   {{- if index .Values "is-s3-enabled" }}
   - name: ISS3ENABLED
     value: "true"
@@ -109,13 +117,8 @@ env: |
         name: egov-service-host
         key: minio-url
   {{- end }}
-  {{- if index .Values "filestore-url-validity" }}   
-  - name: PRESIGNED_URL_EXPIRY_TIME_IN_SECS     
-    value: {{ index .Values "filestore-url-validity" | quote }}   
-  {{- end }}  
   - name: STATE_LEVEL_TENANT_ID
     valueFrom:
       configMapKeyRef:
         name: egov-config
-        key: state-level-tenant-id  
-
+        key: state-level-tenant-id

@@ -1,19 +1,19 @@
 # Common Labels
 labels:
-  app: "egov-mdms-service"
+  app: "egov-mdms-service-tenant-b"
   group: "core"
 
 # Ingress Configs
 ingress:
   enabled: true
   zuul: true
-  context: "egov-mdms-service"
+  context: "egov-mdms-service-tenant-b"
 
 # Init Containers Configs
 initContainers:
   gitSync:
     enabled: true
-    repo: "git@github.com:egovernments/egov-mdms-data"
+    repo: "git@github.com:egovernments/MDMS-TenantB"
     branch: "master"
 
 # Container Configs
@@ -28,18 +28,18 @@ appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
 java-args: "-Dspring.profiles.active=monitoring"
-mdms-path: "/work-dir/egov-mdms-data/data"
+mdms-path: "/work-dir/MDMS-TenantB"
 mdms-git-url: ""
-mdms-folder: "egov-mdms-data"
-masters-config-url: "file:///work-dir/egov-mdms-data/master-config.json"
+mdms-folder: "MDMS-TenantB"
+masters-config-url: 
 branch: "master"
 
 # Additional Container Envs
 env: |
-  - name: SERVER_CONTEXT_PATH
+  - name: SERVER_SERVLET_CONTEXT_PATH
     value: /egov-mdms-service
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: egov-mdms-service-consumer-group
+    value: egov-mdms-service-tenant-b-consumer-group
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   {{- if index .Values "global" "serializers-timezone-in-ist" }}
@@ -68,8 +68,3 @@ env: |
     value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED
     value: "false"           
-  - name: STATE_LEVEL_TENANT_ID
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: state-level-tenant-id

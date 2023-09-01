@@ -1,0 +1,268 @@
+name: DIGITClusterworkflow
+on:
+  push:
+    branches:
+      - release-1.27-kubernetes   
+jobs:
+  input_validation:
+    runs-on: ubuntu-latest
+    env:
+      TF_IN_AUTOMATION: "true"
+      AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+      AWS_REGION:  ${{ secrets.AWS_REGION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Build project
+        run: echo "Build started"
+      - name: Displaying the input parameters provided
+        run: cat input.yaml
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Change working directory
+        run: echo "This command is run in the current directory"
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+      - name: Displaying DB Password and key in egov-demo-secrets.yaml
+        run: cat egov-demo-secrets.yaml
+        working-directory: config-as-code/environments
+      - name: Updating different files based on parameters provided in input.yaml
+        run: go run init.go
+        working-directory: infra-as-code/terraform/scripts
+      - name: Archive infra-as-code folder
+        run: tar -czf infra-as-code.tar.gz infra-as-code/
+      - name: Archive config-as-code folder
+        run: tar -czf config-as-code.tar.gz config-as-code/
+      - name: Upload infra-as-code folder as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: infra-as-code-artifact
+          path: infra-as-code.tar.gz
+      - name: Upload config-as-code folder as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: config-as-code-artifact
+          path: config-as-code.tar.gz   
+      - name: Terraform Init - remotestate
+        run: terraform init
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+      - name: Terraform Validate - remotestate
+        run: terraform validate -no-color
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+      - name: Terraform Init - Infra destruction
+        run: terraform init
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Terraform Validate - Infra destruction
+        run: terraform validate -no-color
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Terraform Plan - Infra destruction
+        run: terraform plan -destroy -no-color -input=false -var db_password=demo123456
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Terraform Destroy - Infra destruction
+        run: terraform destroy -no-color -auto-approve -var db_password=demo123456
+        working-directory: infra-as-code/terraform/sample-aws
+             
+
+  terraform_infra_creation:
+    needs: input_validation
+    runs-on: ubuntu-latest
+    env:
+      TF_IN_AUTOMATION: "true"
+      AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+      AWS_REGION:  ${{ secrets.AWS_REGION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Download infra-as-code folder from artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: infra-as-code-artifact
+          path: .
+      - name: Download config-as-code folder from artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: config-as-code-artifact
+          path: .
+      - name: Extract infra-as-code folder
+        run: tar -xzf infra-as-code.tar.gz
+      - name: Extract config-as-code folder
+        run: tar -xzf config-as-code.tar.gz    
+      - name: Terraform Init - remotestate
+        id: init
+        run: terraform init
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+      - name: Terraform Validate - remotestate
+        id: validate
+        run: terraform validate -no-color
+        working-directory: infra-as-code/terraform/sample-aws/remote-state  
+      - name: Terraform Plan - remotestate
+        id: plan
+        run: terraform plan -no-color -input=false 
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+      - name: Terraform Apply - remotestate
+        id: apply
+        run: terraform apply -no-color -input=false -auto-approve
+        continue-on-error: true  
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+      - name: printing main.tf file
+        run: cat main.tf  
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Terraform init - Infra creation
+        id: init-Infra
+        run: terraform init
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Terraform Validate - Infra creation
+        id: validate-Infra
+        run: terraform validate -no-color
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Terraform Plan - Infra creation
+        id: plan-Infra
+        run: terraform plan -no-color -input=false -var db_password=demo123456   
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Terraform Apply - Infra creation
+        id: apply-Infra
+        run: terraform apply -no-color -input=false -auto-approve -var db_password=demo123456
+        continue-on-error: true  
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Install AWS IAM Authenticator
+        run: |
+          curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
+          chmod +x ./aws-iam-authenticator
+          sudo mv ./aws-iam-authenticator /usr/local/bin/aws-iam-authenticator
+          aws-iam-authenticator version  
+      - name: Generate kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name k8supgrade
+          cat ~/.kube/config > kubeconfig
+      - name: Verify kubectl configuration
+        run: kubectl config view 
+      - name: Verfiy kubectl get nodes
+        run: |
+          kubectl get nodes  
+        env:
+          AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_REGION:  ${{ secrets.AWS_REGION }}
+      - name: Updating the terraform output data in environment.yaml files for deployment
+        run: terraform output -json | go run ../scripts/envYAMLUpdater.go
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Archive infra-as-code folder
+        run: tar -czf infra-as-code.tar.gz infra-as-code/
+      - name: Archive config-as-code folder
+        run: tar -czf config-as-code.tar.gz config-as-code/
+      - name: Upload infra-as-code folder as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: infra-as-code-artifact
+          path: infra-as-code.tar.gz
+      - name: Upload config-as-code folder as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: config-as-code-artifact
+          path: config-as-code.tar.gz      
+
+  DIGIT-deployment:
+    needs: terraform_infra_creation
+    runs-on: ubuntu-latest
+    env:
+      TF_IN_AUTOMATION: "true"
+      AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+      AWS_REGION:  ${{ secrets.AWS_REGION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Download infra-as-code folder from artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: infra-as-code-artifact
+          path: .
+      - name: Download config-as-code folder from artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: config-as-code-artifact
+          path: .
+      - name: Extract infra-as-code folder
+        run: tar -xzf infra-as-code.tar.gz
+      - name: Extract config-as-code folder
+        run: tar -xzf config-as-code.tar.gz         
+      - name: Install AWS IAM Authenticator
+        run: |
+          curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
+          chmod +x ./aws-iam-authenticator
+          sudo mv ./aws-iam-authenticator /usr/local/bin/aws-iam-authenticator
+          aws-iam-authenticator version  
+      - name: Generate kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name k8supgrade
+          cat ~/.kube/config > kubeconfig
+      - name: Verify kubectl configuration
+        run: kubectl config view 
+      - name: Verfiy kubectl get nodes
+        run: |
+          kubectl get nodes  
+        env:
+          AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_REGION:  ${{ secrets.AWS_REGION }}   
+      - name: Install sops
+        run: |
+          sudo apt update
+          sudo apt install -y gnupg
+          wget https://github.com/mozilla/sops/releases/download/v3.7.1/sops-v3.7.1.linux
+          chmod +x sops-v3.7.1.linux
+          sudo mv sops-v3.7.1.linux /usr/local/bin/sops   
+      - name: displaying updated egov-demo.yaml
+        run: cat egov-demo.yaml
+        working-directory: config-as-code/environments          
+      - name: digit deployment
+        run: go run digit_installer.go
+        working-directory: deploy-as-code/deployer     
+                   
+  
+  # terraform_infra_destruction:
+  #   needs: input_validation
+  #   runs-on: ubuntu-latest
+  #   env:
+  #     TF_IN_AUTOMATION: "true"
+  #     AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #     AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #     AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+  #     AWS_REGION:  ${{ secrets.AWS_REGION }}
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v2
+  #     - name: Download infra-as-code folder from artifacts
+  #       uses: actions/download-artifact@v2
+  #       with:
+  #         name: infra-as-code-artifact
+  #         path: .
+  #     - name: Download config-as-code folder from artifacts
+  #       uses: actions/download-artifact@v2
+  #       with:
+  #         name: config-as-code-artifact
+  #         path: .
+  #     - name: Terraform Init - remotestate
+  #       run: terraform init
+  #       working-directory: infra-as-code/terraform/sample-aws/remote-state
+  #     - name: Terraform Validate - remotestate
+  #       run: terraform validate -no-color
+  #       working-directory: infra-as-code/terraform/sample-aws/remote-state
+  #     - name: Terraform Init - Infra destruction
+  #       run: terraform init
+  #       working-directory: infra-as-code/terraform/sample-aws
+  #     - name: Terraform Validate - Infra destruction
+  #       run: terraform validate -no-color
+  #       working-directory: infra-as-code/terraform/sample-aws
+  #     - name: Terraform Plan - Infra destruction
+  #       run: terraform plan -destroy -no-color -input=false -var db_password=demo123456
+  #       working-directory: infra-as-code/terraform/sample-aws
+  #     - name: Terraform Destroy - Infra destruction
+  #       run: terraform destroy -no-color -auto-approve -var db_password=demo123456
+  #       working-directory: infra-as-code/terraform/sample-aws
+      

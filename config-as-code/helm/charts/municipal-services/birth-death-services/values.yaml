@@ -1,25 +1,25 @@
 # Common Labels
 labels:
-  app: "bpa-calculator"
+  app: "birth-death-services"
   group: "rainmaker"
 
 # Ingress Configs
 ingress:
   enabled: true
   zuul: true
-  context: "bpa-calculator"
+  context: "birth-death-services"
 
 # Init Containers Configs
 initContainers:
   dbMigration:
-    enabled: false
-    schemaTable: "bpa_calculator_schema"
+    enabled: true
+    schemaTable: "birth_death_services_schema"
     image:
-      repository: "bpa-calculator"
+      repository: "birth-death-services-db"
     env: |
-        {{- if index .Values "bpacalculator-ismultischema-enabled" }}        
+        {{- if index .Values "bnd-ismultischema-enabled" }}        
         - name: SCHEMA_NAME
-          value: {{ index .Values "bpacalculator-schemas" | quote }}
+          value: {{ index .Values "bnd-schemas" | quote }}
         {{- end }}
         - name: "DB_URL"
           valueFrom: 
@@ -42,16 +42,16 @@ initContainers:
           valueFrom: 
             configMapKeyRef: 
                 name: egov-config
-                key: flyway-locations
+                key: flyway-locations         
 
 # Container Configs
 image:
-  repository: "bpa-calculator"
+  repository: "birth-death-services"
 replicas: "1"
 healthChecks:
   enabled: true
-  livenessProbePath: "/bpa-calculator/health"
-  readinessProbePath: "/bpa-calculator/health"
+  livenessProbePath: "/birth-death-services/health"
+  readinessProbePath: "/birth-death-services/health"
 appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
@@ -60,22 +60,22 @@ java-args: "-Dspring.profiles.active=monitoring"
 # Additional Container Envs
 env: |
   - name: SERVER_CONTEXTPATH
-    value: /bpa-calculator
+    value: /birth-death-services
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: bpa-calculator
+    value: birth-death-services
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
     value: org.springframework.kafka.support.serializer.JsonSerializer
   - name: KAFKA_TOPICS_SAVE_SERVICE
-    value: save-bpa-billingslab
+    value: save-birth-topic
   - name: KAFKA_TOPICS_UPDATE_SERVICE
-    value: update-bpa-billingslab
+    value: update-birth-topic
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: internal-gateway
+        key: egov-mdms-service
   - name: EGOV_MDMS_SEARCH_ENDPOINT
     value: /egov-mdms-service/v1/_search
   - name: EGOV_BILLINGSERVICE_HOST
@@ -83,16 +83,56 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: billing-service
-  - name: EGOV_EDCR_HOST
+  - name: EGOV_IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-idgen
+  - name: EGOV_ENC_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-enc-service
+  - name: EGOV_URL_SHORTNER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-url-shortening
+  - name: EGOV_PDF_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-pdf
+  - name: EGOV_COLLECTION_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: collection-services
+  - name: EGOV_PDFSERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: pdf-service
+  - name: EGOV_STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id
+  - name: EGOV_BND_FREEDOWNLOAD_TENANTS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-bnd-freedownload-tenants
+  - name: EGOV_BND_LIVE_CITIZEN_TENANTS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-bnd-live-citizen-tenants
+  - name: EGOV_UI_APP_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: egov-services-fqdn-name
-  - name: EGOV_BPA_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: bpa-services
   {{- if index .Values "cluster-configs" "configmaps" "egov-config" "data" "is-environment-central-instance" }}        
   - name: IS_ENVIRONMENT_CENTRAL_INSTANCE
     valueFrom:
@@ -121,8 +161,3 @@ env: |
   - name: TRACER_OPENTRACING_ENABLED
     value: "true" 
   {{- end }}
-  - name: STATE_LEVEL_TENANT_ID
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: state-level-tenant-id

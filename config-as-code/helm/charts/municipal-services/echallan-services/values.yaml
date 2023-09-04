@@ -16,6 +16,33 @@ initContainers:
     schemaTable: "echallan_services_schema"
     image:
       repository: "echallan-services-db"
+    env: |
+        {{- if index .Values "echallan-ismultischema-enabled" }}        
+        - name: SCHEMA_NAME
+          value: {{ index .Values "echallan-schemas" | quote }}
+        {{- end }}
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}              
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+                name: db
+                key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+                name: db
+                key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+                name: egov-config
+                key: flyway-locations
 
 # Container Configs
 image:
@@ -27,7 +54,7 @@ healthChecks:
   readinessProbePath: "/echallan-services/health"
 appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx384m -Xms256m"
+heap: "-Xmx256m -Xms256m"
 java-args: "-Dspring.profiles.active=monitoring"
 egov-msg-pay-link: citizen/withoutAuth/egov-common/pay?consumerCode=$consumercode&tenantId=$tenantId&businessService=$businessservice
 
@@ -42,7 +69,7 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-mdms-service
+        key: internal-gateway
   - name: EGOV_USER_HOST
     valueFrom:
       configMapKeyRef:
@@ -72,7 +99,7 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: echallan-calculator
+        key: internal-gateway
   - name: EGOV_URL_SHORTNER_HOST 
     valueFrom:
       configMapKeyRef:
@@ -93,6 +120,25 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-workflow-v2
+  - name: EGOV_UI_APP_HOST_MAP
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: host-map
+  {{- if index .Values "global" "is-environment-central-instance" }}        
+  - name: IS_ENVIRONMENT_CENTRAL_INSTANCE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: is-environment-central-instance
+  {{- end }}
+  {{- if index .Values "global" "is-environment-central-instance" }}        
+  - name: STATE_LEVEL_TENANTID_LENGTH
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenantid-length
+  {{- end }}
   - name: WORKFLOW_TRANSITION_PATH
     value: "egov-workflow-v2/egov-wf/process/_transition"
   - name: EGOV_MSG_PAY_LINK
@@ -119,3 +165,8 @@ env: |
   - name: TRACER_OPENTRACING_ENABLED
     value: "true" 
   {{- end }}
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenant-id

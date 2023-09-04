@@ -16,6 +16,33 @@ initContainers:
     schemaTable: "property_services_schema"
     image:
       repository: "property-services-db"
+    env: |
+        {{- if index .Values "property-ismultischema-enabled" }}        
+        - name: SCHEMA_NAME
+          value: {{ index .Values "property-schemas" | quote }}
+        {{- end }}
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}              
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+                name: db
+                key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+                name: db
+                key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+                name: egov-config
+                key: flyway-locations        
 
 # Container Configs
 image:
@@ -27,11 +54,12 @@ healthChecks:
   readinessProbePath: "/property-services/health"
 appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx384m -Xms256m"
+heap: "-Xmx192m -Xms192m"
 java-args: "-Dspring.profiles.active=monitoring"
 notification-sms-enabled: ""
 employee-allowed-search-params: ""
 citizen-allowed-search-params: ""
+egov-url-shortner-endpoint: "egov-url-shortening/shortener"
 
 # Additional Container Envs
 env: |
@@ -40,16 +68,25 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-idgen
-  - name: STATE_LEVEL_TENANT_ID
+  {{- if index .Values "global" "is-environment-central-instance" }}        
+  - name: IS_ENVIRONMENT_CENTRAL_INSTANCE
     valueFrom:
       configMapKeyRef:
         name: egov-config
-        key: egov-state-level-tenant-id
+        key: is-environment-central-instance
+  {{- end }}
+  {{- if index .Values "global" "is-environment-central-instance" }}        
+  - name: STATE_LEVEL_TENANTID_LENGTH
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenantid-length
+  {{- end }}
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-mdms-service
+        key: internal-gateway
   - name: EGOV_USER_HOST
     valueFrom:
       configMapKeyRef:
@@ -69,12 +106,19 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: pt-calculator-v2
+        key: internal-gateway
   - name: EGOV_PT-SERVICES-V2_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: pt-services-v2      
+        key: pt-services-v2
+  - name: EGOV_URL_SHORTNER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-url-shortening
+  - name: EGOV_URL_SHORTNER_ENDPOINT
+    value: {{ index .Values "egov-url-shortner-endpoint" | quote }}              
   {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
   - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
     valueFrom:
@@ -105,12 +149,34 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: egov-services-fqdn-name
+  - name: EGOV_UI_APP_HOST_MAP
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: host-map        
   - name: SECURITY_BASIC_ENABLED
     value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED
     value: "false"
   - name: ASSESSMENT_WORKFLOW_ENABLED
     value: "false"
+
+  {{- if index .Values "is-workflow-enabled" }}
+  - name: IS_WORKFLOW_ENABLED
+    value: {{ index .Values "is-workflow-enabled" | quote }}
+  {{- else }}  
+  - name: IS_WORKFLOW_ENABLED
+    value: "true"
+  {{- end }}
+
+  {{- if index .Values "is.mutation.workflow.enabled" }}
+  - name: IS_MUTATION_WORKFLOW_ENABLED
+    value: {{ index .Values "is.mutation.workflow.enabled" | quote }}
+  {{- else }}  
+  - name: IS_MUTATION_WORKFLOW_ENABLED
+    value: "true"
+  {{- end }}
+  
   - name: EGOV_IDGEN_ACK_FORMAT
     value: {{ index .Values "egov-idgen-ack-format" | quote }}
   - name: EGOV_IDGEN_MUTATION_FORMAT
@@ -119,9 +185,6 @@ env: |
     value: {{ index .Values "egov-idgen-assm-format" | quote }} 
   - name: EGOV_IDGEN_PTID_FORMAT
     value: {{ index .Values "egov-idgen-ptid-format" | quote }}        
-
-  - name: NOTIFICATION_SMS_ENABLED
-    value: {{ index .Values "notification-sms-enabled" | quote }}
   - name: EGOV_USER_EVENT_NOTIFICATION_ENABLED
     value: "true"
   {{- if index .Values "employee-allowed-search-params" }}
@@ -147,3 +210,13 @@ env: |
   - name: TRACER_OPENTRACING_ENABLED
     value: "true" 
   {{- end }}
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenant-id
+  - name: EGOV_ENC_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-enc-service

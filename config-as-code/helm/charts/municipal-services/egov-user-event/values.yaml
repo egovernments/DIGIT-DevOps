@@ -16,7 +16,33 @@ initContainers:
     schemaTable: "egov_user_event_schema_version"
     image:
       repository: "egov-user-event-db"
-
+    env: |
+        {{- if index .Values "egov-user-event-ismultischema-enabled" }}        
+        - name: SCHEMA_NAME
+          value: {{ index .Values "egov-user-event-schemas" | quote }}
+        {{- end }}
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}              
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+                name: db
+                key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+                name: db
+                key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+                name: egov-config
+                key: flyway-locations
 # Container Configs
 image:
   repository: "egov-user-event"
@@ -27,7 +53,7 @@ healthChecks:
   readinessProbePath: "/egov-user-event/health"
 appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx384m -Xms256m"
+heap: "-Xmx192m -Xms192m"
 java-args: ""
 
 # Additional Container Envs
@@ -36,7 +62,7 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-mdms-service
+        key: internal-gateway
   - name: EGOV_MDMS_SEARCH_ENDPOINT
     value: /egov-mdms-service/v1/_search
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
@@ -86,3 +112,8 @@ env: |
   - name: TRACER_OPENTRACING_ENABLED
     value: "true" 
   {{- end }}
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenant-id

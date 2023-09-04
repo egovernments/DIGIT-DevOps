@@ -35,7 +35,7 @@ CUSTOM_PB_ZERO_ASSESSMENT_TENANTID: ""
 custom-pb-firecess-logic: ""
 allow-depreciations: "false"
 unbuiltarea-prorated: "false"
-heap: "-Xmx384m -Xms256m"
+heap: "-Xmx192m -Xms192m"
 java-args: "-Dspring.profiles.active=monitoring"
 
 # Additional Container Envs
@@ -52,11 +52,25 @@ env: |
     value: save-pt-billingslab
   - name: KAFKA_TOPICS_BILLING_SLAB_UPDATE_SERVICE
     value: update-pt-billingslab
+  {{- if index .Values "global" "is-environment-central-instance" }}        
+  - name: IS_ENVIRONMENT_CENTRAL_INSTANCE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: is-environment-central-instance
+  {{- end }}
+  {{- if index .Values "global" "is-environment-central-instance" }}        
+  - name: STATE_LEVEL_TENANTID_LENGTH
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenantid-length
+  {{- end }}
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-mdms-service
+        key: internal-gateway
   - name: EGOV_MDMS_SEARCH_ENDPOINT
     value: /egov-mdms-service/v1/_search
   - name: EGOV_BILLINGSERVICE_HOST
@@ -114,3 +128,8 @@ env: |
   - name: TRACER_OPENTRACING_ENABLED
     value: "true" 
   {{- end }}
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenant-id

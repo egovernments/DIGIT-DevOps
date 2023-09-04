@@ -16,6 +16,33 @@ initContainers:
     schemaTable: "pgr_services_schema"
     image:
       repository: "pgr-services-db"
+    env: |
+        {{- if index .Values "pgr-ismultischema-enabled" }}        
+        - name: SCHEMA_NAME
+          value: {{ index .Values "pgr-schemas" | quote }}
+        {{- end }}
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}              
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+                name: db
+                key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+                name: db
+                key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+                name: egov-config
+                key: flyway-locations 
 
 # Container Configs
 image:
@@ -34,8 +61,9 @@ reassign-complaint-enabled: "true"
 reopen-complaint-enabled: "true"
 comment-by-employee-notif-enabled: "false"
 notification-allowed-status: "open,assigned,rejected,resolved"
-heap: "-Xmx384m -Xms256m"
+heap: "-Xmx192m -Xms192m"
 java-args: "-Dspring.profiles.active=monitoring"
+egov-url-shortner-endpoint: "egov-url-shortening/shortener"
 
 # Additional Container Envs
 env: |
@@ -61,7 +89,7 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-mdms-service
+        key: internal-gateway
   - name: EGOV_LOCALIZATION_HOST
     valueFrom:
       configMapKeyRef:
@@ -92,6 +120,18 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-user
+  - name: EGOV_URL_SHORTNER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-url-shortening
+  - name: EGOV_UI_APP_HOST_MAP
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: host-map          
+  - name: EGOV_URL_SHORTNER_ENDPOINT
+    value: {{ index .Values "egov-url-shortner-endpoint" | quote }}        
   - name: NOTIFICATION_SMS_ENABLED
     value: {{ index .Values "notification-sms-enabled" | quote }}
   - name: NOTIFICATION_EMAIL_ENABLED
@@ -149,11 +189,6 @@ env: |
     value: "RATE"
   - name: EGOV_USR_EVENTS_REOPEN_CODE
     value: "REOPEN" 
-  - name: PGR_STATELEVEL_TENANTID
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: egov-state-level-tenant-id
   {{- if index .Values "tracing-enabled" }}
   - name: TRACER_OPENTRACING_ENABLED
     value: "true" 
@@ -162,6 +197,22 @@ env: |
   - name: PGR_COMPLAIN_IDLE_TIME
     value: {{ index .Values "time-before-closing-complaint" | quote }} 
   {{- end }}
-
-
-  
+  {{- if index .Values "global" "is-environment-central-instance" }}        
+  - name: IS_ENVIRONMENT_CENTRAL_INSTANCE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: is-environment-central-instance
+  {{- end }}
+  {{- if index .Values "global" "is-environment-central-instance" }}        
+  - name: STATE_LEVEL_TENANTID_LENGTH
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenantid-length
+  {{- end }}  
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenant-id

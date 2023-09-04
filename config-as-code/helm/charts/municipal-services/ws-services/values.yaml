@@ -16,6 +16,33 @@ initContainers:
     schemaTable: "ws_services_schema"
     image:
       repository: "ws-services-db"
+    env: |
+        {{- if index .Values "water-ismultischema-enabled" }}        
+        - name: SCHEMA_NAME
+          value: {{ index .Values "water-schemas" | quote }}
+        {{- end }}
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}              
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+                name: db
+                key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+                name: db
+                key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+                name: egov-config
+                key: flyway-locations
 
 # Container Configs
 image:
@@ -27,7 +54,7 @@ healthChecks:
   readinessProbePath: "/ws-services/health"
 appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx384m -Xms256m"
+heap: "-Xmx192m -Xms192m"
 java-args: "-Dspring.profiles.active=monitoring"
 
 # Additional Container Envs
@@ -37,11 +64,6 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-idgen
-  - name: STATE_LEVEL_TENANT_ID
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: egov-state-level-tenant-id
   - name: EGOV_PROPERTY_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
@@ -51,7 +73,7 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-mdms-service
+        key: internal-gateway
   - name: EGOV_USER_HOST
     valueFrom:
       configMapKeyRef:
@@ -67,7 +89,7 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-localization
-  - name: EGOV_BILLINGSERVICE_HOST
+  - name: EGOV_BILLING_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
@@ -76,7 +98,7 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: ws-calculator
+        key: internal-gateway
   - name: EGOV_FILESTORE_HOST
     valueFrom:
       configMapKeyRef:
@@ -92,12 +114,31 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-workflow-v2
+  - name: EGOV_UI_APP_HOST_MAP
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: host-map        
   {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
   - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: tracer-errors-provideexceptionindetails
+  {{- end }}
+  {{- if index .Values "global" "is-environment-central-instance" }}        
+  - name: IS_ENVIRONMENT_CENTRAL_INSTANCE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: is-environment-central-instance
+  {{- end }}
+  {{- if index .Values "global" "is-environment-central-instance" }}        
+  - name: STATE_LEVEL_TENANTID_LENGTH
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenantid-length
   {{- end }}
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
     value: egov-ws-services
@@ -120,6 +161,11 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: egov-services-fqdn-name
+  - name: EGOV_URL_SHORTNER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-url-shortening
   - name: SECURITY_BASIC_ENABLED
     value: "false"
   - name: MANAGEMENT_SECURITY_ENABLED
@@ -128,5 +174,13 @@ env: |
   - name: TRACER_OPENTRACING_ENABLED
     value: "true"
   {{- end }}
-  - name: IS_EXTERNAL_WORKFLOW_ENABLED
-    value: {{ index .Values "is-external-workflow-enabled" | quote }}
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenant-id
+  - name: EGOV_ENC_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-enc-service

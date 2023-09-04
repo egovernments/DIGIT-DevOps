@@ -16,6 +16,33 @@ initContainers:
     schemaTable: "billing_service_schema"
     image:
       repository: "billing-service-db"
+    env: |
+      {{- if index .Values "billing-ismultischema-enabled" }}
+      - name: SCHEMA_NAME
+        value: {{ index .Values "billing-schemas" | quote }}
+      {{- end }}
+      - name: "DB_URL"
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-url
+      - name: "SCHEMA_TABLE"
+        value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+      - name: "FLYWAY_USER"
+        valueFrom:
+          secretKeyRef:
+              name: db
+              key: flyway-username
+      - name: "FLYWAY_PASSWORD"
+        valueFrom:
+          secretKeyRef:
+              name: db
+              key: flyway-password
+      - name: "FLYWAY_LOCATIONS"
+        valueFrom:
+          configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
 
 # Container Configs
 image:
@@ -27,7 +54,7 @@ healthChecks:
   readinessProbePath: "/billing-service/health"
 appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx384m -Xms256m"
+heap: "-Xmx192m -Xms192m"
 java-args: "-Dspring.profiles.active=monitoring"
 
 # Additional Container Envs
@@ -41,11 +68,16 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-user
+  - name: EGOV_IDGEN_HOSTNAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-idgen
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-mdms-service
+        key: internal-gateway
   - name: EGOV_APPORTION_HOST
     valueFrom:
       configMapKeyRef:
@@ -144,4 +176,22 @@ env: |
   {{- if index .Values "java-enable-debug" }}
   - name: JAVA_ENABLE_DEBUG
     value: "true"
+  {{- end }}
+  {{- if index .Values "billing-update-url" }}
+  - name: BS_BUSINESSCODE_DEMAND_UPDATEURL
+    value: {{ index .Values "billing-update-url" | quote }}
+  {{- end }}
+  {{- if index .Values "cluster-configs" "configmaps" "egov-config" "data" "is-environment-central-instance" }}        
+  - name: IS_ENVIRONMENT_CENTRAL_INSTANCE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: is-environment-central-instance
+  - name: STATE_LEVEL_TENANTID_LENGTH
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenantid-length
+  - name: EGOV_STATE_LIST
+    value: {{ index .Values "global" "schema" | quote }}
   {{- end }}

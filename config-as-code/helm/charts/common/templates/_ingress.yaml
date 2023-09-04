@@ -5,11 +5,11 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ template "common.name" . }}
-{{- if .Values.ingress.namespace }}
-  namespace: upyog   
-{{- else }}  
-  namespace: {{ .Values.namespace }}  
-{{- end }} 
+{{- if .Values.global.namespace }}
+  namespace: {{ .Values.global.namespace }} 
+{{- else }}   
+  namespace: {{ .Values.namespace }}
+{{- end }}   
   annotations:
 {{- toYaml .Values.ingress.annotations | nindent 4 }}   
 {{- if .Values.ingress.waf.enabled }}      
@@ -22,43 +22,54 @@ metadata:
 {{- include "common.labels" . | nindent 4 }}                            
 spec:
   rules:
-{{- if .Values.ingress.host }}   
-  {{- tpl  .Values.ingress.host . | nindent 2 }}
-{{- else if .Values.ingress.hostName }} 
-  - host: {{ .Values.ingress.hostName }}
-{{- else }}  
-  - host: {{ .Values.global.domain }}
-{{- end }}  
+{{- if .Values.ingress.zuul }}
+  {{- range .Values.global.hosts }}
+  - host: {{ . }}
     http:
       paths:
-      - backend:
-{{- if .Values.ingress.zuul }}          
+      - path: /{{ $.Values.ingress.context }}
+        pathType: ImplementationSpecific
+        backend:
+        {{- if $.Values.ingress.zuul }}          
           service:
             name: zuul
-            port: 
-              number: 8080
-{{ else }}
-          service:
-            name: {{ .Values.ingress.serviceName | default (include "common.name" .) }}
             port:
-              number: {{ .Values.ingress.servicePort | default .Values.httpPort }}
-{{- end }}            
-        path: /{{ .Values.ingress.context }}
-        pathType: ImplementationSpecific
+             number: 8080
+        {{ else }}
+          service:
+            name: {{ $.Values.ingress.serviceName | default $.Chart.Name }}
+            port:
+             number: {{ $.Values.ingress.servicePort | default $.Values.httpPort }}
+        {{- end }}
+  {{- end }}            
   tls:
-{{- if .Values.ingress.tls }}
-  {{- tpl  .Values.ingress.tls . | nindent 2 }}
-{{- else }} 
-{{- if .Values.ingress.hostName }}
+  {{- range .Values.global.hosts }}
   - hosts: 
-    - {{ .Values.ingress.hostName }}
-    secretName: {{ .Values.ingress.hostName }}-tls-certs  
-{{- else }}      
-  - hosts:
-    - {{ .Values.global.domain }}
-    secretName: {{ .Values.global.domain }}-tls-certs 
-{{- end }} 
-{{- end }} 
+    - {{ . }}
+    secretName: {{ . }}-tls-certs  
+  {{- end }} 
+{{- else }} 
+  - host: {{  .Values.global.domain  }}
+      http:
+        paths:
+          pathType: ImplementationSpecific
+          backend:
+          {{- if .Values.ingress.zuul }}          
+            service:
+              name: zuul
+              port:
+              number: 8080
+          {{ else }}
+            service:
+              name: {{ $.Values.ingress.serviceName | default $.Chart.Name }}
+              port:
+              number: {{ $.Values.ingress.servicePort | default $.Values.httpPort }}
+          {{- end }}
+        - path: /{{ .Values.ingress.context }}
+    tls:
+    - hosts: 
+      - {{ .Values.global.domain }}
+      secretName: {{ .Values.global.domain }}-tls-certs  
+{{- end }}
 {{- end -}} 
 {{- end -}} 
-

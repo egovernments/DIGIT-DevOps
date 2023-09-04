@@ -1,0 +1,60 @@
+version: v0.2
+modules:
+    - name: backbone
+      services:
+        - zookeeper-v2
+        - kafka-v2
+        - kafka-connect
+        - kafka-connect-restart-tasks
+        - elasticsearch-data-v1
+        - elasticsearch-master-v1
+        - kibana-v1
+        - egovio/postgres:11
+    - name: authn-authz
+      services:
+        - redis
+        - nginx-ingress
+        - cert-manager
+        - zuul:v1.3.1-96b24b0d72-39     
+    - name: core
+      dependencies:
+        - "backbone"
+        - "authn-authz"    
+      services:
+        - egovio/egov-mdms-service:v1.3.2-72f8a8f87b-12
+        - egovio/egov-enc-service:v1.1.2-72f8a8f87b-9
+        - egovio/egov-user-db:develop-fcc6127bb6-60
+        - egovio/egov-location:v1.1.4-72f8a8f87b-6
+        - egovio/egov-accesscontrol:v1.1.3-72f8a8f87b-24
+        - egovio/egov-localization:v1.1.3-72f8a8f87b-6
+        - egovio/egov-filestore:v1.2.4-72f8a8f87b-10
+        - egovio/egov-idgen:v1.2.3-72f8a8f87b-7
+        - egovio/egov-persister:v1.1.4-72f8a8f87b-6
+        - egovio/egov-indexer:v1.1.7-f52184e6ba-25
+        - egovio/egov-workflow-v2-db:v1.2.2-cae8f24502-30
+        - egovio/egov-notification-mail:v1.1.2-72f8a8f87b-12
+        - egovio/egov-notification-sms:v1.1.3-48a03ad7bb-10
+        - egovio/playground:1.3
+        - egovio/egov-searcher:v1.1.5-72f8a8f87b-16
+    - name: business
+      dependencies:
+        - "backbone"
+        - "core"
+      services:
+        - egovio/egov-hrms:v1.2.5-1715164454-6
+    - name: works
+      dependencies:
+        - "backbone"
+        - "authn-authz"    
+        - "core"
+      services:
+        - egovio/attendance:v0.2.0-43e47f57-41
+        - egovio/bankaccounts:v0.1.3-a0bebdb3-30 
+        - egovio/contracts:v0.2.0-43e47f57-63
+        - egovio/expense:v0.2.0-43e47f57-99 
+        - egovio/expense-calculator:v1.1.0-43e47f57-112
+        - egovio/muster-roll:v0.2.0-6c4aa7d6-36
+        - egovio/organisation:v0.2.0-ccbd4695-91 
+        - egovio/individual:v1.1.1-6c6afa0a83-155 
+        - egovio/works-ui:v1.1.0-43e47f57-522 
+        - egovio/works-shg-app:v1.1.0-43e47f57-245

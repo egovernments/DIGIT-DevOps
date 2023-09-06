@@ -1,16 +1,12 @@
 variable "environment" {
-    default = "azure-demo"
+    default = "<environment>"
 }
 variable "resource_group" {
-    default = "azure-demo"
+    default = "<resource_group>"
 }
 
 variable "location" {
-    default = "SouthIndia"
-}
-
-variable "nodes" {
-    default = "4"
+    default = "South India"
 }
 
 variable "db_version" {
@@ -18,14 +14,25 @@ variable "db_version" {
 }
 
 variable "db_user" {
-    default = "demo"
+    default = "<db_user>"
 }
 
 variable "db_password" {
 }
 
+variable "subscription_id" {
+    default = "<subscription_id>"
+}
+
+variable "tenant_id" {
+    default = "<tenant_id>"
+}
+
 variable "client_id" {
+    default = "<client_id>"
 }
 
 variable "client_secret" {
+    default = "<client_secret>"
 }
+

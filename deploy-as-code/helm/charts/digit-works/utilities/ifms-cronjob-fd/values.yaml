@@ -1,0 +1,46 @@
+# Common Labels
+labels:
+  app: "ifms-cronjob-fd"
+  group: "digit-works"
+
+namespace: works
+
+cron:
+  schedule: "*/5 * * * *"
+  
+# Container Configs
+image:
+  repository: "egovio/ifms-cronjob-fd"
+  tag: "latest"
+
+command: 
+  - "python3"
+  - "cronJobAPIConfig.py"
+args: 
+  - "FD"
+
+# Additional Container Envs
+env: |
+  - name: TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenant-id
+  - name: USER_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user-egov
+  - name: IFMS_ADAPTER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifms-adapter
+  {{- if index .Values "user-name" }}
+  - name: USER_NAME
+    value: {{ index .Values "user-name" | quote }}
+  {{- end }}
+resources: |
+  requests: {}
+  
+    

@@ -5,6 +5,21 @@ labels:
 
 namespace: works
 
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "ifms"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "ifms_schema"
+    image:
+      repository: "ifms-adapter-db"
+
 # Container Configs
 image:
   repository: "ifms-adapter"
@@ -32,11 +47,104 @@ env: |
   - name: JAVA_ENABLE_DEBUG
     value: "true"
   {{- end }}
-  {{- if index .Values "bill-kafka-topic" }}
-  - name: BILL_KAFKA_TOPIC
-    value: {{ index .Values "bill-kafka-topic" | quote }}
+  {{- if index .Values "payment-create-topic" }}
+  - name: PAYMENT_CREATE_TOPIC
+    value: {{ index .Values "payment-create-topic" | quote }}
   {{- end }}
-  {{- if index .Values "payment-status-kafka-topic" }}
-  - name: PAYMENT_STATUS_KAFKA_TOPIC
-    value: {{ index .Values "payment-status-kafka-topic" | quote }}
+  {{- if index .Values "egov-idgen-ifms-pi-reference-number" }}
+  - name: EGOV_IDGEN_IFMS_PI_REFERENCE_NUMBER
+    value: {{ index .Values "egov-idgen-ifms-pi-reference-number" | quote }}
   {{- end }}
+  {{- if index .Values "ifms-jit-authenticate-endpoint" }}
+  - name: IFMS_JIT_AUTHENTICATE_ENDPOINT
+    value: {{ index .Values "ifms-jit-authenticate-endpoint" | quote }}
+  {{- end }}
+  {{- if index .Values "ifms-jit-service-endpoint" }}
+  - name: IFMS_JIT_SERVICE_ENDPOINT
+    value: {{ index .Values "ifms-jit-service-endpoint" | quote }}
+  {{- end }}
+  {{- if index .Values "egov-bill-search-limit" }}
+  - name: EGOV_BILL_SEARCH_LIMIT
+    value: {{ index .Values "egov-bill-search-limit" | quote }}
+  {{- end }}
+  {{- if index .Values "ifms-request-log-index" }}
+  - name: IFMS_REQUEST_LOG_INDEX
+    value: {{ index .Values "ifms-request-log-index" | quote }}
+  {{- end }}
+  {{- if index .Values "ifms-error-log-index" }}
+  - name: IFMS_ERROR_LOG_INDEX
+    value: {{ index .Values "ifms-error-log-index" | quote }}
+  {{- end }}
+  {{- if index .Values "ifms-request-log-enabled" }}
+  - name: IFMS_REQUEST_LOG_ENABLED
+    value: {{ index .Values "ifms-request-log-enabled" | quote }}
+  {{- end }}
+  {{- if index .Values "ifms-error-log-enabled" }}
+  - name: IFMS_ERROR_LOG_ENABLED
+    value: {{ index .Values "ifms-error-log-enabled" | quote }}
+  {{- end }}
+  - name: EGOV_ES_INDEXER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: es-indexer-host
+  - name: IFMS_JIT_HOSTNAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifms-jit
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: EGOV_BILL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: expense
+  - name: EGOV_BILL_CALCULATOR_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: expense-calculator
+  - name: EGOV_BANK_ACCOUNT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: bankaccounts
+  - name: EGOV_INDIVIDUAL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: individual
+  - name: EGOV_ORGANISATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: organisation
+  - name: EGOV_IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-idgen
+  - name: EGOV_AUDIT_LOG_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: audit-service
+  - name: IFMS_JIT_CLIENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: ifms-adapter
+        key: clientID
+  - name: IFMS_JIT_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: ifms-adapter
+        key: clientSecret
+  - name: IFMS_REQUEST_ENC_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: ifms-adapter
+        key: reqEncSecret

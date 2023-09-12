@@ -7,8 +7,8 @@ labels:
 ingress:
   enabled: true
   zuul: true
-  namespace: "upyog"
   context: "inbox"
+  namespace: upyog
 
 # Container Configs
 image:
@@ -20,7 +20,7 @@ healthChecks:
   readinessProbePath: "/inbox/health"
 appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx384m -Xms256m"
+heap: "-Xmx256m -Xms256m"
 java-args: "-Dspring.profiles.active=monitoring"
 
 # Additional Container Envs
@@ -38,6 +38,45 @@ env: |
     value: "egov-workflow-v2/egov-wf/process/_count"
   - name: WORKFLOW_PROCESS_STATUSCOUNT_PATH
     value: "egov-workflow-v2/egov-wf/process/_statuscount"
+  - name: EGOV_USER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: EGOV_USER_SEARCH_PATH
+    value: "user/_search"
+  - name: EGOV_SEARCHER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-searcher
+  - name: EGOV_DASHBOARD_ANALYTICS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: dashboard-analytics
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: SERVICES_ESINDEXER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: es-indexer-host
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id
+  - name: EGOV_INTERNAL_MICROSERVICE_USER_UUID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-internal-microservice-user-uuid
+  - name: EGOV_SEARCHER_PT_SEARCH_PATH
+    value: "egov-searcher/property-services/inboxpropertysearch/_get"
   - name: SERVICE_SEARCH_MAPPING
     value:  {{ index .Values "service-map" | quote }} 
   - name: JAVA_OPTS
@@ -50,7 +89,25 @@ env: |
     value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED
     value: "false"
+  - name: BS_BUSINESSCODE_SERVICE_SEARCH
+    value:  {{ index .Values "bs-service-map" | quote }} 
+  - name: WATER_ES_INDEX
+    value:  {{ index .Values "water-es-index" | quote }}
+  - name: SEWERAGE_ES_INDEX
+    value:  {{ index .Values "sewerage-es-index" | quote }}
   {{- if index .Values "tracing-enabled" }}
   - name: TRACER_OPENTRACING_ENABLED
     value: "true" 
   {{- end }}
+  - name: JAVA_ENABLE_DEBUG
+    value: "true"
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenant-id
+  - name: EGOV_ENC_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-enc-service        

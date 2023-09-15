@@ -36,3 +36,8 @@ resource "azurerm_postgresql_flexible_server_database" "default" {
   charset   = "UTF8"
 }
 
+resource "azurerm_postgresql_flexible_server_configuration" "example" {
+  name                = "require_secure_transport"
+  server_id         = azurerm_postgresql_flexible_server.default.id
+  value               = "off"
+}

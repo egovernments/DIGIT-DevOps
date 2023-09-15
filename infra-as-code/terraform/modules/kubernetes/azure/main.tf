@@ -9,6 +9,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     name       = "default"
     vm_size    = "${var.vm_size}"
     node_count = "${var.node_count}"
+    vnet_subnet_id   = "${var.subnet_id}"
   }
 
   service_principal {

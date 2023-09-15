@@ -1,6 +1,5 @@
 provider "azurerm" {
   # whilst the `version` attribute is optional, we recommend pinning to a given version of the Provider
-  version = "3.71.0"
   subscription_id  = "${var.subscription_id}"
   tenant_id        = "${var.tenant_id}" 
   client_id        = "${var.client_id}"
@@ -12,7 +11,7 @@ provider "azurerm" {
 terraform {
   backend "azurerm" {
       resource_group_name  = "azure-rg-terraform"
-      storage_account_name = "tfstateq57ma"
+      storage_account_name = "tfstater2ugo"
       container_name       = "azure-container"
       key                  = "terraform.tfstate"
   }
@@ -62,65 +61,6 @@ resource "azurerm_network_security_group" "db_nsg" {
   name                = "db-nsg"
   location            = "${var.location}"
   resource_group_name = "${var.resource_group}"
-}
-
-# Define an inbound rule in AKS NSG to allow incoming traffic from the PostgreSQL subnet on port 5432 (PostgreSQL).
-resource "azurerm_network_security_rule" "aks_inbound" {
-  name                        = "allow-postgresql-ingress"
-  priority                    = 100
-  direction                   = "Inbound"
-  access                      = "Allow"
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = "5432"  # PostgreSQL default port
-  source_address_prefix       = "10.0.2.0/24"
-  destination_address_prefix  = "10.0.1.0/24"
-  resource_group_name         = "${var.resource_group}"
-  network_security_group_name = azurerm_network_security_group.aks_nsg.name
-}
-
-# Define an outbound rule in AKS NSG to allow outgoing traffic to the PostgreSQL subnet.
-resource "azurerm_network_security_rule" "aks_outbound" {
-  name                        = "allow-postgresql-egress"
-  priority                    = 100
-  direction                   = "Outbound"
-  access                      = "Allow"
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = "5432"  # PostgreSQL default port
-  source_address_prefix       = "10.0.1.0/24"
-  destination_address_prefix  = "10.0.2.0/24"
-  resource_group_name         = "${var.resource_group}"
-  network_security_group_name = azurerm_network_security_group.aks_nsg.name
-}
-
-# Define similar rules in the PostgreSQL NSG to allow traffic from AKS to PostgreSQL.
-resource "azurerm_network_security_rule" "db_inbound" {
-  name                        = "allow-aks-ingress"
-  priority                    = 100
-  direction                   = "Inbound"
-  access                      = "Allow"
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = "5432"  # PostgreSQL default port
-  source_address_prefix       = "10.0.1.0/24"
-  destination_address_prefix  = "10.0.2.0/24"
-  resource_group_name         = "${var.resource_group}"
-  network_security_group_name = azurerm_network_security_group.db_nsg.name
-}
-
-resource "azurerm_network_security_rule" "db_outbound" {
-  name                        = "allow-aks-egress"
-  priority                    = 100
-  direction                   = "Outbound"
-  access                      = "Allow"
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = "5432"  # PostgreSQL default port
-  source_address_prefix       = "10.0.2.0/24" 
-  destination_address_prefix  = "10.0.1.0/24"
-  resource_group_name         = "${var.resource_group}"
-  network_security_group_name = azurerm_network_security_group.db_nsg.name
 }
 
 module "kubernetes" {
@@ -189,7 +129,7 @@ module "postgres-db" {
   source = "../modules/db/azure"
   resource_group = "${var.resource_group}"  
   location = "${var.location}"
-  sku_tier = "B_Standard_B4ms"
+  sku_tier = "B_Standard_B2ms"
   storage_mb = "65536"
   backup_retention_days = "7"
   administrator_login = "${var.db_user}"

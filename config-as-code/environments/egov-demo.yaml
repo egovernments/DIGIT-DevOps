@@ -1,5 +1,5 @@
 global:
-   domain: <domain_name> ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
+   domain: azure-terraform.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
    setup: fullsetup
 
 cluster-configs:
@@ -13,11 +13,11 @@ cluster-configs:
         egov-config:
             namespace: [ egov, monitoring ]
             data:
-                db-host: <db_host_name> ## Add db-host name eg: egov-demo.database.azure.com
-                db-name: <db_name> ## Add db-name
-                db-url: jdbc:postgresql://<db_host_name>/<db_name> ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
-                domain: <domain_name> ## Add your Domain Name    
-                egov-services-fqdn-name: https://<domain_name>/ ## Add your Domain Name
+                db-host: az-final-terraform-server.postgres.database.azure.com ## Add db-host name eg: egov-demo.database.azure.com
+                db-name: az-final-terraform-db ## Add db-name
+                db-url: jdbc:postgresql://az-final-terraform-server.postgres.database.azure.com:5432/az-final-terraform-db ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
+                domain: azure-terraform.digit.org ## Add your Domain Name    
+                egov-services-fqdn-name: https://azure-terraform.digit.org/ ## Add your Domain Name
                 
                 egov-state-level-tenant-id: "pg" 
                 s3-assets-bucket: "(pg-egov-assets|egov-playground-assets)"
@@ -572,13 +572,16 @@ kafka-v2:
     tag: "5.4.1"
   persistence:
     enabled: true
-    aws:
-      - volumeId: "<kafka-v2_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone>     ## REPLACE: add respective zone. 
-      - volumeId: "<kafka-v2_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<kafka-v2_volume_id_3>"  ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
+    azure:
+    - diskName: "kafka-0"                # Replace with your respective disk name
+      resourceGroup: "az-final-terraform"   # Replace with your respective resource group name
+      location: "South India"                  # Replace with your respective Azure region
+    - diskName: "kafka-1"                # Replace with your respective disk name
+      resourceGroup: "az-final-terraform"   # Replace with your respective resource group name
+      location: "South India" 
+    - diskName: "kafka-2"                # Replace with your respective disk name
+      resourceGroup: "az-final-terraform"   # Replace with your respective resource group name
+      location: "South India" 
   zookeeperHosts: "zookeeper-v2.zookeeper-cluster:2181/kafka-v2"
 
   heapOptions: "-Xms704M -Xmx704M"
@@ -607,13 +610,16 @@ zookeeper-v2:
     tag: "5.4.1"
   persistence:
     enabled: true
-    aws:
-      - volumeId: "<zookeeper-v2_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<zookeeper-v2_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<zookeeper-v2_volume_id_3>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
+    azure:
+    - diskName: "zookeeper-0"                # Replace with your respective disk name
+      resourceGroup: "az-final-terraform"   # Replace with your respective resource group name
+      location: "South India"                  # Replace with your respective Azure region
+    - diskName: "zookeeper-1"                # Replace with your respective disk name
+      resourceGroup: "az-final-terraform"   # Replace with your respective resource group name
+      location: "South India" 
+    - diskName: "zookeeper-2"                # Replace with your respective disk name
+      resourceGroup: "az-final-terraform"   # Replace with your respective resource group name
+      location: "South India" 
 
   ## Zookeeper JVM Heap Option
   heapOptions: "-Xms256M -Xmx256M"
@@ -626,19 +632,19 @@ zookeeper-v2:
       memory: 384Mi
 
 
-# es-v1-cluster AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# es-v1-cluster AZURE >>>>>>>>>>>>>>>>>>>>>>>>>>>>
 elasticsearch-data-v1:
   image:
     tag: 6.6.2
   persistence:
     enabled: true
-    aws:
-      - volumeId: "<elasticsearch-data_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<elasticsearch-data_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<elasticsearch-data_volume_id_3>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
+    azure:
+      - diskName: "es-data-v1-0" ## add diskName
+        diskURI: "/subscriptions/8d8fadc3-5236-461c-a0ee-00836a75c4d1/resourceGroups/az-final-terraform/providers/Microsoft.Compute/disks/es-data-v1-0"     
+      - diskName: "es-data-v1-1" ## add diskName
+        diskURI: "/subscriptions/8d8fadc3-5236-461c-a0ee-00836a75c4d1/resourceGroups/az-final-terraform/providers/Microsoft.Compute/disks/es-data-v1-1"
+      - diskName: "es-data-v1-2"  ## add diskName
+        diskURI: "/subscriptions/8d8fadc3-5236-461c-a0ee-00836a75c4d1/resourceGroups/az-final-terraform/providers/Microsoft.Compute/disks/es-data-v1-2"                 
 
   esJavaOpts: "-Xmx1g -Xms1g"
   resources:
@@ -649,7 +655,7 @@ elasticsearch-data-v1:
       cpu: "2000m"
       memory: "2Gi"
 
-### es-master-v1 AWS >>>>>>>>>>>>>>>>>>>>
+### es-master-v1 AZURE >>>>>>>>>>>>>>>>>>>>
 
 elasticsearch-master-v1:
   replicas: 3
@@ -657,13 +663,13 @@ elasticsearch-master-v1:
     tag: 6.6.2
   persistence:
     enabled: true
-    aws:
-      - volumeId: "<elasticsearch-master_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone> ##REPLACE: add zone
-      - volumeId: "<elasticsearch-master_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ##REPLACE: add zone
-      - volumeId: "<elasticsearch-master_volume_id_3>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
+    azure:
+      - diskName: "es-master-0" ## add diskName
+        diskURI: "/subscriptions/8d8fadc3-5236-461c-a0ee-00836a75c4d1/resourceGroups/az-final-terraform/providers/Microsoft.Compute/disks/es-master-0"     
+      - diskName: "es-master-1" ## add diskName
+        diskURI: "/subscriptions/8d8fadc3-5236-461c-a0ee-00836a75c4d1/resourceGroups/az-final-terraform/providers/Microsoft.Compute/disks/es-master-1"
+      - diskName: "es-master-2"  ## add diskName
+        diskURI: "/subscriptions/8d8fadc3-5236-461c-a0ee-00836a75c4d1/resourceGroups/az-final-terraform/providers/Microsoft.Compute/disks/es-master-2" 
  
   esJavaOpts: "-Xmx448m -Xms448m"
   resources:

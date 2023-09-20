@@ -72,7 +72,7 @@ resource "azurerm_network_security_rule" "example" {
   source_port_range           = "*"
   destination_port_range      = "80"
   source_address_prefix       = "Internet"
-  destination_address_prefix  = "20.235.179.233"
+  destination_address_prefix  = "*"
   resource_group_name         = "${var.resource_group}"
   network_security_group_name = azurerm_network_security_group.aks_nsg.name
 }
@@ -86,7 +86,7 @@ resource "azurerm_network_security_rule" "example2" {
   source_port_range           = "*"
   destination_port_range      = "443"
   source_address_prefix       = "Internet"
-  destination_address_prefix  = "20.235.179.233"
+  destination_address_prefix  = "*"
   resource_group_name         = "${var.resource_group}"
   network_security_group_name = azurerm_network_security_group.aks_nsg.name
 }

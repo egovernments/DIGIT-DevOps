@@ -10,9 +10,9 @@ provider "azurerm" {
 
 terraform {
   backend "azurerm" {
-      resource_group_name  = "azure-rg-terraform"
-      storage_account_name = "tfstater2ugo"
-      container_name       = "azure-container"
+      resource_group_name  = "azure-env-rg-terraform"
+      storage_account_name = "tfstate5qv08"
+      container_name       = "azure-env-container"
       key                  = "terraform.tfstate"
   }
 }
@@ -61,6 +61,34 @@ resource "azurerm_network_security_group" "db_nsg" {
   name                = "db-nsg"
   location            = "${var.location}"
   resource_group_name = "${var.resource_group}"
+}
+
+resource "azurerm_network_security_rule" "example" {
+  name                        = "aks_rule1"
+  priority                    = 100
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "80"
+  source_address_prefix       = "Internet"
+  destination_address_prefix  = "20.235.179.233"
+  resource_group_name         = "${var.resource_group}"
+  network_security_group_name = azurerm_network_security_group.aks_nsg.name
+}
+
+resource "azurerm_network_security_rule" "example2" {
+  name                        = "aks_rule2"
+  priority                    = 500
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "443"
+  source_address_prefix       = "Internet"
+  destination_address_prefix  = "20.235.179.233"
+  resource_group_name         = "${var.resource_group}"
+  network_security_group_name = azurerm_network_security_group.aks_nsg.name
 }
 
 module "kubernetes" {

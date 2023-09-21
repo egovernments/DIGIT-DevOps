@@ -1,9 +1,9 @@
 # Common Labels
 labels:
   app: "project"
-  group: "health"
+  group: "core"
 
-namespace: health
+namespace: egov
 
 # Ingress Configs
 ingress:
@@ -32,8 +32,6 @@ appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
 java-args: ""
-persist-yml-path: "file:///work-dir/health-campaign-config/egov-persister/project-persister.yml"
-indexer-yml-path: "file:///work-dir/health-campaign-config/egov-indexer/project-indexer.yml"
 
 # Additional Container Envs
 env: |
@@ -100,6 +98,10 @@ env: |
   - name: TRACER_OPENTRACING_ENABLED
     value: "true" 
   {{- end }}
+  - name: SERVER_CONTEXT_PATH
+    value: /project
+  - name: SERVER_SERVLET_CONTEXT-PATH
+    value: /project
   - name: EGOV_LOCATION_HOST
     valueFrom:
       configMapKeyRef:
@@ -187,12 +189,18 @@ env: |
     value: "save-project"
   - name: PROJECT.MANAGEMENT.SYSTEM.KAFKA.UPDATE.TOPIC
     value: "update-project"
+  {{- if index .Values "project-default-offset" }}
   - name: PROJECT.DEFAULT.OFFSET
-    value: "0"
+    value: {{ index .Values "project-default-offset" | quote }} 
+  {{- end }}
+  {{- if index .Values "project-default-limit" }}
   - name: PROJECT.DEFAULT.LIMIT
-    value: "100"
+    value: {{ index .Values "project-default-limit" | quote }} 
+  {{- end }}
+  {{- if index .Values "project-search-max-limit" }}
   - name: PROJECT.SEARCH.MAX.LIMIT
-    value: "200"
+    value: {{ index .Values "project-search-max-limit" | quote }} 
+  {{- end }}
   - name: EGOV.IDGEN.PROJECT.NUMBER.NAME
     value: "project.number"
   - name: PROJECT.RESOURCE.IDGEN.ID.FORMAT

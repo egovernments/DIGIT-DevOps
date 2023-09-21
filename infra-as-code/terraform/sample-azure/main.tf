@@ -107,52 +107,6 @@ module "kubernetes" {
 
 }
 
-module "zookeeper" {
-  source = "../modules/storage/azure"
-  environment = "${var.environment}"
-  itemCount = "3"
-  disk_prefix = "zookeeper"
-  location = "${var.location}"
-  resource_group = "${var.resource_group}"
-  storage_sku = "Premium_LRS"
-  disk_size_gb = "5"
-  
-}
-
-module "kafka" {
-  source = "../modules/storage/azure"
-  environment = "${var.environment}"
-  itemCount = "3"
-  disk_prefix = "kafka"
-  location = "${var.location}"
-  resource_group = "${var.resource_group}"
-  storage_sku = "Premium_LRS"
-  disk_size_gb = "50"
-  
-}
-module "es-master" {
-  source = "../modules/storage/azure"
-  environment = "${var.environment}"
-  itemCount = "3"
-  disk_prefix = "es-master"
-  location = "${var.location}"
-  resource_group = "${var.resource_group}"
-  storage_sku = "Premium_LRS"
-  disk_size_gb = "2"
-  
-}
-module "es-data-v1" {
-  source = "../modules/storage/azure"
-  environment = "${var.environment}"
-  itemCount = "2"
-  disk_prefix = "es-data-v1"
-  location = "${var.location}"
-  resource_group = "${var.resource_group}"
-  storage_sku = "Premium_LRS"
-  disk_size_gb = "50"
-  
-}
-
 module "postgres-db" {
   source = "../modules/db/azure"
   resource_group = "${var.resource_group}"  

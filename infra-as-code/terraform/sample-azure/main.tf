@@ -10,9 +10,9 @@ provider "azurerm" {
 
 terraform {
   backend "azurerm" {
-      resource_group_name  = "azure-env-rg-terraform"
-      storage_account_name = "tfstate5qv08"
-      container_name       = "azure-env-container"
+      resource_group_name  = "demo-azure-rg-terraform"
+      storage_account_name = "tfstate7v0qn"
+      container_name       = "demo-azure-container"
       key                  = "terraform.tfstate"
   }
 }

@@ -1,9 +1,9 @@
 variable "tfstate" {
-    default = "azure-container"
+    default = "demo-azure-container"
 }
 
 variable "environment" {
-    default = "azure-terraform"
+    default = "demo-azure-terraform"
 }
 
 variable "location" {
@@ -11,5 +11,5 @@ variable "location" {
 }
 
 variable "resource_group" {
-    default = "azure-rg-terraform"
+    default = "demo-azure-rg-terraform"
 }

@@ -1,8 +1,8 @@
 variable "environment" {
-    default = "azure-terraform"
+    default = "demo-azure-terraform"
 }
 variable "resource_group" {
-    default = "azure-rg-terraform"
+    default = "demo-azure-rg-terraform"
 }
 
 variable "location" {
@@ -28,9 +28,9 @@ variable "tenant_id" {
 }
 
 variable "client_id" {
-    default = "312a0db9-86d2-45f9-9d1f-cc75bdafa692"
+    default = "6a44b3f1-91b8-4c87-b16a-8f8039a73e4e"
 }
 
 variable "client_secret" {
-    default = "Y8C8Q~-Fpgxn3SSLP4neHLHYKMxZu~dAGiQmwcdA"
+    default = "24c8Q~cmEUXWwF22gscwd5tvDVqSRHLhaUZrraI7"
 }

@@ -1,6 +1,6 @@
 # Common Labels
 labels:
-  app: "measurement-service"
+  app: "measurement-registry"
   group: "digit-works"
 
 namespace: works
@@ -10,24 +10,24 @@ ingress:
   namespace: egov
   enabled: true
   zuul: true
-  context: "measurement-service"
+  context: "measurement-registry"
 
 # Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
-    schemaTable: "measurement_service_schema"
+    schemaTable: "measurement_registry_schema"
     image:
-      repository: "measurement-service-db"
+      repository: "measurement-registry-db"
 
 # Container Configs
 image:
-  repository: "measurement-service"
+  repository: "measurement-registry"
 replicas: "1"
 healthChecks:
   enabled: true
-  livenessProbePath: "/measurement-service/health"
-  readinessProbePath: "/measurement-service/health"
+  livenessProbePath: "/measurement-registry/health"
+  readinessProbePath: "/measurement-registry/health"
 appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
@@ -36,15 +36,15 @@ java-args: ""
 # Additional Container Envs
 env: |
   - name: SERVER_PORT
-    value: "8080"
+    value: "8081"
   - name: JAVA_OPTS
     value: {{ index .Values "heap" | quote }}
   - name: JAVA_ARGS
     value: {{ index .Values "java-args" | quote }}
   - name: SERVER_CONTEXT_PATH
-    value: /measurement-service
+    value: /measurement
   - name: SERVER_SERVLET_CONTEXT-PATH
-    value: /measurement-service
+    value: /measurement
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
@@ -55,26 +55,11 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-idgen
-  - name: EGOV_WORKFLOW_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: egov-workflow-v2
   - name: EGOV_FILESTORE_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: egov-filestore
-  - name: EGOV_CONTRACT_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: contract-service
-  - name: EGOV_ESTIMATE_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: estimate-service
   - name: APP_TIMEZONE
     valueFrom:
       configMapKeyRef:
@@ -88,13 +73,13 @@ env: |
   - name: JAVA_ENABLE_DEBUG
     value: "true"
   {{- end }}
-  {{- if index .Values "measurement-service-kafka-create-topic" }}
-  - name: MEASUREMENT-SERVICE_KAFKA_CREATE_TOPIC
-    value: {{ index .Values "measurement-service-kafka-create-topic" | quote }}
+  {{- if index .Values "measurement-kafka-create-topic" }}
+  - name: MEASUREMENT_KAFKA_CREATE_TOPIC
+    value: {{ index .Values "measurement-kafka-create-topic" | quote }}
   {{- end }}
-  {{- if index .Values "measurement-service-kafka-update-topic" }}
-  - name: MEASUREMENT-SERVICE_KAFKA_UPDATE_TOPIC
-    value: {{ index .Values "measurement-service-kafka-update-topic" | quote }}
+  {{- if index .Values "measurement-kafka-update-topic" }}
+  - name: MEASUREMENT_KAFKA_UPDATE_TOPIC
+    value: {{ index .Values "measurement-kafka-update-topic" | quote }}
   {{- end }}
   {{- if index .Values "measurement-idgen-name" }}
   - name: MEASUREMENT_IDGEN_NAME
@@ -104,16 +89,17 @@ env: |
   - name: MEASUREMENT_IDGEN_FORMAT
     value: {{ index .Values "measurement-idgen-format" | quote }}
   {{- end }}
-  {{- if index .Values "measurement-service-default-offset" }}
-  - name: MEASUREMENT-SERVICE_DEFAULT_OFFSET
-    value: {{ index .Values "measurement-service-default-offset" | quote }}
+  {{- if index .Values "mb-default-offset" }}
+  - name: MB_DEFAULT_OFFSET
+    value: {{ index .Values "mb-default-offset" | quote }}
   {{- end }}
-  {{- if index .Values "measurement-service-default-limit" }}
-  - name: MEASUREMENT-SERVICE_DEFAULT_LIMIT
-    value: {{ index .Values "measurement-service-default-limit" | quote }}
+  {{- if index .Values "mb-default-limit" }}
+  - name: MB_DEFAULT_LIMIT
+    value: {{ index .Values "mb-default-limit" | quote }}
   {{- end }}
-  {{- if index .Values "measurement-service-search-max-limit" }}
-  - name: MEASUREMENT-SERVICE_SEARCH_MAX_LIMIT
-    value: {{ index .Values "measurement-service-search-max-limit" | quote }}
+  {{- if index .Values "mb-search-max-limit" }}
+  - name: MB_SEARCH_MAX_LIMIT
+    value: {{ index .Values "mb-search-max-limit" | quote }}
   {{- end }}
+  
 

@@ -5,13 +5,13 @@ global:
 cluster-configs:
     namespaces:  
       create: true
-      values: [ backbone, cert-manager, egov, es-cluster, kafka-cluster, logging, monitoring, playground, zookeeper-cluster ]
+      values: [ backbone, cert-manager, egov, es-cluster, kafka-cluster, logging, monitoring, playground, zookeeper-cluster, urban ]
       
     root-ingress:
       cert-issuer: letsencrypt-prod
     configmaps:
         egov-config:
-            namespace: [ egov, monitoring ]
+            namespace: [ egov, monitoring, urban ]
             data:
                 db-host: unified-qa-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432 ## Add db-host name eg: egov-demo.database.azure.com
                 db-name: unifiedqadb ## Add db-name
@@ -39,9 +39,10 @@ cluster-configs:
                 tracer-errors-provideexceptionindetails: "true"
                 egov-bnd-freedownload-tenants: "pg.testing"
                 egov-bnd-live-citizen-tenants: "pg.testing"
+                egov-internal-microservice-user-uuid: 4fef6612-07a8-4751-97e9-0e0ac0687ebe
 
         egov-service-host:
-            namespace: [ egov, monitoring ]
+            namespace: [ egov, monitoring, urban ]
             data:
                 asset-services: "http://asset-services:8080/"
                 asset-services-maha: "http://asset-services-maha:8080/"
@@ -142,6 +143,10 @@ cluster-configs:
                 turn-io-adapter: "http://turn-io-adapter.egov:8080/"
                 pgr-services: "http://pgr-services.egov:8080/"
                 birth-death-services: "http://birth-death-services.egov:8080/"
+                ws-calculator: "http://ws-calculator.urban:8080/"
+                ws-services: "http://ws-services.urban:8080/"
+                sw-services: "http://sw-services.urban:8080/"
+                sw-calculator: "http://sw-calculator.urban:8080/"
                 egov-pdf: "http://egov-pdf.egov:8080/"
 employee:
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
@@ -215,6 +220,15 @@ egov-user:
   egov-state-level-tenant-id: "in"
   decryption-abac-enabled: "false"
 
+property-services:
+  replicas: 1
+  egov-idgen-ack-format: "PB-AC-[cy:yyyy-MM-dd]-[SEQ_EG_PT_ACK]"
+  egov-idgen-ptid-format: "PB-PT-[cy:yyyy-MM-dd]-[SEQ_EG_PT_PTID]"
+  egov-idgen-mutation-format: "PB-MT-[CITY]-[SEQ_EG_PT_MUTATION]"
+  egov-idgen-assm-format: "PB-AS-[cy:yyyy-MM-dd]-[SEQ_EG_PT_ASSM]"
+  property-userevents-pay-link: "digit-ui/citizen/payment/my-bills/$businessService/$propertyId?tenantId=$tenantId"
+  property-decryption-abac-enabled: "true"
+
 chatbot:
   kafka-topics-partition-count: 3
   kafka-topics-replication-factor: 2
@@ -237,8 +251,9 @@ chatbot:
 
 
 ws-services:
-  wcid-format: "WS/[CITY.CODE]/[fy:yyyy-yy]/[SEQ_EGOV_COMMON]"
+  replicas: 1
   is-external-workflow-enabled: "true"
+  water-decryption-abac-enabled: "true"
 
 bpa-services:
   memory_limits: 384Mi

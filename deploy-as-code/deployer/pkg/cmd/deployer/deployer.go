@@ -15,7 +15,7 @@ import (
 func DeployCharts(options Options) {
 
 	configDir, _ := filepath.Abs(options.ConfigDir)
-	var helmDir = configDir
+	var helmDir = configDir + "helm"
 	log.Println(configDir)
 	log.Println("Helm Directory - " + helmDir)
 

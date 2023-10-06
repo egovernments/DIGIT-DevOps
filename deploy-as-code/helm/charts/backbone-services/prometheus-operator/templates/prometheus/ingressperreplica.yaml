@@ -3,23 +3,23 @@
 {{- $count := .Values.prometheus.prometheusSpec.replicas | int -}}
 {{- $servicePort := .Values.prometheus.servicePerReplica.port -}}
 {{- $ingressValues := .Values.prometheus.ingressPerReplica -}}
-{{- $apiIsStable := eq (include "kube-prometheus-stack.ingress.isStable" .) "true" -}}
-{{- $ingressSupportsPathType := eq (include "kube-prometheus-stack.ingress.supportsPathType" .) "true" -}}
+{{- $apiIsStable := eq (include "prometheus-operator.ingress.isStable" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "prometheus-operator.ingress.supportsPathType" .) "true" -}}
 apiVersion: v1
 kind: List
 metadata:
-  name: {{ include "kube-prometheus-stack.fullname" $ }}-prometheus-ingressperreplica
-  namespace: {{ template "kube-prometheus-stack.namespace" $ }}
+  name: {{ include "prometheus-operator.fullname" $ }}-prometheus-ingressperreplica
+  namespace: {{ $.Release.Namespace }}
 items:
 {{ range $i, $e := until $count }}
   - kind: Ingress
-    apiVersion: {{ include "kube-prometheus-stack.ingress.apiVersion" $ }}
+    apiVersion: {{ include "prometheus-operator.ingress.apiVersion" $ }}
     metadata:
-      name: {{ include "kube-prometheus-stack.fullname" $ }}-prometheus-{{ $i }}
-      namespace: {{ template "kube-prometheus-stack.namespace" $ }}
+      name: {{ include "prometheus-operator.fullname" $ }}-prometheus-{{ $i }}
+      namespace: {{ template "prometheus-operator.namespace" $ }}
       labels:
-        app: {{ include "kube-prometheus-stack.name" $ }}-prometheus
-      {{ include "kube-prometheus-stack.labels" $ | indent 8 }}
+        app: {{ include "prometheus-operator.name" $ }}-prometheus
+      {{ include "prometheus-operator.labels" $ | indent 8 }}
       {{- if $ingressValues.labels }}
 {{ toYaml $ingressValues.labels | indent 8 }}
       {{- end }}
@@ -45,11 +45,11 @@ items:
                 backend:
                   {{- if $apiIsStable }}
                   service:
-                    name: {{ include "kube-prometheus-stack.fullname" $ }}-prometheus-{{ $i }}
+                    name: {{ include "prometheus-operator.fullname" $ }}-prometheus-{{ $i }}
                     port:
                       number: {{ $servicePort }}
                   {{- else }}
-                  serviceName: {{ include "kube-prometheus-stack.fullname" $ }}-prometheus-{{ $i }}
+                  serviceName: {{ include "prometheus-operator.fullname" $ }}-prometheus-{{ $i }}
                   servicePort: {{ $servicePort }}
       {{- end }}
       {{- end -}}

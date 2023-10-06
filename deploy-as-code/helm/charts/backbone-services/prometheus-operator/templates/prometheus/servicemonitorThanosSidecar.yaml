@@ -2,11 +2,11 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ template "kube-prometheus-stack.fullname" . }}-thanos-sidecar
-  namespace: {{ template "kube-prometheus-stack.namespace" . }}
+  name: {{ template "prometheus-operator.fullname" . }}-thanos-sidecar
+  namespace: {{ $.Release.Namespace }}
   labels:
-    app: {{ template "kube-prometheus-stack.name" . }}-thanos-sidecar
-{{ include "kube-prometheus-stack.labels" . | indent 4 }}
+    app: {{ template "prometheus-operator.name" . }}-thanos-sidecar
+{{ include "prometheus-operator.labels" . | indent 4 }}
 {{- with .Values.prometheus.thanosServiceMonitor.additionalLabels }}
 {{- toYaml . | nindent 4 }}
 {{- end }}
@@ -14,11 +14,11 @@ spec:
   {{- include "servicemonitor.scrapeLimits" .Values.prometheus.thanosServiceMonitor | nindent 2 }}
   selector:
     matchLabels:
-      app: {{ template "kube-prometheus-stack.name" . }}-thanos-discovery
+      app: {{ template "prometheus-operator.name" . }}-thanos-discovery
       release: {{ $.Release.Name | quote }}
   namespaceSelector:
     matchNames:
-      - {{ printf "%s" (include "kube-prometheus-stack.namespace" .) | quote }}
+      - {{ printf "%s" (include "prometheus-operator.namespace" .) | quote }}
   endpoints:
   - port: {{ .Values.prometheus.thanosService.httpPortName }}
     {{- if .Values.prometheus.thanosServiceMonitor.interval }}

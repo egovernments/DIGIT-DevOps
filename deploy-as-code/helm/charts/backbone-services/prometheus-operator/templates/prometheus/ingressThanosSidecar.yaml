@@ -1,23 +1,23 @@
 {{- if and .Values.prometheus.enabled .Values.prometheus.thanosIngress.enabled }}
 {{- $pathType := .Values.prometheus.thanosIngress.pathType | default "" }}
-{{- $serviceName := printf "%s-%s" (include "kube-prometheus-stack.fullname" .) "thanos-discovery" }}
+{{- $serviceName := printf "%s-%s" (include "prometheus-operator.fullname" .) "thanos-discovery" }}
 {{- $thanosPort := .Values.prometheus.thanosIngress.servicePort -}}
 {{- $routePrefix := list .Values.prometheus.prometheusSpec.routePrefix }}
 {{- $paths := .Values.prometheus.thanosIngress.paths | default $routePrefix -}}
-{{- $apiIsStable := eq (include "kube-prometheus-stack.ingress.isStable" .) "true" -}}
-{{- $ingressSupportsPathType := eq (include "kube-prometheus-stack.ingress.supportsPathType" .) "true" -}}
-apiVersion: {{ include "kube-prometheus-stack.ingress.apiVersion" . }}
+{{- $apiIsStable := eq (include "prometheus-operator.ingress.isStable" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "prometheus-operator.ingress.supportsPathType" .) "true" -}}
+apiVersion: {{ include "prometheus-operator.ingress.apiVersion" . }}
 kind: Ingress
 metadata:
 {{- if .Values.prometheus.thanosIngress.annotations }}
   annotations:
 {{ toYaml .Values.prometheus.thanosIngress.annotations | indent 4 }}
 {{- end }}
-  name: {{ template "kube-prometheus-stack.fullname" . }}-thanos-gateway
-  namespace: {{ template "kube-prometheus-stack.namespace" . }}
+  name: {{ template "prometheus-operator.fullname" . }}-thanos-gateway
+  namespace: {{ $.Release.Namespace }}
   labels:
-    app: {{ template "kube-prometheus-stack.name" . }}-prometheus
-{{ include "kube-prometheus-stack.labels" . | indent 4 }}
+    app: {{ template "prometheus-operator.name" . }}-prometheus
+{{ include "prometheus-operator.labels" . | indent 4 }}
 {{- if .Values.prometheus.thanosIngress.labels }}
 {{ toYaml .Values.prometheus.thanosIngress.labels | indent 4 }}
 {{- end }}

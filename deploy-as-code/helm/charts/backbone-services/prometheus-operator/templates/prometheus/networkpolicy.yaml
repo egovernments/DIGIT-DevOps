@@ -1,0 +1,34 @@
+{{- if and .Values.prometheus.networkPolicy.enabled (eq .Values.prometheus.networkPolicy.flavor "kubernetes") }}
+apiVersion: {{ template "prometheus-operator.prometheus.networkPolicy.apiVersion" . }}
+kind: NetworkPolicy
+metadata:
+  labels:
+    app: {{ template "prometheus-operator.name" . }}-prometheus
+    {{- include "prometheus-operator.labels" . | nindent 4 }}
+  name: {{ template "prometheus-operator.fullname" . }}-prometheus
+  namespace: {{ $.Release.Namespace }}
+spec:
+  {{- if .Values.prometheus.networkPolicy.egress }}
+  egress:
+    {{- toYaml .Values.prometheus.networkPolicy.egress | nindent 4 }}
+  {{- end }}
+  {{- if .Values.prometheus.networkPolicy.ingress }}
+  ingress:
+    {{- toYaml .Values.prometheus.networkPolicy.ingress | nindent 4 }}
+  {{- end }}
+  policyTypes:
+    - Egress
+    - Ingress
+  podSelector:
+    {{- if .Values.prometheus.networkPolicy.podSelector }}
+    {{- toYaml .Values.prometheus.networkPolicy.podSelector | nindent 4 }}
+    {{- else }}
+    matchLabels:
+      {{- if .Values.prometheus.agentMode }}
+      app.kubernetes.io/name: prometheus-agent
+      {{- else }}
+      app.kubernetes.io/name: prometheus
+      {{- end }}
+      operator.prometheus.io/name: {{ template "prometheus-operator.prometheus.crname" . }}
+    {{- end }}
+{{- end }}

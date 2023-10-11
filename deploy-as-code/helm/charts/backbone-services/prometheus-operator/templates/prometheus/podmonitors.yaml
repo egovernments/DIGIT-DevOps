@@ -1,7 +1,3 @@
-{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
-{{- $baseValues := .Values | deepCopy -}}
-{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
-{{- with mustMergeOverwrite . $values -}}
 {{- if and .Values.prometheus.enabled .Values.prometheus.additionalPodMonitors }}
 apiVersion: v1
 kind: List
@@ -11,7 +7,7 @@ items:
     kind: PodMonitor
     metadata:
       name: {{ .name }}
-      namespace: {{ .Values.namespace }}
+      namespace: {{ $.Release.Namespace }}
       labels:
         app: {{ template "prometheus-operator.name" $ }}-prometheus
 {{ include "prometheus-operator.labels" $ | indent 8 }}
@@ -19,6 +15,7 @@ items:
 {{ toYaml .additionalLabels | indent 8 }}
         {{- end }}
     spec:
+      {{- include "servicemonitor.scrapeLimits" . | nindent 6 }}
       podMetricsEndpoints:
 {{ toYaml .podMetricsEndpoints | indent 8 }}
     {{- if .jobLabel }}
@@ -37,6 +34,5 @@ items:
     {{- if .sampleLimit }}
       sampleLimit: {{ .sampleLimit }}
     {{- end }}
-{{- end }}
 {{- end }}
 {{- end }}

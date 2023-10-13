@@ -33,11 +33,6 @@ module "db" {
   identifier                    = "${var.cluster_name}-db"
   db_name                       = "${var.db_name}"
   environment                   = "${var.cluster_name}"
-  tags = "${
-    tomap({
-      "KubernetesCluster" = "${var.cluster_name}"
-    })
-  }"
 }
 
 data "aws_eks_cluster" "cluster" {
@@ -84,6 +79,12 @@ module "eks" {
       spot_instance_pools           = null
     }
   ]
+  tags = "${
+    tomap({
+      "kubernetes.io/cluster/${var.cluster_name}" = "owned",
+      "KubernetesCluster" = "${var.cluster_name}"
+    })
+  }"
 }
 
 resource "aws_iam_role" "eks_iam" {
@@ -107,12 +108,6 @@ resource "aws_iam_role" "eks_iam" {
       }
     ]
   })
-  tags = "${
-    map(
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
-      "KubernetesCluster", "${var.cluster_name}"
-    )
-  }"
 }
 
 resource "kubernetes_annotations" "example" {

@@ -1,0 +1,55 @@
+# Common Labels
+labels:
+  app: "ifix-department-entity-service"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "ifix-department-entity"
+  
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "ifix_department_entity_schema"
+    image:
+      repository: "ifix-department-entity-service-db"
+
+# Container Configs
+image:
+  repository: "ifix-department-entity-service"
+replicas: "1"
+
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+java-args: ""
+
+server-context-path: "/ifix-department-entity"
+master-department-context-path: "/adapter-master-data"
+
+# Additional Container Envs
+env: |  
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    value: {{ index .Values "server-context-path" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SPRING_DATA_MONGODB_URI
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: mongo-db-authenticated-uri
+  - name: SPRING_DATA_MONGODB_DATABASE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: mongo-db-name
+  - name: IFIX_MASTER_DEPARTMENT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: adapter-master-data-service
+  - name: IFIX_MASTER_DEPARTMENT_CONTEXT_PATH
+    value: {{ index .Values "master-department-context-path" | quote }}            

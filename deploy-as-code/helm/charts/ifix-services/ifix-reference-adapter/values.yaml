@@ -1,0 +1,138 @@
+# Common Labels
+labels:
+  app: "ifix-reference-adapter"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: false
+  context: "ifix-reference-adapter"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "ifix_reference_adapter_schema"
+    image:
+      repository: "ifix-reference-adapter-db"
+    
+# Container Configs
+image:
+  repository: "ifix-reference-adapter"
+replicas: "1"
+healthChecks:
+  enabled: false
+  livenessProbePath: "/ifix-reference-adapter/health"
+  readinessProbePath: "/ifix-reference-adapter/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+java-args: "-Dspring.profiles.active=monitoring"
+
+# Additional Container Envs
+env: |
+  - name: KEYCLOAK_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: keycloak
+  - name: IFIX_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: fiscal-event-service
+  - name: ADAPTER_MASTER_DATA_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: adapter-master-data-service
+  - name: IFIX_DEPARTMENT_ENTITY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifix-department-entity-service
+  - name: MGRAMSEVA_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  - name: SPRING_REDIS_HOST  
+  {{- if index .Values "cluster-configs" "configmaps" "egov-service-host" "data" "redis-host" }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: redis-host   
+  {{- else }}
+    value: "redis.backbone"
+  {{- end }}   
+  - name: SPRING_REDIS_PORT
+    value: "6379"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: PROXY_ADDRESS_FORWARDING
+    value: "true"
+  {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
+  - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: tracer-errors-provideexceptionindetails
+  {{- end }}
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: ifix-adaptor-mapper
+  - name: KAFKA_TOPICS_IFIX_ADAPTOR_MAPPER
+    value: ifix-adaptor-mapper
+  - name: KEYCLOAK_CREDENTIALS_CLIENTID
+    value: {{ index .Values "keycloak-credentials-clientid" | quote }}
+  - name: PSPCL_IFIX_EVENT_RECEIVER_NAME
+    value: {{ index .Values "pspcl-ifix-event-receiver-name" | quote }}
+  - name: MGRAMSEVA_OAUTH_TOKEN_SCOPE
+    value: {{ index .Values "mgramseva-oauth-token-scope" | quote }}
+  - name: MGRAMSEVA_OAUTH_TOKEN_GRANTTYPE
+    value: {{ index .Values "mgramseva-oauth-token-grantType" | quote }}
+  - name: MGRAMSEVA_OAUTH_TOKEN_TENANTID
+    value: {{ index .Values "mgramseva-oauth-token-tenantId" | quote }}
+  - name: MGRAMSEVA_OAUTH_TOKEN_USERTYPE
+    value: {{ index .Values "mgramseva-oauth-token-userType" | quote }}
+  - name: SAMPLEJOB_FREQUENCY
+    value: {{ index .Values "samplejob-frequency" | quote }}
+  - name: SPRING_QUARTZ_JDBC_INITIALIZE-SCHEMA
+    value: {{ index .Values "spring-quartz-jdbc-initialize-schema" | quote }}
+  - name: MGRAMSEVA_PSPCL_VENDOR_NAME
+    value: {{ index .Values "mgramseva-pspcl-vendor-name" | quote }}
+  - name: KEYCLOAK_CREDENTIALS_CLIENTSECRET
+    valueFrom:
+      secretKeyRef:
+        name: keycloak
+        key: keycloak-clientsecret
+  - name: MGRAMSEVA_OAUTH_TOKEN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak
+        key: oauth-mgramseva-password
+  - name: MGRAMSEVA_OAUTH_TOKEN_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: keycloak
+        key: mgramseva-oauth-token-username
+  - name: VENDOR_OWNER_NUMBER
+    valueFrom:
+      secretKeyRef:
+        name: ifix-reference-adapter
+        key: vendor-owner-number
+  - name: KEYCLOAK_CREDENTIALS_GRANTTYPE
+    value: client_credentials
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true"
+  {{- end }}
+  {{- if index .Values "java-enable-debug" }}
+  - name: JAVA_ENABLE_DEBUG
+    value: "true"
+  {{- end }}
+

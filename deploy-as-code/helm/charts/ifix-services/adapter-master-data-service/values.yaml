@@ -1,0 +1,65 @@
+# Common Labels
+labels:
+  app: "adapter-master-data-service"
+  group: "rainmaker"
+
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "adapter-master-data"
+  
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "adapter_master_data_service_schema"
+    image:
+      repository: "adapter-master-data-service-db"
+    
+# Container Configs
+image:
+  repository: "adapter-master-data-service"
+replicas: "1"
+
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+java-args: "-Dspring.profiles.active=monitoring"
+
+server-context-path: "/adapter-master-data"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    value: {{ index .Values "server-context-path" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SPRING_DATA_MONGODB_URI
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: mongo-db-authenticated-uri
+  - name: SPRING_DATA_MONGODB_DATABASE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: mongo-db-name
+  - name: IFIX_MASTER_DEPARTMENT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: adapter-master-data-service 
+  - name: IFIX_MASTER_EXPENDITURE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: adapter-master-data-service
+  - name: IFIX_DEPARTMENT_ENTITY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifix-department-entity-service
+
+

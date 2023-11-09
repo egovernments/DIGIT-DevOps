@@ -1,0 +1,57 @@
+# Common Labels
+labels:
+  app: "rollout-dashboard-cronjob"
+  group: "rollout-dashboard-cronjob"
+
+cron:
+  schedule: "00 18 * * *"
+
+# Container Configs
+image:
+  repository: "rollout-dashboard-cronjob"
+  tag: "v1"
+
+command: 
+  - "python3"
+  - "app.py"
+
+# Additional Container Envs
+env: |
+  - name: JOB_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_SCHEMA
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
+  - name: DB_PWD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef: 
+        name: db
+        key: username
+  - name: DB_PORT
+    value: "5432"
+  - name: API_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id
+resources: |
+  requests: {}

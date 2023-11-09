@@ -1,0 +1,94 @@
+# Common Labels
+labels:
+  app: "firenoc-calculator"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "firenoc-calculator"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "firenoc_calculator_schema"
+    image:
+      repository: "firenoc-calculator-db"
+
+# Container Configs
+image:
+  repository: "firenoc-calculator"
+replicas: "1"
+appType: "java-spring"
+tracing-enabled: true
+
+# Additional Container Envs
+env: |
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
+  - name: DB_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: DB_SSL
+    value: "false"                
+  - name: EGOV_BILLINGSERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: billing-service
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: EGOV_USER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: EGOV_FIRENOC_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: firenoc-services
+  - name: EGOV_LOCALIZATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-localization
+  - name: EGOV_MDMS_SEARCH_ENDPOINT
+    value: "/egov-mdms-service/v1/_search"
+  - name: DB_PORT
+    value: "5432"          
+  - name: KAFKA_TOPICS_SAVE_SERVICE
+    value: "save-firenoc-calculator-billingslab"
+  - name: KAFKA_TOPICS_UPDATE_SERVICE
+    value: "update-firenoc-calculator-billingslab"
+  - name: KAFKA_TOPICS_NOTIFICATION_SMS
+    value: "egov.core.notification.sms"
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: egov-firenoc-calculator
+  - name: KAFKA_BOOTSTRAP_SERVER
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: SERVER_PORT
+    value: "8080"

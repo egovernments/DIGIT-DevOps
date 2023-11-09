@@ -1,0 +1,48 @@
+# Common Labels
+labels:
+  app: "ifix-migration-toolkit"
+  group: "rainmaker"
+
+#namespace: ifix
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "ifix_migration_toolkit_schema"
+    image:
+      repository: "ifix-migration-toolkit-db"
+
+# Container Configs
+image:
+  repository: "ifix-migration-toolkit"
+replicas: "1"
+
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+java-args: ""
+
+# Additional Container Envs
+env: |  
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: "ifix-migration-toolkit"
+  - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: IFIX_DEPARTMENT_ENTITY_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifix-department-entity-service
+  - name: IFIX_FISCAL_EVENT_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: fiscal-event-service
+  - name: ADAPTER_MASTER_DATA_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: adapter-master-data-service
+        

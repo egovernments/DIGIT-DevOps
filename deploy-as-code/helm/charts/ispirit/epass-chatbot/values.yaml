@@ -1,0 +1,117 @@
+# Common Labels
+labels:
+  app: "epass-chatbot"
+  group: "ispirit"
+namespace: ispirit
+
+# Ingress Configs
+ingress:
+  enabled: true
+  context: "sms-webhook"
+  ip-whitelist: "0.0.0.0/0"
+  host: |
+    - host: {{ index .Values "global" "moca-domain" }}
+  tls: |
+      - hosts:
+        - {{ index .Values "global" "moca-domain" }}
+        secretName: {{ index .Values "global" "moca-domain" }}-tls-certs  
+  additionalAnnotations: |
+    certmanager.k8s.io/cluster-issuer: {{ index $.Values "cluster-configs" "root-ingress" "cert-issuer" | quote }}  
+    nginx.ingress.kubernetes.io/whitelist-source-range: {{ index .Values "ingress" "ip-whitelist" | quote }}      
+
+# Container Configs
+image:
+  repository: "epass-chatbot"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/sms-webhook/health"
+  readinessProbePath: "/sms-webhook/health"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+java-args: ""
+sender-id: DOCAEP
+karix-send-sms-enabled: false
+epass-service-host: http://ecurfew.ispirit:8080/
+error.message.for.not.recognized: "Thanks for reaching out! Unfortunately, Epass only understands messages of the form \"VERIFY <passnumber>\". Please re-send your request in this format"
+error-message-for-server-error: "Due to technical difficulties, we are unable to verify passes right now"
+message-epass-create: "Dear <firstName> <lastName>, your COVID e-Pass <token> valid till <validTillDate> has been issued. Pass valid with Govt Id in <validLocations>. To verify pls SMS: \"VERIFY <token>\" on 9686454890. Issued under the authority of Secretary, Dept of Consumer Affairs"
+message-verify-response: "COVID e-Pass <token> to <firstName> <lastName> is valid till <validTillDate> in <validLocations>. Pass valid with Govt Id only. Issued under Secretary, Dept of Consumer Affairs"
+
+demo-redirect-enabled: false
+demo-redirect-url: "https://epassapi.egovernments.org/sms-webhook/messages"
+demo-redirect-prefix-keyword: "demo"
+
+kafka-consumer-fetch-max-wait-ms: 10
+kafka-producer-linger-ms: 5
+kafka-consumer-threads: 1
+
+kafka-consumer-fetch-max-wait-ms-for-karix-send: 1000
+kafka-consumer-threads-for-karix-send: 1
+kafka-consumer-max-poll-records-for-karix-send: 100
+karix-sms-max-batch-size: 600
+
+# Additional Container Envs
+env: | 
+  - name: APP_TIMEZONE
+    value: "Asia/Kolkata"       
+  - name: SERVER_PORT
+    value: "8080"
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true"
+  - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+    value: {{ index $.Values "cluster-configs" "configmaps" "egov-config" "data" "kafka-brokers" }}
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    value: {{ index $.Values "cluster-configs" "configmaps" "egov-config" "data" "kafka-brokers" }}
+  - name: JAEGER_SERVICE_NAME
+    value: epass-chatbot
+  - name: JAEGER_SAMPLER_TYPE
+    value: remote
+  - name: JAEGER_AGENT_HOST
+    valueFrom:
+      fieldRef:
+        apiVersion: v1
+        fieldPath: status.hostIP
+  - name: JAEGER_AGENT_PORT
+    value: "6831"
+  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+    value: $(JAEGER_AGENT_HOST):5778
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: KARIX_SENDER_ID
+    value: {{ index .Values "sender-id" | quote }}
+  - name: ERROR_MESSAGE_FOR_SERVER_ERROR
+    value: {{ index .Values "error-message-for-server-error" | quote }}
+  - name: MESSAGE_EPASS_CREATE
+    value: {{ index .Values "message-epass-create" | quote }}
+  - name: MESSAGE_VERIFY_RESPONSE
+    value: {{ index .Values "message-verify-response" | quote }}
+  - name: KARIX_SEND_SMS_ENABLED
+    value: {{ index .Values "karix-send-sms-enabled" | quote }}  
+  - name: EPASS_SERVICE_HOST
+    value: {{ index .Values "epass-service-host" | quote }}        
+  - name: DEMO_REDIRECT_ENABLED
+    value: {{ index .Values "demo-redirect-enabled" | quote }}
+  - name: DEMO_REDIRECT_URL
+    value: {{ index .Values "demo-redirect-url" | quote }}
+  - name: DEMO_REDIRECT_PREFIX_KEYWORD
+    value: {{ index .Values "demo-redirect-prefix-keyword" | quote }}
+  - name: KARIX_AUTH_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: ispirit-ecurfew
+        key: karix-auth-token      
+  - name: KAFKA_CONSUMER_FETCH_MAX_WAIT_MS
+    value: {{ index .Values "kafka-consumer-fetch-max-wait-ms" | quote }}
+  - name: KAFKA_PRODUCER_LINGER_MS
+    value: {{ index .Values "kafka-producer-linger-ms" | quote }}
+  - name: KAFKA_CONSUMER_THREADS
+    value: {{ index .Values "kafka-consumer-threads" | quote }}
+  - name: KAFKA_CONSUMER_FETCH_MAX_WAIT_MS_FOR_KARIX_SEND
+    value: {{ index .Values "kafka-consumer-fetch-max-wait-ms-for-karix-send" | quote }}
+  - name: KAFKA_CONSUMER_THREADS_FOR_KARIX_SEND
+    value: {{ index .Values "kafka-consumer-threads-for-karix-send" | quote }}
+  - name: KAFKA_CONSUMER_MAX_POLL_RECORDS_FOR_KARIX_SEND
+    value: {{ index .Values "kafka-consumer-max-poll-records-for-karix-send" | quote }}
+  - name: KARIX_SMS_MAX_BATCH_SIZE
+    value: {{ index .Values "karix-sms-max-batch-size" | quote }}

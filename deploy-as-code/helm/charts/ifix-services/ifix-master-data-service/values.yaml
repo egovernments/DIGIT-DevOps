@@ -1,37 +1,38 @@
 # Common Labels
 labels:
-  app: "adapter-master-data-service"
-  group: "rainmaker"
+  app: "ifix-master-data-service"
+  group: "ifix"
 
+namespace: ifix
 
 # Ingress Configs
 ingress:
   enabled: true
   zuul: true
-  context: "adapter-master-data"
-  
-# Init Containers Configs
+  context: "ifix-master-data"
+
+# Init container configs
 initContainers:
   dbMigration:
     enabled: true
-    schemaTable: "adapter_master_data_service_schema"
+    schemaTable: "ifix_master_data_service_schema"
     image:
-      repository: "adapter-master-data-service-db"
-    
+      repository: "ifix-master-data-service-db"
+
 # Container Configs
 image:
-  repository: "adapter-master-data-service"
+  repository: "ifix-master-data-service"
 replicas: "1"
 
 appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
-java-args: "-Dspring.profiles.active=monitoring"
+java-args: ""
 
-server-context-path: "/adapter-master-data"
+server-context-path: "/ifix-master-data"
 
 # Additional Container Envs
-env: |
+env: |  
   - name: SERVER_SERVLET_CONTEXT_PATH
     value: {{ index .Values "server-context-path" | quote }}
   - name: SERVER_PORT
@@ -46,20 +47,28 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: mongo-db-name
-  - name: IFIX_MASTER_DEPARTMENT_HOST
+  - name: IFIX_MASTER_GOVERNMENT_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: adapter-master-data-service 
+        key: ifix-master-data-service
+  - name: MDMS_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
   - name: IFIX_MASTER_EXPENDITURE_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: adapter-master-data-service
+        key: ifix-master-data-service
   - name: IFIX_DEPARTMENT_ENTITY_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: ifix-department-entity-service
-
-
+  - name: IFIX_MASTER_DEPARTMENT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifix-master-data-service           

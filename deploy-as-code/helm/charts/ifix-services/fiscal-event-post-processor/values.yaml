@@ -1,0 +1,61 @@
+# Common Labels
+labels:
+  app: "fiscal-event-post-processor"
+  group: "ifix"
+
+namespace: ifix
+
+# Container Configs
+image:
+  repository: "fiscal-event-post-processor"
+replicas: "1"
+
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+java-args: ""
+
+# Additional Container Envs
+env: |  
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: "fiscal-event-post-processor"
+  - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: IFIX_MASTER_GOVERNMENT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifix-master-data-service
+  - name: IFIX_MASTER_DEPARTMENT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifix-master-data-service
+  - name: IFIX_MASTER_EXPENDITURE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifix-master-data-service
+  - name: IFIX_MASTER_PROJECT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifix-master-data-service
+  - name: IFIX_MASTER_COA_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifix-master-data-service
+  - name: FISCAL_EVENT_KAFKA_PUSH_TOPIC
+    value: {{ index .Values "fiscal-event-kafka-push-topic" | quote }}
+  - name: FISCAL_EVENT_KAFKA_DEREFERENCED_TOPIC
+    value: {{ index .Values "fiscal-event-kafka-dereferenced-topic" | quote }}
+  - name: FISCAL_EVENT_KAFKA_FLATTENED_TOPIC
+    value: {{ index .Values "fiscal-event-kafka-flattened-topic" | quote }}
+  - name: FISCAL_EVENT_PROCESSOR_KAFKA_MONGODB_TOPIC
+    value: {{ index .Values "fiscal-event-processor-kafka-mongodb-topic" | quote }}
+  - name: FISCAL_EVENT_PROCESSOR_KAFKA_DRUID_TOPIC
+    value: {{ index .Values "fiscal-event-processor-kafka-druid-topic" | quote }}

@@ -1,0 +1,82 @@
+# Common Labels
+labels:
+  app: "fiscal-event-service"
+  group: "ifix"
+
+namespace: ifix
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "fiscal-event-service"
+  
+# Init container configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "fiscal_event_service_schema"
+    image:
+      repository: "fiscal-event-service-db"
+
+# Container Configs
+image:
+  repository: "fiscal-event-service"
+replicas: "1"
+
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+java-args: ""
+
+server-context-path: "/fiscal-event-service"
+
+# Additional Container Envs
+env: |  
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    value: {{ index .Values "server-context-path" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: MDMS_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: IFIX_MASTER_GOVERNMENT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifix-master-data-service
+  - name: IFIX_MASTER_COA_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifix-master-data-service
+  - name: IFIX_MASTER_PROJECT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifix-master-data-service
+  - name: FISCAL_KAFKA_PUSH_TOPIC
+    value: {{ index .Values "fiscal-event-kafka-push-topic" | quote }}
+  - name: FISCAL_EVENT_KAFKA_POSTGRES_TOPIC
+    value: {{ index .Values "fiscal-event-kafka-postgres-topic" | quote }}
+  - name: SPRING_DATA_MONGODB_URI
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: mongo-db-authenticated-uri
+  - name: SPRING_DATA_MONGODB_DATABASE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: mongo-db-name
+  {{- if index .Values "fiscal-event-push-request-max-size" }}
+  - name: FISCAL_EVENT_PUSH_REQUEST_MAX_SIZE
+    value: {{ index .Values "fiscal-event-push-request-max-size" | quote }}
+  {{- end }}

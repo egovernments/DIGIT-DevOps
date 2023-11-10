@@ -1,7 +1,9 @@
 # Common Labels
 labels:
   app: "ifix-department-entity-service"
-  group: "rainmaker"
+  group: "ifix"
+
+namespace: ifix
 
 # Ingress Configs
 ingress:
@@ -13,9 +15,9 @@ ingress:
 initContainers:
   dbMigration:
     enabled: true
-    schemaTable: "ifix_department_entity_schema"
+    schemaTable: "ifix-department-entity_schema"
     image:
-      repository: "ifix-department-entity-service-db"
+      repository: "ifix-department-entity-db"
 
 # Container Configs
 image:
@@ -28,7 +30,6 @@ heap: "-Xmx192m -Xms192m"
 java-args: ""
 
 server-context-path: "/ifix-department-entity"
-master-department-context-path: "/adapter-master-data"
 
 # Additional Container Envs
 env: |  
@@ -46,10 +47,13 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: mongo-db-name
+  - name: IFIX_MASTER_GOVERNMENT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: ifix-master-data-service
   - name: IFIX_MASTER_DEPARTMENT_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: adapter-master-data-service
-  - name: IFIX_MASTER_DEPARTMENT_CONTEXT_PATH
-    value: {{ index .Values "master-department-context-path" | quote }}            
+        key: ifix-master-data-service

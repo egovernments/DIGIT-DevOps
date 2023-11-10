@@ -1,0 +1,99 @@
+# Common Labels
+labels:
+  app: "ifix-zuul"
+  group: "gateway"
+
+serviceAccount: ifix-zuul
+namespace: ifix
+
+# Init Containers Configs
+initContainers: 
+  extraInitContainers: |
+    - name: "zuul-kubernetes-discovery"
+      image: "{{ .Values.global.containerRegistry }}/zuul-kubernetes-discovery:2-master-91c9795"
+      env: 
+      - name: "OUTPUT_FILE_PATH"
+        value: "/etc/zuul/routes.properties" 
+      - name: "NAMESPACE"
+        value: "{{ .Values.global.namespace }}"        
+      volumeMounts:
+      - name: zuul-routes
+        mountPath: /etc/zuul
+
+extraVolumes: |
+  - name: zuul-routes
+    emptyDir: {}  
+
+extraVolumeMounts: |     
+  - name: zuul-routes
+    mountPath: "/etc/zuul"
+
+# Container Configs
+image:
+  repository: "ifix-zuul"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+custom-filter-property: "false"
+posthook-config: ""
+prehook-config: ""
+heap: "-Xmx192m -Xms192m"
+appType: "java-spring"
+tracing-enabled: true
+server-tomcat-max-threads: "350"
+server-tomcat-max-connections: "1500"
+java-args: ""
+egov-open-endpoints-whitelist: "/ifix-master-data/government/v1/_search,/ifix-master-data/chartOfAccount/v1/_search,/ifix-master-data/department/v1/_search,/ifix-master-data/expenditure/v1/_search,/ifix-master-data/project/v1/_search"
+egov-mixed-mode-endpoints-whitelist: ""
+eventlog-enabled: "false"
+eventlog-topic: "zuul-event-log"
+eventlog-urls-whitelist: ""
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: EGOV_OPEN_ENDPOINTS_WHITELIST
+    value: {{ index .Values "egov-open-endpoints-whitelist" | quote }}  
+  - name: EGOV_MIXED_MODE_ENDPOINTS_WHITELIST
+    value: {{ index .Values "egov-mixed-mode-endpoints-whitelist" | quote }}    
+  - name: EVENTLOG_ENABLED
+    value: {{ index .Values "eventlog-enabled" | quote }}   
+  - name: ZUUL_HOST_CONNECT_TIMEOUT_MILLIS
+    value: "20000"
+  - name: ZUUL_HOST_SOCKET_TIMEOUT_MILLIS
+    value: "60000"
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true"
+  {{- end }}
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: ZUUL_ROUTES_FILEPATH
+    value: "file:/etc/zuul/routes.properties"   
+  - name: KEYCLOAK_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: keycloak
+  - name: KEYCLOAK_CONTEXT_PATH
+    value: "auth"
+  - name: KEYCLOAK_REALM
+    value: "ifix"
+  - name: SPRING_REDIS_HOST  
+  {{- if index .Values "cluster-configs" "configmaps" "egov-service-host" "data" "redis-host" }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: redis-host   
+  {{- else }}
+    value: "redis.backbone"
+  {{- end }}   

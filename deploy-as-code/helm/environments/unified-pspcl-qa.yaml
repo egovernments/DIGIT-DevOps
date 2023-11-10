@@ -1,0 +1,78 @@
+global:
+  domain: ifix-qa.ifix.org.in
+  # containerRegistry: dwssio
+  tracing-enabled: false
+  namespace: pspcl
+  nodepool:
+    selector: ifix-qa-ng
+    toleration: ifix-qa-ng
+
+cluster-configs:
+    namespaces:  
+      create: true
+      values: [ cert-manager , olap , pspcl ]
+  
+  rbac:
+    - role: user
+      namespaces: [pspcl]
+    - role: admin
+      namespaces: [pspcl]
+      
+    root-ingress:
+      cert-issuer: letsencrypt-prod
+    configmaps:
+        egov-config:
+            namespace: [ pspcl , monitoring ]
+            data:
+                db-host: unified-qa-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432 ## Add db-host name eg: egov-demo.database.azure.com
+                db-name: unifiedqadb ## Add db-name
+                db-schema: "mgramseva"
+                db-url: jdbc:postgresql://unified-qa-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432/unifiedqadb?currentSchema=mgramseva ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo    
+                keycloak-db-name: "keycloak_qa_db"
+                domain: "ifix-qa.ifix.org.in"
+                egov-services-fqdn-name: "https://ifix-qa.ifix.org.in/"
+                egov-state-level-tenant-id: "pb"
+                flyway-locations: "filesystem:/flyway/sql,filesystem:/flyway/seed,filesystem:/flyway/qa"
+                kafka-brokers: "kafka-v2.pspcl:9092"
+                kafka-infra-brokers: "kafka-v2.pspcl:9092"
+                logging-level-jdbc: "debug"
+                serializers-timezone-in-ist: "true"
+                server-tomcat-max-threads: "10"
+                server-tomcat-max-connections: "500"
+                spring-datasource-tomcat-initialSize: "1"
+                spring-datasource-tomcat-max-active: "5"
+                spring-jpa-show-sql: "true"
+                tracer-errors-provideexceptionindetails: "true"
+                timezone: "Asia/Kolkata"
+                druid-host: "druid-broker.olap"
+
+        egov-service-host:
+            namespace: [pspcl]
+            data:
+              ifix-master-data-service: "http://ifix-master-data-service.ifix:8080/"
+              fiscal-event-service: "http://fiscal-event-service.ifix:8080/"
+              ifix-zuul: "http://ifix-zuul.ifix:8080/"
+              ifix-department-entity-service: "http://ifix-department-entity-service.ifix:8080/"
+              egov-mdms-service: "http://egov-mdms-service.mgramseva:8080/"
+
+pspcl-ifix-adapter:
+  pspcl-fetch-bill-url: "https://devapi.pspcl.in/Services/PunjabDWSS.svc?WSDL"
+  pspcl-fetch-payment-url: "https://devapi.pspcl.in/Services/PunjabDWSS.svc?WSDL"
+  keycloak-pspcl-credentials-clientid: "pspcl-ifix-qa"
+  fiscal-event-tenantId: "pb"
+  demand-coaCode: "8247-12-373-56-78-90"
+  receipt-coaCode: "8247-12-373-56-78-90"
+  fiscal-event-receiver: "mgramseva-qa"
+  ifix-host: "https://ifix-qa.ifix.org.in/"
+  keycloak-host: "https://ifix-qa.ifix.org.in/"
+  cron:
+    schedule: "*/30 * * * *"
+
+  
+oauth2-proxy:
+  config:
+    configFile: |-
+      email_domains = [ "*" ]
+      github_org = "egovernments"
+      github_team = "micro-service-qa"
+      upstreams = [ "file:///dev/null" ]

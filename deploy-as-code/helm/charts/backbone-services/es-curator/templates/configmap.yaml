@@ -25,17 +25,17 @@ data:
         - filtertype: pattern
           kind: regex
           value: '^(egov-services-logs-|egov-infra-logs-|pbprod-logstash-|pbuat-logstash-).*$'   
-        - filtertype: age
-          source: creation_date
-          direction: older
-          unit: days
-          unit_count: ${RETAIN_LOGS_IN_DAYS}               
         # - filtertype: age
-        #   source: name
+        #   source: creation_date
         #   direction: older
-        #   timestring: '%Y.%m.%d'
         #   unit: days
-        #   unit_count: 3
+        #   unit_count: ${RETAIN_LOGS_IN_DAYS}               
+        - filtertype: age
+          source: name
+          direction: older
+          timestring: '%Y.%m.%d'
+          unit: days
+          unit_count: ${RETAIN_LOGS_IN_DAYS}
         #   field:
         #   stats_result:
         #   epoch:
@@ -52,11 +52,40 @@ data:
         - filtertype: pattern
           kind: regex
           value: '^(jaeger-service-|jaeger-span-|jaeger-dependencies-).*$'   
+        # - filtertype: age
+        #   source: creation_date
+        #   direction: older
+        #   unit: days
+        #   unit_count: ${RETAIN_JAEGER_DATA_IN_DAYS}
         - filtertype: age
-          source: creation_date
+          source: name
           direction: older
+          timestring: '%Y-%m-%d'
           unit: days
-          unit_count: ${RETAIN_JAEGER_DATA_IN_DAYS}           
+          unit_count: ${RETAIN_LOGS_IN_DAYS}
+      3:
+        action: delete_indices
+        description: "Clean up ES by deleting old jaeger data"
+        options:
+          timeout_override: 300
+          continue_if_exception: False
+          disable_action: ${JAEGER_CLEANUP_DISABLED:True}
+          ignore_empty_list: True
+        filters:
+        - filtertype: pattern
+          kind: regex
+          value: '^(fluentbit-).*$'   
+        # - filtertype: age
+        #   source: creation_date
+        #   direction: older
+        #   unit: days
+        #   unit_count: ${RETAIN_JAEGER_DATA_IN_DAYS}
+        - filtertype: age
+          source: name
+          direction: older
+          timestring: '%Y.%m.%d'
+          unit: days
+          unit_count: ${RETAIN_LOGS_IN_DAYS}
   config.yml: |-
     ---
     # Remember, leave a key empty if there is no value.  None will be a string,

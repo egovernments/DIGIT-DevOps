@@ -1,4 +1,4 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: {{ template "name" . }}
@@ -7,6 +7,9 @@ metadata:
     app: {{ template "name" . }}
     kubernetes.io/cluster-service: "true"
 spec:
+  selector:  # Add the selector field to specify how pods are selected
+    matchLabels:
+      app: {{ template "name" . }}
   template:
     metadata:
       labels:
@@ -20,11 +23,11 @@ spec:
             - containerPort: 2020
           env:
             - name: KAFKA_BROKERS
-              value: {{ index $.Values "cluster-configs" "configmaps" "egov-config" "data" "kafka-infra-brokers" | quote }}   
+              value: {{ index $.Values "cluster-configs" "configmaps" "egov-config" "data" "kafka-infra-brokers" | quote }}
             - name: KAFKA_EGOV_SERVICES_LOGS_TOPIC
               value: {{ index .Values "egov-services-log-topic" | quote }}
             - name: KAFKA_EGOV_INFRA_LOGS_TOPIC
-              value: {{ index .Values "egov-infra-log-topic" | quote }}   
+              value: {{ index .Values "egov-infra-log-topic" | quote }}
           volumeMounts:
             - name: varlog
               mountPath: /var/log
@@ -45,4 +48,4 @@ spec:
           configMap:
             name: {{ template "name" . }}-config
       serviceAccountName: {{ template "name" . }}
-      serviceAccount: {{ template "name" . }}    
+      serviceAccount: {{ template "name" . }}

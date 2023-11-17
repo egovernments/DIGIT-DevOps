@@ -179,7 +179,7 @@ egov-filestore:
   allowed-file-formats-map: "{jpg:{'image/jpg','image/jpeg'},jpeg:{'image/jpeg','image/jpg'},png:{'image/png'},pdf:{'application/pdf'},odt:{'application/vnd.oasis.opendocument.text'},ods:{'application/vnd.oasis.opendocument.spreadsheet'},docx:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},doc:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},dxf:{'text/plain','application/dxf','application/octet-stream','image/vnd.dxf','image/vnd.dxf; format=ascii','image/vnd.dxf; format=binary','image/vnd.dxb'},csv:{'text/plain'},txt:{'text/plain'},xlsx:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel'},xls:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel'}}"
   allowed-file-formats: "jpg,jpeg,png,doc,docx,pdf,odt,ods,text,dxf,xls,xlsx"
   filestore-url-validity: 3600
-  fixed-bucketname: filestore bucket name  ## Add filestore bucket name
+  fixed-bucketname: unified-qa-s3-bucket  ## Add filestore bucket name
 
 egov-idgen:
   idformat-from-mdms: "true"
@@ -394,10 +394,14 @@ redoc:
 
 # gateway >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-nginx-ingress:
-  images:
-    - quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.26.1
-  replicas: 1
+ingress-nginx:
+  controller:
+    repository: quay.io/kubernetes-ingress-controller
+    image: nginx-ingress-controller
+    tag: "0.28.1"
+  # images:
+  #   - quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.26.1
+    replicaCount: 2
   default-backend-service: "egov/nginx"
   namespace: egov
   cert-issuer: "letsencrypt-prod"
@@ -514,6 +518,14 @@ egov-hrms:
   employee-applink: "https://egov-demo.egovernments.org/employee/user/login"
 
 
+prometheus-postgres-exporter:
+  namespace: monitoring 
+  host: "unified-qa-db.czvokiourya9.ap-south-1.rds.amazonaws.com"
+  user: "unifiedqa"
+  password: "DigitCoreQA2023"
+  port: "5432"
+  database: 'unifiedqadb'
+  sslmode: disable
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 

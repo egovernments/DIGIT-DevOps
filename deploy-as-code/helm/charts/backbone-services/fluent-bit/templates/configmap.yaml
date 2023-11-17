@@ -22,6 +22,24 @@ data:
     @INCLUDE filter-kubernetes.conf
     @INCLUDE output-kafka-egov-services.conf
     @INCLUDE output-kafka-infra.conf
+    [INPUT]
+        Name             tail
+        Tag              kube.*
+        Path             /var/log/containers/*.log
+        Parser           docker
+        DB               /var/log/flb_kube.db
+        Mem_Buf_Limit    5MB
+        Skip_Long_Lines  On
+    [OUTPUT]
+        Name            es
+        Match           *
+        Host            elasticsearch-data-v1.es-cluster
+        Port            9200
+        Index           fluentbit-%Y.%m.%d
+        Type            flb
+        Logstash_Format On
+        Logstash_Prefix fluentbit
+
   input-egov-services.conf: |
     [INPUT]
         Name              tail

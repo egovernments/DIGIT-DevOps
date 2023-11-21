@@ -1,46 +1,33 @@
 # Common Labels
 labels:
-  app: "health-mdms-v2"
+  app: "error-handler"
   group: "core"
-
-namespace: health
 
 # Ingress Configs
 ingress:
   enabled: true
   zuul: true
-  context: "health-mdms-v2"
-
-initContainers:
-  dbMigration:
-    enabled: true
-    schemaTable: "mdms_v2_schema"
-    image:
-      repository: "health-mdms-v2-db"
+  context: "error-handler"
 
 # Container Configs
 image:
-  repository: "health-mdms-v2"
+  repository: "error-handler"
 replicas: "1"
 healthChecks:
   enabled: true
-  livenessProbePath: "/health-mdms-v2/health"
-  readinessProbePath: "/health-mdms-v2/health"
-
+  livenessProbePath: "/error-handler/health"
+  readinessProbePath: "/error-handler/health"
 appType: "java-spring"
 tracing-enabled: true
-memory_limits: 512Mi
-heap: "-Xmx512m -Xms512m"
+heap: "-Xmx192m -Xms192m"
 java-args: "-Dspring.profiles.active=monitoring"
-egov-mdms-schema-definition-save-topic: "save-mdms-schema-definition"
-egov-mdms-data-save-topic: "save-mdms-data"
 
 # Additional Container Envs
 env: |
   - name: SERVER_CONTEXT_PATH
-    value: /health-mdms-v2
+    value: /error-handler
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: egov-mdms-service-consumer-group
+    value: error-handler-consumer-group
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   {{- if index .Values "global" "serializers-timezone-in-ist" }}
@@ -56,10 +43,4 @@ env: |
   - name: SECURITY_BASIC_ENABLED
     value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED
-    value: "false"
-  - name: JAVA_ENABLE_DEBUG
-    value: "true"
-  - name: EGOV_MDMS_SCHEMA_DEFINITION_SAVE_TOPIC
-    value: {{ index .Values "egov-mdms-schema-definition-save-topic" | quote }}
-  - name: EGOV_MDMS_DATA_SAVE_TOPIC
-    value: {{ index .Values "egov-mdms-data-save-topic" | quote }}  
+    value: "false"           

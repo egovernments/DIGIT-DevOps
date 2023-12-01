@@ -25,7 +25,7 @@ spec:
   {{- if .Values.persistence.enabled }}
   volumeClaimTemplates:
   - metadata:
-      name: {{ template "elasticsearch.uname" . }}
+      name: es-storage
     {{- if .Values.persistence.labels.enabled }}
       labels:
         release: {{ .Release.Name | quote }}
@@ -44,7 +44,9 @@ spec:
       volumeMode: {{ .Values.persistence.volumeMode | quote }}
       accessModes:
         - {{ .Values.persistence.accessMode | quote }}
-      resources.requests.storage: {{ .Values.persistence.dataDirSize | quote }}
+      resources:
+        requests:
+          storage: {{ .Values.persistence.dataDirSize | quote }}
   {{- end }}
   template:
     metadata:
@@ -176,8 +178,8 @@ spec:
         securityContext:
           runAsUser: 0
           privileged: true
-        image: "{{ .Values.image }}:{{ .Values.imageTag }}"
-        imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+        image: {{ template "common.image" (dict "Values" .Values "repository" .Values.image.repository "tag" .Values.image.tag) }}
+        imagePullPolicy: "{{ .Values.image.pullPolicy }}"
         command: ["sysctl", "-w", "vm.max_map_count={{ .Values.sysctlVmMaxMapCount}}"]
         resources:
 {{ toYaml .Values.initResources | indent 10 }}
@@ -186,8 +188,8 @@ spec:
       - name: keystore
         securityContext:
 {{ toYaml .Values.securityContext | indent 10 }}
-        image: "{{ .Values.image }}:{{ .Values.imageTag }}"
-        imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+        image: {{ template "common.image" (dict "Values" .Values "repository" .Values.image.repository "tag" .Values.image.tag) }}
+        imagePullPolicy: "{{ .Values.image.pullPolicy }}"
         command:
         - bash
         - -c
@@ -235,8 +237,8 @@ spec:
       - name: "{{ template "elasticsearch.name" . }}"
         securityContext:
 {{ toYaml .Values.securityContext | indent 10 }}
-        image: "{{ .Values.image }}:{{ .Values.imageTag }}"
-        imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+        image: {{ template "common.image" (dict "Values" .Values "repository" .Values.image.repository "tag" .Values.image.tag) }}
+        imagePullPolicy: "{{ .Values.image.pullPolicy }}"
         readinessProbe:
           exec:
             command:
@@ -245,10 +247,10 @@ spec:
               - |
                 set -e
 
-                # Exit if ELASTIC_PASSWORD in unset
-                if [ -z "${ELASTIC_PASSWORD}" ]; then
-                  echo "ELASTIC_PASSWORD variable is missing, exiting"
-                  exit 1
+                if [ -n "${ELASTIC_USERNAME}" ] && [ -n "${ELASTIC_PASSWORD}" ]; then
+                  BASIC_AUTH="-u ${ELASTIC_USERNAME}:${ELASTIC_PASSWORD}"
+                else
+                  BASIC_AUTH=''
                 fi
 
                 # If the node is starting up wait for the cluster to be ready (request params: "{{ .Values.clusterHealthCheckParams }}" )
@@ -268,9 +270,9 @@ spec:
                     set -- "$@" $args
                   fi
 
-                  set -- "$@" -u "elastic:${ELASTIC_PASSWORD}"
+                  set -- "$@" ${BASIC_AUTH}
 
-                  curl --output /dev/null -k "$@" "{{ .Values.protocol }}://127.0.0.1:{{ .Values.httpPort }}${path}"
+                  curl --output /dev/null -k "$@" "{{ .Values.protocol }}://0.0.0.0:{{ .Values.httpPort }}${path}"
                 }
 
                 if [ -f "${START_FILE}" ]; then
@@ -278,7 +280,7 @@ spec:
                   HTTP_CODE=$(http "/" "-w %{http_code}")
                   RC=$?
                   if [[ ${RC} -ne 0 ]]; then
-                    echo "curl --output /dev/null -k -XGET -s -w '%{http_code}' \${BASIC_AUTH} {{ .Values.protocol }}://127.0.0.1:{{ .Values.httpPort }}/ failed with RC ${RC}"
+                    echo "curl --output /dev/null -k ${BASIC_AUTH} -XGET -s -w '%{http_code}' {{ .Values.protocol }}://0.0.0.0:{{ .Values.httpPort }}/ failed with RC ${RC}"
                     exit ${RC}
                   fi
                   # ready if HTTP code 200, 503 is tolerable if ES version is 6.x
@@ -287,7 +289,7 @@ spec:
                   elif [[ ${HTTP_CODE} == "503" && "{{ include "elasticsearch.esMajorVersion" . }}" == "6" ]]; then
                     exit 0
                   else
-                    echo "curl --output /dev/null -k -XGET -s -w '%{http_code}' \${BASIC_AUTH} {{ .Values.protocol }}://127.0.0.1:{{ .Values.httpPort }}/ failed with HTTP code ${HTTP_CODE}"
+                    echo "curl --output /dev/null -k ${BASIC_AUTH} -XGET -s -w '%{http_code}' {{ .Values.protocol }}://0.0.0.0:{{ .Values.httpPort }}/ failed with HTTP code ${HTTP_CODE}"
                     exit 1
                   fi
 
@@ -375,7 +377,7 @@ spec:
 {{- end }}
         volumeMounts:
           {{- if .Values.persistence.enabled }}
-          - name: "{{ template "elasticsearch.uname" . }}"
+          - name: "es-storage"
             mountPath: /usr/share/elasticsearch/data
           {{- end }}
           {{- if .Values.createCert }}
@@ -424,6 +426,78 @@ spec:
       # to continue with backwards compatibility this is being kept
       # whilst also allowing for yaml to be specified too.
       {{- if eq "string" (printf "%T" .Values.extraContainers) }}
+{{ tpl .Values.extraContainers . | indent 6 }}
+      {{- else }}
+{{ toYaml .Values.extraContainers | indent 6 }}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.masterTerminationFix }}
+      {{- if eq .Values.roles.master "true" }}
+      # This sidecar will prevent slow master re-election
+      # https://github.com/elastic/helm-charts/issues/63
+      - name: elasticsearch-master-graceful-termination-handler
+        image: {{ template "common.image" (dict "Values" .Values "repository" .Values.image.repository "tag" .Values.image.tag) }}
+        imagePullPolicy: "{{ .Values.image.pullPolicy }}"
+        command:
+          - "sh"
+          - -c
+          - |
+            #!/usr/bin/env bash
+            set -eo pipefail
+
+            http () {
+                local path="${1}"
+                if [ -n "${ELASTIC_USERNAME}" ] && [ -n "${ELASTIC_PASSWORD}" ]; then
+                  BASIC_AUTH="-u ${ELASTIC_USERNAME}:${ELASTIC_PASSWORD}"
+                else
+                  BASIC_AUTH=''
+                fi
+                curl -XGET -s -k --fail ${BASIC_AUTH} {{ .Values.protocol }}://{{ .Values.masterService }}:{{ .Values.httpPort }}${path}
+            }
+
+            cleanup () {
+              while true ; do
+                local master="$(http "/_cat/master?h=node" || echo "")"
+                if [[ $master == "{{ .Values.masterService }}"* && $master != "${NODE_NAME}" ]]; then
+                  echo "This node is not master."
+                  break
+                fi
+                echo "This node is still master, waiting gracefully for it to step down"
+                sleep 1
+              done
+
+              exit 0
+            }
+
+            trap cleanup SIGTERM
+
+            sleep infinity &
+            wait $!
+        resources:
+{{ toYaml .Values.sidecarResources | indent 10 }}
+        env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+        {{- if .Values.extraEnvs }}
+{{ toYaml .Values.extraEnvs | indent 10 }}
+        {{- end }}
+        {{- if .Values.envFrom }}
+        envFrom:
+{{ toYaml .Values.envFrom | indent 10 }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+{{- if .Values.lifecycle }}
+        lifecycle:
+{{ toYaml .Values.lifecycle | indent 10 }}
+{{- end }}
+      {{- if .Values.extraContainers }}
+      # Currently some extra blocks accept strings
+      # to continue with backwards compatibility this is being kept
+      # whilst also allowing for yaml to be specified too.
+        {{- if eq "string" (printf "%T" .Values.extraContainers) }}
 {{ tpl .Values.extraContainers . | indent 6 }}
       {{- else }}
 {{ toYaml .Values.extraContainers | indent 6 }}

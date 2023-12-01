@@ -100,3 +100,11 @@ Use the fullname if the serviceAccount value is not set
 {{- define "elasticsearch.serviceAccount" -}}
 {{- .Values.rbac.serviceAccountName | default (include "elasticsearch.uname" .) -}}
 {{- end -}}
+
+{{- define "common.image" -}}
+{{- if contains "/" .repository -}}
+{{- printf "%s:%s" .repository  ( required "Tag is mandatory" .tag ) -}}
+{{- else -}}
+{{- printf "%s/%s:%s" $.Values.global.containerRegistry .repository ( required "Tag is mandatory" .tag ) -}}
+{{- end -}}
+{{- end -}}

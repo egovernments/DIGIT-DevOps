@@ -10,7 +10,7 @@ image:
 
 # The service that non master groups will try to connect to when joining the cluster
 # This should be set to clusterName + "-" + nodeGroup for your master group
-masterService: ""
+masterService: "elasticsearch-master-v8"
 
 # Elasticsearch roles that will be applied to this nodeGroup
 # These will be set as environment variables. E.g. node.roles=master
@@ -42,9 +42,23 @@ esJvmOptions: {}
 # Extra environment variables to append to this nodeGroup
 # This will be appended to the current 'env:' key. You can use any of the kubernetes env
 # syntax here
-extraEnvs: []
+extraEnvs:
 #  - name: MY_ENVIRONMENT_VAR
 #    value: the_value_goes_here
+  - name: path.data
+    value: "/usr/share/elasticsearch/data"
+  - name: path.logs
+    value: "/usr/share/elasticsearch/logs"
+  - name: gateway.expected_master_nodes
+    value: "2"
+  - name: gateway.expected_data_nodes
+    value: "1"
+  - name: gateway.recover_after_time
+    value: "5m"
+  - name: gateway.recover_after_master_nodes
+    value: "2"
+  - name: gateway.recover_after_data_nodes
+    value: "1"
 
 # Allows you to load environment variables from kubernetes secret or config map
 envFrom: []
@@ -127,7 +141,7 @@ podSecurityPolicy:
 persistence:
   enabled: true
   dataDirSize: "5Gi"
-  storageClassName: default
+  storageClassName: gp2
   accessMode: "ReadWriteOnce"
   volumeMode: Filesystem
   labels:

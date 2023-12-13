@@ -5,7 +5,7 @@ namespace: "es-experimental"
 
 image:
   repository: "docker.elastic.co/elasticsearch/elasticsearch"
-  tag: "8.5.1"
+  tag: "8.11.1"
   pullPolicy: "IfNotPresent"
 
 # The service that non master groups will try to connect to when joining the cluster
@@ -17,12 +17,11 @@ masterService: "elasticsearch-master-v8"
 # https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-node.html#node-roles
 roles:
   - master
-  - ingest
 
 replicas: 3
 minimumMasterNodes: 2
 
-esMajorVersion: "8.5.1"
+esMajorVersion: "8"
 
 # Allows you to add any config files in /usr/share/elasticsearch/config/
 # such as elasticsearch.yml and log4j2.properties
@@ -49,16 +48,6 @@ extraEnvs:
     value: "/usr/share/elasticsearch/data"
   - name: path.logs
     value: "/usr/share/elasticsearch/logs"
-  - name: gateway.expected_master_nodes
-    value: "2"
-  - name: gateway.expected_data_nodes
-    value: "1"
-  - name: gateway.recover_after_time
-    value: "5m"
-  - name: gateway.recover_after_master_nodes
-    value: "2"
-  - name: gateway.recover_after_data_nodes
-    value: "1"
 
 # Allows you to load environment variables from kubernetes secret or config map
 envFrom: []
@@ -193,7 +182,7 @@ podManagementPolicy: "Parallel"
 # If you experience slow pod startups you probably want to set this to `false`.
 enableServiceLinks: true
 
-protocol: https
+protocol: http
 httpPort: 9200
 transportPort: 9300
 
@@ -232,6 +221,8 @@ securityContext:
   runAsNonRoot: true
   runAsUser: 1000
 
+masterTerminationFix: true
+
 # How long to wait for elasticsearch to stop gracefully
 terminationGracePeriod: 120
 
@@ -246,6 +237,7 @@ readinessProbe:
 
 # https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-health.html#request-params wait_for_status
 clusterHealthCheckParams: "wait_for_status=green&timeout=1s"
+#clusterHealthCheckParams: "wait_for_status=yellow&timeout=50s"
 
 ## Use an alternate scheduler.
 ## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/

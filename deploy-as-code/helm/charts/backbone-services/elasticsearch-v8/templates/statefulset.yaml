@@ -242,10 +242,13 @@ spec:
         readinessProbe:
           exec:
             command:
-              - bash
+              - sh
               - -c
               - |
-                set -e
+                #!/usr/bin/env bash -e
+                # If the node is starting up wait for the cluster to be ready (request params: '{{ .Values.clusterHealthCheckParams }}' )
+                # Once it has started only check that the node itself is responding
+                START_FILE=/tmp/.es_start_file
 
                 if [ -n "${ELASTIC_USERNAME}" ] && [ -n "${ELASTIC_PASSWORD}" ]; then
                   BASIC_AUTH="-u ${ELASTIC_USERNAME}:${ELASTIC_PASSWORD}"
@@ -253,34 +256,12 @@ spec:
                   BASIC_AUTH=''
                 fi
 
-                # If the node is starting up wait for the cluster to be ready (request params: "{{ .Values.clusterHealthCheckParams }}" )
-                # Once it has started only check that the node itself is responding
-                START_FILE=/tmp/.es_start_file
-
-                # Disable nss cache to avoid filling dentry cache when calling curl
-                # This is required with Elasticsearch Docker using nss < 3.52
-                export NSS_SDB_USE_CACHE=no
-
-                http () {
-                  local path="${1}"
-                  local args="${2}"
-                  set -- -XGET -s
-
-                  if [ "$args" != "" ]; then
-                    set -- "$@" $args
-                  fi
-
-                  set -- "$@" ${BASIC_AUTH}
-
-                  curl --output /dev/null -k "$@" "{{ .Values.protocol }}://0.0.0.0:{{ .Values.httpPort }}${path}"
-                }
-
                 if [ -f "${START_FILE}" ]; then
                   echo 'Elasticsearch is already running, lets check the node is healthy'
-                  HTTP_CODE=$(http "/" "-w %{http_code}")
+                  HTTP_CODE=$(curl -XGET -s -k ${BASIC_AUTH} -o /dev/null -w '%{http_code}' {{ .Values.protocol }}://127.0.0.1:{{ .Values.httpPort }}/)
                   RC=$?
                   if [[ ${RC} -ne 0 ]]; then
-                    echo "curl --output /dev/null -k ${BASIC_AUTH} -XGET -s -w '%{http_code}' {{ .Values.protocol }}://0.0.0.0:{{ .Values.httpPort }}/ failed with RC ${RC}"
+                    echo "curl -XGET -s -k \${BASIC_AUTH} -o /dev/null -w '%{http_code}' {{ .Values.protocol }}://127.0.0.1:{{ .Values.httpPort }}/ failed with RC ${RC}"
                     exit ${RC}
                   fi
                   # ready if HTTP code 200, 503 is tolerable if ES version is 6.x
@@ -289,13 +270,13 @@ spec:
                   elif [[ ${HTTP_CODE} == "503" && "{{ include "elasticsearch.esMajorVersion" . }}" == "6" ]]; then
                     exit 0
                   else
-                    echo "curl --output /dev/null -k ${BASIC_AUTH} -XGET -s -w '%{http_code}' {{ .Values.protocol }}://0.0.0.0:{{ .Values.httpPort }}/ failed with HTTP code ${HTTP_CODE}"
+                    echo "curl -XGET -s -k \${BASIC_AUTH} -o /dev/null -w '%{http_code}' {{ .Values.protocol }}://127.0.0.1:{{ .Values.httpPort }}/ failed with HTTP code ${HTTP_CODE}"
                     exit 1
                   fi
 
                 else
                   echo 'Waiting for elasticsearch cluster to become ready (request params: "{{ .Values.clusterHealthCheckParams }}" )'
-                  if http "/_cluster/health?{{ .Values.clusterHealthCheckParams }}" "--fail" ; then
+                  if curl -XGET -s -k --fail ${BASIC_AUTH} {{ .Values.protocol }}://127.0.0.1:{{ .Values.httpPort }}/_cluster/health?{{ .Values.clusterHealthCheckParams }} ; then
                     touch ${START_FILE}
                     exit 0
                   else
@@ -367,7 +348,14 @@ spec:
             value: "/usr/share/elasticsearch/config/certs/tls.crt"
           - name: xpack.security.http.ssl.certificate_authorities
             value: "/usr/share/elasticsearch/config/certs/ca.crt"
+          {{- else }}
+          - name: xpack.security.enabled
+            value: "false"
           {{- end }}
+          {{- if has "data" .Values.roles }}
+          - name: xpack.security.enrollment.enabled
+            value: "true"
+          {{- end}}
 {{- if .Values.extraEnvs }}
 {{ toYaml .Values.extraEnvs | indent 10 }}
 {{- end }}
@@ -432,7 +420,7 @@ spec:
       {{- end }}
       {{- end }}
       {{- if .Values.masterTerminationFix }}
-      {{- if eq .Values.roles.master "true" }}
+      {{- if has "master" .Values.roles }}
       # This sidecar will prevent slow master re-election
       # https://github.com/elastic/helm-charts/issues/63
       - name: elasticsearch-master-graceful-termination-handler

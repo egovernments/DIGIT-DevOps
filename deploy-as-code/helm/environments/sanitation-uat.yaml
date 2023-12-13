@@ -1,25 +1,24 @@
 global:
-   domain: unified-uat.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
-   setup: fullsetup
+  domain:
+    unified-uat.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
+  setup: fullsetup
 
 cluster-configs:
-  namespaces:  
+  namespaces:
     create: true
     values: [ backbone, cert-manager, egov, es-cluster, kafka-cluster, logging, monitoring, playground, zookeeper-cluster, sanitation ]  
-
   root-ingress:
     cert-issuer: letsencrypt-prod
   configmaps:
     egov-config:
-      namespace: [ egov, monitoring, sanitation ]
+      namespace: [ egov, sanitation ]
       data:
         db-host: unified-uat-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432 ## Add db-host name eg: egov-demo.database.azure.com
         db-name: unifieduatdb ## Add db-name
         db-url: jdbc:postgresql://unified-uat-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432/unifieduatdb ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
-        domain: unified-uat.digit.org ## Add your Domain Name    
-        egov-services-fqdn-name: https://unified-uat.digit.org/ ## Add your Domain Name
-            
-        egov-state-level-tenant-id: "pg" 
+        domain: unified-uat.digit.org ## Add your Domain Name
+        egov-services-fqdn-name: https://unified-uat.digit.org/ ## Add your Domain Name 
+        egov-state-level-tenant-id: "pg"
         s3-assets-bucket: "(pg-egov-assets|egov-playground-assets)"
         es-host: "elasticsearch-data-v1.es-cluster"
         es-indexer-host: "http://elasticsearch-data-v1.es-cluster:9200/"
@@ -39,9 +38,9 @@ cluster-configs:
         tracer-errors-provideexceptionindetails: "true"
         egov-bnd-freedownload-tenants: "pg.testing"
         egov-bnd-live-citizen-tenants: "pg.testing"
-
+    
     egov-service-host:
-      namespace: [ egov, monitoring, sanitation ]
+      namespace: [ egov, sanitation ]
       data:
         asset-services: "http://asset-services:8080/"
         asset-services-maha: "http://asset-services-maha:8080/"
@@ -60,6 +59,7 @@ cluster-configs:
         egf-master: "http://egf-master:8080/"
         egf-instrument: "http://egf-instrument:8080/"
         egf-voucher: "http://egf-voucher:8080/"
+        mdms-service-v2: http://mdms-v2.egov:8080/
         egf-bill: "http://egf-bill:8080/"
         egov-enc-service: "http://egov-enc-service.egov:8080/"
         egf-voucher-workflow: "http://egf-voucher-workflow:8080/"
@@ -136,6 +136,7 @@ cluster-configs:
         vehicle: "http://vehicle.sanitation:8080"
         vendor: "http://vendor.sanitation:8080"
         pqm: "http://pqm.sanitation:8080"
+        pqm-service: "http://pqm-service.sanitation:8080"
         pqm-anomaly-finder: "http://pqm-anomaly-finder.sanitation:8080"
         egov-edcr: "http://egov-edcr.egov:8080/"
         echallan-calculator: http://echallan-calculator.egov:8080/
@@ -167,26 +168,31 @@ citizen:
       <script src=https://s3.ap-south-1.amazonaws.com/egov-uat-assets/globalConfigs.js type=text/javascript></script>
       ';"
 egov-filestore:
+  heap: "-Xmx256m -Xms256m"
+  memory_limits: 512Mi
   volume: /opt/eGov/filestore
   is-bucket-fixed: "true"
-  minio.url : "http://minio.backbone:9000/"
-  aws.s3.url : "https://s3.amazonaws.com"
+  minio.url: "http://minio.backbone:9000/"
+  aws.s3.url: "https://s3.amazonaws.com"
   is-s3-enabled: "true"
   minio-enabled: false
   allowed-file-formats-map: "{jpg:{'image/jpg','image/jpeg'},jpeg:{'image/jpeg','image/jpg'},png:{'image/png'},pdf:{'application/pdf'},odt:{'application/vnd.oasis.opendocument.text'},ods:{'application/vnd.oasis.opendocument.spreadsheet'},docx:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},doc:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},dxf:{'text/plain','application/dxf','application/octet-stream','image/vnd.dxf','image/vnd.dxf; format=ascii','image/vnd.dxf; format=binary','image/vnd.dxb'},csv:{'text/plain'},txt:{'text/plain'},xlsx:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel'},xls:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel'}}"
   allowed-file-formats: "jpg,jpeg,png,doc,docx,pdf,odt,ods,text,dxf,xls,xlsx"
   filestore-url-validity: 3600
-  fixed-bucketname: filestore bucket name  ## Add filestore bucket name
+  fixed-bucketname: unified-uat-filestore  ## Add filestore bucket name
 
 egov-idgen:
   idformat-from-mdms: "true"
   java-args: -Dspring.profiles.active=monitoring
   autocreate-new-seq: "true"
 
+estimate-service:
+  memory_limits: 512Mi
+
 egov-notification-sms:
   sms-provider-url: "sms provider url" ## Add sms provider url
   sms.provider.class: "Generic"
-  sms.provider.contentType:  "application/x-www-form-urlencoded"
+  sms.provider.contentType: "application/x-www-form-urlencoded"
   sms-config-map: "{'User':'$username', 'passwd': '$password', 'sid':'$senderid', 'mobilenumber':'$mobileno', 'message':'$message', 'mtype':'N', 'DR':'N', 'smsservicetype':'singlemsg'}"
   sms-gateway-to-use: "sms provider name" ## Add sms provider name
   sms-sender: "sms sender" ## Add sms sender
@@ -216,6 +222,15 @@ egov-user:
   citizen-otp-fixed-enabled: "true"
   egov-state-level-tenant-id: "in"
   decryption-abac-enabled: "false"
+
+individual:
+namespace: works
+tracing-enabled: true
+java-enable-debug: true
+state-level-tenant-id: "pg"
+aadhaar-pattern: "\\d{12}"
+mobile-pattern: "\\d+"
+notification-sms-disabled-roles: "ORG_ADMIN"
 
 chatbot:
   kafka-topics-partition-count: 3
@@ -255,18 +270,48 @@ bpa-calculator:
   java-debug: true
   tracing-enabled: "true"
 
+
+sanitation-ui:
+  namespace: sanitation
+  custom-js-injection: |
+    sub_filter.conf: "
+      sub_filter  '<head>' '<head>
+      <script src=https://egov-uat-assets.s3.ap-south-1.amazonaws.com/globalConfigsFSM.js type=text/javascript></script>
+      ';"
+
+pqm-service:
+  namespace: sanitation
+  memory_limits: 512Mi
+  heap: "-Xmx256m -Xms256m"
+  java-debug: true
+  tracing-enabled: "true"
+
+pqm-anomaly-finder:
+  memory_limits: 512Mi
+  heap: "-Xmx256m -Xms256m"
+  java-debug: true
+  tracing-enabled: "true"
+
+inbox:
+  memory_limits: 512Mi
+  heap: "-Xmx512m -Xms256m"
+  java-debug: true
+  tracing-enabled: "true"
+
+
 sw-services:
   scid-format: "SW/[CITY.CODE]/[fy:yyyy-yy]/[SEQ_EGOV_COMMON]"
-  is-external-workflow-enabled: "true" 
+  is-external-workflow-enabled: "true"
 
 egov-pg-service:
-  axis: true  
+  axis: true
   egov-pg-reconciliation-system-user-uuid: "db4fe8ed-c0e0-4c2a-829b-72296d8d156f"
   heap: "-Xmx256m -Xms256m"
   memory_limits: 512Mi
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 egov-mdms-service:
+  memory_limits: "512Mi"
   replicas: 1
   images:
     - egovio/egov-mdms-service
@@ -288,7 +333,7 @@ egov-indexer:
     gitSync:
       repo: "git@github.com:egovernments/configs"        ##### Change repo url with Your fork Repo url
       branch: "UNIFIED-UAT"                                      ##### Change repo branch with Your fork Repo branch
-  egov-indexer-yaml-repo-path: "file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml,file:///work-dir/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/configs/egov-indexer/error-queue.yml,file:///work-dir/configs/egov-indexer/finance-rolloutadotpion-indexer.yml,file:///work-dir/configs/egov-indexer/payment-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-tl-indexer.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry.yaml"
+  egov-indexer-yaml-repo-path: "file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml,file:///work-dir/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/configs/egov-indexer/error-queue.yml,file:///work-dir/configs/egov-indexer/finance-rolloutadotpion-indexer.yml,file:///work-dir/configs/egov-indexer/payment-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-tl-indexer.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry.yaml,file:///work-dir/configs/works/egov-indexer/measurement-indexer.yml,file:///work-dir/configs/works/egov-indexer/project-indexer.yml,file:///work-dir/configs/works/egov-indexer/organisationservices-indexer.yml,file:///work-dir/configs/works/egov-indexer/contractservices-indexer.yml,file:///work-dir/configs/works/egov-indexer/estimateservices-indexer.yml,file:///work-dir/configs/works/egov-indexer/expensebill-indexer.yml,file:///work-dir/configs/works/egov-indexer/individual-indexer.yml,file:///work-dir/configs/works/egov-indexer/musterservices-indexer.yml,file:///work-dir/configs/sanitation/egov-indexer/pqm-service-indexer.yml,file:///work-dir/configs/sanitation/egov-indexer/egov-pqm-service.yml,file:///work-dir/configs/sanitation/egov-indexer/pqm-anomaly-finder-indexer.yml"
 
 egov-persister:
   replicas: 1
@@ -296,7 +341,7 @@ egov-persister:
   memory_limits: 512Mi
   images:
     - egovio/egov-persister
-  persist-yml-path: "file:///work-dir/configs/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/egov-persister/pt-mutation-calculator-persister.yml,file:///work-dir/configs/egov-persister/apportion-persister.yml,file:///work-dir/configs/egov-persister/billing-services-persist.yml,file:///work-dir/configs/egov-persister/egf-bill.yaml,file:///work-dir/configs/egov-persister/egov-user-event-persister.yml,file:///work-dir/configs/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/egov-persister/firenoc_persiter.yaml,file:///work-dir/configs/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/egov-persister/pdf-generator.yml,file:///work-dir/configs/egov-persister/pg-service-persister.yml,file:///work-dir/configs/egov-persister/pgr.v3.yml,file:///work-dir/configs/egov-persister/property-services.yml,file:///work-dir/configs/egov-persister/pt-calculator-v2-persister.yml,file:///work-dir/configs/egov-persister/pt-drafts.yml,file:///work-dir/configs/egov-persister/pt-persist.yml,file:///work-dir/configs/egov-persister/tl-billing-slab-persister.yml,file:///work-dir/configs/egov-persister/tl-calculation-persister.yml,file:///work-dir/configs/egov-persister/uploader-persister.yml,file:///work-dir/configs/egov-persister/collection-migration-persister.yml,file:///work-dir/configs/egov-persister/property-services-registry.yml,file:///work-dir/configs/egov-persister/tradelicense.yml,file:///work-dir/configs/egov-persister/sewerage-persist.yml,file:///work-dir/configs/egov-persister/water-persist.yml,file:///work-dir/configs/egov-persister/water-meter.yml,file:///work-dir/configs/egov-persister/bpa-persister.yml,file:///work-dir/configs/egov-persister/assessment-persister.yml,file:///work-dir/configs/egov-persister/chatbot.yml"
+  persist-yml-path: "file:///work-dir/configs/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/egov-persister/pt-mutation-calculator-persister.yml,file:///work-dir/configs/egov-persister/apportion-persister.yml,file:///work-dir/configs/egov-persister/billing-services-persist.yml,file:///work-dir/configs/egov-persister/egf-bill.yaml,file:///work-dir/configs/egov-persister/egov-user-event-persister.yml,file:///work-dir/configs/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/egov-persister/firenoc_persiter.yaml,file:///work-dir/configs/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/egov-persister/pdf-generator.yml,file:///work-dir/configs/egov-persister/pg-service-persister.yml,file:///work-dir/configs/egov-persister/pgr.v3.yml,file:///work-dir/configs/egov-persister/property-services.yml,file:///work-dir/configs/egov-persister/pt-calculator-v2-persister.yml,file:///work-dir/configs/egov-persister/pt-drafts.yml,file:///work-dir/configs/egov-persister/pt-persist.yml,file:///work-dir/configs/egov-persister/tl-billing-slab-persister.yml,file:///work-dir/configs/egov-persister/tl-calculation-persister.yml,file:///work-dir/configs/egov-persister/uploader-persister.yml,file:///work-dir/configs/egov-persister/collection-migration-persister.yml,file:///work-dir/configs/egov-persister/property-services-registry.yml,file:///work-dir/configs/egov-persister/tradelicense.yml,file:///work-dir/configs/egov-persister/sewerage-persist.yml,file:///work-dir/configs/egov-persister/water-persist.yml,file:///work-dir/configs/egov-persister/water-meter.yml,file:///work-dir/configs/egov-persister/bpa-persister.yml,file:///work-dir/configs/egov-persister/assessment-persister.yml,file:///work-dir/configs/egov-persister/chatbot.yml,file:///work-dir/configs/works/egov-persister/measurement-persister.yml,file:///work-dir/configs/works/egov-persister/measurement-service-persister.yml,file:///work-dir/configs/works/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/works/egov-persister/audit-service-persister.yml,file:///work-dir/configs/works/egov-persister/bankaccounts-persister.yml,file:///work-dir/configs/works/egov-persister/btr-persister.yml,file:///work-dir/configs/works/egov-persister/contract-service-persister.yml,file:///work-dir/configs/works/egov-persister/estimate-service.yml,file:///work-dir/configs/works/egov-persister/expence-calculator-service-persister.yml,file:///work-dir/configs/works/egov-persister/expense-bill-payment-persister.yaml,file:///work-dir/configs/works/egov-persister/expense-billarray-payment-persister.yaml,file:///work-dir/configs/works/egov-persister/expensebilling-service-persister.yml,file:///work-dir/configs/works/egov-persister/muster-service-persister.yml,file:///work-dir/configs/works/egov-persister/organisation-persister.yml,file:///work-dir/configs/works/egov-persister/project-persister.yml,file:///work-dir/configs/works/egov-persister/service-request-persister.yml,file:///work-dir/configs/egov-persister/mdms-persister.yml,file:///work-dir/configs/sanitation/egov-persister/pqm-anomaly-finder-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/pqm-persister.yaml"
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
@@ -359,13 +404,15 @@ report:
       branch: "UNIFIED-UAT"                                   ##### Change repo branch with Your fork Repo branch
   report-locationsfile-path: "file:///work-dir/configs/reports/reportFileLocationsv1.txt"
 
-sanitation-ui:
-  namespace: sanitation
-  custom-js-injection: |
-    sub_filter.conf: "
-      sub_filter  '<head>' '<head>
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsFSM.js type=text/javascript></script>
-      ';" 
+inbox:
+  namespace: egov
+  memory_limits: 512Mi
+  heap: "-Xmx512m -Xms256m"
+  java-debug: true
+  tracing-enabled: "true"
+  service-map: '{}'
+  bs-service-map: '{}'
+
 
 pdf-service:
   initContainers:
@@ -413,14 +460,15 @@ nginx-ingress:
 
 cert-manager:
   email: "devops@egovernments.org"     ### Add email-id which used by cert-manager for certificates validation.
-  
-  
+
+
 zuul:
   memory_limits: 512Mi
   heap: -Xmx256m -Xms256m
   replicas: 1
   custom-filter-property: "false"
   tracing-enabled: "true"
+  memory_limits: 768Mi
   heap: "-Xmx704m -Xms512m"
   server-tomcat-max-threads: "350"
   server-tomcat-max-connections: "1500"
@@ -621,11 +669,14 @@ kafka-v2:
     enabled: true
     aws:
       - volumeId: "vol-0bec46e50ac05a91f" ## REPLACE: add volume id
-        zone: ap-south-1b     ## REPLACE: add respective zone. 
+        zone:
+          ap-south-1b     ## REPLACE: add respective zone.
       - volumeId: "vol-0964de4212976e85e" ## REPLACE: add volume id
-        zone: ap-south-1b ## REPLACE: add zone
+        zone:
+          ap-south-1b ## REPLACE: add zone
       - volumeId: "vol-05fb98fc936a6ab2a"  ## REPLACE: add volume id
-        zone: ap-south-1b ## REPLACE: add zone
+        zone:
+          ap-south-1b ## REPLACE: add zone
   zookeeperHosts: "zookeeper-v2.zookeeper-cluster:2181/kafka-v2"
 
   heapOptions: "-Xms704M -Xmx704M"
@@ -645,7 +696,7 @@ kafka-v2:
 ### Kafka Connect <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 kafka-connect:
   image:
-    tag: "5.4.1"  
+    tag: "5.4.1"
 
 
 # zookeeper-v2 AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -656,11 +707,14 @@ zookeeper-v2:
     enabled: true
     aws:
       - volumeId: "vol-0e313d7e753227014" ## REPLACE: add volume id
-        zone: ap-south-1b ## REPLACE: add zone
+        zone:
+          ap-south-1b ## REPLACE: add zone
       - volumeId: "vol-0870ef3a17b696f86" ## REPLACE: add volume id
-        zone: ap-south-1b ## REPLACE: add zone
+        zone:
+          ap-south-1b ## REPLACE: add zone
       - volumeId: "vol-05eb8796bf85124eb" ## REPLACE: add volume id
-        zone: ap-south-1b ## REPLACE: add zone
+        zone:
+          ap-south-1b ## REPLACE: add zone
 
   ## Zookeeper JVM Heap Option
   heapOptions: "-Xms256M -Xmx256M"
@@ -681,11 +735,14 @@ elasticsearch-data-v1:
     enabled: true
     aws:
       - volumeId: "vol-0f2ef2ce233105edd" ## REPLACE: add volume id
-        zone: ap-south-1b ## REPLACE: add zone
+        zone:
+          ap-south-1b ## REPLACE: add zone
       - volumeId: "vol-06741bb21720bc60e" ## REPLACE: add volume id
-        zone: ap-south-1b ## REPLACE: add zone
+        zone:
+          ap-south-1b ## REPLACE: add zone
       - volumeId: "vol-00c7ae1dd0fe50347" ## REPLACE: add volume id
-        zone: ap-south-1b ## REPLACE: add zone
+        zone:
+          ap-south-1b ## REPLACE: add zone
 
   esJavaOpts: "-Xmx1g -Xms1g"
   resources:
@@ -706,12 +763,15 @@ elasticsearch-master-v1:
     enabled: true
     aws:
       - volumeId: "vol-0efd04ab8d0945340" ## REPLACE: add volume id
-        zone: ap-south-1b ##REPLACE: add zone
+        zone:
+          ap-south-1b ##REPLACE: add zone
       - volumeId: "vol-008ba0157f38baae4" ## REPLACE: add volume id
-        zone: ap-south-1b ##REPLACE: add zone
+        zone:
+          ap-south-1b ##REPLACE: add zone
       - volumeId: "vol-05e0d3424583e11ac" ## REPLACE: add volume id
-        zone: ap-south-1b ## REPLACE: add zone
- 
+        zone:
+          ap-south-1b ## REPLACE: add zone
+  
   esJavaOpts: "-Xmx448m -Xms448m"
   resources:
     requests:

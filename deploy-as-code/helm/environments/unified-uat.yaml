@@ -19,7 +19,7 @@ cluster-configs:
               domain: unified-uat.digit.org ## Add your Domain Name    
               egov-services-fqdn-name: https://unified-uat.digit.org/ ## Add your Domain Name
               
-              egov-state-level-tenant-id: "pg" 
+              egov-state-level-tenant-id: "mz" 
               s3-assets-bucket: "(pg-egov-assets|egov-playground-assets)"
               es-host: "elasticsearch-data-v1.es-cluster"
               es-indexer-host: "http://elasticsearch-data-v1.es-cluster:9200/"
@@ -74,7 +74,7 @@ cluster-configs:
               egov-otp: "http://egov-otp.egov:8080/"
               egov-common-workflows: "http://egov-common-workflows:8080/"
               egov-mdms-service: "http://health-mdms-v2.health:8080/"
-              egov-mdms-service-legacy: "http://egov-mdms-service-legacy.health:8080/"
+              egov-mdms-service-legacy: "http://health-mdms-v1.health:8080/"
               egov-mdms-service-test: "http://egov-mdms-service-test:8080/"
               egov-mdms-create: "http://egov-mdms-create:8080/"
               egov-eis: "http://egov-eis:8080/"
@@ -164,7 +164,16 @@ digit-ui:
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-uat-assets/globalConfigs.js type=text/javascript></script>
-      ';"     
+      ';" 
+      
+sanitation-ui:
+  namespace: sanitation
+  custom-js-injection: |
+    sub_filter.conf: "
+      sub_filter  '<head>' '<head>
+      <script src=https://egov-uat-assets.s3.ap-south-1.amazonaws.com/globalConfigsFSM.js type=text/javascript></script>
+      ';"
+      
 citizen:
   custom-js-injection: |
     sub_filter.conf: "
@@ -179,6 +188,12 @@ workbench-ui:
       sub_filter  '<head>' '<head>
       <script src=https://egov-uat-assets.s3.ap-south-1.amazonaws.com/globalConfigsWorkbench.js type=text/javascript></script>';"
 
+core-ui:
+  custom-js-injection: |
+    sub_filter.conf: "
+      sub_filter  '<head>' '<head>
+      <script src=https://egov-uat-assets.s3.ap-south-1.amazonaws.com/globalConfigsWorkbenchCore.js type=text/javascript></script>';"
+
 egov-filestore:
   volume: /opt/eGov/filestore
   is-bucket-fixed: "true"
@@ -186,10 +201,10 @@ egov-filestore:
   aws.s3.url : "https://s3.amazonaws.com"
   is-s3-enabled: "true"
   minio-enabled: false
-  allowed-file-formats-map: "{jpg:{'image/jpg','image/jpeg'},jpeg:{'image/jpeg','image/jpg'},png:{'image/png'},pdf:{'application/pdf'},odt:{'application/vnd.oasis.opendocument.text'},ods:{'application/vnd.oasis.opendocument.spreadsheet'},docx:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},doc:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},dxf:{'text/plain','application/dxf','application/octet-stream','image/vnd.dxf','image/vnd.dxf; format=ascii','image/vnd.dxf; format=binary','image/vnd.dxb'},csv:{'text/plain'},txt:{'text/plain'},xlsx:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel'},xls:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel'}}"
+  allowed-file-formats-map: "{jpg:{'image/jpg','image/jpeg'},jpeg:{'image/jpeg','image/jpg'},png:{'image/png'},pdf:{'application/pdf'},odt:{'application/vnd.oasis.opendocument.text'},ods:{'application/vnd.oasis.opendocument.spreadsheet'},docx:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},doc:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},dxf:{'text/plain','application/dxf','application/octet-stream','image/vnd.dxf','image/vnd.dxf; format=ascii','image/vnd.dxf; format=binary','image/vnd.dxb'},csv:{'text/plain'},txt:{'text/plain'},xlsx:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/zip'},xls:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel'}}"
   allowed-file-formats: "jpg,jpeg,png,doc,docx,pdf,odt,ods,text,dxf,xls,xlsx"
   filestore-url-validity: 3600
-  fixed-bucketname: filestore bucket name  ## Add filestore bucket name
+  fixed-bucketname: unified-uat-filestore  ## Add filestore bucket name
 
 egov-idgen:
   idformat-from-mdms: "true"
@@ -378,6 +393,9 @@ report:
       branch: "UNIFIED-UAT"                                   ##### Change repo branch with Your fork Repo branch
   report-locationsfile-path: "file:///work-dir/configs/health/reports/reportFileLocationsv1.txt"
 
+egov-location:
+  mdmsHost: "egov-mdms-service-legacy"
+  mdmsSearchPath: "egov-mdms-service-legacy/v1/_search"
 
 egov-localization:
   replicas: 1

@@ -1,0 +1,64 @@
+# Common Labels
+labels:
+  app: "service-request"
+  group: "rainmaker"
+
+namespace: health
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "service-request"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "service-request_schema"
+    image:
+      repository: "service-request-db"
+
+# Container Configs
+image:
+  repository: "service-request"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/service-request/health"
+  readinessProbePath: "/service-request/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx64m -Xms64m"
+java-args: "-Dspring.profiles.active=monitoring"
+
+# Additional Container Envs
+env: |
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: service-request
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.springframework.kafka.support.serializer.JsonSerializer
+  - name: EGOV_SERVICE_DEFINITION_CREATE_TOPIC
+    value: save-service-definition
+  - name: EGOV_SERVICE_CREATE_TOPIC
+    value: save-service
+  - name: EGOV_SERVICE_REQUEST_DEFAULT_OFFSET
+    value: "0"
+  - name: EGOV_SERVICE_REQUEST_DEFAULT_LIMIT
+    value: "10"
+  - name: EGOV_SERVICE_REQUEST_MAX_LIMIT
+    value: "100"
+  - name: EGOV_MAX_STRING_INPUT_SIZE
+    value: "8192"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"

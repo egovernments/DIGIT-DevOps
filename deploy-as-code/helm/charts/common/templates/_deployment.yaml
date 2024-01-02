@@ -7,7 +7,11 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: {{ template "common.name" . }}
+  {{- if .Values.global.namespace }}
+  namespace: {{ .Values.global.namespace }}
+  {{- else }}
   namespace: {{ .Values.namespace }}
+  {{- end }}
   labels:
 {{- include "common.labels" . | nindent 4 }}   
 spec:
@@ -146,7 +150,7 @@ spec:
           {{- tpl . $ | nindent 10 }}
         {{- end }}          
         {{- end }}     
-      {{- if or .Values.env (eq .Values.appType "java-spring") (index .Values "global" "tracing-enabled") }}                         
+      {{- if or .Values.env (eq .Values.appType "java-spring") (index .Values "global" "tracing-enabled") }}
           env:  
         {{- if .Values.env }}                                   
           {{- tpl  .Values.env . | nindent 12 }}
@@ -156,6 +160,9 @@ spec:
         {{- end -}} 
         {{- if or (index .Values "global" "tracing-enabled") (index .Values "tracing-enabled") }} 
           {{- tpl  .Values.extraEnv.jaeger . | nindent 12 }}         
+        {{- end }}
+        {{- if .Values.extraEnv.app }}
+          {{- tpl .Values.extraEnv.app . | nindent 12 }}
         {{- end }}
       {{- end }}
       {{- if .Values.resources }}                                     

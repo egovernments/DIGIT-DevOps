@@ -1,6 +1,7 @@
 global:
    domain: unified-dev.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
    setup: fullsetup
+   namespace: urban
 
 cluster-configs:
   namespaces:  
@@ -17,7 +18,7 @@ cluster-configs:
     cert-issuer: letsencrypt-prod
   configmaps:
     egov-config:
-      namespace: [ monitoring, urban ]
+      namespace: [ urban ]
       data:
         db-host: unified-dev-db.czvokiourya9.ap-south-1.rds.amazonaws.com ## Add db-host name eg: egov-demo.database.azure.com
         db-name: unifieddevdb ## Add db-name
@@ -27,8 +28,8 @@ cluster-configs:
 
         egov-state-level-tenant-id: "pg" 
         s3-assets-bucket: "(pg-egov-assets|egov-playground-assets)"
-        es-host: "elasticsearch-data-v1.es-cluster"
-        es-indexer-host: "http://elasticsearch-data-v1.es-cluster:9200/"
+        es-host: "elasticsearch-data-v8.es-experimental"
+        es-indexer-host: "http://elasticsearch-data-v8.es-experimental:9200/"
         flyway-locations: "filesystem:/flyway/sql,filesystem:/flyway/seed,filesystem:/flyway/qa"
         kafka-brokers: "release-name-kafka-controller-headless.kafka-kraft:9092"
         kafka-infra-brokers: kafka-v2-infra.kafka-cluster:9092
@@ -58,8 +59,8 @@ cluster-configs:
         collection-search-indexer: "http://collection-search-indexer:8080/"
         citizen-indexer: "http://citizen-indexer:8080/"
         citizen-services: "http://citizen-services:8080/"
-        dashboard-analytics: http://dashboard-analytics.egov:8080/
-        dashboard-ingest: http://dashboard-ingest.egov:8080/
+        urban-dashboard-analytics: http://urban-dashboard-analytics.urban:8080/
+        urban-dashboard-ingest: http://urban-dashboard-ingest.urban:8080/
         demand-services: "http://demand-services:8080/"
         data-sync-employee: "http://data-sync-employee:8080/"
         egov-common-masters: "http://egov-common-masters:8080/"
@@ -87,7 +88,7 @@ cluster-configs:
         egov-workflow-v2: "http://egov-workflow-v2.egov:8080/"
         egov-searcher: "http://egov-searcher.egov:8080/"
         egov-data-uploader: "http://egov-data-uploader.egov:8080/"
-        egov-indexer: "http://egov-indexer.egov:8080/"
+        urban-egov-indexer: "http://urban-egov-indexer.urban:8080/"
         egov-hrms: "http://egov-hrms.egov:8080/"
         es-client: "http://elasticsearch-data-v1.es-cluster:9200"
         hr-masters: "http://hr-masters:8080/"
@@ -150,7 +151,15 @@ cluster-configs:
         pgr-services: "http://pgr-services.egov:8080/"
         birth-death-services: "http://birth-death-services.egov:8080/"
         egov-pdf: "http://egov-pdf.egov:8080/"
-        
+        urban-national-dashboard-ingest: "http://urban-national-dashboard-ingest.urban:8080/"
+
+digit-ui:
+  custom-js-injection: |
+    sub_filter.conf: "
+      sub_filter  '<head>' '<head>
+      <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
+      ';"
+
 egov-filestore:
   replicas: 2
   heap: "-Xmx1344m -Xms1344m"
@@ -274,7 +283,7 @@ egov-mdms-service:
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/egov-mdms-data"
-      branch: "QA"
+      branch: "UNIFIED-DEV"
   mdms-folder: "egov-mdms-data"
   masters-config-url: "file:///work-dir/egov-mdms-data/master-config.json"
   java-args: -Dspring.profiles.active=monitoring
@@ -299,13 +308,28 @@ noc-services:
   java-debug: true
 
 egov-indexer:
+  name: "urban-egov-indexer"
+  replicas: 1
+  appType: "java-spring"
+  ingress:
+    context: "urban-egov-indexer"
   heap: "-Xmx512m -Xms512m"
   memory_limits: "768Mi"
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/configs"
-      branch: "qa"
-  egov-indexer-yaml-repo-path: "file:///work-dir/configs/egov-indexer/privacy-audit.yaml,file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml,file:///work-dir/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/configs/egov-indexer/error-queue.yml,file:///work-dir/configs/egov-indexer/finance-rolloutadotpion-indexer.yml,file:///work-dir/configs/egov-indexer/payment-indexer.yml,file:///work-dir/configs/egov-indexer/pgr-services.yml,file:///work-dir/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-tl-indexer.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry.yaml,file:///work-dir/configs/egov-indexer/water-service.yml,file:///work-dir/configs/egov-indexer/water-services-meter.yml,file:///work-dir/configs/egov-indexer/sewerage-service.yml,file:///work-dir/configs/egov-indexer/property-services.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry-v2.yaml,file:///work-dir/configs/egov-indexer/egov-fsm.yaml,file:///work-dir/configs/egov-indexer/egov-vehicle.yaml,file:///work-dir/configs/egov-indexer/egov-vendor.yaml,file:///work-dir/configs/egov-indexer/egov-url-shortening-indexer.yaml,file:///work-dir/configs/egov-indexer/fire-noc-service.yml,file:///work-dir/configs/egov-indexer/egov-echallan.yml,file:///work-dir/configs/egov-indexer/egov-bpa-indexer.yml,file:///work-dir/configs/egov-indexer/edcr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-birth-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-death-indexer.yml,file:///work-dir/configs/egov-indexer/ws-event-indexer.yml,file:///work-dir/configs/egov-indexer/egov-error-queue-indexer.yml"
+      branch: "UNIFIED-DEV"
+  egov-indexer-yaml-repo-path: "file:///work-dir/configs/egov-indexer/privacy-audit.yaml,file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml,file:///work-dir/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/configs/egov-indexer/error-queue.yml,file:///work-dir/configs/egov-indexer/finance-rolloutadotpion-indexer.yml,file:///work-dir/configs/egov-indexer/payment-indexer.yml,file:///work-dir/configs/egov-indexer/pgr-services.yml,file:///work-dir/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-tl-indexer.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry.yaml,file:///work-dir/configs/egov-indexer/water-service.yml,file:///work-dir/configs/egov-indexer/water-services-meter.yml,file:///work-dir/configs/egov-indexer/sewerage-service.yml,file:///work-dir/configs/egov-indexer/property-services.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry-v2.yaml,file:///work-dir/configs/egov-indexer/egov-fsm.yml,file:///work-dir/configs/egov-indexer/egov-vehicle.yaml,file:///work-dir/configs/egov-indexer/egov-vendor.yaml,file:///work-dir/configs/egov-indexer/egov-url-shortening-indexer.yaml,file:///work-dir/configs/egov-indexer/fire-noc-service.yml,file:///work-dir/configs/egov-indexer/egov-echallan.yml,file:///work-dir/configs/egov-indexer/egov-bpa-indexer.yml,file:///work-dir/configs/egov-indexer/edcr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-birth-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-death-indexer.yml,file:///work-dir/configs/egov-indexer/ws-event-indexer.yml,file:///work-dir/configs/egov-indexer/egov-error-queue-indexer.yml"
+  healthChecks:
+    livenessProbePath: "/urban-egov-indexer/health"
+    readinessProbePath: "/urban-egov-indexer/health"
+  indexer-host: urban-egov-indexer
+  extraEnv:
+    app: |
+      - name: SERVER_CONTEXT_PATH
+        value: /urban-egov-indexer
+      - name: SERVER_SERVLET_CONTEXT_PATH
+        value: /urban-egov-indexer
 
 egov-pg-service:
   axis: true
@@ -320,7 +344,7 @@ egov-persister:
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/configs"
-      branch: "qa"
+      branch: "UNIFIED-DEV"
 
 egov-localization:
   replicas: 1
@@ -329,7 +353,7 @@ egov-data-uploader:
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/configs"
-      branch: "qa"
+      branch: "UNIFIED-DEV"
 
 egov-searcher:
   replicas: 2
@@ -337,7 +361,7 @@ egov-searcher:
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/configs"
-      branch: "qa"
+      branch: "UNIFIED-DEV"
 
 egov-custom-consumer:
   erp-host: "https://mohali-qa.digit.org/"
@@ -394,14 +418,28 @@ nginx-ingress:
 
 
 national-dashboard-ingest:
-  heap: "-Xmx750m -Xms750m"
+  name: "urban-national-dashboard-ingest"
   replicas: 1
+  appType: "java-spring"
+  ingress:
+    context: "urban-national-dashboard-ingest"
+  heap: "-Xmx750m -Xms750m"
+  memory_limits: "850Mi"
   server-tomcat-max-threads: 25
   module-index-mapping: '{"PT": "pt-national-dashboard", "PGR": "pgr-national-dashboard", "WS": "ws-national-dashboard", "FIRENOC": "firenoc-national-dashboard", "TL": "tl-national-dashboard", "MCOLLECT": "mcollect-national-dashboard", "OBPS": "obps-national-dashboard", "COMMON": "common-national-dashboard", "BPA": "bpa-national-dashboard","BIRTH":"birth-cert-national-dashboard"}'
   master-data-index: "master-national-dashboard"
   module-fields-mapping: '{"PT":{"transactions":"array::number","todaysTotalApplications":"number","todaysClosedApplications":"number","assessments":"number","assessedProperties":"array::number","propertiesRegistered":"array::number","todaysCollection":"array::number","propertyTax":"array::number","cess":"array::number","rebate":"array::number","penalty":"array::number","interest":"array::number","noOfPropertiesPaidToday":"number"},"TL":{"transactions":"number","todaysApplications":"number","todaysLicenseIssuedWithinSLA":"number","tlTax":"number","adhocPenalty":"number","adhocRebate":"number","todaysCollection":"array::number","todaysTradeLicenses":"array::number","applicationsMovedToday":"array::number"},"PGR":{"uniqueCitizens":"number","todaysComplaints":"array::number","todaysReopenedComplaints":"array::number","todaysOpenComplaints":"array::number","todaysAssignedComplaints":"array::number","todaysRejectedComplaints":"array::number","todaysReassignedComplaints":"array::number","todaysReassignRequestedComplaints":"array::number","todaysClosedComplaints":"array::number","todaysResolvedComplaints":"array::number","slaAchievement":"array::number","completionRate":"array::number","averageSolutionTime":"array::number"},"WS":{"transactions":"number","connectionsCreated":"array::number","todaysCollection":"array::number","sewerageConnections":"array::number","waterConnections":"array::number","pendingConnections":"array::number","slaCompliance":"number","todaysTotalApplications":"number","todaysClosedApplications":"number","todaysCompletedApplicationsWithinSLA":"number"},"MCOLLECT":{"numberOfCategories":"number","todaysCollection":"array::number","numberOfReceipts":"array::number","numberOfChallans":"array::number"},"OBPS":{"ocPlansScrutinized":"number","plansScrutinized":"number","ocSubmitted":"number","applicationsSubmitted":"number","ocIssued":"number","landAreaAppliedInSystemForBPA":"number","averageDaysToIssuePermit":"number","averageDaysToIssueOC":"number","todaysCollection":"array::number","permitsIssued":"array::number","todaysClosedApplicationsOC":"number","todaysCompletedApplicationsWithinSLAOC":"number","todaysClosedApplicationsPermit":"number","todaysCompletedApplicationsWithinSLAPermit":"number","slaComplianceOC":"number","slaCompliancePermit":"number","applicationsWithDeviation":"number","averageDeviation":"number","ocWithDeviation":"number"},"FIRENOC":{"todaysApplications":"array::number","todaysCollection":"array::number","nocIssuedToday":"array::number","provisionalNOCIssued":"array::number","actualNOCIssued":"array::number","avgDaysToIssueProvisionalNOC":"array::number","slaComplianceActual":"array::number","slaComplianceProvisional":"array::number","avgDaysToIssueActualNOC":"array::number","todaysClosedApplications":"number","todaysCompletedApplicationsWithinSLA":"number"},"COMMON":{"onboardedUlbsCount":"number","totalCitizensCount":"number","slaAchievement":"number","liveUlbsCount":"array::number","status":"string","totalLiveUlbsCount":"number","totalUlbCount":"number"},"BIRTH":{"todaysCollection":"array::number","numberOfCertificatesDownloadedToday":"array::number","numberOfBirthsToday":"array::number"},"DEATH":{"todaysCollection":"array::number","numberOfCertificatesDownloadedToday":"array::number","numberOfDeathsToday":"array::number"}}'
   master-module-fields-mapping: '{"PT":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"PGR":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"TL":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"WS":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"MCOLLECT":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"OBPS":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"FIRENOC":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"BIRTH":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"DEATH":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"}}'
   module-allowed-groupby-fields-mapping: '{"PT":{"financialYear","usageCategory"},"WS":{"connectionType","channelType","usageType","paymentChannelType","taxHeads","meterType","duration"},"FIRENOC":{"applicationType","department","paymentMode","type","usageType"},"OBPS":{"paymentMode","riskType","occupancyType","subOccupancyType"},"PGR":{"status","channel","department","category"},"TL":{"tradeType","status"},"MCOLLECT":{"paymentMode","status","category","challanStatus"},"COMMON":{"serviceModuleCode"},"BIRTH":{"channel","gender","boundary"},"DEATH":{"channel","gender","boundary","age"}}'
+  healthChecks:
+    livenessProbePath: "/urban-national-dashboard-ingest/health"
+    readinessProbePath: "/urban-national-dashboard-ingest/health"
+  extraEnv:
+    app: |
+      - name: SERVER_CONTEXT_PATH
+        value: /urban-national-dashboard-ingest
+      - name: SERVER_SERVLET_CONTEXT_PATH
+        value: /urban-national-dashboard-ingest
 
 cert-manager:
   email: "nithin.dv@egovernments.org"
@@ -454,16 +492,33 @@ employee:
       ';"
 
 dashboard-analytics:
+  name: "urban-dashboard-analytics"
   replicas: 1
+  appType: "java-spring"
+  ingress:
+    context: "urban-dashboard-analytics"
   heap: "-Xmx128m -Xms64m"
   memory_limits: 384Mi
   config-schema-paths: "file:///work-dir/configs/egov-dss-dashboards/dashboard-analytics/*.json"
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/configs"
-      branch: "qa"
+      branch: "UNIFIED-DEV"
+  extraEnv:
+    app: |
+      - name: SERVER_CONTEXT_PATH
+        value: /urban-dashboard-analytics
+      - name: SERVER_SERVLET_CONTEXT_PATH
+        value: /urban-dashboard-analytics
 
 dashboard-ingest:
+  name: "urban-dashboard-ingest"
+  replicas: 1
+  appType: "java-spring"
+  ingress:
+    context: "urban-dashboard-ingest"
+  heap: "-Xmx512m -Xms512m"
+  memory_limits: "768Mi"
   topic-incoming-collection: "dss-collection-update"
   es-index-name: "dss-collection_v2"
   es-push-direct: "true"
@@ -471,7 +526,13 @@ dashboard-ingest:
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/configs"
-      branch: "qa"
+      branch: "UNIFIED-DEV"
+  extraEnv:
+    app: |
+      - name: SERVER_CONTEXT_PATH
+        value: /urban-dashboard-ingest
+      - name: SERVER_SERVLET_CONTEXT_PATH
+        value: /urban-dashboard-ingest
 
 citizen:
   custom-js-injection: |
@@ -511,7 +572,7 @@ report:
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/configs"
-      branch: "qa"
+      branch: "UNIFIED-DEV"
   report-locationsfile-path: "file:///work-dir/configs/reports/reportFileLocationsv1.txt"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -578,7 +639,7 @@ pdf-service:
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/configs"
-      branch: "qa"
+      branch: "UNIFIED-DEV"
   data-config-urls: "file:///work-dir/configs/pdf-service/data-config/tradelicense-receipt.json,file:///work-dir/configs/pdf-service/data-config/property-receipt.json,file:///work-dir/configs/pdf-service/data-config/property-bill.json,file:///work-dir/configs/pdf-service/data-config/tradelicense-bill.json,file:///work-dir/configs/pdf-service/data-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/data-config/pt-receipt.json,file:///work-dir/configs/pdf-service/data-config/tl-receipt.json,file:///work-dir/configs/pdf-service/data-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/data-config/consolidatedreceipt.json,file:///work-dir/configs/pdf-service/data-config/tlapplication.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedacknowlegment.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedsewerageconnection.json,file:///work-dir/configs/pdf-service/data-config/tlcertificate.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit.json,file:///work-dir/configs/pdf-service/data-config/ptmutationcertificate.json,file:///work-dir/configs/pdf-service/data-config/tlrenewalcertificate.json,file:///work-dir/configs/pdf-service/data-config/bpa-revocation.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationsewerage.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationwater.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit-low.json,file:///work-dir/configs/pdf-service/data-config/misc-receipt.json,file:///work-dir/configs/pdf-service/data-config/ws-estimationnotice.json,file:///work-dir/configs/pdf-service/data-config/ws-sanctionletter.json,file:///work-dir/configs/pdf-service/data-config/ws-bill.json,file:///work-dir/configs/pdf-service/data-config/ws-onetime-receipt.json,file:///work-dir/configs/pdf-service/data-config/occupancy-certificate.json, file:///work-dir/configs/pdf-service/data-config/bill-amendment.json, file:///work-dir/configs/pdf-service/data-config/bill-amendment-note.json, file:///work-dir/configs/pdf-service/data-config/fsm-receipt.json, file:///work-dir/configs/pdf-service/data-config/sewerage-bill-amendment-note.json, file:///work-dir/configs/pdf-service/data-config/mcollect-bill.json, file:///work-dir/configs/pdf-service/data-config/mcollect-challan.json,file:///work-dir/configs/pdf-service/data-config/birth-certificate-pdf.json, file:///work-dir/configs/pdf-service/data-config/death-certificate.json,file:///work-dir/configs/pdf-service/data-config/ws-waterdisconnection.json,file:///work-dir/configs/pdf-service/data-config/ws-sewagedisconnection.json,file:///work-dir/configs/pdf-service/data-config/ws-waterdisconnectionnotice.json,file:///work-dir/configs/pdf-service/data-config/ws-seweragedisconnectionnotice.json,file:///work-dir/configs/pdf-service/data-config/ws-sewerageconnectiondetails.json,file:///work-dir/configs/pdf-service/data-config/ws-waterconnectiondetails-metered.json,file:///work-dir/configs/pdf-service/data-config/ws-waterconnectiondetails-nonmetered.json"
   format-config-urls: "file:///work-dir/configs/pdf-service/format-config/tradelicense-receipt.json,file:///work-dir/configs/pdf-service/format-config/property-receipt.json,file:///work-dir/configs/pdf-service/format-config/property-bill.json,file:///work-dir/configs/pdf-service/format-config/tradelicense-bill.json,file:///work-dir/configs/pdf-service/format-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/format-config/pt-receipt.json,file:///work-dir/configs/pdf-service/format-config/tl-receipt.json,file:///work-dir/configs/pdf-service/format-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/format-config/consolidatedreceipt.json,file:///work-dir/configs/pdf-service/format-config/tlapplication.json,file:///work-dir/configs/pdf-service/format-config/ws-consolidatedacknowlegment.json,file:///work-dir/configs/pdf-service/format-config/ws-consolidatedsewerageconnection.json,file:///work-dir/configs/pdf-service/format-config/tlcertificate.json,file:///work-dir/configs/pdf-service/format-config/buildingpermit.json,file:///work-dir/configs/pdf-service/format-config/ptmutationcertificate.json,file:///work-dir/configs/pdf-service/format-config/tlrenewalcertificate.json,file:///work-dir/configs/pdf-service/format-config/bpa-revocation.json,file:///work-dir/configs/pdf-service/format-config/ws-applicationsewerage.json,file:///work-dir/configs/pdf-service/format-config/ws-applicationwater.json,file:///work-dir/configs/pdf-service/format-config/buildingpermit-low.json,file:///work-dir/configs/pdf-service/format-config/misc-receipt.json,file:///work-dir/configs/pdf-service/format-config/ws-estimationnotice.json,file:///work-dir/configs/pdf-service/format-config/ws-sanctionletter.json,file:///work-dir/configs/pdf-service/format-config/ws-bill.json,file:///work-dir/configs/pdf-service/format-config/ws-onetime-receipt.json,file:///work-dir/configs/pdf-service/format-config/occupancy-certificate.json, file:///work-dir/configs/pdf-service/format-config/bill-amendment.json, file:///work-dir/configs/pdf-service/format-config/bill-amendment-note.json, file:///work-dir/configs/pdf-service/format-config/fsm-receipt.json, file:///work-dir/configs/pdf-service/format-config/sewerage-bill-amendment-note.json, file:///work-dir/configs/pdf-service/format-config/mcollect-bill.json, file:///work-dir/configs/pdf-service/format-config/mcollect-challan.json,file:///work-dir/configs/pdf-service/format-config/birth-certificate.json, file:///work-dir/configs/pdf-service/format-config/death-certificate.json, file:///work-dir/configs/pdf-service/format-config/ws-sewagedisconnection.json, file:///work-dir/configs/pdf-service/format-config/ws-waterdisconnection.json, file:///work-dir/configs/pdf-service/format-config/ws-waterdisconnectionnotice.json, file:///work-dir/configs/pdf-service/format-config/ws-seweragedisconnectionnotice.json, file:///work-dir/configs/pdf-service/format-config/ws-sewerageconnectiondetails.json, file:///work-dir/configs/pdf-service/format-config/ws-waterconnectiondetails-metered.json, file:///work-dir/configs/pdf-service/format-config/ws-waterconnectiondetails-nonmetered.json"
   persistence:
@@ -932,7 +993,7 @@ grafana:
     gitSync:
       enabled: true
       repo: "git@github.com:egovernments/configs"
-      branch: "qa"
+      branch: "UNIFIED-DEV"
 # minio >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 minio:
   mode: distributed

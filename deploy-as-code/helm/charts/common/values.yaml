@@ -38,17 +38,19 @@ initContainers:
       tag: latest
     env: |
         - name: "DB_URL"
-          valueFrom: 
-            configMapKeyRef: 
+          value: {{- if eq .Values.namespace "health" }}
+          valueFrom:
+            configMapKeyRef:
               name: egov-config
-              key: db-url
+              key: health-db-url
+          {{- else }}
+              valueFrom:
+                configMapKeyRef:
+                name: egov-config
+                key: db-url
+          {{- end }}  
         - name: "SCHEMA_TABLE"
-          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}              
-        - name: "FLYWAY_USER"
-          valueFrom: 
-            secretKeyRef: 
-                name: db
-                key: flyway-username
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
         - name: "FLYWAY_PASSWORD"
           valueFrom:
             secretKeyRef: 

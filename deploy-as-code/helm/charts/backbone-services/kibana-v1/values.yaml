@@ -1,15 +1,15 @@
 # Common Labels
 labels:
   app: "kibana-v1"
-namespace: es-cluster  
+namespace: es-upgrade 
 
 # Ingress Configs
 ingress:
   enabled: true
-  context: "kibana"
-  additionalAnnotations: |
-    nginx.ingress.kubernetes.io/auth-signin:  https://$host/oauth2/start?rd=$escaped_request_uri
-    nginx.ingress.kubernetes.io/auth-url:     https://$host/oauth2/auth 
+  context: "kibana-upgrade"
+  # additionalAnnotations: |
+  #   nginx.ingress.kubernetes.io/auth-signin:  https://$host/oauth2/start?rd=$escaped_request_uri
+  #   nginx.ingress.kubernetes.io/auth-url:     https://$host/oauth2/auth 
 
 # Init Containers Configs
 initContainers: {}
@@ -17,20 +17,22 @@ initContainers: {}
 # Container Configs
 image:
   repository: "docker.elastic.co/kibana/kibana"
-  tag: 6.6.2
+  tag: 7.17.15
 replicas: "1"
 httpPort: 5601
-elasticsearchHosts: "http://elasticsearch-data-v1.es-cluster:9200"
-serverBasePath: "/kibana"
-healthCheckPath: "kibana/app/kibana"
+elasticsearchHosts: "http://elasticsearch-data-v1.es-upgrade:9200"
+serverBasePath: "/kibana-upgrade"
+healthCheckPath: "kibana-upgrade/app/kibana-upgrade"
 healthChecks:
   enabled: true
-  livenessProbePath: "/kibana/"
-  readinessProbePath: "/kibana/"            
+  livenessProbePath: "/kibana-upgrade/"
+  readinessProbePath: "/kibana-upgrade/"            
 
 # Additional Container Envs
 env: |
   - name: ELASTICSEARCH_URL
+    value: {{ .Values.elasticsearchHosts | quote }}
+  - name: ELASTICSEARCH_HOSTS
     value: {{ .Values.elasticsearchHosts | quote }}
   - name: SERVER_BASEPATH
     value: {{ .Values.serverBasePath | quote }}

@@ -264,29 +264,20 @@ spec:
           {{- if eq .Values.roles.master "true" }}
           {{- if ge (int (include "elasticsearch.esMajorVersion" .)) 7 }}
           - name: cluster.initial_master_nodes
-            value: "{{ template "elasticsearch.endpoints" . }}"
+            value: "elasticsearch-master-v1-0, elasticsearch-master-v1-1, elasticsearch-master-v1-2"
           {{- else }}
           - name: discovery.zen.minimum_master_nodes
             value: "{{ .Values.minimumMasterNodes }}"
           {{- end }}
           {{- end }}
-          {{- if lt (int (include "elasticsearch.esMajorVersion" .)) 7 }}
-          - name: discovery.zen.ping.unicast.hosts
-            value: {{ .Values.masterService | quote }}
-          {{- else }}
           - name: discovery.seed_hosts
             value: {{ .Values.masterService | quote }}
-          {{- end }}
           - name: cluster.name
             value: {{ .Values.clusterName | quote }}
           - name: network.host
             value: {{ .Values.networkHost | quote }}                      
           - name: ES_JAVA_OPTS
             value: {{ .Values.esJavaOpts | quote }}
-          {{- range $role, $enabled := .Values.roles }}
-          - name: node.{{ $role }}
-            value: {{ $enabled | quote }}
-          {{- end }}
 {{- if .Values.extraEnvs }}
 {{ toYaml .Values.extraEnvs | indent 10 }}
 {{- end }}

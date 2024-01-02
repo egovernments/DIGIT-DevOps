@@ -1,12 +1,12 @@
 
 name: elasticsearch-data-v1
-namespace: es-cluster
+namespace: es-upgrade
 replicas: 3
 
 image:
   pullPolicy: IfNotPresent  
   repository: docker.elastic.co/elasticsearch/elasticsearch
-  tag: 6.4.2
+  tag: 7.17.15
 
 clusterName: "elasticsearch-v1"
 nodeGroup: "data"
@@ -44,17 +44,13 @@ extraEnvs:
   - name: path.data
     value: "/usr/share/elasticsearch/data"
   - name: path.logs
-    value: "/usr/share/elasticsearch/logs"
-  - name: gateway.expected_master_nodes
-    value: "2"    
-  - name: gateway.expected_data_nodes
-    value: "1"      
+    value: "/usr/share/elasticsearch/logs"        
   - name: gateway.recover_after_time
-    value: "5m"      
-  - name: gateway.recover_after_master_nodes
-    value: "2"      
-  - name: gateway.recover_after_data_nodes
-    value: "1"           
+    value: "5m" 
+  - name: xpack.security.enabled
+    value: "false"
+  - name: node.roles
+    value: "data, ingest"               
 
 # Allows you to load environment variables from kubernetes secret or config map
 envFrom: []
@@ -109,7 +105,7 @@ volumeClaimTemplate:
   accessModes: [ "ReadWriteOnce" ]
   resources:
     requests:
-      storage: 25Gi
+      storage: 2Gi
 
 rbac:
   create: false
@@ -135,7 +131,7 @@ podSecurityPolicy:
 
 persistence:
   enabled: true
-  dataDirSize: "25Gi"
+  dataDirSize: "2Gi"
   annotations: {}
 
 extraVolumes: []

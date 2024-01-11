@@ -1,0 +1,70 @@
+# Common Labels
+labels:
+  app: "hcm-bff"
+  group: "rainmaker"
+
+namespace: health
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "hcm-bff"
+
+
+# Container Configs
+image:
+  repository: "hcm-bff"
+replicas: "1"
+
+# Additional Container Envs
+env: |
+  - name: KAFKA_BROKER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers 
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service                 
+  - name: EGOV_FILESTORE_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-filestore
+  - name: HCM_MOZ_IMPL_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: hcm-moz-impl
+  - name: EGOV_HCM_BFF_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: hcm-bff
+
+  - name: CONTEXT_PATH
+    value: "/hcm-bff"   
+
+  - name: EGOV_MDMS_SEARCH_ENDPOINT
+    value: egov-mdms-service/v2/_search
+  - name: FILE_STORE_SERVICE_END_POINT
+    value: filestore/v1/files  
+  - name: HCM_MOZ_IMPL_SERVICE_ENDPOINT
+    value: hcm-moz-impl/v1/ingest  
+
+  - name: HCM_PARSING_TEMPLATE
+    value: HCM.ParsingTemplate  
+  - name: HCM_TRANSFORM_TEMPLATE
+    value: HCM.TransformTemplate 
+  - name: HCM_CAMPAIGN_TEMPLATE
+    value: HCM.HCMTemplate 
+    
+  - name: EGOV_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name

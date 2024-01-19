@@ -9,7 +9,7 @@ ingress:
   enabled: true
   zuul: true
   context: "impel-fsm-calculator"
-  namespace: fsm
+  namespace: egov
 
 # Init Containers Configs
 initContainers: 
@@ -34,8 +34,12 @@ java-args: "-Dspring.profiles.active=monitoring"
 
 # Additional Container Envs
 env: |
-  - name: SERVER_CONTEXTPATH
-    value: /fsm-calculator
+  {{- if .Values.ingress.context }}
+  - name: SERVER_CONTEXT_PATH
+    value: /{{ .Values.ingress.context }}
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    value: /{{ .Values.ingress.context }}
+  {{- end }}
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
     value: fsm-calculator
   - name: PERSISTER_SAVE_BILLING_SLAB_TOPIC

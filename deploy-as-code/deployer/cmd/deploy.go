@@ -57,7 +57,7 @@ to quickly create a Cobra application.`,
 func init() {
 	// deployCmd.Flags().StringVarP(&images, "images", "i", "", "Images to be deployed")
 
-	deployCmd.Flags().String("helm-dir", "../../deploy-as-code/helm", "Helm Charts / Configs directory")
+	deployCmd.Flags().String("helm-dir", "../../config-as-code", "Helm Charts / Configs directory")
 	viper.BindPFlag("helm-dir", deployCmd.Flags().Lookup("helm-dir"))
 
 	deployCmd.Flags().StringVarP(&options.Environment, "environment", "e", "", "Environment override to be applied")

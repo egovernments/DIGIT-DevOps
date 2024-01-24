@@ -1,0 +1,91 @@
+# Common Labels
+labels:
+  app: "mukta-adapter"
+  group: "works"
+
+namespace: works
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "mukta-adapter"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "mukta_adapter_schema"
+    image:
+      repository: "mukta-adapter-db"
+
+# Container Configs
+image:
+  repository: "mukta-adapter"
+replicas: "1"
+
+# Additional Container Envs
+env: |
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: KAFKA_BROKER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: DB_PORT
+    value: "5432"   
+  - name:  EGOV_ORGANISATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: organisation                      
+  - name: EXPENSE_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: expense
+  - name: BANKACCOUNT_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: bankaccounts
+  - name: EXPENSE_CALCULATOR_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: expense-calculator
+  - name: EGOV_INDIVIDUAL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: individual
+  - name: PROGRAM_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: program

@@ -1,0 +1,61 @@
+# Common Labels
+labels:
+  app: "chatbot-service"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "chatbot-service"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "chatbot_service_schema"
+    image:
+      repository: "chatbot-service-db"
+
+# Container Configs
+image:
+  repository: "chatbot-service"
+  tag: "latest"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/chatbot-service/health"
+  readinessProbePath: "/chatbot-service/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx64m -Xms64m"
+java-args: "-Dspring.profiles.active=monitoring"
+
+# Additional Container Envs
+env:
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: "chatbot-service"
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: "org.apache.kafka.common.serialization.StringSerializer"
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: "org.springframework.kafka.support.serializer.JsonSerializer"
+  - name: PROCESS_chatbot_LOGS_KAFKA_TOPIC
+    value: "process-chatbot-records"
+  - name: PERSIST_chatbot_LOGS_KAFKA_TOPIC
+    value: "persist-chatbot-records"
+  - name: JAVA_OPTS
+    value: "{{ .Values.heap | quote }}"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_ARGS
+    value: "{{ .Values.java-args | quote }}"
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"
+  - name: EGOV_ENC_SIGN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: "egov-service-host"
+        key: "egov-enc-service"
+

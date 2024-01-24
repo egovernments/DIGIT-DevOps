@@ -24,67 +24,74 @@ initContainers:
 image:
   repository: "mukta-ifix-adapter"
 replicas: "1"
+healthChecks:
+  enabled: false
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+java-args: ""
 
 # Additional Container Envs
 env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}
+  {{- if index .Values "java-enable-debug" }}
+  - name: JAVA_ENABLE_DEBUG
+    value: "true"
+  {{- end }}
+  {{- if index .Values "payment-create-topic" }}
+  - name: PAYMENT_CREATE_TOPIC
+    value: {{ index .Values "payment-create-topic" | quote }}
+  {{- end }}
+  {{- if index .Values "egov-bill-search-limit" }}
+  - name: EGOV_BILL_SEARCH_LIMIT
+    value: {{ index .Values "egov-bill-search-limit" | quote }}
+  {{- end }}
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: egov-mdms-service
-  - name: DB_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-host
-  - name: DB_NAME
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-name
-  - name: DB_USER
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: username
-  - name: DB_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: password
-  - name: KAFKA_BROKER_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: kafka-brokers
-  - name: DB_PORT
-    value: "5432"   
-  - name:  EGOV_ORGANISATION_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: organisation                      
-  - name: EXPENSE_SERVICE_HOST
+  - name: EGOV_BILL_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: expense
-  - name: BANKACCOUNT_SERVICE_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: bankaccounts
-  - name: EXPENSE_CALCULATOR_SERVICE_HOST
+  - name: EGOV_BILL_CALCULATOR_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: expense-calculator
+  - name: EGOV_BANK_ACCOUNT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: bankaccounts
   - name: EGOV_INDIVIDUAL_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: individual
-  - name: PROGRAM_SERVICE_HOST
+  - name: EGOV_ORGANISATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: organisation
+  
+  - name:  EGOV_ORGANISATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: organisation                      
+  - name: EGOV_PROGRAM_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host

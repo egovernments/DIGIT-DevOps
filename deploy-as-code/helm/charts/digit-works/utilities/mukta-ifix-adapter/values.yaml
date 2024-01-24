@@ -25,7 +25,9 @@ image:
   repository: "mukta-ifix-adapter"
 replicas: "1"
 healthChecks:
-  enabled: false
+  enabled: true
+  livenessProbePath: "/mukta-ifix-adapter/health"
+  readinessProbePath: "/mukta-ifix-adapter/health"
 appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
@@ -39,22 +41,10 @@ env: |
     value: {{ index .Values "heap" | quote }}
   - name: JAVA_ARGS
     value: {{ index .Values "java-args" | quote }}
-  {{- if index .Values "tracing-enabled" }}
-  - name: TRACER_OPENTRACING_ENABLED
-    value: "true" 
-  {{- end }}
-  {{- if index .Values "java-enable-debug" }}
-  - name: JAVA_ENABLE_DEBUG
-    value: "true"
-  {{- end }}
-  {{- if index .Values "payment-create-topic" }}
-  - name: PAYMENT_CREATE_TOPIC
-    value: {{ index .Values "payment-create-topic" | quote }}
-  {{- end }}
-  {{- if index .Values "egov-bill-search-limit" }}
-  - name: EGOV_BILL_SEARCH_LIMIT
-    value: {{ index .Values "egov-bill-search-limit" | quote }}
-  {{- end }}
+  - name: SERVER_CONTEXT_PATH
+    value: /mukta-ifix-adapter
+  - name: SERVER_SERVLET_CONTEXT-PATH
+    value: /mukta-ifix-adapter
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
@@ -84,15 +74,35 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: organisation
-  
-  - name:  EGOV_ORGANISATION_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: organisation                      
+        key: organisation                
   - name: EGOV_PROGRAM_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: program-service
+  - name: APP_TIMEZONE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: timezone
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}
+  {{- if index .Values "java-enable-debug" }}
+  - name: JAVA_ENABLE_DEBUG
+    value: "true"
+  {{- end }}
+  {{- if index .Values "payment-create-topic" }}
+  - name: PAYMENT_CREATE_TOPIC
+    value: {{ index .Values "payment-create-topic" | quote }}
+  {{- end }}
+  {{- if index .Values "egov-bill-search-limit" }}
+  - name: EGOV_BILL_SEARCH_LIMIT
+    value: {{ index .Values "egov-bill-search-limit" | quote }}
+  {{- end }}
+  {{- if index .Values "disburse-create-topic" }}
+  - name: DISBURSE_CREATE_TOPIC
+    value: {{ index .Values "disburse-create-topic" | quote }}
+  {{- end }}
+  

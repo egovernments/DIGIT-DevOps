@@ -1,4 +1,5 @@
 # Common Labels
+name: "chatbot-service"
 labels:
   app: "chatbot-service"
   group: "rainmaker"
@@ -17,6 +18,11 @@ initContainers:
     image:
       repository: "chatbot-service-db"
 
+# chatbot-service/values.yaml
+containerPort: 8080
+
+
+
 # Container Configs
 image:
   repository: "chatbot-service"
@@ -31,6 +37,31 @@ tracing-enabled: true
 heap: "-Xmx64m -Xms64m"
 java-args: "-Dspring.profiles.active=monitoring"
 
+# chatbot-service/values.yaml
+service:
+  type: ClusterIP
+  port: 80
+
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+  httpGet:
+    path: /chatbot-service/health
+    port: 8080
+
+readinessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+  httpGet:
+    path: /chatbot-service/health
+    port: 8080
+
 # Additional Container Envs
 env:
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
@@ -43,19 +74,19 @@ env:
     value: "process-chatbot-records"
   - name: PERSIST_chatbot_LOGS_KAFKA_TOPIC
     value: "persist-chatbot-records"
-  - name: JAVA_OPTS
-    value: "{{ .Values.heap | quote }}"
-  - name: SERVER_PORT
-    value: "8080"
-  - name: JAVA_ARGS
-    value: "{{ .Values.java-args | quote }}"
-  - name: SECURITY_BASIC_ENABLED
-    value: "false"  
-  - name: MANAGEMENT_SECURITY_ENABLED
-    value: "false"
-  - name: EGOV_ENC_SIGN_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: "egov-service-host"
-        key: "egov-enc-service"
+  # - name: JAVA_OPTS
+  #   value: "{{ .Values.heap | quote }}"
+  # - name: SERVER_PORT
+  #   value: "8080"
+  # - name: JAVA_ARGS
+  #   value: "{{ .Values.java-args | quote }}"
+  # - name: SECURITY_BASIC_ENABLED
+  #   value: "false"  
+  # - name: MANAGEMENT_SECURITY_ENABLED
+  #   value: "false"
+  # - name: EGOV_ENC_SIGN_HOST
+  #   valueFrom:
+  #     configMapKeyRef:
+  #       name: "egov-service-host"
+  #       key: "egov-enc-service"
 

@@ -1,4 +1,5 @@
 # Common Labels
+name: "audit-service"
 labels:
   app: "audit-service"
   group: "rainmaker"
@@ -17,6 +18,11 @@ initContainers:
     image:
       repository: "audit-service-db"
 
+# audit-service/values.yaml
+containerPort: 8080
+
+
+
 # Container Configs
 image:
   repository: "audit-service"
@@ -30,6 +36,31 @@ appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx64m -Xms64m"
 java-args: "-Dspring.profiles.active=monitoring"
+
+# audit-service/values.yaml
+service:
+  type: ClusterIP
+  port: 80
+
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+  httpGet:
+    path: /audit-service/health
+    port: 8080
+
+readinessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+  httpGet:
+    path: /audit-service/health
+    port: 8080
 
 # Additional Container Envs
 env:

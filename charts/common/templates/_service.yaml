@@ -1,15 +1,29 @@
 {{- define "common.service" -}}
+---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.name }}
+  name: {{ template "common.name" . }}
+  namespace: {{ .Values.namespace }}  
+  annotations: 
+{{- if .Values.metrics }}   
+    prometheus.io/path: {{ .Values.metrics.path | quote }}
+    prometheus.io/port: {{ .Values.metrics.port | quote }}
+    prometheus.io/scrape: "true"  
+{{- end }}
+{{- if .Values.ingress.zuul }} 
+    zuul/route-path: {{ .Values.ingress.context }}
+{{- end }}
+{{- if and .Values.service .Values.service.additionalAnnotations}}                                   
+  {{- tpl  .Values.service.additionalAnnotations . | nindent 4 }}
+{{- end }} 
   labels:
-    {{- toYaml .Values.labels | nindent 4 }}
+{{- include "common.labels" . | nindent 4 }}   
 spec:
-  type: {{ .Values.service.type | default "ClusterIP" }}
+  selector: 
+{{- include "common.labels" . | nindent 4 }}    
   ports:
-    - port: {{ .Values.service.port }}
-      targetPort: {{ .Values.containerPort }}
-  selector:
-    app: {{ .Values.labels.app }}
+  - name: http
+    port: {{ .Values.httpPort }}
+    targetPort: {{ .Values.httpPort }}  
 {{- end -}}

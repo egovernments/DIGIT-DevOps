@@ -1,92 +1,188 @@
 # Common Labels
-name: "chatbot-service"
 labels:
-  app: "chatbot-service"
-  group: "rainmaker"
+  app: "chatbot"
+  group: "core"
 
 # Ingress Configs
 ingress:
   enabled: true
   zuul: true
-  context: "chatbot-service"
+  context: "whatsapp-webhook"
+  ip-whitelist: "0.0.0.0/0"
+  additionalAnnotations: | 
+    nginx.ingress.kubernetes.io/whitelist-source-range: {{ index .Values "ingress" "ip-whitelist" | quote }}
 
 # Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
-    schemaTable: "chatbot_service_schema"
+    schemaTable: "egov_chatbot_schema"
     image:
-      repository: "chatbot-service-db"
-
-# chatbot-service/values.yaml
-containerPort: 8080
-
-
+      repository: "chatbot-db"
 
 # Container Configs
 image:
-  repository: "chatbot-service"
-  tag: "latest"
+  repository: "chatbot"
+  tag: v1.0.0-24873ba-4
 replicas: "1"
-healthChecks:
-  enabled: true
-  livenessProbePath: "/chatbot-service/health"
-  readinessProbePath: "/chatbot-service/health"
 appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx64m -Xms64m"
-java-args: "-Dspring.profiles.active=monitoring"
-
-# chatbot-service/values.yaml
-service:
-  type: ClusterIP
-  port: 80
-
-livenessProbe:
-  initialDelaySeconds: 30
-  periodSeconds: 10
-  timeoutSeconds: 5
-  successThreshold: 1
-  failureThreshold: 3
-  httpGet:
-    path: /chatbot-service/health
-    port: 8080
-
-readinessProbe:
-  initialDelaySeconds: 30
-  periodSeconds: 10
-  timeoutSeconds: 5
-  successThreshold: 1
-  failureThreshold: 3
-  httpGet:
-    path: /chatbot-service/health
-    port: 8080
+heap: "-Xmx192m -Xms192m"
+java-args: ""
 
 # Additional Container Envs
-env:
-  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: "chatbot-service"
-  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
-    value: "org.apache.kafka.common.serialization.StringSerializer"
-  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
-    value: "org.springframework.kafka.support.serializer.JsonSerializer"
-  - name: PROCESS_chatbot_LOGS_KAFKA_TOPIC
-    value: "process-chatbot-records"
-  - name: PERSIST_chatbot_LOGS_KAFKA_TOPIC
-    value: "persist-chatbot-records"
-  # - name: JAVA_OPTS
-  #   value: "{{ .Values.heap | quote }}"
-  # - name: SERVER_PORT
-  #   value: "8080"
-  # - name: JAVA_ARGS
-  #   value: "{{ .Values.java-args | quote }}"
-  # - name: SECURITY_BASIC_ENABLED
-  #   value: "false"  
-  # - name: MANAGEMENT_SECURITY_ENABLED
-  #   value: "false"
-  # - name: EGOV_ENC_SIGN_HOST
-  #   valueFrom:
-  #     configMapKeyRef:
-  #       name: "egov-service-host"
-  #       key: "egov-enc-service"
-
+env: |  
+  - name: KAFKA_BOOTSTRAP_SERVER
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: EGOV_EXTERNAL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  - name: USER_SERVICE_CHATBOT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user-chatbot
+  - name: USER_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: MDMS_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: zuul
+  - name: EGOV_URLSHORTNER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  - name: LOCATION_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: zuul
+  - name: LOCALIZATION_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: zuul
+  - name: FILESTORE_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: zuul
+  - name: PGR_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: zuul
+  - name: SPRING_FLYWAY_ENABLED
+    value: "false"
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    value: "/whatsapp-webhook"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_OPTS
+    value: -Xmx256m -Xms256m
+  - name: JAVA_ARGS
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenant-id
+  - name: USER_SERVICE_CHATBOT_CITIZEN_PASSWRORD
+    valueFrom:
+      secretKeyRef:
+        name: egov-user-chatbot
+        key: citizen-login-password-otp-fixed-value
+  - name: VALUEFIRST_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: chatbot
+        key: valuefirst-username
+  - name: VALUEFIRST_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: chatbot
+        key: valuefirst-password
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true"
+  - name: FLOW_RESET_KEYWORDS
+    value: "Hi,Hey,Hello,mseva,Start,missedCall"
+  - name: KAFKA_TOPICS_PARTITION_COUNT
+    value: {{ index .Values "kafka-topics-partition-count" | quote }}
+  - name: KAFKA_TOPICS_REPLICATION_FACTOR
+    value: {{ index .Values "kafka-topics-replication-factor" | quote }}
+  {{- if index .Values "kafka-consumer-poll-ms" }}
+  - name: KAFKA_CONSUMER_POLL_MS
+    value: {{ index .Values "kafka-consumer-poll-ms" | quote }}
+  {{- end }}
+  {{- if index .Values "kafka-producer-linger-ms" }}
+  - name: KAFKA_PRODUCER_LINGER_MS
+    value: {{ index .Values "kafka-producer-linger-ms" | quote }}
+  {{- end }}
+  {{- if index .Values "contact-card-whatsapp-number" }}
+  - name: CONTACT_CARD_WHATSAPP_NUMBER
+    value: {{ index .Values "contact-card-whatsapp-number" | quote }}
+  {{- end }}
+  {{- if index .Values "contact-card-whatsapp-name" }}
+  - name: CONTACT_CARD_WHATSAPP_NAME
+    value: {{ index .Values "contact-card-whatsapp-name" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-whatsapp-number" }}
+  - name: VALUEFIRST_WHATSAPP_NUMBER
+    value: {{ index .Values "valuefirst-whatsapp-number" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-notification-assigned-templateid" }}
+  - name: VALUEFIRST_NOTIFICATION_ASSIGNED_TEMPLATEID
+    value: {{ index .Values "valuefirst-notification-assigned-templateid" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-notification-resolved-templateid" }}
+  - name: VALUEFIRST_NOTIFICATION_RESOLVED_TEMPLATEID
+    value: {{ index .Values "valuefirst-notification-resolved-templateid" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-notification-rejected-templateid" }}
+  - name: VALUEFIRST_NOTIFICATION_REJECTED_TEMPLATEID
+    value: {{ index .Values "valuefirst-notification-rejected-templateid" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-notification-reassigned-templateid" }}
+  - name: VALUEFIRST_NOTIFICATION_REASSIGNED_TEMPLATEID
+    value: {{ index .Values "valuefirst-notification-reassigned-templateid" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-notification-commented-templateid" }}
+  - name: VALUEFIRST_NOTIFICATION_COMMENTED_TEMPLATEID
+    value: {{ index .Values "valuefirst-notification-commented-templateid" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-notification-welcome-templateid" }}
+  - name: VALUEFIRST_NOTIFICATION_WELCOME_TEMPLATEID
+    value: {{ index .Values "valuefirst-notification-welcome-templateid" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-notification-root-templateid" }}
+  - name: VALUEFIRST_NOTIFICATION_ROOT_TEMPLATEID
+    value: {{ index .Values "valuefirst-notification-root-templateid" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-send-message-url" }}
+  - name: VALUEFIRST_SEND_MESSAGE_URL
+    value: {{ index .Values "valuefirst-send-message-url" | quote }}
+  {{- end }}
+  {{- if index .Values "test-data-cleanup-enabled" }}
+  - name: TEST_DATA_CLEANUP_ENABLED
+    value: {{ index .Values "test-data-cleanup-enabled" | quote }}
+  - name: ELASTICSEARCH_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: es-indexer-host
+  - name: ELASTICSEARCH_CHATBOT_MESSAGES_INDEX_NAME
+    value: "chatbot-messages"
+  {{- end }}

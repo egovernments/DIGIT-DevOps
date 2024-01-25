@@ -1,5 +1,4 @@
 # Common Labels
-name: "audit-service"
 labels:
   app: "audit-service"
   group: "rainmaker"
@@ -18,15 +17,10 @@ initContainers:
     image:
       repository: "audit-service-db"
 
-# audit-service/values.yaml
-containerPort: 8080
-
-
-
 # Container Configs
 image:
   repository: "audit-service"
-  tag: "latest"
+  tag: v1.0.0-24873ba-4
 replicas: "1"
 healthChecks:
   enabled: true
@@ -37,56 +31,30 @@ tracing-enabled: true
 heap: "-Xmx64m -Xms64m"
 java-args: "-Dspring.profiles.active=monitoring"
 
-# audit-service/values.yaml
-service:
-  type: ClusterIP
-  port: 80
-
-livenessProbe:
-  initialDelaySeconds: 30
-  periodSeconds: 10
-  timeoutSeconds: 5
-  successThreshold: 1
-  failureThreshold: 3
-  httpGet:
-    path: /audit-service/health
-    port: 8080
-
-readinessProbe:
-  initialDelaySeconds: 30
-  periodSeconds: 10
-  timeoutSeconds: 5
-  successThreshold: 1
-  failureThreshold: 3
-  httpGet:
-    path: /audit-service/health
-    port: 8080
-
 # Additional Container Envs
-env:
+env: |
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: "audit-service"
+    value: audit-service
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
-    value: "org.apache.kafka.common.serialization.StringSerializer"
+    value: org.apache.kafka.common.serialization.StringSerializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
-    value: "org.springframework.kafka.support.serializer.JsonSerializer"
+    value: org.springframework.kafka.support.serializer.JsonSerializer
   - name: PROCESS_AUDIT_LOGS_KAFKA_TOPIC
-    value: "process-audit-records"
+    value: process-audit-records
   - name: PERSIST_AUDIT_LOGS_KAFKA_TOPIC
-    value: "persist-audit-records"
-  # - name: JAVA_OPTS
-  #   value: "{{ .Values.heap | quote }}"
-  # - name: SERVER_PORT
-  #   value: "8080"
-  # - name: JAVA_ARGS
-  #   value: "{{ .Values.java-args | quote }}"
-  # - name: SECURITY_BASIC_ENABLED
-  #   value: "false"  
-  # - name: MANAGEMENT_SECURITY_ENABLED
-  #   value: "false"
-  # - name: EGOV_ENC_SIGN_HOST
-  #   valueFrom:
-  #     configMapKeyRef:
-  #       name: "egov-service-host"
-  #       key: "egov-enc-service"
-
+    value: persist-audit-records
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"
+  - name: EGOV_ENC_SIGN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-enc-service

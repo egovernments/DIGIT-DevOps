@@ -1,0 +1,165 @@
+# core-services:
+#   - name: "redis-service"
+#     labels:
+#       app: "redis-service"
+#       group: "rainmaker"
+
+#     ingress:
+#       enabled: true
+#       zuul: true
+#       context: "redis-service"
+
+#     image:
+#       repository: "redis-service" 
+#     replicas: "1"
+#     healthChecks:
+#       enabled: true
+#       livenessProbePath: "/redis-service/health"
+#       readinessProbePath: "/redis-service/health"
+#     appType: "java-spring"
+#     tracing-enabled: true
+#     heap: "-Xmx64m -Xms64m"
+#     java-args: "-Dspring.profiles.active=monitoring"
+
+#     env: |
+#       - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+#         value: redis-service
+#       - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+#         value: org.apache.kafka.common.serialization.StringSerializer
+#       - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+#         value: org.springframework.kafka.support.serializer.JsonSerializer
+#       - name: PROCESS_redis_LOGS_KAFKA_TOPIC
+#         value: process-redis-records
+#       - name: PERSIST_redis_LOGS_KAFKA_TOPIC
+#         value: persist-redis-records
+#       - name: JAVA_OPTS
+#         value: {{ index .Values "heap" | quote }}
+#       - name: SERVER_PORT
+#         value: "8080"
+#       - name: JAVA_ARGS
+#         value: {{ index .Values "java-args" | quote }}
+#       - name: SECURITY_BASIC_ENABLED
+#         value: "false"  
+#       - name: MANAGEMENT_SECURITY_ENABLED
+#         value: "false"
+#       - name: EGOV_ENC_SIGN_HOST
+#         valueFrom:
+#           configMapKeyRef:
+#             name: egov-service-host
+#             key: egov-enc-service
+  
+#   - name: "chatbot"
+#     labels:
+#       app: "chatbot"
+#       group: "core"
+
+#     ingress:
+#       enabled: true
+#       zuul: true
+#       context: "whatsapp-webhook"
+#       ip-whitelist: ""
+    
+#     initContainers:
+#       dbMigration:
+#         enabled: true
+#         schemaTable: "egov_chatbot_schema"
+#         image:
+#           repository: "chatbot-db" 
+
+#     image:
+#       repository: "chatbot"
+#     replicas: "1"
+#     appType: "java-spring"
+#     tracing-enabled: true
+#     heap: "-Xmx192m -Xms192m"
+#     java-args: ""
+
+#     env: |  
+#       - name: KAFKA_BOOTSTRAP_SERVER
+#         valueFrom:
+#           configMapKeyRef:
+#             name: egov-config
+#             key: kafka-brokers
+#       - name: EGOV_EXTERNAL_HOST
+#         valueFrom:
+#           configMapKeyRef:
+#             name: egov-config
+#             key: egov-services-fqdn-name
+#       - name: USER_SERVICE_CHATBOT_HOST
+#         valueFrom:
+#           configMapKeyRef:
+#             name: egov-service-host
+#             key: egov-user-chatbot
+#       - name: USER_SERVICE_HOST
+#         valueFrom:
+#           configMapKeyRef:
+#             name: egov-service-host
+#             key: egov-user
+#       - name: MDMS_SERVICE_HOST
+#         valueFrom:
+#           configMapKeyRef:
+#             name: egov-service-host
+#             key: zuul
+#       - name: EGOV_URLSHORTNER_HOST
+#         valueFrom:
+#           configMapKeyRef:
+#             name: egov-service-host
+#             key: egov-url-shortener
+#       - name: LOCATION_SERVICE_HOST
+#     valueFrom:
+#       configMapKeyRef:
+#         name: egov-service-host
+#         key: zuul
+#   - name: LOCALIZATION_SERVICE_HOST
+#     valueFrom:
+#       configMapKeyRef:
+#         name: egov-service-host
+#         key: zuul
+#   - name: FILESTORE_SERVICE_HOST
+#     valueFrom:
+#       configMapKeyRef:
+#         name: egov-service-host
+#         key: zuul
+#   - name: PGR_SERVICE_HOST
+#     valueFrom:
+#       configMapKeyRef:
+#         name: egov-service-host
+#         key: zuul
+#   - name: SPRING_FLYWAY_ENABLED
+#     value: "false"
+#   - name: SERVER_SERVLET_CONTEXT_PATH
+#     value: "/whatsapp-webhook"
+#   - name: SERVER_PORT
+#     value: "8080"
+#   - name: JAVA_OPTS
+#     value: -Xmx256m -Xms256m
+#   - name: JAVA_ARGS
+#   - name: SECURITY_BASIC_ENABLED
+#     value: "false"
+#   - name: MANAGEMENT_SECURITY_ENABLED
+#     value: "false"
+#   - name: STATE_LEVEL_TENANT_ID
+#     valueFrom:
+#       configMapKeyRef:
+#         name: egov-config
+#         key: state-level-tenant-id
+#   - name: USER_SERVICE_CHATBOT_CITIZEN_PASSWRORD
+#     valueFrom:
+#       secretKeyRef:
+#         name: egov-user-chatbot
+#         key: citizen-login-password-otp-fixed-value
+#   - name: VALUEFIRST_USERNAME
+#     valueFrom:
+#       secretKeyRef:
+#         name: chatbot
+#         key: valuefirst-username
+#   - name: VALUEFIRST_PASSWORD
+#     valueFrom:
+#       secretKeyRef:
+#         name: chatbot
+#         key: valuefirst-password
+#   - name: TRACER_OPENTRACING_ENABLED
+#     value: "true"
+#   - name: FLOW_RESET_KEYWORDS
+#     value: "Hi,Hey,Hello,mseva,Start,missedCall"
+          

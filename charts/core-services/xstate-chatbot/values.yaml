@@ -1,34 +1,31 @@
 # Common Labels
 labels:
-  app: "chatbot"
+  app: "xstate-chatbot"
   group: "core"
 
 # Ingress Configs
 ingress:
   enabled: true
   zuul: true
-  context: "whatsapp-webhook"
+  context: "xstate-chatbot"
   ip-whitelist: "0.0.0.0/0"
   additionalAnnotations: | 
     nginx.ingress.kubernetes.io/whitelist-source-range: {{ index .Values "ingress" "ip-whitelist" | quote }}
+
 
 # Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
-    schemaTable: "egov_chatbot_schema"
+    schemaTable: "xstate_chatbot_schema"
     image:
-      repository: "chatbot-db"
+      repository: "xstate-chatbot-db"
 
 # Container Configs
 image:
-  repository: "chatbot"
-  tag: v1.0.0-24873ba-4
+  repository: "xstate-chatbot"
 replicas: "1"
-appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx192m -Xms192m"
-java-args: ""
 
 # Additional Container Envs
 env: |  
@@ -37,32 +34,57 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: kafka-brokers
-  - name: EGOV_EXTERNAL_HOST
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: GOOGLE_MAPS_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-location
+        key: gmapskey
+  - name: EGOV_SERVICES_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: egov-services-fqdn-name
-  - name: USER_SERVICE_CHATBOT_HOST
+  - name: EXTERNAL_HOST
     valueFrom:
       configMapKeyRef:
-        name: egov-service-host
-        key: egov-user-chatbot
+        name: egov-config
+        key: egov-services-fqdn-name
   - name: USER_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-user
-  - name: MDMS_SERVICE_HOST
+        key: egov-user-chatbot
+  - name: MDMS_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: zuul
-  - name: EGOV_URLSHORTNER_HOST
+  - name: URL_SHORTNER_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: egov-services-fqdn-name
-  - name: LOCATION_SERVICE_HOST
+  - name: PGR_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
@@ -72,35 +94,31 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: zuul
-  - name: FILESTORE_SERVICE_HOST
+  - name: EGOV_FILESTORE_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: zuul
-  - name: PGR_SERVICE_HOST
+  - name: BILL_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: zuul
-  - name: SPRING_FLYWAY_ENABLED
-    value: "false"
-  - name: SERVER_SERVLET_CONTEXT_PATH
-    value: "/whatsapp-webhook"
-  - name: SERVER_PORT
-    value: "8080"
-  - name: JAVA_OPTS
-    value: -Xmx256m -Xms256m
-  - name: JAVA_ARGS
-  - name: SECURITY_BASIC_ENABLED
-    value: "false"
-  - name: MANAGEMENT_SECURITY_ENABLED
-    value: "false"
-  - name: STATE_LEVEL_TENANT_ID
+  - name: COLLECTION_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: zuul      
+  - name: ROOT_TENANTID
     valueFrom:
       configMapKeyRef:
         name: egov-config
-        key: state-level-tenant-id
-  - name: USER_SERVICE_CHATBOT_CITIZEN_PASSWRORD
+        key: egov-state-level-tenant-id
+  - name: CONTEXT_PATH
+    value: "/xstate-chatbot"
+  - name: SERVICE_PORT
+    value: "8080"
+  - name: USER_SERVICE_HARDCODED_PASSWORD
     valueFrom:
       secretKeyRef:
         name: egov-user-chatbot
@@ -119,18 +137,6 @@ env: |
     value: "true"
   - name: FLOW_RESET_KEYWORDS
     value: "Hi,Hey,Hello,mseva,Start,missedCall"
-  - name: KAFKA_TOPICS_PARTITION_COUNT
-    value: {{ index .Values "kafka-topics-partition-count" | quote }}
-  - name: KAFKA_TOPICS_REPLICATION_FACTOR
-    value: {{ index .Values "kafka-topics-replication-factor" | quote }}
-  {{- if index .Values "kafka-consumer-poll-ms" }}
-  - name: KAFKA_CONSUMER_POLL_MS
-    value: {{ index .Values "kafka-consumer-poll-ms" | quote }}
-  {{- end }}
-  {{- if index .Values "kafka-producer-linger-ms" }}
-  - name: KAFKA_PRODUCER_LINGER_MS
-    value: {{ index .Values "kafka-producer-linger-ms" | quote }}
-  {{- end }}
   {{- if index .Values "contact-card-whatsapp-number" }}
   - name: CONTACT_CARD_WHATSAPP_NUMBER
     value: {{ index .Values "contact-card-whatsapp-number" | quote }}
@@ -140,7 +146,7 @@ env: |
     value: {{ index .Values "contact-card-whatsapp-name" | quote }}
   {{- end }}
   {{- if index .Values "valuefirst-whatsapp-number" }}
-  - name: VALUEFIRST_WHATSAPP_NUMBER
+  - name: WHATSAPP_BUSINESS_NUMBER
     value: {{ index .Values "valuefirst-whatsapp-number" | quote }}
   {{- end }}
   {{- if index .Values "valuefirst-notification-assigned-templateid" }}
@@ -175,14 +181,23 @@ env: |
   - name: VALUEFIRST_SEND_MESSAGE_URL
     value: {{ index .Values "valuefirst-send-message-url" | quote }}
   {{- end }}
-  {{- if index .Values "test-data-cleanup-enabled" }}
-  - name: TEST_DATA_CLEANUP_ENABLED
-    value: {{ index .Values "test-data-cleanup-enabled" | quote }}
-  - name: ELASTICSEARCH_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: es-indexer-host
-  - name: ELASTICSEARCH_CHATBOT_MESSAGES_INDEX_NAME
-    value: "chatbot-messages"
+  {{- if index .Values "whatsapp-provider" }}
+  - name: WHATSAPP_PROVIDER
+    value: {{ index .Values "whatsapp-provider" | quote }}
+  {{- end }}
+  {{- if index .Values "bill-supported-modules" }}
+  - name: BILL_SUPPORTED_MODULES
+    value: {{ index .Values "bill-supported-modules" | quote }}
+  {{- end }}
+  {{- if index .Values "pgr-version" }}
+  - name: PGR_VERSION
+    value: {{ index .Values "pgr-version" | quote }}
+  {{- end }}
+  {{- if index .Values "pgr-update-topic" }}
+  - name: PGR_UPDATE_TOPIC
+    value: {{ index .Values "pgr-update-topic" | quote }}
+  {{- end }}
+  {{- if index .Values "information-image-filestoreid" }}
+  - name: INFORMATION_IMAGE_FILESTORE_ID
+    value: {{ index .Values "information-image-filestoreid" | quote }}
   {{- end }}

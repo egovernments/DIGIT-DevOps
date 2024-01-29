@@ -1,0 +1,46 @@
+# Common Labels
+labels:
+  app: "egov-localization"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "localization"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "egov_localization_schema"
+    image:
+      repository: "egov-localization-db"
+      tag: core-2.9-lts-mvn-check-e36379cca3-4
+
+# Container Configs
+image:
+  repository: "egov-localization"
+  tag: core-2.9-lts-mvn-check-e36379cca3-4
+replicas: "1"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx256m -Xms256m"
+memory_limits: 512Mi
+healthChecks:
+  enabled: true
+  livenessProbePath: "/localization/health"
+  readinessProbePath: "/localization/health"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SPRING_REDIS_HOST
+    value: redis.backbone
+  - name: SPRING_REDIS_PORT
+    value: "6379"
+  - name: JAEGER_SAMPLER_PARAM
+    value: "1"

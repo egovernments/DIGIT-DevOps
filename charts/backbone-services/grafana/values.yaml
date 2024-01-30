@@ -1,0 +1,113 @@
+namespace: monitoring
+
+labels:
+  group: grafana
+
+# Ingress Configs
+ingress:
+  enabled: true
+  context: "monitoring"
+  waf: 
+    enabled: false  
+  additionalAnnotations: |
+    nginx.ingress.kubernetes.io/auth-signin:  https://$host/oauth2/start?rd=$escaped_request_uri
+    nginx.ingress.kubernetes.io/auth-url:     https://$host/oauth2/auth 
+
+# Init Containers Configs
+initContainers:
+  gitSync:
+    enabled: true
+    repo: "git@github.com:egovernments/configs"
+    branch: "master"
+
+# Container Configs
+image:
+  repository: grafana/grafana
+  tag: 7.0.5
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/api/health"
+  readinessProbePath: "/api/health"
+httpPort: 3000      
+dashboardsFolder: /work-dir/configs/monitoring-dashboards
+disableAnnotationTimestamp: true
+
+additionalAnnotations: |
+  checksum/sc-dashboard-provider-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+
+extraVolumes: |
+  - name: config
+    configMap:
+      name: {{ template "common.name" . }}
+  - name: storage
+    emptyDir: {}      
+
+extraVolumeMounts: |
+  - mountPath: /etc/grafana/grafana.ini
+    name: config    
+    subPath: grafana.ini
+  - name: config
+    mountPath: "/etc/grafana/provisioning/datasources/datasources.yaml"
+    subPath: datasources.yaml    
+  - name: config
+    mountPath: "/etc/grafana/provisioning/dashboards/dashboardproviders.yaml"
+    subPath: dashboardproviders.yaml    
+  - name: storage
+    mountPath: "/var/lib/grafana"    
+
+env: |
+  - name: GF_SERVER_DOMAIN
+    value: {{ .Values.global.domain | quote }}   
+
+resources:
+ limits:
+   cpu: 300m
+   memory: 256Mi
+ requests:
+   cpu: 100m
+   memory: 256Mi
+
+grafana.ini:
+  paths:
+    data: /var/lib/grafana/data
+    logs: /var/log/grafana
+    plugins: /var/lib/grafana/plugins
+    provisioning: /etc/grafana/provisioning
+  analytics:
+    check_for_updates: false
+  log:
+    mode: console
+  grafana_net:
+    url: https://grafana.net
+  auth:
+    disable_login_form: true
+    disable_signout_menu: true
+  auth.anonymous:
+    enabled: true
+    org_role: Admin
+  server:
+    root_url: "%(protocol)s://%(domain)s/monitoring"
+    serve_from_sub_path: true  
+
+datasources: 
+ datasources.yaml:
+   apiVersion: 1
+   datasources:
+   - name: Prometheus
+     type: prometheus
+     url: http://prometheus-prometheus.monitoring:9090
+     isDefault: true    
+
+dashboardProviders: 
+ dashboardproviders.yaml: |
+   apiVersion: 1
+   providers:
+   - name: 'egov'
+     orgId: 1
+     folder: ''
+     type: file
+     disableDeletion: false
+     editable: true
+     options:
+       path: {{ .Values.dashboardsFolder }}

@@ -1,0 +1,101 @@
+{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
+{{- if .Values.check.deployment.enabled }}
+---
+apiVersion: comcast.github.io/v1
+kind: KuberhealthyCheck
+metadata:
+  name: deployment
+  namespace: {{ .Values.checks_namespace }}
+spec:
+  runInterval: 10m
+  timeout: &deployment_check_timeout 15m
+  successfulJobsHistoryLimit: 1
+  podSpec:
+    containers:
+    - name: deployment
+      image: {{ .Values.check.deployment.image.repository }}:{{ .Values.check.deployment.image.tag }}
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: CHECK_TIME_LIMIT
+          value: *deployment_check_timeout
+{{- range $key, $value := .Values.check.deployment.extraEnvs }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+{{- end }}
+      resources:
+        requests:
+          cpu: 25m
+          memory: 15Mi
+        limits:
+          cpu: 40m
+      restartPolicy: Never
+    {{- if .Values.check.deployment.nodeSelector }}
+    nodeSelector:
+{{- toYaml .Values.check.deployment.nodeSelector | nindent 6 }}
+    {{- end }}
+    serviceAccountName: deployment-sa
+    terminationGracePeriodSeconds: 60
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: deployment-check-rb
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: deployment-service-role
+subjects:
+  - kind: ServiceAccount
+    name: deployment-sa
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deployment-service-role
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups:
+      - "apps"
+    resources:
+      - deployments
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - services
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: deployment-sa
+  namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- end }}
+

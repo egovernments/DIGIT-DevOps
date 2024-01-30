@@ -1,0 +1,16 @@
+{{- if and .Values.master.prometheus.enabled .Values.master.prometheus.alertingrules }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ template "jenkins.fullname" . }}
+  namespace: {{ template "jenkins.namespace" . }}
+  labels:
+{{- include "common.labels" . | nindent 4 }} 
+    {{- range $key, $val := .Values.master.prometheus.alertingRulesAdditionalLabels }}
+    {{ $key }}: {{ $val | quote }}
+    {{- end}}
+spec:
+  groups:
+{{ toYaml .Values.master.prometheus.alertingrules | indent 2 }}
+{{- end }}

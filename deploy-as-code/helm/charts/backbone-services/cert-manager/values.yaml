@@ -1,23 +1,31 @@
-
 # Default values for cert-manager.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
-name: cert-manager
-namespace: egov
-replicaCount: 1
-fullnameOverride: cert-manager
-
 global:
-  ## Reference to one or more secrets to be used when pulling images
-  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
-  ##
+  # Reference to one or more secrets to be used when pulling images
+  # ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
   imagePullSecrets: []
   # - name: "image-pull-secret"
+
+  # Labels to apply to all resources
+  # Please note that this does not add labels to the resources created dynamically by the controllers.
+  # For these resources, you have to add the labels in the template in the cert-manager custom resource:
+  # eg. podTemplate/ ingressTemplate in ACMEChallengeSolverHTTP01Ingress
+  #    ref: https://cert-manager.io/docs/reference/api-docs/#acme.cert-manager.io/v1.ACMEChallengeSolverHTTP01Ingress
+  # eg. secretTemplate in CertificateSpec
+  #    ref: https://cert-manager.io/docs/reference/api-docs/#cert-manager.io/v1.CertificateSpec
+  commonLabels: {}
+  # team_name: dev
+
+  # The number of old ReplicaSets to retain to allow rollback (If not set, default Kubernetes value is set to 10)
+  # revisionHistoryLimit: 1
 
   # Optional priority class to be used for the cert-manager pods
   priorityClassName: ""
   rbac:
     create: true
+    # Aggregate ClusterRoles to Kubernetes default user-facing roles. Ref: https://kubernetes.io/docs/reference/access-authn-authz/rbac/#user-facing-roles
+    aggregateClusterRoles: true
 
   podSecurityPolicy:
     enabled: false
@@ -27,7 +35,7 @@ global:
   logLevel: 2
 
   leaderElection:
-    # Override the namespace used to store the ConfigMap for leader election
+    # Override the namespace used for the leader election lease
     namespace: "kube-system"
 
     # The duration that non-leader candidates will wait after observing a
@@ -45,8 +53,9 @@ global:
     # renewal of a leadership.
     # retryPeriod: 15s
 
-installCRDs: true
+installCRDs: false
 
+fullnameOverride: "cert-manager"
 
 clusterIssuer:
   stage:
@@ -62,16 +71,27 @@ clusterIssuer:
       email: sre-staff@egovernments.org
       secretName: letsencrypt-prod
 
-
 strategy: {}
   # type: RollingUpdate
   # rollingUpdate:
   #   maxSurge: 0
   #   maxUnavailable: 1
 
+podDisruptionBudget:
+  enabled: false
+
+  # minAvailable and maxUnavailable can either be set to an integer (e.g. 1)
+  # or a percentage value (e.g. 25%)
+  # if neither minAvailable or maxUnavailable is set, we default to `minAvailable: 1`
+  # minAvailable: 1
+  # maxUnavailable: 1
+
 # Comma separated list of feature gates that should be enabled on the
 # controller pod.
 featureGates: ""
+
+# The maximum number of challenges that can be scheduled as 'processing' at once
+maxConcurrentChallenges: 60
 
 image:
   repository: quay.io/jetstack/cert-manager-controller
@@ -92,8 +112,10 @@ image:
 # used. This namespace will not be automatically created by the Helm chart.
 clusterResourceNamespace: ""
 
-updateStrategy: OnDelete
-
+# This namespace allows you to define where the services will be installed into
+# if not set then they will use the namespace of the release
+# This is helpful when installing cert manager as a chart dependency (sub chart)
+namespace: "egov"
 
 serviceAccount:
   name: cert-manager
@@ -105,14 +127,65 @@ serviceAccount:
   # Optional additional annotations to add to the controller's ServiceAccount
   # annotations: {}
   # Automount API credentials for a Service Account.
+  # Optional additional labels to add to the controller's ServiceAccount
+  # labels: {}
   automountServiceAccountToken: true
+
+# Automounting API credentials for a particular pod
+# automountServiceAccountToken: true
+
+# When this flag is enabled, secrets will be automatically removed when the certificate resource is deleted
+enableCertificateOwnerRef: false
+
+# Used to configure options for the controller pod.
+# This allows setting options that'd usually be provided via flags.
+# An APIVersion and Kind must be specified in your values.yaml file.
+# Flags will override options that are set here.
+config:
+#   apiVersion: controller.config.cert-manager.io/v1alpha1
+#   kind: ControllerConfiguration
+#   logging:
+#     verbosity: 2
+#     format: text
+#   leaderElectionConfig:
+#     namespace: kube-system
+#   kubernetesAPIQPS: 9000
+#   kubernetesAPIBurst: 9000
+#   numberOfConcurrentWorkers: 200
+#   featureGates:
+#     AdditionalCertificateOutputFormats: true
+#     DisallowInsecureCSRUsageDefinition: true
+#     ExperimentalCertificateSigningRequestControllers: true
+#     ExperimentalGatewayAPISupport: true
+#     LiteralCertificateSubject: true
+#     SecretsFilteredCaching: true
+#     ServerSideApply: true
+#     StableCertificateRequestName: true
+#     UseCertificateRequestBasicConstraints: true
+#     ValidateCAA: true
+#   metricsTLSConfig:
+#     dynamic:
+#       secretNamespace: "cert-manager"
+#       secretName: "cert-manager-metrics-ca"
+#       dnsNames:
+#       - cert-manager-metrics
+#       - cert-manager-metrics.cert-manager
+#       - cert-manager-metrics.cert-manager.svc
+
+# Setting Nameservers for DNS01 Self Check
+# See: https://cert-manager.io/docs/configuration/acme/dns01/#setting-nameservers-for-dns01-self-check
+
+# Comma separated string with host and port of the recursive nameservers cert-manager should query
+dns01RecursiveNameservers: ""
+
+# Forces cert-manager to only use the recursive nameservers for verification.
+# Enabling this option could cause the DNS01 self check to take longer due to caching performed by the recursive nameservers
+dns01RecursiveNameserversOnly: false
 
 # Additional command line flags to pass to cert-manager controller binary.
 # To see all available flags run docker run quay.io/jetstack/cert-manager-controller:<version> --help
 extraArgs: []
-  # When this flag is enabled, secrets will be automatically removed when the certificate resource is deleted
-  # - --enable-certificate-owner-ref=true
-  # Use this flag to enabled or disable arbitrary controllers, for example, disable the CertificiateRequests approver
+  # Use this flag to enable or disable arbitrary controllers, for example, disable the CertificiateRequests approver
   # - --controllers=*,-certificaterequests-approver
 
 extraEnv: []
@@ -128,26 +201,17 @@ resources: {}
 # ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
 securityContext:
   runAsNonRoot: true
-# legacy securityContext parameter format: if enabled is set to true, only fsGroup and runAsUser are supported
-# securityContext:
-#   enabled: false
-#   fsGroup: 1001
-#   runAsUser: 1001
-# to support additional securityContext parameters, omit the `enabled` parameter and simply specify the parameters
-# you want to set, e.g.
-# securityContext:
-#   fsGroup: 1000
-#   runAsUser: 1000
-#   runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
 
 # Container Security Context to be set on the controller component container
 # ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
-containerSecurityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
 
 
 volumes: []
@@ -179,7 +243,8 @@ podLabels: {}
 #     - "1.1.1.1"
 #     - "8.8.8.8"
 
-nodeSelector: {}
+nodeSelector:
+  kubernetes.io/os: linux
 
 ingressShim: {}
   # defaultIssuerName: ""
@@ -196,14 +261,26 @@ prometheus:
     interval: 60s
     scrapeTimeout: 30s
     labels: {}
+    annotations: {}
     honorLabels: false
-
+    endpointAdditionalProperties: {}
+  # Note: Enabling both PodMonitor and ServiceMonitor is mutually exclusive, enabling both will result in a error.
+  podmonitor:
+    enabled: false
+    prometheusInstance: default
+    path: /metrics
+    interval: 60s
+    scrapeTimeout: 30s
+    labels: {}
+    annotations: {}
+    honorLabels: false
+    endpointAdditionalProperties: {}
 # Use these variables to configure the HTTP_PROXY environment variables
 # http_proxy: "http://proxy:8080"
 # https_proxy: "https://proxy:8080"
 # no_proxy: 127.0.0.1,localhost
 
-# expects input structure as per specification https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.11/#affinity-v1-core
+# A Kubernetes Affinity, if required; see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#affinity-v1-core
 # for example:
 #   affinity:
 #     nodeAffinity:
@@ -216,7 +293,7 @@ prometheus:
 #            - master
 affinity: {}
 
-# expects input structure as per specification https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.11/#toleration-v1-core
+# A list of Kubernetes Tolerations, if required; see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#toleration-v1-core
 # for example:
 #   tolerations:
 #   - key: foo.bar.com/role
@@ -225,9 +302,56 @@ affinity: {}
 #     effect: NoSchedule
 tolerations: []
 
+# A list of Kubernetes TopologySpreadConstraints, if required; see https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#topologyspreadconstraint-v1-core
+# for example:
+#   topologySpreadConstraints:
+#   - maxSkew: 2
+#     topologyKey: topology.kubernetes.io/zone
+#     whenUnsatisfiable: ScheduleAnyway
+#     labelSelector:
+#       matchLabels:
+#         app.kubernetes.io/instance: cert-manager
+#         app.kubernetes.io/component: controller
+topologySpreadConstraints: []
+
+# LivenessProbe settings for the controller container of the controller Pod.
+#
+# Enabled by default, because we want to enable the clock-skew liveness probe that
+# restarts the controller in case of a skew between the system clock and the monotonic clock.
+# LivenessProbe durations and thresholds are based on those used for the Kubernetes
+# controller-manager. See:
+# https://github.com/kubernetes/kubernetes/blob/806b30170c61a38fedd54cc9ede4cd6275a1ad3b/cmd/kubeadm/app/util/staticpod/utils.go#L241-L245
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 15
+  successThreshold: 1
+  failureThreshold: 8
+
+# enableServiceLinks indicates whether information about services should be
+# injected into pod's environment variables, matching the syntax of Docker
+# links.
+enableServiceLinks: false
+
 webhook:
   replicaCount: 1
-  timeoutSeconds: 10
+
+  # Seconds the API server should wait for the webhook to respond before treating the call as a failure.
+  # Value must be between 1 and 30 seconds. See:
+  # https://kubernetes.io/docs/reference/kubernetes-api/extend-resources/validating-webhook-configuration-v1/
+  #
+  # We set the default to the maximum value of 30 seconds. Here's why:
+  # Users sometimes report that the connection between the K8S API server and
+  # the cert-manager webhook server times out.
+  # If *this* timeout is reached, the error message will be "context deadline exceeded",
+  # which doesn't help the user diagnose what phase of the HTTPS connection timed out.
+  # For example, it could be during DNS resolution, TCP connection, TLS
+  # negotiation, HTTP negotiation, or slow HTTP response from the webhook
+  # server.
+  # So by setting this timeout to its maximum value the underlying timeout error
+  # message has more chance of being returned to the end user.
+  timeoutSeconds: 30
 
   # Used to configure options for the webhook pod.
   # This allows setting options that'd usually be provided via flags.
@@ -256,15 +380,26 @@ webhook:
   # ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
   securityContext:
     runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+
+  podDisruptionBudget:
+    enabled: false
+
+    # minAvailable and maxUnavailable can either be set to an integer (e.g. 1)
+    # or a percentage value (e.g. 25%)
+    # if neither minAvailable or maxUnavailable is set, we default to `minAvailable: 1`
+    # minAvailable: 1
+    # maxUnavailable: 1
 
   # Container Security Context to be set on the webhook component container
   # ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
-  containerSecurityContext: {}
-    # capabilities:
-    #   drop:
-    #   - ALL
-    # readOnlyRootFilesystem: true
-    # runAsNonRoot: true
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
 
   # Optional additional annotations to add to the webhook Deployment
   # deploymentAnnotations: {}
@@ -281,11 +416,36 @@ webhook:
   # Optional additional annotations to add to the webhook ValidatingWebhookConfiguration
   # validatingWebhookConfigurationAnnotations: {}
 
+  validatingWebhookConfiguration:
+    # Configure spec.namespaceSelector for validating webhooks.
+    namespaceSelector:
+      matchExpressions:
+        - key: "cert-manager.io/disable-validation"
+          operator: "NotIn"
+          values:
+            - "true"
+
+  mutatingWebhookConfiguration:
+    # Configure spec.namespaceSelector for mutating webhooks.
+    namespaceSelector: {}
+    #  matchLabels:
+    #    key: value
+    #  matchExpressions:
+    #    - key: kubernetes.io/metadata.name
+    #      operator: NotIn
+    #      values:
+    #        - kube-system
+
+
   # Additional command line flags to pass to cert-manager webhook binary.
   # To see all available flags run docker run quay.io/jetstack/cert-manager-webhook:<version> --help
   extraArgs: []
   # Path to a file containing a WebhookConfiguration object used to configure the webhook
   # - --config=<path-to-config-file>
+
+  # Comma separated list of feature gates that should be enabled on the
+  # webhook pod.
+  featureGates: ""
 
   resources: {}
     # requests:
@@ -308,11 +468,14 @@ webhook:
     successThreshold: 1
     timeoutSeconds: 1
 
-  nodeSelector: {}
+  nodeSelector:
+    kubernetes.io/os: linux
 
   affinity: {}
 
   tolerations: []
+
+  topologySpreadConstraints: []
 
   # Optional additional labels to add to the Webhook Pods
   podLabels: {}
@@ -343,8 +506,13 @@ webhook:
     # name: ""
     # Optional additional annotations to add to the controller's ServiceAccount
     # annotations: {}
+    # Optional additional labels to add to the webhook's ServiceAccount
+    # labels: {}
     # Automount API credentials for a Service Account.
     automountServiceAccountToken: true
+
+  # Automounting API credentials for a particular pod
+  # automountServiceAccountToken: true
 
   # The port that the webhook should listen on for requests.
   # In GKE private clusters, by default kubernetes apiservers are allowed to
@@ -375,9 +543,55 @@ webhook:
   url: {}
     # host:
 
+  # Enables default network policies for webhooks.
+  networkPolicy:
+    enabled: false
+    ingress:
+    - from:
+      - ipBlock:
+          cidr: 0.0.0.0/0
+    egress:
+    - ports:
+      - port: 80
+        protocol: TCP
+      - port: 443
+        protocol: TCP
+      - port: 53
+        protocol: TCP
+      - port: 53
+        protocol: UDP
+      # On OpenShift and OKD, the Kubernetes API server listens on
+      # port 6443.
+      - port: 6443
+        protocol: TCP
+      to:
+      - ipBlock:
+          cidr: 0.0.0.0/0
+
+  volumes: []
+  volumeMounts: []
+
+  # enableServiceLinks indicates whether information about services should be
+  # injected into pod's environment variables, matching the syntax of Docker
+  # links.
+  enableServiceLinks: false
+
 cainjector:
   enabled: true
   replicaCount: 1
+
+  # Used to configure options for the cainjector pod.
+  # This allows setting options that'd usually be provided via flags.
+  # An APIVersion and Kind must be specified in your values.yaml file.
+  # Flags will override options that are set here.
+  config:
+    # apiVersion: cainjector.config.cert-manager.io/v1alpha1
+    # kind: CAInjectorConfiguration
+    # logging:
+    #  verbosity: 2
+    #  format: text
+    # leaderElectionConfig:
+    #  namespace: kube-system
 
   strategy: {}
     # type: RollingUpdate
@@ -389,15 +603,26 @@ cainjector:
   # ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
   securityContext:
     runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+
+  podDisruptionBudget:
+    enabled: false
+
+    # minAvailable and maxUnavailable can either be set to an integer (e.g. 1)
+    # or a percentage value (e.g. 25%)
+    # if neither minAvailable or maxUnavailable is set, we default to `minAvailable: 1`
+    # minAvailable: 1
+    # maxUnavailable: 1
 
   # Container Security Context to be set on the cainjector component container
   # ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
-  containerSecurityContext: {}
-    # capabilities:
-    #   drop:
-    #   - ALL
-    # readOnlyRootFilesystem: true
-    # runAsNonRoot: true
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
 
 
   # Optional additional annotations to add to the cainjector Deployment
@@ -412,16 +637,23 @@ cainjector:
   # Enable profiling for cainjector
   # - --enable-profiling=true
 
+  # Comma separated list of feature gates that should be enabled on the
+  # cainjector pod.
+  featureGates: ""
+
   resources: {}
     # requests:
     #   cpu: 10m
     #   memory: 32Mi
 
-  nodeSelector: {}
+  nodeSelector:
+    kubernetes.io/os: linux
 
   affinity: {}
 
   tolerations: []
+
+  topologySpreadConstraints: []
 
   # Optional additional labels to add to the CA Injector Pods
   podLabels: {}
@@ -450,7 +682,34 @@ cainjector:
     # Optional additional annotations to add to the controller's ServiceAccount
     # annotations: {}
     # Automount API credentials for a Service Account.
+    # Optional additional labels to add to the cainjector's ServiceAccount
+    # labels: {}
     automountServiceAccountToken: true
+
+  # Automounting API credentials for a particular pod
+  # automountServiceAccountToken: true
+
+  volumes: []
+  volumeMounts: []
+
+  # enableServiceLinks indicates whether information about services should be
+  # injected into pod's environment variables, matching the syntax of Docker
+  # links.
+  enableServiceLinks: false
+
+acmesolver:
+  image:
+    repository: quay.io/jetstack/cert-manager-acmesolver
+    # You can manage a registry with
+    # registry: quay.io
+    # repository: jetstack/cert-manager-acmesolver
+
+    # Override the image tag to deploy by setting this variable.
+    # If no value is set, the chart's appVersion will be used.
+    # tag: canary
+
+    # Setting a digest will override any tag
+    # digest: sha256:0e072dddd1f7f8fc8909a2ca6f65e76c5f0d2fcfb8be47935ae3457e8bbceb20
 
 # This startupapicheck is a Helm post-install hook that waits for the webhook
 # endpoints to become available.
@@ -458,14 +717,25 @@ cainjector:
 # sidecar proxies into cert-manager pods, you probably want to ensure that they
 # are not injected into this Job's pod. Otherwise the installation may time out
 # due to the Job never being completed because the sidecar proxy does not exit.
-# See https://github.com/jetstack/cert-manager/pull/4414 for context.
+# See https://github.com/cert-manager/cert-manager/pull/4414 for context.
 startupapicheck:
-  enabled: true
+  enabled: false
 
   # Pod Security Context to be set on the startupapicheck component Pod
   # ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
   securityContext:
     runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+
+  # Container Security Context to be set on the controller component container
+  # ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
 
   # Timeout for 'kubectl check api' command
   timeout: 1m
@@ -484,14 +754,20 @@ startupapicheck:
 
   # Additional command line flags to pass to startupapicheck binary.
   # To see all available flags run docker run quay.io/jetstack/cert-manager-ctl:<version> --help
-  extraArgs: []
+  #
+  # We enable verbose logging by default so that if startupapicheck fails, users
+  # can know what exactly caused the failure. Verbose logs include details of
+  # the webhook URL, IP address and TCP connect errors for example.
+  extraArgs:
+  - -v
 
   resources: {}
     # requests:
     #   cpu: 10m
     #   memory: 32Mi
 
-  nodeSelector: {}
+  nodeSelector:
+    kubernetes.io/os: linux
 
   affinity: {}
 
@@ -501,7 +777,7 @@ startupapicheck:
   podLabels: {}
 
   image:
-    repository: quay.io/jetstack/cert-manager-ctl
+    repository: quay.io/jetstack/cert-manager-startupapicheck
     # You can manage a registry with
     # registry: quay.io
     # repository: jetstack/cert-manager-ctl
@@ -522,6 +798,9 @@ startupapicheck:
       helm.sh/hook-weight: "-5"
       helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 
+  # Automounting API credentials for a particular pod
+  # automountServiceAccountToken: true
+
   serviceAccount:
     # Specifies whether a service account should be created
     create: true
@@ -538,3 +817,14 @@ startupapicheck:
 
     # Automount API credentials for a Service Account.
     automountServiceAccountToken: true
+
+    # Optional additional labels to add to the startupapicheck's ServiceAccount
+    # labels: {}
+
+  volumes: []
+  volumeMounts: []
+
+  # enableServiceLinks indicates whether information about services should be
+  # injected into pod's environment variables, matching the syntax of Docker
+  # links.
+  enableServiceLinks: false

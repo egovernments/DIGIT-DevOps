@@ -16,6 +16,9 @@ metadata:
   {{- end }}
 spec:
   replicas: {{ .Values.cainjector.replicaCount }}
+  {{- if ne (quote .Values.global.revisionHistoryLimit) (quote "") }}
+  revisionHistoryLimit: {{ .Values.global.revisionHistoryLimit }}
+  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "cainjector.name" . }}
@@ -42,6 +45,10 @@ spec:
       {{- end }}
     spec:
       serviceAccountName: {{ template "cainjector.serviceAccountName" . }}
+      {{- if hasKey .Values.cainjector "automountServiceAccountToken" }}
+      automountServiceAccountToken: {{ .Values.cainjector.automountServiceAccountToken }}
+      {{- end }}
+      enableServiceLinks: {{ .Values.cainjector.enableServiceLinks }}
       {{- with .Values.global.priorityClassName }}
       priorityClassName: {{ . | quote }}
       {{- end }}
@@ -49,16 +56,12 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      imagePullSecrets:
-        - name: docker-registry-secret
       containers:
-        - name: {{ .Chart.Name }}
-          {{- with .Values.cainjector.image }}
-          image: "{{- if .registry -}}{{ .registry }}/{{- end -}}{{ .repository }}{{- if (.digest) -}} @{{ .digest }}{{- else -}}:{{ default $.Chart.AppVersion .tag }} {{- end -}}"
-          {{- end }}
+        - name: {{ .Chart.Name }}-cainjector
+          image: "{{ template "image" (tuple .Values.cainjector.image $.Chart.AppVersion) }}"
           imagePullPolicy: {{ .Values.cainjector.image.pullPolicy }}
           args:
-          {{- if .Values.global.logLevel }}
+          {{- if ne (quote .Values.global.logLevel) (quote "") }}
           - --v={{ .Values.global.logLevel }}
           {{- end }}
           {{- with .Values.global.leaderElection }}
@@ -73,6 +76,9 @@ spec:
           - --leader-election-retry-period={{ .retryPeriod }}
           {{- end }}
           {{- end }}
+          {{- with .Values.cainjector.featureGates}}
+          - --feature-gates={{ . }}
+          {{- end}}
           {{- with .Values.cainjector.extraArgs }}
           {{- toYaml . | nindent 10 }}
           {{- end }}
@@ -89,6 +95,10 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.cainjector.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       {{- with .Values.cainjector.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -99,6 +109,14 @@ spec:
       {{- end }}
       {{- with .Values.cainjector.tolerations }}
       tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with  .Values.cainjector.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.cainjector.volumes }}
+      volumes:
         {{- toYaml . | nindent 8 }}
       {{- end }}
 {{- end }}

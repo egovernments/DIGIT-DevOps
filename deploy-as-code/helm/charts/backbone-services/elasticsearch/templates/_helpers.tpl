@@ -8,6 +8,46 @@
 {{- end }}
 {{- end }}
 
+{{- define "elasticsearch.roles" -}}
+{{- range $.Values.roles -}}
+{{ . }},
+{{- end -}}
+{{- end -}}
+
+{{/*
+Generate certificates when the secret doesn't exist
+*/}}
+{{- define "elasticsearch.gen-certs" -}}
+{{- $certs := lookup "v1" "Secret" "es-cluster-v8" ( printf "%s-certs" (include "name" . ) ) -}}
+{{- if $certs -}}
+tls.crt: {{ index $certs.data "tls.crt" }}
+tls.key: {{ index $certs.data "tls.key" }}
+ca.crt: {{ index $certs.data "ca.crt" }}
+{{- else -}}
+{{- $altNames := list ( include "elasticsearch.masterService" . ) ( printf "%s.es-cluster-v8" (include "elasticsearch.masterService" .) ) ( printf "%s.es-cluster-v8.svc" (include "elasticsearch.masterService" .) ) -}}
+{{- $ca := genCA "elasticsearch-ca" 365 -}}
+{{- $cert := genSignedCert ( include "elasticsearch.masterService" . ) nil $altNames 365 $ca -}}
+tls.crt: {{ $cert.Cert | toString | b64enc }}
+tls.key: {{ $cert.Key | toString | b64enc }}
+ca.crt: {{ $ca.Cert | toString | b64enc }}
+{{- end -}}
+{{- end -}}
+
+{{- define "elasticsearch.masterService" -}}
+{{- if empty .Values.masterService -}}
+{{- if empty .Values.fullnameOverride -}}
+{{- if empty .Values.nameOverride -}}
+{{ .Values.clusterName }}-master
+{{- else -}}
+{{ .Values.nameOverride }}-master
+{{- end -}}
+{{- else -}}
+{{ .Values.fullnameOverride }}
+{{- end -}}
+{{- else -}}
+{{ .Values.masterService }}
+{{- end -}}
+{{- end -}}
 
 {{- define "elasticsearch.endpoints" -}}
 {{- $replicas := int (toString (.Values.replicas)) }}
@@ -25,7 +65,7 @@
   {{- if and (contains "docker.elastic.co/elasticsearch/elasticsearch" .Values.image.repository) (not (eq $version 0)) -}}
 {{ $version }}
   {{- else -}}
-7
+8
   {{- end -}}
 {{- end -}}
 {{- end -}}

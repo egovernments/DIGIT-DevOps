@@ -1,0 +1,38 @@
+# Common Labels
+labels:
+  app: "kibana-v8"
+namespace: "es-experimental"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  context: "kibana-v8"
+  additionalAnnotations: |
+    nginx.ingress.kubernetes.io/auth-signin:  https://$host/oauth2/start?rd=$escaped_request_uri
+    nginx.ingress.kubernetes.io/auth-url:     https://$host/oauth2/auth 
+
+# Init Containers Configs
+initContainers: {}
+
+# Container Configs
+image:
+  repository: "docker.elastic.co/kibana/kibana"
+  tag: "8.11.1"
+replicas: "1"
+httpPort: 5601
+elasticsearchHosts: "http://elasticsearch-data-v8.es-experimental:9200"
+serverBasePath: "/kibana-v8"
+healthCheckPath: "kibana-v8/app/kibana"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/kibana-v8/"
+  readinessProbePath: "/kibana-v8/"
+
+# Additional Container Envs
+env: |
+  - name: ELASTICSEARCH_HOSTS
+    value: {{ .Values.elasticsearchHosts | quote }}
+  - name: SERVER_BASEPATH
+    value: {{ .Values.serverBasePath | quote }}
+  - name: SERVER_REWRITEBASEPATH
+    value: "true"   

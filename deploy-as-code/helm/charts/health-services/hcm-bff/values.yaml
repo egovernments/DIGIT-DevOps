@@ -12,6 +12,14 @@ ingress:
   zuul: true
   context: "hcm-bff"
 
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "hcm_bff_health_schema"
+    image:
+      repository: "hcm-bff-health-db"
+
 
 # Container Configs
 image:
@@ -25,6 +33,19 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: kafka-brokers 
+  - name: KAFKA_DHIS_UPDATE_TOPIC
+    value: update-dhis2-job
+  - name: KAFKA_DHIS_CREATE_TOPIC
+    value: create-dhis2-job
+  - name: KAFKA_SAVE_INGESTION_TOPIC
+    value: save_ingestion_details
+  - name: KAFKA_UPDATE_INGESTION_TOPIC
+    value: update_ingestion_details
+  - name: KAFKA_SAVE_CAMPAIGN_DETAILS_TOPIC
+    value: save_campaign_details
+  - name: KAFKA_UPDATE_CAMPAIGN_DETAILS_TOPIC
+    value: update_campaign_details
+
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
@@ -45,6 +66,11 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: hcm-bff
+  - name: EGOV_IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-idgen
 
   - name: CONTEXT_PATH
     value: "/hcm-bff"   
@@ -54,7 +80,9 @@ env: |
   - name: FILE_STORE_SERVICE_END_POINT
     value: filestore/v1/files  
   - name: HCM_MOZ_IMPL_SERVICE_ENDPOINT
-    value: hcm-moz-impl/v1/ingest  
+    value: hcm-moz-impl/v1/ingest
+  - name: EGOV_IDGEN_PATH
+    value: egov-idgen/id/_generate
 
   - name: HCM_PARSING_TEMPLATE
     value: HCM.ParsingTemplate  
@@ -62,9 +90,46 @@ env: |
     value: HCM.TransformTemplate 
   - name: HCM_CAMPAIGN_TEMPLATE
     value: HCM.HCMTemplate 
+
+  - name: CMP_IDGEN_FORMAT
+    value: CMP-[cy:yyyy-MM-dd]-[SEQ_EG_CMP_ID]
+  - name: CMP_IDGEN_IDNAME
+    value: campaign.number
+  - name: DELAY_FOR_MULTIPLE_INGESTION
+    value: 90000
     
   - name: EGOV_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: egov-services-fqdn-name
+  
+  - name: "DB_URL"
+  {{- if eq .Values.namespace "health" }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: health-db-url
+  {{- else }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  {{- end }}
+  - name: "SCHEMA_TABLE"
+    value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+  - name: "FLYWAY_USER"
+    valueFrom:
+      secretKeyRef:
+          name: db
+          key: flyway-username
+  - name: "FLYWAY_PASSWORD"
+    valueFrom:
+      secretKeyRef: 
+          name: db
+          key: flyway-password
+  - name: "FLYWAY_LOCATIONS"
+    valueFrom: 
+      configMapKeyRef: 
+          name: egov-config
+          key: flyway-locations

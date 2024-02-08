@@ -1,0 +1,79 @@
+version: v2.9
+modules:
+    - name: backbone
+      services:
+        - zookeeper-v2
+        - kafka-v2
+        - kafka-connect
+        - kafka-connect-restart-tasks
+        - elasticsearch-data-v1
+        - elasticsearch-master-v1
+        - kibana-v1
+    - name: authn-authz
+      services:
+        - redis
+        - ingress-nginx
+        - cert-manager     
+    - name: core
+      dependencies:
+        - "backbone"
+        - "authn-authz"   
+      services:
+        - egovio/audit-service:v1.0.0-24873ba-3
+        - egovio/egov-accesscontrol:v1.1.3-852f5ea-3
+        - egovio/egov-document-uploader-db:v1.0.1-a1ef7d4-4
+        - egovio/egov-enc-service:v1.1.3-44558a0-3
+        - egovio/xstate-chatbot:v1.1.1-44558a0-2
+        - egovio/egov-pg-service:v1.2.3-ffbb7a6-4
+        - egovio/egov-filestore-db:v1.3.0-72d8393-4
+        - egovio/egov-notification-mail:v1.2.0-9fde481-3
+        - egovio/egov-notification-sms:v1.2.0-9fde481-3
+        - egovio/egov-localization:v1.1.3-44558a0-3
+        - egovio/egov-persister:v1.1.5-3371bc2-5
+        - egovio/egov-idgen:v1.2.3-44558a0-3
+        - egovio/internal-gateway:v0.0.1-44558a0-3
+        - egovio/egov-user:v1.2.8-9fde481-19
+        - egovio/egov-user-chatbot:v1.3.0-6cfa52c1f9-1
+        - egovio/egov-mdms-service:v1.3.2-44558a0-3
+        - egovio/egov-url-shortening:v1.1.2-010cd85-3
+        - egovio/egov-indexer:v1.1.7-44558a0-3
+        - egovio/egov-workflow-v2:v1.3.0-fbea797-11
+        - egovio/pdf-service-db:v1.2.2-72d8393-5
+        - egovio/egov-location:v1.1.5-fbea797-5
+        - egovio/egov-otp:v1.2.3-9fde481-3
+        - egovio/user-otp:v1.2.0-9fde481-8
+        - egovio/egov-document-uploader:v1.1.1-6cfa52c1f9-4
+        - egovio/national-dashboard-ingest:v1.0.1-44558a0-3
+        - egovio/national-dashboard-kafka-pipeline:v1.0.1-44558a0-3
+        - egovio/service-request-db:v1.0.0-67bc179-1
+        - egovio/playground:1.0
+    - name: business
+      dependencies:
+        - "core"
+      services:
+        - egovio/egov-apportion-service:v1.1.5-44558a0-2
+        - egovio/collection-services:v1.1.6-855dc9a-3
+        - egovio/billing-service:v1.3.4-2f94758-5
+        - egovio/egov-hrms-db:v1.2.6-116d8db-9
+        - egovio/egf-instrument:v1.1.4-d93a120c25-2
+        - egovio/egf-master:v1.1.3-d93a120c25-2
+        - egovio/finance-collections-voucher-consumer:v1.1.6-d93a120c25-2 
+    - name: m_core   #dss
+      dependencies:
+          - "core"
+          - "business"
+      services:
+        - zuul:v1.3.1-76bf31f-5
+    - name: m_dss   #dss
+      dependencies:
+          - "core"
+          - "business"
+      services:
+        - egovio/dashboard-analytics:v1.1.8-5e1f449-3
+        - egovio/dashboard-ingest:v1.1.4-ebddafb-2
+    - name: m_accelarators
+      dependencies:
+        - "core"
+        - "business"
+      services:
+        - egovio/inbox:v1.2.2-bb91a22308-1

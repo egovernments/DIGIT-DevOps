@@ -1,81 +1,123 @@
-# helmfile.yaml
-
-# repositories:
-#   - name: your-chart-repo
-#     url: https://your.chart.repo.url # Replace with the URL of your chart repository, if you have one
+templates:
+  default: &default
+    chart: ./{{`{{ .Release.Name }}`}}
+    version: 0.1.0
+    namespace: test
+    # This prevents helmfile exiting when it encounters a missing file
+    # Valid values are "Error", "Warn", "Info", "Debug". The default is "Error"
+    # Use "Debug" to make missing files errors invisible at the default log level(--log-level=INFO)
+    missingFileHandler: Warn
+    values:
+      - ../environments/dev-secrets.yaml
+      - global:
+          domain: digit-lts.digit.org
+      - egov-user:
+          username: adminn
+          password: eGov@123
+      - citizen:
+          custom-js-injection: |
+            sub_filter.conf: "
+              sub_filter  '<head>' '<head>
+              <script src=https://unpkg.com/@egovernments/telemetry@0.0.2/dist/egov-telemetry-1557467338.js type=text/javascript></script>
+              <script src=https://s3.ap-south-1.amazonaws.com/egov-uat-assets/globalConfigs.js type=text/javascript></script>
+              ';"
+      - employee:
+          dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
+          custom-js-injection: |
+            sub_filter.conf: "
+              sub_filter  '<head>' '<head>
+              <script src=https://unpkg.com/@egovernments/telemetry@0.0.2/dist/egov-telemetry-1557467338.js type=text/javascript></script>
+              <script src=https://s3.ap-south-1.amazonaws.com/egov-uat-assets/globalConfigs.js type=text/javascript></script>
+              ';"
+      - digit-ui:
+          custom-js-injection: |
+            sub_filter.conf: "
+              sub_filter  '<head>' '<head>
+              <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
+              ';"
 
 releases:
-  - name: egov-accesscontrol
-    namespace: helmfile # Replace with your desired namespace
-    chart: ./egov-accesscontrol
-    version: 0.1.0 # Replace with the version of your chart, if needed
+  - name: egov-accesscontrol # Replace with your desired namespace
+    installed: false # Replace with the version of your chart, if needed
+    <<: *default
 
-  - name: digit-audit-service
-    namespace: helmfile # Replace with your desired namespace
-    chart: ./audit-service
-    version: 0.1.0 # Replace with the version of your chart, if needed
+  - name: audit-service # Replace with your desired namespace
+    installed: false # Replace with the version of your chart, if needed
+    <<: *default
 
-  - name: egov-enc-service
-    namespace: helmfile # Replace with your desired namespace
-    chart: ./egov-env-service
-    version: 0.1.0
+  - name: egov-enc-service # Replace with your desired namespace
+    installed: true
+    <<: *default
 
-  - name: egov-filestore
-    namespace: helmfile # Replace with your desired namespace
-    chart: ./egov-filestore
-    version: 0.1.0
+  - name: egov-filestore # Replace with your desired namespace
+    installed: false
+    <<: *default
 
-  - name: egov-idgen
-    namespace: helmfile # Replace with your desired namespace
-    chart: ./egov-idgen
-    version: 0.1.0
+  - name: egov-idgen # Replace with your desired namespace
+    installed: false
+    <<: *default
 
-  - name: egov-localization
-    namespace: helmfile # Replace with your desired namespace
-    chart: ./egov-localization
-    version: 0.1.0
+  - name: egov-localization # Replace with your desired namespace
+    installed: false
+    <<: *default
 
-  - name: egov-location
-    namespace: helmfile # Replace with your desired namespace
-    chart: ./egov-location
-    version: 0.1.0
+  - name: egov-location # Replace with your desired namespace
+    installed: false
+    <<: *default
 
-  - name: egov-mdms-service
-    namespace: helmfile # Replace with your desired namespace
-    chart: ./egov-mdms-service
-    version: 0.1.0
+  - name: egov-mdms-service # Replace with your desired namespace
+    installed: false
+    <<: *default
 
-  - name: egov-notification-mail
-    namespace: helmfile # Replace with your desired namespace
-    chart: ./egov-notification-mail
-    version: 0.1.0
+  - name: egov-notification-mail # Replace with your desired namespace
+    installed: false
+    <<: *default
 
-  - name: egov-notification-sms
-    namespace: helmfile # Replace with your desired namespace
-    chart: ./egov-notification-sms
-    version: 0.1.0
+  - name: egov-notification-sms # Replace with your desired namespace
+    installed: false
+    <<: *default
 
-  - name: egov-otp
-    namespace: helmfile # Replace with your desired namespace
-    chart: ./egov-otp
-    version: 0.1.0
+  - name: egov-user # Replace with your desired namespace
+    installed: true
+    <<: *default
+
+  - name: egov-otp # Replace with your desired namespace
+    installed: false
+    <<: *default
   
-  - name: egov-persister
-    namespace: helmfile # Replace with your desired namespace
-    chart: ./egov-persister
-    version: 0.1.0
+  - name: egov-persister # Replace with your desired namespace
+    installed: false
+    <<: *default
 
-  - name: egov-url-shortening
-    namespace: helmfile # Replace with your desired namespace
-    chart: ./egov-url-shortening
-    version: 0.1.0
+  - name: egov-url-shortening # Replace with your desired namespace
+    installed: false
+    <<: *default
 
-  - name: egov-workflow-v2
-    namespace: helmfile # Replace with your desired namespace
-    chart: ./egov-workflow-v2
-    version: 0.1.0
+  - name: egov-workflow-v2 # Replace with your desired namespace
+    installed: false
+    <<: *default
 
-  - name: user-otp
-    namespace: helmfile # Replace with your desired namespace
-    chart: ./user-otp
-    version: 0.1.0
+  - name: user-otp # Replace with your desired namespace
+    installed: false
+    <<: *default
+
+  - name: configmaps # Replace with your desired namespace
+    installed: true
+    <<: *default
+
+  - name: citizen # Replace with your desired namespace
+    installed: false
+    <<: *default
+
+  - name: digit-ui # Replace with your desired namespace
+    installed: false
+    <<: *default
+
+  - name: employee # Replace with your desired namespace
+    installed: false
+    <<: *default
+
+  
+
+
+

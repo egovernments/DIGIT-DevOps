@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "common.name" . }}
+  namespace: {{ .Values.namespace }}
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: wait-for-pod
+        image: busybox
+        command: ["sh", "-c", "until nc -z egov-user 8080; do echo 'Waiting for egov-user pod to be ready...'; sleep 1; done;"]
+      containers:
+      - name: user-container
+        image: egovio/playground:ubuntu-18-elasticdump  # Use a Docker image with curl installed
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          response=$(curl --location 'http://egov-user:8080/user/users/_createnovalidate' \
+                      --header 'Content-Type: application/json' \
+                      --data-raw '{
+                          "requestInfo": {
+                              "apiId": "Rainmaker",
+                              "ver": ".01",
+                              "ts": null,
+                              "action": "_update",
+                              "did": "1",
+                              "key": "",
+                              "msgId": "20170310130900|en_IN",
+                              "authToken": "51e00caf-3218-4f15-ba70-a45f7d40abc1"
+                          },
+                          "user": {
+                              "userName": "{{ .Values.username }}",
+                              "name": "Admin User",
+                              "gender": null,
+                              "mobileNumber": "9898989898",
+                              "type": "EMPLOYEE",
+                              "active" : true,
+                              "password" : "{{ .Values.password }}",
+                              "roles": [
+                                      {
+                                          "name": "Super User",
+                                          "code": "SUPERUSER",
+                                          "tenantId": "pg"
+                                      },
+                                      {
+                                          "name": "PGR CSR for registering complaints",
+                                          "code": "CSR",
+                                          "tenantId": "pg"
+                                      },
+                                      {
+                                          "name": "GRO for searching complaints",
+                                          "code": "GRO",
+                                          "tenantId": "pg"
+                                      }
+                              ],
+                              "emailId": "xyz@gmail.com",
+                              "tenantId": "pg"
+                          }
+                      }')
+          echo "Curl response: $response"
+      restartPolicy: Never
+  backoffLimit: 1

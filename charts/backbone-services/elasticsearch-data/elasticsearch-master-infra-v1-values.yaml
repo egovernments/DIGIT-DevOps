@@ -1,24 +1,27 @@
 
-name: elasticsearch-master
-namespace: es-cluster-v8
-replicas: 3
+name: elasticsearch-master-infra-v1
+namespace: es-cluster-infra
+replicas: 2
 
 image:
   pullPolicy: IfNotPresent  
   repository: docker.elastic.co/elasticsearch/elasticsearch
-  tag: 8.11.3
+  tag: 6.4.2
 
-clusterName: "elasticsearch"
+clusterName: "elasticsearch-infra-v1"
 nodeGroup: "master"
 
 # The service that non master groups will try to connect to when joining the cluster
 # This should be set to clusterName + "-" + nodeGroup for your master group
-masterService: "elasticsearch-master"
+masterService: "elasticsearch-master-infra-v1"
 
 # Elasticsearch roles that will be applied to this nodeGroup
 # These will be set as environment variables. E.g. node.master=true
 roles:
-  - master
+  master: "true"
+  ingest: "false"
+  data: "false"
+
 minimumMasterNodes: 2
 
 esMajorVersion: ""
@@ -42,22 +45,16 @@ extraEnvs:
     value: "/usr/share/elasticsearch/data"
   - name: path.logs
     value: "/usr/share/elasticsearch/logs"
-#  - name: gateway.expected_master_nodes
-#    value: "2"
+  - name: gateway.expected_master_nodes
+    value: "2"    
   - name: gateway.expected_data_nodes
     value: "1"      
   - name: gateway.recover_after_time
     value: "5m"      
-#  - name: gateway.recover_after_master_nodes
-#    value: "2"
+  - name: gateway.recover_after_master_nodes
+    value: "2"      
   - name: gateway.recover_after_data_nodes
-    value: "1"
-#  - name: xpack.security.enabled
-#    value: "false"
-#  - name: xpack.security.audit.enabled
-#    value: "false"
-
-createCert: true
+    value: "1"           
 
 # Allows you to load environment variables from kubernetes secret or config map
 envFrom: []
@@ -135,7 +132,7 @@ podSecurityPolicy:
       - persistentVolumeClaim
 
 persistence:
-  enabled: false
+  enabled: true
   dataDirSize: "2Gi"
   annotations: {}
 
@@ -178,12 +175,9 @@ nodeAffinity: {}
 # the same time when bootstrapping the cluster
 podManagementPolicy: "Parallel"
 
-protocol: https
+protocol: http
 httpPort: 9200
 transportPort: 9300
-
-secret:
-  enabled: true
 
 service:
   labels: {}

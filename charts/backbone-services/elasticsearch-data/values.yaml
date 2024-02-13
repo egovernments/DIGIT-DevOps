@@ -1,6 +1,5 @@
 
-name: elasticsearch-master
-namespace: es-cluster-v8
+name: elasticsearch-data
 replicas: 3
 
 image:
@@ -9,7 +8,7 @@ image:
   tag: 8.11.3
 
 clusterName: "elasticsearch"
-nodeGroup: "master"
+nodeGroup: "data"
 
 # The service that non master groups will try to connect to when joining the cluster
 # This should be set to clusterName + "-" + nodeGroup for your master group
@@ -18,7 +17,9 @@ masterService: "elasticsearch-master"
 # Elasticsearch roles that will be applied to this nodeGroup
 # These will be set as environment variables. E.g. node.master=true
 roles:
-  - master
+  - ingest
+  - data
+
 minimumMasterNodes: 2
 
 esMajorVersion: ""
@@ -52,12 +53,33 @@ extraEnvs:
 #    value: "2"
   - name: gateway.recover_after_data_nodes
     value: "1"
-#  - name: xpack.security.enabled
-#    value: "false"
-#  - name: xpack.security.audit.enabled
-#    value: "false"
+  - name: ELASTIC_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: elasticsearch-master-credentials
+        key: password
+  - name: xpack.security.enabled 
+    value: "true" 
+  - name: xpack.security.transport.ssl.enabled 
+    value: "true" 
+  - name: xpack.security.http.ssl.enabled 
+    value: "true" 
+  - name: xpack.security.transport.ssl.verification_mode 
+    value: "certificate" 
+  - name: xpack.security.transport.ssl.key 
+    value: "/usr/share/elasticsearch/config/certs/tls.key" 
+  - name: xpack.security.transport.ssl.certificate 
+    value: "/usr/share/elasticsearch/config/certs/tls.crt" 
+  - name: xpack.security.transport.ssl.certificate_authorities 
+    value: "/usr/share/elasticsearch/config/certs/ca.crt" 
+  - name: xpack.security.http.ssl.key 
+    value: "/usr/share/elasticsearch/config/certs/tls.key" 
+  - name: xpack.security.http.ssl.certificate 
+    value: "/usr/share/elasticsearch/config/certs/tls.crt" 
+  - name: xpack.security.http.ssl.certificate_authorities 
+    value: "/usr/share/elasticsearch/config/certs/ca.crt" 
 
-createCert: true
+createCert: false
 
 # Allows you to load environment variables from kubernetes secret or config map
 envFrom: []
@@ -69,10 +91,10 @@ envFrom: []
 # A list of secrets and their paths to mount inside the pod
 # This is useful for mounting certificates for security and for mounting
 # the X-Pack license
-secretMounts: []
-#  - name: elastic-certificates
-#    secretName: elastic-certificates
-#    path: /usr/share/elasticsearch/config/certs
+secretMounts: 
+  - name: elastic-certificates
+    secretName: elasticsearch-master-certs
+    path: /usr/share/elasticsearch/config/certs
 
 podAnnotations: {}
   # iam.amazonaws.com/role: es-cluster
@@ -80,13 +102,15 @@ podAnnotations: {}
 # additionals labels
 labels: {}
 
-esJavaOpts: "-Xmx448m -Xms448m"
+esJavaOpts: "-Xmx1g -Xms1g"
 
 resources:
   requests:
-    memory: "896Mi"
+    # cpu: "1000m"
+    memory: "2Gi"
   limits:
-    memory: "896Mi"  
+    # cpu: "1000m"
+    memory: "2Gi"
 
 initResources: {}
   # limits:
@@ -110,7 +134,7 @@ volumeClaimTemplate:
   accessModes: [ "ReadWriteOnce" ]
   resources:
     requests:
-      storage: 2Gi
+      storage: 25Gi
 
 rbac:
   create: false
@@ -135,8 +159,8 @@ podSecurityPolicy:
       - persistentVolumeClaim
 
 persistence:
-  enabled: false
-  dataDirSize: "2Gi"
+  enabled: true
+  dataDirSize: "25Gi"
   annotations: {}
 
 extraVolumes: []
@@ -183,7 +207,7 @@ httpPort: 9200
 transportPort: 9300
 
 secret:
-  enabled: true
+  enabled: false
 
 service:
   labels: {}
@@ -258,7 +282,7 @@ nameOverride: ""
 fullnameOverride: ""
 
 # https://github.com/elastic/helm-charts/issues/63
-masterTerminationFix: true
+masterTerminationFix: false
 
 lifecycle: {}
   # preStop:

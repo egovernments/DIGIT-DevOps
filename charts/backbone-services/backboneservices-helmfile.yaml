@@ -4,18 +4,23 @@ repositories:
 
 templates:
   default: &default
-    namespace: helmfile
+    namespace: backbone-helmfile
     missingFileHandler: Warn
+
+values:
+  - ../environments/dev-secrets.yaml
 
 releases:
 - name: cert-manager
   chart: ./cert-manager
+  installed: true
   version: 0.5.2
   <<: *default
   values:
     - ./cert-manager/values.yaml
 
 - name: minio
+  installed: true
   chart: ./minio
   version: 0.1.0
   <<: *default
@@ -23,6 +28,7 @@ releases:
     - ./minio/values.yaml
 
 - name: postgresql
+  installed: true
   chart: ./postgresql
   version: 11.9.13
   <<: *default
@@ -31,9 +37,9 @@ releases:
     - global:
         postgresql:
           auth:
-            postgresPassword: "oQufrtlzNe"
-
+            postgresPassword: {{ .Values.secrets.db.password | quote }}
 - name: redis
+  installed: true
   chart: ./redis
   version: 3.0.0
   <<: *default
@@ -63,6 +69,7 @@ releases:
     - ./kibana/values.yaml
 
 - name: kafka-kraft
+  installed: true
   chart: ./kafka-kraft
   version: 1.0.0
   <<: *default
@@ -70,9 +77,10 @@ releases:
     - ./kafka-kraft/values.yaml
   set:
     - name: kraft.clusterId
-      value: ltNTKIBsYBZFFnaLjs1mk2  
+      value: {{ .Values.secrets.kafka.clusterID }}
 
 - name: ingress-nginx
+  installed: true
   chart: ./ingress-nginx
   version: 1.0.0
   <<: *default

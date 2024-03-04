@@ -1,0 +1,45 @@
+{{- if and .Values.prometheus.thanosService.enabled .Values.prometheus.thanosServiceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ template "prometheus-operator.fullname" . }}-thanos-sidecar
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app: {{ template "prometheus-operator.name" . }}-thanos-sidecar
+{{ include "prometheus-operator.labels" . | indent 4 }}
+{{- with .Values.prometheus.thanosServiceMonitor.additionalLabels }}
+{{- toYaml . | nindent 4 }}
+{{- end }}
+spec:
+  {{- include "servicemonitor.scrapeLimits" .Values.prometheus.thanosServiceMonitor | nindent 2 }}
+  selector:
+    matchLabels:
+      app: {{ template "prometheus-operator.name" . }}-thanos-discovery
+      release: {{ $.Release.Name | quote }}
+  namespaceSelector:
+    matchNames:
+      - {{ printf "%s" (include "prometheus-operator.namespace" .) | quote }}
+  endpoints:
+  - port: {{ .Values.prometheus.thanosService.httpPortName }}
+    {{- if .Values.prometheus.thanosServiceMonitor.interval }}
+    interval: {{ .Values.prometheus.thanosServiceMonitor.interval }}
+    {{- end }}
+    {{- if .Values.prometheus.thanosServiceMonitor.scheme }}
+    scheme: {{ .Values.prometheus.thanosServiceMonitor.scheme }}
+    {{- end }}
+    {{- if .Values.prometheus.thanosServiceMonitor.tlsConfig }}
+    tlsConfig: {{ toYaml .Values.prometheus.thanosServiceMonitor.tlsConfig | nindent 6 }}
+    {{- end }}
+    {{- if .Values.prometheus.thanosServiceMonitor.bearerTokenFile }}
+    bearerTokenFile: {{ .Values.prometheus.thanosServiceMonitor.bearerTokenFile }}
+    {{- end }}
+    path: "/metrics"
+{{- if .Values.prometheus.thanosServiceMonitor.metricRelabelings }}
+    metricRelabelings:
+{{ tpl (toYaml .Values.prometheus.thanosServiceMonitor.metricRelabelings | indent 6) . }}
+{{- end }}
+{{- if .Values.prometheus.thanosServiceMonitor.relabelings }}
+    relabelings:
+{{ toYaml .Values.prometheus.thanosServiceMonitor.relabelings | indent 6 }}
+{{- end }}
+{{- end }}

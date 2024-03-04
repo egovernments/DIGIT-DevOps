@@ -1,0 +1,50 @@
+# Common Labels
+labels:
+  app: "egov-weekly-impact-notifier"
+  group: "egov-weekly-impact-notifier"
+
+cron:
+  schedule: "45 18 * * *"
+
+# Container Configs
+image:
+  repository: "egov-weekly-impact-notifier"
+
+
+# Additional Container Envs
+env: |
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers       
+  - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+    value: org.egov.tracer.kafka.deserializer.HashMapDeserializer
+  - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+    value: org.apache.kafka.common.serialization.StringDeserializer
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: "egov-weekly-impact-notifier"
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.springframework.kafka.support.serializer.JsonSerializer                     
+  - name: EGOV_IMPACT_EMAILER_INTERVAL_IN_SECS
+    value: {{ index .Values "mail-interval-in-secs" | quote }}
+  - name: EGOV_IMPACT_EMAILER_EMAIL_TO_ADDRESS
+    value: {{ index .Values "mail-to-address" | quote }}
+  - name: EGOV_IMPACT_EMAILER_EMAIL_SUBJECT
+    value: {{ index .Values "impact-emailer-email-subject" | quote }}
+  - name: EGOV_SEARCHER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-searcher
+  - name: EGOV_SEARCHER_ENDPOINT
+    value: "/egov-searcher/{moduleName}/{searchName}/_get"
+  - name: EGOV_CORE_NOTIFICATION_EMAIL_TOPIC
+    value: "egov.core.notification.email"     
+resources: |
+  requests:
+    memory: {{ .Values.memory_limits | quote }}
+  limits:
+    memory: {{ .Values.memory_limits | quote }}

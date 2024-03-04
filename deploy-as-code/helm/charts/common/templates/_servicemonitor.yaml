@@ -1,0 +1,35 @@
+{{- define "common.servicemonitor" -}}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ template "common.name" . }}
+{{- if .Values.global.namespace }}
+  namespace: {{ .Values.global.namespace }}
+{{- else }}
+  namespace: {{ .Values.namespace }}
+{{- end }}
+  labels:
+{{- include "common.labels" . | nindent 4 }}  
+spec:
+  endpoints:
+  - port: http
+    honorLabels: {{ .Values.serviceMonitor.honorLabels }}
+    {{- if .Values.serviceMonitor.interval }}
+    interval: {{ .Values.serviceMonitor.interval }}
+    {{- end }}
+{{- if .Values.serviceMonitor.metricRelabelings }}
+    metricRelabelings:
+{{ tpl (toYaml .Values.serviceMonitor.metricRelabelings | indent 6) . }}
+{{- end }}
+{{- if .Values.serviceMonitor.relabelings }}
+    relabelings:
+{{ toYaml .Values.serviceMonitor.relabelings | indent 6 }}
+{{- end }}
+  selector:
+    matchLabels:
+{{- include "common.labels" . | nindent 6 }}  
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.namespace | quote }}
+{{- end }}

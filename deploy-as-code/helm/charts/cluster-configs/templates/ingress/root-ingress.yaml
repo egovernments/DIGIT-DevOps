@@ -1,0 +1,34 @@
+{{- with index .Values "cluster-configs" "root-ingress" -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  {{- if ne .appRoot ""}}
+    nginx.ingress.kubernetes.io/app-root: /{{ .appRoot }}
+    kubernetes.io/ingress.class: nginx
+  {{- end }}
+  {{- if ne $.Values.global.setup "quickstart" }}     
+    #certmanager.k8s.io/cluster-issuer: {{ index . "cert-issuer" }}
+    cert-manager.io/cluster-issuer: {{ index . "cert-issuer" }}
+  {{- end }}  
+  name: {{ .name }}
+  namespace: {{ .namespace }}
+spec:
+  rules:
+  - host: {{ $.Values.global.domain }}
+    http:
+      paths:
+      - backend:
+          service:
+            name: {{ .serviceName }}
+            port: 
+              number: {{ .servicePort }}
+        path: /
+        pathType: Prefix
+{{- if ne $.Values.global.setup "quickstart" }}        
+  tls:
+  - hosts:
+    - {{ $.Values.global.domain }}
+    secretName: {{ $.Values.global.domain }}-tls-certs    
+{{- end }}         
+{{- end -}}

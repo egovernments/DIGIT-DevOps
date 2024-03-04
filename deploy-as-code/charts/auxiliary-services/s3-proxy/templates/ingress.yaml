@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/from-to-www-redirect: "true"
+    nginx.ingress.kubernetes.io/upstream-vhost: {{ .Values.externalName }}
+    nginx.ingress.kubernetes.io/use-regex: "true"
+  name: {{ .Values.name }} 
+  namespace: {{ .Values.namespace }}  
+spec:
+  rules:
+  - host: {{ .Values.global.domain }}
+    http:
+      paths:
+      - backend:
+          service:
+            name: {{ .Values.name }}
+            port:
+              number: {{ .Values.httpPort }}
+        path: /{{ index $.Values "cluster-configs" "configmaps" "egov-config" "data" "s3-assets-bucket" }}/
+        pathType: Prefix

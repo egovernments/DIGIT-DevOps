@@ -1,10 +1,3 @@
-#
-# EKS Cluster Resources
-#  * IAM Role to allow EKS service to manage other AWS services
-#  * EC2 Security Group to allow networking traffic with EKS cluster
-#  * EKS Cluster
-#
-
 resource "aws_iam_role" "eks_iam" {
   name = "${var.cluster_name}-eks-iam"
 
@@ -23,37 +16,42 @@ resource "aws_iam_role" "eks_iam" {
 }
 POLICY
 
-  tags = "${
-    map(
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
-      "KubernetesCluster", "${var.cluster_name}"
-    )
-  }"
+  tags = {
+    "kubernetes.io/cluster/${var.cluster_name}" = "owned",
+    "KubernetesCluster" = var.cluster_name
+  }
+}
+
+# Attach the AmazonEBSCSIDriverPolicy to the role created in the EKS module
+resource "aws_iam_role_policy_attachment" "cluster_AmazonEBSCSIDriverPolicy" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  role       = module.eks.aws_iam_role.cluster[0].name
 }
 
 resource "aws_iam_role_policy_attachment" "cluster_AmazonEKSClusterPolicy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-  role       = "${aws_iam_role.eks_iam.name}"
+  role       = aws_iam_role.eks_iam.name
 }
 
 resource "aws_iam_role_policy_attachment" "cluster_AmazonEKSServicePolicy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"
-  role       = "${aws_iam_role.eks_iam.name}"
+  role       = aws_iam_role.eks_iam.name
 }
 
 resource "aws_eks_cluster" "eks_cluster" {
-  name     = "${var.cluster_name}"
-  role_arn = "${aws_iam_role.eks_iam.arn}"
-  version  = "${var.kubernetes_version}"
+  name     = var.cluster_name
+  role_arn = aws_iam_role.eks_iam.arn
+  version  = var.kubernetes_version
 
   vpc_config {
-    security_group_ids     = "${var.master_nodes_security_grp_ids}"
-    subnet_ids             = "${var.subnets}"
+    security_group_ids     = var.master_nodes_security_grp_ids
+    subnet_ids             = var.subnets
     endpoint_public_access = true
   }
 
   depends_on = [
-    "aws_iam_role_policy_attachment.cluster_AmazonEKSClusterPolicy",
-    "aws_iam_role_policy_attachment.cluster_AmazonEKSServicePolicy",
+    aws_iam_role_policy_attachment.cluster_AmazonEKSClusterPolicy,
+    aws_iam_role_policy_attachment.cluster_AmazonEKSServicePolicy,
+    aws_iam_role_policy_attachment.cluster_AmazonEBSCSIDriverPolicy,
   ]  
 }

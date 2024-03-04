@@ -1,0 +1,60 @@
+repositories:
+- name: grafana
+  url: https://grafana.github.io/helm-charts
+- name: prometheus-community
+  url: https://prometheus-community.github.io/helm-charts
+- name: jaegertracing
+  url: https://jaegertracing.github.io/helm-charts
+
+values:
+  - namespace: monitoring
+  - ../environments/dev.yaml
+  - ../environments/dev-secrets.yaml
+
+
+
+releases:
+
+- name: loki-stack
+  installed: true
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: grafana/loki-stack
+  version: 2.10.1
+  values:
+  - ./values/loki-stack.yaml
+
+- name: kube-prometheus-stack
+  installed: true
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: prometheus-community/kube-prometheus-stack
+  version: 56.6.2
+  disableValidation: true
+  values:
+  - ./values/prometheus.yaml
+
+- name: jaeger-tracing
+  installed: true
+  namespace: backbone
+  chart: jaegertracing/jaeger
+  version: 1.0.0 
+  values:
+  - ./values/jaeger.yaml
+  - storage:
+      elasticsearch:
+        password: {{ .Values.secrets.elasticsearch.password }}
+  set:
+    - name: query.ingress.hosts[0]
+      value: "{{ .Values.global.domain }}"
+
+- name: grafana
+  installed: true
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: grafana/grafana
+  version: 7.3.0
+  values:
+  - ./values/grafana.yaml
+  set:
+    - name: ingress.hosts[0]
+      value: "{{ .Values.global.domain }}"
+    - name: ingress.tls[0].hosts[0]
+      value: {{ .Values.global.domain | quote }}

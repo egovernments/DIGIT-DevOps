@@ -24,12 +24,6 @@ func main() {
 		EsMasterVolumeIDs struct {
 			Value []string `json:"value"`
 		} `json:"es_master_volume_ids"`
-		KafkaVolumeIDs struct {
-			Value []string `json:"value"`
-		} `json:"kafka_vol_ids"`
-		ZookeeperVolumeIDs struct {
-			Value []string `json:"value"`
-		} `json:"zookeeper_volume_ids"`
 		DBHost struct {
 			Value string `json:"value"`
 		} `json:"db_instance_endpoint"`
@@ -50,7 +44,7 @@ func main() {
 		os.Exit(1)
 	}
 	// Read the YAML file
-	yamlFile, err := ioutil.ReadFile("../../../config-as-code/environments/egov-demo.yaml")
+	yamlFile, err := ioutil.ReadFile("../../../deploy-as-code/charts/environments/dev.yaml")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading YAML file: %v\n", err)
 		os.Exit(1)
@@ -69,7 +63,7 @@ func main() {
 	// Write the updated YAML to stdout
 	fmt.Println(output)
 
-	err = ioutil.WriteFile("../../../config-as-code/environments/egov-demo.yaml", []byte(output), 0644)
+	err = ioutil.WriteFile("../../../deploy-as-code/charts/environments/dev.yaml", []byte(output), 0644)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing YAML file: %v\n", err)
 		os.Exit(1)

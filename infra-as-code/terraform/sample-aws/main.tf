@@ -24,7 +24,7 @@ module "db" {
   vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
   availability_zone             = "${element(var.availability_zones, 0)}"
   instance_class                = "db.t3.medium"  ## postgres db instance type
-  engine_version                = "11.20"   ## postgres version
+  engine_version                = "14.5"   ## postgres version
   storage_type                  = "gp2"
   storage_gb                    = "10"     ## postgres disk size
   backup_retention_days         = "7"
@@ -68,7 +68,7 @@ module "eks" {
   worker_groups = [
     {
       name                          = "spot"
-      ami_id                        = "ami-0a82b544ef71a207d"   
+      ami_id                        = "ami-04b500d2e83fc74fe"   
       subnets                       = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)))}"
       instance_type                 = "${var.instance_type}"
       override_instance_types       = "${var.override_instance_types}"
@@ -110,7 +110,15 @@ resource "aws_iam_role" "eks_iam" {
   })
 }
 
+resource "kubernetes_service_account" "ebs_csi_controller_sa" {
+  metadata {
+    name      = "ebs-csi-controller-sa"
+    namespace = "kube-system"
+  }
+}  
+
 resource "kubernetes_annotations" "example" {
+  depends_on = [kubernetes_service_account.ebs_csi_controller_sa]
   api_version = "v1"
   kind        = "ServiceAccount"
   metadata {
@@ -124,8 +132,10 @@ resource "kubernetes_annotations" "example" {
 
 resource "aws_iam_role_policy_attachment" "cluster_AmazonEBSCSIDriverPolicy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-  role       = "${aws_iam_role.eks_iam.name}"
+  role       = module.eks.cluster_iam_role_name
 }
+
+
 
 resource "aws_iam_role_policy_attachment" "cluster_AmazonEC2FullAccess" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2FullAccess"
@@ -161,6 +171,7 @@ resource "aws_eks_addon" "core_dns" {
 resource "aws_eks_addon" "aws_ebs_csi_driver" {
   cluster_name      = data.aws_eks_cluster.cluster.name
   addon_name        = "aws-ebs-csi-driver"
+  addon_version     = "v1.23.0-eksbuild.1"
   resolve_conflicts = "OVERWRITE"
 }
 
@@ -184,29 +195,5 @@ module "es-data-v1" {
   availability_zones = "${var.availability_zones}"
   storage_sku = "gp2"
   disk_size_gb = "25"
-  
-}
-
-module "zookeeper" {
-
-  source = "../modules/storage/aws"
-  storage_count = 3
-  environment = "${var.cluster_name}"
-  disk_prefix = "zookeeper"
-  availability_zones = "${var.availability_zones}"
-  storage_sku = "gp2"
-  disk_size_gb = "2"
-  
-}
-
-module "kafka" {
-
-  source = "../modules/storage/aws"
-  storage_count = 3
-  environment = "${var.cluster_name}"
-  disk_prefix = "kafka"
-  availability_zones = "${var.availability_zones}"
-  storage_sku = "gp2"
-  disk_size_gb = "50"
   
 }

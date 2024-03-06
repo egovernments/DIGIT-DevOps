@@ -1,26 +1,49 @@
-# digit
+**Installation Guide for DIGIT via GitHub Actions in AWS**
 
-# Digit Community Kubernetes Helm Charts
+This guide provides step-by-step instructions for installing DIGIT using GitHub Actions within an AWS environment.
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+Prerequisites
+AWS account
 
-The code is provided as-is with no warranties.
+**Installation Steps:**
 
-## Usage
+1. Prepare AWS IAM User
+Create an IAM User in your AWS account.
+Generate ACCESS_KEY and SECRET_KEY for the IAM user.
+Assign Administrator Access to the IAM user for necessary permissions.
 
-[Helm](https://helm.sh) must be installed to use the charts.
-Please refer to Helm's [documentation](https://helm.sh/docs/) to get started.
+2. Configure GitHub Repository
+Fork the Repository into your organization account on GitHub.
+Navigate to the repository settings, then to Secrets and Variables, and add the following repository secrets:
 
-Once Helm is set up properly, add the repo as follows:
+AWS_ACCESS_KEY_ID: <GENERATED_ACCESS_KEY>
+AWS_SECRET_ACCESS_KEY: <GENERATED_SECRET_KEY>
+AWS_DEFAULT_REGION: ap-south-1
+AWS_REGION: ap-south-1
 
-```console
-helm repo add digit https://naresh-egov.github.io/digit/
-```
+3. Enable GitHub Actions
+Open the GitHub Actions workflow file.
+Specify the branch name you wish to enable GitHub Actions for.
 
-You can then run `helm search repo digit` to see the charts.
+4. Configure Infrastructure-as-Code
+Navigate to infra-as-code/terraform/sample-aws.
+Open input.yaml and enter details such as domain_name, cluster_name, bucket_name, and db_name.
 
+5. Configure Application Secrets
+Navigate to config-as-code/environments.
+Open egov-demo-secrets.yaml.
+Enter db_password and ssh_private_key.
+Add the public_key to your GitHub account.
 
-## License
+6. Generate SSH Key Pair
+Choose one of the following methods to generate an SSH key pair:
 
-<!-- Keep full URL links to repo files because this README syncs from main to gh-pages.  -->
-[Apache 2.0 License](https://github.com/naresh-egov/digit/blob/main/LICENSE).
+Method a: Use an online website (Note: This is not recommended for production setups, only for demo purposes): https://8gwifi.org/sshfunctions.jsp
+Method b: Use OpenSSL commands:
+openssl genpkey -algorithm RSA -out private_key.pem
+openssl rsa -pubout -in private_key.pem -out public_key.pem
+
+7. Finalize Installation
+After entering all the details, push these changes to the remote GitHub repository.
+Open the Actions tab in your GitHub account to view the workflow. You should see that the workflow has started, and the pipelines are completing successfully.
+

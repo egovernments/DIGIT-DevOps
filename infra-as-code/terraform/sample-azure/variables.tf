@@ -10,7 +10,7 @@ variable "location" {
 }
 
 variable "db_version" {
-    default = "13"
+    default = "14"
 }
 
 variable "db_user" {

@@ -1,0 +1,79 @@
+# Common Labels
+labels:
+  app: "plan-service"
+  group: "health"
+
+namespace: health
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "plan-service"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "plan_schema"
+    image:
+      repository: "plan-service-db"
+
+# Container Configs
+image:
+  repository: "plan-service"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/plan-service/health"
+  readinessProbePath: "/plan-service/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+java-args: ""
+egov-mdms-service-host-key: "egov-mdms-service"
+
+# Additional Container Envs
+env: |
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: plan-service
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
+  - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: tracer-errors-provideexceptionindetails
+  {{- end }}
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id 
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: {{ index .Values "egov-mdms-service-host-key" | quote }}
+  - name: EGOV_MDMS_SEARCH_ENDPOINT
+    value: "/egov-mdms-service/v1/_search"
+  - name: EGOV_MDMS_INTEGRATION_ENABLED
+    value: "true"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: JAVA_ENABLE_DEBUG
+    value: {{ index .Values "java-enable-debug" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}

@@ -144,18 +144,18 @@ alertmanager:
   ##      https://prometheus.io/docs/alerting/notification_examples/
   ##
   templateFiles: 
-    template_1.tmpl: |-
-        {{ define "cluster" }}{{ .ExternalURL | reReplaceAll ".*alertmanager\\.(.*)" "$1" }}{{ end }}
-        
-        {{ define "slack.message.title" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}-{{ .ExternalURL | reReplaceAll ".*alertmanager\\.(.*)" "$1" }}] {{ .CommonLabels.alertname }}{{ end }}        
-  
-        {{ define "slack.message.body" }}
-          *Portal:*  {{ .ExternalURL }}
-          {{- $root := . -}}
-          {{ range .Alerts }}
-            - {{ .Annotations.message }}
-          {{ end }}
+    title: |-
+      [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}
+    text: >-
+      {{ range .Alerts -}}
+      *Alert:* {{ .Annotations.title }}{{ if .Labels.severity }} - `{{ .Labels.severity }}`{{ end }}
+      {{- "\n" -}}
+      *Description:* {{ .Annotations.description }}
+      {{- "\n" -}}
+      *Details:*
+        {{ range .Labels.SortedPairs }} *{{ .Name }}:* `{{ .Value }}`
         {{ end }}
+      {{ end }}
 
   ingress:
     enabled: true
@@ -1812,15 +1812,15 @@ prometheus:
     ##
     ## Default configuration will connect to the alertmanager deployed as part of this release
     ##
-    alertingEndpoints: []
-    # - name: ""
-    #   namespace: ""
-    #   port: http
-    #   scheme: http
-    #   pathPrefix: ""
-    #   tlsConfig: {}
-    #   bearerTokenFile: ""
-    #   apiVersion: v2
+    alertingEndpoints:
+    - name: "release-name-alertmanager"
+      namespace: "monitoring"
+      port: 9093
+      scheme: http
+      pathPrefix: ""
+      tlsConfig: {}
+      bearerTokenFile: ""
+      apiVersion: v2
 
     ## External labels to add to any time series or alerts when communicating with external systems
     ##

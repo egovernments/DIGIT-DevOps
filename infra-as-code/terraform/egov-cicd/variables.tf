@@ -3,7 +3,7 @@
 #
 
 variable "cluster_name" {
-  default = "egov-cicd"
+  default = "mnptui-cicd"
 }
 
 variable "vpc_cidr_block" {
@@ -40,6 +40,6 @@ variable "spot_max_price" {
 }
 
 variable "ssh_key_name" {
-  default = "egov-cicd"
+  default = "mnptui-cicd"
 }
 

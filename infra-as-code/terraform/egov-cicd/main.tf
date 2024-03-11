@@ -1,6 +1,6 @@
 terraform {
   backend "s3" {
-    bucket = "try-cicd-workshop-yourname"
+    bucket = "cicd-workshop-mnptui"
     key = "terraform"
     region = "ap-south-1"
   }

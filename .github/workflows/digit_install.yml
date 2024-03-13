@@ -1,0 +1,471 @@
+name: DIGIT-Install workflow
+# Workflow branch creating cluster against the input.yaml file  
+on:
+  push:
+    branches:
+      - master
+      - DIGIT-2.9LTS
+  workflow_dispatch:
+    inputs:
+      destroyCommand:
+        description: 'Type "destroy" to run the terraform_infra_destruction job.'
+        required: true
+        default: ''   
+jobs:
+  check-changed-files:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy-as-code-changed: ${{ steps.check_files.outputs.deploy-as-code-changed }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+    
+    - name: Check for changes in deploy-as-code
+      id: check_files
+      uses: tj-actions/changed-files@v42
+      with:
+        files: |
+          deploy-as-code/**
+      
+  Input_validation:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    env:
+      TF_IN_AUTOMATION: "true"
+      AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+      AWS_REGION:  ${{ secrets.AWS_REGION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Build project
+        run: echo "Githubactions Workflow has started"
+      - name: Displaying the input parameters provided
+        run: cat input.yaml
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Convert YAML to ENV
+        uses: dcarbone/yaml-to-env-action@main
+        with:
+          yaml-file: infra-as-code/terraform/sample-aws/input.yaml
+          debug: true # Optional: set to true to output some debug information
+      # Now, use the env vars in subsequent steps
+      - name: Display environment variables
+        run: |
+          echo "Cluster Name: $CLUSTER_NAME"  
+      - name: Change working directory
+        run: echo "This command is run in the current directory"
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+      - name: Updating different files based on parameters provided in input.yaml
+        run: go run init.go
+        working-directory: infra-as-code/terraform/scripts
+      - name: Archive infra-as-code folder
+        run: tar -czf infra-as-code.tar.gz infra-as-code/
+      - name: Archive deploy-as-code folder
+        run: tar -czf deploy-as-code.tar.gz deploy-as-code/
+      - name: Upload infra-as-code folder as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: infra-as-code-artifact
+          path: infra-as-code.tar.gz
+      - name: Upload deploy-as-code folder as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: deploy-as-code-artifact
+          path: deploy-as-code.tar.gz     
+
+  Terraform_Infra_Creation:
+    if: ${{ github.event_name == 'push' }}
+    needs: input_validation
+    runs-on: ubuntu-latest
+    env:
+      TF_IN_AUTOMATION: "true"
+      AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+      AWS_REGION:  ${{ secrets.AWS_REGION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Download infra-as-code folder from artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: infra-as-code-artifact
+          path: .
+      - name: Download deploy-as-code folder from artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: deploy-as-code-artifact
+          path: .
+      - name: Extract infra-as-code folder
+        run: tar -xzf infra-as-code.tar.gz
+      - name: Extract deploy-as-code folder
+        run: tar -xzf deploy-as-code.tar.gz 
+      - name: Convert YAML to ENV
+        uses: dcarbone/yaml-to-env-action@main
+        with:
+          yaml-file: infra-as-code/terraform/sample-aws/input.yaml
+          debug: true # Optional: set to true to output some debug information
+      # Now, use the env vars in subsequent steps
+      - name: Install dependencies
+        run: sudo apt-get install -y jq
+      - name: Convert YAML to JSON
+        run: |
+          cat deploy-as-code/charts/environments/env-secrets.yaml | yq e -j - > secrets.json
+      - name: Extract dbPassword
+        id: extract
+        run: |
+          db_password=$(jq -r '.secrets.db.password' secrets.json)
+          echo "db_password=$db_password" >> $GITHUB_ENV             
+      - name: Terraform Init - remotestate
+        id: init
+        run: terraform init
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+      - name: Terraform Validate - remotestate
+        id: validate
+        run: terraform validate -no-color
+        working-directory: infra-as-code/terraform/sample-aws/remote-state  
+      - name: Terraform Plan - remotestate
+        id: plan
+        run: terraform plan -no-color -input=false 
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+      - name: Terraform Apply - remotestate
+        id: apply
+        run: terraform apply -no-color -input=false -auto-approve
+        continue-on-error: true  
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+      - name: Terraform init - Infra creation
+        id: init-Infra
+        run: terraform init
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Terraform Validate - Infra creation
+        id: validate-Infra
+        run: terraform validate -no-color
+        working-directory: infra-as-code/terraform/sample-aws
+      # - name: unlocking statefile
+      #   id: unlocking
+      #   run: terraform force-unlock -force 302767c9-a713-f81d-cf1b-393dc958d02a
+      #   working-directory: infra-as-code/terraform/sample-aws
+      - name: Terraform Plan - Infra creation
+        id: plan-Infra
+        run: terraform plan -no-color -input=false -var db_password=$db_password   
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Terraform Apply - Infra creation
+        id: apply-Infra
+        run: terraform apply -no-color -input=false -auto-approve -var db_password=$db_password
+        continue-on-error: true  
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Install AWS IAM Authenticator
+        run: |
+          curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
+          chmod +x ./aws-iam-authenticator
+          sudo mv ./aws-iam-authenticator /usr/local/bin/aws-iam-authenticator
+          aws-iam-authenticator version  
+      - name: Generate kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name $CLUSTER_NAME
+          cat ~/.kube/config > kubeconfig
+      - name: Verify kubectl configuration
+        run: kubectl config view 
+      - name: Verfiy kubectl get nodes
+        run: |
+          kubectl get nodes  
+        env:
+          AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_REGION:  ${{ secrets.AWS_REGION }}
+      - name: Updating the terraform output data in environment.yaml files for deployment
+        run: terraform output -json | go run ../scripts/envYAMLUpdater.go
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Archive infra-as-code folder
+        run: tar -czf infra-as-code.tar.gz infra-as-code/
+      - name: Archive deploy-as-code folder
+        run: tar -czf deploy-as-code.tar.gz deploy-as-code/
+      - name: Upload infra-as-code folder as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: infra-as-code-artifact
+          path: infra-as-code.tar.gz
+      - name: Upload deploy-as-code folder as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: deploy-as-code-artifact
+          path: deploy-as-code.tar.gz      
+
+  DIGIT-deployment:
+    if: ${{ github.event_name == 'push' }}
+    needs: Terraform_Infra_Creation
+    runs-on: ubuntu-latest
+    env:
+      TF_IN_AUTOMATION: "true"
+      AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+      AWS_REGION:  ${{ secrets.AWS_REGION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Download infra-as-code folder from artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: infra-as-code-artifact
+          path: .
+      - name: Download deploy-as-code folder from artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: deploy-as-code-artifact
+          path: .
+      - name: Extract infra-as-code folder
+        run: tar -xzf infra-as-code.tar.gz
+      - name: Extract deploy-as-code folder
+        run: tar -xzf deploy-as-code.tar.gz 
+      - name: Convert YAML to ENV
+        uses: dcarbone/yaml-to-env-action@main
+        with:
+          yaml-file: infra-as-code/terraform/sample-aws/input.yaml
+          debug: true # Optional: set to true to output some debug information
+      # Now, use the env vars in subsequent steps 
+      - name: Install dependencies
+        run: sudo apt-get install -y jq
+      - name: Convert YAML to JSON
+        run: |
+          cat deploy-as-code/charts/environments/env-secrets.yaml | yq e -j - > secrets.json
+      - name: Extract flywayPassword
+        id: extract
+        run: |
+          db_password=$(jq -r '.secrets.db.password' secrets.json)
+          echo "db_password=$db_password" >> $GITHUB_ENV                 
+      - name: Install AWS IAM Authenticator
+        run: |
+          curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
+          chmod +x ./aws-iam-authenticator
+          sudo mv ./aws-iam-authenticator /usr/local/bin/aws-iam-authenticator
+          aws-iam-authenticator version  
+      - name: Generate kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name $CLUSTER_NAME
+          cat ~/.kube/config > kubeconfig
+      - name: Creating namespace
+        run: kubectl create namespace egov
+        continue-on-error: true  
+      - name: Verfiy kubectl get nodes
+        run: |
+          kubectl get nodes  
+        env:
+          AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_REGION:  ${{ secrets.AWS_REGION }}   
+      - name: Install sops
+        run: |
+          sudo apt update
+          sudo apt install -y gnupg
+          wget https://github.com/mozilla/sops/releases/download/v3.7.1/sops-v3.7.1.linux
+          chmod +x sops-v3.7.1.linux
+          sudo mv sops-v3.7.1.linux /usr/local/bin/sops
+      # - name: Set up Helm
+      #   uses: azure/setup-helm@v1
+      #   with:
+      #     version: 'latest' # Specify the version of Helm
+
+      - name: Install Helmfile
+        run: |
+          HELMFILE_VERSION="v0.140.0"
+
+            # Download Helmfile
+          curl -L "https://github.com/roboll/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_linux_amd64" -o helmfile
+
+            # Make the Helmfile binary executable
+          chmod +x helmfile
+
+            # Move Helmfile to a location in your PATH
+          sudo mv helmfile /usr/local/bin/helmfile
+
+          helm plugin install https://github.com/databus23/helm-diff
+
+            # Verify installation
+          helmfile --version        
+      - name: digit deployment
+        run: helmfile -f digit-helmfile.yaml apply --include-needs=true
+        working-directory: deploy-as-code 
+      - name: Displaying the Loadbalancer ID
+        run: |
+          LB_ID=$(kubectl get svc ingress-nginx-controller -n backbone -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          echo "LoadBalancer ID: $LB_ID"
+          echo "Thank you for installing DIGIT! 🙏 Your installation is complete and ready to roll! 🚀"
+          echo "Please map the LoadBalancer ID ($LB_ID) with the domain provided in input.yaml to access the DIGIT UI"
+        env:
+          AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_REGION:  ${{ secrets.AWS_REGION }}  
+  
+  # DIGIT-only-deployment:
+  #   if: ${{ needs.check-changed-files.outputs.deploy-as-code-changed == 'true' }}
+  #   runs-on: ubuntu-latest
+  #   env:
+  #     TF_IN_AUTOMATION: "true"
+  #     AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #     AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #     AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+  #     AWS_REGION:  ${{ secrets.AWS_REGION }}
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v2
+  #     - name: Deploying because changes were made in deploy-as-code
+  #       run: echo "Deploying because changes were made in deploy-as-code"
+  #     - name: Displaying the input parameters provided
+  #       run: cat input.yaml
+  #       working-directory: infra-as-code/terraform/sample-aws
+  #     - name: Display environment variables
+  #       run: |
+  #         echo "Cluster Name: $CLUSTER_NAME"  
+  #     - name: Change working directory
+  #       run: echo "This command is run in the current directory"
+  #       working-directory: infra-as-code/terraform/sample-aws/remote-state
+  #     - name: Updating different files based on parameters provided in input.yaml
+  #       run: go run init.go
+  #       working-directory: infra-as-code/terraform/scripts        
+
+  #     - name: Convert YAML to ENV
+  #       uses: dcarbone/yaml-to-env-action@main
+  #       with:
+  #         yaml-file: infra-as-code/terraform/sample-aws/input.yaml
+  #         debug: true # Optional: set to true to output some debug information
+  #     # Now, use the env vars in subsequent steps
+  #     - name: Install dependencies
+  #       run: sudo apt-get install -y jq
+  #     - name: Convert YAML to JSON
+  #       run: |
+  #         cat deploy-as-code/charts/environments/env-secrets.yaml | yq e -j - > secrets.json
+  #     - name: Extract flywayPassword
+  #       id: extract
+  #       run: |
+  #         db_password=$(jq -r '.secrets.db.password' secrets.json)
+  #         echo "db_password=$db_password" >> $GITHUB_ENV                
+  #     - name: Install AWS IAM Authenticator
+  #       run: |
+  #         curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
+  #         chmod +x ./aws-iam-authenticator
+  #         sudo mv ./aws-iam-authenticator /usr/local/bin/aws-iam-authenticator
+  #         aws-iam-authenticator version  
+  #     - name: Generate kubeconfig
+  #       run: |
+  #         aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name $CLUSTER_NAME
+  #         cat ~/.kube/config > kubeconfig
+  #     - name: creating namespace
+  #       run: kubectl create namespace egov
+  #       continue-on-error: true
+  #     - name: Verfiy kubectl get nodes
+  #       run: |
+  #         kubectl get nodes  
+  #       env:
+  #         AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+  #         AWS_REGION:  ${{ secrets.AWS_REGION }}   
+  #     - name: Install sops
+  #       run: |
+  #         sudo apt update
+  #         sudo apt install -y gnupg
+  #         wget https://github.com/mozilla/sops/releases/download/v3.7.1/sops-v3.7.1.linux
+  #         chmod +x sops-v3.7.1.linux
+  #         sudo mv sops-v3.7.1.linux /usr/local/bin/sops
+  #     # - name: Set up Helm
+  #     #   uses: azure/setup-helm@v1
+  #     #   with:
+  #     #     version: 'latest' # Specify the version of Helm
+
+  #     - name: Install Helmfile
+  #       run: |
+  #         HELMFILE_VERSION="v0.140.0"
+
+  #           # Download Helmfile
+  #         curl -L "https://github.com/roboll/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_linux_amd64" -o helmfile
+
+  #           # Make the Helmfile binary executable
+  #         chmod +x helmfile
+
+  #           # Move Helmfile to a location in your PATH
+  #         sudo mv helmfile /usr/local/bin/helmfile
+
+  #           # Verify installation
+  #         helmfile --version 
+          
+  #         helm plugin install https://github.com/databus23/helm-diff
+
+  #     - name: digit deployment
+  #       run: helmfile -f digit-helmfile.yaml apply
+  #       working-directory: deploy-as-code 
+  #     - name: Displaying the Loadbalancer ID
+  #       run: |
+  #         LB_ID=$(kubectl get svc ingress-nginx-controller -n backbone -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+  #         echo "LoadBalancer ID: $LB_ID"
+  #         echo "Thank you for installing DIGIT! 🙏 Your installation is complete and ready to roll! 🚀"
+  #         echo "Please map the LoadBalancer ID ($LB_ID) with the domain provided in input.yaml to access the DIGIT UI"
+  #       env:
+  #         AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+  #         AWS_REGION:  ${{ secrets.AWS_REGION }} 
+                   
+  terraform_infra_destruction:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.destroyCommand == 'destroy' }}
+    runs-on: ubuntu-latest
+    env:
+      TF_IN_AUTOMATION: "true"
+      AWS_ACCESS_KEY_ID:  ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY:  ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION:  ${{ secrets.AWS_DEFAULT_REGION }}
+      AWS_REGION:  ${{ secrets.AWS_REGION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Convert YAML to ENV
+        uses: dcarbone/yaml-to-env-action@main
+        with:
+          yaml-file: infra-as-code/terraform/sample-aws/input.yaml
+          debug: true # Optional: set to true to output some debug information
+      - name: Display environment variables
+        run: |
+          echo "Cluster Name: $CLUSTER_NAME"  
+      - name: Change working directory
+        run: echo "This command is run in the current directory"
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+      - name: Updating different files based on parameters provided in input.yaml
+        run: go run init.go
+        working-directory: infra-as-code/terraform/scripts
+      - name: Install AWS IAM Authenticator
+        run: |
+          curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
+          chmod +x ./aws-iam-authenticator
+          sudo mv ./aws-iam-authenticator /usr/local/bin/aws-iam-authenticator
+          aws-iam-authenticator version  
+      - name: Generate kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name $CLUSTER_NAME
+          cat ~/.kube/config > kubeconfig
+        continue-on-error: true
+      - name: Deleting Loadbalancer 
+        run: kubectl delete svc ingress-nginx-controller -n backbone   
+        continue-on-error: true
+      - name: Terraform Init - remotestate
+        run: terraform init
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+      - name: Terraform Validate - remotestate
+        run: terraform validate -no-color
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+      - name: Terraform Init - Infra destruction
+        run: terraform init
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Terraform Validate - Infra destruction
+        run: terraform validate -no-color
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Terraform Plan - Infra destruction
+        run: terraform plan -destroy -no-color -input=false -var db_password=demo123456
+        working-directory: infra-as-code/terraform/sample-aws
+      - name: Terraform Destroy - Infra destruction
+        run: terraform destroy -no-color -auto-approve -var db_password=demo123456
+        working-directory: infra-as-code/terraform/sample-aws

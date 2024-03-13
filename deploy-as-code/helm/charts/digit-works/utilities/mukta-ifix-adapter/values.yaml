@@ -30,7 +30,8 @@ healthChecks:
   readinessProbePath: "/mukta-ifix-adapter/health"
 appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx192m -Xms192m"
+heap: "-Xmx256m -Xms256m"
+memory_limits: 512Mi
 java-args: ""
 
 # Additional Container Envs
@@ -94,6 +95,11 @@ env: |
     value: redis.backbone
   - name: SPRING_REDIS_PORT
     value: "6379"
+  - name: EGOV_STATELEVEL_TENANTID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id
   {{- if index .Values "tracing-enabled" }}
   - name: TRACER_OPENTRACING_ENABLED
     value: "true" 
@@ -106,12 +112,32 @@ env: |
   - name: PAYMENT_CREATE_TOPIC
     value: {{ index .Values "payment-create-topic" | quote }}
   {{- end }}
+  {{- if index .Values "disburse-create-topic" }}
+  - name: DISBURSE_CREATE_TOPIC
+    value: {{ index .Values "disburse-create-topic" | quote }}
+  {{- end }}
+  {{- if index .Values "disburse-update-topic" }}
+  - name: DISBURSE_UPDATE_TOPIC
+    value: {{ index .Values "disburse-update-topic" | quote }}
+  {{- end }}
+  {{- if index .Values "ifms-pi-index-enrich-topic" }}
+  - name: IFMS_PI_INDEX_ENRICH_TOPIC
+    value: {{ index .Values "ifms-pi-index-enrich-topic" | quote }}
+  {{- end }}
   {{- if index .Values "egov-bill-search-limit" }}
   - name: EGOV_BILL_SEARCH_LIMIT
     value: {{ index .Values "egov-bill-search-limit" | quote }}
   {{- end }}
-  {{- if index .Values "disburse-create-topic" }}
-  - name: DISBURSE_CREATE_TOPIC
-    value: {{ index .Values "disburse-create-topic" | quote }}
+  {{- if index .Values "mukta-adapter-default-offset" }}
+  - name: MUKTA_ADAPTER_DEFAULT_OFFSET
+    value: {{ index .Values "mukta-adapter-default-offset" | quote }}
+  {{- end }}
+  {{- if index .Values "mukta-adapter-default-limit" }}
+  - name: MUKTA_ADAPTER_DEFAULT_LIMIT
+    value: {{ index .Values "mukta-adapter-default-limit" | quote }}
+  {{- end }}
+  {{- if index .Values "egov-system-user-username" }}
+  - name: EGOV_SYSTEM_USER_USERNAME
+    value: {{ index .Values "egov-system-user-username" | quote }}
   {{- end }}
   

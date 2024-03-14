@@ -1,0 +1,263 @@
+# Common Labels
+labels:
+  app: "home-isolation-chatbot"
+  group: "case-management"
+
+ingress:
+  enabled: false
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "egov_chatbot_schema"
+    image:
+      repository: "chatbot-db"
+    env: |
+      - name: "DB_URL"
+        value: {{ index .Values "db-url" | quote }}
+      - name: "SCHEMA_TABLE"
+        value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}              
+      - name: "FLYWAY_USER"
+        valueFrom: 
+          secretKeyRef: 
+              name: db
+              key: flyway-username
+      - name: "FLYWAY_PASSWORD"
+        valueFrom:
+          secretKeyRef: 
+              name: db
+              key: flyway-password
+      - name: "FLYWAY_LOCATIONS"
+        valueFrom: 
+          configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations     
+
+# Container Configs
+image:
+  repository: "chatbot"
+replicas: "1"
+tracing-enabled: true
+heap: "-Xmx384m -Xms256m"
+java-args: ""
+
+# Additional Container Envs
+env: |  
+  - name: SPRING_DATASOURCE_URL
+    value: {{ index .Values "db-url" | quote }}
+  - name: FLYWAY_ENABLED
+    value: "false"      
+  - name: APP_TIMEZONE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: timezone    
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: spring-datasource-tomcat-initialSize
+  - name: SERVER_TOMCAT_MAX_THREADS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: server-tomcat-max-threads
+  - name: SERVER_TOMCAT_MAX_CONNECTIONS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: server-tomcat-max-connections
+  - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: spring-datasource-tomcat-max-active  
+  - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+
+  - name: KAFKA_BOOTSTRAP_SERVER
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: EGOV_EXTERNAL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  - name: USER_SERVICE_CHATBOT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user-chatbot
+  - name: USER_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: MDMS_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: zuul
+  - name: EGOV_URLSHORTNER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  - name: LOCATION_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: zuul
+  - name: LOCALIZATION_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: zuul
+  - name: FILESTORE_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: zuul
+  - name: PGR_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: zuul
+  - name: SPRING_FLYWAY_ENABLED
+    value: "false"
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    value: "/whatsapp-webhook"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_OPTS
+    value: -Xmx384m -Xms256m
+  - name: JAVA_ARGS
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id
+  - name: USER_SERVICE_CHATBOT_CITIZEN_PASSWRORD
+    valueFrom:
+      secretKeyRef:
+        name: egov-user-chatbot
+        key: citizen-login-password-otp-fixed-value
+  - name: VALUEFIRST_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: chatbot
+        key: valuefirst-username
+  - name: VALUEFIRST_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: chatbot
+        key: valuefirst-password
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true"
+  - name: FLOW_RESET_KEYWORDS
+    value: "Hi,Hey,Hello,mseva,Start,missedCall"
+  - name: KAFKA_TOPICS_PARTITION_COUNT
+    value: {{ index .Values "kafka-topics-partition-count" | quote }}
+  - name: KAFKA_TOPICS_REPLICATION_FACTOR
+    value: {{ index .Values "kafka-topics-replication-factor" | quote }}
+  {{- if index .Values "kafka-consumer-poll-ms" }}
+  - name: KAFKA_CONSUMER_POLL_MS
+    value: {{ index .Values "kafka-consumer-poll-ms" | quote }}
+  {{- end }}
+  {{- if index .Values "kafka-producer-linger-ms" }}
+  - name: KAFKA_PRODUCER_LINGER_MS
+    value: {{ index .Values "kafka-producer-linger-ms" | quote }}
+  {{- end }}
+  {{- if index .Values "contact-card-whatsapp-number" }}
+  - name: CONTACT_CARD_WHATSAPP_NUMBER
+    value: {{ index .Values "contact-card-whatsapp-number" | quote }}
+  {{- end }}
+  {{- if index .Values "contact-card-whatsapp-name" }}
+  - name: CONTACT_CARD_WHATSAPP_NAME
+    value: {{ index .Values "contact-card-whatsapp-name" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-whatsapp-number" }}
+  - name: VALUEFIRST_WHATSAPP_NUMBER
+    value: {{ index .Values "valuefirst-whatsapp-number" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-notification-assigned-templateid" }}
+  - name: VALUEFIRST_NOTIFICATION_ASSIGNED_TEMPLATEID
+    value: {{ index .Values "valuefirst-notification-assigned-templateid" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-notification-resolved-templateid" }}
+  - name: VALUEFIRST_NOTIFICATION_RESOLVED_TEMPLATEID
+    value: {{ index .Values "valuefirst-notification-resolved-templateid" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-notification-rejected-templateid" }}
+  - name: VALUEFIRST_NOTIFICATION_REJECTED_TEMPLATEID
+    value: {{ index .Values "valuefirst-notification-rejected-templateid" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-notification-reassigned-templateid" }}
+  - name: VALUEFIRST_NOTIFICATION_REASSIGNED_TEMPLATEID
+    value: {{ index .Values "valuefirst-notification-reassigned-templateid" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-notification-commented-templateid" }}
+  - name: VALUEFIRST_NOTIFICATION_COMMENTED_TEMPLATEID
+    value: {{ index .Values "valuefirst-notification-commented-templateid" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-notification-welcome-templateid" }}
+  - name: VALUEFIRST_NOTIFICATION_WELCOME_TEMPLATEID
+    value: {{ index .Values "valuefirst-notification-welcome-templateid" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-notification-root-templateid" }}
+  - name: VALUEFIRST_NOTIFICATION_ROOT_TEMPLATEID
+    value: {{ index .Values "valuefirst-notification-root-templateid" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-send-message-url" }}
+  - name: VALUEFIRST_SEND_MESSAGE_URL
+    value: {{ index .Values "valuefirst-send-message-url" | quote }}
+  {{- end }}
+  {{- if index .Values "test-data-cleanup-enabled" }}
+  - name: TEST_DATA_CLEANUP_ENABLED
+    value: {{ index .Values "test-data-cleanup-enabled" | quote }}
+  - name: ELASTICSEARCH_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: es-indexer-host
+  - name: ELASTICSEARCH_CHATBOT_MESSAGES_INDEX_NAME
+    value: "chatbot-messages"
+  {{- end }}
+  {{- if index .Values "topic-name-prefix" }}
+  - name: TOPIC_NAME_PREFIX
+    value: {{ index .Values "topic-name-prefix" | quote }}
+  {{- end }}
+  {{- if index .Values "consumer-group-id-prefix" }}
+  - name: TOPIC_NAME_PREFIX
+    value: {{ index .Values "consumer-group-id-prefix" | quote }}
+  {{- end }}
+  - name: CASE_MANAGEMENT_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: case-management
+  - name: HOME_ISOLATION_USER_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user-enc

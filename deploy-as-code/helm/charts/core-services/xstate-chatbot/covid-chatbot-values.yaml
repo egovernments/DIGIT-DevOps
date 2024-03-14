@@ -1,0 +1,128 @@
+# Common Labels
+labels:
+  app: "covid-chatbot"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: false
+  context: "covid-chatbot"
+  ip-whitelist: "0.0.0.0/0"
+  additionalAnnotations: | 
+    nginx.ingress.kubernetes.io/whitelist-source-range: {{ index .Values "ingress" "ip-whitelist" | quote }}
+
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "xstate_chatbot_schema"
+    image:
+      repository: "xstate-chatbot-db"
+    env: |
+      - name: "DB_URL"
+        value: {{ index .Values "db-url" | quote }}
+      - name: "SCHEMA_TABLE"
+        value: {{ .Values.initContainers.dbMigration.schemaTable | quote }} 
+      - name: "FLYWAY_USER"
+        valueFrom: 
+          secretKeyRef: 
+              name: db
+              key: flyway-username
+      - name: "FLYWAY_PASSWORD"
+        valueFrom:
+          secretKeyRef: 
+              name: db
+              key: flyway-password
+      - name: "FLYWAY_LOCATIONS"
+        valueFrom: 
+          configMapKeyRef: 
+              name: egov-config
+              key: flyway-locations
+
+# Container Configs
+image:
+  repository: "xstate-chatbot"
+replicas: "1"
+tracing-enabled: true
+
+# Additional Container Envs
+env: |  
+  - name: KAFKA_BOOTSTRAP_SERVER
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: DB_HOST
+    value: {{ index .Values "db-host" | quote }}
+  - name: DB_NAME
+    value: {{ index .Values "db-name" | quote }}
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: EGOV_FILESTORE_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: zuul
+  - name: ROOT_TENANTID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id
+  - name: CHATBOT_TELEMETRY_TOPIC
+    value: "covid-chatbot-telemetry"
+  - name: CONTEXT_PATH
+    value: "/covid-chatbot"
+  - name: REPO_PROVIDER
+    value: PostgreSQL
+  - name: SERVICE_PROVIDER
+    value: Cova
+  - name: SERVICE_PORT
+    value: "8080"
+  - name: VALUEFIRST_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: covid-chatbot
+        key: valuefirst-username
+  - name: VALUEFIRST_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: covid-chatbot
+        key: valuefirst-password
+  - name: FLOW_RESET_KEYWORDS
+    value: "Hi,Hey,Hello,mseva,Start,missedCall"
+  {{- if index .Values "valuefirst-whatsapp-number" }}
+  - name: WHATSAPP_BUSINESS_NUMBER
+    value: {{ index .Values "valuefirst-whatsapp-number" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-send-message-url" }}
+  - name: VALUEFIRST_SEND_MESSAGE_URL
+    value: {{ index .Values "valuefirst-send-message-url" | quote }}
+  {{- end }}
+  {{- if index .Values "whatsapp-provider" }}
+  - name: WHATSAPP_PROVIDER
+    value: {{ index .Values "whatsapp-provider" | quote }}
+  {{- end }}
+  {{- if index .Values "valuefirst-welcome-message-templateid" }}
+  - name: VALUEFIRST_WELCOME_MESSAGE_TEMPLATE_ID
+    value: {{ index .Values "valuefirst-welcome-message-templateid" | quote }}
+  {{- end }}
+  
+  {{- if index .Values "cova-bearer-token" }}
+  - name: COVA_BEARER_TOKEN
+    value: {{ index .Values "cova-bearer-token" | quote }}
+  {{- end }} 
+  {{- if index .Values "cova-auth-token" }}
+  - name: COVA_AUTH_TOKEN
+    value: {{ index .Values "cova-auth-token" | quote }}
+  {{- end }}
+

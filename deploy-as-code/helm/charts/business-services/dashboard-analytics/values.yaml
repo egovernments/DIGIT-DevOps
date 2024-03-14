@@ -1,0 +1,82 @@
+# Common Labels
+labels:
+  app: "dashboard-analytics"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "dashboard-analytics"
+
+# Init Containers Configs
+initContainers:
+  gitSync:
+    enabled: true
+    repo: "git@github.com:egovernments/configs"
+    branch: "master"
+
+# Container Configs
+image:
+  repository: "dashboard-analytics"
+replicas: "1"
+tracing-enabled: true
+config-schema-paths: "file:///work-dir/configs/egov-dss-dashboards/dashboard-analytics/*.json"
+
+# Additional Container Envs
+env: |
+  - name: SPRING.DATASOURCE.URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password        
+  - name: SERVER_CONTEXT
+    value: "dashboard-analytics" 
+  - name: SERVER_PORT
+    value: "8080" 
+  - name: SERVICES_ESINDEXER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: es-indexer-host
+  - name: SERVICES_ESINDEXER_HOST_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: es-indexer-host  
+  - name: SERVICES_ESINDEXER_HOST_PORT
+    value: "9200"  
+  - name: ES_INDEX_NAME
+    value: "transaction"
+  - name: ES_DOCUMENT_TYPE
+    value: "transaction"
+  - name: TOP_PERFORMANCE_RECORD_COUNT
+    value: "5"
+  - name: EGOV_SERVICES_ESINDEXER_HOST_SEARCH
+    value: "/_search"
+  - name: CONFIG_SCHEMA_PATHS
+    value: {{ index .Values "config-schema-paths" | quote }}
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: EGOV_STATELEVEL_TENANTID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}

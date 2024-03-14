@@ -1,0 +1,133 @@
+# Common Labels
+labels:
+  app: "report"
+  group: "reportinfra"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "report"
+
+# Init Containers Configs
+initContainers:
+  gitSync:
+    enabled: true
+    repo: "git@github.com:egovernments/configs"
+    branch: "master"
+
+# Container Configs
+image:
+  repository: "report"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/report/health"
+  readinessProbePath: "/report/health"
+tracing-enabled: "true"
+report-locationsfile-path: "file:///work-dir/configs/reports/reportFileLocationsv1.txt"
+heap: "-Xmx384m -Xms256m"
+spring-datasource-tomcat-max-active: "5"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_CONTEXTPATH
+    value: /report
+  {{- if index .Values "report-locationsfile-path" }}
+  - name: REPORT_LOCATIONSFILE_PATH
+    value: {{ index .Values "report-locationsfile-path" | quote }}
+  {{- end }}
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: TRACER_OPENTRACING_ENABLED
+    value: {{ index .Values "tracing-enabled" | quote }}
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"  
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: EGOV_ENC_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-enc-service
+  - name: EGOV_STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id
+  - name: KAFKA_TOPIC_AUDIT
+    value: "enc-report-audit-data"         
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}
+  {{- if index .Values "cluster-configs" "configmaps" "egov-config" "data" "db-read-url" }}
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-read-url
+  {{- else if index .Values "cluster-configs" "configmaps" "egov-config" "data" "db-url" }}
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  {{- end }}         
+  - name: APP_TIMEZONE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: timezone       
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: spring-datasource-tomcat-initialSize
+  - name: SERVER_TOMCAT_MAX_THREADS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: server-tomcat-max-threads
+  - name: SERVER_TOMCAT_MAX_CONNECTIONS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: server-tomcat-max-connections
+  - name: SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: spring-datasource-tomcat-max-active  
+  - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: SPRING_JPA_SHOW_SQL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: spring-jpa-show-sql     

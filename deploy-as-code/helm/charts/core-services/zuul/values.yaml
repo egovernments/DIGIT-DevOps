@@ -1,0 +1,140 @@
+# Common Labels
+labels:
+  app: "zuul"
+  group: "gateway"
+
+serviceAccount: zuul
+namespace: egov  
+
+# Init Containers Configs
+initContainers: 
+  extraInitContainers: |
+    - name: "zuul-kubernetes-discovery"
+      image: "{{ .Values.global.containerRegistry }}/zuul-kubernetes-discovery:2-master-91c9795"      
+      env: 
+      - name: "OUTPUT_FILE_PATH"
+        value: "/etc/zuul/routes.properties" 
+      - name: "NAMESPACE"
+        value: "egov"         
+      volumeMounts:
+      - name: zuul-routes
+        mountPath: /etc/zuul
+
+extraVolumes: |
+  - name: zuul-routes
+    emptyDir: {}  
+
+extraVolumeMounts: |     
+  - name: zuul-routes
+    mountPath: "/etc/zuul"
+
+# Container Configs
+image:
+  repository: "zuul"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+custom-filter-property: "false"
+posthook-config: ""
+prehook-config: ""
+heap: "-Xmx640m -Xms512m"
+memory_limits: 768Mi
+appType: "java-spring"
+tracing-enabled: true
+server-tomcat-max-threads: "350"
+server-tomcat-max-connections: "1500"
+java-args: ""
+egov-open-endpoints-whitelist: "/user/oauth/token,/user-otp/v1/_send,/otp/v1/_validate,/user/citizen/_create,/localization/messages,/localization/messages/v1/_search,/user/password/nologin/_update,/tenant/v1/tenant/_search,/egov-location/boundarys,/egov-location/boundarys/boundariesByBndryTypeNameAndHierarchyTypeName,/egov-location/boundarys/getLocationByLocationName,/egov-mdms-service/v1/_search,/egov-location/location/v11/geography/_search,/filestore/v1/files/url,/pt-calculator-v2/billing-slab/_search,/egov-searcher/property-services/propertyopensearch/_get,/edcr/rest/dcr/downloadfile"  
+egov-mixed-mode-endpoints-whitelist: "/filestore/v1/files/id,/filestore/v1/files,/filestore/v1/files/tag,/user/_search,/access/v1/actions/mdms/_get,/tl-services/v1/_search,/tl-services/v1/BPAREG/_search,/tl-services/v1/BPAREG/_create,/tl-services/v1/BPAREG/_update,/tl-calculator/v1/BPAREG/_getbill,/bpa-services/bpa/appl/_search,/edcr/rest/dcr/scrutinize,/edcr/rest/dcr/scrutinydetails"
+eventlog-enabled: "false"
+eventlog-topic: "zuul-event-log"
+eventlog-urls-whitelist: ""
+home-isolation-chatbot-router-enabled: false
+
+# Additional Container Envs
+env: |
+  - name: URL_LISTS
+    value: "/pt-services-v2/property/_create:http://rainmaker-custom-service:8000/customization/protected/punjab-pt/property/_create|/pt-services-v2/property/_update:http://rainmaker-custom-service:8000/customization/protected/punjab-pt/property/_update|/pt-calculator-v2/propertytax/_estimate:http://rainmaker-custom-service:8000/customization/protected/punjab-pt/pt-calculator-v2/_estimate"
+  - name: CUSTOM_FILTER_PROPERTY
+    value: {{ index .Values "custom-filter-property" | quote }}
+  - name: CUSTOM_FILTER_POSTHOOKS
+    value: "true"
+  - name: CUSTOM_FILTER_PREHOOKS
+    value: "true"
+  - name: URL_POSTHOOK_LISTS
+    value: {{ index .Values "posthook-config" | quote }}
+  - name: URL_PREHOOK_LISTS        
+    value: {{ index .Values "prehook-config" | quote }}
+  - name: ZUUL_ROUTES_TL_CALCULATOR_URL
+    value: http://tl-calculator:8080/                                  
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: egov-api-gateway
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.springframework.kafka.support.serializer.JsonSerializer
+  - name: EGOV_CUSTOM_ASYNC_FILTER_TOPIC
+    value: res-custom-filter
+  - name: EGOV_OPEN_ENDPOINTS_WHITELIST
+    value: {{ index .Values "egov-open-endpoints-whitelist" | quote }}  
+  - name: EGOV_MIXED_MODE_ENDPOINTS_WHITELIST
+    value: {{ index .Values "egov-mixed-mode-endpoints-whitelist" | quote }}    
+  - name: EVENTLOG_ENABLED
+    value: {{ index .Values "eventlog-enabled" | quote }}   
+  - name: EVENTLOG_TOPIC
+    value: {{ index .Values "eventlog-topic" | quote }}   
+  - name: EVENTLOG_URLS_WHITELIST
+    value: {{ index .Values "eventlog-whitelist" | quote }}   
+  - name: EGOV_AUTHORIZE_ACCESS_CONTROL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-accesscontrol
+  - name: EGOV_AUTH_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user     
+  - name: ZUUL_HOST_CONNECT_TIMEOUT_MILLIS
+    value: "20000"
+  - name: ZUUL_HOST_SOCKET_TIMEOUT_MILLIS
+    value: "60000"
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true"
+  {{- end }}
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: EGOV_STATELEVEL_TENANT
+    valueFrom:
+      configMapKeyRef:
+        key: egov-state-level-tenant-id
+        name: egov-config    
+  - name: ZUUL_ROUTES_FILEPATH
+    value: "file:/etc/zuul/routes.properties"   
+  {{- if index .Values "home-isolation-chatbot-router-enabled" }}
+  - name: HOME_ISOLATION_CHATBOT_ROUTER_ENABLED
+    value: {{ index .Values "home-isolation-chatbot-router-enabled" | quote }}  
+  - name: CHATBOT_CONTEXT_PATH
+    value: "/whatsapp-webhook"
+  - name: EGOV_USER_ISOLATION_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user-enc
+  - name: HOME_ISOLATION_CHATBOT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: home-isolation-chatbot
+  {{- end }}

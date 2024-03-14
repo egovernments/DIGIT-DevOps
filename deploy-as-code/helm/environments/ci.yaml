@@ -1,0 +1,82 @@
+global:
+  domain: cicd.manipurpropertytax.org ## Add your Domain Name Eg: site.mydomain.com
+  setup: fullsetup
+  
+cluster-configs:
+  namespaces:
+    create: true
+    values: [ jenkins, cert-manager ]
+  root-ingress:
+    namespace: jenkins
+    serviceName: jenkins
+    servicePort: 8080
+    appRoot: ""
+    cert-issuer: "letsencrypt-prod"
+
+jenkins:
+  persistence:
+    enabled: true
+    aws:
+      - volumeId: "vol-0d2ce2e2ef19186b3" # Add volume id for jenkins-home
+        zone: ap-south-1b # Add respective availability_zones 
+
+  oauth:
+    enabled: true
+    acl:
+      admin:
+        - mnptdigit1*mnptteam # Add github team. Members of this team gets admin access on jenkins
+      user:                                 # Add github team. Members of this team gets login access on jenkins
+        - mnptdigit1*mnptteam-dev
+        - mnptdigit1*mnptteam-qa
+        - mnptdigit1*mnptteam-uat
+       
+
+  jobBuilder:    # Add jobBuilder repo's, add repo's ssh link
+    repos: >-
+      'https://github.com/mnptdigit1/UPYOG.git'
+  deploymentJobs:  # Setup deploymentJobs ACL 
+    - name: ci    # deployment job name
+      acl: [mnptdigit1*mnptteam-ci] # GitHub team name, Members of the team get access to deployment job
+    - name: qa
+      acl: [mnptdigit1*mnptteam-qa] 
+    - name: uat
+      acl: [mnptdigit1*mnptteam-uat] 
+    
+       
+  master:
+    ingress:
+      enabled: true
+    resources:
+      limits:
+        cpu: "2000m"
+        memory: "4096Mi"
+    javaOpts: "-Xms2560M -Xmx2560M -Duser.timezone=Asia/Calcutta"
+
+nginx-ingress:
+  replicas: 1
+  default-backend-service: "jenkins/jenkins"
+  namespace: jenkins
+  cert-issuer: "letsencrypt-staging"
+  ssl-protocols: "TLSv1.2 TLSv1.3"
+  ssl-ciphers: "EECDH+CHACHA20:EECDH+AES"
+  ssl-ecdh-curve: "X25519:prime256v1:secp521r1:secp384r1"
+  controller:
+    image:
+      repository: egovio/nginx-ingress-controller
+      tag: "0.26.1"
+
+cert-manager:
+  namespace: jenkins
+  clusterIssuer:
+    stage:
+      acme:
+        email: "mnptdigit@gmail.com"     # Add mail id
+
+cluster-autoscaler:
+  namespace: jenkins
+  cloudProvider: aws  
+  awsRegion: ap-south-1
+  autoDiscovery:
+    clusterName: mnptui-cicd # Add cluster name
+    tags:
+    - kubernetes.io/cluster/mnptui-cicd # Add cluster name

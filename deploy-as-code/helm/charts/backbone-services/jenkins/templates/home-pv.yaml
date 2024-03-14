@@ -1,0 +1,52 @@
+{{- if not (contains "jenkins-home" (quote .Values.persistence.volumes)) }}
+{{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) -}}
+{{- if or .Values.persistence.aws .Values.persistence.azure .Values.persistence.iscsi .Values.persistence.openstack -}}
+{{- $idx := 0 -}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ template "jenkins.fullname" . }}
+  labels:
+{{- include "common.labels" . | nindent 4 }} 
+{{- if .Values.persistence.aws }}   
+    failure-domain.beta.kubernetes.io/zone: {{ index .Values "persistence" "aws" $idx "zone" }}
+    topology.kubernetes.io/zone: {{ index .Values "persistence" "aws" $idx "zone" }}
+{{- end }}     
+spec:
+ capacity:
+    storage: {{ .Values.persistence.size | quote }}
+ accessModes:
+    - ReadWriteOnce
+ persistentVolumeReclaimPolicy: Retain
+ claimRef:
+    namespace: {{ template "jenkins.namespace" . }} 
+    name: {{ template "jenkins.fullname" . }}
+{{- if .Values.persistence.aws }}
+ awsElasticBlockStore:
+    volumeID: {{ index .Values "persistence" "aws" $idx "volumeId" }}
+    fsType: ext4
+{{- end }} 
+{{- if .Values.persistence.azure }}
+ azureDisk:
+    cachingMode: ReadWrite
+    diskName: {{ index .Values "persistence" "azure" $idx "diskName" }}
+    diskURI: {{ index .Values "persistence" "azure" $idx "diskUri" }}
+    kind: Managed
+    fsType: ext4 
+{{- end }}     
+{{- if .Values.persistence.openstack }}
+ cinder: 
+    fsType: "ext4" 
+    volumeID: {{ index .Values "persistence" "openstack" $idx }}
+{{- end }}  
+{{- if .Values.persistence.iscsi }}
+ iscsi:
+   targetPortal: {{ index .Values "persistence" "iscsi" "targetPortal" }} 
+   iqn: {{ index .Values "persistence" "iscsi" "iqn" $idx }}
+   lun: 0
+   fsType: 'ext4'
+   readOnly: true  
+{{- end }}     
+{{- end }}
+{{- end }}
+{{- end }}

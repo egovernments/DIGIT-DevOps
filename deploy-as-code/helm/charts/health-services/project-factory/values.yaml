@@ -1,0 +1,153 @@
+# Common Labels
+labels:
+  app: "project-factory"
+  group: "rainmaker"
+
+namespace: health
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "project-factory"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "project_factory_health_schema"
+    image:
+      repository: "project-factory-db"
+
+
+# Container Configs
+image:
+  repository: "project-factory"
+replicas: "1"
+
+# Additional Container Envs
+env: |
+  - name: KAFKA_BROKER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers 
+  - name: KAFKA_SAVE_CAMPAIGN_DETAILS_TOPIC
+    value: save-campaign-details
+  - name: KAFKA_UPDATE_CAMPAIGN_DETAILS_TOPIC
+    value: update-campaign-details
+
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service                 
+  - name: EGOV_FILESTORE_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-filestore
+  - name: EGOV_IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-idgen
+  - name: EGOV_FACILITY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: facility
+  - name: EGOV_BOUNDARY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: boundary-service
+  - name: EGOV_PROJECT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: project
+  - name: EGOV_USER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: EGOV_PRODUCT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: product
+
+  - name: CONTEXT_PATH
+    value: "/project-factory"   
+
+  - name: EGOV_MDMS_SEARCH_ENDPOINT
+    value: egov-mdms-service/v2/_search
+  - name: FILE_STORE_SERVICE_END_POINT
+    value: filestore/v1/files  
+  - name: EGOV_IDGEN_PATH
+    value: egov-idgen/id/_generate
+
+  - name: CMP_IDGEN_FORMAT
+    value: CMP-[cy:yyyy-MM-dd]-[SEQ_EG_CMP_ID]
+  - name: CMP_IDGEN_IDNAME
+    value: campaign.number
+    
+  - name: EGOV_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  
+  - name: "DB_URL"
+  {{- if eq .Values.namespace "health" }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: health-db-url
+  {{- else }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  {{- end }}
+  - name: "SCHEMA_TABLE"
+    value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+  - name: "FLYWAY_USER"
+    valueFrom:
+      secretKeyRef:
+          name: db
+          key: flyway-username
+  - name: "FLYWAY_PASSWORD"
+    valueFrom:
+      secretKeyRef: 
+          name: db
+          key: flyway-password
+  - name: "FLYWAY_LOCATIONS"
+    valueFrom: 
+      configMapKeyRef: 
+          name: egov-config
+          key: flyway-locations
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password   
+  - name: DB_PORT
+    value: "5432"           

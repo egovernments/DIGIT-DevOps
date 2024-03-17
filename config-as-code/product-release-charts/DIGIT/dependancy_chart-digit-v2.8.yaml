@@ -1,0 +1,60 @@
+version: v2.7
+modules:
+    - name: backbone
+      services:
+        - kafka-kraft
+        - elasticsearch-master
+        - elasticsearch-data
+        - kibana
+    - name: authn-authz
+      services:
+        - redis
+        - ingress-nginx
+        - cert-manager    
+    - name: core
+      dependencies:
+        - "backbone"
+        - "authn-authz"    
+      services:
+        - egovio/audit-service:core-2.9-lts-mvn-check-c33cfe45ab-9
+        - egovio/egov-accesscontrol:core-2.9-lts-mvn-check-34362a8b87-9
+        - egovio/egov-enc-service:core-2.9-lts-mvn-check-c607f2d4de-20
+        - egovio/egov-filestore:core-2.9-lts-mvn-check-17b905d01d-13
+        - egovio/egov-idgen:core-2.9-lts-mvn-check-c33cfe45ab-7
+        - egovio/egov-indexer:core-2.9-lts-mvn-check-5f0cc52126-55
+        - egovio/egov-localization:core-2.9-lts-mvn-check-59c2e5ea5b-9
+        - egovio/egov-location:core-2.9-lts-mvn-check-c33cfe45ab-9
+        - egovio/egov-mdms-service:core-2.9-lts-mvn-check-c33cfe45ab-12
+        - egovio/egov-notification-mail:core-2.9-lts-mvn-check-c33cfe45ab-4
+        - egovio/egov-notification-sms:core-2.9-lts-mvn-check-c33cfe45ab-6
+        - egovio/egov-otp:core-2.9-lts-mvn-check-72333e5530-5
+        - egovio/egov-persister:core-2.9-lts-mvn-check-c33cfe45ab-7
+        - egovio/egov-pg-service:core-2.9-lts-mvn-check-421601fcdf-10
+        - egovio/egov-searcher:v1.1.5-72f8a8f87b-16
+        - egovio/egov-url-shortening:core-2.9-lts-mvn-check-ecf5d0a880-11
+        - egovio/egov-user-event:core-2.9-lts-mvn-check-57ef3ac8dd-4
+        - egovio/egov-user:core-2.9-lts-mvn-check-c33cfe45ab-18
+        - egovio/egov-workflow-v2:core-2.9-lts-mvn-check-07ed8e9a49-12
+        - egovio/user-otp:core-2.9-lts-mvn-check-15fe7099b6-7
+        - egovio/service-request:core-2.9-lts-mvn-check-bbc06901f1-6
+        - egovio/gateway:core-2.9-lts-mvn-check-3b9d5c6ad1-20
+        - egovio/playground:1.0
+    - name: business
+      dependencies:
+        - "core"
+      services:
+        - egovio/egov-hrms:core-2.9-lts-mvn-check-4553648f56-8
+    - name: "frontend"             
+      dependencies:
+        - "business"
+      services:
+        - egovio/citizen:v1.10.0-beta-0ad561e837-30
+        - egovio/digit-ui:v1.5.0-dc44c10a7b-739
+        - egovio/employee:v1.10.0-beta-e7a69e05d3-33  
+    - name: m_pgr             #PGR
+      dependencies:
+        - "core"
+        - "business"
+        - "frontend"
+      services:
+        - egovio/pgr-services:core-digit-2.9-lts-pgr-02df4964cb-3

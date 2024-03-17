@@ -5,7 +5,7 @@
 
 variable "cluster_name" {
   description = "Name of the Kubernetes cluster"
-  default = "my-first-eks" #REPLACE
+  default = "digit-go-eks" #REPLACE
 }
 
 variable "vpc_cidr_block" {
@@ -26,12 +26,12 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.22"
+  default = "1.28"
 }
 
 variable "instance_type" {
   description = "eGov recommended below instance type as a default"
-  default = "m4.xlarge"
+  default = "r5ad.large"
 }
 
 variable "override_instance_types" {
@@ -47,32 +47,32 @@ variable "number_of_worker_nodes" {
 
 variable "ssh_key_name" {
   description = "ssh key name, not required if your using spot instance types"
-  default = "my-first-eks" #REPLACE
+  default = "digit-go-eks" #REPLACE
 }
 
 
 variable "db_name" {
   description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
-  default = "digitdb" #REPLACE
+  default = "digitgodb" #REPLACE
 }
 
 variable "db_username" {
   description = "RDS database user name"
-  default = "egovdemo" #REPLACE
+  default = "digitdemo" #REPLACE
 }
 
 #DO NOT fill in here. This will be asked at runtime
 variable "db_password" {}
 
 variable "public_key" {
-  default = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCrfbaDFN3FmjUoVUx4YH1eHPruFbWz6JGPfSKTwIqT75xFzU/Q6KCa3Xa6FnEOpcUKXej95pkeUnXywohojF6FrNak5p5xfGmmwC8UA9s5UxsI7flBKVnjsAbcRuxoa/AtOzg4Cizz6zQLl2JZAivZU1PwZjIJo8dcum9bjZYVHwZc3csKJ2nYgpcQrV8AWnfKtLvl5WNfNF0i5bWOieNLKiEc5DtsKYbQ6umrhhCaoGcH0S/Gy6w0PPSnnfl/AWXO7ckFtEXQbdz9Y15zeUFKgUsbklXxmC6D37BkPGu+IjCZSOttPV+PRM0Dnf0jQLvMV0UhEkguD9ALC5xikqNlFyPH5bGetWDxtLbn61tnoOIYG6lXAdk2Oe35yWWt3ZgcccWtYuRwDo0ofBwY9jWOkEcCefDyYg+S7h1VzNsbB9DsFv0vPcaxHcZK8bLdyhnz1+9rXy/flbiS5kE0O97aZ4zm4wAmqiivN2wWhUez18k2Mcs= demo@demo" 
+  default = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCOan8WhMbiSs2GEON8aEcqiqERa2z4PQVa5btMFgw6SpYyTHtQiUrpvQVi0wMUab4UGPLB+82RzMK11oPZ6jxsfKi+X23q7IS09fHo7nTGrlfMHClDoFqJ4nwB5L+nDfGn/y4a8gns4DCtI2BcstXal207G6r6h3o0mIxDPJp0FsSuvQcRBbZfQeEWSjZH7xtp+uomhAHM/wniTj/Iu/KtVogDzhMj6pYRjus4ZUqUvjEJK4v+cXJv9vEbRYhTIz0GPRplA//xUSoHQhVHBFC+hN4VzVNr8kPPxKje4N0/VV8/wu3eLf63sjT5ca/3E6BxNeDkwHliA3B1ylTQaSJX" 
   description = "ssh key"
 }
 
 ## change ssh key_name eg. digit-quickstart_your-name
 
 variable "key_name" {
-  default = "digit-quickstart"  
+  default = "digit-go-ssh"  
   description = "ssh key name"
 }
 

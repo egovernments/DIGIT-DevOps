@@ -7,7 +7,7 @@ metadata:
   labels: {{ include "kibana.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade,post-delete
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
     {{- if .Values.annotations }}
     {{- range $key, $value := .Values.annotations }}
     {{ $key }}: {{ $value | quote }}
@@ -111,46 +111,56 @@ data:
     }
 
     function createEsToken() {
-      // Chaining requests
-      console.log('Cleaning previous token');
-      // 404 status code is accepted if there is no previous token to clean
-      return requestPromise(esUrl, esTokenDeleteOptions, {extraStatusCode: 404}).then(() => {
-        console.log('Creating new token');
-        return requestPromise(esUrl, esTokenCreateOptions).then(response => {
-          const body = JSON.parse(response);
-          const token = body.token.value
-
-          // Encode the token in base64
-          const base64Token = Buffer.from(token, 'utf8').toString('base64');
-
-          // Prepare the k8s secret
-          const secretData = JSON.stringify({
-            "apiVersion": "v1",
-            "kind": "Secret",
-            "metadata": {
-              "namespace": "{{ .Values.namespace }}",
-              "name": "{{ template "kibana.fullname" . }}-es-token",
-            },
-            "type": "Opaque",
-            "data": {
-              "token": base64Token,
-            }
+      // Check if the K8S secret exists
+      console.log('Checking if K8S secret exists');
+      return requestPromise(k8sDeleteSecretUrl, { method: 'GET', ca: k8sCa, headers: { 'Authorization': 'Bearer ' + k8sBearer } })
+          .then(() => {
+              console.log('K8S secret already exists, deleting...');
+              // If the secret exists, delete it
+              return requestPromise(k8sDeleteSecretUrl, secretDeleteOptions);
           })
+          .catch(error => {
+              if (error.includes('404')) {
+                  console.log('K8S secret does not exist');
+                  // If the secret does not exist, simply log
+              } else {
+                  // If there's an error other than 404, reject the promise
+                  throw error;
+              }
+          })
+          .then(() => {
+              console.log('Cleaning Elasticsearch token');
+              // Clean the Elasticsearch token
+              return requestPromise(esUrl, esTokenDeleteOptions, {extraStatusCode: 404});
+          })
+          .then(() => {
+              // After cleaning, proceed to create token and secret
+              console.log('Creating new token');
+              return requestPromise(esUrl, esTokenCreateOptions).then(response => {
+                  const body = JSON.parse(response);
+                  const token = body.token.value
 
-          // Create the k8s secret
-          console.log('Creating K8S secret');
-          return requestPromise(k8sPostSecretUrl, secretCreateOptions, {payload: secretData})
-        });
-      });
-    }
+                  // Encode the token in base64 
+                  const base64Token = Buffer.from(token, 'utf8').toString('base64');
 
-    function cleanEsToken() {
-      // Chaining requests
-      console.log('Cleaning token');
-      return requestPromise(esUrl, esTokenDeleteOptions).then(() => {
-        // Create the k8s secret
-        console.log('Delete K8S secret');
-        return requestPromise(k8sDeleteSecretUrl, secretDeleteOptions)
+                  // Prepare the k8s secret
+                  const secretData = JSON.stringify({
+                      "apiVersion": "v1",
+                      "kind": "Secret",
+                      "metadata": {
+                          "namespace": "{{ .Values.namespace }}",
+                          "name": "{{ template "kibana.fullname" . }}-es-token",
+                      },
+                      "type": "Opaque",
+                      "data": {
+                          "token": base64Token,
+                      }
+                  })
+
+                  // Create the k8s secret
+                  console.log('Creating K8S secret');
+                  return requestPromise(k8sPostSecretUrl, secretCreateOptions, { payload: secretData })
+          });
       });
     }
 

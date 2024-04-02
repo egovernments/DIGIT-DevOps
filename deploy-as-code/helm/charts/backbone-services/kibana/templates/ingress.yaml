@@ -1,59 +1,55 @@
 {{- if .Values.ingress.enabled -}}
-{{- $fullName := include "kibana.fullname" . -}}
-{{- $httpPort := .Values.httpPort -}}
-{{- $pathtype := .Values.ingress.pathtype -}}
-{{- $ingressPath := .Values.ingress.path -}}
-apiVersion: networking.k8s.io/v1
+---
+apiVersion: networking.k8s.io/v1 
 kind: Ingress
 metadata:
-  name: {{ $fullName }}
-  namespace: {{ .Values.namespace }}
-  labels: {{ include "kibana.labels" . | nindent 4 }}
-{{- with .Values.ingress.annotations }}
+  name: {{ template "kibana.fullname" . }}
+{{- if .Values.global.namespace }}
+  namespace: {{ .Values.global.namespace }}
+{{- else if .Values.ingress.namespace }}
+  namespace: {{ .Values.ingress.namespace }}    
+{{- else }}  
+  namespace: {{ .Values.namespace }}  
+{{- end }}     
   annotations:
-{{ toYaml . | indent 4 }}
-{{- end }}
+{{- toYaml .Values.ingress.annotations | nindent 4 }}   
+{{- if .Values.ingress.additionalAnnotations }}                                   
+  {{- tpl  .Values.ingress.additionalAnnotations . | nindent 4 }}
+{{- end }} 
+  labels:
+{{ include "kibana.labels" . | nindent 4 }}                           
 spec:
-{{- if .Values.ingress.tls }}
-  tls:
-  {{- if .ingressPath }}
-  {{- range .Values.ingress.tls }}
-  - hosts:
-    {{- range .hosts }}
-      - {{ . }}
-    {{- end }}
-    secretName: {{ .secretName }}
-  {{- end }}
-{{- else }}
-{{ toYaml .Values.ingress.tls | indent 4 }}
-  {{- end }}
-{{- end }}
   rules:
-  {{- range .Values.ingress.hosts }}
-    {{- if $ingressPath }}
-  - host: {{ . }}
+{{- if .Values.ingress.host }}   
+  {{- tpl  .Values.ingress.host . | nindent 2 }}
+{{- else if .Values.ingress.hostName }} 
+  - host: {{ .Values.ingress.hostName }}
+{{- else }}  
+  - host: {{ .Values.global.domain }}
+{{- end }}  
     http:
       paths:
-      - path: {{ $ingressPath }}
-        pathType: {{ $pathtype }}
-        backend:
+      - backend:
           service:
-            name: {{ $fullName }}
-            port: 
-              number: {{ $httpPort }}
-  {{- else }}
-  - host: {{ .host }}
-    http:
-      paths:
-      {{- range .paths }}
-      - path: {{ .path }}
-        pathType: {{ $pathtype }}
-        backend:
-          service:
-            name: {{ $fullName }}
+            name: {{ template "kibana.fullname" . }}
             port:
-              number: {{ .servicePort | default $httpPort }}
-      {{- end }}
-  {{- end }}
- {{- end }}
- {{- end }}
+              number: {{ .Values.ingress.servicePort | default .Values.httpPort }}            
+        path: /{{ .Values.ingress.context }}
+        pathType: Prefix
+{{- if ne .Values.global.setup "quickstart" }}        
+  tls:
+{{- if .Values.ingress.tls }}
+  {{- tpl  .Values.ingress.tls . | nindent 2 }}
+{{- else }} 
+{{- if .Values.ingress.hostName }}
+  - hosts: 
+    - {{ .Values.ingress.hostName }}
+    secretName: {{ .Values.ingress.hostName }}-tls-certs  
+{{- else }}      
+  - hosts:
+    - {{ .Values.global.domain }}
+    secretName: {{ .Values.global.domain }}-tls-certs 
+{{- end }} 
+{{- end }} 
+{{- end }}
+{{- end -}} 

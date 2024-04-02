@@ -64,7 +64,7 @@ spec:
             - ALL
           runAsNonRoot: true
           runAsUser: 1000
-        image: "map[tag:]:8.11.3"
+        image: "docker.elastic.co/kibana/kibana:8.11.3"
         imagePullPolicy: "IfNotPresent"
         env:
           - name: ELASTICSEARCH_HOSTS
@@ -138,15 +138,11 @@ spec:
             readOnly: true
 ---
 # Source: kibana/templates/ingress.yaml
-apiVersion: networking.k8s.io/v1
+apiVersion: networking.k8s.io/v1 
 kind: Ingress
 metadata:
-  name: release-name-kibana
-  namespace: backbone
-  labels: 
-    app: kibana
-    release: "release-name"
-    heritage: Helm
+  name: release-name-kibana  
+  namespace: backbone     
   annotations:
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/limit-rpm: "1200"
@@ -155,23 +151,28 @@ metadata:
     nginx.ingress.kubernetes.io/lua-resty-waf-debug: "true"
     nginx.ingress.kubernetes.io/lua-resty-waf-process-multipart-body: "false"
     nginx.ingress.kubernetes.io/lua-resty-waf-score-threshold: "10"
-    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true" 
+  labels:
+
+    app: kibana
+    release: "release-name"
+    heritage: Helm                           
 spec:
-  tls:
-    - hosts:
-      - digit-go.digit.org
-      secretName: digit-go.digit.org-tls-certs
-  rules:
-  - host: digit-go.digit.org
+  rules:  
+  - host: jimmy-go.digit.org  
     http:
       paths:
-      - path: /kibana
-        pathType: ImplementationSpecific
-        backend:
+      - backend:
           service:
             name: release-name-kibana
             port:
-              number: 5601
+              number: 5601            
+        path: /kibana
+        pathType: Prefix        
+  tls:      
+  - hosts:
+    - jimmy-go.digit.org
+    secretName: jimmy-go.digit.org-tls-certs
 ---
 # Source: kibana/templates/pre-install-serviceaccount.yaml
 apiVersion: v1
@@ -433,12 +434,13 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 20
+  ttlSecondsAfterFinished: 100
   template:
     spec:
       restartPolicy: Never
       containers:
         - name: create-kibana-token
-          image: "map[tag:]:8.11.3"
+          image: "docker.elastic.co/kibana/kibana:8.11.3"
           imagePullPolicy: "IfNotPresent"
           command: ["/usr/share/kibana/node/bin/node"]
           args:

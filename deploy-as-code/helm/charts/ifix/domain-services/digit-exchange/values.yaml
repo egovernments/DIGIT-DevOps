@@ -10,7 +10,7 @@ ingress:
   namespace: egov
   enabled: true
   zuul: true
-  context: "digit-exchange"
+  context: "ifms/digit-exchange"
 
 # Init Containers Configs
 initContainers:
@@ -26,8 +26,8 @@ image:
 replicas: "1"
 healthChecks:
   enabled: true
-  livenessProbePath: "/digit-exchange/health"
-  readinessProbePath: "/digit-exchange/health"
+  livenessProbePath: "/ifms/digit-exchange/health"
+  readinessProbePath: "/ifms/digit-exchange/health"
 appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
@@ -46,19 +46,19 @@ env: |
     value: "true" 
   {{- end }}
   - name: SERVER_CONTEXT_PATH
-    value: /digit-exchange
+    value: /ifms/digit-exchange
   - name: SERVER_SERVLET_CONTEXT-PATH
-    value: /digit-exchange
+    value: /ifms/digit-exchange
   - name: KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: kafka-brokers
-  - name: APP_DOMAIN
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: egov-services-fqdn-name
+  # - name: APP_DOMAIN
+  #   valueFrom:
+  #     configMapKeyRef:
+  #       name: egov-config
+  #       key: egov-services-fqdn-name
   {{- if index .Values "java-enable-debug" }}
   - name: JAVA_ENABLE_DEBUG
     value: "true"
@@ -98,5 +98,21 @@ env: |
   {{- if index .Values "app-auth-public-key" }}
   - name: APP_AUTH_PUBLIC_KEY
     value: {{ index .Values "app-auth-public-key" | quote }} 
+  {{- end }}
+  {{- if index .Values "service-host-url" }}
+  - name: SERVICE_HOST_URL
+    value: {{ index .Values "service-host-url" | quote }} 
+  {{- end }}
+  - name: "DB_URL"
+  {{- if eq .Values.namespace "ifix" }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: ifix-db-url
+  {{- else }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
   {{- end }}
 

@@ -167,12 +167,13 @@ cluster-configs:
         product: "http://product:8080/"
         facility: "http://facility:8080/"
         measurement: "http://measurement-service.works:8080/"
-        ifms-adapter: "http://ifms-adapter.works:8080/"
         measurement-service: "http://measurement-service.works:8080/"
         measurement-registry: "http://measurement-registry.works:8080/"
         mukta-services: "http://mukta-services.works:8080/"
-        program-service: "http://program-service.ifix:8080/"
+        program-service: "http://program-service-works.works:8080/"
+        digit-exchange: "http://digit-exchange-works.works:8080/"
         mukta-ifix-adapter: "http://mukta-ifix-adapter.works:8080/"
+        ifix-program-service: "http://program-service.ifix:8080/"
 employee:
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
   custom-js-injection: |
@@ -232,6 +233,7 @@ contract-service:
 expense-calculator:
   tracing-enabled: true
   java-enable-debug: true
+  expense-sor-migration-mapping: '{"UNSKILLED.CARPENTER":"SOR_000016", "SKILLED.CARPENTER":"SOR_000015"}'
 
 expenses-billing:
   tracing-enabled: true
@@ -286,7 +288,9 @@ mukta-ifix-adapter:
   payment-create-topic: expense-payment-create
   disburse-create-topic: mukta-ifix-adapter-disburse-create
   disburse-update-topic: mukta-ifix-adapter-disburse-update
-  ifms-pi-index-enrich-topic: ifms-pi-index-enrich
+  ifms-pi-index-enrich-topic: mukta-ifix-pi-index-enrich
+  program-service-disbursement-create-endpoint: "/mukta/program-service/v1/disburse/_create"
+  mukta-adapter-encryption-key: DisbursementEncrypt
 
 expense:
   tracing-enabled: true
@@ -304,6 +308,12 @@ ifms-adapter:
   ifms-jit-authenticate-endpoint: "/webservices/jitfs/v1.0/authenticate"
   ifms-jit-service-endpoint: "/webservices/jitfs/v1.0/get-jit-service-data"
   egov-bill-search-limit: 10
+  program-onsanction-create-endpoint: "/ifms/program-service/v1/on-sanction/_create"
+  program-onallocation-create-endpoint: "/ifms/program-service/v1/on-allocation/_create"
+  program-program-search-endpoint: "/ifms/program-service/v1/program/_search"
+  program-ondisburse-create-endpoint: "/ifms/program-service/v1/on-disburse/_update"
+  program-disburse-search-endpoint: "/ifms/program-service/v1/disburse/_search"
+
 
 ifms-cronjob-pa:
   user-name: "IFMS_CRONJOB"
@@ -311,24 +321,31 @@ ifms-cronjob-pa:
 
 ifms-cronjob-va:
   user-name: "IFMS_CRONJOB"
+  ifms-scheduler-path: "ifms-adapter/_scheduler"
 
 ifms-cronjob-pis:
   user-name: "IFMS_CRONJOB"
+  ifms-scheduler-path: "ifms-adapter/_scheduler"
 
 ifms-cronjob-pag:
   user-name: "IFMS_CRONJOB"
+  ifms-scheduler-path: "ifms-adapter/_scheduler"
 
 ifms-cronjob-pd:
   user-name: "IFMS_CRONJOB"
+  ifms-scheduler-path: "ifms-adapter/_scheduler"
 
 ifms-cronjob-fd:
   user-name: "IFMS_CRONJOB"
+  ifms-scheduler-path: "ifms-adapter/_scheduler"
 
 ifms-cronjob-ftps:
   user-name: "IFMS_CRONJOB"
+  ifms-scheduler-path: "ifms-adapter/_scheduler"
 
 ifms-cronjob-ftfps:
   user-name: "IFMS_CRONJOB"
+  ifms-scheduler-path: "ifms-adapter/_scheduler"
 
 works-management-service:
   heap: "-Xmx512m -Xms512m"
@@ -898,3 +915,38 @@ es-curator:
   jaeger-cleanup-enabled: "true"
   logs-to-retain: "7"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+#=================ifix service======================
+program-service-works:
+  tracing-enabled: true
+  java-enable-debug: true
+  heap: "-Xmx256m -Xms256m"
+  memory_limits: 512Mi
+  egov-idgen-idname: "ifix.program.number"
+  adapter-host: "http://mukta-ifix-adapter.works:8080/"
+  adapter-path: "mukta-ifix-adapter/v1/"
+  search-default-limit: 20
+  is-program-async: true
+  is-sanction-async: false
+  is-allocation-async: false
+  is-disburse-async: true
+  exchange-path: "mukta/digit-exchange/v1/exchange/"
+  exchange-service-external-url: "https://unified-dev.digit.org/mukta/digit-exchange"
+  program-kafka-topic: "works-ps-program-kafka-topic"
+  sanction-kafka-topic: "works-ps-sanction-kafka-topic"
+  allocation-kafka-topic: "works-ps-allocation-kafka-topic"
+  disburse-kafka-topic: "works-ps-disburse-kafka-topic"
+  error-queue: "works-ps-error-queue"
+
+digit-exchange-works:
+  tracing-enabled: true
+  java-enable-debug: true
+  app-enable-events-log: true
+  app-auth-sign-validation: true
+  app-auth-private-key: "-----BEGIN PRIVATE KEY-----MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC3c2rfkAFPnpeu0YdTsR1A04zHPWCkwGR6Cwb6gJBVAOPL3h8VqWhAbuUhfqFFfQY2dqzY9vXUgKsGC/SWAc4YEx/YG2R1z4yu8kt5rFDJsWvRLfQidKsIPoh51HUYl+kTLSvOhhqjEoWgSAsrZrtEMxl+Dl+rUeRJ1YWYFS9sKMuNVKhC5whQmx3v1zkKDi3Etp3fXyxv0nkwBx89aMIEPgZ/G70GEqRnPJY4Ec/U2281te4c0loJsdU9smYtS73Oa+pw34TFB2xtQB2Lx1Fb3oCapm+UJ0hQppywxU0k4xV6aI++8m2zNs/VT0hnP0BBOe2a6Pefgcyq+t3NPuwFAgMBAAECggEAHWBLkGIwe43zTyi5SWMWwp89r1f6RleSn2JtqyZ0NlBuqeI3SxI2If9ADMWI0KZNHOKTGiktw2oZON4oO+8tD/jcBBCa3SyvpAIjqOe5hhq1n6kCq5PQIYFV/GBToe0NgyccGTWrRUq9gCWZOEl6mliub9ugYUA7VMFu46Qc1G5MV0LJ3q22y9xjQjDYQjQyWB97OBVahDTHhthcg5pRP8kBqXf+ab+qkAc4gerOg2ivISl6Sm6yiZUQ62woTfoZvrX4nE7gtA+8zU6k1Yaej71r7KcwG3yaLQwbGx83jtUdSp0Xx7tBPjx6B5ok2pvcswizTaitOZZ0a5zm6neVzwKBgQDpFi6zIDv5YW8oPeK0haG7rM6HkikRY2ms0iwAIKuvn/4pxF2mblrROBC2CRmWyuu9qUWi3i3QjOA9KWtWnzLCPt634bPSZC0Lv9hoLBKE5/v154IP96DuGBbSSWV78spdc089m4yCkOazP7C9xe4hpRP1E/X7vPBmdOaNY0RIywKBgQDJfBv3E1WuTxI4sMs+o+eiAc9kbuKXXqInjB8S3hM/DdQUbuLs+JVo9P9kk7uCLZt5J28NDhl4GafbOSWWR0KwxjAwRYnbNwTsc8z2ophRG/VIzFzKMhDCK9I/Y/zlbdhEgXLP1Mz4bcgib+DCZnYz5WF4mQBBx2Bz+tfwXeqUbwKBgQC0EaUGUVLD+Bft2NF5cPtfh8MOTUZY3ppXHw9LEfJQ/aNXFRLcbsjOdSfD2gfgzOeOYGUhy89NHGhoF8WK5/ZIxlU9baqEUUvTleRTpiiwcJ/ge3epaj7zcby/vGAgf5MC2wBOsgq9G8B+niemlHDBoUxnu4H/dxmprYonlJa+PQKBgQCf7oDwNYu8ag1nrIYYOdhik5dA/HemebqzM5lyy45xbZObiI1eVs+aWWbkOhQL+BHCMJgIv9ldqNfBvvHkALqiQR79IiWUOW8SFbVrTJMlRtEDsRwyb104E7q3ELIsl22kqzAsYpk01UeYdj/tb5GCDiC5rpEypYUdas6/gHz0xwKBgHfLURs5XYYPXPnA6ARW9Wo/gPERIHi2vAkJ6xtj6PBldg4ZPeIyylFCtH7WJ5Pjyioqow8ItUh3C2KQX62AbMFKmYeYl0n1hc4Oc0DsfBAc7bR8V/BiMTpJc2o8/OnICV6S5xXjMC9WgodAtPwuj6dpMIIJA3zpO+AXaeHkolzn-----END PRIVATE KEY-----"
+  app-auth-public-key: "-----BEGIN PUBLIC KEY-----MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt3Nq35ABT56XrtGHU7EdQNOMxz1gpMBkegsG+oCQVQDjy94fFaloQG7lIX6hRX0GNnas2Pb11ICrBgv0lgHOGBMf2Btkdc+MrvJLeaxQybFr0S30InSrCD6IedR1GJfpEy0rzoYaoxKFoEgLK2a7RDMZfg5fq1HkSdWFmBUvbCjLjVSoQucIUJsd79c5Cg4txLad318sb9J5MAcfPWjCBD4Gfxu9BhKkZzyWOBHP1NtvNbXuHNJaCbHVPbJmLUu9zmvqcN+ExQdsbUAdi8dRW96AmqZvlCdIUKacsMVNJOMVemiPvvJtszbP1U9IZz9AQTntmuj3n4HMqvrdzT7sBQIDAQAB-----END PUBLIC KEY-----"
+  app-receiver-endpoints: '{"program":"http://program-service-works.works:8080/mukta/program-service/v1/"}'
+  service-host-url: "https://unified-dev.digit.org/mukta/digit-exchange"
+  app-exchange-topic-name: "works-dx-exchange-topic"
+  app-error-topic-name: "works-dx-exchange-error-queue"
+  app-events-log-topic-name: "works-dx-exchange-event-log-queue"

@@ -10,7 +10,7 @@ ingress:
   namespace: egov
   enabled: true
   zuul: true
-  context: "program-service"
+  context: "ifms/program-service"
 
 # Init Containers Configs
 initContainers:
@@ -26,8 +26,8 @@ image:
 replicas: "1"
 healthChecks:
   enabled: true
-  livenessProbePath: "/program-service/health"
-  readinessProbePath: "/program-service/health"
+  livenessProbePath: "/ifms/program-service/health"
+  readinessProbePath: "/ifms/program-service/health"
 appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
@@ -46,7 +46,7 @@ env: |
     value: "true" 
   {{- end }}
   - name: SERVER_SERVLET_CONTEXT-PATH
-    value: /program-service
+    value: /ifms/program-service
   {{- if index .Values "java-enable-debug" }}
   - name: JAVA_ENABLE_DEBUG
     value: "true"
@@ -58,11 +58,11 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: kafka-brokers
-  - name: PROGRAM_DOMAIN
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: egov-services-fqdn-name
+  # - name: PROGRAM_DOMAIN
+  #   valueFrom:
+  #     configMapKeyRef:
+  #       name: egov-config
+  #       key: egov-services-fqdn-name
   - name: EXCHANGE_HOST
     valueFrom:
       configMapKeyRef:
@@ -119,3 +119,56 @@ env: |
   - name: SEARCH_MAX_LIMIT
     value: {{ index .Values "search-max-limit" | quote }} 
   {{- end }}
+  - name: "DB_URL"
+  {{- if eq .Values.namespace "ifix" }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: ifix-db-url
+  {{- else }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  {{- end }}
+  {{- if index .Values "exchange-service-external-url" }}
+  - name: EXCHANGE_SERVICE_EXTERNAL_URL
+    value: {{ index .Values "exchange-service-external-url" | quote }} 
+  {{- end }}
+  {{- if index .Values "program-kafka-topic" }}
+  - name: PROGRAM_KAFKA_TOPIC
+    value: {{ index .Values "program-kafka-topic" | quote }} 
+  {{- end }}
+  {{- if index .Values "sanction-kafka-topic" }}
+  - name: SANCTION_KAFKA_TOPIC
+    value: {{ index .Values "sanction-kafka-topic" | quote }} 
+  {{- end }}
+  {{- if index .Values "allocation-kafka-topic" }}
+  - name: ALLOCATION_KAFKA_TOPIC
+    value: {{ index .Values "allocation-kafka-topic" | quote }} 
+  {{- end }}
+  {{- if index .Values "disburse-kafka-topic" }}
+  - name: DISBURSE_KAFKA_TOPIC
+    value: {{ index .Values "disburse-kafka-topic" | quote }} 
+  {{- end }}
+  {{- if index .Values "error-queue" }}
+  - name: ERROR_QUEUE
+    value: {{ index .Values "error-queue" | quote }} 
+  {{- end }}
+  - name: EGOV_PROGRAM_SERVICE_HOST
+  {{- if eq .Values.namespace "ifix" }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: program-service
+  {{- else }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: works-program-service
+  {{- end }}
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service

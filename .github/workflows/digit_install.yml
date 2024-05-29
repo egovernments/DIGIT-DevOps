@@ -57,6 +57,20 @@ jobs:
       - name: Change working directory
         run: echo "This command is run in the current directory"
         working-directory: infra-as-code/terraform/sample-aws/remote-state
+      - name: Display environment variables
+        run: |
+          echo "terraform_state_bucket_name: $TERRAFORM_STATE_BUCKET_NAME"  
+      - name: Change working directory
+        run: echo "This command is run in the current directory"
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+      - name: Check if S3 bucket exists
+        run: |
+          if aws s3 ls "s3://$TERRAFORM_STATE_BUCKET_NAME" 2>&1 | grep -q 'NoSuchBucket'; then
+            echo "Error: Bucket does not exist."
+            exit 1
+          else
+            echo "Bucket exists.Please make the bucket name unique in input.yaml"
+          fi        
       - name: Updating different files based on parameters provided in input.yaml
         run: go run init.go
         working-directory: infra-as-code/terraform/scripts

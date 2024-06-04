@@ -30,8 +30,9 @@ healthChecks:
   readinessProbePath: "/health-project/health"
 appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx192m -Xms192m"
+heap: "-Xmx384m -Xms384m"
 java-args: ""
+egov-mdms-service-host-key: "egov-mdms-service"
 
 # Additional Container Envs
 env: |
@@ -117,7 +118,7 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-mdms-service
+        key: {{ index .Values "egov-mdms-service-host-key" | quote }}
   - name: EGOV_MDMS_SEARCH_ENDPOINT
     value: "/egov-mdms-service/v1/_search"
   - name: EGOV_MDMS_INTEGRATION_ENABLED
@@ -188,9 +189,9 @@ env: |
   - name: PROJECT.DOCUMENT.ID.VERIFICATION.REQUIRED
     value: "false"
   - name: PROJECT.MANAGEMENT.SYSTEM.KAFKA.CREATE.TOPIC
-    value: "save-project"
+    value: "save-project-health"
   - name: PROJECT.MANAGEMENT.SYSTEM.KAFKA.UPDATE.TOPIC
-    value: "update-project"
+    value: "update-project-health"
   {{- if index .Values "project-default-offset" }}
   - name: PROJECT.DEFAULT.OFFSET
     value: {{ index .Values "project-default-offset" | quote }} 
@@ -231,6 +232,8 @@ env: |
     value: "create-project-facility-bulk-health-topic"
   - name: PROJECT.FACILITY.CONSUMER.BULK.UPDATE.TOPIC
     value: "update-project-facility-bulk-health-topic"
+  - name: PROJECT.STAFF.ATTENDANCE.TOPIC
+    value: "project-staff-attendance-health-topic"
   - name: EGOV.USER.ID.VALIDATOR
     value: egov-user
   - name: EGOV_FACILITY_HOST
@@ -246,3 +249,12 @@ env: |
     value: "ADMIN"
   - name: EGOV_LOCATION_CODE_QUERY_PARAM
     value: "code"
+  - name: EGOV_BOUNDARY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: boundary-service
+  - name: EGOV_BOUNDARY_SEARCH_URL
+    value: "/boundary-service/boundary/_search"
+  - name: EGOV_BOUNDARY_HIERARCHY_NAME
+    value: "HCM-Moz-Hierarchy"

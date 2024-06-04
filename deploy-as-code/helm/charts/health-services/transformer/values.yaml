@@ -30,9 +30,10 @@ healthChecks:
   readinessProbePath: "/transformer/health"
 appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx1024m -Xms192m"
+heap: "-Xmx1024m -Xms384m"
 java-args: ""
 memory_limits: "1Gi"
+egov-mdms-service-host-key: "egov-mdms-service"
 # Additional Container Envs
 env: |
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
@@ -64,26 +65,32 @@ env: |
   {{- end }}
   
   - name: TRANSFORMER_CONSUMER_BULK_CREATE_PROJECT_TASK_TOPIC
-    value: "save-project-task-topic"
+    value: "save-project-task-health-topic"
   - name: TRANSFORMER_CONSUMER_BULK_UPDATE_PROJECT_TASK_TOPIC
-    value: "update-project-task-topic"
+    value: "update-project-task-health-topic"
   - name: TRANSFORMER_PRODUCER_BULK_PROJECT_TASK_INDEX_V1_TOPIC
     value: "transformer-producer-bulk-project-task-index-v1-topic"
   
   - name: TRANSFORMER_CONSUMER_BULK_CREATE_PROJECT_STAFF_TOPIC
-    value: "save-project-staff-topic"
+    value: "save-project-staff-health-topic"
   - name: TRANSFORMER_CONSUMER_BULK_UPDATE_PROJECT_STAFF_TOPIC
-    value: "update-project-staff-topic"
+    value: "update-project-staff-health-topic"
   - name: TRANSFORMER_PRODUCER_BULK_PROJECT_STAFF_INDEX_V1_TOPIC
     value: "transformer-producer-bulk-project-staff-index-v1-topic"
   
   - name: TRANSFORMER_PRODUCER_BULK_PROJECT_INDEX_V1_TOPIC
     value: "transformer-producer-bulk-project-index-v1-topic"
+  - name: TRANSFORMER_CONSUMER_CREATE_HOUSEHOLD_TOPIC
+    value: "save-household-health-topic"
+  - name: TRANSFORMER_CONSUMER_UPDATE_HOUSEHOLD_TOPIC
+    value: "update-household-health-topic"
+  - name: TRANSFORMER_PRODUCER_BULK_HOUSEHOLD_INDEX_V1_TOPIC
+    value: "transformer-producer-amp-household-index-v1-topic"
   - name: TRANSFORMER_CONSUMER_CREATE_PROJECT_TOPIC
-    value: "save-project"
+    value: "save-project-health"
 
   - name: TRANSFORMER_CONSUMER_UPDATE_PROJECT_TOPIC
-    value: "update-project"
+    value: "update-project-health"
   - name: EGOV_PROJECT_HOST
     valueFrom:
       configMapKeyRef:
@@ -100,7 +107,7 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-mdms-service
+        key: {{ index .Values "egov-mdms-service-host-key" | quote }}
   - name: EGOV_MDMS_SEARCH_ENDPOINT
     value: "/egov-mdms-service/v1/_search"
   - name: PROJECT_MDMS_MODULE
@@ -110,9 +117,9 @@ env: |
     value: "/egov-location/location/v11/boundarys/_search"
   
   - name: TRANSFORMER_CONSUMER_BULK_CREATE_STOCK_TOPIC
-    value: "save-stock-topic"
+    value: "save-stock-health-topic"
   - name: TRANSFORMER_CONSUMER_BULK_UPDATE_STOCK_TOPIC
-    value: "update-stock-topic"
+    value: "update-stock-health-topic"
   - name: TRANSFORMER_PRODUCER_BULK_STOCK_INDEX_V1_TOPIC
     value: "transformer-producer-bulk-stock-index-v1-topic"
   - name: EGOV_FACILITY_HOST
@@ -123,9 +130,9 @@ env: |
   - name: EGOV_SEARCH_FACILITY_URL
     value: "/facility/v1/_search"
   - name: TRANSFORMER_CONSUMER_CREATE_FACILITY_TOPIC
-    value: "save-facility-topic"
+    value: "save-facility-health-topic"
   - name: TRANSFORMER_CONSUMER_UPDATE_FACILITY_TOPIC
-    value: "update-facility-topic"
+    value: "update-facility-health-topic"
   - name: BOUNDARY_LABEL_NAME_PROVINCE
     value: "Provincia"
   - name: BOUNDARY_LABEL_NAME_DISTRICT
@@ -147,3 +154,22 @@ env: |
     value: "save-service"
   - name: TRANSFORMER_PRODUCER_SERVICE_TASK_INDEX_V1_TOPIC
     value: "transformer-producer-service-request-index-v1-topic"
+  - name: EGOV_BOUNDARY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: boundary-service
+  - name: EGOV_BOUNDARY_SEARCH_URL
+    value: "/boundary-service/boundary/_search"
+  - name: EGOV_BOUNDARY_RELATIONSHIP_SEARCH_URL
+    value: "/boundary-service/boundary-relationships/_search"
+  - name: EGOV_BOUNDARY_HIERARCHY_NAME
+    value: "HCM-Moz-Hierarchy"
+  - name: SPRING_REDIS_HOST
+    value: redis.backbone
+  - name: SPRING_REDIS_PORT
+    value: "6379"
+  - name: SPRING_CACHE_TYPE
+    value: "redis"
+  - name: SPRING_CACHE_REDIS_TIME-TO-LIVE
+    value: "60"

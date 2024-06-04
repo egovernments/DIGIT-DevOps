@@ -32,6 +32,7 @@ appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx192m -Xms192m"
 java-args: ""
+egov-mdms-service-host-key: "egov-mdms-service"
 
 # Additional Container Envs
 env: |
@@ -55,12 +56,26 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-mdms-service
+        key:  {{ index .Values "egov-mdms-service-host-key" | quote }}
   - name: WORKS_INDIVIDUAL_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: individual
+        key: health-individual
+  - name: EGOV_HRMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: health-hrms
+  - name: EGOV_HRMS_SEARCH_ENDPOINT
+    value: health-hrms/employees/_search
+  - name: EGOV_PROJECT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: health-project
+  - name: EGOV_PROJECT_STAFF_SEARCH_ENDPOINT
+    value: health-project/staff/v1/_search
   {{- if index .Values "java-enable-debug" }}
   - name: JAVA_ENABLE_DEBUG
     value: "true"
@@ -86,6 +101,26 @@ env: |
     value: "save-attendee-health"
   - name: ATTENDANCE_ATTENDEE_KAFKA_UPDATE_TOPIC
     value: "update-attendee-health"
+   - name: WORKS_INDIVIDUAL_SEARCH_ENDPOINT
+    value: health-individual/v1/_search
+  - name: PROJECT.STAFF.ATTENDANCE.TOPIC
+    value: "project-staff-attendance-health-topic"
+  - name: SPRING_REDIS_HOST
+    value: redis.backbone
+  - name: SPRING_REDIS_PORT
+    value: "6379"
+  - name: SPRING_CACHE_TYPE
+    value: redis
+  - name: SPRING_CACHE_REDIS_TIME-TO-LIVE
+    value: "60"
+  - name: SPRING_CACHE_AUTOEXPIRY
+    value: "true"
+  - name: ATTENDANCE_REGISTER_DEFAULT_LIMIT
+    value: "20"
+  - name: ATTENDANCE_REGISTER_FIRST_STAFF_INSERT_ENABLED
+    value: "false"
+  - name: ATTENDANCE_REGISTER_OPEN_SEARCH_ENABLED_ROLES
+    value: SUPERUSER,EMPLOYEE,DISTRICT_SUPERVISOR,SYSTEM_ADMINISTRATOR,NATIONAL_SUPERVISOR,DISTRIBUTOR
   {{- if index .Values "attendance-register-default-offset" }}
   - name: ATTENDANCE_REGISTER_DEFAULT_OFFSET
     value: {{ index .Values "attendance-register-default-offset" | quote }} 
@@ -113,10 +148,6 @@ env: |
   {{- if index .Values "attendance-register-open-search-enabled-roles" }}
   - name: ATTENDANCE_REGISTER_OPEN_SEARCH_ENABLED_ROLES
     value: {{ index .Values "attendance-register-open-search-enabled-roles" | quote }} 
-  {{- end }}
-  {{- if index .Values "works-individual-search-endpoint" }}
-  - name: WORKS_INDIVIDUAL_SEARCH_ENDPOINT
-    value: {{ index .Values "works-individual-search-endpoint" | quote }}
   {{- end }}
   {{- if index .Values "organisation-contact-details-update-topic" }}
   - name: ORGANISATION_CONTACT_DETAILS_UPDATE_TOPIC

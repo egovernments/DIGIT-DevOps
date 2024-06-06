@@ -32,16 +32,16 @@ releases:
   values:
   - ./values/prometheus.yaml
 
-- name: jaeger-tracing
-  installed: true
-  namespace: backbone
+- name: jaeger
+  installed: false
+  namespace: es-cluster
   chart: jaegertracing/jaeger
-  version: 1.0.0 
+  version: 0.35.0
   values:
   - ./values/jaeger.yaml
-  - storage:
-      elasticsearch:
-        password: {{ .Values.secrets.elasticsearch.password }}
+  # - storage:
+  #     elasticsearch:
+  #       password: {{ .Values.secrets.elasticsearch.password }}
   set:
     - name: query.ingress.hosts[0]
       value: "{{ .Values.global.domain }}"
@@ -53,8 +53,19 @@ releases:
   version: 7.3.0
   values:
   - ./values/grafana.yaml
+  - envRenderSecret:
+      GF_AUTH_GITHUB_CLIENT_ID: {{ .Values.secrets.oauth2.clientID }}
+      GF_AUTH_GITHUB_CLIENT_SECRET: {{ .Values.secrets.oauth2.clientSecret }}
   set:
     - name: ingress.hosts[0]
       value: "{{ .Values.global.domain }}"
     - name: ingress.tls[0].hosts[0]
       value: {{ .Values.global.domain | quote }}
+
+- name: blackbox
+  installed: false
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: prometheus-community/prometheus-blackbox-exporter
+  version: 8.2.0
+  values:
+  - ./values/blackbox-exporter.yaml     

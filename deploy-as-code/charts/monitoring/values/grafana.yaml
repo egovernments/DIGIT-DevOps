@@ -254,17 +254,17 @@ ingress:
   ingressClassName: nginx
   # Values can be templated
   #annotations: {}
-  annotations: 
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
-    nginx.ingress.kubernetes.io/use-regex: "true"
+  # annotations: 
+  #   nginx.ingress.kubernetes.io/rewrite-target: /$2
+  #   nginx.ingress.kubernetes.io/use-regex: "true"
   labels: {}
-  path: /monitoring(/|$)(.*)
+  path: /monitoring
 
   # pathType is only for k8s >= 1.1=
   pathType: Prefix
 
   hosts:
-    - ""
+    - "unified-uat.digit.org"
   ## Extra paths to prepend to every host configuration. This is useful when working with annotation based services.
   extraPaths:
   # - path: /*
@@ -790,6 +790,9 @@ dashboards:
     Loki-Logs:
       url: https://raw.githubusercontent.com/egovernments/configs/master/monitoring-dashboards/loki.json
       token: ''       
+    BlackBox:
+      url: https://raw.githubusercontent.com/egovernments/configs/master/monitoring-dashboards/blackbox.json
+      token: ''      
         
       
 
@@ -826,19 +829,18 @@ grafana.ini:
   # server:
       # The full public facing url you use in browser, used for redirects and emails
     root_url: "https://{{- if and .Values.ingress.enabled .Values.ingress.hosts -}}{{ .Values.ingress.hosts | first }}{{ end }}/monitoring"
-    # serve_from_sub_path: true
- # https://grafana.com/docs/grafana/latest/auth/github/#enable-github-in-grafana
- # auth.github:
- #    enabled: false
- #    allow_sign_up: false
- #    scopes: user:email,read:org
- #    auth_url: https://github.com/login/oauth/authorize
- #    token_url: https://github.com/login/oauth/access_token
- #    api_url: https://api.github.com/user
- #    team_ids:
- #    allowed_organizations:
- #    client_id:
- #    client_secret:
+    serve_from_sub_path: true
+  auth.github:
+      enabled: true
+      allow_sign_up: true
+      allow_assign_grafana_admin: false
+      auto_login: false
+      scopes: user:email,read:org
+      role_attribute_path: contains(groups[*], '@egovernments/micro-service-uat') && 'Editor' || 'Viewer'
+      role_attribute_strict: false
+      auth_url: https://github.com/login/oauth/authorize
+      token_url: https://github.com/login/oauth/access_token
+      api_url: https://api.github.com/user
 ## LDAP Authentication can be enabled with the following values on grafana.ini
 ## NOTE: Grafana will fail to start if the value for ldap.toml is invalid
   # auth.ldap:

@@ -39,39 +39,39 @@ defaultRules:
   create: true
   rules:
     alertmanager: true
-    etcd: true
-    configReloaders: true
-    general: true
-    k8sContainerCpuUsageSecondsTotal: true
-    k8sContainerMemoryCache: true
-    k8sContainerMemoryRss: true
-    k8sContainerMemorySwap: true
-    k8sContainerResource: true
-    k8sContainerMemoryWorkingSetBytes: true
-    k8sPodOwner: true
-    kubeApiserverAvailability: true
-    kubeApiserverBurnrate: true
-    kubeApiserverHistogram: true
-    kubeApiserverSlos: true
-    kubeControllerManager: true
-    kubelet: true
-    kubeProxy: true
-    kubePrometheusGeneral: true
-    kubePrometheusNodeRecording: true
+    etcd: false
+    configReloaders: false
+    general: false
+    k8sContainerCpuUsageSecondsTotal: false
+    k8sContainerMemoryCache: false
+    k8sContainerMemoryRss: false
+    k8sContainerMemorySwap: false
+    k8sContainerResource: false
+    k8sContainerMemoryWorkingSetBytes: false
+    k8sPodOwner: false
+    kubeApiserverAvailability: false
+    kubeApiserverBurnrate: false
+    kubeApiserverHistogram: false
+    kubeApiserverSlos: false
+    kubeControllerManager: false
+    kubelet: false
+    kubeProxy: false
+    kubePrometheusGeneral: false
+    kubePrometheusNodeRecording: false
     kubernetesApps: true
-    kubernetesResources: true
-    kubernetesStorage: true
-    kubernetesSystem: true
-    kubeSchedulerAlerting: true
-    kubeSchedulerRecording: true
-    kubeStateMetrics: true
-    network: true
-    node: true
-    nodeExporterAlerting: true
-    nodeExporterRecording: true
-    prometheus: true
-    prometheusOperator: true
-    windows: true
+    kubernetesResources: false
+    kubernetesStorage: false
+    kubernetesSystem: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    kubeStateMetrics: false
+    network: false
+    node: false
+    nodeExporterAlerting: false
+    nodeExporterRecording: false
+    prometheus: false
+    prometheusOperator: false
+    windows: false
 
   ## Reduce app namespace alert scope
   appNamespacesTarget: ".*"
@@ -172,13 +172,112 @@ defaultRules:
 
 ## Deprecated way to provide custom recording or alerting rules to be deployed into the cluster.
 ##
-# additionalPrometheusRules: []
-#  - name: my-rule-file
-#    groups:
-#      - name: my_group
-#        rules:
-#        - record: my_record
-#          expr: 100 * my_record
+additionalPrometheusRules: 
+ - name: podalerts
+   groups:
+     - name: SSLCertificateAlerts
+       rules:
+       - alert: SSLCertificateExpiring
+         expr: probe_ssl_earliest_cert_expiry{job="blackbox", instance="prometheus-blackbox-exporter:9115"} - time() < 2*24*3600
+         for: 1m
+         labels:
+           severity: warning
+           repeat_interval: 30m
+       - alert: KubernetesContainerOomKiller
+         expr: '(kube_pod_container_status_restarts_total - kube_pod_container_status_restarts_total offset 10m >= 1) and ignoring (reason) min_over_time(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[10m]) == 1'
+         for: 1m
+         labels:
+           severity: warning
+         annotations:
+           summary: Kubernetes container oom killer ({{ $labels.namespace }}/{{ $labels.pod }}:{{ $labels.container }})
+           description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} has been OOMKilled {{ $value }} times in the last 10 minutes.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+           repeat_interval: 30m
+       - alert: KubernetesPodNotHealthy
+         expr: 'sum by (namespace, pod) (kube_pod_status_phase{phase=~"Pending|Unknown|Failed"}) > 0'
+         for: 10m
+         labels:
+           severity: critical
+         annotations:
+           summary: Kubernetes Pod not healthy ({{ $labels.namespace }}/{{ $labels.pod }})
+           description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in a non-running state for longer than 15 minutes.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+           repeat_interval: 30m
+      #  - alert: PodCrashLooping
+      #    expr: max_over_time(kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff", job="{{ $kubeStateMetricsJob }}", namespace=~"{{ $targetNamespace }}"}[1m]) >= 1
+      #    for: 1m
+      #    labels:
+      #      severity: critcal
+      #      repeat_interval: 30m
+ - name: nodealerts
+   groups:
+     - name: KubernetesNodeNotReady
+       rules:
+       - alert: KubernetesNodeNotReady
+         expr: 'kube_node_status_condition{condition="Ready",status="true"} == 0'
+         for: 5m
+         labels:
+           severity: critical
+         annotations:
+           summary: Kubernetes Node ready (node {{ $labels.node }})
+           description: "Node {{ $labels.node }} has been unready for a long time\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+           repeat_interval: 30m
+       - alert: KubernetesNodeMemoryPressure
+         expr: 'kube_node_status_condition{condition="MemoryPressure",status="true"} == 1'
+         for: 2m
+         labels:
+           severity: critical
+         annotations:
+           summary: Kubernetes memory pressure (node {{ $labels.node }})
+           description: "Node {{ $labels.node }} has MemoryPressure condition\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+           repeat_interval: 30m
+       - alert: KubernetesNodeDiskPressure
+         expr: 'kube_node_status_condition{condition="DiskPressure",status="true"} == 1'
+         for: 2m
+         labels:
+           severity: critical
+         annotations:
+           summary: Kubernetes disk pressure (node {{ $labels.node }})
+           description: "Node {{ $labels.node }} has DiskPressure condition\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+           repeat_interval: 30m
+       - alert: KubernetesNodeNetworkUnavailable
+         expr: 'kube_node_status_condition{condition="NetworkUnavailable",status="true"} == 1'
+         for: 2m
+         labels:
+           severity: critical
+         annotations:
+           summary: Kubernetes Node network unavailable (instance {{ $labels.instance }})
+           description: "Node {{ $labels.node }} has NetworkUnavailable condition\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+           repeat_interval: 30m
+ - name: volumealerts
+   groups:
+     - name: KubernetesPersistentvolume
+       rules:
+       - alert: KubernetesVolumeOutOfDiskSpace
+         expr: 'kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes * 100 < 10'
+         for: 2m
+         labels:
+           severity: warning
+         annotations:
+           summary: Kubernetes Volume out of disk space (instance {{ $labels.instance }})
+           description: "Volume is almost full (< 10% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+           repeat_interval: 30m
+       - alert: KubernetesVolumeFullInFourDays
+         expr: 'predict_linear(kubelet_volume_stats_available_bytes[6h:5m], 4 * 24 * 3600) < 0'
+         for: 1m
+         labels:
+           severity: critical
+         annotations:
+           summary: Kubernetes Volume full in four days (instance {{ $labels.instance }})
+           description: "Volume under {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is expected to fill up within four days. Currently {{ $value | humanize }}% is available.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+           repeat_interval: 30m
+       - alert: KubernetesPersistentvolumeError
+         expr: 'kube_persistentvolume_status_phase{phase=~"Failed|Pending", job="kube-state-metrics"} > 0'
+         for: 1m
+         labels:
+           severity: critical
+         annotations:
+           summary: Kubernetes PersistentVolumeClaim pending ({{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }})
+           description: "Persistent volume {{ $labels.persistentvolume }} is in bad state\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+           repeat_interval: 30m
 
 ## Provide custom recording or alerting rules to be deployed into the cluster.
 ##
@@ -291,44 +390,83 @@ alertmanager:
   ##
   config:
     global:
+      slack_api_url: https://hooks.slack.com/services/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
       resolve_timeout: 5m
-    inhibit_rules:
-      - source_matchers:
-          - 'severity = critical'
-        target_matchers:
-          - 'severity =~ warning|info'
-        equal:
-          - 'namespace'
-          - 'alertname'
-      - source_matchers:
-          - 'severity = warning'
-        target_matchers:
-          - 'severity = info'
-        equal:
-          - 'namespace'
-          - 'alertname'
-      - source_matchers:
-          - 'alertname = InfoInhibitor'
-        target_matchers:
-          - 'severity = info'
-        equal:
-          - 'namespace'
-      - target_matchers:
-          - 'alertname = InfoInhibitor'
     route:
-      group_by: ['namespace']
+      group_by: ['alertname']
+      receiver: default
       group_wait: 30s
       group_interval: 5m
-      repeat_interval: 12h
-      receiver: 'null'
+      repeat_interval: 30m
       routes:
-      - receiver: 'null'
-        matchers:
-          - alertname = "Watchdog"
+      - receiver: slack-notification
+        match:
+          severity: warning
+        continue: true  
+      - receiver: slack-notification
+        match:
+          severity: critical
+        continue: true
+      - receiver: email-notification
+        match:
+          severity: critical
+        continue: true
+      - receiver: email-notification
+        match:
+          severity: warning
+        continue: true
+
     receivers:
-    - name: 'null'
-    templates:
-    - '/etc/alertmanager/config/*.tmpl'
+    - name: default
+    
+    - name: slack-notification
+      slack_configs:
+        - channel: '#unified-uat-alerts'
+          send_resolved: true
+          username: 'Alertmanager'
+          title: |
+            [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}
+          text: |
+            {{ range .Alerts -}}
+            *Alert:* {{ .Annotations.title }}{{ if .Labels.severity }} - `{{ .Labels.severity }}`{{ end }}
+            {{- "\n" -}}
+            *Details:*
+            {{- "\n" -}}
+            - *alertname:* `{{ .Labels.alertname }}`
+            - *pod:* `{{ .Labels.pod }}`
+            - *namespace:* `{{ .Labels.namespace }}`
+            {{ end }}
+
+    - name: email-notification
+      email_configs:
+        - to: 'unified-alerts@egovernments.org'
+          from: 'unified.alerts@example.com'
+          smarthost: 'smtp.gmail.com:587'
+          auth_username: 'unified.alerts@egovernments.org'
+          auth_password: 'mujp cgjj fwxa whyd'
+          send_resolved: true 
+          headers:
+            subject: |
+              [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.cluster }} - {{ .CommonLabels.alertname }}
+          html: |
+            <html>
+            <head>
+            <title>Alert!</title>
+            </head>
+            <body>
+            {{ range .Alerts.Firing }}
+            <ul>
+            <li> <b>Alert Name:</b> {{ .Labels.alertname }} </li>
+            {{ if .Labels.pod }}<li> <b>Pod:-</b> {{ .Labels.pod }} </li>{{ end }}
+            {{ if .Labels.persistentvolumeclaim }}<li> <b>PVC:-</b> {{ .Labels.persistentvolumeclaim }} </li>{{ end }}
+            <li> <b>Severity:</b> {{ if eq .Labels.severity "critical" }}<b style="color:red;">CRITICAL</b>{{ else if eq .Labels.severity "warning" }}<b style="color:orange;">WARNING</b>{{ else }}<b>{{ .Labels.severity | toUpper }}</b>{{ end }} </li>
+            <li> <b>Namespace:</b> {{ .Labels.namespace }} </li>
+            <li> <b>Cluster:</b> {{ .Labels.cluster }} </li>
+            </ul><br>
+            {{ end }}
+            </body></html>
+    # templates:
+    # - '/etc/alertmanager/config/*.tmpl'
 
   ## Alertmanager configuration directives (as string type, preferred over the config hash map)
   ## stringConfig will be used only, if tplConfig is true
@@ -2731,7 +2869,8 @@ prometheusOperator:
 ##
 prometheus:
   enabled: true
-
+  scrapeInterval: 1m
+  evaluationInterval: 1m
   ## Toggle prometheus into agent mode
   ## Note many of features described below (e.g. rules, query, alerting, remote read, thanos) will not work in agent mode.
   ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/designs/prometheus-agent.md
@@ -3176,6 +3315,8 @@ prometheus:
   ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#prometheusspec
   ##
   prometheusSpec:
+    scrapeInterval: 30s
+    evaluationInterval: 30s  
     ## If true, pass --storage.tsdb.max-block-duration=2h to prometheus. This is already done if using Thanos
     ##
     disableCompaction: false
@@ -3192,15 +3333,15 @@ prometheus:
     ## Defaults to 30s.
     ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/release-0.44/pkg/prometheus/promcfg.go#L180-L183
     ##
-    scrapeInterval: ""
+    # scrapeInterval: 30s
 
     ## Number of seconds to wait for target to respond before erroring
     ##
-    scrapeTimeout: ""
+    # scrapeTimeout: ""
 
     ## Interval between consecutive evaluations.
     ##
-    evaluationInterval: ""
+    # evaluationInterval: ""
 
     ## ListenLocal makes the Prometheus server listen on loopback, so that it does not bind against the Pod IP.
     ##
@@ -3278,7 +3419,8 @@ prometheus:
 
     ## External labels to add to any time series or alerts when communicating with external systems
     ##
-    externalLabels: {}
+    externalLabels:
+      cluster: unified-uat
 
     ## enable --web.enable-remote-write-receiver flag on prometheus-server
     ##
@@ -3623,9 +3765,40 @@ prometheus:
     additionalScrapeConfigs: 
       - job_name: 'nginx-ingress-metrics'
         static_configs:
-          - targets: ['ingress-nginx-controller-metrics.backbone:10254']
+          - targets: ['nginx-ingress-metrics.egov:10254']
+      - job_name: 'blackbox'
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+        static_configs:
+          - targets:
+              - https://unified-uat.digit.org/citizen/     # Add your domains here
+              - https://unified-uat.digit.org/monitoring/
+              - https://unified-uat.digit.org/pgadmin/login?next=%2Fpgadmin%2F
+              - https://unified-uat.digit.org/kibana/
+              - https://unified-uat.digit.org/tracing/
+              - https://unified-qa.digit.org/citizen/     # Add your domains here
+              - https://unified-qa.digit.org/monitoring/
+              - https://unified-qa.digit.org/pgadmin/login?next=%2Fpgadmin%2F
+              - https://unified-qa-dashboard.digit.org/kibana-upgrade/
+              - https://unified-qa.digit.org/tracing/
+              - https://unified-dev.digit.org/citizen/     # Add your domains here
+              - https://unified-dev.digit.org/monitoring/
+              - https://unified-dev.digit.org/pgadmin/login?next=%2Fpgadmin%2F
+              - https://unified-dev-dashboard.digit.org/kibana
+              - https://unified-dev.digit.org/tracing/
+              - https://builds.digit.org/
 
-
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - target_label: __address__
+            replacement: prometheus-blackbox-exporter:9115 
+      - job_name: 'blackbox_exporter'  # collect blackbox exporter's operational metrics.
+        static_configs:
+          - targets: ['prometheus-blackbox-exporter.monitoring:9115']
     ## If additional scrape configurations are already deployed in a single secret file you can use this section.
     ## Expected values are the secret name and key
     ## Cannot be used with additionalScrapeConfigs

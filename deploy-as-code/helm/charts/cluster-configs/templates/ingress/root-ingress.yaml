@@ -1,13 +1,19 @@
 {{- with index .Values "cluster-configs" "root-ingress" -}}
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
-  {{- if ne .appRoot ""}}
+  {{- if .appRoot }}
     nginx.ingress.kubernetes.io/app-root: /{{ .appRoot }}
-  {{- end }}    
-    certmanager.k8s.io/cluster-issuer: {{ index . "cert-issuer" }}
+  {{- end }}
+  {{- if .redirect }}
+    nginx.ingress.kubernetes.io/permanent-redirect: "https://{{ $.Values.global.domain }}{{ .redirect }}"
+  {{- end }}
+    kubernetes.io/ingress.class: nginx
+  {{- if ne $.Values.global.setup "quickstart" }}     
+    #certmanager.k8s.io/cluster-issuer: {{ index . "cert-issuer" }}
     cert-manager.io/cluster-issuer: {{ index . "cert-issuer" }}
+  {{- end }}  
   name: {{ .name }}
   namespace: {{ .namespace }}
 spec:
@@ -16,11 +22,16 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: {{ .serviceName }}
-          servicePort: {{ .servicePort }}
-        path: /
+          service:
+            name: {{ .serviceName }}
+            port: 
+              number: {{ .servicePort }}
+        path: {{ .context }}
+        pathType: Prefix
+{{- if ne $.Values.global.setup "quickstart" }}        
   tls:
   - hosts:
     - {{ $.Values.global.domain }}
-    secretName: {{ $.Values.global.domain }}-tls-certs         
+    secretName: {{ $.Values.global.domain }}-tls-certs    
+{{- end }}         
 {{- end -}}

@@ -1,19 +1,11 @@
 {{- define "common.ingress" -}}
 {{- if .Values.ingress.enabled -}}
 ---
-apiVersion: networking.k8s.io/v1 
+apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   name: {{ template "common.name" . }}
-  {{- if .Values.global.namespace }}
-  {{- if or (eq .Values.namespace "backbone") (eq .Values.namespace "cert-manager") (eq .Values.namespace "es-cluster") (eq .Values.namespace "es-cluster-infra") (eq .Values.namespace "kafka-cluster") (eq .Values.namespace "kafka-kraft") (eq .Values.namespace "monitoring") (eq .Values.namespace "playground") }}
-  namespace: {{ .Values.namespace }}
-  {{- else }}
-  namespace: {{ .Values.global.namespace }}
-  {{- end }}
-  {{- else }}
-  namespace: {{ .Values.namespace }}
-  {{- end }}  
+  namespace: {{ .Values.namespace }}  
   annotations:
 {{- toYaml .Values.ingress.annotations | nindent 4 }}   
 {{- if .Values.ingress.waf.enabled }}      
@@ -37,23 +29,13 @@ spec:
       paths:
       - backend:
 {{- if .Values.ingress.zuul }}          
-          service:
-            name: zuul
-            port:
-              number: 8080
+          serviceName: zuul
+          servicePort: 8080
 {{ else }}
-          service:
-            name: {{ .Values.ingress.serviceName | default (include "common.name" .) }}
-            port:
-              number: {{ .Values.ingress.servicePort | default .Values.httpPort }}
-{{- end }}
-{{- if and (.Values.global.context.path) (has .Values.name .Values.global.context.list) }}
-        path: /{{ .Values.global.context.path }}/{{ .Values.ingress.context }}
-{{- else }}
+          serviceName: {{ .Values.ingress.serviceName | default (include "common.name" .) }}
+          servicePort: {{ .Values.ingress.servicePort | default .Values.httpPort }}
+{{- end }}            
         path: /{{ .Values.ingress.context }}
-{{- end }}
-        pathType: Prefix
-{{- if ne .Values.global.setup "quickstart" }}        
   tls:
 {{- if .Values.ingress.tls }}
   {{- tpl  .Values.ingress.tls . | nindent 2 }}
@@ -68,6 +50,5 @@ spec:
     secretName: {{ .Values.global.domain }}-tls-certs 
 {{- end }} 
 {{- end }} 
-{{- end }}
 {{- end -}} 
 {{- end -}} 

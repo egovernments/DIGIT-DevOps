@@ -1,9 +1,3 @@
-provider "aws" {
-  region = "ap-south-1"
-
-}
-
-
 module "network" {
   source             = "../modules/kubernetes/aws/network"
   vpc_cidr_block     = "${var.vpc_cidr_block}"

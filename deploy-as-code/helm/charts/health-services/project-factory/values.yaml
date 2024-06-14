@@ -1,0 +1,235 @@
+# Common Labels
+labels:
+  app: "project-factory"
+  group: "rainmaker"
+
+namespace: health
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "project-factory"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "project_factory_health_schema"
+    image:
+      repository: "project-factory-db"
+
+
+# Container Configs
+image:
+  repository: "project-factory"
+replicas: "1"
+
+# Additional Container Envs
+env: |
+  - name: KAFKA_BROKER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers 
+  - name: KAFKA_SAVE_CAMPAIGN_DETAILS_TOPIC
+    value: save-campaign-details
+  - name: KAFKA_UPDATE_CAMPAIGN_DETAILS_TOPIC
+    value: update-campaign-details
+
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service   
+  - name: EGOV_MDMS_V2_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: mdms-service-v2      
+  - name: EGOV_FILESTORE_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-filestore
+  - name: EGOV_IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-idgen
+  - name: EGOV_FACILITY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: facility
+  - name: EGOV_BOUNDARY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: boundary-service
+  - name: EGOV_PROJECT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: health-project
+  - name: EGOV_USER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: EGOV_PRODUCT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: product
+  - name: EGOV_HRMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: health-hrms
+  - name: EGOV_LOCALIZATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-localization
+  - name: EGOV_HEALTH_INDIVIDUAL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: health-individual
+
+  - name: CONTEXT_PATH
+    value: "/project-factory"   
+
+
+  - name: FILE_STORE_SERVICE_END_POINT
+    value: filestore/v1/files
+  - name: EGOV_MDMS_SEARCH_ENDPOINT
+    value: egov-mdms-service/v2/_search
+  - name: EGOV_IDGEN_PATH
+    value: egov-idgen/id/_generate
+  - name: EGOV_MDMS_SCHEMA_PATH
+    value: egov-mdms-service/schema/v1/_search
+  - name: EGOV_BOUNDARY_RELATIONSHIP_SEARCHPATH
+    value: boundary-service/boundary-relationships/_search
+  - name: EGOV_BOUNDARY_SERVICE_SEARCHPATH
+    value: boundary-service/boundary/_search
+  - name: EGOV_BOUNDARY_HIERARCHY_SEARCHPATH
+    value: boundary-service/boundary-hierarchy-definition/_search
+  - name: HEALTH_PROJECT_CREATE_PATH
+    value: health-project/v1/_create
+  - name: EGOV_PROJECT_STAFF_CREATE_PATH
+    value: health-project/staff/v1/_create
+  - name: EGOV_PROJECT_RESOURCE_CREATE_PATH
+    value: health-project/resource/v1/_create
+  - name: EGOV_PROJECT_RESOURCE_FACILITY_PATH
+    value: health-project/facility/v1/_create
+  - name: EGOV_USER_SEARCH_PATH
+    value: user/_search
+  - name: EGOV_FACILITY_SEARCH_PATH
+    value: facility/v1/_search
+  - name: EGOV_PRODUCT_VARIANT_SEARCH_PATH
+    value: product/variant/v1/_search
+  - name: EGOV_BOUNDARY_ENTITY_SEARCHPATH
+    value: boundary-service/boundary/_search
+  - name: EGOV_FACILITY_BULK_CREATE
+    value: facility/v1/bulk/_create
+
+
+  - name: CMP_IDGEN_FORMAT
+    value: CMP-[cy:yyyy-MM-dd]-[SEQ_EG_CMP_ID]
+  - name: CMP_IDGEN_IDNAME
+    value: campaign.number
+    
+  - name: EGOV_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  
+  - name: "DB_URL"
+  {{- if eq .Values.namespace "health" }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: health-db-url
+  {{- else }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  {{- end }}
+  - name: "SCHEMA_TABLE"
+    value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+  - name: "FLYWAY_USER"
+    valueFrom:
+      secretKeyRef:
+          name: db
+          key: flyway-username
+  - name: "FLYWAY_PASSWORD"
+    valueFrom:
+      secretKeyRef: 
+          name: db
+          key: flyway-password
+  - name: "FLYWAY_LOCATIONS"
+    valueFrom: 
+      configMapKeyRef: 
+          name: egov-config
+          key: flyway-locations
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password   
+  - name: DB_PORT
+    value: "5432"
+  - name: BOUNDARY_MAIN_SHEET_NAME
+    value: "Boundary Data"
+  - name: SPLIT_BOUNDARIES_ON
+    value: {{ .Values.splitBoundariesOn | default "Distrito" }} 
+  - name: SPLIT_BOUNDARIES_ON_LENGTH 
+    value: "2"
+  - name: FACILITY_TAB_NAME
+    value: "HCM_ADMIN_CONSOLE_FACILITIES"
+  - name: BOUNDARY_TAB_NAME
+    value: "HCM_ADMIN_CONSOLE_BOUNDARY_DATA"
+  - name: USER_TAB_NAME
+    value: "HCM_ADMIN_CONSOLE_USER_LIST"
+  - name: LOCALE
+    value: {{ .Values.defaultLocale | default "en_IN" }} 
+  - name: LOCALIZATION_MODULE
+    value: "rainmaker-hcm-admin-schemas"
+  - name: MODULE_NAME
+    value: "HCM-ADMIN-CONSOLE"
+  - name: FACILITY_SCHEMA_MASTER
+    value: "facilitySchema"
+  - name: USER_SCHEMA_MASTER
+    value: "userSchema" 
+  - name: APP_LOG_LEVEL
+    value: {{ .Values.logLevel | default "info" }} 
+  - name: APP_MAX_DEBUG_CHAR
+    value: "{{ .Values.maxDebugChar | default "500" }}"
+  - name: READ_ME_TAB
+    value: "Read Me"  
+  - name: USER_PASSWORD_AUTO_GENERATE
+    value: "true"  
+  - name: USER_DEFAULT_PASSWORD
+    value: "eGov@123"  
+
+

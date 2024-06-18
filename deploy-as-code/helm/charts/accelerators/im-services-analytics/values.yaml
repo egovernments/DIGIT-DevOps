@@ -21,22 +21,17 @@ healthChecks:
   readinessProbePath: "/im-services-analytics/health"
 appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx192m -Xms192m"
-# indexer-host: "im-services-analytics"
+heap: "-Xmx256m -Xms256m"
+memory_limits: 512Mi
 
 # Additional Container Envs
 env: |
-  # - name: EGOV_SERVICES_INFRA_INDEXER_HOST
-  #   valueFrom:
-  #     configMapKeyRef:
-  #       name: egov-service-host
-  #       key: {{ index .Values "indexer-host" }}
   - name: EGOV_INFRA_INDEXER_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: es-indexer-host
-  {{- if index .Values "global" "serializers-timezone-in-ist" }}      
+  {{- if index .Values "global" "serializers-timezone-in-ist" }}
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
     value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
   {{- end }}
@@ -56,10 +51,10 @@ env: |
   - name: EGOV_INDEXER_ES_USERNAME
     valueFrom:
       secretKeyRef:
-        name: elasticsearch-credentials
+        name: elasticsearch-master-credentials
         key: username
   - name: EGOV_INDEXER_ES_PASSWORD
     valueFrom:
       secretKeyRef:
-        name: elasticsearch-credentials
+        name: elasticsearch-master-credentials
         key: password

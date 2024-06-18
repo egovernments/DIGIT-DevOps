@@ -1,0 +1,64 @@
+# Common Labels
+labels:
+  app: "im-services-analytics"
+  group: "core"
+
+namespace: egov
+
+# Ingress Configs
+ingress:
+  enabled: false
+  zuul: true
+  context: "im-services-analytics"
+
+# Container Configs
+image:
+  repository: "im-services-analytics"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/im-services-analytics/health"
+  readinessProbePath: "/im-services-analytics/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+indexer-host: "im-services-analytics"
+
+# Additional Container Envs
+env: |
+  - name: EGOV_SERVICES_INFRA_INDEXER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: {{ index .Values "indexer-host" }}
+  - name: EGOV_INFRA_INDEXER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: es-indexer-host
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+  {{- end }}
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"
+  - name: EGOV_STATELEVEL_TENANTID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id
+  - name: EGOV_INDEXER_ES_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: elasticsearch-credentials
+        key: username
+  - name: EGOV_INDEXER_ES_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: elasticsearch-credentials
+        key: password

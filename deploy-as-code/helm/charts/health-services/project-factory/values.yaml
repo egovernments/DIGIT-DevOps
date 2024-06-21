@@ -20,11 +20,10 @@ initContainers:
     image:
       repository: "project-factory-db"
 
-
 # Container Configs
 image:
   repository: "project-factory"
-replicas: "1"
+replicas: {{ .Values.replicas | default "1" }}
 
 # Additional Container Envs
 env: |
@@ -37,7 +36,6 @@ env: |
     value: save-campaign-details
   - name: KAFKA_UPDATE_CAMPAIGN_DETAILS_TOPIC
     value: update-campaign-details
-
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
@@ -103,11 +101,8 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: audit-service
-
   - name: CONTEXT_PATH
-    value: "/project-factory"   
-
-
+    value: "/project-factory"
   - name: FILE_STORE_SERVICE_END_POINT
     value: filestore/v1/files
   - name: EGOV_MDMS_SEARCH_ENDPOINT
@@ -142,19 +137,15 @@ env: |
     value: facility/v1/bulk/_create
   - name: EGOV_HEALTH_INDIVIDUAL_SEARCH
     value: health-individual/v1/_search
-
-
   - name: CMP_IDGEN_FORMAT
     value: CMP-[cy:yyyy-MM-dd]-[SEQ_EG_CMP_ID]
   - name: CMP_IDGEN_IDNAME
     value: campaign.number
-    
   - name: EGOV_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: egov-services-fqdn-name
-  
   - name: "DB_URL"
   {{- if eq .Values.namespace "health" }}
     valueFrom:
@@ -251,4 +242,27 @@ env: |
   - name: REDIS_HOST
     value: "redis.backbone"
 
+{{- if and (.Values.minReplicas) (.Values.maxReplicas) }}
 
+---
+
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: project-factory-hpa
+  namespace: {{ .Values.namespace | default "health" }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: project-factory
+  minReplicas: {{ .Values.minReplicas }}
+  maxReplicas: {{ .Values.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
+{{- end }}

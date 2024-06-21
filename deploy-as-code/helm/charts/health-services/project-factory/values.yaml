@@ -3,7 +3,7 @@ labels:
   app: "project-factory"
   group: "rainmaker"
 
-namespace: health
+namespace: {{ .Values.project-factory.namespace | default "health" }}
 
 # Ingress Configs
 ingress:
@@ -20,11 +20,10 @@ initContainers:
     image:
       repository: "project-factory-db"
 
-
 # Container Configs
 image:
   repository: "project-factory"
-replicas: "1"
+replicas: {{ .Values.project-factory.replicas | default "1" }}  # Default replicas if not autoscaling
 
 # Additional Container Envs
 env: |
@@ -37,7 +36,6 @@ env: |
     value: save-campaign-details
   - name: KAFKA_UPDATE_CAMPAIGN_DETAILS_TOPIC
     value: update-campaign-details
-
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
@@ -103,11 +101,8 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: audit-service
-
   - name: CONTEXT_PATH
-    value: "/project-factory"   
-
-
+    value: "/project-factory"
   - name: FILE_STORE_SERVICE_END_POINT
     value: filestore/v1/files
   - name: EGOV_MDMS_SEARCH_ENDPOINT
@@ -142,21 +137,17 @@ env: |
     value: facility/v1/bulk/_create
   - name: EGOV_HEALTH_INDIVIDUAL_SEARCH
     value: health-individual/v1/_search
-
-
   - name: CMP_IDGEN_FORMAT
     value: CMP-[cy:yyyy-MM-dd]-[SEQ_EG_CMP_ID]
   - name: CMP_IDGEN_IDNAME
     value: campaign.number
-    
   - name: EGOV_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: egov-services-fqdn-name
-  
   - name: "DB_URL"
-  {{- if eq .Values.namespace "health" }}
+  {{- if eq .Values.project-factory.namespace "health" }}
     valueFrom:
       configMapKeyRef:
         name: egov-config
@@ -207,11 +198,11 @@ env: |
   - name: DB_PORT
     value: "5432"
   - name: DB_SCHEMA
-    value: {{ .Values.namespace | default "public" }}
+    value: {{ .Values.project-factory.namespace | default "public" }}
   - name: BOUNDARY_MAIN_SHEET_NAME
     value: "Boundary Data"
   - name: SPLIT_BOUNDARIES_ON
-    value: {{ .Values.splitBoundariesOn | default "Distrito" }} 
+    value: {{ .Values.project-factory.splitBoundariesOn | default "Distrito" }} 
   - name: SPLIT_BOUNDARIES_ON_LENGTH 
     value: "2"
   - name: FACILITY_TAB_NAME
@@ -221,7 +212,7 @@ env: |
   - name: USER_TAB_NAME
     value: "HCM_ADMIN_CONSOLE_USER_LIST"
   - name: LOCALE
-    value: {{ .Values.defaultLocale | default "en_IN" }} 
+    value: {{ .Values.project-factory.defaultLocale | default "en_IN" }} 
   - name: LOCALIZATION_MODULE
     value: "rainmaker-hcm-admin-schemas"
   - name: MODULE_NAME
@@ -231,7 +222,7 @@ env: |
   - name: USER_SCHEMA_MASTER
     value: "userSchema" 
   - name: APP_LOG_LEVEL
-    value: {{ .Values.logLevel | default "info" }} 
+    value: {{ .Values.project-factory.logLevel | default "info" }} 
   - name: APP_MAX_DEBUG_CHAR
     value: "{{ .Values.maxDebugChar | default "500" }}"
   - name: READ_ME_TAB
@@ -251,4 +242,28 @@ env: |
   - name: REDIS_HOST
     value: "redis.backbone"
 
+# Autoscaler Config (conditional)
+{{- if and (.Values.project-factory.minReplicas) (.Values.project-factory.maxReplicas) }}
 
+---
+
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: project-factory-hpa
+  namespace: {{ .Values.project-factory.namespace | default "health" }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: project-factory
+  minReplicas: {{ .Values.project-factory.minReplicas }}
+  maxReplicas: {{ .Values.project-factory.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
+{{- end }}

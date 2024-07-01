@@ -1,22 +1,19 @@
 # Common Labels
 labels:
-  group: "es-curator-infra"
+  group: "es-curator"
 
 cron:
-  schedule: "45 18 * * *"  
+  schedule: "24 11 * * *"  
 # Container Configs
-namespace: es-cluster-infra
+namespace: es-cluster
 image:
-  repository: "bobrik/curator"
-  tag: 5.6.0
+  repository: "untergeek/curator"
+  tag: 8.0.15
 logs-cleanup-enabled: true
 jaeger-cleanup-enabled: true
-logs-to-retain-in-days: 7  
-memory_limits: 512Mi
-args:
-- --config
-- /etc/config/config.yml
-- /etc/config/action_file.yml
+logs-to-retain-in-days: 2 
+memory_limits: 256Mi
+args: [ "--config", "/etc/es-curator/config.yml", "/etc/es-curator/action_file.yml" ]
 
 # Additional Container Envs
 env: |
@@ -28,9 +25,24 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-config
-        key: es-infra-host    
+        key: es-indexer-host 
+  - name: ES_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: elasticsearch-master-credentials
+        key: username 
+  - name: ES_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: elasticsearch-master-credentials
+        key: password
+  - name: API_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: kibana-kibana-es-token
+        key: token
   - name: ES_CLIENT_PORT
-    value: "9200"
+    value: "9200"  
   - name: LOG_LEVEL
     value: "DEBUG" 
   {{- if index .Values "logs-cleanup-enabled" }}                  
@@ -50,8 +62,8 @@ extraVolumes: |
     configMap:
       name: {{ template "name" . }}-config
 extraVolumeMounts: |
-  - mountPath: /etc/config
-    name: config-volume         
+  - mountPath: /etc/es-curator
+    name: config-volume     
 resources: |
   requests:
     memory: {{ .Values.memory_limits | quote }}

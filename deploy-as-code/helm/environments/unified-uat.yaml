@@ -210,7 +210,7 @@ egov-filestore:
   aws.s3.url : "https://s3.amazonaws.com"
   is-s3-enabled: "true"
   minio-enabled: false
-  allowed-file-formats-map: "{jpg:{'image/jpg','image/jpeg'},jpeg:{'image/jpeg','image/jpg'},png:{'image/png'},pdf:{'application/pdf'},odt:{'application/vnd.oasis.opendocument.text'},ods:{'application/vnd.oasis.opendocument.spreadsheet'},docx:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},doc:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},dxf:{'text/plain','application/dxf','application/octet-stream','image/vnd.dxf','image/vnd.dxf; format=ascii','image/vnd.dxf; format=binary','image/vnd.dxb'},csv:{'text/plain'},txt:{'text/plain'},xlsx:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/zip'},xls:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel'}}"
+  allowed-file-formats-map: "{jpg:{'image/jpg','image/jpeg'},jpeg:{'image/jpeg','image/jpg'},png:{'image/png'},pdf:{'application/pdf'},odt:{'application/vnd.oasis.opendocument.text'},ods:{'application/vnd.oasis.opendocument.spreadsheet'},docx:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},doc:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},dxf:{'text/plain','application/dxf','application/octet-stream','image/vnd.dxf','image/vnd.dxf; format=ascii','image/vnd.dxf; format=binary','image/vnd.dxb'},csv:{'text/plain'},txt:{'text/plain'},xlsx:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/zip'},xls:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel','multipart/form-data'},zip:{'application/zip','application/octet-stream'},geojson:{'application/json','text/plain','application/geo+json','multipart/form-data'}}"
   allowed-file-formats: "jpg,jpeg,png,doc,docx,pdf,odt,ods,text,dxf,xls,xlsx"
   filestore-url-validity: 3600
   fixed-bucketname: unified-uat-filestore  ## Add filestore bucket name
@@ -225,9 +225,12 @@ inbox:
   bs-service-map : '{}'
 
 egov-idgen:
+  replicas : 2
   idformat-from-mdms: "true"
   java-args: -Dspring.profiles.active=monitoring
   autocreate-new-seq: "true"
+  heap: "-Xmx512m -Xms256m"
+  memory_limits: 512Mi
 
 egov-notification-sms:
   sms-provider-url: "http://api.smscountry.com/SMSCwebservice_bulk.aspx"
@@ -255,8 +258,13 @@ oauth2-proxy:
       github_team = "micro-service-uat"
       upstreams = [ "file:///dev/null" ]
 
+egov-accesscontrol:
+  replicas : 1
+  heap: "-Xmx512m -Xms256m"
+
 egov-user:
-  heap: "-Xmx256m -Xms256m"
+  replicas : 4
+  heap: "-Xmx512m -Xms256m"
   otp-validation: "true"
   citizen-otp-enabled: "true"
   employee-otp-enabled: "false"
@@ -348,10 +356,10 @@ egov-indexer:
   egov-indexer-yaml-repo-path: "file:///work-dir/configs/health/egov-indexer/error-queue.yml,file:///work-dir/configs/health/egov-indexer/product-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-indexer.yml,file:///work-dir/configs/health/egov-indexer/individual-indexer.yml,file:///work-dir/configs/health/egov-indexer/household-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-task-indexer.yml,file:///work-dir/configs/health/egov-indexer/stock-indexer.yml,file:///work-dir/configs/health/egov-indexer/facility-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-staff-indexer.yml,file:///work-dir/configs/health/egov-indexer/egov-error-queue-indexer.yml,file:///work-dir/configs/health/egov-indexer/pgr-services.yml,file:///work-dir/configs/health/egov-indexer/service-request-indexer.yml,file:///work-dir/configs/sanitation/egov-indexer/pqm-service-indexer.yml,file:///work-dir/configs/sanitation/egov-indexer/egov-pqm-service.yml,file:///work-dir/configs/sanitation/egov-indexer/pqm-anomaly-finder-indexer.yml,file:///work-dir/configs/sanitation/egov-indexer/egov-fsm.yaml,file:///work-dir/configs/sanitation/egov-indexer/egov-vehicle.yaml,file:///work-dir/configs/sanitation/egov-indexer/egov-vendor.yaml,file:///work-dir/configs/sanitation/egov-indexer/fsm-inbox-indexer.yml,file:///work-dir/configs/health/egov-indexer/referral-management-indexer.yml"
 
 egov-persister:
-  replicas: 1
+  replicas: 2
   images:
     - egovio/egov-persister
-  persist-yml-path: "file:///work-dir/configs/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/health/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/health/egov-persister/product-persister.yml,file:///work-dir/configs/health/egov-persister/project-persister.yml,file:///work-dir/configs/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/household-persister.yml,file:///work-dir/configs/health/egov-persister/project-task-persister.yml,file:///work-dir/configs/health/egov-persister/stock-persister.yml,file:///work-dir/configs/health/egov-persister/facility-persister.yml,file:///work-dir/configs/health/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/health/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/health/egov-persister/mdms-persister.yml,file:///work-dir/configs/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/hcm-moz-impl-persister.yml,file:///work-dir/configs/health/egov-persister/eg-campaign-details-persister.yml,file:///work-dir/configs/sanitation/egov-persister/pqm-anomaly-finder-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/pqm-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/fsm-calculator-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/fsm-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/vehicle-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/vendor-persister.yaml,file:///work-dir/configs/egov-persister/egov-user-event-persister.yml,file:///work-dir/configs/health/egov-persister/service-request-persister.yml,file:///work-dir/configs/health/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/egov-persister/boundary-persister.yml,file:///work-dir/configs/health/egov-persister/project-factory-persister.yml,file:///work-dir/configs/egov-persister/audit-service-persister.yml"
+  persist-yml-path: "file:///work-dir/configs/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/health/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/health/egov-persister/product-persister.yml,file:///work-dir/configs/health/egov-persister/project-persister.yml,file:///work-dir/configs/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/household-persister.yml,file:///work-dir/configs/health/egov-persister/project-task-persister.yml,file:///work-dir/configs/health/egov-persister/stock-persister.yml,file:///work-dir/configs/health/egov-persister/facility-persister.yml,file:///work-dir/configs/health/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/health/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/health/egov-persister/mdms-persister.yml,file:///work-dir/configs/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/hcm-moz-impl-persister.yml,file:///work-dir/configs/health/egov-persister/eg-campaign-details-persister.yml,file:///work-dir/configs/sanitation/egov-persister/pqm-anomaly-finder-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/pqm-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/fsm-calculator-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/fsm-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/vehicle-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/vendor-persister.yaml,file:///work-dir/configs/egov-persister/egov-user-event-persister.yml,file:///work-dir/configs/health/egov-persister/service-request-persister.yml,file:///work-dir/configs/health/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/egov-persister/boundary-persister.yml,file:///work-dir/configs/health/egov-persister/project-factory-persister.yml,file:///work-dir/configs/egov-persister/audit-service-persister.yml,file:///work-dir/configs/health/egov-persister/plan-service-persister.yml"
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
@@ -418,6 +426,11 @@ egov-location:
 egov-localization:
   replicas: 1
   heap: '-Xmx256m -Xms256m'
+
+egov-enc-service:
+  replicas: 1
+  heap: '-Xmx512m -Xms256m'
+  memory_limits: 512Mi
 
 individual:
   heap: "-Xmx256m -Xms256m"
@@ -589,7 +602,9 @@ health-hrms:
 
 
 mdms-v2:
-  memory_limits: 512Mi
+  replicas: 3
+  memory_limits: 768Mi
+  heap: '-Xmx768m -Xms512m'
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -818,13 +833,9 @@ elasticsearch-master-v1:
       memory: "896Mi"
 
 es-curator:
-  schedule: "45 18 * * *"
-  images:
-    - bobrik/curator:5.6.0
-  es-host: "elasticsearch-client-v1.es-cluster"
-  logs-cleanup-enabled: "true"
-  jaeger-cleanup-enabled: "true"
-  logs-to-retain: "7"
+  namespace: es-cluster
+  cron:
+    schedule: "37 09 * * *"  
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 project:

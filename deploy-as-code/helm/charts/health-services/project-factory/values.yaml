@@ -20,7 +20,6 @@ initContainers:
     image:
       repository: "project-factory-db"
 
-
 # Container Configs
 image:
   repository: "project-factory"
@@ -37,7 +36,6 @@ env: |
     value: save-campaign-details
   - name: KAFKA_UPDATE_CAMPAIGN_DETAILS_TOPIC
     value: update-campaign-details
-
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
@@ -98,11 +96,13 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: health-individual
-
+  - name: EGOV_AUDIT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: audit-service
   - name: CONTEXT_PATH
-    value: "/project-factory"   
-
-
+    value: "/project-factory"
   - name: FILE_STORE_SERVICE_END_POINT
     value: filestore/v1/files
   - name: EGOV_MDMS_SEARCH_ENDPOINT
@@ -135,19 +135,17 @@ env: |
     value: boundary-service/boundary/_search
   - name: EGOV_FACILITY_BULK_CREATE
     value: facility/v1/bulk/_create
-
-
+  - name: EGOV_HEALTH_INDIVIDUAL_SEARCH
+    value: health-individual/v1/_search
   - name: CMP_IDGEN_FORMAT
     value: CMP-[cy:yyyy-MM-dd]-[SEQ_EG_CMP_ID]
   - name: CMP_IDGEN_IDNAME
     value: campaign.number
-    
   - name: EGOV_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: egov-services-fqdn-name
-  
   - name: "DB_URL"
   {{- if eq .Values.namespace "health" }}
     valueFrom:
@@ -199,6 +197,8 @@ env: |
         key: password   
   - name: DB_PORT
     value: "5432"
+  - name: DB_SCHEMA
+    value: {{ .Values.namespace | default "public" }}
   - name: BOUNDARY_MAIN_SHEET_NAME
     value: "Boundary Data"
   - name: SPLIT_BOUNDARIES_ON
@@ -231,5 +231,33 @@ env: |
     value: "true"  
   - name: USER_DEFAULT_PASSWORD
     value: "eGov@123"  
+  - name: NOT_CREATE_USER_IF_ALREADY_THERE
+    value: "true"
+  - name: CACHE_ENABLED
+    value: "true"
+  - name: RESET_CACHE
+    value: "true"
+  - name: REDIS_PORT
+    value: "6379"
+  - name: REDIS_HOST
+    value: "redis.backbone"
 
-
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: project-factory-hpa
+  namespace: "health"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: project-factory
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80

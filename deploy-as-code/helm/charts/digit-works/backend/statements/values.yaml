@@ -1,6 +1,6 @@
 # Common Labels
 labels:
-  app: "rate-analysis"
+  app: "statements"
   group: "digit-works"
 
 namespace: works
@@ -10,24 +10,24 @@ ingress:
   namespace: egov
   enabled: true
   zuul: true
-  context: "rate-analysis"
+  context: "statements"
 
 # Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
-    schemaTable: "rate_analysis_schema"
+    schemaTable: "statements_schema"
     image:
-      repository: "rate-analysis-db"
+      repository: "statements-db"
 
 # Container Configs
 image:
-  repository: "rate-analysis"
+  repository: "statements"
 replicas: "1"
 healthChecks:
   enabled: true
-  livenessProbePath: "/rate-analysis/health"
-  readinessProbePath: "/rate-analysis/health"
+  livenessProbePath: "/statements/health"
+  readinessProbePath: "/statements/health"
 appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx256m -Xms256m"
@@ -47,9 +47,9 @@ env: |
     value: "true" 
   {{- end }}
   - name: SERVER_CONTEXT_PATH
-    value: /rate-analysis
+    value: /statements
   - name: SERVER_SERVLET_CONTEXT-PATH
-    value: /rate-analysis
+    value: /statements
   {{- if index .Values "java-enable-debug" }}
   - name: JAVA_ENABLE_DEBUG
     value: "true"
@@ -58,21 +58,29 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-mdms-service-v2
-  - name: EGOV_IDGEN_HOST
+        key: egov-mdms-service-v2  
+  - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-idgen
-  {{- if index .Values "labour-cess-head-code" }}
-  - name: LABOUR_CESS_HEAD_CODE
-    value: {{ index .Values "labour-cess-head-code" | quote }}
-  {{- end }}
-  {{- if index .Values "labour-cess-rate" }}
-  - name: LABOUR_CESS_RATE
-    value: {{ index .Values "labour-cess-rate" | quote }}
-  {{- end }}
-  {{- if index .Values "works-sor-type" }}
-  - name: WORKS_SOR_TYPE
-    value: {{ index .Values "works-sor-type" | quote }}
-  {{- end }}
+        key: egov-mdms-service
+  - name: WORKS_ESTIMATE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: estimate-service                
+  - name: WORKS_MEASUREMENT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: measurement-service 
+  - name: WORKS_CONTRACT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: contract-service
+  - name: EGOV_WORKFLOW_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-workflow-v2

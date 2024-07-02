@@ -48,6 +48,7 @@ cluster-configs:
             data:
               asset-services: 'http://asset-services:8080/'
               asset-services-maha: 'http://asset-services-maha:8080/'
+              audit-service: 'http://audit-service.egov:8080/'
               billing-service: 'http://billing-service.egov:8080/'
               boundary-service: 'http://boundary-service.egov:8080/'
               collection-services: 'http://collection-services.egov:8080/'
@@ -164,6 +165,7 @@ cluster-configs:
               service-request: 'http://service-request:8080/'
               health-project: 'http://health-project.health:8080/'
               health-individual: 'http://health-individual.health:8080/'
+              plan-service: 'http://plan-service.health:8080/'
 
 employee:
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
@@ -193,6 +195,13 @@ health-ui:
       sub_filter  '<head>' '<head>
       <script src=https://egov-uat-assets.s3.ap-south-1.amazonaws.com/globalConfigsHealthMZ.js type=text/javascript></script>
       ';"
+
+microplan-ui:
+  custom-js-injection: |
+    sub_filter.conf: "
+      sub_filter  '<head>' '<head>
+      <script src=https://egov-uat-assets.s3.ap-south-1.amazonaws.com/globalConfigsMicroplan.js type=text/javascript></script>
+      ';" 
 
 egov-filestore:
   volume: /opt/eGov/filestore
@@ -347,7 +356,7 @@ egov-persister:
   replicas: 1
   images:
     - egovio/egov-persister
-  persist-yml-path: "file:///work-dir/configs/health/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/health/egov-persister/product-persister.yml,file:///work-dir/configs/health/egov-persister/project-persister.yml,file:///work-dir/configs/health/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/household-persister.yml,file:///work-dir/configs/health/egov-persister/project-task-persister.yml,file:///work-dir/configs/health/egov-persister/stock-persister.yml,file:///work-dir/configs/health/egov-persister/facility-persister.yml,file:///work-dir/configs/health/egov-persister/service-request-persister.yml,file:///work-dir/configs/health/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/health/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/health/egov-persister/mdms-persister.yml,file:///work-dir/configs/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/health/egov-persister/project-factory-persister.yml,file:///work-dir/configs/egov-persister/boundary-persister.yml"
+  persist-yml-path: "file:///work-dir/configs/health/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/health/egov-persister/product-persister.yml,file:///work-dir/configs/health/egov-persister/project-persister.yml,file:///work-dir/configs/health/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/household-persister.yml,file:///work-dir/configs/health/egov-persister/project-task-persister.yml,file:///work-dir/configs/health/egov-persister/stock-persister.yml,file:///work-dir/configs/health/egov-persister/facility-persister.yml,file:///work-dir/configs/health/egov-persister/service-request-persister.yml,file:///work-dir/configs/health/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/health/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/health/egov-persister/mdms-persister.yml,file:///work-dir/configs/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/health/egov-persister/project-factory-persister.yml,file:///work-dir/configs/egov-persister/boundary-persister.yml,file:///work-dir/configs/health/egov-persister/plan-service-persister.yml"
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
@@ -359,8 +368,8 @@ boundary-service:
   memory_limits: 512Mi
 
 facility:
-  replicas: 1
-  heap: '-Xmx256m -Xms256m'
+  replicas: 3
+  heap: '-Xmx512m -Xms256m'
   memory_limits: 512Mi
 
 pgr-services:
@@ -537,9 +546,10 @@ egov-hrms:
   employee-applink: "https://egov-demo.egovernments.org/employee/user/login"
 
 health-hrms:
+  replicas : 4
   java-args: -Dspring.profiles.active=monitoring
   employee-applink: 'https://egov-demo.egovernments.org/employee/user/login'
-  heap: '-Xmx256m -Xms256m'
+  heap: '-Xmx512m -Xms256m'
   memory_limits: 512Mi
   mdmsHost: "egov-mdms-service"
   mdmsSearchPath: "/egov-mdms-service/v1/_search"
@@ -551,6 +561,19 @@ project-factory:
   logLevel: 'info'
   defaultLocale: 'en_IN'
   splitBoundariesOn: 'ADMIN_DISTRITO'
+  replicas: 3
+  minReplicas: 3
+  maxReplicas: 5
+  namespace: 'health'
+
+plan-service:
+  egov-mdms-service-host-key: 'mdms-service-v2'
+  egov-mdms-service-endpoint-key: "/mdms-v2/v1/_search"
+
+
+resource-estimation-service:
+  egov-mdms-service-host-key: 'mdms-service-v2'
+  egov-mdms-service-endpoint-key: "/mdms-v2/v1/_search"
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -780,8 +803,14 @@ hcm-moz-impl:
   #   limits:
   #     memory: "2Gi"
 
+product:
+  heap: "-Xmx512m -Xms256m"
+  replicas: 3
+  memory_limits: 512Mi
+
 project:
-  heap: "-Xmx256m -Xms256m"
+  heap: "-Xmx512m -Xms256m"
+  replicas: 3
   memory_limits: 512Mi
   tracing-enabled: true
   java-enable-debug: true
@@ -791,7 +820,8 @@ project:
 
 health-individual:
 #  egov-mdms-service-host-key: "egov-mdms-service-legacy"
-  heap: "-Xmx256m -Xms256m"
+  replicas : 5
+  heap: "-Xmx512m -Xms256m"
   memory_limits: 512Mi
   tracing-enabled: true
   java-enable-debug: true
@@ -803,8 +833,9 @@ health-individual:
 #  egov-mdms-service-host-key: "egov-mdms-service-legacy"
 health-project:
 #  egov-mdms-service-host-key: "egov-mdms-service-legacy"
-  heap: "-Xmx256m -Xms256m"
-  memory_limits: 512Mi
+  replicas : 6
+  memory_limits: 768Mi
+  heap: '-Xmx768m -Xms512m'
   tracing-enabled: true
   java-enable-debug: true
   project-default-offset: 0

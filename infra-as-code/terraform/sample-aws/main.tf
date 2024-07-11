@@ -65,7 +65,7 @@ module "eks" {
 
 ##By default worker groups is Configured with SPOT, As per your requirement you can below values.
 
-  worker_groups = [
+  worker_groups_launch_template = [
     {
       name                          = "spot"
       ami_id                        = "ami-04b500d2e83fc74fe"   
@@ -77,6 +77,8 @@ module "eks" {
       asg_desired_capacity          = "${var.number_of_worker_nodes}"
       spot_allocation_strategy      = "capacity-optimized"
       spot_instance_pools           = null
+      launch_template_name          = "${var.cluster_name}-lt"
+      launch_template_version       = "$Latest"
     }
   ]
   tags = "${
@@ -171,29 +173,5 @@ resource "aws_eks_addon" "core_dns" {
 resource "aws_eks_addon" "aws_ebs_csi_driver" {
   cluster_name      = data.aws_eks_cluster.cluster.name
   addon_name        = "aws-ebs-csi-driver"
-  addon_version     = "v1.23.0-eksbuild.1"
   resolve_conflicts = "OVERWRITE"
-}
-
-module "es-master" {
-
-  source = "../modules/storage/aws"
-  storage_count = 3
-  environment = "${var.cluster_name}"
-  disk_prefix = "es-master"
-  availability_zones = "${var.availability_zones}"
-  storage_sku = "gp2"
-  disk_size_gb = "2"
-  
-}
-module "es-data-v1" {
-
-  source = "../modules/storage/aws"
-  storage_count = 3
-  environment = "${var.cluster_name}"
-  disk_prefix = "es-data-v1"
-  availability_zones = "${var.availability_zones}"
-  storage_sku = "gp2"
-  disk_size_gb = "25"
-  
 }

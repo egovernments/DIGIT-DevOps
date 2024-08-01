@@ -30,7 +30,7 @@ healthChecks:
   readinessProbePath: "/transformer/health"
 appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx1024m -Xms384m"
+heap: "-Xmx1024m -Xms1024m"
 java-args: ""
 memory_limits: "1Gi"
 egov-mdms-service-host-key: "egov-mdms-service"
@@ -63,7 +63,7 @@ env: |
   - name: TRANSFORMER_CONSUMER_BULK_UPDATE_PROJECT_TASK_TOPIC
     value: "update-project-task-health-topic"
   - name: TRANSFORMER_PRODUCER_BULK_PROJECT_TASK_INDEX_V1_TOPIC
-    value: "transformer-producer-bulk-project-task-index-v1-topic"
+    value: "transformer-producer-bulk-project-task-index-v1-health-topic"
   
   - name: TRANSFORMER_CONSUMER_BULK_CREATE_PROJECT_STAFF_TOPIC
     value: "save-project-staff-health-topic"
@@ -74,14 +74,6 @@ env: |
   
   - name: TRANSFORMER_PRODUCER_BULK_PROJECT_INDEX_V1_TOPIC
     value: "transformer-producer-bulk-project-index-v1-topic"
-  
-  - name: TRANSFORMER_CONSUMER_CREATE_HOUSEHOLD_TOPIC
-    value: "save-household-health-topic"
-  - name: TRANSFORMER_CONSUMER_UPDATE_HOUSEHOLD_TOPIC
-    value: "update-household-health-topic"
-  - name: TRANSFORMER_PRODUCER_BULK_HOUSEHOLD_INDEX_V1_TOPIC
-    value: "transformer-producer-amp-household-index-v1-topic"
-  
   - name: TRANSFORMER_CONSUMER_CREATE_PROJECT_TOPIC
     value: "save-project-health"
 
@@ -108,10 +100,38 @@ env: |
     value: "/egov-mdms-service/v1/_search"
   - name: PROJECT_MDMS_MODULE
     value: "HCM-PROJECT-TYPES"
-  
+  - name: EGOV_INDIVIDUAL_HOST
+    valueFrom:
+      configMapKeyRef:
+       name: egov-service-host
+       key: individual
+  - name: EGOV_SEARCH_INDIVIDUAL_URL
+    value: "/individual/v1/_search"
+  - name: EGOV_PRODUCT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: product
+  - name: EGOV_SEARCH_PRODUCT_VARIANT_URL
+    value: "/product/variant/v1/_search"
+  - name: TRANSFORMER_CONSUMER_SAVE_HOUSEHOLD_MEMBER_TOPIC
+    value: "save-household-member-topic"
+  - name: TRANSFORMER_CONSUMER_UPDATE_HOUSEHOLD_MEMBER_TOPIC
+    value: "update-household-member-topic"
+  - name: TRANSFORMER_PRODUCER_HOUSEHOLD_MEMBER_INDEX_V1_TOPIC
+    value: "transformer-producer-household-member-index-v1-topic"
+  - name: TRANSFORMER_CONSUMER_CREATE_HOUSEHOLD_TOPIC
+    value: "save-household-topic"
+  - name: TRANSFORMER_CONSUMER_UPDATE_HOUSEHOLD_TOPIC
+    value: "update-household-topic"
+  - name: TRANSFORMER_PRODUCER_HOUSEHOLD_INDEX_V1_TOPIC
+    value: "transformer-producer-household-index-v1-topic"
   - name: EGOV_LOCATION_ENDPOINT
     value: "/egov-location/location/v11/boundarys/_search"
-  
+  - name: TRANSFORMER_PRODUCER_SERVICE_INDEX_V2_TOPIC
+    value: "transformer-producer-service-index-v2-topic"
+  - name: REFERRAL_SERVICE_CHECKLIST_NAME
+    value: "SMCMozambique.REFERRAL.HEALTH_FACILITY_SUPERVISOR"
   - name: TRANSFORMER_CONSUMER_BULK_CREATE_STOCK_TOPIC
     value: "save-stock-health-topic"
   - name: TRANSFORMER_CONSUMER_BULK_UPDATE_STOCK_TOPIC
@@ -150,26 +170,50 @@ env: |
     value: "save-service"
   - name: TRANSFORMER_PRODUCER_SERVICE_TASK_INDEX_V1_TOPIC
     value: "transformer-producer-service-request-index-v1-topic"
-  - name: EGOV_BOUNDARY_HOST
+  - name: EGOV_HOUSEHOLD_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: boundary-service
-  - name: EGOV_BOUNDARY_SEARCH_URL
-    value: "/boundary-service/boundary/_search"
-  - name: EGOV_BOUNDARY_RELATIONSHIP_SEARCH_URL
-    value: "/boundary-service/boundary-relationships/_search"
-  {{- if index .Values "egov-boundary-hierarchy-name" }}
-  - name: EGOV_BOUNDARY_HIERARCHY_NAME
-    value: {{ index .Values "egov-boundary-hierarchy-name" | quote }}
-  {{- else }}
-  {{- fail "The value for 'egov-boundary-hierarchy-name' is required." }}
-  {{- end }}
-  - name: SPRING_REDIS_HOST
-    value: redis.backbone
-  - name: SPRING_REDIS_PORT
-    value: "6379"
-  - name: SPRING_CACHE_TYPE
-    value: "redis"
-  - name: SPRING_CACHE_REDIS_TIME-TO-LIVE
-    value: "60"
+        key: household
+  - name: EGOV_SEARCH_HOUSEHOLD_URL
+    value: "/household/v1/_search"
+  - name: EGOV_USER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: EGOV_SEARCH_USER_URL
+    value: /user/_search
+  - name: PROJECT_STAFF_ROLE_MDMS_MODULE
+    value: HCM-PROJECT-STAFF-ROLES
+  - name: EGOV_SEARCH_PROJECT_BENEFICIARY_URL
+    value: "/project/beneficiary/v1/_search"
+  - name: EGOV_PROGRAM_MANDATE_COMMENT
+    value: "Mais de 6 agregados familiares"
+  - name: EGOV_PROGRAM_MANDATE_LIMIT
+    value: "3"
+  - name: EGOV_PROGRAM_MANDATE_DIVIDING_FACTOR
+    value: "1.8"
+  - name: EGOV_BOUNDARY_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: egov-service-host
+          key: boundary-service
+    - name: EGOV_BOUNDARY_SEARCH_URL
+      value: "/boundary-service/boundary/_search"
+    - name: EGOV_BOUNDARY_RELATIONSHIP_SEARCH_URL
+      value: "/boundary-service/boundary-relationships/_search"
+    {{- if index .Values "egov-boundary-hierarchy-name" }}
+    - name: EGOV_BOUNDARY_HIERARCHY_NAME
+      value: {{ index .Values "egov-boundary-hierarchy-name" | quote }}
+    {{- else }}
+    {{- fail "The value for 'egov-boundary-hierarchy-name' is required." }}
+    {{- end }}
+    - name: SPRING_REDIS_HOST
+      value: redis.backbone
+    - name: SPRING_REDIS_PORT
+      value: "6379"
+    - name: SPRING_CACHE_TYPE
+      value: "redis"
+    - name: SPRING_CACHE_REDIS_TIME-TO-LIVE
+      value: "60"

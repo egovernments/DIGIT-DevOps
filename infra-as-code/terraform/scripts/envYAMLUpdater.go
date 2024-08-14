@@ -18,21 +18,12 @@ func main() {
 	}
 	// Unmarshal the JSON output into a Go struct
 	type TfOutput struct {
-		EsDataVolumeIDs struct {
-			Value []string `json:"value"`
-		} `json:"es_data_volume_ids"`
-		EsMasterVolumeIDs struct {
-			Value []string `json:"value"`
-		} `json:"es_master_volume_ids"`
 		DBHost struct {
 			Value string `json:"value"`
 		} `json:"db_instance_endpoint"`
 		DBName struct {
 			Value string `json:"value"`
 		} `json:"db_instance_name"`
-		Zones struct {
-			Value []string `json:"value"`
-		} `json:"zone"`
 		KubeConfig struct {
 			Value string `json:"value"`
 		} `json:"kubectl_config"`
@@ -50,15 +41,9 @@ func main() {
 		os.Exit(1)
 	}
 	// Replace the placeholders with the actual volume IDs
-	output := strings.ReplaceAll(string(yamlFile), "<elasticsearch-data_volume_id_1>", tfOutput.EsDataVolumeIDs.Value[0])
-	output = strings.ReplaceAll(output, "<elasticsearch-data_volume_id_2>", tfOutput.EsDataVolumeIDs.Value[1])
-	output = strings.ReplaceAll(output, "<elasticsearch-data_volume_id_3>", tfOutput.EsDataVolumeIDs.Value[2])
-	output = strings.ReplaceAll(output, "<elasticsearch-master_volume_id_1>", tfOutput.EsMasterVolumeIDs.Value[0])
-	output = strings.ReplaceAll(output, "<elasticsearch-master_volume_id_2>", tfOutput.EsMasterVolumeIDs.Value[1])
-	output = strings.ReplaceAll(output, "<elasticsearch-master_volume_id_3>", tfOutput.EsMasterVolumeIDs.Value[2])
+	output := string(yamlFile)
 	output = strings.ReplaceAll(output, "<db_host_name>", tfOutput.DBHost.Value)
 	output = strings.ReplaceAll(output, "<db_name>", tfOutput.DBName.Value)
-	output = strings.ReplaceAll(output, "<zone>", tfOutput.Zones.Value[0])
 
 	// Write the updated YAML to stdout
 	fmt.Println(output)

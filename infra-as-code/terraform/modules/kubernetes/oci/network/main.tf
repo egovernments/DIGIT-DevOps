@@ -10,15 +10,14 @@ resource "oci_core_vcn" "VCN" {
   display_name   = "${var.ClusterName}-vcn"
   dns_label     = var.dns-label
   freeform_tags = "${
-    map(
-      "Name", "${var.ClusterName}"
-    )
-  }"
+    tomap({
+      "Name" = "${var.ClusterName}"
+    })}"
 }
 
 resource "oci_core_subnet" "public_subnet" {
   count = 1
-  cidr_block                 = "${cidrsubnet("${var.vcn_cidr}", 5, count.index)}"
+  cidr_block                 = "${cidrsubnet("${var.vcn_cidr}" = 5, count.index)}"
   compartment_id             = var.tenancy_id
   display_name               = "${var.ClusterName}-Utility-subnet"
   dns_label                  = "Utility"
@@ -28,17 +27,16 @@ resource "oci_core_subnet" "public_subnet" {
   security_list_ids          = [oci_core_security_list.public-security-list.id]
 
   freeform_tags = "${
-    map(
-      "SubnetType", "Utility",
-      "KubernetesCluster", "${var.ClusterName}"
-    )
-  }"
+    tomap({
+      "SubnetType" = "Utility",
+      "KubernetesCluster" = "${var.ClusterName}"
+    })}"
 
 }
 
 resource "oci_core_subnet" "private_subnet" {
   count = 1
-  cidr_block                 = "${cidrsubnet("${var.vcn_cidr}", 3, 2+count.index)}"
+  cidr_block                 = "${cidrsubnet("${var.vcn_cidr}" = 3, 2+count.index)}"
   compartment_id             = var.tenancy_id
   display_name               = "${var.ClusterName}-private-subnet"
   dns_label                  = "private"
@@ -48,11 +46,10 @@ resource "oci_core_subnet" "private_subnet" {
   security_list_ids          = [oci_core_security_list.worker-security-list.id]
 
   freeform_tags = "${
-    map(
-      "SubnetType", "Private",
-      "KubernetesCluster", "${var.ClusterName}"
-    )
-  }"
+    tomap({
+      "SubnetType" = "Private",
+      "KubernetesCluster" = "${var.ClusterName}"
+    })}"
   
 }
 
@@ -62,10 +59,9 @@ resource "oci_core_internet_gateway" "InternetGateway" {
   vcn_id         = oci_core_vcn.VCN.id
 
   freeform_tags = "${
-    map(
-      "KubernetesCluster", "${var.ClusterName}"
-    )
-  }"
+    tomap({
+      "KubernetesCluster" = "${var.ClusterName}"
+    })}"
 }
 
 resource "oci_core_nat_gateway" "nat_gateway" {
@@ -78,10 +74,9 @@ resource "oci_core_nat_gateway" "nat_gateway" {
     depends_on = [oci_core_internet_gateway.InternetGateway]
 
     freeform_tags = "${
-    map(
-      "KubernetesCluster", "${var.ClusterName}"
-    )
-  }"
+    tomap({
+      "KubernetesCluster" = "${var.ClusterName}"
+    })}"
 
 }
 
@@ -96,10 +91,9 @@ resource "oci_core_public_ip" "public_ip" {
     depends_on = [oci_core_internet_gateway.InternetGateway]
 
     freeform_tags = "${
-    map(
-      "KubernetesCluster", "${var.ClusterName}"
-    )
-  }"
+    tomap({
+      "KubernetesCluster" = "${var.ClusterName}"
+    })}"
 
 }
 
@@ -115,10 +109,9 @@ resource "oci_core_route_table" "private_route_table" {
   }
 
   freeform_tags = "${
-    map(
-      "KubernetesCluster", "${var.ClusterName}"
-    )
-  }"
+    tomap({
+      "KubernetesCluster" = "${var.ClusterName}"
+    })}"
 }
 
 resource "oci_core_route_table" "public_route_table" {
@@ -132,10 +125,9 @@ resource "oci_core_route_table" "public_route_table" {
   }
 
   freeform_tags = "${
-    map(
-      "KubernetesCluster", "${var.ClusterName}"
-    )
-  }"
+    tomap({
+      "KubernetesCluster" = "${var.ClusterName}"
+    })}"
 
 }
 
@@ -187,10 +179,9 @@ resource "oci_core_security_list" "worker-security-list" {
   }
 
   freeform_tags = "${
-    map(
-      "KubernetesCluster", "${var.ClusterName}"
-    )
-  }"
+    tomap({
+      "KubernetesCluster" = "${var.ClusterName}"
+    })}"
 
 }
 
@@ -214,9 +205,8 @@ resource "oci_core_security_list" "public-security-list" {
   }
 
   freeform_tags = "${
-    map(
-      "KubernetesCluster", "${var.ClusterName}"
-    )
-  }"
+    tomap({
+      "KubernetesCluster" = "${var.ClusterName}"
+    })}"
 
 }

@@ -47,7 +47,7 @@ variable "override_instance_types" {
 
 variable "number_of_worker_nodes" {
   description = "eGov recommended below worker node counts as default"
-  default = "6" #REPLACE IF NEEDED
+  default = "7" #REPLACE IF NEEDED
 }
 
 variable "ssh_key_name" {
@@ -55,16 +55,14 @@ variable "ssh_key_name" {
   default = "egov-staging" #REPLACE
 }
 
-variable "identifier" {
-  description = "RDS DB identifier"
-  default = "egov-staging" #REPLACE
+variable "db_subnet_group" {
+  default = "default-vpc-0f630338229cf5c1e"
 }
 
-
-#variable "db_name" {
-#  description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
-#  default = "egov_staging_db" #REPLACE
-#}
+variable "db_name" {
+  description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
+  default = "egov-staging" #REPLACE
+}
 
 variable "db_username" {
   description = "RDS database user name"

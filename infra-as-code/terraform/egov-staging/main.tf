@@ -19,15 +19,15 @@ module "db" {
   subnet_ids                    = "${module.network.private_subnets}"
   vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
   availability_zone             = "${element(var.availability_zone, 0)}"
-  instance_class                = "db.m5.large"  ## postgres db instance type
+  instance_class                = "db.m6g.large"  ## postgres db instance type
   engine_version                = "12.17"   ## postgres version
-  storage_type                  = "gp2"
+  storage_type                  = "gp3"
   storage_gb                    = "165"     ## postgres disk size
   backup_retention_days         = "7"
   administrator_login           = "${var.db_username}"
   administrator_login_password  = "${var.db_password}"
-  identifier                    = "${var.cluster_name}"
-#  db_name                       = "${var.db_name}"
+  db_name                       = "${var.db_name}"
+  db_subnet_group               = "${var.db_subnet_group}"
   environment                   = "${var.cluster_name}"
 }
 
@@ -114,8 +114,7 @@ module "eks" {
     tomap({
       "kubernetes.io/cluster/${var.cluster_name}" = "owned",
       "KubernetesCluster" = "${var.cluster_name}"
-    })
-  }"
+    })}"
 }
 
 resource "aws_iam_role" "eks_iam" {
@@ -229,7 +228,7 @@ module "kafka" {
   disk_prefix = "kafka"
   availability_zones = "${var.availability_zones}"
   storage_sku = "gp2"
-  disk_size_gb = "50"
+  disk_size_gb = "55"
   
 }
 

@@ -24,11 +24,10 @@ resource "aws_iam_role" "eks_iam" {
 POLICY
 
   tags = "${
-    map(
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
-      "KubernetesCluster", "${var.cluster_name}"
-    )
-  }"
+    tomap({
+      "kubernetes.io/cluster/${var.cluster_name}" = "owned",
+      "KubernetesCluster" = "${var.cluster_name}"
+    })}"
 }
 
 resource "aws_iam_role_policy_attachment" "cluster_AmazonEKSClusterPolicy" {

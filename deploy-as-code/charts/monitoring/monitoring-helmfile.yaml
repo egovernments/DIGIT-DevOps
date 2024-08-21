@@ -5,6 +5,12 @@ repositories:
   url: https://prometheus-community.github.io/helm-charts
 - name: jaegertracing
   url: https://jaegertracing.github.io/helm-charts
+- name: apm-server
+  url: https://helm.elastic.co
+- name: apm-attacher
+  url: https://helm.elastic.co
+- name: blackbox-exporter
+  url: https://prometheus-community.github.io/helm-charts
 
 values:
   - namespace: monitoring
@@ -62,10 +68,26 @@ releases:
     - name: ingress.tls[0].hosts[0]
       value: {{ .Values.global.domain | quote }}
 
-- name: blackbox
-  installed: false
+- name: blackbox-exporter
+  installed: true
   namespace: {{ .Values.namespace | default "default-namespace" }}
   chart: prometheus-community/prometheus-blackbox-exporter
-  version: 8.2.0
+  version: 8.17.0
   values:
-  - ./values/blackbox-exporter.yaml     
+  - ./values/blackbox-exporter.yaml
+
+- name: apm-server
+  installed: true
+  namespace: es-cluster
+  chart: elastic/apm-server
+  version: 8.5.1
+  values:
+  - ./values/apm-server.yaml
+
+- name: apm-attacher
+  installed: true
+  namespace: es-cluster
+  chart: elastic/apm-attacher
+  version: 1.0.0
+  values:
+  - ./values/apm-attacher.yaml

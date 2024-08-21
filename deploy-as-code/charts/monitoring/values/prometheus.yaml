@@ -278,6 +278,16 @@ additionalPrometheusRules:
            summary: Kubernetes PersistentVolumeClaim pending ({{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }})
            description: "Persistent volume {{ $labels.persistentvolume }} is in bad state\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
            repeat_interval: 30m
+     - name: KubernetesPersistentvolume
+       rules:
+       - alert: PVCStorageLow
+         expr: (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes) * 100 < 15
+         for: 5m
+         labels:
+           severity: warning
+         annotations:
+           summary: "PVC storage usage is above 85%"
+           description: "The PVC storage usage has exceeded 85%. Current usage is {{ $value }}%."
 
 ## Provide custom recording or alerting rules to be deployed into the cluster.
 ##
@@ -390,7 +400,7 @@ alertmanager:
   ##
   config:
     global:
-      slack_api_url: https://hooks.slack.com/services/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
+      slack_api_url: https://hooks.slack.com/services/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
       resolve_timeout: 5m
     route:
       group_by: ['alertname']
@@ -3780,12 +3790,12 @@ prometheus:
               - https://unified-qa.digit.org/citizen/     # Add your domains here
               - https://unified-qa.digit.org/monitoring/
               - https://unified-qa.digit.org/pgadmin/login?next=%2Fpgadmin%2F
-              - https://unified-qa-dashboard.digit.org/kibana-upgrade/
+              - https://unified-qa.digit.org/kibana-upgrade/
               - https://unified-qa.digit.org/tracing/
               - https://unified-dev.digit.org/citizen/     # Add your domains here
               - https://unified-dev.digit.org/monitoring/
               - https://unified-dev.digit.org/pgadmin/login?next=%2Fpgadmin%2F
-              - https://unified-dev-dashboard.digit.org/kibana
+              - https://unified-dev.digit.org/kibana
               - https://unified-dev.digit.org/tracing/
               - https://builds.digit.org/
 

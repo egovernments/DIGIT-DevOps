@@ -11,7 +11,7 @@ apiVersion: networking.k8s.io/v1
 {{ else if .Capabilities.APIVersions.Has "networking.k8s.io/v1beta1" }}
 apiVersion: networking.k8s.io/v1beta1
 {{ else }}
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 {{ end -}}
 kind: Ingress
 metadata:
@@ -52,9 +52,12 @@ spec:
                   name: tcp-frontend
           {{- else }}
           - path: {{ . }}
+            pathType: ImplementationSpecific
             backend:
-              serviceName: {{ $serviceName }}
-              servicePort: tcp-frontend
+              service:
+                name: {{ $serviceName }}
+                port:
+                  name: tcp-frontend
           {{- end }}
         {{- end }}
   {{- end }}

@@ -7,7 +7,7 @@
 {{- $servicePort := .Values.prometheus.service.port -}}
 {{- $routePrefix := list .Values.prometheus.prometheusSpec.routePrefix }}
 {{- $paths := .Values.prometheus.ingress.paths | default $routePrefix -}}
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
 {{- if .Values.prometheus.ingress.annotations }}
@@ -31,9 +31,12 @@ spec:
         paths:
   {{- range $p := $paths }}
           - path: {{ tpl $p $ }}
+            pathType: ImplementationSpecific
             backend:
-              serviceName: {{ $serviceName }}
-              servicePort: {{ $servicePort }}
+              service:
+                name: {{ $serviceName }}
+                port:
+                  number: {{ $servicePort }}
   {{- end -}}
   {{- end -}}
   {{- else }}
@@ -41,9 +44,12 @@ spec:
         paths:
   {{- range $p := $paths }}
           - path: {{ tpl $p $ }}
+            pathType: ImplementationSpecific
             backend:
-              serviceName: {{ $serviceName }}
-              servicePort: {{ $servicePort }}
+              service:
+                name: {{ $serviceName }}
+                port:
+                  number: {{ $servicePort }}
   {{- end -}}
   {{- end -}}
   {{- if .Values.prometheus.ingress.tls }}

@@ -9,7 +9,7 @@ metadata:
   namespace: {{ $.Release.Namespace }}
 items:
 {{ range $i, $e := until $count }}
-  - apiVersion: extensions/v1beta1
+  - apiVersion: networking.k8s.io/v1
     kind: Ingress
     metadata:
       name: {{ include "prometheus-operator.fullname" $ }}-alertmanager-{{ $i }}
@@ -31,9 +31,12 @@ items:
             paths:
       {{- range $p := $ingressValues.paths }}
               - path: {{ tpl $p $ }}
+                pathType: ImplementationSpecific
                 backend:
-                  serviceName: {{ include "prometheus-operator.fullname" $ }}-alertmanager-{{ $i }}
-                  servicePort: {{ $servicePort }}
+                  service:
+                    name: {{ include "prometheus-operator.fullname" $ }}-alertmanager-{{ $i }}
+                    port:
+                      number: {{ $servicePort }}
       {{- end -}}
       {{- if or $ingressValues.tlsSecretName $ingressValues.tlsSecretPerReplica.enabled }}
       tls:

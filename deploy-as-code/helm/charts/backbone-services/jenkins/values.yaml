@@ -759,6 +759,13 @@ master:
                 }
                 disabled(false)
               }
+              {{- else if (eq $job.name "health-demo-upgrade") }}            
+              deployer(repo:'git@github.com:egovernments/health-campaign-devops.git', branch: 'health-demo-kubernetes-1.27', helmDir: 'config-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
               {{- else if (eq $job.name "unified-pspcl-qa") }}            
               deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'pspcl', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
                       sandbox() 
@@ -906,6 +913,13 @@ master:
                 }
                 disabled(false)
               }
+              {{- else if (eq $job.name "digit-sandbox") }}            
+              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'digit-sandbox', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+                      sandbox() 
+                    }
+                }
+                disabled(false)
+              }
               {{- else if (eq $job.name "punjab-fsm") }}            
               deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'punjab-fsm', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
                       sandbox() 
@@ -1032,12 +1046,16 @@ master:
     #     serviceName: ssl-redirect
     #     servicePort: use-annotation
     - backend:
-        serviceName: >-
-          {{ template "jenkins.fullname" . }}
+        service:
+          name: >-
+            {{ template "jenkins.fullname" . }}
         # Don't use string here, use only integer value!
-        servicePort: 8080
+          port:
+            number: 8080
+      path: "/"
+      pathType: Prefix  
     # For Kubernetes v1.14+, use 'networking.k8s.io/v1beta1'
-    apiVersion: "networking.k8s.io/v1beta1"
+    apiVersion: "networking.k8s.io/v1"
     labels: {}
     annotations: 
       kubernetes.io/ingress.class: "nginx"

@@ -10,7 +10,8 @@ ingress:
   namespace: egov
   enabled: true
   zuul: true
-  context: "egov-mdms-service"
+  context: "{{ .Values.envContext | default 'egov-mdms-service' }}"
+
 
 initContainers:
   dbMigration:
@@ -25,8 +26,8 @@ image:
 replicas: "1"
 healthChecks:
   enabled: true
-  livenessProbePath: "/egov-mdms-service/health"
-  readinessProbePath: "/egov-mdms-service/health"
+  livenessProbePath: "{{ printf \"%s/health\" .Values.envContext | default \"/egov-mdms-service/health\" }}"
+  readinessProbePath: "{{ printf \"%s/health\" .Values.envContext | default \"/egov-mdms-service/health\" }}"
 
 appType: "java-spring"
 tracing-enabled: true
@@ -39,9 +40,9 @@ egov-mdms-data-save-topic: "save-mdms-data"
 # Additional Container Envs
 env: |
   - name: SERVER_CONTEXT_PATH
-    value: /egov-mdms-service
+    value: {{ printf "/%s" .Values.envContext | default "/egov-mdms-service" }}
   - name: SERVER_SERVLET_CONTEXT_PATH
-    value: /egov-mdms-service
+    value: {{ printf "/%s" .Values.envContext | default "/egov-mdms-service" }}
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
     value: egov-mdms-service-consumer-group
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER

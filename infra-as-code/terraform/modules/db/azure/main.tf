@@ -27,6 +27,8 @@ resource "azurerm_postgresql_flexible_server" "default" {
   storage_mb             = "${var.storage_mb}"
   sku_name               = "${var.sku_tier}"
   backup_retention_days  = 7
+
+  public_network_access_enabled = false
 }
 
 resource "azurerm_postgresql_flexible_server_database" "default" {

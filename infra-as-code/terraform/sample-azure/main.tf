@@ -95,7 +95,7 @@ module "kubernetes" {
   resource_group            = var.resource_group
   client_id                 = var.client_id
   client_secret             = var.client_secret
-  vm_size                   = "Standard_B4ms"
+  vm_size                   = "Standard_B2ms"
   ssh_public_key            = var.environment
   node_count                = 5
   network_security_group_id = azurerm_network_security_group.aks_nsg.id
@@ -106,7 +106,7 @@ module "postgres-db" {
   source                    = "../modules/db/azure"
   resource_group            = var.resource_group
   location                  = var.location
-  sku_tier                  = "B_Standard_B2ms"
+  sku_tier                  = "B_Standard_B1ms"
   storage_mb                = "65536"
   backup_retention_days     = "7"
   administrator_login       = var.db_user

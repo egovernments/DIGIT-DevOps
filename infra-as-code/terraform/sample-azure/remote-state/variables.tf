@@ -16,7 +16,3 @@ variable "location" {
   default     = "South India"
 }
 
-variable "resource_group" {
-  description = "The resource group name for the Azure resources"
-  default     = "demo-azure-rg-terraform"
-}

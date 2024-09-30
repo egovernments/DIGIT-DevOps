@@ -80,7 +80,7 @@ cluster-configs:
               egov-otp: 'http://egov-otp.egov:8080/'
               egov-common-workflows: 'http://egov-common-workflows:8080/'
               mdms-service-v2: 'http://mdms-v2.egov:8080/'
-              egov-mdms-service: "http://health-mdms-v2.health:8080/"
+              egov-mdms-service: "http://mdms-v2.egov:8080/"
               egov-mdms-service-legacy: "http://health-mdms-v1.health:8080/"
               egov-mdms-service-test: "http://egov-mdms-service-test.egov:8080/"
               egov-mdms-create: "http://egov-mdms-create.health:8080/"
@@ -166,6 +166,7 @@ cluster-configs:
               health-project: 'http://health-project.health:8080/'
               health-individual: 'http://health-individual.health:8080/'
               plan-service: 'http://plan-service.health:8080/'
+              health-attendance: 'http://health-attendance.health:8080/'
 
 employee:
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
@@ -222,6 +223,9 @@ egov-idgen:
 
 health-mdms-v2:
   memory_limits: 512Mi
+  contextPath: "/egov-mdms-service"
+  ingress:
+    context: "egov-mdms-service"
 
 egov-notification-sms:
   sms-provider-url: "sms provider url" ## Add sms provider url
@@ -368,7 +372,7 @@ boundary-service:
   memory_limits: 512Mi
 
 facility:
-  replicas: 3
+  replicas: 1
   heap: '-Xmx512m -Xms256m'
   memory_limits: 512Mi
 
@@ -546,7 +550,7 @@ egov-hrms:
   employee-applink: "https://egov-demo.egovernments.org/employee/user/login"
 
 health-hrms:
-  replicas : 4
+  replicas : 1
   java-args: -Dspring.profiles.active=monitoring
   employee-applink: 'https://egov-demo.egovernments.org/employee/user/login'
   heap: '-Xmx512m -Xms256m'
@@ -561,10 +565,16 @@ project-factory:
   logLevel: 'info'
   defaultLocale: 'en_IN'
   splitBoundariesOn: 'ADMIN_DISTRITO'
-  replicas: 3
-  minReplicas: 3
+  replicas: 1
+  minReplicas: 1
   maxReplicas: 5
   namespace: 'health'
+  mdmsV2SearchEndpoint: 'egov-mdms-service/v2/_search'
+  mdmsV1SearchEndpoint: 'egov-mdms-service/v1/_search'
+  enableDynamicTemplate: ''
+  CallGenerateWhenDeliveryConditionsDiffer: 'false'
+  ExcludeHierarchyTypeFromBoundaryCodes: 'false'
+  ExcludeBoundaryTypeFromLastBoundaryCodes: 'false'
 
 plan-service:
   egov-mdms-service-host-key: 'mdms-service-v2'
@@ -805,12 +815,12 @@ hcm-moz-impl:
 
 product:
   heap: "-Xmx512m -Xms256m"
-  replicas: 3
+  replicas: 1
   memory_limits: 512Mi
 
 project:
   heap: "-Xmx512m -Xms256m"
-  replicas: 3
+  replicas: 1
   memory_limits: 512Mi
   tracing-enabled: true
   java-enable-debug: true
@@ -820,7 +830,7 @@ project:
 
 health-individual:
 #  egov-mdms-service-host-key: "egov-mdms-service-legacy"
-  replicas : 5
+  replicas : 1
   heap: "-Xmx512m -Xms256m"
   memory_limits: 512Mi
   tracing-enabled: true
@@ -833,7 +843,7 @@ health-individual:
 #  egov-mdms-service-host-key: "egov-mdms-service-legacy"
 health-project:
 #  egov-mdms-service-host-key: "egov-mdms-service-legacy"
-  replicas : 6
+  replicas : 1
   memory_limits: 768Mi
   heap: '-Xmx768m -Xms512m'
   tracing-enabled: true
@@ -852,4 +862,6 @@ health-attendance:
   memory_limits: 512Mi
 #  egov-mdms-service-host-key: "egov-mdms-service-legacy"
 transformer:
-  egov-boundary-hierarchy-name: "HCM-MZ"
+  egov-boundary-hierarchy-name: "ADMIN"
+  egov-localization-module-name: "rainmaker-boundary-admin"
+  egov-localization-locale-code: "en_IN"

@@ -1,47 +1,43 @@
 # Common Labels
 labels:
-  app: "mdms-v2"
+  app: "tenant-management"
   group: "core"
 
 # Ingress Configs
 ingress:
   enabled: true
   zuul: true
-  context: "mdms-v2"
+  context: "tenant-management"
 
 initContainers:
   dbMigration:
     enabled: true
-    schemaTable: "mdms_v2_schema"
+    schemaTable: "tenant_management_schema"
     image:
-      repository: "mdms-v2-db"
+      repository: "tenant-management-db"
 
 # Container Configs
 image:
-  repository: "mdms-v2"
+  repository: "tenant-management"
 replicas: "1"
 healthChecks:
   enabled: true
-  livenessProbePath: "/mdms-v2/health"
-  readinessProbePath: "/mdms-v2/health"
+  livenessProbePath: "/tenant-management/health"
+  readinessProbePath: "/tenant-management/health"
 appType: "java-spring"
 tracing-enabled: true
+heap: "-Xmx256m -Xms256m"
 memory_limits: 512Mi
-heap: "-Xmx512m -Xms512m"
 java-args: "-Dspring.profiles.active=monitoring"
-egov-mdms-schema-definition-save-topic: "save-mdms-schema-definition"
-egov-mdms-data-save-topic: "save-mdms-data"
-memory_limits: "512Mi"
-cpu_limits: "200m"
+kafka-topics-create-tenant: "create-tenant"
+kafka-topics-update-tenant: "update-tenant"
 
 # Additional Container Envs
 env: |
   - name: SERVER_CONTEXT_PATH
-    value: {{ .Values.contextPath | default "mdms-v2" }} 
-  - name: SERVER_SERVLET_CONTEXT_PATH
-    value: {{ .Values.contextPath | default "mdms-v2" }} 
+    value: /tenant-management
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: egov-mdms-service-consumer-group
+    value: tenant-management
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   {{- if index .Values "global" "serializers-timezone-in-ist" }}
@@ -60,7 +56,7 @@ env: |
     value: "false"
   - name: JAVA_ENABLE_DEBUG
     value: "true"
-  - name: EGOV_MDMS_SCHEMA_DEFINITION_SAVE_TOPIC
-    value: {{ index .Values "egov-mdms-schema-definition-save-topic" | quote }}
-  - name: EGOV_MDMS_DATA_SAVE_TOPIC
-    value: {{ index .Values "egov-mdms-data-save-topic" | quote }}  
+  - name: KAFKA_TOPICS_CREATE_TENANT
+    value: {{ index .Values "kafka-topics-create-tenant" | quote }}
+  - name: KAFKA_TOPICS_UPDATE_TENANT
+    value: {{ index .Values "kafka-topics-update-tenant" | quote }}

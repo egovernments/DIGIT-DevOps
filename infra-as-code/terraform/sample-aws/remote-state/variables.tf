@@ -1,3 +1,3 @@
 variable "bucket_name" {
-  default = "digt-go-test-bucket"
+  default = "<s3-bucket-name>"
 }

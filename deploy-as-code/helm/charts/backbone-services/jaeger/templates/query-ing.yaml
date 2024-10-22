@@ -1,2 +1,33 @@
-# ingress.yaml
-{{- template "common.ingress" . -}}
+{{- if .Values.query.ingress.enabled -}}
+apiVersion: {{ include "common.capabilities.ingress.apiVersion" $ }}
+kind: Ingress
+metadata:
+  name: {{ template "jaeger.query.name" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "jaeger.labels" . | nindent 4 }}
+    {{- if .Values.query.ingress.labels }}
+    {{- toYaml .Values.query.ingress.labels | nindent 4 }}
+    {{- end }}
+    app.kubernetes.io/component: query
+  {{- if .Values.query.ingress.annotations }}
+  annotations:
+    {{- toYaml .Values.query.ingress.annotations | nindent 4 }}
+  {{- end }}
+spec:
+  rules:
+  - host: {{ .Values.query.ingress.hosts }}
+    http:
+      paths:
+      - path: {{ .Values.query.basePath }}
+        pathType: {{ .Values.query.ingress.pathType }}
+        backend: 
+          service:
+            name: jaeger-query
+            port:
+              number: 80
+  tls:    
+    - hosts:
+      - {{ .Values.query.ingress.hosts }}
+      secretName: {{ .Values.query.ingress.hosts }}-tls-certs 
+{{- end -}}

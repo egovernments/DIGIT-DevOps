@@ -50,9 +50,6 @@ spec:
       volumes:
         - name: kibana-tokens
           emptyDir: {}
-        - name: elasticsearch-certs
-          secret:
-            secretName: {{ .Values.elasticsearchCertificateSecret }}
         {{- if .Values.kibanaConfig }}
         - name: kibanaconfig
           configMap:
@@ -102,13 +99,15 @@ spec:
         env:
           {{- if .Values.elasticsearchURL }}
           - name: ELASTICSEARCH_URL
-            value: "{{ .Values.elasticsearchURL }}"
+            value: {{ .Values.elasticsearchURL | quote }}
           {{- else if .Values.elasticsearchHosts }}
           - name: ELASTICSEARCH_HOSTS
-            value: "{{ .Values.elasticsearchHosts }}"
+            value: {{ .Values.elasticsearchHosts | quote }}
           {{- end }}
+          {{- if .Values.elasticsearchCertificateAuthoritiesFile }}
           - name: ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES
-            value: "{{ template "kibana.home_dir" . }}/config/certs/{{ .Values.elasticsearchCertificateAuthoritiesFile }}"
+            value: {{ template "kibana.home_dir" . }}/config/certs/{{ .Values.elasticsearchCertificateAuthoritiesFile  | quote }}
+          {{- end }}
           - name: SERVER_HOST
             value: "{{ .Values.serverHost }}"
           - name: ELASTICSEARCH_SERVICEACCOUNTTOKEN
@@ -168,9 +167,6 @@ spec:
         resources:
 {{ toYaml .Values.resources | indent 10 }}
         volumeMounts:
-          - name: elasticsearch-certs
-            mountPath: {{ template "kibana.home_dir" . }}/config/certs
-            readOnly: true
           - name: kibana-tokens
             mountPath: {{ template "kibana.home_dir" . }}/config/tokens
             readOnly: true

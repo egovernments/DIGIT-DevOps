@@ -32,9 +32,7 @@ healthChecks:
 appType: "java-spring"
 tracing-enabled: true
 egov-indexer-yaml-repo-path: "file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml,file:///work-dir/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/configs/egov-indexer/error-queue.yml,file:///work-dir/configs/egov-indexer/finance-rolloutadotpion-indexer.yml,file:///work-dir/configs/egov-indexer/payment-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/configs/egov-indexer/tradelicense-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-tl-indexer.yml"
-heap: "-Xmx256m -Xms256m"
-memory_limits: 512Mi
-indexer-host: "egov-indexer"
+heap: "-Xmx192m -Xms192m"
 
 # Additional Container Envs
 env: |
@@ -42,7 +40,7 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: {{ index .Values "indexer-host" }}
+        key: egov-indexer
   - name: EGOV_INFRA_INDEXER_HOST
     valueFrom:
       configMapKeyRef:
@@ -62,18 +60,18 @@ env: |
     value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED
     value: "false"
-  - name: EGOV_STATELEVEL_TENANTID
+  - name: STATE_LEVEL_TENANT_ID
     valueFrom:
       configMapKeyRef:
         name: egov-config
-        key: egov-state-level-tenant-id
-  - name: EGOV_INDEXER_ES_USERNAME
+        key: state-level-tenant-id
+  - name: EGOV_EDCR_HOST
     valueFrom:
-      secretKeyRef:
-        name: elasticsearch-master-credentials
-        key: username
-  - name: EGOV_INDEXER_ES_PASSWORD
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  - name: EGOV_BPA_HOST
     valueFrom:
-      secretKeyRef:
-        name: elasticsearch-master-credentials
-        key: password   
+      configMapKeyRef:
+        name: egov-service-host
+        key: bpa-services 

@@ -1,0 +1,116 @@
+# Common Labels
+labels:
+  app: "pt-calculator-v2"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "pt-calculator-v2"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "pt_calculator_v2_schema"
+    image:
+      repository: "pt-calculator-v2-db"
+
+# Container Configs
+image:
+  repository: "pt-calculator-v2"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/pt-calculator-v2/health"
+  readinessProbePath: "/pt-calculator-v2/health"
+appType: "java-spring"
+tracing-enabled: true
+logging-level: "DEBUG"
+JAVA_ENABLE_DEBUG: ""
+CUSTOM_PB_ZERO_ASSESSMENT: ""
+CUSTOM_PB_ZERO_ASSESSMENTYEAR: "2013-14"
+CUSTOM_PB_ZERO_ASSESSMENT_TENANTID: ""
+custom-pb-firecess-logic: ""
+allow-depreciations: "false"
+unbuiltarea-prorated: "false"
+heap: "-Xmx192m -Xms192m"
+java-args: "-Dspring.profiles.active=monitoring"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_CONTEXTPATH
+    value: /pt-calculator-v2
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.springframework.kafka.support.serializer.JsonSerializer
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: rainmaker-pt-calculator-group
+  - name: KAFKA_TOPICS_BILLING_SLAB_SAVE_SERVICE
+    value: save-pt-billingslab
+  - name: KAFKA_TOPICS_BILLING_SLAB_UPDATE_SERVICE
+    value: update-pt-billingslab
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: EGOV_MDMS_SEARCH_ENDPOINT
+    value: /egov-mdms-service/v1/_search
+  - name: EGOV_BILLINGSERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: billing-service
+  - name: EGOV_COLLECTIONSERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: collection-services
+  - name: LOGGING_LEVEL_ORG_EGOV
+    value: {{ index .Values "logging-level" | quote }}
+  {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
+  - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: tracer-errors-provideexceptionindetails
+  {{- end }}
+  {{- if index .Values "JAVA_ENABLE_DEBUG" }}
+  - name: JAVA_ENABLE_DEBUG
+    value: {{ index .Values "JAVA_ENABLE_DEBUG" | quote }}
+  {{- end }}
+  {{- if index .Values "CUSTOM_PB_ZERO_ASSESSMENT" }}
+  - name: CUSTOM_PB_ZERO_ASSESSMENT
+    value: {{ index .Values "CUSTOM_PB_ZERO_ASSESSMENT" | quote }}
+  - name: CUSTOM_PB_ZERO_ASSESSMENTYEAR
+    value: {{ index .Values "CUSTOM_PB_ZERO_ASSESSMENTYEAR" | quote }}
+  - name: CUSTOM_PB_ZERO_ASSESSMENT_TENANTID
+    value: {{ index .Values "CUSTOM_PB_ZERO_ASSESSMENT_TENANTID" | quote }}
+  {{- end }}
+  {{- if index .Values "custom-pb-firecess-logic" }}
+  - name: CUSTOMIZATION_PBFIRECESSLOGIC
+    value: {{ index .Values "custom-pb-firecess-logic" | quote }}
+  {{- end }}
+  - name: CUSTOMIZATION_ALLOWDEPRECIATIONONNORECEIPTS
+    value: {{ index .Values "allow-depreciations" | quote }}
+  - name: CUSTOMIZATION_UNBUILTAREA_PRORATED
+    value: {{ index .Values "unbuiltarea-prorated" | quote }}
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: PT_MODULE_MINPAYABLE_AMOUNT
+    value: "100"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"      
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}

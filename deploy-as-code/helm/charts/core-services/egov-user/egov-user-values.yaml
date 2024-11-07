@@ -27,7 +27,7 @@ healthChecks:
   readinessProbePath: "/user/health"
 appType: "java-spring"
 tracing-enabled: true
-egov-state-level-tenant-id: "pb"
+state-level-tenant-id: "pb"
 decryption-abac-enabled: "false"
 account-unlock-cool-down-period-minutes: "30"
 otp-validation: "true"
@@ -41,8 +41,7 @@ roles-state-level: "true"
 citizen-registration-withlogin: "true"
 citizen-otp-fixed: "123456"
 citizen-otp-fixed-enabled: "true"
-heap: "-Xmx256m -Xms256m"
-memory_limits: 512Mi
+heap: "-Xmx192m -Xms192m"
 java-args: ""
 
 # Additional Container Envs
@@ -59,7 +58,10 @@ env: |
         name: egov-service-host
         key: egov-otp
   - name: EGOV_USER_HOST
-    value: "http://localhost:8080"
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
   - name: EGOV_SERVICES_ACCESSCONTROL_HOST
     valueFrom:
       configMapKeyRef:
@@ -85,6 +87,11 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-enc-service
+  - name: EGOV_LOCALIZATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-localization
   - name: STATE_LEVEL_TENANT_ID
     valueFrom:
       configMapKeyRef:
@@ -161,11 +168,4 @@ env: |
   {{- if index .Values "tracing-enabled" }}
   - name: TRACER_OPENTRACING_ENABLED
     value: "true" 
-  {{- end }}
-  {{- if index .Values "java-debug" }}
-  - name: JAVA_ENABLE_DEBUG
-    value: {{ index .Values "java-debug" | quote }}
-  {{- else }}
-  - name: JAVA_ENABLE_DEBUG
-    value: "false"
   {{- end }}

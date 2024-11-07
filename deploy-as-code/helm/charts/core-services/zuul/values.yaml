@@ -5,17 +5,17 @@ labels:
 
 serviceAccount: zuul
 namespace: egov  
-discovery_namespaces: egov,sanitation,works,health,staging,fsm,ifix
+
 # Init Containers Configs
 initContainers: 
   extraInitContainers: |
     - name: "zuul-kubernetes-discovery"
-      image: "{{ .Values.global.containerRegistry }}/zuul-kubernetes-discovery:zuul-discovery-multiple-ns-1b978047ee-1"      
+      image: "{{ .Values.global.containerRegistry }}/zuul-kubernetes-discovery:2-master-91c9795"      
       env: 
       - name: "OUTPUT_FILE_PATH"
         value: "/etc/zuul/routes.properties" 
       - name: "NAMESPACE"
-        value: {{ index .Values "discovery_namespaces" | quote }}        
+        value: "egov"         
       volumeMounts:
       - name: zuul-routes
         mountPath: /etc/zuul
@@ -39,8 +39,7 @@ healthChecks:
 custom-filter-property: "false"
 posthook-config: ""
 prehook-config: ""
-heap: "-Xmx256m -Xms256m"
-memory_limits: 512Mi
+heap: "-Xmx192m -Xms192m"
 appType: "java-spring"
 tracing-enabled: true
 server-tomcat-max-threads: "350"
@@ -71,6 +70,13 @@ env: |
     value: http://tl-calculator:8080/                                  
   - name: SERVER_PORT
     value: "8080"
+  {{- if index .Values "java-debug" }}
+  - name: JAVA_ENABLE_DEBUG
+    value: {{ index .Values "java-debug" | quote }}
+  {{- else }}
+  - name: JAVA_ENABLE_DEBUG
+    value: "false"
+  {{- end }}
   - name: JAVA_OPTS
     value: {{ index .Values "heap" | quote }}
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
@@ -115,17 +121,10 @@ env: |
     value: "false"
   - name: JAVA_ARGS
     value: {{ index .Values "java-args" | quote }}
-  {{- if index .Values "java-debug" }}
-  - name: JAVA_ENABLE_DEBUG
-    value: {{ index .Values "java-debug" | quote }}
-  {{- else }}
-  - name: JAVA_ENABLE_DEBUG
-    value: "false"
-  {{- end }}
-  - name: EGOV_STATELEVEL_TENANT
+  - name: STATE_LEVEL_TENANT_ID
     valueFrom:
       configMapKeyRef:
-        key: egov-state-level-tenant-id
+        key: state-level-tenant-id
         name: egov-config    
   - name: ZUUL_ROUTES_FILEPATH
     value: "file:/etc/zuul/routes.properties"   

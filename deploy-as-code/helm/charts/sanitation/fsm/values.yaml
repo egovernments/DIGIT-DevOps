@@ -1,4 +1,3 @@
-namespace : sanitation
 # Common Labels
 labels:
   app: "fsm"
@@ -9,7 +8,6 @@ ingress:
   enabled: true
   zuul: true
   context: "fsm"
-  namespace : egov
 
 # Init Containers Configs
 initContainers:
@@ -29,8 +27,7 @@ healthChecks:
   readinessProbePath: "/fsm/health"
 appType: "java-spring"
 tracing-enabled: true
-memory_limits: 512Mi
-heap: "-Xmx384m -Xms256m"
+heap: "-Xmx256m -Xms256m"
 java-args: "-Dspring.profiles.active=monitoring"
 egov.idgen.fsm.applicationNum.format: "[CITY.CODE]-FSM-[cy:yyyy-MM-dd]-[SEQ_EGOV_FSM]"
 
@@ -46,11 +43,6 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-mdms-service
-  - name: EGOV_MDMS_V2_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key:  mdms-service-v2
   - name: EGOV_URL_SHORTNER_HOST
     valueFrom:
       configMapKeyRef:
@@ -125,6 +117,10 @@ env: |
     value: update-fsm-workflow-application
   - name: PERSISTER_UPDATE_FSM_ADHOC_TOPIC
     value: update-fsm-adhoc-application
+  - name: PERSISTER_SAVE_PLANTMAP_TOPIC
+    value: save-plant-map-application
+  - name: PERSISTER_UPDATE_PLANTMAP_TOPIC
+    value: update-plant-map-application
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
@@ -135,13 +131,6 @@ env: |
     value: {{ index .Values "java-args" | quote }}
   - name: SERVER_PORT
     value: "8080"
-  {{- if index .Values "java-debug" }}
-  - name: JAVA_ENABLE_DEBUG
-    value: {{ index .Values "java-debug" | quote }}
-  {{- else }}
-  - name: JAVA_ENABLE_DEBUG
-    value: "false"
-  {{- end }}
   - name: SECURITY_BASIC_ENABLED
     value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED

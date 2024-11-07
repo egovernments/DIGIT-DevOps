@@ -15,6 +15,7 @@ ingress:
   annotations:
     kubernetes.io/ingress.class: "nginx"
     nginx.ingress.kubernetes.io/use-regex: "true" 
+   # nginx.ingress.kubernetes.io/limit-rpm: "300"
   waf: 
     enabled: true
     annotations:
@@ -38,22 +39,15 @@ initContainers:
       tag: latest
     env: |
         - name: "DB_URL"
-        {{- if eq .Values.namespace "health" }}
-          valueFrom:
-            configMapKeyRef:
-              name: egov-config
-              key: health-db-url
-        {{- else }}
-          valueFrom:
-            configMapKeyRef:
+          valueFrom: 
+            configMapKeyRef: 
               name: egov-config
               key: db-url
-        {{- end }}
         - name: "SCHEMA_TABLE"
-          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}              
         - name: "FLYWAY_USER"
-          valueFrom:
-            secretKeyRef:
+          valueFrom: 
+            secretKeyRef: 
                 name: db
                 key: flyway-username
         - name: "FLYWAY_PASSWORD"
@@ -61,8 +55,6 @@ initContainers:
             secretKeyRef: 
                 name: db
                 key: flyway-password
-        - name: JAVA_ENABLE_DEBUG
-          value: "TRUE"        
         - name: "FLYWAY_LOCATIONS"
           valueFrom: 
             configMapKeyRef: 
@@ -118,7 +110,7 @@ lifecycle:
             - -c
             - "sleep 10"
 
-memory_limits: "256Mi"
+memory_limits: "512Mi"
 resources: |
   {{- if eq .Values.appType "java-spring" -}}
   requests:
@@ -130,17 +122,10 @@ resources: |
 extraEnv:
   java: |
       - name: SPRING_DATASOURCE_URL
-      {{- if eq .Values.namespace "health" }}
-        valueFrom:
-          configMapKeyRef:
-            name: egov-config
-            key: health-db-url
-      {{- else }}
         valueFrom:
           configMapKeyRef:
             name: egov-config
             key: db-url
-      {{- end }}
       - name: FLYWAY_ENABLED
         value: "false"      
       - name: SPRING_FLYWAY_ENABLED
@@ -153,17 +138,10 @@ extraEnv:
             name: egov-config
             key: timezone              
       - name: FLYWAY_URL
-      {{- if eq .Values.namespace "health" }}
-        valueFrom:
-          configMapKeyRef:
-            name: egov-config
-            key: health-db-url
-      {{- else }}
         valueFrom:
           configMapKeyRef:
             name: egov-config
             key: db-url
-      {{- end }}
       - name: SPRING_DATASOURCE_USERNAME
         valueFrom:
           secretKeyRef:
@@ -229,10 +207,23 @@ extraEnv:
         valueFrom:
           configMapKeyRef:
             name: egov-config
-            key: spring-jpa-show-sql     
+            key: spring-jpa-show-sql  
+      - name: STATE_LEVEL_TENANTID_LENGTH
+        value: "1"            
       - name: IS_ENVIRONMENT_CENTRAL_INSTANCE
         value: "false"
+      - name: STATE_SCHEMA_INDEX_POSITION_TENANTID
+        value: "0"
+      - name: KAFKA_TOPIC_AUDIT
+      {{- if index .Values "kafka.topic.audit" }}
+        value: {{ index .Values "kafka.topic.audit" | quote }}
+      {{- else }}
+        value: "enc-user-audit-data"
+      {{- end }}           
         
+            
+            
+            
   jaeger: |             
       - name: JAEGER_SERVICE_NAME
         value: {{ template "common.name" . }}
@@ -291,3 +282,7 @@ cron:
 
   ## Add additional mounts
   extraVolumeMounts: |
+
+vpa:
+  enabled: false  
+  updateMode: "Off"

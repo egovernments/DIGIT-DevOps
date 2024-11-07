@@ -1,17 +1,11 @@
 {{- define "common.ingress" -}}
 {{- if .Values.ingress.enabled -}}
 ---
-apiVersion: networking.k8s.io/v1 
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ template "common.name" . }}
-{{- if .Values.global.namespace }}
-  namespace: {{ .Values.global.namespace }}
-{{- else if .Values.ingress.namespace }}
-  namespace: {{ .Values.ingress.namespace }}    
-{{- else }}  
   namespace: {{ .Values.namespace }}  
-{{- end }}     
   annotations:
 {{- toYaml .Values.ingress.annotations | nindent 4 }}   
 {{- if .Values.ingress.waf.enabled }}      
@@ -36,7 +30,7 @@ spec:
       - backend:
 {{- if .Values.ingress.zuul }}          
           service:
-            name: gateway
+            name: zuul
             port:
               number: 8080
 {{ else }}
@@ -46,8 +40,7 @@ spec:
               number: {{ .Values.ingress.servicePort | default .Values.httpPort }}
 {{- end }}            
         path: /{{ .Values.ingress.context }}
-        pathType: Prefix
-{{- if ne .Values.global.setup "quickstart" }}        
+        pathType: ImplementationSpecific
   tls:
 {{- if .Values.ingress.tls }}
   {{- tpl  .Values.ingress.tls . | nindent 2 }}
@@ -62,6 +55,5 @@ spec:
     secretName: {{ .Values.global.domain }}-tls-certs 
 {{- end }} 
 {{- end }} 
-{{- end }}
 {{- end -}} 
 {{- end -}} 

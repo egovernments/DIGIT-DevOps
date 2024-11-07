@@ -7,11 +7,7 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: {{ template "common.name" . }}
-  {{- if .Values.global.namespace }}
-  namespace: {{ .Values.global.namespace }}
-  {{- else }}
   namespace: {{ .Values.namespace }}
-  {{- end }}
   labels:
 {{- include "common.labels" . | nindent 4 }}   
 spec:
@@ -42,16 +38,7 @@ spec:
     {{- if .Values.initContainers.gitSync.enabled }}
       securityContext:
         fsGroup: 65533 # to make SSH key readable 
-    {{- end }}
-    {{- if .Values.securityContext }}
-      securityContext:
-      {{- if .Values.securityContext.fsGroup }}
-        fsGroup: {{ .Values.securityContext.fsGroup }}
-      {{- end }}
-      {{- if .Values.securityContext.runAsUser }}
-        runAsUser: {{ .Values.securityContext.runAsUser }}
-      {{- end }}
-    {{- end }}
+    {{- end }} 
     {{- if or .Values.initContainers.gitSync.enabled .Values.extraVolumes }}     
       volumes:  
     {{- if .Values.initContainers.gitSync.enabled }}  
@@ -112,9 +99,7 @@ spec:
         env: 
           {{- tpl  .Values.initContainers.gitSync.env . | nindent 12 }}
         {{- end }}        
-      {{- end }}
-      imagePullSecrets:
-        - name: docker-registry-secret            
+      {{- end }}            
       containers:
       {{- with .Values.extraContainers }}
         {{- tpl . $ | nindent 8 }}
@@ -150,7 +135,7 @@ spec:
           {{- tpl . $ | nindent 10 }}
         {{- end }}          
         {{- end }}     
-      {{- if or .Values.env (eq .Values.appType "java-spring") (index .Values "global" "tracing-enabled") }}
+      {{- if or .Values.env (eq .Values.appType "java-spring") (index .Values "global" "tracing-enabled") }}                         
           env:  
         {{- if .Values.env }}                                   
           {{- tpl  .Values.env . | nindent 12 }}
@@ -160,9 +145,6 @@ spec:
         {{- end -}} 
         {{- if or (index .Values "global" "tracing-enabled") (index .Values "tracing-enabled") }} 
           {{- tpl  .Values.extraEnv.jaeger . | nindent 12 }}         
-        {{- end }}
-        {{- if .Values.extraEnv.app }}
-          {{- tpl .Values.extraEnv.app . | nindent 12 }}
         {{- end }}
       {{- end }}
       {{- if .Values.resources }}                                     

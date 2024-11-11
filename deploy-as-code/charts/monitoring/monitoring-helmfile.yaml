@@ -5,16 +5,15 @@ repositories:
   url: https://prometheus-community.github.io/helm-charts
 - name: jaegertracing
   url: https://jaegertracing.github.io/helm-charts
+- name: kafka-ui
+  url: https://provectus.github.io/kafka-ui-charts
 
 values:
   - namespace: monitoring
   - ../environments/env.yaml
   - ../environments/env-secrets.yaml
 
-
-
 releases:
-
 - name: loki-stack
   installed: true
   namespace: {{ .Values.namespace | default "default-namespace" }}
@@ -32,11 +31,11 @@ releases:
   values:
   - ./values/prometheus.yaml
 
-- name: jaeger-tracing
-  installed: true
-  namespace: backbone
+- name: jaeger
+  installed: false
+  namespace: es-cluster
   chart: jaegertracing/jaeger
-  version: 1.0.0 
+  version: 0.35.0
   values:
   - ./values/jaeger.yaml
   - storage:
@@ -53,8 +52,27 @@ releases:
   version: 7.3.0
   values:
   - ./values/grafana.yaml
+  - envRenderSecret:
+      GF_AUTH_GITHUB_YAMLAPPLICATIONCONFIG_AUTH_OAUTH2_CLIENT_GITHUB_CLIENTID: {{ .Values.secrets.oauth2.clientID }}
+      GF_AUTH_GITHUB_CLIENT_SECRET: {{ .Values.secrets.oauth2.clientSecret }}
   set:
     - name: ingress.hosts[0]
       value: "{{ .Values.global.domain }}"
     - name: ingress.tls[0].hosts[0]
       value: {{ .Values.global.domain | quote }}
+
+- name: blackbox
+  installed: false
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: prometheus-community/prometheus-blackbox-exporter
+  version: 8.2.0
+  values:
+  - ./values/blackbox-exporter.yaml     
+
+- name: kafka-ui
+  installed: true
+  namespace: backbone
+  chart: kafka-ui/kafka-ui
+  version: 0.7.6
+  values:
+  - ./values/kafka-ui.yaml  

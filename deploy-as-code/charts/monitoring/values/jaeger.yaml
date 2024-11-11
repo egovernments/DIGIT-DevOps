@@ -2,6 +2,9 @@
 # This is a YAML-formatted file.
 # Jaeger values are grouped by component. Cassandra values override subchart values
 
+global:
+  imageRegistry:
+
 provisionDataStore:
   cassandra: false
   elasticsearch: false
@@ -19,9 +22,13 @@ fullnameOverride: ""
 allInOne:
   enabled: false
   replicas: 1
-  image: jaegertracing/all-in-one
-  imagePullSecrets: []
-  pullPolicy: IfNotPresent
+  image:
+    registry: ""
+    repository: jaegertracing/all-in-one
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+    pullSecrets: []
   extraEnv: []
   extraSecretMounts:
     []
@@ -81,8 +88,8 @@ allInOne:
   nodeSelector: {}
 
 storage:
-  # allowed values (cassandra, elasticsearch)
-  type: elasticsearch
+  # allowed values (cassandra, elasticsearch, grpc-plugin, badger, memory)
+  type: elasticesearch
   cassandra:
     host: cassandra
     port: 9042
@@ -117,12 +124,13 @@ storage:
       # cassandra.keyspace: jaeger_v1_test
       # cassandra.tls.enabled: "false"
   elasticsearch:
-    scheme: https
-    host: elasticsearch-master
+    scheme: http
+    host: elasticsearch-master.v1
     port: 9200
     anonymous: false
     user: elastic
     usePassword: true
+    password: changeme
     # indexPrefix: test
     ## Use existing secret (ignores previous password)
     # existingSecret:
@@ -130,8 +138,8 @@ storage:
     nodesWanOnly: false
     extraEnv: []
     ## ES related env vars to be configured on the concerned components
-      # - name: ES_SERVER_URLS
-      #   value: https://elasticsearch-master.backbone:9200
+    # - name: ES_SERVER_URLS
+    #   value: http://elasticsearch-master:9200
     # - name: ES_USERNAME
     #   value: elastic
     # - name: ES_INDEX_PREFIX
@@ -143,13 +151,13 @@ storage:
       # es.username: elastic
       # es.index-prefix: test
     tls:
-      enabled: true
-      secretName: elasticsearch-master-certs
+      enabled: false
+      secretName: es-tls-secret
       # The mount properties of the secret
-      mountPath: /usr/share/elasticsearch/config/certs
-      subPath: ca.crt
+      mountPath: /es-tls/ca-cert.pem
+      subPath: ca-cert.pem
       # How ES_TLS_CA variable will be set in the various components
-      ca: /usr/share/elasticsearch/config/certs
+      ca: /es-tls/ca-cert.pem
 
   kafka:
     brokers:
@@ -158,6 +166,14 @@ storage:
     authentication: none
     extraEnv: []
   grpcPlugin:
+    extraEnv: []
+  badger:
+    ephemeral: true
+    persistence:
+      mountPath: /mnt/data
+      useExistingPvcName: ""
+    extraEnv: []
+  memory:
     extraEnv: []
 
 # Begin: Override values on the Cassandra subchart to customize for Jaeger
@@ -175,12 +191,27 @@ cassandra:
 
 # Begin: Override values on the Kafka subchart to customize for Jaeger
 kafka:
-  replicaCount: 1
-  autoCreateTopicsEnable: true
-  zookeeper:
-    replicaCount: 1
-    serviceAccount:
-      create: true
+  listeners:
+    client:
+      protocol: PLAINTEXT
+    controller:
+      protocol: PLAINTEXT
+    interbroker:
+      protocol: PLAINTEXT
+    external:
+      protocol: PLAINTEXT
+  controller:
+    replicaCount: 3
+    extraConfig: |
+      auto.create.topics.enable=true
+# Zookeeper has been deprecated by Kafka in favor of Kraft Mode: https://developer.confluent.io/learn/kraft/
+# Documentation for upgrading Kafka and keeping Zookeeper: https://github.com/bitnami/charts/tree/main/bitnami/kafka#upgrading-from-zookeeper-mode
+# Documentation for migrating away from Zookeeper to Kraft Mode: https://github.com/bitnami/charts/tree/main/bitnami/kafka#migrating-from-zookeeper-early-access
+  # zookeeper:
+  #   enabled: false
+  #   replicaCount: 1
+  #   serviceAccount:
+  #     create: true
 
 # End: Override values on the Kafka subchart to customize for Jaeger
 
@@ -192,9 +223,13 @@ kafka:
 # use by Jaeger
 schema:
   annotations: {}
-  image: jaegertracing/jaeger-cassandra-schema
-  imagePullSecrets: []
-  pullPolicy: IfNotPresent
+  image:
+    registry: ""
+    repository: jaegertracing/jaeger-cassandra-schema
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+    pullSecrets: []
   resources:
     {}
     # limits:
@@ -224,17 +259,58 @@ schema:
     #   value: "0"
 
 # For configurable values of the elasticsearch if provisioned, please see:
-# https://github.com/elastic/helm-charts/tree/master/elasticsearch#configuration
+# https://github.com/bitnami/charts/tree/main/bitnami/elasticsearch
 elasticsearch: {}
+
+# Example that uses no auth:
+# elasticsearch:
+#   fullnameOverride: "elasticsearch"
+#   image:
+#     registry: ""
+#     repository: docker.io/bitnami/elasticsearch
+#     tag: ""
+#   master:
+#     masterOnly: false
+#     replicaCount: 3
+#     extraEnvVars:
+#       - name: ES_JAVA_OPTS
+#         value: "-Xmx20g -Xms20g"
+#     persistence:
+#       enabled: true
+#       storageClass: managed-premium
+#       accessModes: [ "ReadWriteOnce" ]
+#       size: 100gb
+#   extraConfig:
+#     cluster.max_shards_per_node: 3000
+#   sysctlImage:
+#     registry: ""
+#     repository: docker.io/bitnami/os-shell
+#     tag: 12-debian-12-r18
+#   volumePermissions:
+#     enabled: true
+#     image:
+#       registry: ""
+#       repository: docker.io/bitnami/os-shell
+#       tag: 12-debian-12-r18
+#   data:
+#     replicaCount: 0
+#   coordinating:
+#     replicaCount: 0
+#   ingest:
+#     replicaCount: 0
 
 ingester:
   enabled: false
   podSecurityContext: {}
   securityContext: {}
   annotations: {}
-  image: jaegertracing/jaeger-ingester
-  imagePullSecrets: []
-  pullPolicy: IfNotPresent
+  image:
+    registry: ""
+    repository: jaegertracing/jaeger-ingester
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+    pullSecrets: []
   dnsPolicy: ClusterFirst
   cmdlineParams: {}
   replicaCount: 1
@@ -291,10 +367,13 @@ agent:
   securityContext: {}
   enabled: true
   annotations: {}
-  image: jaegertracing/jaeger-agent
-  # tag: 1.22
-  imagePullSecrets: []
-  pullPolicy: IfNotPresent
+  image:
+    registry: ""
+    repository: jaegertracing/jaeger-agent
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+    pullSecrets: []
   cmdlineParams: {}
   extraEnv: []
   daemonset:
@@ -370,10 +449,13 @@ collector:
   securityContext: {}
   enabled: true
   annotations: {}
-  image: jaegertracing/jaeger-collector
-  # tag: 1.22
-  imagePullSecrets: []
-  pullPolicy: IfNotPresent
+  image:
+    registry: ""
+    repository: jaegertracing/jaeger-collector
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+    pullSecrets: []
   dnsPolicy: ClusterFirst
   extraEnv: []
   envFrom: []
@@ -544,8 +626,13 @@ query:
       # requests:
       #   cpu: 256m
       #   memory: 128Mi
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.1.0
-    pullPolicy: IfNotPresent
+    image:
+      registry: quay.io
+      repository: oauth2-proxy/oauth2-proxy
+      tag: v7.6.0
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
     containerPort: 4180
     args: []
     extraEnv: []
@@ -575,10 +662,13 @@ query:
   #        cpu: 256m
   #        memory: 128Mi
   annotations: {}
-  image: jaegertracing/jaeger-query
-  # tag: 1.22
-  imagePullSecrets: []
-  pullPolicy: IfNotPresent
+  image:
+    registry: ""
+    repository: jaegertracing/jaeger-query
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+    pullSecrets: []
   dnsPolicy: ClusterFirst
   cmdlineParams: {}
   extraEnv: []
@@ -598,23 +688,23 @@ query:
     enabled: true
     # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName
     # See https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/#specifying-the-class-of-an-ingress
-    ingressClassName: nginx
+    # ingressClassName: nginx
     annotations: {}
     labels: {}
     # Used to create an Ingress record.
-    hosts:
-      - ""
+    # hosts:
+    #   - chart-example.local
     # annotations:
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
-    labels:
-      app: jaeger-query
+    # labels:
+    # app: jaeger-query
     # tls:
     # Secrets must be manually created in the namespace.
-    #  - secretName: jaeger-tls
-    #    hosts:
-    #      - chart-example.local
-    pathType: 
+    # - secretName: chart-example-tls
+    #   hosts:
+    #     - chart-example.local
+    pathType:
     health:
       exposed: false
   resources:
@@ -686,10 +776,13 @@ query:
 spark:
   enabled: false
   annotations: {}
-  image: jaegertracing/spark-dependencies
-  imagePullSecrets: []
-  tag: latest
-  pullPolicy: IfNotPresent
+  image:
+    registry: ""
+    repository: jaegertracing/spark-dependencies
+    tag: latest
+    digest: ""
+    pullPolicy: IfNotPresent
+    pullSecrets: []
   cmdlineParams: {}
   extraEnv: []
   schedule: "49 23 * * *"
@@ -728,9 +821,13 @@ esIndexCleaner:
   podSecurityContext:
     runAsUser: 1000
   annotations: {}
-  image: jaegertracing/jaeger-es-index-cleaner
-  imagePullSecrets: []
-  pullPolicy: IfNotPresent
+  image:
+    registry: ""
+    repository: jaegertracing/jaeger-es-index-cleaner
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+    pullSecrets: []
   cmdlineParams: {}
   extraEnv:
     []
@@ -772,10 +869,13 @@ esRollover:
   podSecurityContext:
     runAsUser: 1000
   annotations: {}
-  image: jaegertracing/jaeger-es-rollover
-  imagePullSecrets: []
-  tag: latest
-  pullPolicy: IfNotPresent
+  image:
+    registry: ""
+    repository: jaegertracing/jaeger-es-rollover
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+    pullSecrets: []
   cmdlineParams: {}
   extraEnv:
     - name: CONDITIONS
@@ -823,10 +923,13 @@ esLookback:
   podSecurityContext:
     runAsUser: 1000
   annotations: {}
-  image: jaegertracing/jaeger-es-rollover
-  imagePullSecrets: []
-  tag: latest
-  pullPolicy: IfNotPresent
+  image:
+    registry: ""
+    repository: jaegertracing/jaeger-es-rollover
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+    pullSecrets: []
   cmdlineParams: {}
   extraEnv:
     - name: UNIT
@@ -880,7 +983,10 @@ hotrod:
   #   - name: OTEL_EXPORTER_OTLP_ENDPOINT
   #     value: http://my-otel-collector.chart.local:4318
   image:
+    registry: ""
     repository: jaegertracing/example-hotrod
+    tag: ""
+    digest: ""
     pullPolicy: IfNotPresent
     pullSecrets: []
   service:

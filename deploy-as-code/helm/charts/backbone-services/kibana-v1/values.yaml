@@ -1,0 +1,37 @@
+# Common Labels
+labels:
+  app: "kibana-v1"
+namespace: backbone  
+
+# Ingress Configs
+ingress:
+  enabled: true
+  context: "kibana"
+
+# Init Containers Configs
+initContainers: {}
+
+# Container Configs
+image:
+  repository: "docker.elastic.co/kibana/kibana"
+  tag: 8.11.3
+replicas: "1"
+httpPort: 5601
+elasticsearchHosts: "http://elasticsearch-data.backbone:9200"
+serverBasePath: "/kibana"
+healthCheckPath: "kibana/app/kibana"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/kibana/"
+  readinessProbePath: "/kibana/"            
+
+# Additional Container Envs
+env: |
+  - name: ELASTICSEARCH_URL
+    value: {{ .Values.elasticsearchHosts | quote }}
+  - name: ELASTICSEARCH_HOSTS
+    value: {{ .Values.elasticsearchHosts | quote }}
+  - name: SERVER_BASEPATH
+    value: {{ .Values.serverBasePath | quote }}
+  - name: SERVER_REWRITEBASEPATH
+    value: "true"   

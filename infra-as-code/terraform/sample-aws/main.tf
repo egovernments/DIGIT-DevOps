@@ -72,6 +72,10 @@ module "eks" {
       }
     }
   }
+  tags = {
+    "KubernetesCluster" = var.cluster_name
+    "Name"              = var.cluster_name
+  }
 }
 
 module "eks_spot_managed_node_group" {
@@ -110,6 +114,7 @@ module "eks_spot_managed_node_group" {
   }
   tags = {
     "KubernetesCluster" = var.cluster_name
+    "Name"              = var.cluster_name
   }
 }
 

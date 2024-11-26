@@ -211,45 +211,26 @@ spec:
         readinessProbe:
           exec:
             command:
-              - bash
+              - sh
               - -c
               - |
-                set -e
-
-                # Exit if ELASTIC_PASSWORD in unset
-                if [ -z "${ELASTIC_PASSWORD}" ]; then
-                  echo "ELASTIC_PASSWORD variable is missing, exiting"
-                  exit 1
-                fi
-
-                # If the node is starting up wait for the cluster to be ready (request params: "{{ .Values.clusterHealthCheckParams }}" )
+                #!/usr/bin/env bash -e
+                # If the node is starting up wait for the cluster to be ready (request params: '{{ .Values.clusterHealthCheckParams }}' )
                 # Once it has started only check that the node itself is responding
                 START_FILE=/tmp/.es_start_file
 
-                # Disable nss cache to avoid filling dentry cache when calling curl
-                # This is required with Elasticsearch Docker using nss < 3.52
-                export NSS_SDB_USE_CACHE=no
-
-                http () {
-                  local path="${1}"
-                  local args="${2}"
-                  set -- -XGET -s
-
-                  if [ "$args" != "" ]; then
-                    set -- "$@" $args
-                  fi
-
-                  set -- "$@" -u "elastic:${ELASTIC_PASSWORD}"
-
-                  curl --output /dev/null -k "$@" "{{ .Values.protocol }}://127.0.0.1:{{ .Values.httpPort }}${path}"
-                }
+                if [ -n "${ELASTIC_USERNAME}" ] && [ -n "${ELASTIC_PASSWORD}" ]; then
+                  BASIC_AUTH="-u ${ELASTIC_USERNAME}:${ELASTIC_PASSWORD}"
+                else
+                  BASIC_AUTH=''
+                fi
 
                 if [ -f "${START_FILE}" ]; then
                   echo 'Elasticsearch is already running, lets check the node is healthy'
-                  HTTP_CODE=$(http "/" "-w %{http_code}")
+                  HTTP_CODE=$(curl -XGET -s -k ${BASIC_AUTH} -o /dev/null -w '%{http_code}' {{ .Values.protocol }}://127.0.0.1:{{ .Values.httpPort }}/)
                   RC=$?
                   if [[ ${RC} -ne 0 ]]; then
-                    echo "curl --output /dev/null -k -XGET -s -w '%{http_code}' \${BASIC_AUTH} {{ .Values.protocol }}://127.0.0.1:{{ .Values.httpPort }}/ failed with RC ${RC}"
+                    echo "curl -XGET -s -k \${BASIC_AUTH} -o /dev/null -w '%{http_code}' {{ .Values.protocol }}://127.0.0.1:{{ .Values.httpPort }}/ failed with RC ${RC}"
                     exit ${RC}
                   fi
                   # ready if HTTP code 200, 503 is tolerable if ES version is 6.x
@@ -258,13 +239,13 @@ spec:
                   elif [[ ${HTTP_CODE} == "503" && "{{ include "elasticsearch.esMajorVersion" . }}" == "6" ]]; then
                     exit 0
                   else
-                    echo "curl --output /dev/null -k -XGET -s -w '%{http_code}' \${BASIC_AUTH} {{ .Values.protocol }}://127.0.0.1:{{ .Values.httpPort }}/ failed with HTTP code ${HTTP_CODE}"
+                    echo "curl -XGET -s -k \${BASIC_AUTH} -o /dev/null -w '%{http_code}' {{ .Values.protocol }}://127.0.0.1:{{ .Values.httpPort }}/ failed with HTTP code ${HTTP_CODE}"
                     exit 1
                   fi
 
                 else
                   echo 'Waiting for elasticsearch cluster to become ready (request params: "{{ .Values.clusterHealthCheckParams }}" )'
-                  if http "/_cluster/health?{{ .Values.clusterHealthCheckParams }}" "--fail" ; then
+                  if curl -XGET -s -k --fail ${BASIC_AUTH} {{ .Values.protocol }}://127.0.0.1:{{ .Values.httpPort }}/_cluster/health?{{ .Values.clusterHealthCheckParams }} ; then
                     touch ${START_FILE}
                     exit 0
                   else
@@ -313,22 +294,24 @@ spec:
           {{- end }}
           - name: ES_JAVA_OPTS
             value: {{ .Values.esJavaOpts | quote }}
-          {{- if or (.Values.createCert) (.Values.existingCert) }}
           - name: xpack.security.enabled
-            value: "true"
-          - name: xpack.security.transport.ssl.enabled
-            value: "true"
-          - name: xpack.security.enrollment.enabled
-            value: "true"
-          - name: xpack.security.transport.ssl.verification_mode
-            value: "certificate"
-          - name: xpack.security.transport.ssl.key
-            value: "/usr/share/elasticsearch/config/certs/tls.key"
-          - name: xpack.security.transport.ssl.certificate
-            value: "/usr/share/elasticsearch/config/certs/tls.crt"
-          - name: xpack.security.transport.ssl.certificate_authorities
-            value: "/usr/share/elasticsearch/config/certs/ca.crt"
-          {{- end }}
+            value: "false"
+          # {{- if or (.Values.createCert) (.Values.existingCert) }}
+          # - name: xpack.security.enabled
+          #   value: "true"
+          # - name: xpack.security.transport.ssl.enabled
+          #   value: "true"
+          # - name: xpack.security.enrollment.enabled
+          #   value: "true"
+          # - name: xpack.security.transport.ssl.verification_mode
+          #   value: "certificate"
+          # - name: xpack.security.transport.ssl.key
+          #   value: "/usr/share/elasticsearch/config/certs/tls.key"
+          # - name: xpack.security.transport.ssl.certificate
+          #   value: "/usr/share/elasticsearch/config/certs/tls.crt"
+          # - name: xpack.security.transport.ssl.certificate_authorities
+          #   value: "/usr/share/elasticsearch/config/certs/ca.crt"
+          # {{- end }}
 {{- if .Values.extraEnvs }}
 {{ toYaml .Values.extraEnvs | indent 10 }}
 {{- end }}

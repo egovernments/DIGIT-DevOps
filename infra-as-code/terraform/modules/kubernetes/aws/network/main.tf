@@ -51,6 +51,7 @@ resource "aws_subnet" "private_subnet" {
       "kubernetes.io/role/internal-elb" = 1
       "SubnetType" = "Private"
       "KubernetesCluster" = "${var.cluster_name}"
+      "karpenter.sh/discovery" = "${var.cluster_name}"
     })
   }"
 }

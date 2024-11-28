@@ -31,7 +31,7 @@ variable "kubernetes_version" {
 
 variable "instance_types" {
   description = "Arry of instance types for SPOT instances"
-  default = ["r5ad.xlarge"]
+  default = ["r5ad.large"]
   
 }
 
@@ -63,7 +63,21 @@ variable "db_username" {
 
 variable "iam_user_arn" {
   description = "Provide the IAM user arn which you are using to create infrastructure"
-  default = "<iam_user_arn>" #Example: arn:aws:iam::43321235273:user/demo
+  default = "<iam_user_arn>" #Example: arn:aws:iam::4332145635273:user/demo
+}
+
+variable "ami_id" {
+  description = "Provide the IAM user arn which you are using to create infrastructure"
+  default = {
+    id   = "ami-0d1008f82aca87cb9"
+    name = "amazon-eks-node-1.30-v20241024"
+  }
+}
+
+variable "enable_karpenter" {
+  description = "Enable the karpenter."
+  type        = bool
+  default     = false
 }
 
 #DO NOT fill in here. This will be asked at runtime

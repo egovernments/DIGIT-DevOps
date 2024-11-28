@@ -67,7 +67,7 @@ variable "iam_user_arn" {
 }
 
 variable "ami_id" {
-  description = "Provide the IAM user arn which you are using to create infrastructure"
+  description = "Provide the AMI ID that supports your eks version"
   default = {
     id   = "ami-0d1008f82aca87cb9"
     name = "amazon-eks-node-1.30-v20241024"

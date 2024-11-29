@@ -369,7 +369,7 @@ resource "kubectl_manifest" "karpenter_node_pool" {
               values: ["c", "m", "r", "t", "a"]
             - key: "karpenter.k8s.aws/instance-cpu"
               operator: In
-              values: ["4", "8", "16", "32"]
+              values: ["2", "4", "8", "16", "32"]
             - key: "kubernetes.io/arch"
               operator: In
               values: ["amd64"]

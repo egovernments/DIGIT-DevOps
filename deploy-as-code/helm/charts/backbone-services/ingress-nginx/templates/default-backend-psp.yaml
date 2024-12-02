@@ -4,8 +4,6 @@ apiVersion: policy/v1beta1
 kind: PodSecurityPolicy
 metadata:
   name: {{ include "ingress-nginx.fullname" . }}-backend
-  annotations:
-    seccomp.security.alpha.kubernetes.io/allowedProfileNames: "*"
   labels:
     {{- include "ingress-nginx.labels" . | nindent 4 }}
     app.kubernetes.io/component: default-backend
@@ -13,38 +11,28 @@ metadata:
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
-  privileged: false
-  hostPID: false
-  hostIPC: false
-  hostNetwork: false
-  volumes:
-    - configMap
-    - downwardAPI
-    - emptyDir
-    - secret
-    - projected
+  allowPrivilegeEscalation: false
   fsGroup:
-    rule: MustRunAs
     ranges:
-      - min: 1
-        max: 65535
-  readOnlyRootFilesystem: true
+    - max: 65535
+      min: 1
+    rule: MustRunAs
+  requiredDropCapabilities:
+  - ALL
   runAsUser:
     rule: MustRunAsNonRoot
-  runAsGroup:
-    rule: MustRunAs
-    ranges:
-      - min: 1
-        max: 65535
-  supplementalGroups:
-    rule: MustRunAs
-    ranges:
-      - min: 1
-        max: 65535
-  allowPrivilegeEscalation: false
-  requiredDropCapabilities:
-    - ALL
   seLinux:
     rule: RunAsAny
+  supplementalGroups:
+    ranges:
+    - max: 65535
+      min: 1
+    rule: MustRunAs
+  volumes:
+  - configMap
+  - emptyDir
+  - projected
+  - secret
+  - downwardAPI
 {{- end }}
 {{- end }}

@@ -6,7 +6,7 @@ metadata:
   labels: {{ include "kibana.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-delete-policy": hook-succeeded
     {{- if .Values.annotations }}
     {{- range $key, $value := .Values.annotations }}
     {{ $key }}: {{ $value | quote }}
@@ -14,13 +14,12 @@ metadata:
     {{- end }}
 spec:
   backoffLimit: 20
-  ttlSecondsAfterFinished: 100
   template:
     spec:
       restartPolicy: Never
       containers:
         - name: create-kibana-token
-          image: "docker.elastic.co/kibana/kibana:8.11.3"
+          image: "{{ .Values.image }}:{{ .Values.imageTag }}"
           imagePullPolicy: "{{ .Values.imagePullPolicy }}"
           command: ["{{ template "kibana.home_dir" . }}/node/bin/node"]
           args:

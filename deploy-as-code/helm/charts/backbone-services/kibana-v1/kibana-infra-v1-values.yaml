@@ -1,0 +1,38 @@
+# Common Labels
+labels:
+  app: "kibana-infra-v1"
+namespace: es-cluster-infra  
+
+# Ingress Configs
+ingress:
+  enabled: true
+  context: "kibana-infra"
+  additionalAnnotations: |
+    nginx.ingress.kubernetes.io/auth-signin:  https://$host/oauth2/start?rd=$escaped_request_uri
+    nginx.ingress.kubernetes.io/auth-url:     https://$host/oauth2/auth 
+
+# Init Containers Configs
+initContainers: {}
+
+# Container Configs
+image:
+  repository: "docker.elastic.co/kibana/kibana"
+  tag: 6.6.2
+replicas: "1"
+httpPort: 5601
+elasticsearchHosts: "http://elasticsearch-data-infra-v1.es-cluster-infra:9200"
+serverBasePath: "/logging"
+healthCheckPath: "logging/app/kibana"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/logging/"
+  readinessProbePath: "/logging/"            
+
+# Additional Container Envs
+env: |
+  - name: ELASTICSEARCH_URL
+    value: {{ .Values.elasticsearchHosts | quote }}
+  - name: SERVER_BASEPATH
+    value: {{ .Values.serverBasePath | quote }}
+  - name: SERVER_REWRITEBASEPATH
+    value: "true"   

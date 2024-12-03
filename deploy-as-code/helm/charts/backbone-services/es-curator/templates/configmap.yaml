@@ -24,13 +24,22 @@ data:
         filters:
         - filtertype: pattern
           kind: regex
-          value: '^(egov-services-logs-|egov-infra-logs-|pbprod-logstash-|pbuat-logstash-).*$'                 
+          value: '^(egov-services-logs-|egov-infra-logs-|pbprod-logstash-|pbuat-logstash-).*$'   
         - filtertype: age
-          source: name
+          source: creation_date
           direction: older
-          timestring: '%Y.%m.%d'
           unit: days
-          unit_count: ${RETAIN_LOGS_IN_DAYS}
+          unit_count: ${RETAIN_LOGS_IN_DAYS}               
+        # - filtertype: age
+        #   source: name
+        #   direction: older
+        #   timestring: '%Y.%m.%d'
+        #   unit: days
+        #   unit_count: 3
+        #   field:
+        #   stats_result:
+        #   epoch:
+        #   exclude: False
       2:
         action: delete_indices
         description: "Clean up ES by deleting old jaeger data"
@@ -42,52 +51,31 @@ data:
         filters:
         - filtertype: pattern
           kind: regex
-          value: '^(jaeger-service-|jaeger-span-|jaeger-dependencies-).*$'
+          value: '^(jaeger-service-|jaeger-span-|jaeger-dependencies-).*$'   
         - filtertype: age
-          source: name
+          source: creation_date
           direction: older
-          timestring: '%Y-%m-%d'
           unit: days
-          unit_count: ${RETAIN_LOGS_IN_DAYS}
-      3:
-        action: delete_indices
-        description: "Clean up ES by deleting old fluentbit data"
-        options:
-          timeout_override: 300
-          continue_if_exception: False
-          disable_action: ${JAEGER_CLEANUP_DISABLED:True}
-          ignore_empty_list: True
-        filters:
-        - filtertype: pattern
-          kind: regex
-          value: '^(fluentbit-).*$'
-        - filtertype: age
-          source: name
-          direction: older
-          timestring: '%Y.%m.%d'
-          unit: days
-          unit_count: ${RETAIN_LOGS_IN_DAYS}
-
-
+          unit_count: ${RETAIN_JAEGER_DATA_IN_DAYS}           
   config.yml: |-
     ---
     # Remember, leave a key empty if there is no value.  None will be a string,
     # not a Python "NoneType"
-    elasticsearch:
-      client:
-        hosts:
-          - ${ES_CLIENT_HOST}
-        verify_certs: false
-        client_cert:
-        client_key:
-        ca_certs: 
-        request_timeout: 30
-      other_settings:
-        master_only: False
-        username: ${ES_USERNAME}
-        password: ${ES_PASSWORD}
+    client:
+      hosts:
+        - ${ES_CLIENT_HOST}
+      port: ${ES_CLIENT_PORT}
+      url_prefix:
+      use_ssl: False
+      certificate:
+      client_cert:
+      client_key:
+      ssl_no_validate: False
+      http_auth:
+      timeout: 30
+      master_only: False
     logging:
       loglevel: ${LOG_LEVEL:INFO}
       logfile:
       logformat: default
-      blacklist: ['elastic_transport', 'urllib3']
+      blacklist: ['elasticsearch', 'urllib3']

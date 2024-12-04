@@ -68,7 +68,7 @@ module "eks" {
   worker_groups_launch_template = [
     {
       name                          = "spot"
-      ami_id                        = "ami-04b500d2e83fc74fe"   
+      ami_id                        = "ami-0d1008f82aca87cb9"   
       subnets                       = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)))}"
       instance_type                 = "${var.instance_type}"
       override_instance_types       = "${var.override_instance_types}"

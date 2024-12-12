@@ -17,10 +17,11 @@ sms-sender: "egov"
 sms-sender-requesttype: "POST"
 sms-extra-req-params: "smsservicetype=unicodemsg"
 sms-gateway-to-use: "MSDG"
+sms.category.map: "{'mtype': {'*': 'N', 'OTP': 'N'}}"
 sms.provider.url: "https://msdgweb.mgov.gov.in/esms/sendsmsrequest"
 sms.provider.requestType: "POST"
 sms.provider.contentType: "application/json"
-sms.provider.class: "MSDG"
+sms.provider.class: "Generic"
 sms.verify.response: true
 sms.print.response: false
 sms.success.codes: "200,201,202"
@@ -130,10 +131,11 @@ env: |
   - name: SMS_PROVIDER_REQUESTTYPE
     value: {{ index .Values "sms.provider.requestType" | quote }} 
   {{- end }}
-  {{- if index .Values "sms.senderid" }}
   - name: SMS_SENDERID
-    value: {{ index .Values "sms.senderid" | quote }} 
-  {{- end }}
+    valueFrom:
+      secretKeyRef:
+        name: egov-notification-sms
+        key: senderid
   {{- if index .Values "sms.provider.contentType" }}
   - name: SMS_PROVIDER_CONTENTTYPE
     value: {{ index .Values "sms.provider.contentType" | quote }} 

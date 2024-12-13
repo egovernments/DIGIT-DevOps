@@ -11,7 +11,25 @@ ingress:
   context: "workbench-ui"
 
 # Init Containers Configs
-initContainers: {}
+initContainers:
+  - name: init-create-env
+    image: busybox
+    command:
+      - sh
+      - "-c"
+      - |
+        echo "window.__env__ = { API_URL: \\"$API_URL\\", OTHER_ENV: \\"$OTHER_ENV\\" };" > /mnt/env.js
+    env:
+      - name: API_URL
+        valueFrom:
+          configMapKeyRef:
+            name: workbench-ui-env
+            key: api_url
+      - name: OTHER_ENV
+        valueFrom:
+          configMapKeyRef:
+            name: workbench-ui-env
+            key: other_env
 
 # Container Configs
 image:
@@ -28,7 +46,11 @@ extraVolumes: |
     configMap:
       name: workbench-ui-js-injection
 
+
 extraVolumeMounts: |
   - mountPath: /etc/nginx/conf.d/sub_filter.conf
     name: js-injection
     subPath: sub_filter.conf
+  - mountPath: /usr/share/nginx/html/env.js
+    name: js-injection
+    subPath: env.js

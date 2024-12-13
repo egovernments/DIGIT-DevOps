@@ -1,0 +1,13 @@
+{{- $envOverrides := index .Values (tpl .Chart.Name .) | default dict -}} 
+{{- $_ := set . "Values" (merge .Values $envOverrides) -}}
+{{- if index .Values "custom-ui-env" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name. }}-ui-env
+  namespace: {{ .Values.namespace | default "default" }}
+data:
+{{- range $key, $value := .Values.custom-ui-env }}
+  {{ $key }}: "{{ $value }}"
+{{- end }}
+{{- end }}

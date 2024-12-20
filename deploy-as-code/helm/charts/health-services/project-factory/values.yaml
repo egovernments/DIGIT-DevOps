@@ -11,6 +11,8 @@ ingress:
   enabled: true
   zuul: true
   context: "project-factory"
+  additionalAnnotations: |
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
 
 # Init Containers Configs
 initContainers:
@@ -23,7 +25,7 @@ initContainers:
 # Container Configs
 image:
   repository: "project-factory"
-replicas: "1"
+replicas: "3"
 
 # Additional Container Envs
 env: |
@@ -101,12 +103,24 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: audit-service
+  - name: EGOV_PLAN_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: plan-service
+  - name: EGOV_CENSUS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: census-service
   - name: CONTEXT_PATH
     value: "/project-factory"
   - name: FILE_STORE_SERVICE_END_POINT
-    value: filestore/v1/files
-  - name: EGOV_MDMS_SEARCH_ENDPOINT
-    value: egov-mdms-service/v2/_search
+    value: filestore/v1/files 
+  - name: EGOV_MDMS_V2_SEARCH_ENDPOINT
+    value: {{ .Values.mdmsV2SearchEndpoint | default "mdms-v2/v2/_search" }}
+  - name: EGOV_MDMS_V1_SEARCH_ENDPOINT
+    value: {{ .Values.mdmsV1SearchEndpoint | default "egov-mdms-service/v1/_search" }}
   - name: EGOV_IDGEN_PATH
     value: egov-idgen/id/_generate
   - name: EGOV_MDMS_SCHEMA_PATH
@@ -137,6 +151,14 @@ env: |
     value: facility/v1/bulk/_create
   - name: EGOV_HEALTH_INDIVIDUAL_SEARCH
     value: health-individual/v1/_search
+  - name: EGOV_CENSUS_SEARCH
+    value: census-service/_search
+  - name: EGOV_PLAN_SEARCH
+    value: plan-service/plan/_search
+  - name: EGOV_PLAN_FACILITY_SEARCH
+    value: plan-service/plan/facility/_search
+  - name: EGOV_PLAN_FACILITY_CONFIG_SEARCH
+    value: plan-service/config/_search
   - name: CMP_IDGEN_FORMAT
     value: CMP-[cy:yyyy-MM-dd]-[SEQ_EG_CMP_ID]
   - name: CMP_IDGEN_IDNAME
@@ -199,10 +221,6 @@ env: |
     value: "5432"
   - name: DB_SCHEMA
     value: {{ .Values.namespace | default "public" }}
-  - name: BOUNDARY_MAIN_SHEET_NAME
-    value: "Boundary Data"
-  - name: SPLIT_BOUNDARIES_ON
-    value: {{ .Values.splitBoundariesOn | default "Distrito" }} 
   - name: SPLIT_BOUNDARIES_ON_LENGTH 
     value: "2"
   - name: FACILITY_TAB_NAME
@@ -214,9 +232,13 @@ env: |
   - name: LOCALE
     value: {{ .Values.defaultLocale | default "en_IN" }} 
   - name: LOCALIZATION_MODULE
-    value: "rainmaker-hcm-admin-schemas"
+    value: "hcm-admin-schemas"
   - name: MODULE_NAME
     value: "HCM-ADMIN-CONSOLE"
+  - name: LOCALIZATION_WAIT_TIME_IN_BOUNDARY_CREATION
+    value: "30000"
+  - name: LOCALIZATION_CHUNK_SIZE_FOR_BOUNDARY_CREATION
+    value: "2000"
   - name: FACILITY_SCHEMA_MASTER
     value: "facilitySchema"
   - name: USER_SCHEMA_MASTER
@@ -226,13 +248,11 @@ env: |
   - name: APP_MAX_DEBUG_CHAR
     value: "{{ .Values.maxDebugChar | default "500" }}"
   - name: READ_ME_TAB
-    value: "Read Me"  
+    value: "HCM_README_SHEETNAME"  
   - name: USER_PASSWORD_AUTO_GENERATE
-    value: "true"  
+    value: "false"  
   - name: USER_DEFAULT_PASSWORD
-    value: "eGov@123"  
-  - name: NOT_CREATE_USER_IF_ALREADY_THERE
-    value: "true"
+    value: "eGov@123"
   - name: MAP_USER_VIA_COMMON_PARENT
     value: "true"
     
@@ -244,6 +264,16 @@ env: |
     value: "6379"
   - name: REDIS_HOST
     value: "redis.backbone"
+  - name: ENABLE_DYNAMIC_TEMPLATE_FOR
+    value: {{ .Values.enableDynamicTemplate | default "" }}
+  - name: AUTO_RETRY_IF_HTTP_ERROR
+    value: "socket hang up"
+  - name: IS_CALL_GENERATE_WHEN_DELIVERY_CONDITIONS_DIFFER
+    value: {{ .Values.CallGenerateWhenDeliveryConditionsDiffer | default "false" | quote }}
+  - name: EXCLUDE_HIERARCHY_TYPE_FROM_BOUNDARY_CODES
+    value: {{ .Values.ExcludeHierarchyTypeFromBoundaryCodes | default "false" | quote }}
+  - name: EXCLUDE_BOUNDARY_NAME_AT_LAST_FROM_BOUNDARY_CODES
+    value: {{ .Values.ExcludeBoundaryTypeFromLastBoundaryCodes | default "false" | quote }}
 
 apiVersion: autoscaling/v2beta2
 kind: HorizontalPodAutoscaler

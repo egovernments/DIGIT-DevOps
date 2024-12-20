@@ -1,0 +1,90 @@
+# Common Labels
+labels:
+  app: "census-service"
+  group: "health"
+
+namespace: health
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "census-service"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "census_schema"
+    image:
+      repository: "census-service-db"
+
+# Container Configs
+image:
+  repository: "census-service"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/census-service/health"
+  readinessProbePath: "/census-service/health"
+appType: "java-spring"
+tracing-enabled: true
+memory_limits: 512Mi
+heap: "-Xmx384m -Xms256m"
+java-args: "-Dspring.profiles.active=monitoring"
+
+# Additional Container Envs
+env: |
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: census-serivce
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
+  - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: tracer-errors-provideexceptionindetails
+  {{- end }}
+  - name: EGOV_BOUNDARY_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: boundary-service
+  - name: EGOV_PLAN_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: plan-service
+  - name: EGOV_WORKFLOW_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-workflow-v2
+  - name: WORKFLOW_INITIATE_ACTION
+    value: "INITIATE"
+  - name: WORKFLOW_INTERMEDIATE_ACTION
+    value: "EDIT_AND_SEND_FOR_APPROVAL,APPROVE"
+  - name: WORKFLOW_SEND_BACK_ACTIONS
+    value: "SEND_BACK_FOR_CORRECTION"
+  - name: ALLOWED_CENSUS_ROLES
+    value: "{'POPULATION_DATA_APPROVER','ROOT_POPULATION_DATA_APPROVER'}"
+  - name: WORKFLOW_RESTRICTED_ROLES
+    value: "{'ROOT_FACILITY_CATCHMENT_MAPPER','FACILITY_CATCHMENT_MAPPER'}"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"
+  - name: RESOURCE_CONFIG_CONSUMER_CENSUS_CREATE_TOPIC
+    value: "resource-census-create-topic"
+  - name: PLAN_FACILITY_UPDATE_TOPIC
+    value: "update-plan-facility"
+  - name: CENSUS_DEFAULT_LIMIT
+    value: "50"

@@ -30,8 +30,8 @@ healthChecks:
   readinessProbePath: "/estimate/health"
 appType: "java-spring"
 tracing-enabled: true
+heap: "-Xmx256m -Xms256m"
 memory_limits: 512Mi
-heap: "-Xmx512m -Xms512m"
 java-args: ""
 
 # Additional Container Envs
@@ -42,6 +42,14 @@ env: |
     value: {{ index .Values "heap" | quote }}
   - name: JAVA_ARGS
     value: {{ index .Values "java-args" | quote }}
+  - name: SPRING_DATA_REDIS_HOST
+    value: redis.backbone
+  - name: SPRING_DATA_REDIS_PORT
+    value: "6379"
+  {{- if index .Values "redis-expiry-time" }}
+  - name: REDIS_EXPIRY_TIME
+    value: {{ index .Values "redis-expiry-time" | quote }}
+  {{- end }}
   {{- if index .Values "tracing-enabled" }}
   - name: TRACER_OPENTRACING_ENABLED
     value: "true" 
@@ -150,3 +158,7 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: kafka-brokers
+  {{- if index .Values "is-caching-enabled" }}
+  - name: IS_CACHING_ENABLED
+    value: {{ index .Values "is-caching-enabled" | quote }} 
+  {{- end }}

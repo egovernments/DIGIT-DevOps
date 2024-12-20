@@ -23,6 +23,7 @@ healthChecks:
 appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx256m -Xms256m"
+memory_limits: 512Mi
 java-args: ""
 
 # Additional Container Envs
@@ -33,17 +34,15 @@ env: |
     value: {{ index .Values "heap" | quote }}
   - name: JAVA_ARGS
     value: {{ index .Values "java-args" | quote }}
-  {{- if index .Values "tracing-enabled" }}
-  - name: TRACER_OPENTRACING_ENABLED
-    value: "true" 
-  {{- end }}
   - name: SERVER_CONTEXT_PATH
     value: /wms
   - name: SERVER_SERVLET_CONTEXT-PATH
     value: /wms
   {{- if index .Values "java-enable-debug" }}
-  - name: JAVA_ENABLE_DEBUG
-    value: "true"
+  - name: SPRING_REDIS_HOST
+    value: redis.backbone
+  - name: SPRING_REDIS_PORT
+    value: "6379"
   {{- end }} 
   - name: WORKFLOW_HOST
     valueFrom:
@@ -62,7 +61,7 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-mdms-service 
+        key: egov-mdms-service-v2 
   - name: SERVICES_ESINDEXER_HOST
     valueFrom:
       configMapKeyRef:

@@ -1,0 +1,194 @@
+# Common Labels
+labels:
+  app: "health-expense-calculator"
+  group: "health"
+
+namespace: health
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "health-expense-calculator"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "expense_calculator_schema"
+    image:
+      repository: "health-expense-calculator-db"
+
+# Container Configs
+image:
+  repository: "health-expense-calculator"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/health-expense-calculator/health"
+  readinessProbePath: "/health-expense-calculator/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx256m -Xms256m"
+memory_limits: 512Mi
+java-args: ""
+cpu_limits: "300m"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: SERVER_CONTEXT_PATH
+    value: /health-expense-calculator
+  - name: SERVER_SERVLET_CONTEXT-PATH
+    value: /health-expense-calculator
+  - name: EXPENSE_CALCULATOR_CONSUME_TOPIC
+    value: "calculate-musterroll-health"
+  - name: EXPENSE_CALCULATOR_ERROR_TOPIC
+    value: "calculate-error-health"
+  - name: EXPENSE_CALCULATOR_CREATE_BILL_TOPIC
+    value: "calculate-billmeta-health"
+  - name: EGOV_MUSTERROLL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: health-muster-roll
+  - name: EGOV_BILL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: health-expense
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: EGOV_MDMS_SEARCH_ENDPOINT
+    value: "egov-mdms-service/v1/_search"      
+  - name: EGOV_IDGEN_HOST
+    valueFrom: 
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-idgen
+  - name: EGOV_INDIVIDUAL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: health-individual
+  - name: EGOV_MDMS_V2_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: mdms-service-v2
+  {{- if index .Values "egov-mdms-service-endpoint-key" }}
+  - name: EGOV_MDMS_SEARCH_V2_ENDPOINT
+    value: {{ index .Values "egov-mdms-service-endpoint-key" | quote }} 
+  {{- end }}
+  - name: EGOV_MDMS_SEARCH_V2_ENDPOINT
+    value: "mdms-v2/v1/_search"   
+  - name: WORKS_ATTENDANCE_LOG_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: health-attendance
+  - name: EGOV_BOUNDARY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: boundary-service
+  - name: PROJECT_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: health-project
+  - name: PROJECT_SEARCH_PATH
+    value: "health-project/v1/_search"
+  - name: EGOV_FILESTORE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-filestore
+  - name: EGOV_PDF_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: pdf-service
+  {{- if index .Values "state-level-tenant-id" }}
+  - name: STATE_LEVEL_TENANT_ID
+    value: {{ index .Values "state-level-tenant-id" | quote }} 
+  {{- end }}
+  {{- if index .Values "payment-pdf-key" }}
+  - name: PAYMENT_PDF_KEY
+    value: {{ index .Values "payment-pdf-key" | quote }}
+  {{- end }}
+
+  {{- if index .Values "report-localization-module-name" }}
+  - name: REPORT_LOCALIZATION_MODULE_NAME
+    value: {{ index .Values "report-localization-module-name" | quote }}
+  {{- end }}
+
+  {{- if index .Values "report-localization-boundary-module-name" }}
+  - name: REPORT_LOCALIZATION_BOUNDARY_MODULE_NAME
+    value: {{ index .Values "report-localization-boundary-module-name" | quote }}
+  {{- end }}
+
+  {{- if index .Values "report-localization-locale-code" }}
+  - name: REPORT_LOCALIZATION_LOCALE_CODE
+    value: {{ index .Values "report-localization-locale-code" | quote }}
+  {{- end }}
+
+  {{- if index .Values "report-header-title" }}
+  - name: REPORT_HEADER_TITLE
+    value: {{ index .Values "report-header-title" | quote }}
+  {{- end }}
+
+  {{- if index .Values "report-date-time-format" }}
+  - name: REPORT_DATE_TIME_FORMAT
+    value: {{ index .Values "report-date-time-format" | quote }}
+  {{- end }}
+
+  {{- if index .Values "report-date-time-zone" }}
+  - name: REPORT_DATE_TIME_ZONE
+    value: {{ index .Values "report-date-time-zone" | quote }}
+  {{- end }}
+
+  {{- if index .Values "report-error-queue-topic" }}
+  - name: REPORT_ERROR_QUEUE_TOPIC
+    value: {{ index .Values "report-error-queue-topic" | quote }}
+  {{- end }}
+  - name: EXPENSE_BILLING_BILL_CREATE
+    value: "expense-bill-create-health"
+  - name: EGOV_LOCALIZATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-localization
+  {{- if index .Values "is-attendance-approval-required" }}
+  - name: IS_ATTENDANCE_APPROVAL_REQUIRED
+    value: {{ index .Values "is-attendance-approval-required" | quote }}
+  {{- end }}
+  {{- if index .Values "register-batch-size" }}
+  - name: REGISTER_BATCH_SIZE
+    value: {{ index .Values "register-batch-size" | quote }}
+  {{- end }}
+  {{- if index .Values "bill-generation-async-enabled" }}
+  - name: BILL_GENERATION_ASYNC_ENABLED
+    value: {{ index .Values "bill-generation-async-enabled" | quote }}
+  {{- end }}
+  {{- if index .Values "bill-generation-async-topic" }}
+  - name: BILL_GENERATION_ASYNC_TOPIC
+    value: {{ index .Values "bill-generation-async-topic" | quote }}
+  {{- end }}
+  - name: SPRING_DATA_REDIS_HOST
+    value: redis.backbone
+  - name: SPRING_DATA_REDIS_PORT
+    value: "6379"
+  {{- if index .Values "spring-kafka-producer-properties-max-request-size" }}
+  - name: SPRING_KAFKA_PRODUCER_PROPERTIES_MAX_REQUEST_SIZE
+    value: {{ index .Values "spring-kafka-producer-properties-max-request-size" | quote }} 
+  {{- end }}

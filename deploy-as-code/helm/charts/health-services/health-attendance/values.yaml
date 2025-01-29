@@ -50,15 +50,22 @@ env: |
     value: "true" 
   {{- end }}
   - name: SERVER_CONTEXT_PATH
-    value: /attendance
+    value: /health-attendance
   - name: SERVER_SERVLET_CONTEXT-PATH
-    value: /attendance 
+    value: /health-attendance
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: {{ index .Values "egov-mdms-service-host-key" | quote }}
   - name: EGOV_MDMS_SEARCH_ENDPOINT
+    value: {{ index .Values "egov-mdms-service-endpoint-key" | quote }}
+  - name: EGOV_MDMS_V2_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: {{ index .Values "egov-mdms-service-host-key" | quote }}
+  - name: EGOV_MDMS_V2_SEARCH_ENDPOINT 
     value: {{ index .Values "egov-mdms-service-endpoint-key" | quote }}
   - name: WORKS_INDIVIDUAL_HOST
     valueFrom:
@@ -108,6 +115,13 @@ env: |
     value: health-individual/v1/_search
   - name: PROJECT.STAFF.ATTENDANCE.TOPIC
     value: "project-staff-attendance-health-topic"
+  - name: EGOV_BOUNDARY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: boundary-service
+  - name: EGOV_BOUNDARY_SEARCH_URL
+    value: "/boundary-service/boundary/_search"  
   - name: SPRING_REDIS_HOST
     value: redis.backbone
   - name: SPRING_REDIS_PORT
@@ -123,7 +137,23 @@ env: |
   - name: ATTENDANCE_REGISTER_FIRST_STAFF_INSERT_ENABLED
     value: "false"
   - name: ATTENDANCE_REGISTER_OPEN_SEARCH_ENABLED_ROLES
-    value: SUPERUSER,EMPLOYEE,DISTRICT_SUPERVISOR,SYSTEM_ADMINISTRATOR,NATIONAL_SUPERVISOR,DISTRIBUTOR
+       value: SUPERUSER,EMPLOYEE,DISTRICT_SUPERVISOR,SYSTEM_ADMINISTRATOR,NATIONAL_SUPERVISOR,DISTRIBUTOR,CAMPAIGN_SUPERVISOR
+  - name: ATTENDANCE_REGISTER_SEARCH_CHECK_PROJECT_ENABLED
+    value: "true"
+  - name: ATTENDANCE_REGISTER_REVIEW_STATUS_ENABLED
+    value: "true"
+  - name: ATTENDANCE_REGISTER_REVIEW_STATUS_INIT_VALUE
+    value: "PENDINGFORAPPROVAL"
+  - name: ATTENDANCE_REGISTER_BOUNDARY_SEARCH_ENABLED
+    value: "true"
+  - name: ATTENDANCE_REGISTER_STATUS_MAP
+    value: "{APPROVED: 'APPROVED', PENDINGFORAPPROVAL: 'PENDINGFORAPPROVAL'}"   
+  - name: ATTENDANCE_REGISTER_FIRST_OWNER_STAFF_ENABLED
+    value: "true"
+  - name: ATTENDANCE_LOG_OPEN_SEARCH_ENABLED
+    value: "true"
+  - name: PROJECT_STAFF_ATTENDANCE_REGISTER_ENABLED
+    value: "false"
   {{- if index .Values "attendance-register-default-offset" }}
   - name: ATTENDANCE_REGISTER_DEFAULT_OFFSET
     value: {{ index .Values "attendance-register-default-offset" | quote }} 

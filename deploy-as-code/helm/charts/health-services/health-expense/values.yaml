@@ -1,0 +1,129 @@
+# Common Labels
+labels:
+  app: "health-expense"
+  group: "health"
+
+namespace: health
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "health-expense"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "expense_schema"
+    image:
+      repository: "health-expense-db"
+
+# Container Configs
+image:
+  repository: "health-expense"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/health-expense/health"
+  readinessProbePath: "/health-expense/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx256m -Xms256m"
+memory_limits: 512Mi
+java-args: ""
+cpu_limits: "300m"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: SERVER_CONTEXT_PATH
+    value: /health-expense
+  - name: SERVER_SERVLET_CONTEXT-PATH
+    value: /health-expense
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: EGOV_IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-idgen
+  - name: EGOV_HRMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: health-hrms
+  - name: EGOV_LOCALIZATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-localization
+  - name: EGOV_WORKFLOW_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-workflow-v2
+  - name: EGOV_URL_SHORTNER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-url-shortening
+  - name: EGOV_USER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: EGOV_MDMS_V2_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: mdms-service-v2
+  - name: WORKS_INDIVIDUAL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: health-individual
+  - name: BUSINESS_WORKFLOW_STATUS_MAP
+    value: {{ index .Values "business-workflow-status-map" | quote }}
+  - name: EXPENSE_BILLING_BILL_CREATE
+    value: "expense-bill-create-health"
+  - name: EXPENSE_BILLING_BILL_UPDATE
+    value: "expense-bill-update-health"
+  - name: KAFKA_TOPICS_NOTIFICATION_SMS
+    value: "egov.core.notification.sms"
+  {{- if index .Values "expense-billing-default-offset" }}
+  - name: EXPENSE_BILLING_DEFAULT_OFFSET
+    value: {{ index .Values "expense-billing-default-offset" | quote }} 
+  {{- end }}
+  {{- if index .Values "expense-billing-default-limit" }}
+  - name: EXPENSE_BILLING_DEFAULT_LIMIT
+    value: {{ index .Values "expense-billing-default-limit" | quote }} 
+  {{- end }}
+  {{- if index .Values "expense-billing-search-max-limit" }}
+  - name: EXPENSE_BILLING_SEARCH_MAX_LIMIT
+    value: {{ index .Values "expense-billing-search-max-limit" | quote }} 
+  {{- end }}
+  - name: PROJECT_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: health-project
+  - name: PROJECT_SEARCH_PATH
+    value: "health-project/v1/_search"
+  {{- if index .Values "spring-kafka-producer-properties-max-request-size" }}
+  - name: SPRING_KAFKA_PRODUCER_PROPERTIES_MAX_REQUEST_SIZE
+    value: {{ index .Values "spring-kafka-producer-properties-max-request-size" | quote }} 
+  {{- end }}
+  {{- if index .Values "egov-mdms-v2-search-endpoint" }}
+  - name: EGOV_MDMS_V2_SEARCH_ENDPOINT
+    value: {{ index .Values "egov-mdms-v2-search-endpoint" | quote }} 
+  {{- end }}

@@ -168,6 +168,9 @@ cluster-configs:
               plan-service: 'http://plan-service.health:8080/'
               health-attendance: 'http://health-attendance.health:8080/'
               census-service: 'http://census-service.health:8080/'
+              health-expense: 'http://health-expense.health:8080/'
+              health-expense-calculator: 'http://health-expense-calculator.health:8080/'
+              health-muster-roll: 'http://health-muster-roll.health:8080/'
 
 employee:
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
@@ -319,6 +322,68 @@ individual:
   aadhaar-pattern: "\\d{12}"
   mobile-pattern: "\\d+"
   notification-sms-disabled-roles: "ORG_ADMIN"
+  egov-mdms-service-host-key: 'egov-mdms-service'
+  egov-mdms-service-endpoint-key: "/egov-mdms-service/v1/_search"
+
+health-attendance:
+  heap: "-Xmx256m -Xms256m"
+  memory_limits: 512Mi
+  egov-mdms-service-host-key: 'egov-mdms-service'
+  egov-mdms-service-endpoint-key: "/egov-mdms-service/v1/_search"
+
+health-expense:
+  tracing-enabled: true
+  java-enable-debug: true
+  business-workflow-status-map: "{'EXPENSE.WAGES':'false'}"
+  expense-billing-default-offset: 0
+  expense-billing-default-limit: 100
+  expense-billing-search-max-limit: 200
+  spring-kafka-producer-properties-max-request-size: "10485760"
+
+health-expense-calculator:
+  tracing-enabled: true
+  java-enable-debug: true
+  egov-mdms-service-endpoint-key: "/egov-mdms-service/v1/_search"
+  is-attendance-approval-required: "true"
+  register-batch-size: 15
+  bill-generation-async-enabled: "true"
+  bill-generation-async-topic: "bill-generation-async-topic"
+
+health-muster-roll:
+  tracing-enabled: true
+  java-enable-debug: true
+  musterroll-default-offset: 0
+  musterroll-default-limit: 100
+  musterroll-search-max-limit: 200
+  musterroll-workflow-business-service: "HCMMUSTERROLL"
+  attendance-log-search-endpoint: "health-attendance/log/v1/_search"
+  attendance-register-search-endpoint: "health-attendance/v1/_search"
+  attendance-register-update-endpoint: "health-attendance/v1/_update"
+  attendance-register-search-limit: 100
+  individual-search-endpoint: "health-individual/v1/_search"
+  expense-calculator-endpoint: "health-expense-calculator/v1/_estimate"
+  muster-restricted-search-roles: "PLACEHOLDER_ROLE"
+  notification-sms-enabled: "false"
+  musterroll-update-recompute-attendance-enabled: "false"
+  musterroll-individual-entry-roles-enabled: "false"
+  musterroll-validate-start-date-monday-enabled: "false"
+  musterroll-add-bank-account-details-enabled: "false"
+  musterroll-update-attendance-register-review-status-enabled: "true"
+  musterroll-workflow-enabled: "true"
+  musterroll-set-default-duration-enabled: "false"
+  musterroll-validate-attendance-register-enabled: "true"
+
+transformer:
+  egov-boundary-hierarchy-name: "HIERARCHYTEST"
+  egov-mdms-service-host-key: 'mdms-service-v2'
+  egov-mdms-service-endpoint-key: "/mdms-v2/v1/_search"
+  egov-localization-module-name: "hcm-boundary-hierarchytest"
+
+referralmanagement:
+  memory_limits: 768Mi
+  heap: "-Xmx384m -Xms384m"
+  egov-mdms-service-host-key: 'egov-mdms-service'
+  egov-mdms-service-endpoint-key: "/egov-mdms-service/v1/_search"
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -436,8 +501,8 @@ pdf-service:
     gitSync:
       repo: "git@github.com:egovernments/configs"     ##### Change repo url with Your fork Repo url
       branch: "UNIFIED-UAT"                                   ##### Change repo branch with Your fork Repo branch
-  data-config-urls: "file:///work-dir/configs/pdf-service/data-config/tradelicense-receipt.json,file:///work-dir/configs/pdf-service/data-config/property-receipt.json,file:///work-dir/configs/pdf-service/data-config/property-bill.json,file:///work-dir/configs/pdf-service/data-config/tradelicense-bill.json,file:///work-dir/configs/pdf-service/data-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/data-config/pt-receipt.json,file:///work-dir/configs/pdf-service/data-config/tl-receipt.json,file:///work-dir/configs/pdf-service/data-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/data-config/consolidatedreceipt.json,file:///work-dir/configs/pdf-service/data-config/tlapplication.json,file:///work-dir/configs/pdf-service/data-config/passvehicle-certificate.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedacknowlegment.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedsewerageconnection.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit.json,file:///work-dir/configs/pdf-service/data-config/ptmutationcertificate.json,file:///work-dir/configs/pdf-service/data-config/tlrenewalcertificate.json,file:///work-dir/configs/pdf-service/data-config/bpa-revocation.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit-low.json,file:///work-dir/configs/pdf-service/data-config/misc-receipt.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationwater.json,file:///work-dir/configs/pdf-service/data-config/ws-sanctionletter.json,file:///work-dir/configs/pdf-service/data-config/ws-estimationnotice.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationsewerage.json,file:///work-dir/configs/pdf-service/data-config/tlcertificate.json"
-  format-config-urls: "file:///work-dir/configs/pdf-service/format-config/tradelicense-receipt.json,file:///work-dir/configs/pdf-service/format-config/property-receipt.json,file:///work-dir/configs/pdf-service/format-config/property-bill.json,file:///work-dir/configs/pdf-service/format-config/tradelicense-bill.json,file:///work-dir/configs/pdf-service/format-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/format-config/pt-receipt.json,file:///work-dir/configs/pdf-service/format-config/tl-receipt.json,file:///work-dir/configs/pdf-service/format-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/format-config/consolidatedreceipt.json,file:///work-dir/configs/pdf-service/format-config/tlapplication.json,file:///work-dir/configs/pdf-service/format-config/passvehicle-certificate.json,file:///work-dir/configs/pdf-service/format-config/ws-consolidatedacknowlegment.json,file:///work-dir/configs/pdf-service/format-config/ws-consolidatedsewerageconnection.json,file:///work-dir/configs/pdf-service/format-config/buildingpermit.json,file:///work-dir/configs/pdf-service/format-config/ptmutationcertificate.json,file:///work-dir/configs/pdf-service/format-config/tlrenewalcertificate.json,file:///work-dir/configs/pdf-service/format-config/bpa-revocation.json,file:///work-dir/configs/pdf-service/format-config/buildingpermit-low.json,file:///work-dir/configs/pdf-service/format-config/misc-receipt.json,file:///work-dir/configs/pdf-service/format-config/ws-applicationwater.json,file:///work-dir/configs/pdf-service/format-config/ws-sanctionletter.json,file:///work-dir/configs/pdf-service/format-config/ws-estimationnotice.json,file:///work-dir/configs/pdf-service/format-config/ws-applicationsewerage.json,file:///work-dir/configs/pdf-service/format-config/tlcertificate.json"
+  data-config-urls: "file:///work-dir/configs/pdf-service/data-config/tradelicense-receipt.json,file:///work-dir/configs/pdf-service/data-config/property-receipt.json,file:///work-dir/configs/pdf-service/data-config/property-bill.json,file:///work-dir/configs/pdf-service/data-config/tradelicense-bill.json,file:///work-dir/configs/pdf-service/data-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/data-config/pt-receipt.json,file:///work-dir/configs/pdf-service/data-config/tl-receipt.json,file:///work-dir/configs/pdf-service/data-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/data-config/consolidatedreceipt.json,file:///work-dir/configs/pdf-service/data-config/tlapplication.json,file:///work-dir/configs/pdf-service/data-config/passvehicle-certificate.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedacknowlegment.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedsewerageconnection.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit.json,file:///work-dir/configs/pdf-service/data-config/ptmutationcertificate.json,file:///work-dir/configs/pdf-service/data-config/tlrenewalcertificate.json,file:///work-dir/configs/pdf-service/data-config/bpa-revocation.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit-low.json,file:///work-dir/configs/pdf-service/data-config/misc-receipt.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationwater.json,file:///work-dir/configs/pdf-service/data-config/ws-sanctionletter.json,file:///work-dir/configs/pdf-service/data-config/ws-estimationnotice.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationsewerage.json,file:///work-dir/configs/pdf-service/data-config/tlcertificate.json,file:///work-dir/configs/health/pdf-service/data-config/health-bill-payment.json"
+  format-config-urls: "file:///work-dir/configs/pdf-service/format-config/tradelicense-receipt.json,file:///work-dir/configs/pdf-service/format-config/property-receipt.json,file:///work-dir/configs/pdf-service/format-config/property-bill.json,file:///work-dir/configs/pdf-service/format-config/tradelicense-bill.json,file:///work-dir/configs/pdf-service/format-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/format-config/pt-receipt.json,file:///work-dir/configs/pdf-service/format-config/tl-receipt.json,file:///work-dir/configs/pdf-service/format-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/format-config/consolidatedreceipt.json,file:///work-dir/configs/pdf-service/format-config/tlapplication.json,file:///work-dir/configs/pdf-service/format-config/passvehicle-certificate.json,file:///work-dir/configs/pdf-service/format-config/ws-consolidatedacknowlegment.json,file:///work-dir/configs/pdf-service/format-config/ws-consolidatedsewerageconnection.json,file:///work-dir/configs/pdf-service/format-config/buildingpermit.json,file:///work-dir/configs/pdf-service/format-config/ptmutationcertificate.json,file:///work-dir/configs/pdf-service/format-config/tlrenewalcertificate.json,file:///work-dir/configs/pdf-service/format-config/bpa-revocation.json,file:///work-dir/configs/pdf-service/format-config/buildingpermit-low.json,file:///work-dir/configs/pdf-service/format-config/misc-receipt.json,file:///work-dir/configs/pdf-service/format-config/ws-applicationwater.json,file:///work-dir/configs/pdf-service/format-config/ws-sanctionletter.json,file:///work-dir/configs/pdf-service/format-config/ws-estimationnotice.json,file:///work-dir/configs/pdf-service/format-config/ws-applicationsewerage.json,file:///work-dir/configs/pdf-service/format-config/tlcertificate.json,file:///work-dir/configs/health/pdf-service/format-config/health-bill-payment.json"
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
@@ -746,6 +811,14 @@ zookeeper-v2:
         zone: ap-south-1b ## REPLACE: add zone
       - volumeId: "vol-05eb8796bf85124eb" ## REPLACE: add volume id
         zone: ap-south-1b ## REPLACE: add zone
+
+payments-ui:
+  custom-js-injection: |
+    sub_filter.conf: "
+      sub_filter  '<head>' '<head>
+      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/analytics/analytics.js type=text/javascript></script>      
+      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsPayments.js type=text/javascript></script>
+      ';" 
 
   ## Zookeeper JVM Heap Option
   heapOptions: "-Xms256M -Xmx256M"

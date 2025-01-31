@@ -78,6 +78,18 @@ module "eks" {
       }
     }
   }
+  cluster_addons = {
+    vpc-cni = {
+      most_recent              = true
+      before_compute           = true
+      configuration_values = jsonencode({
+        env = {
+          # Reference docs https://docs.aws.amazon.com/eks/latest/userguide/cni-increase-ip-addresses.html
+          ENABLE_PREFIX_DELEGATION           = "true"
+        }
+      })
+    }
+  }
   node_security_group_tags = {
     "karpenter.sh/discovery" = var.cluster_name
   }
@@ -108,6 +120,7 @@ module "eks_managed_node_group" {
       }
     }
   }
+  user_data_template_path = "user-data.yaml"
   min_size     = var.min_worker_nodes
   max_size     = var.max_worker_nodes
   desired_size = var.desired_worker_nodes

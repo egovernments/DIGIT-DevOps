@@ -93,8 +93,8 @@ resource "aws_route_table_association" "public" {
 }
 
 resource "aws_eip" "eip" {
-  vpc      = true
-  depends_on = ["aws_internet_gateway.internet_gateway"]
+  domain     = "vpc"
+  depends_on = [aws_internet_gateway.internet_gateway]
 
     tags = "${
     tomap({
@@ -110,7 +110,7 @@ resource "aws_nat_gateway" "nat" {
   allocation_id = "${aws_eip.eip.id}"
   subnet_id     = "${element(aws_subnet.public_subnet.*.id, 0)}"
 
-  depends_on = ["aws_internet_gateway.internet_gateway"]
+  depends_on = [aws_internet_gateway.internet_gateway]
 
     tags = "${
     tomap({

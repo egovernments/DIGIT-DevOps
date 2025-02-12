@@ -251,10 +251,9 @@ ingress:
   enabled: true
   # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName
   # See https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/#specifying-the-class-of-an-ingress
-  # ingressClassName: nginx
+  ingressClassName: nginx
   # Values can be templated
-  annotations:
-    kubernetes.io/ingress.class: nginx
+  #annotations: {}
   # annotations: 
   #   nginx.ingress.kubernetes.io/rewrite-target: /$2
   #   nginx.ingress.kubernetes.io/use-regex: "true"
@@ -265,7 +264,7 @@ ingress:
   pathType: Prefix
 
   hosts:
-    - "digit-lts.digit.org"
+    - "unified-dev.digit.org"
   ## Extra paths to prepend to every host configuration. This is useful when working with annotation based services.
   extraPaths:
   # - path: /*
@@ -461,7 +460,8 @@ admin:
 ## 6. uncomment the annotation section in the serviceAccount: above
 ## make sure to replace arn:aws:iam::123456789000:role/iam-role-name-here with your role arn
 
-env: {}
+env: 
+  JAEGER_AGENT_PORT: "5775"
 
 ## "valueFrom" environment variable references that will be added to deployment pods. Name is templated.
 ## ref: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#envvarsource-v1-core
@@ -783,7 +783,7 @@ dashboards:
       url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-views-nodes.json
       token: ''
     k8s-views-pods:
-      url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-views-pods.json
+      url: https://raw.githubusercontent.com/egovernments/configs/refs/heads/master/monitoring-dashboards/Kubernetes-Views-Pods.json
       token: ''
     ingress-dashboard:
       url: https://raw.githubusercontent.com/egovernments/configs/master/monitoring-dashboards/k8s-ingress-dashbaord.json
@@ -793,11 +793,15 @@ dashboards:
       token: ''       
     BlackBox:
       url: https://raw.githubusercontent.com/egovernments/configs/master/monitoring-dashboards/blackbox.json
-      token: ''      
+      token: ''
     persistent-volumes:
       url: https://raw.githubusercontent.com/egovernments/configs/master/monitoring-dashboards/kubernetes-persistent-volumes.json
       token: ''
-      
+    jmx-exporter:
+      url: https://raw.githubusercontent.com/egovernments/configs/refs/heads/master/monitoring-dashboards/jmx-exporter.json
+      token: ''
+
+
 ## Reference to external ConfigMap per provider. Use provider name as key and ConfigMap name as value.
 ## A provider dashboards must be defined either by external ConfigMaps or in values.yaml, not in both.
 ## ConfigMap data example:
@@ -830,7 +834,7 @@ grafana.ini:
 ## grafana Authentication can be enabled with the following values on grafana.ini
   # server:
       # The full public facing url you use in browser, used for redirects and emails
-    root_url: "https://{{- if and .Values.ingress.enabled .Values.ingress.hosts -}}{{ .Values.ingress.hosts | first }}{{ end }}/monitoring"
+    root_url: "https://{{- if and .Values.ingress.enabled .Values.ingress.hosts -}}{{ .Values.ingress.hosts | first }}{{ end }}{{ .Values.ingress.path }}"
     serve_from_sub_path: true
   auth.github:
       enabled: true
@@ -838,8 +842,9 @@ grafana.ini:
       allow_assign_grafana_admin: false
       auto_login: false
       scopes: user:email,read:org
-      role_attribute_path: contains(groups[*], '@egovernments/micro-service-uat') && 'Viewer'
-      role_attribute_strict: false
+      allowed_organizations: ["egovernments"]
+      role_attribute_path: "'Viewer'"
+      role_attribute_strict: true
       auth_url: https://github.com/login/oauth/authorize
       token_url: https://github.com/login/oauth/access_token
       api_url: https://api.github.com/user

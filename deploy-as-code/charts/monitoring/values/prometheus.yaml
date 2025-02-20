@@ -221,18 +221,16 @@ additionalPrometheusRules:
                - {{ $key }}: {{ $value }}
              {{ end }}
        - alert: KubernetesPodImagePullBackOff
-         expr: |
-           count(kube_pod_container_status_waiting_reason{reason="ImagePullBackOff", namespace!~"monitoring|kube-system|default|logging"}) > 0
-         for: 5m
+         expr: 'max_over_time(kube_pod_container_status_waiting_reason{job="kube-state-metrics", namespace!~"monitoring|kube-system|default|logging", reason="ImagePullBackOff"}[10m]) >= 1'
+         for: 1m
          labels:
            severity: critical
            repeat_interval: 30m
          annotations:
-           summary: Kubernetes Pod ImagePullBackOff
+           summary: Kubernetes Pod {{ $labels.pod }} is in ImagePullBackOff
            description: |
-             A pod in namespace {{ $labels.namespace }} is stuck in ImagePullBackOff.
-             Pod: {{ $labels.pod }}
-             Container: {{ $labels.container }}
+             Pod {{ $labels.pod }} is in ImagePullBackOff for 10 minutes.
+             VALUE = {{ $value }}
              LABELS:
              {{ range $key, $value := $labels }}
                - {{ $key }}: {{ $value }}

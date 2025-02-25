@@ -17,7 +17,6 @@ resource "aws_s3_bucket_versioning" "versioning" {
   }
 }
 
-
 resource "aws_dynamodb_table" "terraform_state_lock" {
   name           = "${var.bucket_name}"
   read_capacity  = 1

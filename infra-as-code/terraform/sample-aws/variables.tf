@@ -26,7 +26,7 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.28"
+  default = "1.30"
 }
 
 variable "instance_type" {
@@ -36,7 +36,7 @@ variable "instance_type" {
 
 variable "override_instance_types" {
   description = "Arry of instance types for SPOT instances"
-  default = ["r5a.large", "r5ad.large", "r5d.large", "m4.xlarge"]
+  default = ["r5a.large", "r5ad.large", "r6a.large"]
   
 }
 

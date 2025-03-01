@@ -8,10 +8,7 @@ namespace: playground
 ingress:
   enabled: true
   context: "pgadmin"
-  additionalAnnotations: |
-    {{- if index .Values "whitelist-ips" }}
-    nginx.ingress.kubernetes.io/whitelist-source-range: {{ index .Values "whitelist-ips" | quote }}
-    {{- end }}
+  # additionalAnnotations: |
   #   nginx.ingress.kubernetes.io/auth-signin:  https://$host/oauth2/start?rd=$escaped_request_uri
   #   nginx.ingress.kubernetes.io/auth-url:     https://$host/oauth2/auth 
 
@@ -22,13 +19,12 @@ initContainers: {}
 image:
   repository: "pgadmin"
   tag: "v4.7.7"
+  pullPolicy: Always
 
 replicas: "1"
 httpPort: "8080"
 dbUrl: "egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com"
 dbPort: "5432"
-dbWriteUser: "read"
-dbReadUser: "write"
 maintenance-db-name: "postgres"
 db-admin-username: "egov"
 db-read-username: "readonly"
@@ -38,12 +34,14 @@ log-file-path: "/var/lib/pgadmin/pgadmin4.log"
 sqlite-path: "/var/lib/pgadmin/pgadmin4.db"
 session-path: "/var/lib/pgadmin/sessions"
 storage-path: "/var/lib/pgadmin/storage"
+csrf-check-default: "False"
+csrf-enabled: "False"
 cookie-protection: "True"
 ui-languages: "{'en': 'English'}"
 enable-save-password: "False"
 max-query-history: "50"
 max-login-attempts: "5"
-shared-storage: "[{'name': 'Shared Folder', 'path': '/var/lib/pgadmin/shared_folder', 'restricted_access': True}]"
+shared-storage: "[{'name': 'Shared Folder', 'path': '/var/lib/pgadmin/shared_folder', 'restricted_access': False}]"
 
 persistence:
   enabled: false
@@ -103,3 +101,5 @@ env: |
     value: {{ .Values.httpPort | quote }}
   - name: PGADMIN_DISABLE_POSTFIX
     value: "true"
+  - name: SCRIPT_NAME
+    value: /{{ .Values.ingress.context }}

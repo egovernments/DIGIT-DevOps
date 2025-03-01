@@ -1,25 +1,26 @@
 
-name: elasticsearch-data
+name: elasticsearch-data-v1
+namespace: es-cluster
 replicas: 3
 
 image:
   pullPolicy: IfNotPresent  
   repository: docker.elastic.co/elasticsearch/elasticsearch
-  tag: 8.11.3
+  tag: 6.4.2
 
-clusterName: "elasticsearch"
+clusterName: "elasticsearch-v1"
 nodeGroup: "data"
-namespace: backbone
 
 # The service that non master groups will try to connect to when joining the cluster
 # This should be set to clusterName + "-" + nodeGroup for your master group
-masterService: "elasticsearch-master"
+masterService: "elasticsearch-master-v1"
 
 # Elasticsearch roles that will be applied to this nodeGroup
 # These will be set as environment variables. E.g. node.master=true
 roles:
-  - ingest
-  - data
+  master: "false"
+  ingest: "true"
+  data: "true"
 
 minimumMasterNodes: 2
 
@@ -44,19 +45,16 @@ extraEnvs:
     value: "/usr/share/elasticsearch/data"
   - name: path.logs
     value: "/usr/share/elasticsearch/logs"
+  - name: gateway.expected_master_nodes
+    value: "2"    
   - name: gateway.expected_data_nodes
     value: "1"      
   - name: gateway.recover_after_time
     value: "5m"      
+  - name: gateway.recover_after_master_nodes
+    value: "2"      
   - name: gateway.recover_after_data_nodes
-    value: "1"
-  - name: ELASTIC_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: elasticsearch-master-credentials
-        key: password
-
-createCert: false
+    value: "1"           
 
 # Allows you to load environment variables from kubernetes secret or config map
 envFrom: []
@@ -68,11 +66,10 @@ envFrom: []
 # A list of secrets and their paths to mount inside the pod
 # This is useful for mounting certificates for security and for mounting
 # the X-Pack license
-existingCert: true
-secretMounts: 
-  - name: elastic-certificates
-    secretName: elasticsearch-master-certs
-    path: /usr/share/elasticsearch/config/certs
+secretMounts: []
+#  - name: elastic-certificates
+#    secretName: elastic-certificates
+#    path: /usr/share/elasticsearch/config/certs
 
 podAnnotations: {}
   # iam.amazonaws.com/role: es-cluster
@@ -183,9 +180,6 @@ podManagementPolicy: "Parallel"
 protocol: http
 httpPort: 9200
 transportPort: 9300
-
-secret:
-  enabled: false
 
 service:
   labels: {}

@@ -84,7 +84,7 @@ cluster-configs:
                 egov-data-uploader: "http://egov-data-uploader:8080/"
                 egov-indexer: "http://egov-indexer:8080/"
                 egov-hrms: "http://egov-hrms:8080/"
-                es-client: "http://elasticsearch-data-v1.backbone:9200"
+                es-client: "http://elasticsearch-data-v1.es-cluster:9200"
                 hr-masters: "http://hr-masters:8080/"
                 hr-employee: "http://hr-employee:8080/"
                 hr-masters-v2: "http://hr-masters-v2:8080/"
@@ -726,10 +726,41 @@ kafka-v2:
   minInsyncReplicas: "1"
   offsetsReplicationFactor: "3"
 
-### Kafka Connect <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-kafka-connect:
+oauth2-proxy:
+  config:
+    configFile: |-
+      email_domains = [ "*" ]
+      github_org = "egovernments"
+      github_team = "micro-service-uat,devops,digit-ips"
+      upstreams = [ "file:///dev/null" ]
+
+# es-v1-cluster >>>>>>>>>>>>>>>>>>>>>>>>>>>>
+elasticsearch-data-v1:
   image:
-    tag: latest 
+    tag: 6.6.2
+  persistence:
+    enabled: true
+  esJavaOpts: "-Xmx1g -Xms1g"
+  resources:
+    requests:
+      # cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      # cpu: "1000m"
+      memory: "2Gi"
+
+elasticsearch-master-v1:
+  replicas: 3
+  image:
+    tag: 6.6.2
+  persistence:
+    enabled: true
+  esJavaOpts: "-Xmx448m -Xms448m"
+  resources:
+    requests:
+      memory: "896Mi"
+    limits:
+      memory: "896Mi"
 
 es-curator:
   schedule: "45 18 * * *"
@@ -739,4 +770,108 @@ es-curator:
   logs-cleanup-enabled: "true"
   jaeger-cleanup-enabled: "true"
   logs-to-retain: "7"
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+kafka-ui:
+  yamlApplicationConfig:
+    kafka:
+      clusters:
+        - name: mukta-uat
+          bootstrapServers: kafka-kraft-controller-headless.kafka-kraft:9092
+          readonly: true
+
+### Grafana >>>>>>>>>>>>>>>>>>>>
+grafana:
+  github:
+    allowed_organizations: ["egovernments"]
+    role_attribute_path: contains(groups[*], '@egovernments/digit-ips') && 'Viewer'
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+### Prometheus & Alertmanager >>>>>>>>>>>>>>>>>>>>
+prometheus:
+  alertmanager:
+    enabled: true
+  externalLabels:
+    cluster: demo-ips
+  additionalScrapeConfigs:
+    - job_name: 'nginx-ingress-metrics'
+      static_configs:
+        - targets: [ 'release-name-ingress-nginx-controller-metrics.egov:10254' ]
+    - job_name: 'blackbox'
+      metrics_path: /probe
+      params:
+        module: [ http_2xx ]
+      static_configs:
+        - targets:
+            - https://ips-demo.digit.org/digit-ui/
+            - https://ips-demo.digit.org/kibana/
+            - https://ips-demo.digit.org/pgadmin/
+      relabel_configs:
+        - source_labels: [ __address__ ]
+          target_label: __param_target
+        - source_labels: [ __param_target ]
+          target_label: instance
+        - target_label: __address__
+          replacement: prometheus-blackbox-exporter:9115
+    - job_name: 'blackbox_exporter'
+      static_configs:
+        - targets: [ 'prometheus-blackbox-exporter:9115' ]
+    - job_name: 'java-services'
+      kubernetes_sd_configs:
+        - role: pod
+      relabel_configs:
+        # Keep only pods with the label `app-type=java`
+        - source_labels: [ __meta_kubernetes_pod_label_app_type ]
+          action: keep
+          regex: java
+        # Extract the Pod IP and set it as the scrape target
+        - source_labels: [ __meta_kubernetes_pod_ip ]
+          action: replace
+          target_label: __address__
+          replacement: ${1}:9404
+        # Override the default metrics path if needed
+        - action: replace
+          target_label: __metrics_path__
+          replacement: /metrics
+        - source_labels: [ __meta_kubernetes_namespace ]
+          target_label: namespace
+        - source_labels: [ __meta_kubernetes_pod_name ]
+          target_label: pod
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+### loki-stack >>>>>>>>>>>>>>>>>>>>
+loki:
+  persistence:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    size: 30Gi
+  serviceAccount:
+    annotations: {}
+  additionalConfigs:
+    schema_config:
+      configs:
+        - from: 2020-10-24
+          store: boltdb-shipper
+          object_store: filesystem
+          schema: v11
+          index:
+            prefix: index_
+            period: 24h
+    storage_config:
+      boltdb_shipper:
+        active_index_directory: /data/loki/index
+        cache_location: /data/loki/index_cache
+        shared_store: filesystem
+        cache_ttl: 24h
+      filesystem:
+        directory: /data/loki/chunks
+    compactor:
+      working_directory: /data/loki/boltdb-shipper-compactor
+      shared_store: filesystem
+      retention_enabled: true
+      compaction_interval: 168h
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 168h  # 7 days
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

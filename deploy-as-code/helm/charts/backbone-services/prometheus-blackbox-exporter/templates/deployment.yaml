@@ -2,8 +2,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: prometheus-blackbox-exporter
-  namespace: monitoring
+  name: {{ template "prometheus-blackbox-exporter.fullname" . }}
   labels:
     {{- include "prometheus-blackbox-exporter.labels" . | nindent 4 }}
 spec:
@@ -27,7 +26,7 @@ spec:
         {{- end }}
     spec:
       automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
-      serviceAccountName: prometheus-blackbox-exporter
+      serviceAccountName: {{ template "prometheus-blackbox-exporter.serviceAccountName" . }}
     {{- with .Values.topologySpreadConstraints }}
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
@@ -148,7 +147,7 @@ spec:
             secretName: {{ .Values.configExistingSecretName }}
 {{- else }}
           configMap:
-            name: prometheus-blackbox-exporter
+            name: {{ template "prometheus-blackbox-exporter.fullname" . }}
 {{- end }}
       {{- range .Values.extraConfigmapMounts }}
         - name: {{ .name }}

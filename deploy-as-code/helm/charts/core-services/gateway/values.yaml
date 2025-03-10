@@ -10,12 +10,18 @@ namespace: egov
 initContainers:
   extraInitContainers: |
     - name: "gateway-kubernetes-discovery"
-      image: {{ .Values.global.containerRegistry }}/gateway-kubernetes-discovery:core-2.9-lts-mvn-check-7f4ff55ce3-5
+      image: {{ .Values.global.containerRegistry }}gateway-kubernetes-discovery:kubernetes-discovery-internal-scg-a39f67494a-12
       env: 
       - name: "OUTPUT_FILE_PATH"
         value: "/etc/zuul/routes.properties" 
       - name: "NAMESPACE"
-        value: "egov"         
+        value: {{ index .Values "discovery_namespaces" | quote }}
+      - name: "INTERNAL_GATEWAY_HOST"
+        value: "internal-gateway"
+      - name: "INTERNAL_GATEWAY_NAMESPACE"
+        value: "egov"
+      - name: "INTERNAL_ROUTER_MAP"
+        value: "inbox:internal-gateway,egov-searcher:internal-gateway,echallan-calculator:internal-gateway,pt-calculator-v2:internal-gateway,filestore:internal-gateway,pdf-service:internal-gateway,report:internal-gateway,firenoc-calculator:internal-gateway,sw-calculator:internal-gateway,ws-calculator:internal-gateway,dashboard-analytics:internal-gateway,pg-service:internal-gateway,tl-calculator:internal-gateway,egov-mdms-service:internal-gateway,pt-calculator-v2:internal-gateway,edcr:internal-gateway,property-services:internal-gateway"       
       volumeMounts:
       - name: zuul-routes
         mountPath: /etc/zuul
@@ -52,11 +58,15 @@ eventlog-topic: "springGateway-event-log"
 eventlog-urls-whitelist: ""
 home-isolation-chatbot-router-enabled: false
 memory_limits: "768Mi"
+egov-statelevel-tenant-map:
+  unified-demo.digit.org: in.staging
+  state2.digit.org: in.statetwo
+  centralinstance.digit.org: in
 
 # Additional Container Envs
 env: |
-  - name: URL_LISTS
-    value: "/pt-services-v2/property/_create:http://rainmaker-custom-service:8000/customization/protected/punjab-pt/property/_create|/pt-services-v2/property/_update:http://rainmaker-custom-service:8000/customization/protected/punjab-pt/property/_update|/pt-calculator-v2/propertytax/_estimate:http://rainmaker-custom-service:8000/customization/protected/punjab-pt/pt-calculator-v2/_estimate"
+  - name: EGOV_STATELEVEL_TENANT_MAP
+    value: {{ index .Values "egov-statelevel-tenant-map" | quote }}
   - name: CUSTOM_FILTER_PROPERTY
     value: {{ index .Values "custom-filter-property" | quote }}
   - name: CUSTOM_FILTER_POSTHOOKS

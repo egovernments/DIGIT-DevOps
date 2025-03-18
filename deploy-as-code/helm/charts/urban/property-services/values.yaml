@@ -19,6 +19,33 @@ initContainers:
     schemaTable: "property_services_schema"
     image:
       repository: "property-services-db"
+    env: |
+        {{- if index .Values "property-ismultischema-enabled" }}        
+        - name: SCHEMA_NAME
+          value: {{ index .Values "property-schemas" | quote }}
+        {{- end }}
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}              
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+                name: db
+                key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+                name: db
+                key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+                name: egov-config
+                key: flyway-locations 
 
 # Container Configs
 image:
@@ -150,3 +177,27 @@ env: |
   - name: TRACER_OPENTRACING_ENABLED
     value: "true" 
   {{- end }}
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenant-id
+  - name: EGOV_ENC_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-enc-service
+  {{- if index .Values "cluster-configs" "configmaps" "egov-config" "data" "is-environment-central-instance" }}        
+  - name: IS_ENVIRONMENT_CENTRAL_INSTANCE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: is-environment-central-instance
+  {{- end }}
+  {{- if index .Values "cluster-configs" "configmaps" "egov-config" "data" "is-environment-central-instance" }}        
+  - name: STATE_LEVEL_TENANTID_LENGTH
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenantid-length
+  {{- end }} 

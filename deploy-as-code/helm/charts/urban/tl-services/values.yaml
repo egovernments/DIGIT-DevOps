@@ -19,6 +19,33 @@ initContainers:
     schemaTable: "tl_services_schema"
     image:
       repository: "tl-services-db"
+    env: |
+        {{- if index .Values "tradelicense-ismultischema-enabled" }}        
+        - name: SCHEMA_NAME
+          value: {{ index .Values "tradelicense-schemas" | quote }}
+        {{- end }}
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}              
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+                name: db
+                key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+                name: db
+                key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+                name: egov-config
+                key: flyway-locations 
 
 # Container Configs
 image:
@@ -82,6 +109,11 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-url-shortening
+  - name: EGOV_UI_APP_HOST_MAP
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: host-map 
   - name: EGOV_URL_SHORTNER_ENDPOINT
     value: {{ index .Values "egov-url-shortner-endpoint" | quote }}
   - name: EGOV_MDMS_SEARCH_ENDPOINT
@@ -163,3 +195,22 @@ env: |
         name: egov-config
         key: tracer-errors-provideexceptionindetails
   {{- end }}
+  {{- if index .Values "cluster-configs" "configmaps" "egov-config" "data" "is-environment-central-instance" }}        
+  - name: IS_ENVIRONMENT_CENTRAL_INSTANCE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: is-environment-central-instance
+  {{- end }}
+  {{- if index .Values "cluster-configs" "configmaps" "egov-config" "data" "is-environment-central-instance" }}        
+  - name: STATE_LEVEL_TENANTID_LENGTH
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenantid-length
+  {{- end }}
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenant-id

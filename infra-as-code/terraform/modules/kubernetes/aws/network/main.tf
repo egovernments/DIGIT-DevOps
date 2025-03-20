@@ -11,9 +11,9 @@ resource "aws_vpc" "vpc" {
   enable_dns_hostnames = true
 
   tags = "${
-    map(
-      "Name", "${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "shared",
+    tomap({
+      "Name"= "${var.cluster_name}"
+      "kubernetes.io/cluster/${var.cluster_name}"= "shared"}
     )
   }"
 }
@@ -26,12 +26,12 @@ resource "aws_subnet" "public_subnet" {
   vpc_id            = "${aws_vpc.vpc.id}"
 
   tags = "${
-    map(
-      "Name", "utility-${var.availability_zones[count.index]}-${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "shared",
-      "kubernetes.io/role/elb", 1,
-      "SubnetType", "Utility",
-      "KubernetesCluster", "${var.cluster_name}"
+    tomap({
+      "Name"= "utility-${var.availability_zones[count.index]}-${var.cluster_name}",
+      "kubernetes.io/cluster/${var.cluster_name}"= "shared",
+      "kubernetes.io/role/elb"= 1,
+      "SubnetType"= "Utility",
+      "KubernetesCluster"= "${var.cluster_name}"}
     )
   }"
 }
@@ -44,12 +44,12 @@ resource "aws_subnet" "private_subnet" {
   vpc_id            = "${aws_vpc.vpc.id}"
 
   tags = "${
-    map(
-      "Name", "${var.availability_zones[count.index]}-${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "shared",
-      "kubernetes.io/role/internal-elb", 1,
-      "SubnetType", "Private",
-      "KubernetesCluster", "${var.cluster_name}"
+    tomap({
+      "Name"= "${var.availability_zones[count.index]}-${var.cluster_name}",
+      "kubernetes.io/cluster/${var.cluster_name}"= "shared",
+      "kubernetes.io/role/internal-elb"= 1,
+      "SubnetType"= "Private",
+      "KubernetesCluster"= "${var.cluster_name}"}
     )
   }"
 }
@@ -58,10 +58,10 @@ resource "aws_internet_gateway" "internet_gateway" {
   vpc_id = "${aws_vpc.vpc.id}"
 
   tags = "${
-    map(
-      "Name", "${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "shared",
-      "KubernetesCluster", "${var.cluster_name}"
+    tomap({
+      "Name"= "${var.cluster_name}",
+      "kubernetes.io/cluster/${var.cluster_name}"= "shared",
+      "KubernetesCluster"= "${var.cluster_name}"}
     )
   }"
 }
@@ -75,10 +75,10 @@ resource "aws_route_table" "public_route_table" {
   }
 
     tags = "${
-    map(
-      "Name", "public-${var.cluster_name}-rtb",
-      "kubernetes.io/cluster/${var.cluster_name}", "shared",
-      "KubernetesCluster", "${var.cluster_name}"
+    tomap({
+      "Name"= "public-${var.cluster_name}-rtb",
+      "kubernetes.io/cluster/${var.cluster_name}"= "shared",
+      "KubernetesCluster"= "${var.cluster_name}"}
     )
   }"
 }
@@ -95,10 +95,10 @@ resource "aws_eip" "eip" {
   depends_on = ["aws_internet_gateway.internet_gateway"]
 
     tags = "${
-    map(
-      "Name", "eip-${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "shared",
-      "KubernetesCluster", "${var.cluster_name}"
+    tomap({
+      "Name"= "eip-${var.cluster_name}",
+      "kubernetes.io/cluster/${var.cluster_name}"= "shared",
+      "KubernetesCluster"= "${var.cluster_name}"}
     )
   }"  
 
@@ -111,10 +111,10 @@ resource "aws_nat_gateway" "nat" {
   depends_on = ["aws_internet_gateway.internet_gateway"]
 
     tags = "${
-    map(
-      "Name", "nat-gw-${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "shared",
-      "KubernetesCluster", "${var.cluster_name}"
+    tomap({
+      "Name"= "nat-gw-${var.cluster_name}",
+      "kubernetes.io/cluster/${var.cluster_name}"= "shared",
+      "KubernetesCluster"= "${var.cluster_name}"}
     )
   }"
 }
@@ -129,10 +129,10 @@ resource "aws_route_table" "private_route_table" {
   }
 
     tags = "${
-    map(
-      "Name", "private-${var.cluster_name}-rtb",
-      "kubernetes.io/cluster/${var.cluster_name}", "shared",
-      "KubernetesCluster", "${var.cluster_name}"
+    tomap({
+      "Name"= "private-${var.cluster_name}-rtb",
+      "kubernetes.io/cluster/${var.cluster_name}"= "shared",
+      "KubernetesCluster"= "${var.cluster_name}"}
     )
   }"  
 }
@@ -158,10 +158,10 @@ resource "aws_security_group" "worker_nodes_sg" {
   }
 
   tags = "${
-    map(
-      "Name", "nodes-${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "shared",
-      "KubernetesCluster", "${var.cluster_name}"
+    tomap({
+      "Name"= "nodes-${var.cluster_name}",
+      "kubernetes.io/cluster/${var.cluster_name}"= "shared",
+      "KubernetesCluster"= "${var.cluster_name}"}
     )
   }"
 }
@@ -172,10 +172,10 @@ resource "aws_security_group" "master_nodes_sg" {
   vpc_id      = "${aws_vpc.vpc.id}"
 
   tags = "${
-    map(
-      "Name", "masters-${var.cluster_name}",
-      "kubernetes.io/cluster/${var.cluster_name}", "shared",
-      "KubernetesCluster", "${var.cluster_name}"
+    tomap({
+      "Name"= "masters-${var.cluster_name}",
+      "kubernetes.io/cluster/${var.cluster_name}"= "shared",
+      "KubernetesCluster"= "${var.cluster_name}"}
     )
   }"
 }
@@ -186,8 +186,8 @@ resource "aws_security_group" "rds_db_sg" {
   vpc_id      = "${aws_vpc.vpc.id}"
 
   tags = "${
-    map(
-      "Name", "db-${var.cluster_name}"
+    tomap({
+      "Name"= "db-${var.cluster_name}"}
     )
   }"
 }

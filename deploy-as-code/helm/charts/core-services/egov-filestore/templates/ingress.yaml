@@ -8,13 +8,15 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: 8m                          
 spec:
   rules:
-  - host: {{ .Values.global.hosts }}
-    http:
-      paths:
-      - backend:
-          service:
-            name: gateway
-            port:
-              number: 8080
-        path: /{{ .Values.ingress.context }}
-        pathType: Prefix  
+    {{- range .Values.global.hosts }}
+    - host: {{ . }}
+      http:
+        paths:
+        - path: /{{ $.Values.ingress.context }}
+          pathType: ImplementationSpecific
+          backend:
+            service:
+              name: gateway
+              port:
+                number: 8080
+    {{- end }} 

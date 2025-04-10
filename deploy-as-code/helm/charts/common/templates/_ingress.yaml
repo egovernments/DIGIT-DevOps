@@ -36,6 +36,20 @@ spec:
                 number: 8080
     {{- end }}
   {{- else }}
+    {{- if .Values.global.hosts }}
+      {{- range .Values.global.hosts }}
+    - host: {{ . }}
+      http:
+        paths:
+        - path: /{{ $.Values.ingress.context }}
+          pathType: ImplementationSpecific
+          backend:
+            service:
+              name: gateway
+              port:
+                number: 8080
+      {{- end }}
+    {{- else }}
     - host: {{ .Values.global.domain }}
       http:
         paths:
@@ -43,9 +57,10 @@ spec:
           pathType: ImplementationSpecific
           backend:
             service:
-              name: {{ $.Values.ingress.serviceName | default $.Chart.Name }}
+              name: gateway
               port:
-                number: {{ $.Values.ingress.servicePort | default $.Values.httpPort }}
+                number: 8080
+    {{- end }}
   {{- end }}
   tls:
   {{- if .Values.ingress.zuul }}
@@ -55,9 +70,17 @@ spec:
       secretName: {{ . }}-tls-certs
     {{- end }}
   {{- else }}
+    {{- if .Values.global.hosts }}
+      {{- range .Values.global.hosts }}
+    - hosts:
+      - {{ . }}
+      secretName: {{ . }}-tls-certs
+      {{- end }}
+    {{- else }}
     - hosts:
       - {{ .Values.global.domain }}
       secretName: {{ .Values.global.domain }}-tls-certs
+    {{- end }}
   {{- end }}
 {{- end -}}
 {{- end -}}

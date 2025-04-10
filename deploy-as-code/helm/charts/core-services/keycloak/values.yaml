@@ -1,0 +1,56 @@
+# Common Labels
+labels:
+  app: "keycloak"
+  group: "keycloak"
+namespace: keycloak
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: false
+  context: "keycloak-test"
+
+# Container Configs
+image:
+  repository: "keycloak"
+replicas: "1"
+events-listeners: "jboss-logging,register-citizen-listener"
+
+# Additional Container Envs
+env: |  
+  - name: SERVER_PORT
+    value: "8080"
+  - name: KC_PROXY
+    value: "edge"
+  - name: KC_HTTP_RELATIVE_PATH
+    value: "/keycloak-test"
+  - name: KC_DB_URL
+    value: "jdbc:postgresql://postgresql-lts.egov:5432/new_keycloak"
+  - name: KC_DB
+    value: "postgres"
+  - name: DB_PORT
+    value: "5432"
+  - name: KC_DB_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: kc-db
+        key: username
+  - name: KC_DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: kc-db
+        key: password
+  - name: KEYCLOAK_ADMIN
+    valueFrom:
+      secretKeyRef:
+        name: kc-admin
+        key: username
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: kc-admin
+        key: password
+  - name: KC_EVENTS_LISTENERS
+    value: {{ index .Values "events-listeners" | quote }}
+  - name: KC_SPI_EVENTS_LISTENER_REGISTER_CITIZEN_LISTENER_ENABLED
+    value: "true"

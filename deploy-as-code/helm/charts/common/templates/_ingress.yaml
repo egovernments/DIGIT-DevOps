@@ -22,23 +22,9 @@ metadata:
 {{ include "common.labels" . | nindent 4 }}
 spec:
   rules:
-  {{- if .Values.ingress.gateway }}
-    {{- /* When gateway flag is true, route to the gateway service on port 8080 */}}
-    {{- if .Values.global.hosts }}
-      {{- range .Values.global.hosts }}
+  {{- if .Values.ingress.zuul }}
+    {{- range .Values.global.hosts }}
     - host: {{ . }}
-      http:
-        paths:
-        - path: /{{ $.Values.ingress.context }}
-          pathType: ImplementationSpecific
-          backend:
-            service:
-              name: gateway
-              port:
-                number: 8080
-      {{- end }}
-    {{- else if .Values.global.domain }}
-    - host: {{ .Values.global.domain }}
       http:
         paths:
         - path: /{{ $.Values.ingress.context }}
@@ -50,8 +36,6 @@ spec:
                 number: 8080
     {{- end }}
   {{- else }}
-    {{- /* When gateway flag is false (or not set), direct traffic to the individual service */}}
-    {{- if .Values.global.domain }}
     - host: {{ .Values.global.domain }}
       http:
         paths:
@@ -62,48 +46,18 @@ spec:
               name: {{ $.Values.ingress.serviceName | default $.Chart.Name }}
               port:
                 number: {{ $.Values.ingress.servicePort | default $.Values.httpPort }}
-    {{- else if .Values.global.hosts }}
-      {{- range .Values.global.hosts }}
-    - host: {{ . }}
-      http:
-        paths:
-        - path: /{{ $.Values.ingress.context }}
-          pathType: ImplementationSpecific
-          backend:
-            service:
-              name: {{ $.Values.ingress.serviceName | default $.Chart.Name }}
-              port:
-                number: {{ $.Values.ingress.servicePort | default $.Values.httpPort }}
-      {{- end }}
-    {{- end }}
   {{- end }}
   tls:
-  {{- if .Values.ingress.gateway }}
-    {{- /* TLS configuration for gateway branch */}}
-    {{- if .Values.global.hosts }}
-      {{- range .Values.global.hosts }}
+  {{- if .Values.ingress.zuul }}
+    {{- range .Values.global.hosts }}
     - hosts:
       - {{ . }}
       secretName: {{ . }}-tls-certs
-      {{- end }}
-    {{- else if .Values.global.domain }}
-    - hosts:
-      - {{ .Values.global.domain }}
-      secretName: {{ .Values.global.domain }}-tls-certs
     {{- end }}
   {{- else }}
-    {{- /* TLS configuration for individual service branch */}}
-    {{- if .Values.global.domain }}
     - hosts:
       - {{ .Values.global.domain }}
       secretName: {{ .Values.global.domain }}-tls-certs
-    {{- else if .Values.global.hosts }}
-      {{- range .Values.global.hosts }}
-    - hosts:
-      - {{ . }}
-      secretName: {{ . }}-tls-certs
-      {{- end }}
-    {{- end }}
   {{- end }}
 {{- end -}}
 {{- end -}}

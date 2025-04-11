@@ -1,5 +1,5 @@
 global:
-   domain: sandbox.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
+   domain: sandbox-prod.digit.org
    setup: fullsetup
 
 cluster-configs:
@@ -13,12 +13,11 @@ cluster-configs:
         egov-config:
             namespace: [ egov, monitoring ]
             data:
-                db-host: "digit-sandbox-db.cqqfmghbjssw.ap-south-1.rds.amazonaws.com:5432" ## Add db-host name eg: egov-demo.database.azure.co
-                db-name: "digitsandboxdb" ## Add db-name
-                db-url: "jdbc:postgresql://digit-sandbox-db.cqqfmghbjssw.ap-south-1.rds.amazonaws.com:5432/digitsandboxdb" ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
-                domain: sandbox.digit.org ## Add your Domain Name    
-                egov-services-fqdn-name: https://sandbox.digit.org/ ## Add your Domain Name
-                
+                db-host: "sandbox-prod-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432" ## Add db-host name eg: egov-demo.database.azure.co
+                db-name: "digitsandboxdb"
+                db-url: "jdbc:postgresql://sandbox-prod-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432/digitsandboxdb" ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
+                domain: sandbox-prod.digit.org
+                egov-services-fqdn-name: https://sandbox-prod.digit.org/
                 egov-state-level-tenant-id: "pg" 
                 s3-assets-bucket: "(pg-egov-assets|egov-playground-assets)"
                 es-host: "elasticsearch-data.backbone"
@@ -440,20 +439,39 @@ redoc:
 
 # gateway >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-nginx-ingress:
-  images:
-    - quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.26.1
-  replicas: 1
+ingress-nginx:
   default-backend-service: "egov/nginx"
   namespace: egov
   cert-issuer: "letsencrypt-prod"
   ssl-protocols: "TLSv1.2 TLSv1.3"
   ssl-ciphers: "EECDH+CHACHA20:EECDH+AES"
   ssl-ecdh-curve: "X25519:prime256v1:secp521r1:secp384r1"
+  controller:
+    replicas: 1
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+      prometheusRule:
+        enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 100Mi
+      limits:
+        cpu: 100m
+        memory: 200Mi
+    addHeaders:
+      X-Content-Type-Options: "nosniff"
+      X-Frame-Options: "SAMEORIGIN"
+      X-XSS-Protection: "1; mode=block"
+      Access-Control-Allow-Origin: "https://sandbox-prod.digit.org"
+      Access-Control-Allow-Methods: "GET, POST, OPTIONS"
+      Access-Control-Allow-Headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range"
+    setSslTls: "sandbox-prod.digit.org-tls-certs"
 
 cert-manager:
   email: "devops@egovernments.org"     ### Add email-id which used by cert-manager for certificates validation.
-  
   
 zuul:
   replicas: 1
@@ -750,4 +768,113 @@ es-curator:
   logs-cleanup-enabled: "true"
   jaeger-cleanup-enabled: "true"
   logs-to-retain: "7"
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+### Grafana >>>>>>>>>>>>>>>>>>>>
+grafana:
+  github:
+    allowed_organizations: ["egovernments"]
+    role_attribute_path: contains(groups[*], '@egovernments/sandbox-prod') && 'Viewer'
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+### Prometheus & Alertmanager >>>>>>>>>>>>>>>>>>>>
+prometheus:
+  alertmanager:
+    enabled: false
+  externalLabels:
+    cluster: sandbox-prod
+  retention: "7d"
+  storageSpec:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: gp3
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 100Gi
+  additionalScrapeConfigs:
+    - job_name: 'nginx-ingress-metrics'
+      static_configs:
+        - targets: [ 'nginx-ingress-controller-metrics.egov:10254' ]
+    - job_name: 'blackbox'
+      metrics_path: /probe
+      params:
+        module: [ http_2xx ]
+      static_configs:
+        - targets:
+            - https://sandbox-prod.digit.org/sandbox-ui/
+            - https://sandbox-prod.digit.org/jupyter/hub/
+            - https://sandbox-prod.digit.org/kibana/
+            - https://sandbox-prod.digit.org/pgadmin/
+      relabel_configs:
+        - source_labels: [ __address__ ]
+          target_label: __param_target
+        - source_labels: [ __param_target ]
+          target_label: instance
+        - target_label: __address__
+          replacement: prometheus-blackbox-exporter:9115
+    - job_name: 'blackbox_exporter'
+      static_configs:
+        - targets: [ 'prometheus-blackbox-exporter:9115' ]
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+### loki-stack >>>>>>>>>>>>>>>>>>>>
+loki:
+  persistence:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    size: 30Gi
+  serviceAccount:
+    annotations: {}
+  additionalConfigs:
+    schema_config:
+      configs:
+        - from: 2020-10-24
+          store: boltdb-shipper
+          object_store: filesystem
+          schema: v11
+          index:
+            prefix: index_
+            period: 24h
+    storage_config:
+      boltdb_shipper:
+        active_index_directory: /data/loki/index
+        cache_location: /data/loki/index_cache
+        shared_store: filesystem
+        cache_ttl: 24h
+      filesystem:
+        directory: /data/loki/chunks
+    compactor:
+      working_directory: /data/loki/boltdb-shipper-compactor
+      shared_store: filesystem
+      retention_enabled: true
+      compaction_interval: 168h
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 168h  # 7 days
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+### jupyter-hub >>>>>>>>>>>>>>>>>>>>
+jupyterhub:
+  hub:
+    config:
+      Authenticator:
+        admin_users:
+          - sandbox-prod-admin
+      NativeAuthenticator:
+        minimum_password_length: 8
+        check_common_password: false
+        allowed_failed_logins: 5
+        seconds_before_next_try: 300
+      JupyterHub:
+        admin_access: true
+  ingress:
+    enabled: true
+    hosts:
+      - sandbox-prod.digit.org
+    tls:
+      - hosts:
+          - sandbox-prod.digit.org
+        secretName: sandbox-prod.digit.org-tls-certs
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

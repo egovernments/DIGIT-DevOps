@@ -5,7 +5,7 @@ global:
 cluster-configs:
     namespaces:  
       create: true
-      values: [ backbone, cert-manager, egov, es-cluster, kafka-kraft, logging, monitoring, playground ]
+      values: [ backbone, cert-manager, egov, logging, monitoring, playground ]
       
     root-ingress:
       cert-issuer: letsencrypt-prod
@@ -449,7 +449,7 @@ ingress-nginx:
   controller:
     replicas: 1
     metrics:
-      enabled: true
+      enabled: false
       serviceMonitor:
         enabled: true
       prometheusRule:
@@ -652,123 +652,10 @@ fluent-bit:
   egov-infra-log-topic: "egov-infra-logs"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-# kafka-v2 AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-kafka-v2:
-  image:
-    tag: "5.4.1"
-  persistence:
-    enabled: true
-    aws:
-      - volumeId: "<kafka-v2_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone>     ## REPLACE: add respective zone. 
-      - volumeId: "<kafka-v2_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<kafka-v2_volume_id_3>"  ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-  zookeeperHosts: "zookeeper-v2.zookeeper-cluster:2181/kafka-v2"
-
-  heapOptions: "-Xms704M -Xmx704M"
-  resources:
-    limits:
-      cpu: 500m
-      memory: 1408Mi
-    requests:
-      cpu: 2000m
-      memory: 1408Mi
-  lingerMs: "250"
-  numberPartitions: "3"
-  replicationFactor: "2"
-  minInsyncReplicas: "1"
-  offsetsReplicationFactor: "3"
-
 ### Kafka Connect <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 kafka-connect:
   image:
-    tag: latest 
-
-
-# zookeeper-v2 AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-zookeeper-v2:
-  image:
-    tag: "5.4.1"
-  persistence:
-    enabled: true
-    aws:
-      - volumeId: "<zookeeper-v2_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<zookeeper-v2_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<zookeeper-v2_volume_id_3>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-
-  ## Zookeeper JVM Heap Option
-  heapOptions: "-Xms256M -Xmx256M"
-  resources:
-    limits:
-      cpu: 300m
-      memory: 384Mi
-    requests:
-      cpu: 300m
-      memory: 384Mi
-
-
-# es-v1-cluster AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>
-elasticsearch-data-v1:
-  image:
-    tag: 6.6.2
-  persistence:
-    enabled: true
-    aws:
-      - volumeId: "<elasticsearch-data_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<elasticsearch-data_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<elasticsearch-data_volume_id_3>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-
-  esJavaOpts: "-Xmx1g -Xms1g"
-  resources:
-    requests:
-      cpu: "500m"
-      memory: "2Gi"
-    limits:
-      cpu: "2000m"
-      memory: "2Gi"
-
-### es-master-v1 AWS >>>>>>>>>>>>>>>>>>>>
-
-elasticsearch-master-v1:
-  replicas: 3
-  image:
-    tag: 6.6.2
-  persistence:
-    enabled: true
-    aws:
-      - volumeId: "<elasticsearch-master_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone> ##REPLACE: add zone
-      - volumeId: "<elasticsearch-master_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ##REPLACE: add zone
-      - volumeId: "<elasticsearch-master_volume_id_3>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
- 
-  esJavaOpts: "-Xmx448m -Xms448m"
-  resources:
-    requests:
-      cpu: "300m"
-      memory: "896Mi"
-    limits:
-      cpu: "500m"
-      memory: "896Mi"
-
-es-curator:
-  schedule: "45 18 * * *"
-  images:
-    - bobrik/curator:5.6.0
-  es-host: "elasticsearch-client-v1.es-cluster"
-  logs-cleanup-enabled: "true"
-  jaeger-cleanup-enabled: "true"
-  logs-to-retain: "7"
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    tag: latest
 
 ### Grafana >>>>>>>>>>>>>>>>>>>>
 grafana:

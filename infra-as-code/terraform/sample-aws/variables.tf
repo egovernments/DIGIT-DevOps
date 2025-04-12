@@ -5,7 +5,7 @@
 
 variable "cluster_name" {
   description = "Name of the Kubernetes cluster"
-  default = "<cluster_name>" #REPLACE
+  default = <cluster_name> #REPLACE
 }
 
 variable "vpc_cidr_block" {
@@ -26,12 +26,12 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.30"
+  default = "1.31"
 }
 
 variable "instance_types" {
   description = "Arry of instance types for SPOT instances"
-  default = ["r5ad.large"]
+  default = ["m5a.xlarge"]
   
 }
 
@@ -53,17 +53,12 @@ variable "max_worker_nodes" {
 
 variable "db_name" {
   description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
-  default = "<db_name>" #REPLACE
+  default = <db_name> #REPLACE
 }
 
 variable "db_username" {
   description = "RDS database user name"
-  default = "<db_uname>" #REPLACE
-}
-
-variable "iam_user_arn" {
-  description = "Provide the IAM user arn which you are using to create infrastructure"
-  default = "<iam_user_arn>" #Example: arn:aws:iam::4332145635273:user/demo
+  default = <db_username> #REPLACE
 }
 
 variable "ami_id" {
@@ -72,6 +67,11 @@ variable "ami_id" {
     id   = "ami-0d1008f82aca87cb9"
     name = "amazon-eks-node-1.30-v20241024"
   }
+}
+
+variable "filestore_namespace" {
+  description = "Provide the namespace to create filestore secret"
+  default = "egov" #REPLACE  
 }
 
 variable "enable_karpenter" {

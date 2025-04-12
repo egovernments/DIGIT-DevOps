@@ -1,3 +1,3 @@
 variable "bucket_name" {
-  default = "<s3-bucket-name>"
+  default = <terraform_state_bucket_name>
 }

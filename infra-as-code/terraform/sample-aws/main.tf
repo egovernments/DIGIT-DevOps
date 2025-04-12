@@ -1,10 +1,10 @@
 terraform {
   backend "s3" {
-    bucket = "<s3-bucket-name>"
+    bucket = "test-demo-githubactions-bucket"
     key    = "terraform-setup/terraform.tfstate"
     region = "ap-south-1"
     # The below line is optional depending on whether you are using DynamoDB for state locking and consistency
-    dynamodb_table = "<s3-bucket-name>"
+    dynamodb_table = "test-demo-githubactions-bucket"
     # The below line is optional if your S3 bucket is encrypted
     encrypt = true
   }
@@ -14,6 +14,123 @@ terraform {
       version = "~> 1.14.0" 
     }
   }
+}
+
+resource "aws_iam_user" "filestore_user" {
+  name = "${var.cluster_name}-filestore-user"
+
+  tags = {
+    "KubernetesCluster" = var.cluster_name
+    "Name"              = var.cluster_name
+  }
+}
+
+resource "aws_iam_access_key" "filestore_key" {
+  user    = aws_iam_user.filestore_user.name
+}
+
+resource "kubernetes_namespace" "namespace" {
+  metadata {
+    name = var.filestore_namespace
+  }
+}
+
+resource "kubernetes_secret" "egov-filestore" {
+  depends_on  = [kubernetes_namespace.namespace]
+  metadata {
+    name      = "egov-filestore"
+    namespace = var.filestore_namespace  # Change this as needed
+  }
+
+  data = {
+    awssecretkey = aws_iam_access_key.filestore_key.secret
+    awskey       = aws_iam_access_key.filestore_key.id
+  }
+
+  type = "Opaque"
+}
+
+resource "aws_s3_bucket" "filestore_bucket" {
+  bucket = "${var.cluster_name}-filestore-bucket"
+
+  tags = {
+    "KubernetesCluster" = var.cluster_name
+    "Name"              = var.cluster_name
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "filestore_bucket_access" {
+  bucket = aws_s3_bucket.filestore_bucket.id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+resource "aws_s3_bucket_policy" "filestore_bucket_policy" {
+  depends_on = [aws_s3_bucket_public_access_block.filestore_bucket_access]
+  bucket = aws_s3_bucket.filestore_bucket.id
+  policy = data.aws_iam_policy_document.filestore_bucket_policy.json
+}
+
+data "aws_iam_policy_document" "filestore_bucket_policy" {
+  depends_on = [aws_s3_bucket_public_access_block.filestore_bucket_access]
+  statement {
+    sid           = "PublicReadGetObject"
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions = [
+      "s3:GetObject",
+    ]
+
+    resources = [
+      "${aws_s3_bucket.filestore_bucket.arn}/*",
+    ]
+  }
+}
+
+resource "aws_iam_policy" "filestore_policy" {
+  name        = "filestore_policy"  # Replace with your desired policy name
+  description = "Filestore Policy for S3 access"
+  policy = jsonencode({
+    "Version" = "2012-10-17"
+    "Statement" = [
+      {
+        "Effect" = "Allow"
+        "Action" = [
+          "s3:GetBucketLocation",
+          "s3:ListAllMyBuckets"
+        ]
+        "Resource" = "arn:aws:s3:::*"
+      },
+      {
+        "Effect" = "Allow"
+        "Action" = [
+          "s3:*"
+        ]
+        "Resource" = "${aws_s3_bucket.filestore_bucket.arn}" # Allow access to the bucket
+      },
+      {
+        "Effect" = "Allow"
+        "Action" = [
+          "s3:PutObject",
+          "s3:PutObjectAcl",
+          "s3:GetObject",
+          "s3:DeleteObject"
+        ]
+        "Resource" = "${aws_s3_bucket.filestore_bucket.arn}/*" # Allow access to objects in the bucket
+      }
+    ]
+  })
+}
+
+resource "aws_iam_user_policy_attachment" "filestore_attachment" {
+  user       = "${aws_iam_user.filestore_user.name}"  # Reference the IAM user
+  policy_arn = "${aws_iam_policy.filestore_policy.arn}" # Reference the policy
 }
 
 module "network" {
@@ -49,6 +166,7 @@ module "eks" {
   cluster_name    = var.cluster_name
   cluster_version = var.kubernetes_version
   vpc_id          = module.network.vpc_id
+  enable_cluster_creator_admin_permissions = true
   cluster_endpoint_public_access  = true
   cluster_endpoint_private_access = true
   authentication_mode = "API_AND_CONFIG_MAP"
@@ -61,21 +179,6 @@ module "eks" {
       to_port     = 0
       type        = "ingress"
       self        = true
-    }
-  }
-  access_entries = {
-    devops = {
-      kubernetes_groups = []
-      principal_arn     = "${var.iam_user_arn}"
-
-      policy_associations = {
-        devops = {
-          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-          access_scope = {
-            type = "cluster"
-          }
-        }
-      }
     }
   }
   cluster_addons = {
@@ -188,21 +291,6 @@ provider "kubernetes" {
   token                  = data.aws_eks_cluster_auth.cluster.token
 }
 
-resource "kubernetes_annotations" "gp2_default" {
-  annotations = {
-    "storageclass.kubernetes.io/is-default-class" : "false"
-  }
-  api_version = "storage.k8s.io/v1"
-  kind        = "StorageClass"
-  metadata {
-    name = "gp2"
-  }
-
-  force = true
-
-  depends_on = [aws_eks_addon.aws_ebs_csi_driver]
-}
-
 resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
   metadata {
     name = "gp3"
@@ -220,8 +308,6 @@ resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
     encrypted = true
     type      = "gp3"
   }
-
-  depends_on = [kubernetes_annotations.gp2_default]
 }
 
 provider "helm" {

@@ -1,10 +1,10 @@
 terraform {
   backend "s3" {
-    bucket = "test-demo-githubactions-bucket"
+    bucket = <terraform_state_bucket_name
     key    = "terraform-setup/terraform.tfstate"
     region = "ap-south-1"
     # The below line is optional depending on whether you are using DynamoDB for state locking and consistency
-    dynamodb_table = "test-demo-githubactions-bucket"
+    dynamodb_table = <terraform_state_bucket_name
     # The below line is optional if your S3 bucket is encrypted
     encrypt = true
   }
@@ -14,6 +14,11 @@ terraform {
       version = "~> 1.14.0" 
     }
   }
+}
+
+locals {
+  az_to_find           = var.availability_zones[0] 
+  az_index_in_network  = index(var.network_availability_zones, local.az_to_find)
 }
 
 resource "aws_iam_user" "filestore_user" {
@@ -147,7 +152,7 @@ module "db" {
   vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
   availability_zone             = "${element(var.availability_zones, 0)}"
   instance_class                = "db.t4g.medium"  ## postgres db instance type
-  engine_version                = "15.7"   ## postgres version
+  engine_version                = "15.8"   ## postgres version
   storage_type                  = "gp3"
   storage_gb                    = "20"     ## postgres disk size
   backup_retention_days         = "7"
@@ -208,7 +213,7 @@ module "eks_managed_node_group" {
   name            = "${var.cluster_name}-spot"
   cluster_name    = var.cluster_name
   cluster_version = var.kubernetes_version
-  subnet_ids = slice(module.network.private_subnets, 0, length(var.availability_zones))
+  subnet_ids      = [module.network.private_subnets[local.az_index_in_network]]
   vpc_security_group_ids  = [module.eks.node_security_group_id]
   cluster_service_cidr = module.eks.cluster_service_cidr
   use_custom_launch_template = true

@@ -16,7 +16,7 @@ variable "vpc_cidr_block" {
 
 variable "network_availability_zones" {
   description = "Configure availability zones configuration for VPC. Leave as default for India. Recommendation is to have subnets in at least two availability zones"
-  default = ["ap-south-1b", "ap-south-1a"] #REPLACE IF NEEDED
+  default = ["ap-south-1a", "ap-south-1b"] #REPLACE IF NEEDED
 }
 
 variable "availability_zones" {

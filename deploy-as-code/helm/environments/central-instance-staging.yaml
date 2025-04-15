@@ -31,8 +31,8 @@ cluster-configs:
         db-host: "central-instance-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432"
         db-name: "centralinstancedb"
         db-url: "jdbc:postgresql://central-instance-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432/centralinstancedb?currentSchema=pg"
-        bpa-db-url: "jdbc:postgresql://central-instance-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432/edcr"
-        erp-db-url: "jdbc:postgresql://central-instance-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432/finance"
+        bpa-db-url: "jdbc:postgresql://central-instance-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432/centralinstanceedcr"
+        erp-db-url: "jdbc:postgresql://central-instance-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432/centralinstancefinance"
         domain: "unified-demo.digit.org"
         egov-services-fqdn-name: "https://unified-demo.digit.org/"
         state-level-tenantid-length: "1"
@@ -69,8 +69,8 @@ cluster-configs:
       namespace: [staging]
       data:
           internal-gateway-scg: "http://internal-gateway-scg.egov:8080/"
-          billing-service: "http://internal-gateway-scg.egov:8080/"
-          collection-services: "http://internal-gateway-scg.egov:8080/"
+          billing-service: "http://billing-service.egov:8080/"
+          collection-services: "http://collection-services.egov:8080/"
           dashboard-analytics: http://dashboard-analytics.staging:8080/
           dashboard-ingest: http://dashboard-ingest.staging:8080/
           egov-common-masters: "http://internal-gateway-scg.egov:8080/"
@@ -90,7 +90,7 @@ cluster-configs:
           egov-mdms-service: "http://egov-mdms-service.egov:8080/"
           egov-workflow: "http://internal-gateway-scg.egov:8080/"
           egov-workflow-v2: "http://egov-workflow-v2.egov:8080/"
-          egov-searcher: "http://internal-gateway-scg.egov:8080/"
+          egov-searcher: "http://egov-searcher.egov:8080/"
           egov-indexer: "http://internal-gateway-scg.egov:8080/"
           egov-hrms: "http://egov-hrms.egov:8080/"
           pt-calculator: "http://pt-calculator.staging:8080/"
@@ -116,7 +116,7 @@ cluster-configs:
           sw-calculator: "http://internal-gateway-scg.egov:8080/"
           land-services: "http://internal-gateway-scg.egov:8080/"
           noc-services: "http://internal-gateway-scg.egov:8080/"
-          egov-edcr: "http://egov-edcr.staging:8080/"
+          egov-edcr: "http://egov-edcr.egov:8080/"
           firenoc-services: "http://internal-gateway-scg.egov:8080/"
           firenoc-calculator: "http://internal-gateway-scg.egov:8080/"
           vehicle: "http://vehicle.egov:8080/"
@@ -146,6 +146,7 @@ egov-indexer:
       repo: "git@github.com:egovernments/configs"
       branch: "unified-demo"
   egov-indexer-yaml-repo-path: "file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml,file:///work-dir/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/configs/egov-indexer/error-queue.yml,file:///work-dir/configs/egov-indexer/finance-rolloutadotpion-indexer.yml,file:///work-dir/configs/egov-indexer/payment-indexer.yml,file:///work-dir/configs/egov-indexer/pgr-services.yml,file:///work-dir/configs/egov-indexer/pgr-migration-batch-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-tl-indexer.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry.yaml,file:///work-dir/configs/egov-indexer/water-service.yml,file:///work-dir/configs/egov-indexer/water-services-meter.yml,file:///work-dir/configs/egov-indexer/sewerage-service.yml,file:///work-dir/configs/egov-indexer/property-services.yml, file:///work-dir/configs/egov-indexer/chatbot-telemetry-v2.yaml,file:///work-dir/configs/egov-indexer/egov-fsm.yml"
+  dss-collectionindex-topic: pg-dss-collection-update
 
 egov-pg-service:
   replicas: 0
@@ -252,6 +253,7 @@ citizen:
       <script src=https://unified-demo-central-instance.s3.ap-south-1.amazonaws.com/stagingGlobalConfigs.js type=text/javascript></script>
       ';"
 digit-ui:
+  namespace: staging
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
@@ -616,13 +618,15 @@ oauth2-proxy:
       github_team = "micro-service-dev,devops"
       upstreams = [ "file:///dev/null" ]
 
+egov-edcr: 
+  namespace: staging
+  
 # eGov-eDCR Tenants
 edcrTenants: |
-  common.domain.name=unified-qa.digit.org
-  tenant.unified-qa.digit.org=state
+  common.domain.name=unified-demo.digit.org
+  tenant.unified-demo.digit.org=state
   client.id=pg
   tenant.unified-demo.digit.org=pg
-  tenant.unified-kenya.digit.org=ke
 
 edcrmicroservice: |
   ms.url=http://egov-filestore.egov:8080/

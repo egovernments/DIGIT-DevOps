@@ -5,7 +5,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ template "common.name" . }}
-  namespace: {{ .Values.ingress.namespace | default .Values.namespace }}  # Updated to use ingress.namespace
+  namespace: {{ .Values.ingress.namespace | default .Values.namespace }}
   annotations:
 {{ toYaml .Values.ingress.annotations | nindent 4 }}
 {{- if .Values.ingress.waf.enabled }}
@@ -19,41 +19,60 @@ metadata:
 spec:
   rules:
   {{- if .Values.ingress.zuul }}
-    {{- range .Values.global.hosts }}
-    - host: {{ . }}
-      http:
-        paths:
-        - path: /{{ $.Values.ingress.context }}
-          pathType: ImplementationSpecific
-          backend:
-            service:
-              name: gateway
-              port:
-                number: 8080
+    {{- if .Values.global.hosts }}
+      {{- range .Values.global.hosts }}
+  - host: {{ . }}
+    http:
+      paths:
+      - path: /{{ $.Values.ingress.context }}
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: gateway
+            port:
+              number: 8080
+      {{- end }}
+    {{- else }}
+  - host: {{ .Values.global.domain | default "example.com" }}
+    http:
+      paths:
+      - path: /{{ $.Values.ingress.context }}
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: gateway
+            port:
+              number: 8080
     {{- end }}
   {{- else }}
-    - host: {{ .Values.global.domain }}
-      http:
-        paths:
-        - path: /{{ .Values.ingress.context }}
-          pathType: ImplementationSpecific
-          backend:
-            service:
-              name: {{ $.Values.ingress.serviceName | default $.Chart.Name }}
-              port:
-                number: {{ $.Values.ingress.servicePort | default $.Values.httpPort }}
+  - host: {{ .Values.global.domain }}
+    http:
+      paths:
+      - path: /{{ .Values.ingress.context }}
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: {{ $.Values.ingress.serviceName | default $.Chart.Name }}
+            port:
+              number: {{ $.Values.ingress.servicePort | default $.Values.httpPort }}
   {{- end }}
   tls:
   {{- if .Values.ingress.zuul }}
-    {{- range .Values.global.hosts }}
-    - hosts:
-      - {{ . }}
-      secretName: {{ . }}-tls-certs
+    {{- if .Values.global.hosts }}
+      {{- range .Values.global.hosts }}
+  - hosts:
+    - {{ . }}
+    secretName: {{ . }}-tls-certs
+      {{- end }}
+    {{- else }}
+  - hosts:
+    - {{ .Values.global.domain | default "example.com" }}
+    secretName: {{ .Values.global.domain | default "example.com" }}-tls-certs
     {{- end }}
   {{- else }}
-    - hosts:
-      - {{ .Values.global.domain }}
-      secretName: {{ .Values.global.domain }}-tls-certs
+  - hosts:
+    - {{ .Values.global.domain }}
+    secretName: {{ .Values.global.domain }}-tls-certs
   {{- end }}
 {{- end -}}
 {{- end -}}

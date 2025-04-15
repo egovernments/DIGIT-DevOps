@@ -72,7 +72,50 @@ spec:
       initContainers:
         {{ toYaml .Values.server.extraInitContainers | nindent 8}}
       {{- end }}
-      containers:       
+      containers:
+        - name: vault-k8s-auth-config
+          image: {{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default "latest" }}
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          command: ["/bin/sh"]
+          args:
+            - -ec
+            - |
+              echo "Waiting for Vault to be ready..."
+              until vault status > /dev/null 2>&1; do
+                echo "Vault not ready, sleeping..."
+                sleep 2
+              done
+
+              echo "Vault is ready, logging in..."
+              vault login <root token>
+
+              echo "Writing Kubernetes auth config..."
+              vault write auth/kubernetes/config \
+                kubernetes_host="https://27E3835F3695F60D7CF3489826C45F09.gr7.ap-south-1.eks.amazonaws.com" \
+                token_reviewer_jwt="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+                kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+
+              echo "Writing Vault policy..."
+              cat <<EOF | vault policy write vault-policy -
+              path "secret/data/*" {
+                capabilities = ["create", "read", "update", "delete", "list"]
+              }
+              EOF
+              echo "Creating Kubernetes role..."
+              vault write auth/kubernetes/role/vault-role \
+                bound_service_account_names=vault \
+                bound_service_account_namespaces=vault \
+                policies=vault-policy \
+                ttl=24h
+
+              echo "Configuration complete; sleeping indefinitely..."
+              sleep infinity
+          env:
+            - name: VAULT_ADDR
+              value: "http://127.0.0.1:8200"
+          volumeMounts:
+            - name: home
+              mountPath: /home/vault
         - name: vault
           {{ template "vault.resources" . }}
           image: {{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default "latest" }}

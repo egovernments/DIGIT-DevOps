@@ -28,7 +28,7 @@ cluster-configs:
     egov-config:
       namespace: [staging]
       data:
-        db-host: "central-instance-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432"
+        db-host: "central-instance-db.czvokiourya9.ap-south-1.rds.amazonaws.com"
         db-name: "centralinstancedb"
         db-url: "jdbc:postgresql://central-instance-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432/centralinstancedb?currentSchema=pg"
         bpa-db-url: "jdbc:postgresql://central-instance-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432/centralinstanceedcr"
@@ -85,7 +85,7 @@ cluster-configs:
           egov-location: "http://internal-gateway-scg.egov:8080/"
           egov-filestore: "http://egov-filestore.egov:8080/"
           egov-localization: "http://internal-gateway-scg.egov:8080/"
-          egov-idgen: "http://egov-idgen.staging:8080/"
+          egov-idgen: "http://egov-idgen.egov:8080/"
           egov-otp: "http://internal-gateway-scg.egov:8080/"
           egov-mdms-service: "http://egov-mdms-service.egov:8080/"
           egov-workflow: "http://internal-gateway-scg.egov:8080/"
@@ -105,10 +105,10 @@ cluster-configs:
           egov-apportion-service: "http://internal-gateway-scg.egov:8080/"
           minio-url: "https://minio-uat.digit.org/"
           gateway: "http://internal-gateway-scg.egov:8080/"
-          egov-url-shortening: "http://egov-url-shortening.staging:8080/"
+          egov-url-shortening: "http://egov-url-shortening.egov:8080/"
           inbox: "http://inbox.staging:8080/"
           egov-pdf: "http://egov-pdf.egov:8080/"
-          bpa-services: "http://internal-gateway-scg.egov:8080/"
+          bpa-services: "http://bpa-services.egov:8080/"
           bpa-calculator: "http://internal-gateway-scg.egov:8080/"
           ws-calculator: "http://internal-gateway-scg.egov:8080/"
           ws-services: "http://internal-gateway-scg.egov:8080/"
@@ -123,54 +123,32 @@ cluster-configs:
           fsm-calculator: "http://fsm-calculator.staging:8080/"
           mdms-service-v2: "http://mdms-v2.egov:8080/"
           fsm: "http://fsm.egov:8080/"
+          egov-document-uploader: "http://internal-gateway-scg.egov:8080"
+          egov-survey-services: "http://egov-survey-services.staging:8080"
+          egov-user-event: "http://egov-user-event.staging:8080"
+          pqm-service: "http://pqm-service.egov:8080"
 
-egov-mdms-service:
-  replicas: 1
-  images:
-    - egovio/egov-mdms-service
-  mdms-path: "/work-dir/egov-mdms-data/data"
-  initContainers:
-    gitSync:
-      repo: "git@github.com:egovernments/egov-mdms-data"
-      branch: "staging_2.9"
-  mdms-folder: "egov-mdms-data"
-  masters-config-url: "file:///work-dir/egov-mdms-data/master-config.json"
-  java-args: -Dspring.profiles.active=monitoring
 
-egov-indexer:
-  replicas: 1
-  heap: "-Xmx512m -Xms512m"
-  memory_limits: "768Mi"
-  initContainers:
-    gitSync:
-      repo: "git@github.com:egovernments/configs"
-      branch: "unified-demo"
-  egov-indexer-yaml-repo-path: "file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml,file:///work-dir/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/configs/egov-indexer/error-queue.yml,file:///work-dir/configs/egov-indexer/finance-rolloutadotpion-indexer.yml,file:///work-dir/configs/egov-indexer/payment-indexer.yml,file:///work-dir/configs/egov-indexer/pgr-services.yml,file:///work-dir/configs/egov-indexer/pgr-migration-batch-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-tl-indexer.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry.yaml,file:///work-dir/configs/egov-indexer/water-service.yml,file:///work-dir/configs/egov-indexer/water-services-meter.yml,file:///work-dir/configs/egov-indexer/sewerage-service.yml,file:///work-dir/configs/egov-indexer/property-services.yml, file:///work-dir/configs/egov-indexer/chatbot-telemetry-v2.yaml,file:///work-dir/configs/egov-indexer/egov-fsm.yml"
-  dss-collectionindex-topic: pg-dss-collection-update
+egov-document-uploader:
+  persister-save-document-topic: pg-save-du-document
+  egov-ss-document-create-topic: pg-save-du-document
+
+egov-survey-services:
+  persister-save-survey-topic: pg-save-ss-survey
+  persister-update-document-topic: pg-update-ss-survey
+  persister-delete-document-topic: pg-delete-ss-survey
+  ss.notification.event.topic: pg-persist-user-events-async
+
+egov-user-event:
+  topic-save-user-events: pg-save-user-events
+  topic-update-user-events: pg-update-user-events
+  persist-user-events-async: pg-persist-user-events-async
+  update-user-events-async: pg-update-user-events-async
+  user-events-llt: pg-user-events-llt
 
 egov-pg-service:
   replicas: 0
   axis: true
-
-egov-persister:
-  replicas: 1
-  images:
-    - egovio/egov-persister
-  persist-yml-path: "file:///work-dir/configs/egov-persister/pt-mutation-calculator-persister.yml,file:///work-dir/configs/egov-persister/apportion-persister.yml,file:///work-dir/configs/egov-persister/billing-services-persist.yml,file:///work-dir/configs/egov-persister/egf-bill.yaml,file:///work-dir/configs/egov-persister/egov-user-event-persister.yml,file:///work-dir/configs/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/egov-persister/firenoc_persiter.yaml,file:///work-dir/configs/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/egov-persister/pdf-generator.yml,file:///work-dir/configs/egov-persister/pg-service-persister.yml,file:///work-dir/configs/egov-persister/pgr.v3.yml,file:///work-dir/configs/egov-persister/property-services.yml,file:///work-dir/configs/egov-persister/pt-calculator-v2-persister.yml,file:///work-dir/configs/egov-persister/pt-drafts.yml,file:///work-dir/configs/egov-persister/pt-persist.yml,file:///work-dir/configs/egov-persister/tl-billing-slab-persister.yml,file:///work-dir/configs/egov-persister/tl-calculation-persister.yml,file:///work-dir/configs/egov-persister/uploader-persister.yml,file:///work-dir/configs/egov-persister/collection-migration-persister.yml,file:///work-dir/configs/egov-persister/property-services-registry.yml,file:///work-dir/configs/egov-persister/tradelicense.yml,file:///work-dir/configs/egov-persister/sewerage-persist.yml,file:///work-dir/configs/egov-persister/water-persist.yml,file:///work-dir/configs/egov-persister/water-meter.yml,file:///work-dir/configs/egov-persister/bpa-persister.yml,file:///work-dir/configs/egov-persister/assessment-persister.yml,file:///work-dir/configs/egov-persister/chatbot.yml,file:///work-dir/configs/egov-persister/land-persister.yml,file:///work-dir/configs/egov-persister/noc-persister.yml,file:///work-dir/configs/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/egov-persister/pgr-migration-batch.yml, file:///work-dir/configs/egov-persister/vehicle-persister.yaml,file:///work-dir/configs/egov-persister/vendor-persister.yaml,file:///work-dir/configs/egov-persister/fsm-calculator-persister.yaml, file:///work-dir/configs/egov-persister/fsm-persister.yaml"
-  initContainers:
-    gitSync:
-      repo: "git@github.com:egovernments/configs"
-      branch: "unified-demo"
-
-national-dashboard-ingest:
-  heap: "-Xmx750m -Xms750m"
-  replicas: 1
-  server-tomcat-max-threads: 25
-  module-index-mapping: '{"PT": "pt-national-dashboard", "PGR": "pgr-national-dashboard", "WS": "ws-national-dashboard", "FIRENOC": "firenoc-national-dashboard", "TL": "tl-national-dashboard", "MCOLLECT": "mcollect-national-dashboard", "OBPS": "obps-national-dashboard", "COMMON": "common-national-dashboard", "BPA": "bpa-national-dashboard"}'
-  master-data-index: "master-national-dashboard"
-  module-fields-mapping: '{"PT":{"transactions":"array::number","todaysTotalApplications":"number","todaysClosedApplications":"number","assessments":"number","assessedProperties":"array::number","propertiesRegistered":"array::number","todaysCollection":"array::number","propertyTax":"array::number","cess":"array::number","rebate":"array::number","penalty":"array::number","interest":"array::number"},"TL":{"transactions":"number","todaysApplications":"number","todaysLicenseIssuedWithinSLA":"number","tlTax":"number","adhocPenalty":"number","adhocRebate":"number","todaysCollection":"array::number","todaysTradeLicenses":"array::number","applicationsMovedToday":"array::number"},"PGR":{"uniqueCitizens":"number","todaysComplaints":"array::number","todaysReopenedComplaints":"array::number","todaysOpenComplaints":"array::number","todaysAssignedComplaints":"array::number","todaysRejectedComplaints":"array::number","todaysReassignedComplaints":"array::number","todaysReassignRequestedComplaints":"array::number","todaysClosedComplaints":"array::number","todaysResolvedComplaints":"array::number","slaAchievement":"array::number","completionRate":"array::number","averageSolutionTime":"array::number"},"WS":{"transactions":"number","connectionsCreated":"array::number","todaysCollection":"array::number","sewerageConnections":"array::number","waterConnections":"array::number","pendingConnections":"array::number","slaCompliance":"number","todaysTotalApplications":"number","todaysClosedApplications":"number","todaysCompletedApplicationsWithinSLA":"number"},"MCOLLECT":{"numberOfCategories":"number","todaysCollection":"array::number","numberOfReceipts":"array::number","numberOfChallans":"array::number"},"OBPS":{"ocPlansScrutinized":"number","plansScrutinized":"number","ocSubmitted":"number","applicationsSubmitted":"number","ocIssued":"number","landAreaAppliedInSystemForBPA":"number","averageDaysToIssuePermit":"number","averageDaysToIssueOC":"number","todaysCollection":"array::number","permitsIssued":"array::number","todaysClosedApplicationsOC":"number","todaysCompletedApplicationsWithinSLAOC":"number","todaysClosedApplicationsPermit":"number","todaysCompletedApplicationsWithinSLAPermit":"number","slaComplianceOC":"number","slaCompliancePermit":"number","applicationsWithDeviation":"number","averageDeviation":"number","ocWithDeviation":"number"},"FIRENOC":{"todaysApplications":"array::number","todaysCollection":"array::number","nocIssuedToday":"array::number","provisionalNOCIssued":"array::number","actualNOCIssued":"array::number","avgDaysToIssueProvisionalNOC":"array::number","slaComplianceActual":"array::number","slaComplianceProvisional":"array::number","avgDaysToIssueActualNOC":"array::number","todaysClosedApplications":"number","todaysCompletedApplicationsWithinSLA":"number"},"COMMON":{"onboardedUlbsCount":"number","totalCitizensCount":"number","slaAchievement":"number","liveUlbsCount":"array::number","status":"string","totalLiveUlbsCount":"number","totalUlbCount":"number"}}'
-  master-module-fields-mapping: '{"PT":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"PGR":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"TL":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"WS":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"MCOLLECT":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"OBPS":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"FIRENOC":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"}}'
-  module-allowed-groupby-fields-mapping: '{"PT":{"financialYear","usageCategory"},"WS":{"connectionType","channelType","usageType","paymentChannelType","taxHeads","meterType","duration"},"FIRENOC":{"applicationType","department","paymentMode","type","usageType"},"OBPS":{"paymentMode","riskType","occupancyType","subOccupancyType"},"PGR":{"status","channel","department","category"},"TL":{"tradeType","status"},"MCOLLECT":{"paymentMode","status","category","challanStatus"},"COMMON":{"serviceModuleCode"}}'
 
 bpa-services:
   replicas: 1
@@ -187,7 +165,7 @@ bpa-services:
   bpa-ismultischema-enabled: "true"
 
 bpa-calculator:
-  replicas: 1
+  replicas: 2
   images:
     - egovio/bpa-calculator
   heap: "-Xmx192m -Xms192m"
@@ -239,26 +217,49 @@ egov-user-chatbot:
   replicas: 0
 
 employee:
+  namespace: staging
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
+      <script src=https://sandbox-asset.s3.ap-south-1.amazonaws.com/analytics/urban-analytics.js type=text/javascript></script>     
       <script src=https://unified-demo-central-instance.s3.ap-south-1.amazonaws.com/stagingGlobalConfigs.js type=text/javascript></script>
       ';"
 
 citizen:
+  namespace: staging
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
+      <script src=https://sandbox-asset.s3.ap-south-1.amazonaws.com/analytics/urban-analytics.js type=text/javascript></script>     
       <script src=https://unified-demo-central-instance.s3.ap-south-1.amazonaws.com/stagingGlobalConfigs.js type=text/javascript></script>
       ';"
+      
 digit-ui:
   namespace: staging
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
+      <script src=https://sandbox-asset.s3.ap-south-1.amazonaws.com/analytics/urban-analytics.js type=text/javascript></script>     
       <script src=https://unified-demo-central-instance.s3.ap-south-1.amazonaws.com/stagingGlobalConfigs.js type=text/javascript></script>
       ';"
+
+sanitation-ui:
+  namespace: staging
+  custom-js-injection: |
+    sub_filter.conf: "
+      sub_filter  '<head>' '<head>
+      <script src=https://egov-qa-assets.s3.ap-south-1.amazonaws.com/globalConfigsFSMpg.js type=text/javascript></script>
+      ';"
+
+route-map:
+  namespace: staging
+  custom-js-injection: |
+    sub_filter.conf: "
+      sub_filter  '<head>' '<head>
+      <link rel=icon href=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/browser-icon.png />
+      <title>Vehicle tracker</title>
+      <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigsWorkbench.js type=text/javascript></script>';"
 
 dashboard-analytics:
   replicas: 1
@@ -318,11 +319,12 @@ egf-masters:
   memory_limits: 512Mi
   
 inbox:
+  replicas: 2
   service-map : '{"FSM":{"searchPath":"http://fsm.egov:8080/fsm/v1/_search","dataRoot":"fsm","applNosParam":"applicationNos","businessIdProperty":"applicationNo"},"FSM_POST_PAY_SERVICE":{"searchPath":"http://fsm.egov:8080/fsm/v1/_search","dataRoot":"fsm","applNosParam":"applicationNos","businessIdProperty":"applicationNo","applsStatusParam":"applicationStatus"},"FSM_VEHICLE_TRIP":{"searchPath":"http://vehicle.egov:8080/vehicle/trip/v1/_search","dataRoot":"vehicleTrip","applNosParam":"applicationNos","businessIdProperty":"applicationNo"},"PT.CREATE,PT.UPDATE,PT.MUTATION":{"searchPath":"http://property-services.egov:8080/property-services/property/_search","dataRoot":"Properties","applNosParam":"acknowldgementNumber","businessIdProperty":"acknowldgementNumber","applsStatusParam":"status"},"NewTL,DIRECTRENEWAL,EDITRENEWAL":{"searchPath":"http://tl-services.egov:8080/tl-services/v1/_search","dataRoot":"Licenses","applNosParam":"applicationNumber","businessIdProperty":"applicationNumber","applsStatusParam":"status"},"BPA_LOW,BPA,BPA_OC,BPA_HIGH":{"searchPath":"http://bpa-services.egov:8080/bpa-services/v1/bpa/_search","dataRoot":"BPA","applNosParam":"applicationNo","businessIdProperty":"applicationNo","applsStatusParam":"status"},"ARCHITECT,ENGINEER,STRUCTURALENGINEER,BUILDER,SUPERVISOR,TOWNPLANNER":{"searchPath":"http://tl-services.egov:8080/tl-services/v1/BPAREG/_search","dataRoot":"Licenses","applNosParam":"applicationNumber","businessIdProperty":"applicationNumber","applsStatusParam":"status"},"FIRE_NOC_SRV,FIRE_NOC_OFFLINE,AIRPORT_NOC_OFFLINE,AIRPORT_NOC_SRV":{"searchPath":"http://noc-services.egov:8080/noc-services/v1/noc/_search","dataRoot":"Noc","applNosParam":"applicationNo","businessIdProperty":"applicationNo","applsStatusParam":"status"},"NewWS1,ModifyWSConnection,DisconnectWSConnection":{"searchPath":"http://ws-services.egov:8080/ws-services/wc/_search","dataRoot":"WaterConnection","applNosParam":"applicationNumber","businessIdProperty":"applicationNo","applsStatusParam":"applicationStatus"},"NewSW1,ModifySWConnection,DisconnectSWConnection":{"searchPath":"http://sw-services.egov:8080/sw-services/swc/_search","dataRoot":"SewerageConnections","applNosParam":"applicationNumber","businessIdProperty":"applicationNo","applsStatusParam":"applicationStatus"},"WS.AMENDMENT,SW.AMENDMENT":{"searchPath":"http://billing-service.egov:8080/billing-service/amendment/_search","dataRoot":"Amendments","applNosParam":"consumerCode","businessIdProperty":"amendmentId","applsStatusParam":"status"}}'
   bs-service-map : '{"WS":{"searchPath":"http://ws-services.egov:8080/ws-services/wc/_search","dataRoot":"WaterConnection","consumerCodeParam":"connectionNumber"},"SW":{"searchPath":"http://sw-services.egov:8080/sw-services/swc/_search","dataRoot":"SewerageConnections","consumerCodeParam":"connectionNumber"}}'
   #W&S index names
-  water-es-index : water-services
-  sewerage-es-index : sewerage-services
+  water-es-index : pg-water-services
+  sewerage-es-index : pg-sewerage-services
   
 egf-master:
   db-url: "jdbc:postgresql://egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com:5432/egov_uat_db"
@@ -361,7 +363,7 @@ report:
     gitSync:
       repo: "git@github.com:egovernments/configs"
       branch: "unified-demo"
-  report-locationsfile-path: "file:///work-dir/configs/reports/reportFileLocationsv1.txt"
+  report-locationsfile-path: "file:///work-dir/configs/staging/reports/reportFileLocationsv1.txt"
   spring-datasource-tomcat-max-active: 5
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -390,7 +392,7 @@ pgr-services:
 
 pt-calculator-v2:
   logging-level: "DEBUG"
-  replicas: 1
+  replicas: 2
   kafka-topics-billing-slab-save-service: pg-save-pt-billingslab
   kafka-topics-billing-slab-update-service: pg-update-pt-billingslab
 
@@ -418,14 +420,15 @@ ws-services:
   water-ismultischema-enabled: "true"
 
 ws-calculator:
-  replicas: 1
+  replicas: 2
+  topic.save-ws-meter: pg-save-ws-meter
 
 sw-services:
   sewerage-schemas: "pg"
   sewerage-ismultischema-enabled: "true"
 
 sw-calculator:
-  replicas: 1
+  replicas: 2
 
 firenoc-services:
   firenoc-schemas: "pg"
@@ -433,11 +436,12 @@ firenoc-services:
   egov-state-level-tenant-id: "in"
 
 firenoc-calculator:
-  replicas: 1
-
+  replicas: 2
+  kafka.topic.save-firenoc.calculator.billingslab: pg-save-firenoc-calculator-billingslab
+  kafka.topic.update.firenoc.calculator.billingslab: pg-update-firenoc-calculator-billingslab
 
 echallan-calculator:
-  replicas: 1
+  replicas: 2
 
 birth-death-services:
   bnd-ismultischema-enabled: "true"
@@ -654,6 +658,7 @@ egov-finance:
   dev_mode: true
 
 tl-calculator:
+  replicas: 2
   heap: "-Xmx386m -Xms256m"
   memory_limits: 560Mi
   replicas: 2

@@ -3,8 +3,11 @@ labels:
   app: "egov-document-uploader"
   group: "rainmaker"
 
+namespace: staging
+
 # Ingress Configs
 ingress:
+  namespace: egov
   enabled: true
   zuul: true
   context: "egov-document-uploader"
@@ -16,6 +19,29 @@ initContainers:
     schemaTable: "egov_document_uploader_schema"
     image:
       repository: "egov-document-uploader-db"
+    env: |
+      - name: "DB_URL"
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-url
+      - name: "SCHEMA_TABLE"
+        value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+      - name: "FLYWAY_USER"
+        valueFrom:
+          secretKeyRef:
+              name: db
+              key: flyway-username
+      - name: "FLYWAY_PASSWORD"
+        valueFrom:
+          secretKeyRef:
+              name: db
+              key: flyway-password
+      - name: "FLYWAY_LOCATIONS"
+        valueFrom:
+          configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
 
 # Container Configs
 image:
@@ -39,8 +65,6 @@ env: |
     value: org.apache.kafka.common.serialization.StringSerializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
     value: org.springframework.kafka.support.serializer.JsonSerializer
-  - name: PERSISTER_SAVE_DOCUMENT_TOPIC
-    value: save-du-document
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
@@ -63,6 +87,8 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-url-shortening
+  - name: EGOV_URL_SHORTNER_ENDPOINT
+    value: "/eus/shortener"
   - name: DU_NOTIFICATION_UI_HOST
     valueFrom:
       configMapKeyRef:
@@ -78,3 +104,8 @@ env: |
     value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED
     value: "false"
+  - name: PERSISTER_SAVE_DOCUMENT_TOPIC
+    value: "pg-save-du-document"
+  - name: EGOV_SS_DOCUMENT_CREATE_TOPIC
+    value: {{ index .Values "egov-ss-document-create-topic" | quote }}
+

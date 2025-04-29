@@ -1,0 +1,63 @@
+# Common Labels
+labels:
+  app: "account-service"
+  group: "accelerators"
+
+global:
+    containerRegistry: mithunhegdeegov
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "account-service"
+
+# Container Configs
+image:
+  repository: "account-service"
+  tag: "latest"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/v3/accounts/health"
+  readinessProbePath: "/v3/accounts/health"
+appType: "go"
+memory_limits: 512Mi
+
+# OpenTelemetry Configuration
+tracing-enabled: true
+
+# Additional Container Envs
+env: |
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: DATABASE_URL
+    value: "postgresql://$(DB_USERNAME):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
+  - name: OTEL_SERVICE_NAME
+    value: "account-service"
+  - name: OTEL_EXPORTER_JAEGER_ENDPOINT
+    value: "http://jaeger-collector.tracing:4318/"
+  - name: OTEL_RESOURCE_ATTRIBUTES
+    value: "service.name=account-service,deployment.environment=production"
+  - name: PORT
+    value: "8080"
+  {{- if index .Values "tracing-enabled" }}
+  - name: OTEL_TRACES_EXPORTER
+    value: "otlp"
+  - name: OTEL_METRICS_EXPORTER
+    value: "otlp"
+  {{- end }} 

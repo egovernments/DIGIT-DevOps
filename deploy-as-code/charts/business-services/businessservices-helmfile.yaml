@@ -1,0 +1,25 @@
+environments:
+  uat:
+    values:
+      - ../environments/env-secrets.yaml
+      - ../environments/env.yaml
+---
+templates:
+  default: &default
+    chart: ./{{`{{ .Release.Name }}`}}
+    version: 0.1.0
+    namespace: egov
+    missingFileHandler: Warn
+
+releases:
+  - name: dashboard-analytics
+    installed: true
+    <<: *default
+    values:
+      {{- if hasKey .Values "dashboard-analytics" }}
+      - {{ toYaml (index .Values "dashboard-analytics") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}

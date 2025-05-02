@@ -1,76 +1,87 @@
+environments:
+  uat:
+    values:
+      - ../environments/env-secrets.yaml
+      - ../environments/env.yaml
+---
 repositories:
 - name: bitnami
   url: https://charts.bitnami.com/bitnami
 
 templates: 
   default: &default
+    chart: ./{{`{{ .Release.Name }}`}}
     namespace: backbone
     missingFileHandler: Warn
 
-values:
-  - ../environments/env-secrets.yaml
-  - ../environments/env.yaml
-
 releases:
 - name: cert-manager
-  chart: ./cert-manager
-  namespace: egov
   installed: true
   version: v1.13.3
+  <<: *default
   disableValidation: true
   values:
-    - ./cert-manager/values.yaml
+    {{- if hasKey .Values "cert-manager" }}
+    - {{ toYaml (index .Values "cert-manager") | nindent 6 }}
+    {{- end }}
 
 - name: minio
-  installed: true
-  chart: ./minio
+  installed: false
   version: 13.3.1
   <<: *default
   values:
-    - ./minio/values.yaml
+    {{- if hasKey .Values "minio" }}
+    - {{ toYaml (index .Values "minio") | nindent 6 }}
+    {{- end }}
 
 - name: postgresql
-  installed: true
-  chart: ./postgresql
+  installed: false
   version: 11.9.13
   <<: *default
   values:
-    - ./postgresql/values.yaml
+    {{- if hasKey .Values "postgresql" }}
+    - {{ toYaml (index .Values "postgresql") | nindent 6 }}
+    {{- end }}
     - global:
         postgresql:
           auth:
             postgresPassword: {{ .Values.secrets.db.password | quote }}
+
 - name: redis
   installed: true
-  chart: ./redis
   version: 7.2.4
   <<: *default
   values:
-    - ./redis/values.yaml
+    {{- if hasKey .Values "redis" }}
+    - {{ toYaml (index .Values "redis") | nindent 6 }}
+    {{- end }}
 
 - name: elasticsearch
-  chart: ./elasticsearch
   version: 8.11.3
   <<: *default
   values:
-    - ./elasticsearch/values.yaml
+    {{- if hasKey .Values "elasticsearch" }}
+    - {{ toYaml (index .Values "elasticsearch") | nindent 6 }}
+    {{- end }}
     - secret:
         password: {{ .Values.secrets.elasticsearch.password }}
 
 - name: elasticsearch-data
-  chart: ./elasticsearch-data
   version: 8.11.3
   <<: *default
   values:
-    - ./elasticsearch-data/values.yaml
+    {{- if hasKey .Values "elasticsearch-data" }}
+    - {{ toYaml (index .Values "elasticsearch-data") | nindent 6 }}
+    {{- end }}
 
 - name: kibana
-  chart: ./kibana
   version: 8.11.3
   force: true
   <<: *default
   values:
-    - ./kibana/values.yaml
+    {{- if hasKey .Values "kibana" }}
+    - {{ toYaml (index .Values "kibana") | nindent 6 }}
+    {{- end }}
     - ingress:
         hosts:
           - host: {{ .Values.global.domain }}
@@ -81,32 +92,33 @@ releases:
             hosts:
               - {{ .Values.global.domain }}
 
-
-
 - name: kafka-kraft
   installed: true
-  chart: ./kafka-kraft
   version: 26.2.0
   <<: *default
   values:
-    - ./kafka-kraft/values.yaml
+    {{- if hasKey .Values "kafka-kraft" }}
+    - {{ toYaml (index .Values "kafka-kraft") | nindent 6 }}
+    {{- end }}
   set:
     - name: kraft.clusterId
       value: {{ .Values.secrets.kafka.clusterID }}
 
 - name: ingress-nginx
   installed: true
-  chart: ./ingress-nginx
   version: 4.10.0
   <<: *default
   values:
-    - ./ingress-nginx/values.yaml
     - domain: {{ .Values.global.domain }}
+    {{- if hasKey .Values "ingress-nginx" }}
+    - {{ toYaml (index .Values "ingress-nginx") | nindent 6 }}
+    {{- end }}
 
 - name: playground
   installed: true
-  chart: ./playground
   version: 0.1.0
   <<: *default
   values:
-    - ./playground/values.yaml
+    {{- if hasKey .Values "playground" }}
+    - {{ toYaml (index .Values "playground") | nindent 6 }}
+    {{- end }}

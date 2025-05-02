@@ -1,3 +1,9 @@
+environments:
+  uat:
+    values:
+      - ../environments/env-secrets.yaml
+      - ../environments/env.yaml
+---
 templates:
   default: &default
     chart: ./{{`{{ .Release.Name }}`}}
@@ -7,126 +13,390 @@ templates:
     # Valid values are "Error", "Warn", "Info", "Debug". The default is "Error"
     # Use "Debug" to make missing files errors invisible at the default log level(--log-level=INFO)
     missingFileHandler: Warn
-    values:
-      - ../environments/env-secrets.yaml
-      - ../environments/env.yaml
 
 releases:
+  - name: configmaps # Replace with your desired namespace
+    installed: true
+    <<: *default
+    values:
+      {{- if hasKey .Values "configmaps" }}
+      - configmaps:
+        {{ toYaml (index .Values "configmaps") | nindent 10 }}
+      {{- end }}
+      {{- if hasKey .Values "secrets" }}
+      - secrets:
+        {{ toYaml (index .Values "secrets") | nindent 10 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
+
   - name: egov-accesscontrol # Replace with your desired namespace
     installed: true # Replace with the version of your chart, if needed
     <<: *default
+    values:
+      {{- if hasKey .Values "egov-accesscontrol" }}
+      - {{ toYaml (index .Values "egov-accesscontrol") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: audit-service # Replace with your desired namespace
     installed: true # Replace with the version of your chart, if needed
     <<: *default
+    values:
+      {{- if hasKey .Values "audit-service" }}
+      - {{ toYaml (index .Values "audit-service") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
+
+  - name: boundary-service
+    installed: true
+    <<: *default
+    values:
+      {{- if hasKey .Values "boundary-service" }}
+      - {{ toYaml (index .Values "boundary-service") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
+
+  - name: error-handler
+    installed: true
+    <<: *default
+    values:
+      {{- if hasKey .Values "error-handler" }}
+      - {{ toYaml (index .Values "error-handler") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
+
+  - name: mdms-v2
+    installed: true
+    <<: *default
+    values:
+      {{- if hasKey .Values "mdms-v2" }}
+      - {{ toYaml (index .Values "mdms-v2") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
+
+  - name: pdf-service
+    installed: true
+    <<: *default
+    values:
+      {{- if hasKey .Values "pdf-service" }}
+      - {{ toYaml (index .Values "pdf-service") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: egov-enc-service # Replace with your desired namespace
     installed: true
-    needs:
-    - egov-mdms-service
     <<: *default
+    values:
+      {{- if hasKey .Values "egov-enc-service" }}
+      - {{ toYaml (index .Values "egov-enc-service") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: egov-filestore # Replace with your desired namespace
     installed: true
     <<: *default
+    values:
+      {{- if hasKey .Values "egov-filestore" }}
+      - {{ toYaml (index .Values "egov-filestore") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: egov-idgen # Replace with your desired namespace
     installed: true
     <<: *default
+    values:
+      {{- if hasKey .Values "egov-idgen" }}
+      - {{ toYaml (index .Values "egov-idgen") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: egov-localization # Replace with your desired namespace
     installed: true
     <<: *default
+    values:
+      {{- if hasKey .Values "egov-localization" }}
+      - {{ toYaml (index .Values "egov-localization") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: egov-location # Replace with your desired namespace
-    installed: true
+    installed: false
     <<: *default
+    values:
+      {{- if hasKey .Values "egov-location" }}
+      - {{ toYaml (index .Values "egov-location") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: egov-mdms-service # Replace with your desired namespace
-    installed: true
+    installed: false
     <<: *default
+    values:
+      {{- if hasKey .Values "egov-mdms-service" }}
+      - {{ toYaml (index .Values "egov-mdms-service") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: egov-hrms # Replace with your desired namespace
     installed: true
     needs:
     - egov-user
     <<: *default
+    values:
+      {{- if hasKey .Values "egov-hrms" }}
+      - {{ toYaml (index .Values "egov-hrms") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: egov-indexer # Replace with your desired namespace
     installed: true
     <<: *default
+    values:
+      {{- if hasKey .Values "egov-indexer" }}
+      - {{ toYaml (index .Values "egov-indexer") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: egov-notification-mail # Replace with your desired namespace
     installed: true
     <<: *default
+    values:
+      {{- if hasKey .Values "egov-notification-mail" }}
+      - {{ toYaml (index .Values "egov-notification-mail") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: egov-notification-sms # Replace with your desired namespace
     installed: true
     <<: *default
+    values:
+      {{- if hasKey .Values "egov-notification-sms" }}
+      - {{ toYaml (index .Values "egov-notification-sms") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: egov-user # Replace with your desired namespace
     installed: true
     needs:
     - egov-enc-service
     <<: *default
+    values:
+      {{- if hasKey .Values "egov-user" }}
+      - {{ toYaml (index .Values "egov-user") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "secrets" }}
+      - secrets:
+        {{ toYaml (index .Values "secrets") | nindent 10 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: egov-otp # Replace with your desired namespace
     installed: true
     <<: *default
-  
+    values:
+      {{- if hasKey .Values "egov-otp" }}
+      - {{ toYaml (index .Values "egov-otp") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
+
   - name: egov-persister # Replace with your desired namespace
     installed: true
     <<: *default
+    values:
+      {{- if hasKey .Values "egov-persister" }}
+      - {{ toYaml (index .Values "egov-persister") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: egov-url-shortening # Replace with your desired namespace
     installed: true
     <<: *default
+    values:
+      {{- if hasKey .Values "egov-url-shortening" }}
+      - {{ toYaml (index .Values "egov-url-shortening") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: egov-workflow-v2 # Replace with your desired namespace
     installed: true
-    needs:
-    - egov-mdms-service
     <<: *default
+    values:
+      {{- if hasKey .Values "egov-workflow-v2" }}
+      - {{ toYaml (index .Values "egov-workflow-v2") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: user-otp # Replace with your desired namespace
     installed: true
     <<: *default
-
-  - name: configmaps # Replace with your desired namespace
-    installed: true
-    <<: *default
+    values:
+      {{- if hasKey .Values "user-otp" }}
+      - {{ toYaml (index .Values "user-otp") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: citizen # Replace with your desired namespace
-    installed: true
+    installed: false
     <<: *default
+    values:
+      {{- if hasKey .Values "citizen" }}
+      - {{ toYaml (index .Values "citizen") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: digit-ui # Replace with your desired namespace
     installed: true
     <<: *default
+    values:
+      {{- if hasKey .Values "digit-ui" }}
+      - {{ toYaml (index .Values "digit-ui") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: employee # Replace with your desired namespace
-    installed: true
+    installed: false
     <<: *default
+    values:
+      {{- if hasKey .Values "employee" }}
+      - {{ toYaml (index .Values "employee") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: service-request # Replace with your desired namespace
     installed: true
     <<: *default
+    values:
+      {{- if hasKey .Values "service-request" }}
+      - {{ toYaml (index .Values "service-request") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: pgr-services # Replace with your desired namespace
     installed: true
     <<: *default
-  
+    values:
+      {{- if hasKey .Values "pgr-services" }}
+      - {{ toYaml (index .Values "pgr-services") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
+
   - name: gateway # Replace with your desired namespace
     installed: true
     <<: *default
+    values:
+      {{- if hasKey .Values "gateway" }}
+      - {{ toYaml (index .Values "gateway") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 
   - name: egov-pg-service # Replace with your desired namespace
-    installed: true
+    installed: false
     <<: *default
-  
+    values:
+      {{- if hasKey .Values "egov-pg-service" }}
+      - {{ toYaml (index .Values "egov-pg-service") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
+
   - name: egov-user-event # Replace with your desired namespace
     installed: true
     <<: *default
-
-
+    values:
+      {{- if hasKey .Values "egov-user-event" }}
+      - {{ toYaml (index .Values "egov-user-event") | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values "global" }}
+      - global:
+          {{ toYaml (index .Values "global") | nindent 10 }}
+      {{- end }}
 

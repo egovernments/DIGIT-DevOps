@@ -1,0 +1,275 @@
+# Common Labels
+labels:
+  app: "transformer"
+  group: "health"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "transformer"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: false
+    schemaTable: "transformer_schema"
+    image:
+      repository: "transformer-db"
+      tag: HDDF-1277-149f70deb7-302
+
+# Container Configs
+image:
+  repository: "transformer"
+  tag: HDDF-1277-149f70deb7-302
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/transformer/health"
+  readinessProbePath: "/transformer/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx1024m -Xms1024m"
+java-args: ""
+memory_limits: "1Gi"
+# Additional Container Envs
+env: |
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: health-transformer
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
+  - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: tracer-errors-provideexceptionindetails
+  {{- end }}
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: JAVA_ENABLE_DEBUG
+    value: {{ index .Values "java-enable-debug" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}
+  
+  - name: TRANSFORMER_CONSUMER_BULK_CREATE_PROJECT_TASK_TOPIC
+    value: "save-project-task-topic"
+  - name: TRANSFORMER_CONSUMER_BULK_UPDATE_PROJECT_TASK_TOPIC
+    value: "update-project-task-topic"
+  - name: TRANSFORMER_PRODUCER_BULK_PROJECT_TASK_INDEX_V1_TOPIC
+    value: "transformer-producer-bulk-project-task-index-v1-topic"
+  
+  - name: TRANSFORMER_CONSUMER_BULK_CREATE_PROJECT_STAFF_TOPIC
+    value: "save-project-staff-topic"
+  - name: TRANSFORMER_CONSUMER_BULK_UPDATE_PROJECT_STAFF_TOPIC
+    value: "update-project-staff-topic"
+  - name: TRANSFORMER_PRODUCER_BULK_PROJECT_STAFF_INDEX_V1_TOPIC
+    value: "transformer-producer-bulk-project-staff-index-v1-topic"
+  
+  - name: TRANSFORMER_PRODUCER_BULK_PROJECT_INDEX_V1_TOPIC
+    value: "transformer-producer-bulk-project-index-v1-topic"
+  - name: TRANSFORMER_CONSUMER_CREATE_PROJECT_TOPIC
+    value: "save-project"
+
+  - name: TRANSFORMER_CONSUMER_UPDATE_PROJECT_TOPIC
+    value: "update-project"
+  - name: EGOV_SERVICEDEFINITION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: service-request
+  - name: EGOV_PROJECT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: project
+  - name: EGOV_LOCATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-location
+  - name: EGOV_SEARCH_PROJECT_URL
+    value: "/project/v1/_search"
+  - name: EGOV_SEARCH_PROJECT_URL
+    value: "/project/v1/_search"
+  - name: EGOV_SEARCH_PROJECT_URL
+    value: "/project/v1/_search"
+  - name: EGOV_SEARCH_PROJECT_URL
+    value: "/project/v1/_search"
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: EGOV_MDMS_SEARCH_ENDPOINT
+    value: "/mdms-v2/v1/_search"
+  - name: EGOV_MDMS_PATH
+    value: "/mdms-v2/v1/_search"
+  - name: MDMS_PATH
+    value: "/mdms-v2/v1/_search"
+  - name: PROJECT_MDMS_MODULE
+    value: "HCM-PROJECT-TYPES"
+  - name: EGOV_INDIVIDUAL_HOST
+    valueFrom:
+      configMapKeyRef:
+       name: egov-service-host
+       key: individual
+  - name: EGOV_SEARCH_INDIVIDUAL_URL
+    value: "/individual/v1/_search"
+  - name: EGOV_PRODUCT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: product
+  - name: EGOV_SEARCH_PRODUCT_VARIANT_URL
+    value: "/product/variant/v1/_search"
+  - name: TRANSFORMER_CONSUMER_SAVE_HOUSEHOLD_MEMBER_TOPIC
+    value: "save-household-member-topic"
+  - name: TRANSFORMER_CONSUMER_UPDATE_HOUSEHOLD_MEMBER_TOPIC
+    value: "update-household-member-topic"
+  - name: TRANSFORMER_PRODUCER_HOUSEHOLD_MEMBER_INDEX_V1_TOPIC
+    value: "transformer-producer-household-member-index-v1-topic"
+  - name: TRANSFORMER_CONSUMER_CREATE_HOUSEHOLD_TOPIC
+    value: "save-household-topic"
+  - name: TRANSFORMER_CONSUMER_UPDATE_HOUSEHOLD_TOPIC
+    value: "update-household-topic"
+  - name: TRANSFORMER_PRODUCER_HOUSEHOLD_INDEX_V1_TOPIC
+    value: "transformer-producer-household-index-v1-topic"
+  - name: EGOV_LOCATION_ENDPOINT
+    value: "/egov-location/location/v11/boundarys/_search"
+  - name: TRANSFORMER_PRODUCER_SERVICE_INDEX_V2_TOPIC
+    value: "transformer-producer-service-index-v2-topic"
+  - name: REFERRAL_SERVICE_CHECKLIST_NAME
+    value: "SMCMozambique.REFERRAL.HEALTH_FACILITY_SUPERVISOR"
+  - name: TRANSFORMER_CONSUMER_BULK_CREATE_STOCK_TOPIC
+    value: "save-stock-topic"
+  - name: TRANSFORMER_CONSUMER_BULK_UPDATE_STOCK_TOPIC
+    value: "update-stock-topic"
+  - name: TRANSFORMER_PRODUCER_BULK_STOCK_INDEX_V1_TOPIC
+    value: "transformer-producer-bulk-stock-index-v1-topic"
+  - name: EGOV_FACILITY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: facility     
+  - name: EGOV_SEARCH_FACILITY_URL
+    value: "/facility/v1/_search"
+  - name: TRANSFORMER_CONSUMER_CREATE_FACILITY_TOPIC
+    value: "save-facility-topic"
+  - name: TRANSFORMER_CONSUMER_UPDATE_FACILITY_TOPIC
+    value: "update-facility-topic"
+  - name: BOUNDARY_LABEL_NAME_PROVINCE
+    value: "Provincia"
+  - name: BOUNDARY_LABEL_NAME_DISTRICT
+    value: "Distrito"
+  - name: BOUNDARY_LABEL_NAME_ADMINISTRATIVEPROVINCE
+    value: "Posto Administrativo"
+  - name: BOUNDARY_LABEL_NAME_LOCALITY
+    value: "Localidade"
+  - name: BOUNDARY_LABEL_NAME_VILLAGE
+    value: "Aldeia"
+  - name: EGOV_SEARCH_SERVICEDEFINITION_URL
+    value: "/service-request/service/definition/v1/_search"
+  - name: TRANSFORMER_CONSUMER_CREATE_SERVICE_TOPIC
+    value: "save-service"
+  - name: TRANSFORMER_PRODUCER_SERVICE_TASK_INDEX_V1_TOPIC
+    value: "transformer-producer-service-request-index-v1-topic"
+  - name: TRANSFORMER_CONSUMER_CREATE_REFERRAL_TOPIC
+    value: save-referral-topic
+  - name: TRANSFORMER_CONSUMER_UPDATE_REFERRAL_TOPIC
+    value: update-referral-topic
+  - name: TRANSFORMER_PRODUCER_REFERRAL_INDEX_V1_TOPIC
+    value: transformer-producer-referral-index-v1-topic
+  - name: EGOV_SEARCH_PROJECT_TASK_URL
+    value: /project/task/v1/_search
+  - name: TRANSFORMER_CONSUMER_CREATE_SIDE_EFFECT_TOPIC
+    value: save-side-effect-topic
+  - name: TRANSFORMER_CONSUMER_UPDATE_SIDE_EFFECT_TOPIC
+    value: update-side-effect-topic
+  - name: TRANSFORMER_PRODUCER_SIDE_EFFECT_INDEX_V1_TOPIC
+    value: transformer-producer-side-effect-index-v1-topic
+  - name: TRANSFORMER_CONSUMER_CREATE_PGR_TOPIC
+    value: save-pgr-request
+  - name: TRANSFORMER_PRODUCER_CREATE_PGR_TOPIC
+    value: transformer-save-pgr-request
+  - name: TRANSFORMER_PRODUCER_BULK_HOUSEHOLD_INDEX_V1_TOPIC
+    value: transformer-producer-household-index-v1-topic
+  - name: TRANSFORMER_LOCALIZATIONS_MDMS_MODULE
+    value: HCM-TRANSFORMER-LOCALIZATIONS
+  - name: TRANSFORMER_CONSUMER_UPDATE_PGR_TOPIC
+    value: update-pgr-request
+  - name: TRANSFORMER_CONSUMER_CREATE_HFREFERRAL_TOPIC
+    value: save-hfreferral-topic
+  - name: TRANSFORMER_CONSUMER_UPDATE_HFREFERRAL_TOPIC
+    value: update-hfreferral-topic
+  - name: TRANSFORMER_PRODUCER_HFREFERRAL_INDEX_V1_TOPIC
+    value: transformer-producer-hfreferral-index-v1-topic
+  - name: TRANSFORMER_PRODUCER_HFREFERRAL_SERVICE_INDEX_TOPIC
+    value: transformer-producer-hfreferral-service-index-topic
+  - name: HFREFERRAL_FEVER_SERVICE_CHECKLIST_NAME
+    value: SMCMozambique.HF_RF_FEVER.HEALTH_FACILITY_SUPERVISOR
+  - name: EGOV_HOUSEHOLD_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: household
+  - name: EGOV_ATTENDANCE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: health-attendance
+  - name: EGOV_USER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: EGOV_SEARCH_USER_URL
+    value: /user/_search
+  - name: EGOV_LOCALIZATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-localization
+  - name: EGOV_BOUNDARY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: boundary-service
+  - name: EGOV_BOUNDARY_SEARCH_URL
+    value: "/boundary-service/boundary/_search"
+  - name: EGOV_BOUNDARY_HIERARCHY_NAME
+    value: "MICROPLAN"
+  - name: PROJECT_STAFF_ROLE_MDMS_MODULE
+    value: "HCM-PROJECT-STAFF-ROLES"
+  - name: EGOV_SEARCH_HOUSEHOLD_URL
+    value: "/household/v1/_search"
+  - name: EGOV_SEARCH_PROJECT_BENEFICIARY_URL
+    value: "/project/beneficiary/v1/_search"
+  - name: EGOV_PROGRAM_MANDATE_COMMENT
+    value: "Mais de 6 agregados familiares"
+  - name: EGOV_PROGRAM_MANDATE_LIMIT
+    value: "3"
+  - name: EGOV_PROGRAM_MANDATE_DIVIDING_FACTOR
+    value: "1.8"
+  - name: EGOV_SEARCH_ATTENDANCE_REGISTER_URL
+    value: "/health-attendance/v1/_search"
+  - name: TRANSFORMER_CONSUMER_SAVE_ATTENDANCE_LOG_TOPIC
+    value: save-attendance-log-health
+  - name: TRANSFORMER_CONSUMER_UPDATE_ATTENDANCE_LOG_TOPIC
+    value: update-attendance-log-health
+  - name: TRANSFORMER_PRODUCER_ATTENDANCE_LOG_INDEX_V1_TOPIC
+    value: transformer-save-attendance-log-health
+  - name: TRANSFORMER_PRODUCER_ATTENDANCE_REGISTER_INDEX_V1_TOPIC
+    value: transformer-save-attendance-register-health
+  - name: EGOV_LOCALIZATION_MODULE_NAME
+    value: hcm-boundary-microplan

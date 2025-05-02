@@ -1,12 +1,15 @@
 # Common Labels
 labels:
   app: "pgadmin"
-namespace: playground
+  group: "pgadmin"
 
 # Ingress Configs
 ingress:
   enabled: true
   context: "pgadmin"
+  additionalAnnotations: |
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header X-Script-Name /pgadmin;
   # additionalAnnotations: |
   #   nginx.ingress.kubernetes.io/auth-signin:  https://$host/oauth2/start?rd=$escaped_request_uri
   #   nginx.ingress.kubernetes.io/auth-url:     https://$host/oauth2/auth 
@@ -17,27 +20,75 @@ initContainers: {}
 # Container Configs
 image:
   repository: "pgadmin"
-  tag: "v4.1.1"
+  tag: "v4.7.7"
+  pullPolicy: Always
+
 replicas: "1"
-httpPort: 8080
-serverBasePath: "/pgadmin"
+httpPort: "8080"
 dbUrl: "egov-dev-db.ctm6jbmr5mnj.ap-south-1.rds.amazonaws.com"
+dbPort: "5432"
+maintenance-db-name: "postgres"
+db-admin-username: "egov"
+db-read-username: "readonly"
 environment: "DEV"
-maintenance-db-name: "postgres"           
+data-dir: "/var/lib/pgadmin"
+log-file-path: "/var/lib/pgadmin/pgadmin4.log"
+sqlite-path: "/var/lib/pgadmin/pgadmin4.db"
+session-path: "/var/lib/pgadmin/sessions"
+storage-path: "/var/lib/pgadmin/storage"
+csrf-check-default: "False"
+csrf-enabled: "False"
+cookie-protection: "True"
+ui-languages: "{'en': 'English'}"
+enable-save-password: "False"
+max-query-history: "50"
+max-login-attempts: "5"
+shared-storage: "[{'name': 'Shared Folder', 'path': '/var/lib/pgadmin/shared_folder', 'restricted_access': False}]"
+
+persistence:
+  enabled: false
+  storageClassName: gp3
+  accessMode: ReadWriteOnce
+  volumeMode: Filesystem
+
+extraVolumes: |
+  - name: config
+    configMap:
+      name: {{ .Chart.Name }}-config
+  - name: storage
+    persistentVolumeClaim:
+      claimName: {{ .Chart.Name }}-data
+
+extraVolumeMounts: |
+  - mountPath: /pgadmin4/servers.json
+    name: config
+    subPath: servers.json
+    readOnly: true
+  - mountPath: /pgadmin4/config_local.py
+    name: config
+    subPath: config_local.py
+    readOnly: true
+  - mountPath: /var/lib/pgadmin
+    name: storage
+
+securityContext:
+  fsGroup: 5050
 
 # Additional Container Envs
-env: |  
-  - name: SERVER_HOST
-    value: {{ .Values.dbUrl | quote }}     
-  - name: SERVER_PORT
-    value: "5432" 
-  - name: SERVER_MODE
-    value: "False"         
-  - name: SERVER_NAME
-    value: {{ .Values.environment | quote }}                 
-  - name: MAINTENANCE_DB_NAME
-    value: {{ index .Values "maintenance-db-name" | quote }}               
-  - name: PGADMIN_PORT
+env: |
+  - name: PGADMIN_DEFAULT_EMAIL
+    valueFrom:
+      secretKeyRef:
+        name: pgadmin
+        key: admin-email
+  - name: PGADMIN_DEFAULT_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: pgadmin
+        key: admin-password
+  - name: CONFIG_DATABASE_CONNECTION_POOL_SIZE
+    value: "5"
+  - name: PGADMIN_LISTEN_PORT
     value: {{ .Values.httpPort | quote }}
-  - name: SCRIPT_NAME
-    value: {{ .Values.serverBasePath | quote }} 
+  - name: PGADMIN_DISABLE_POSTFIX
+    value: "true"

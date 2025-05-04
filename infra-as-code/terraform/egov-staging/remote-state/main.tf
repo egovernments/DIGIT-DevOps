@@ -3,19 +3,23 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "egov-staging-terraform-state"
-
-  versioning {
-    enabled = true
-  }
+  bucket = "${var.bucket_name}"
 
   lifecycle {
     prevent_destroy = true
   }
 }
 
+resource "aws_s3_bucket_versioning" "versioning" {
+  bucket = aws_s3_bucket.terraform_state.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+
 resource "aws_dynamodb_table" "terraform_state_lock" {
-  name           = "egov-staging-terraform-state"
+  name           = "${var.bucket_name}"
   read_capacity  = 1
   write_capacity = 1
   hash_key       = "LockID"

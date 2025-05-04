@@ -1,0 +1,15 @@
+{{- if and .Values.memcachedChunks.enabled (gt (int .Values.memcachedChunks.replicas) 1) }}
+apiVersion: {{ include "loki.pdb.apiVersion" . }}
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "loki.memcachedChunksFullname" . }}
+  labels:
+    {{- include "loki.memcachedChunksLabels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "loki.memcachedChunksSelectorLabels" . | nindent 6 }}
+  {{- with .Values.memcachedChunks.maxUnavailable }}
+  maxUnavailable: {{ . }}
+  {{- end }}
+{{- end }}

@@ -5,7 +5,7 @@
 
 variable "cluster_name" {
   description = "Name of the Kubernetes cluster"
-  default = "my-first-eks" #REPLACE
+  default = "digit-lts" #REPLACE
 }
 
 variable "vpc_cidr_block" {
@@ -26,12 +26,12 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.22"
+  default = "1.28"
 }
 
 variable "instance_type" {
   description = "eGov recommended below instance type as a default"
-  default = "m4.xlarge"
+  default = "r5ad.large"
 }
 
 variable "override_instance_types" {
@@ -42,37 +42,34 @@ variable "override_instance_types" {
 
 variable "number_of_worker_nodes" {
   description = "eGov recommended below worker node counts as default"
-  default = "5" #REPLACE IF NEEDED
+  default = "3" #REPLACE IF NEEDED
 }
 
 variable "ssh_key_name" {
   description = "ssh key name, not required if your using spot instance types"
-  default = "my-first-eks" #REPLACE
+  default = "digit-lts" #REPLACE
 }
 
 
 variable "db_name" {
   description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
-  default = "digitdb" #REPLACE
+  default = "digitltsdb" #REPLACE
 }
 
 variable "db_username" {
   description = "RDS database user name"
-  default = "egovdemo" #REPLACE
+  default = "digitlts" #REPLACE
 }
 
 #DO NOT fill in here. This will be asked at runtime
 variable "db_password" {}
 
 variable "public_key" {
-  default = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCrfbaDFN3FmjUoVUx4YH1eHPruFbWz6JGPfSKTwIqT75xFzU/Q6KCa3Xa6FnEOpcUKXej95pkeUnXywohojF6FrNak5p5xfGmmwC8UA9s5UxsI7flBKVnjsAbcRuxoa/AtOzg4Cizz6zQLl2JZAivZU1PwZjIJo8dcum9bjZYVHwZc3csKJ2nYgpcQrV8AWnfKtLvl5WNfNF0i5bWOieNLKiEc5DtsKYbQ6umrhhCaoGcH0S/Gy6w0PPSnnfl/AWXO7ckFtEXQbdz9Y15zeUFKgUsbklXxmC6D37BkPGu+IjCZSOttPV+PRM0Dnf0jQLvMV0UhEkguD9ALC5xikqNlFyPH5bGetWDxtLbn61tnoOIYG6lXAdk2Oe35yWWt3ZgcccWtYuRwDo0ofBwY9jWOkEcCefDyYg+S7h1VzNsbB9DsFv0vPcaxHcZK8bLdyhnz1+9rXy/flbiS5kE0O97aZ4zm4wAmqiivN2wWhUez18k2Mcs= demo@demo" 
+  default = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDPyFldf44vtDQaD2oAB1/UWg5a2jJc/R0XShPV4U305ph0V7IpYK9o6XpLIjyTivp6+A93+CNb1sw7l44P7gYpIjfJKKT+q/fwtWabGfp2L/0EBsNzonOsFVjFz9pCQr0kObVFW+TQ68bq/n2tXKsm2dw8woSMDk/c+M6o14JhUAw9mvQHuEPLWLV3v11QB9CZzN1l/yWebOREkN6rUZGI1PqkmOFSwSvSVyo+sMUhEaRbp7r/KoqNGWHsHAedV3Fqry1KxF9K8c8BEfW/xkat62h91ff42ODhitVAFHhukN8RCQsWoS0mC572aF4WGqzQc0P+2W1TAy6QQAPLTgBr"
   description = "ssh key"
 }
 
 ## change ssh key_name eg. digit-quickstart_your-name
 
-variable "key_name" {
-  default = "digit-quickstart"  
-  description = "ssh key name"
-}
+
 

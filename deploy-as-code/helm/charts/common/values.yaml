@@ -9,7 +9,10 @@ replicas: 1
 httpPort: 8080
 appType: ""
 
+central-instance-name: health
 central-instance-build: false
+central-instance-enabled: false
+db-schema-names: "public"
 
 ingress:
   enabled: false
@@ -40,11 +43,11 @@ initContainers:
       tag: latest
     env: |
         - name: "DB_URL"
-        {{- if index .Values "central-instance-build" }}
+        {{- if and (index .Values "central-instance-build") (eq (index .Values "central-instance-name") "health") }}
           valueFrom:
             configMapKeyRef:
               name: egov-config
-              key: db-url
+              key: health-db-url-no-schema
         {{- else if eq .Values.namespace "health" }}
           valueFrom:
             configMapKeyRef:
@@ -62,7 +65,9 @@ initContainers:
               key: db-url
         {{- end }}
         - name: "SCHEMA_NAME"
-        {{- if index .Values "central-instance-build" }}
+        {{- if and (index .Values "central-instance-build") (eq (index .Values "central-instance-name") "health") (index .Values "central-instance-enabled") }}
+          value: {{ index .Values "db-schema-names" | quote }}
+        {{- else if and (index .Values "central-instance-build") (eq (index .Values "central-instance-name") "health") }}
           valueFrom:
             configMapKeyRef:
               name: egov-config

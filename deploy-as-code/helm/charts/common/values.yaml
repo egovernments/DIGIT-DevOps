@@ -9,6 +9,8 @@ replicas: 1
 httpPort: 8080
 appType: ""
 
+central-instance-build: false
+
 ingress:
   enabled: false
   zuul: false
@@ -38,7 +40,12 @@ initContainers:
       tag: latest
     env: |
         - name: "DB_URL"
-        {{- if eq .Values.namespace "health" }}
+        {{- if index .Values "central-instance-build" }}
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        {{- else if eq .Values.namespace "health" }}
           valueFrom:
             configMapKeyRef:
               name: egov-config
@@ -55,7 +62,14 @@ initContainers:
               key: db-url
         {{- end }}
         - name: "SCHEMA_NAME"
-          value: public
+        {{- if index .Values "central-instance-build" }}
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: health-schemas
+        {{- else }}   
+          value: "public"
+        {{- end }}
         - name: "SCHEMA_TABLE"
           value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
         - name: "FLYWAY_USER"

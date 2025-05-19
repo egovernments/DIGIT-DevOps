@@ -1,0 +1,178 @@
+# Common Labels
+labels:
+  app: "bpa-services"
+  group: "rainmaker"
+
+namespace: egov
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "bpa-services"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "bpa_services_schema"
+    tag: DIGIT-2.9-LTS-4553648f56-9
+    image:
+      repository: "bpa-services-db"
+    env: |
+        {{- if index .Values "bpa-ismultischema-enabled" }}        
+        - name: SCHEMA_NAME
+          value: {{ index .Values "bpa-schemas" | quote }}
+        {{- end }}
+        - name: "DB_URL"
+          valueFrom: 
+            configMapKeyRef: 
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}              
+        - name: "FLYWAY_USER"
+          valueFrom: 
+            secretKeyRef: 
+                name: db
+                key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef: 
+                name: db
+                key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom: 
+            configMapKeyRef: 
+                name: egov-config
+                key: flyway-locations 
+
+# Container Configs
+image:
+  repository: "bpa-services"
+  tag: DIGIT-2.9-LTS-4553648f56-9
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/bpa-services/health"
+  readinessProbePath: "/bpa-services/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx256m -Xms256m"
+java-args: "-Dspring.profiles.active=monitoring"
+egov.idgen.bpa.applicationNum.format: "PB-BP-[cy:yyyy-MM-dd]-[SEQ_EG_BP_APN]"
+
+# Additional Container Envs
+env: |
+  - name: EGOV_IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-idgen
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: EGOV_USER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: EGOV_LOCATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-location
+  - name: EGOV_EDCR_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-edcr
+  - name: EGOV_LOCALIZATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-localization
+  - name: EGOV_NOC_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: noc-services
+  - name: EGOV_BILLINGSERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: billing-service
+  - name: EGOV_BPA_CALCULATOR_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: bpa-calculator
+  - name: EGOV_LANDINFO_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: land-services
+  - name: EGOV_UI_APP_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: host-map
+  - name: WORKFLOW_CONTEXT_PATH
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-workflow-v2
+  - name: WORKFLOW_TRANSITION_PATH
+    value: "egov-workflow-v2/egov-wf/process/_transition"
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: egov-bpa-services
+  - name: PERSISTER_SAVE_BUILDINGPLAN_TOPIC
+    value: save-bpa-buildingplan
+  - name: PERSISTER_UPDATE_BUILDINGPLAN_TOPIC
+    value: update-bpa-buildingplan
+  - name: PERSISTER_UPDATE_BUILDINGPLAN_WORKFLOW_TOPIC
+    value: update-bpa-workflow
+  - name: PERSISTER_UPDATE_BUILDINGPLAN_ADHOC_TOPIC
+    value: update-bpa-adhoc-buildingplan
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.springframework.kafka.support.serializer.JsonSerializer
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: EGOV_IDGEN_BPA_FORMAT
+    value: {{ index .Values "egov.idgen.bpa.applicationNum.format" | quote }}
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}
+  {{- if index .Values "cluster-configs" "configmaps" "egov-config" "data" "is-environment-central-instance" }}        
+  - name: IS_ENVIRONMENT_CENTRAL_INSTANCE
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: is-environment-central-instance
+  {{- end }}
+  {{- if index .Values "cluster-configs" "configmaps" "egov-config" "data" "is-environment-central-instance" }}        
+  - name: STATE_LEVEL_TENANTID_LENGTH
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenantid-length
+  {{- end }}
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: state-level-tenant-id

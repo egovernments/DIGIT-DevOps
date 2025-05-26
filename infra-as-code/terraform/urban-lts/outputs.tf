@@ -10,7 +10,6 @@ output "public_subnets" {
   value = module.network.public_subnets
 }
 
-
 output "cluster_endpoint" {
   description = "Endpoint for EKS control plane."
   value       = module.eks.cluster_endpoint
@@ -19,7 +18,6 @@ output "cluster_endpoint" {
 output "db_instance_endpoint" {
   value = module.db.db_instance_endpoint
 }
-
 
 output "db_instance_name" {
   description = "The database name"
@@ -37,16 +35,7 @@ output "db_instance_port" {
   value       = module.db.db_instance_port
 }
 
-output "zone" {
-  value = var.availability_zones
+output "s3_filestore_bucket" {
+  description = "Name of the filestore bucket"
+  value       = aws_s3_bucket.filestore_bucket.id
 }
-
-output "worker_security_group_id" {
-  description = "The security group id of worker nodes"
-  value       = module.eks.worker_security_group_id
-}
-
-output "eks_cluster_iam_role_name" {
-  value = module.eks.cluster_iam_role_name
-}
-

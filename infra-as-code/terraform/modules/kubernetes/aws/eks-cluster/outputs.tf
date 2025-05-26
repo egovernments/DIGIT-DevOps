@@ -1,10 +1,17 @@
-output "kubeconfig" {
-  value = <<KUBECONFIG
+#
+# Outputs
+#
+
+locals {
+
+  kubeconfig = <<KUBECONFIG
+
+
 apiVersion: v1
 clusters:
 - cluster:
     server: ${aws_eks_cluster.eks_cluster.endpoint}
-    certificate-authority-data: ${aws_eks_cluster.eks_cluster.certificate_authority[0].data}
+    certificate-authority-data: ${aws_eks_cluster.eks_cluster.certificate_authority.0.data}
   name: kubernetes
 contexts:
 - context:
@@ -27,14 +34,14 @@ users:
 KUBECONFIG
 }
 
+output "kubeconfig" {
+  value = "${local.kubeconfig}"
+}
+
 output "eks_cluster" {
-  value = aws_eks_cluster.eks_cluster
+  value = "${aws_eks_cluster.eks_cluster}"
 }
 
 output "cluster_security_group_id" {
-  value = aws_eks_cluster.eks_cluster.vpc_config[0].worker_security_group_id
-}
-
-output "cluster_iam_role_name" {
-  value = aws_iam_role.eks_iam.name
+    value   = "${aws_eks_cluster.cluster.vpc_config[0].worker_security_group_id}"
 }

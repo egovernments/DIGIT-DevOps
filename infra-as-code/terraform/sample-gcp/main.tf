@@ -67,9 +67,10 @@ module "kubernetes" {
   desired_node_count  = var.desired_node_count
   min_node_count      = var.min_node_count
   max_node_count      = var.max_node_count
-  node_disk_size_gb      = var.node_disk_size_gb
+  node_disk_size_gb   = var.node_disk_size_gb
   vpc_id              = module.network.vpc_id
   subnet_id           = module.network.private_subnet.name
+  spot_enabled        = true
 
   depends_on = [module.network, time_sleep.wait_for_db]
 }

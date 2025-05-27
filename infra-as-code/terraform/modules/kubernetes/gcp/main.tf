@@ -20,6 +20,7 @@ resource "google_container_node_pool" "primary_nodes" {
   location   = var.zone
 
   node_config {
+    preemptible = var.spot_enabled
     machine_type = var.node_machine_type
     oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
     tags         = ["${var.cluster_name}-gke-node"]

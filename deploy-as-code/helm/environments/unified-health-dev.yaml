@@ -89,6 +89,7 @@ cluster-configs:
         mdms-service-v2: 'http://mdms-v2.egov:8080/'
         egov-localization: 'http://egov-localization.egov:8080/'
         egov-idgen: 'http://egov-idgen.egov:8080/'
+        beneficiary-idgen: 'http://beneficiary-idgen.health:8080/'
         egov-otp: 'http://egov-otp.egov:8080/'
         egov-common-workflows: 'http://egov-common-workflows:8080/'
         egov-mdms-service: 'http://mdms-v2.egov:8080/'
@@ -491,6 +492,53 @@ stock:
   heap: '-Xmx256m -Xms256m'
   memory_limits: 512Mi
 
+beneficiary-idgen:
+  idformat-from-mdms: "true"
+  java-args: -Dspring.profiles.active=monitoring
+  autocreate-new-seq: "true"
+  mdmsSearchPath: "/mdms-v2/v1/_search"
+  redis-ttl-in-days: 1
+  java-enable-debug: true
+  kafka:
+    topics:
+      saveInIdPool: "save-in-id-pool"
+      updateIdPoolStatus: "update-id-pool-status"
+      saveInDispatchLog: "save-dispatch-id-log"
+  spring:
+    redis:
+      host: "redis.backbone"
+      port: 6379
+      cache:
+        type: "redis"
+        timeToLive: 86400
+        autoExpiry: true
+  redisson:
+    redis:
+      host: "redis.backbone"
+      port: 6379
+      timeout: 10000
+      connectionPoolSize: 20
+      connectionMinimumIdleSize: 10
+      threads: 4
+      nettyThreads: 4
+  multiLock:
+    waitTime: 5
+    leaseTime: 10
+  idPool:
+    validation:
+      enabled: true
+    create:
+      maxBatchSize: 500
+  idgen:
+    pool:
+      seqCode: "id.pool.number.random"
+    random:
+      buffer: 5
+    limit:
+      perUser: 100
+    fetch:
+      limitFromDb: 100
+
 
 health-project:
   central-instance-name: health
@@ -526,6 +574,11 @@ health-individual:
   aadhaar-pattern: "\\d{12}"
   mobile-pattern: "\\d+"
   notification-sms-disabled-roles: "ORG_ADMIN"
+  egov-idgen-host-key: "egov-idgen"
+  egov-beneficiary-idgen-host-key: "beneficiary-idgen"
+  egov-idgen-generate-path: "egov-idgen/id/_generate"
+  egov-beneficiary-idgen-idpool-search-path: "beneficiary-idgen/id/id_pool/_search"
+  egov-beneficiary-idgen-idpool-update-path: "beneficiary-idgen/id/id_pool/_update"
 
 health-attendance:
   central-instance-name: health

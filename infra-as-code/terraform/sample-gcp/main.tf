@@ -45,6 +45,7 @@ resource "google_kms_crypto_key_iam_member" "sops_user_binding" {
 module "network" {
   source               = "../modules/network/gcp"
   region               = var.region
+  environment          = var.env_name
   project_id           = var.project_id
   vpc_name             = "${var.env_name}-vpc"
   private_subnet_name  = "${var.env_name}-private-subnet"

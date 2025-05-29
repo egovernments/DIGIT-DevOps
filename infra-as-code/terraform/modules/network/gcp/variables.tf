@@ -1,4 +1,5 @@
 variable "region" {}
+variable "environment" {}
 variable "vpc_name" {}
 variable "public_subnet_name" {}
 variable "public_subnet_cidr" {}

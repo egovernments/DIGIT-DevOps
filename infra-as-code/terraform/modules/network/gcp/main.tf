@@ -20,7 +20,7 @@ resource "google_compute_subnetwork" "private_subnet" {
 }
 
 resource "google_compute_global_address" "private_service_ip" {
-  name          = "private-service-access-ip"
+  name          = "${var.environment}-private-service-access-ip"
   purpose       = "VPC_PEERING"
   address_type  = "INTERNAL"
   prefix_length = 16

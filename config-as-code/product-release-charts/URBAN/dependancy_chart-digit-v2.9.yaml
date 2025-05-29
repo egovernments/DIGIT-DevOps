@@ -1,0 +1,129 @@
+version: v2.9
+modules:
+    - name: backbone
+      services:
+        - kafka-kraft
+        - elasticsearch-master
+        - elasticsearch-data
+        - kibana
+    - name: authn-authz
+      services:
+        - redis
+        - ingress-nginx
+        - cert-manager    
+    - name: core
+      dependencies:
+        - "backbone"
+        - "authn-authz"    
+      services:
+        - egovio/audit-service:DIGIT-2.9-LTS-07f47790b8-12
+        - egovio/egov-accesscontrol:DIGIT-2.9-LTS-237578ce80-10
+        - egovio/egov-enc-service:DIGIT-2.9-LTS-237578ce80-21
+        - egovio/egov-filestore:DIGIT-2.9-LTS-237578ce80-14
+        - egovio/egov-idgen:DIGIT-2.9-LTS-07f47790b8-8
+        - egovio/egov-indexer:2.9.1-c781a2f714-65
+        - egovio/egov-localization:DIGIT-2.9-LTS-237578ce80-10
+        - egovio/egov-location:DIGIT-2.9-LTS-07f47790b8-10
+        - egovio/egov-mdms-service:DIGIT-2.9-LTS-07f47790b8-14
+        - egovio/egov-notification-mail:DIGIT-2.9-LTS-07f47790b8-5
+        - egovio/egov-notification-sms:DIGIT-2.9-LTS-07f47790b8-7
+        - egovio/egov-otp:DIGIT-2.9-LTS-07f47790b8-6
+        - egovio/egov-persister:DIGIT-2.9-LTS-07f47790b8-8
+        - egovio/egov-pg-service:DIGIT-2.9-LTS-237578ce80-11
+        - egovio/egov-searcher:v1.1.5-72f8a8f87b-16
+        - egovio/egov-url-shortening:DIGIT-2.9-LTS-07f47790b8-12
+        - egovio/egov-user-event-db:v1.3.0-cf8ffdfb2b-6
+        - egovio/egov-user:DIGIT-2.9-LTS-c33cfe45ab-19
+        - egovio/egov-workflow-v2:2.9.1-80b58dc788-15
+        - egovio/user-otp:DIGIT-2.9-LTS-07f47790b8-9
+        - egovio/service-request:DIGIT-2.9-LTS-237578ce80-7
+        - egovio/gateway:gateway-2.9.2-a916a090e6-40
+        - egovio/mdms-v2:MDMS-v2-2.9LTS-837232ac67-71
+        - egovio/boundary-service:v1.0.0-063968adc7-18
+        - egovio/playground:1.0
+        - egovio/inbox:v1.4.0-dc8b346c25-15
+    - name: common
+      dependencies:
+        - "core"
+      services:
+        - egovio/egov-document-uploader-db:v1.1.0-1ab86b6823-3
+        - egovio/billing-service-db:v1.3.7-d3b373c7ce-17
+        - egovio/collection-services-db:v1.2.0-c0009c1c40-8
+        - egovio/egov-apportion-service-db:v1.2.0-cf8ffdfb2b-5
+        - egovio/egov-pdf:v1.2.1-63d50132ba-12
+        - egovio/egov-hrms-db:v1.3.0-37304bc82e-14
+    - name: "frontend"             
+      dependencies:
+        - "common"
+      services:
+        - egovio/citizen:v1.10.0-beta-b3b9dac35b-24 
+        - egovio/employee:v1.10.0-beta-b3b9dac35b-23  
+        - egovio/digit-ui:v1.7.0-beta.2-b3b9dac35b-215
+       
+    - name: m_pgr             #PGR
+      dependencies:
+        - "common"
+        - "core"
+      services:
+        - egovio/pgr-services-db:v1.2.0-2d4cde6c09-13
+        - egovio/rainmaker-pgr-db:v1.2.0-2d4cde6c09-6
+    - name: m_property-tax    #PT
+      dependencies:
+        - "common"
+        - "core"
+      services:
+        - egovio/property-services-db:v1.3.0-d1c4f6f5e7-19
+        - egovio/pt-calculator-v2-db:v1.2.0-dfebe69d66-11
+        - egovio/pt-services-v2-db:v1.1.0-837ff35d89-30
+    - name: m_sewerage        #Sewerage
+      dependencies:
+        - "common"
+        - "core"
+      services:
+        - egovio/sw-calculator-db:v1.5.0-b3b9dac35b-7
+        - egovio/sw-services-db:v1.8.0-1d0819baa2-11
+    - name: m_bpa             #BPA
+      dependencies:
+          - "core"
+      services:
+        - egovio/bpa-calculator:v1.2.0-2d4cde6c09-7
+        - egovio/bpa-services-db:v1.2.0-4875cb5c4b-9
+    - name: m_echallan            #ECHALLAN
+      dependencies:
+          - "core"
+      services:
+        - egovio/echallan-calculator:v1.1.0-b3b9dac35b-5
+        - egovio/echallan-services-db:v1.2.0-d8f452e76e-8      
+    - name: m_trade-license    #TL
+      dependencies:
+          - "frontend"
+          - "core"
+      services:
+        - egovio/tl-calculator-db:v1.2.0-27264e8ec9-11
+        - egovio/tl-services-db:v1.2.0-76f77645ab-14 
+
+    - name: m_fire-noc   #Fnoc
+      dependencies:
+          - "core"
+      services:
+        - egovio/firenoc-calculator-db:v1.2.3-b3b9dac35b-11 #Need to recheck this build as it is in crashloop back off
+        - egovio/firenoc-services-db:v1.3.3-b73a6db91f-31
+    - name: m_water-service   #Water
+      dependencies:
+          - "frontend"
+          - "core"
+      services:
+        - egovio/ws-calculator-db:v1.5.0-27264e8ec9-11
+        - egovio/ws-services-db:v1.8.0-1d0819baa2-21
+    - name: m_edcr   #edcr
+      dependencies:
+          - "core"
+      services:
+        - egovio/egov-edcr:v2.1.2-b7216441d5-67
+  
+    - name: m_dss   #dss
+      dependencies:
+          - "core"
+      services:
+        - egovio/dashboard-analytics:v1.2.0-e1eb9cfcfe-10
+        - egovio/dashboard-ingest:v1.2.0-e1eb9cfcfe-16                                      

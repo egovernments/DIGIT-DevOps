@@ -24,6 +24,24 @@ provider "google" {
   zone    = var.zone
 }
 
+data "google_client_openid_userinfo" "me" {}
+
+resource "google_kms_key_ring" "sops_ring" {
+  name     = "${var.env_name}-sops-keyring"
+  location = var.region
+}
+
+resource "google_kms_crypto_key" "sops_key" {
+  name            = "${var.env_name}-sops-key"
+  key_ring        = google_kms_key_ring.sops_ring.id
+}
+
+resource "google_kms_crypto_key_iam_member" "sops_user_binding" {
+  crypto_key_id = google_kms_crypto_key.sops_key.id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  member        = "user:${data.google_client_openid_userinfo.me.email}"
+}
+
 module "network" {
   source               = "../modules/network/gcp"
   region               = var.region

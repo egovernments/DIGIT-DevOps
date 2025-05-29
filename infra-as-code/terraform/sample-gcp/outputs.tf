@@ -38,3 +38,7 @@ output "db_password" {
   value = module.db.db_password
   sensitive = true
 }
+
+output "sops_key" {
+  value = "projects/${var.project_id}/locations/${var.region}/keyRings/${google_kms_key_ring.sops_ring.name}/cryptoKeys/${google_kms_crypto_key.sops_key.name}"
+}

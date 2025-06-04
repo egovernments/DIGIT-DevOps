@@ -16,12 +16,20 @@ initContainers:
     schemaTable: "egov_survey_services_schema"
     image:
       repository: "egov-survey-services-db"
-      tag: "v1.0.0-51bb874175-30"
+      tag: "v1.0.0-51bb874175-31"
+
+resources: |
+  limits:
+    cpu: "300m"
+    memory: "512Mi"
+  requests:
+    cpu: "300m"
+    memory: "512Mi"
 
 # Container Configs
 image:
   repository: "egov-survey-services"
-  tag: "v1.0.0-51bb874175-30"
+  tag: "v1.0.0-51bb874175-31"
 replicas: "1"
 healthChecks:
   enabled: true
@@ -29,18 +37,19 @@ healthChecks:
   readinessProbePath: "/egov-survey-services/health"
 appType: "java-spring"
 tracing-enabled: true
-heap: "-Xmx168m -Xms128m"
-memory_limits: "272Mi"
+heap: "-Xmx64m -Xms64m"
 java-args: "-Dspring.profiles.active=monitoring"
 
 # Additional Container Envs
 env: |
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: egov-survey-services
+    value: egov-du-services
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
     value: org.apache.kafka.common.serialization.StringSerializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
     value: org.springframework.kafka.support.serializer.JsonSerializer
+  - name: PERSISTER_SAVE_SURVEY_TOPIC
+    value: save-ss-survey
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
@@ -73,28 +82,3 @@ env: |
     value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED
     value: "false"
-  {{- if index .Values "persister-save-survey-topic" }}
-  - name: PERSISTER_SAVE_SURVEY_TOPIC
-    value: {{ index .Values "persister-save-survey-topic" | quote }}
-  {{- end }}
-  {{- if index .Values "persister-update-document-topic" }}
-  - name: PERSISTER_UPDATE_DOCUMENT_TOPIC
-    value: {{ index .Values "persister-update-document-topic" | quote }}
-  {{- end }}
-  {{- if index .Values "persister-delete-document-topic" }}
-  - name: PERSISTER_DELETE_DOCUMENT_TOPIC
-    value: {{ index .Values "persister-delete-document-topic" | quote }}
-  {{- end }}
-  {{- if index .Values "ss.notification.event.topic" }}
-  - name: SS.NOTIFICATION.EVENT.TOPIC
-    value: {{ index .Values "ss.notification.event.topic" | quote }}
-  {{- end }}
-  {{- if index .Values "egov.ss.survey.create.topic" }}
-  - name: EGOV_SS_SURVEY_CREATE_TOPIC
-    value: {{ index .Values "egov.ss.survey.create.topic" | quote }}
-  {{- end }}
-  {{- if index .Values "egov.ss.survey.save.answer" }}
-  - name: EGOV_SS_SURVEY_SAVE_ANSWER
-    value: {{ index .Values "egov.ss.survey.save.answer" | quote }}
-  {{- end }}
-  

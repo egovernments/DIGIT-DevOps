@@ -1,0 +1,56 @@
+# Common Labels
+labels:
+  app: "clamav-wrapper"
+  group: "accelerators"
+
+namespace: egov
+
+# Ingress Configs
+ingress:
+  enabled: false
+  zuul: false
+  context: "clamav-wrapper"
+
+# Container Configs
+image:
+  repository: "clamav-wrapper"
+  tag: "latest"
+replicas: "1"
+healthChecks:
+  enabled: false
+  livenessProbePath: "/clamav-wrapper/health"
+  readinessProbePath: "/clamav-wrapper/health"
+appType: "go"
+memory_limits: 512Mi
+
+# Additional Container Envs
+env: |
+  - name: KAFKA_BROKER
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers 
+  - name: KAFKA_TOPIC
+    value: "file-scan-clamav"
+  - name: KAFKA_CONSUMER_GROUP_ID
+    value: "filestore-antivirus-group"
+  - name: CLAMAV_HOST
+    valueFrom: "clamav.default.svc.cluster.local"
+  - name: CLAMAV_PORT
+    valueFrom: "3310"
+  - name: CLAMAV_DIAL_TIMEOUT_SECONDS
+    value: "10"
+  - name: CLAMAV_CHUNK_SIZE_KB
+    value: "32"
+  - name: CLAMAV_MAX_FILE_SIZE_MB
+    value: "25"
+  - name: MINIO_ENDPOINT
+    value: "http://minio.default.svc.cluster.local:9000"
+  - name: STAGING_BUCKET
+    value: "staging"
+  - name: CLEAN_BUCKET
+    value: "clean"
+  - name: QUARANTINE_BUCKET
+    value: "quarantine"
+  - name: USE_SSL
+    value: "false"

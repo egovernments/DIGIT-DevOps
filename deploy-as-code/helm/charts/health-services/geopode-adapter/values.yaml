@@ -1,0 +1,91 @@
+# Common Labels
+labels:
+  app: "geopode-adapter"
+  group: "health"
+
+namespace: health
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "geopode-adapter"
+
+# Container Configs
+image:
+  repository: "geopode-adapter"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/geopode-adapter/health"
+  readinessProbePath: "/geopode-adapter/health"
+appType: "java-spring"
+tracing-enabled: true
+memory_limits: '512Mi'
+cpu_limits: '250m'
+heap: "-Xmx384m -Xms384m"
+java-args: ""
+
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+
+  # KAFKA SERVER CONFIGURATIONS
+  - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+    value: org.egov.tracer.kafka.deserializer.HashMapDeserializer
+  - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+    value: org.apache.kafka.common.serialization.StringDeserializer
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: geopode-adapter
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.springframework.kafka.support.serializer.JsonSerializer
+
+  # MDMS URLs
+   - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-services-host
+        key: geopode-adapter
+  - name: EGOV_MDMS_SEARCH_ENDPOINT
+    valueFrom:
+      configMapKeyRef:
+        name: geopode-adapter
+        key: {{ index .Values "egov-mdms-service-v1-search" | quote }}
+  - name: EGOV_MDMS_V2_SEARCH_ENDPOINT
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: {{ index .Values "egov-mdms-service-v2-search" | quote }}
+
+  # BOUNDARY SERVICE
+  - name: EGOV_BOUNDARY_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-services-host
+        key: geopode-adapter
+  - name: EGOV_BOUNDARY_ENTITY_CREATE_ENDPOINT
+    value: /boundary-service/boundary/_create
+  - name: EGOV_BOUNDARY_ENTITY_SEARCH_ENDPOINT
+    value: /boundary-service/boundary/_search
+  - name: EGOV_BOUNDARY_HIERARCHY_CREATE_ENDPOINT
+    value: /boundary-service/boundary-hierarchy-definition/_create
+  - name: EGOV_BOUNDARY_RELATIONSHIP_CREATE_ENDPOINT
+    value: /boundary-service/boundary-relationships/_create
+  - name: EGOV_BOUNDARY_HIERARCHY_SEARCH_ENDPOINT
+    value: /boundary-service/boundary-hierarchy-definition/_search
+
+  # PAGINATION CONFIG
+  - name: GEOPODE_DEFAULT_OFFSET
+    value: "0"
+  - name: GEOPODE_DEFAULT_LIMIT
+    value: "10"
+
+  # GEOPODE ENDPOINTS
+  - name: GEOPODE_ARCGIS_HOST
+    value: https://services.arcgis.com
+  - name: GEOPODE_ARCGIS_ENDPOINT:
+    value:/5T5nSi527N4F7luB/ArcGIS/rest/services/Detailed_Boundary_ADM2/FeatureServer/0/query
+  

@@ -26,72 +26,65 @@ memory_limits: '512Mi'
 cpu_limits: '250m'
 heap: "-Xmx384m -Xms384m"
 java-args: ""
-persist-yml-path: "file:///work-dir/health-campaign-config/egov-persister/facility-persister.yml"
-indexer-yml-path: "file:///work-dir/health-campaign-config/egov-indexer/facility-indexer.yml"
 
-# Additional Container Envs
 env: |
-  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: health-project
-  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
-    value: org.apache.kafka.common.serialization.StringSerializer
-  {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
-  - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: tracer-errors-provideexceptionindetails
-  {{- end }}
-  - name: EGOV_IDGEN_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: egov-idgen
-  - name: EGOV_IDGEN_PATH
-    value: "egov-idgen/id/_generate"
-  - name: EGOV_IDGEN_INTEGRATION_ENABLED
-    value: "true"
-  - name: FACILITY.IDGEN.ID.FORMAT
-    value: "facility.id"
-  - name: SPRING_REDIS_HOST
-    value: redis.backbone
-  - name: SPRING_REDIS_PORT
-    value: "6379"
-  - name: SPRING_CACHE_TYPE
-    value: "redis"
-  - name: SPRING_CACHE_REDIS_TIME-TO-LIVE
-    value: "60"
-  - name: SPRING_CACHE_AUTOEXPIRY
-    value: "true"
-  - name: JAVA_OPTS
-    value: {{ index .Values "heap" | quote }}
-  - name: JAVA_ARGS
-    value: {{ index .Values "java-args" | quote }}
   - name: SERVER_PORT
     value: "8080"
-  - name: SECURITY_BASIC_ENABLED
-    value: "false"
-  - name: MANAGEMENT_SECURITY_ENABLED
-    value: "false"
-  
-  - name: FACILITY.KAFKA.CREATE.TOPIC
-    value: "save-facility-health-topic"
-  - name: FACILITY.KAFKA.UPDATE.TOPIC
-    value: "update-facility-health-topic"
-  - name: FACILITY.KAFKA.DELETE.TOPIC
-    value: "delete-facility-health-topic"
-  - name: FACILITY.CONSUMER.BULK.DELETE.TOPIC
-    value: "delete-facility-bulk-health-topic"
-  - name: FACILITY.CONSUMER.BULK.CREATE.TOPIC
-    value: "create-facility-bulk-health-topic"
-  - name: FACILITY.CONSUMER.BULK.UPDATE.TOPIC
-    value: "update-facility-bulk-health-topic"
-  - name: EGOV_BOUNDARY_HOST
+
+  # KAFKA SERVER CONFIGURATIONS
+  - name: SPRING_KAFKA_CONSUMER_VALUE_DESERIALIZER
+    value: org.egov.tracer.kafka.deserializer.HashMapDeserializer
+  - name: SPRING_KAFKA_CONSUMER_KEY_DESERIALIZER
+    value: org.apache.kafka.common.serialization.StringDeserializer
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: geopode-adapter
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.springframework.kafka.support.serializer.JsonSerializer
+
+  # MDMS URLs
+   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:
-        name: egov-service-host
-        key: boundary-service
-  - name: EGOV_BOUNDARY_SEARCH_URL
-    value: "/boundary-service/boundary/_search"
-  - name: EGOV_BOUNDARY_HIERARCHY_NAME
-    value: "HCM-Moz-Hierarchy"
+        name: egov-services-host
+        key: geopode-adapter
+  - name: EGOV_MDMS_SEARCH_ENDPOINT
+    value: /egov-mdms-service/v1/_search
+  - name: EGOV_MDMS_V2_SEARCH_ENDPOINT
+    value: /egov-mdms-service/v2/_search
+
+  # BOUNDARY SERVICE
+  - name: EGOV_BOUNDARY_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-services-host
+        key: geopode-adapter
+  - name: EGOV_BOUNDARY_ENTITY_CREATE_ENDPOINT
+    value: /boundary-service/boundary/_create
+  - name: EGOV_BOUNDARY_ENTITY_SEARCH_ENDPOINT
+    value: /boundary-service/boundary/_search
+  - name: EGOV_BOUNDARY_HIERARCHY_CREATE_ENDPOINT
+    value: /boundary-service/boundary-hierarchy-definition/_create
+  - name: EGOV_BOUNDARY_RELATIONSHIP_CREATE_ENDPOINT
+    value: /boundary-service/boundary-relationships/_create
+  - name: EGOV_BOUNDARY_HIERARCHY_SEARCH_ENDPOINT
+    value: /boundary-service/boundary-hierarchy-definition/_search
+
+  # PAGINATION CONFIG
+  - name: GEOPODE_DEFAULT_OFFSET
+    value: "0"
+  - name: GEOPODE_DEFAULT_LIMIT
+    value: "10"
+
+  # GEOPODE ENDPOINTS
+  - name: GEOPODE_ARCGIS
+    value: https://services.arcgis.com/5T5nSi527N4F7luB/ArcGIS/rest/services/Detailed_Boundary_ADM2/FeatureServer/0/query
+  - name: GEOPODE_ARCGIS_SEARCH
+    value: /geopode/arcGis/_search
+  - name: GEOPODE_LOCALHOST
+      valueFrom:
+        configMapKeyRef:
+          name: egov-services-host
+          key: geopode-adapter
+  

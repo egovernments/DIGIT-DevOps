@@ -13,6 +13,7 @@ initContainers:
 
 # Ingress Configs
 ingress:
+  enabled: true
   zuul: true
   context: "filestore"
 
@@ -26,13 +27,23 @@ healthChecks:
   readinessProbePath: "/filestore/health"
 appType: "java-spring"
 tracing-enabled: true
-is-bucket-fixed: "true"
+is-bucket-fixed: true
 fixed-bucketname: "unified-dev-bucket-s3"
-heap: "-Xmx256m -Xms256m"
-memory_limits: 512Mi
+heap: "-Xmx192m -Xms192m"
 file-storage-mount-path: "/filestore"
 is-nfs-enabled: false
-is-s3-enabled: true
+s3:
+  enabled: true
+  endpoint-url: https://s3.amazonaws.com
+  minio:
+    enabled: false
+azure:
+  enabled: false
+gcp:
+  enabled: false
+  source: gcp
+  project-id: abc
+  role-access-enabled: false
 
 persistence:
   enabled: false
@@ -51,24 +62,18 @@ env: |
     value: "/tmp"
   - name: SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE
     value: "6MB"
-  - name: ISNFSSTORAGEENABLED
-    value: {{ index .Values "is-nfs-enabled" | quote }}
-  {{- if index .Values "is-nfs-enabled" }}
-  - name: ISNFSSTORAGEENABLED
-    value: "true"
-  - name: DISK_STORAGE_HOST_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: egov-services-fqdn-name
-  - name: SOURCE_DISK
-    value: "diskStorage"
-  {{- end }}
-  {{- if index .Values "is-s3-enabled" }}
   - name: ISS3ENABLED
-    value: "true"
-  {{- end }}  
-  {{- if index .Values "minio-enabled" }}
+    value: {{ if .Values.s3.enabled }} "true" {{ else }} "false" {{ end }}
+  - name: ISGCPSTORAGEENABLED
+    value: {{ if .Values.gcp.enabled }} "true" {{ else }} "false" {{ end }}
+  - name: ISAZURESTORAGEENABLED
+    value: {{ if .Values.azure.enabled }} "true" {{ else }} "false" {{ end }}
+  - name: ISNFSSTORAGEENABLED
+    value: {{ if index .Values "is-nfs-enabled" }} "true" {{ else }} "false" {{ end }}
+  {{- if index .Values "s3" "enabled" }}
+  - name: MINIO_URL
+    value: {{ index .Values "s3" "endpoint-url" | quote }}
+  {{- if index .Values "s3" "minio" "enabled" }}
   - name: AWS_KEY
     valueFrom:
       secretKeyRef:
@@ -79,17 +84,60 @@ env: |
       secretKeyRef:
         key: secretkey
         name: minio
-  {{else}}
+  {{ else}}
   - name: AWS_KEY
     valueFrom:
       secretKeyRef:
         name: egov-filestore
-        key: awskey
+        key: aws-key
   - name: AWS_SECRETKEY
     valueFrom:
       secretKeyRef:
         name: egov-filestore
-        key: awssecretkey
+        key: aws-secret-key
+  {{- end }}
+  {{- else if index .Values "azure" "enabled" }}
+  - name: AZURE_ACCOUNTNAME
+  valueFrom:
+    secretKeyRef:
+      name: egov-filestore
+      key: azure-account-name
+  - name: AZURE_ACCOUNTKEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-filestore
+        key: azure-account-key
+  - name: AZURE_DEFAULTENDPOINTSPROTOCOL
+    value: https
+  {{- else if index .Values "gcp" "enabled" }}
+  - name: GCP_SOURCE
+    value: {{ index .Values "gcp" "source" | quote }}
+  - name: GCP_PROJECT_ID
+    value: {{ index .Values "gcp" "project-id" | quote }}
+  - name: GCP_BUCKET_NAME
+    value: {{ index .Values "fixed-bucketname" | quote }}
+  {{- if not (index .Values "gcp" "role-acess-enabled") }}
+  - name: GCP_CLIENT_EMAIL
+    valueFrom:
+      secretKeyRef:
+        name: egov-filestore
+        key: gcp-client-email
+  - name: GCP_PRIVATE_KEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-filestore
+        key: gcp-private-key
+  {{- end }}
+  {{- else if index .Values "is-nfs-enabled" }}
+  - name: ISNFSSTORAGEENABLED
+    value: "true"
+  - name: DISK_STORAGE_HOST_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  - name: SOURCE_DISK
+    value: "diskStorage"
   {{- end }}
   {{- if index .Values "is-bucket-fixed" }}
   - name: IS_BUCKET_FIXED
@@ -103,15 +151,7 @@ env: |
     value: {{ index .Values "heap" | quote }}
   - name: ALLOWED_FORMATS_MAP
     value: {{ index .Values "allowed-file-formats-map" | quote }}
-  {{- if index .Values "minio-enabled" }}  
-  - name: MINIO_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: minio-url
-  {{- end }}
   {{- if index .Values "filestore-url-validity" }}   
   - name: PRESIGNED_URL_EXPIRY_TIME_IN_SECS     
     value: {{ index .Values "filestore-url-validity" | quote }}   
-  {{- end }}  
-
+  {{- end }}

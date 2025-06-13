@@ -1,10 +1,10 @@
 terraform {
   backend "s3" {
-    bucket = "urban-lts-s3-bucket"
-    key    = "terraform/terraform.tfstate"
+    bucket = <terraform_state_bucket_name>
+    key    = "terraform-setup/terraform.tfstate"
     region = "ap-south-1"
     # The below line is optional depending on whether you are using DynamoDB for state locking and consistency
-    dynamodb_table = "urban-lts-s3-bucket"
+    dynamodb_table = <terraform_state_bucket_name>
     # The below line is optional if your S3 bucket is encrypted
     encrypt = true
   }
@@ -34,26 +34,26 @@ resource "aws_iam_access_key" "filestore_key" {
   user    = aws_iam_user.filestore_user.name
 }
 
-# resource "kubernetes_namespace" "namespace" {
-#   metadata {
-#     name = var.filestore_namespace
-#   }
-# }
+resource "kubernetes_namespace" "namespace" {
+  metadata {
+    name = var.filestore_namespace
+  }
+}
 
-# resource "kubernetes_secret" "egov-filestore" {
-#   # depends_on  = [kubernetes_namespace.namespace]
-#   metadata {
-#     name      = "egov-filestore"
-#     namespace = var.filestore_namespace  # Change this as needed
-#   }
-#
-#   data = {
-#     awssecretkey = aws_iam_access_key.filestore_key.secret
-#     awskey       = aws_iam_access_key.filestore_key.id
-#   }
-#
-#   type = "Opaque"
-# }
+resource "kubernetes_secret" "egov-filestore" {
+  depends_on  = [kubernetes_namespace.namespace]
+  metadata {
+    name      = "egov-filestore"
+    namespace = var.filestore_namespace  # Change this as needed
+  }
+
+  data = {
+    awssecretkey = aws_iam_access_key.filestore_key.secret
+    awskey       = aws_iam_access_key.filestore_key.id
+  }
+
+  type = "Opaque"
+}
 
 resource "aws_s3_bucket" "filestore_bucket" {
   bucket = "${var.cluster_name}-filestore-bucket"
@@ -296,24 +296,24 @@ provider "kubernetes" {
   token                  = data.aws_eks_cluster_auth.cluster.token
 }
 
-# resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
-#   metadata {
-#     name = "gp3"
-#     annotations = {
-#       "storageclass.kubernetes.io/is-default-class" : "true"
-#     }
-#   }
-#
-#   storage_provisioner    = "ebs.csi.aws.com"
-#   reclaim_policy         = "Delete"
-#   allow_volume_expansion = true
-#   volume_binding_mode    = "Immediate"
-#   parameters = {
-#     fsType    = "ext4"
-#     encrypted = true
-#     type      = "gp3"
-#   }
-# }
+resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
+  metadata {
+    name = "gp3"
+    annotations = {
+      "storageclass.kubernetes.io/is-default-class" : "true"
+    }
+  }
+
+  storage_provisioner    = "ebs.csi.aws.com"
+  reclaim_policy         = "Delete"
+  allow_volume_expansion = true
+  volume_binding_mode    = "Immediate"
+  parameters = {
+    fsType    = "ext4"
+    encrypted = true
+    type      = "gp3"
+  }
+}
 
 provider "helm" {
   kubernetes {

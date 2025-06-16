@@ -3,6 +3,9 @@ labels:
   app: "clamav-wrapper"
   group: "accelerators"
 
+global:
+  containerRegistry: varunkumar704
+
 namespace: egov
 
 # Ingress Configs
@@ -25,19 +28,25 @@ memory_limits: 512Mi
 
 # Additional Container Envs
 env: |
-  - name: KAFKA_BROKER
+  - name: MESSAGE_BROKER_TYPE
+    value: "kafka"
+  - name: KAFKA_BROKERS
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: kafka-brokers 
   - name: KAFKA_TOPIC
-    value: "file-scan-clamav"
+    value: "file-scan-clamav-kafka"
   - name: KAFKA_CONSUMER_GROUP_ID
     value: "filestore-antivirus-group"
+  - name: REDIS_ADDRESS
+    value: "redis.backbone:6379"
+  - name: REDIS_KEY
+    value: "file-scan-clamav-redis"
   - name: CLAMAV_HOST
-    valueFrom: "clamav.default.svc.cluster.local"
+    value: "clamav.default.svc.cluster.local"
   - name: CLAMAV_PORT
-    valueFrom: "3310"
+    value: "3310"
   - name: CLAMAV_DIAL_TIMEOUT_SECONDS
     value: "10"
   - name: CLAMAV_CHUNK_SIZE_KB
@@ -45,7 +54,17 @@ env: |
   - name: CLAMAV_MAX_FILE_SIZE_MB
     value: "25"
   - name: MINIO_ENDPOINT
-    value: "http://minio.default.svc.cluster.local:9000"
+    value: "minio.default.svc.cluster.local:9000"
+  - name: MINIO_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: minio
+        key: rootUser
+  - name: MINIO_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: minio
+        key: rootPassword
   - name: STAGING_BUCKET
     value: "staging"
   - name: CLEAN_BUCKET

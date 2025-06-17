@@ -1,3 +1,10 @@
+environments:
+  uat:
+    values:
+      - namespace: monitoring
+      - ../environments/env-secrets.yaml
+      - ../environments/env.yaml
+---
 repositories:
 - name: grafana
   url: https://grafana.github.io/helm-charts
@@ -12,11 +19,6 @@ repositories:
 - name: apm-attacher
   url: https://helm.elastic.co
 
-values:
-  - namespace: monitoring
-  - ../environments/env.yaml
-  - ../environments/env-secrets.yaml
-
 releases:
 - name: loki-stack
   installed: true
@@ -25,6 +27,7 @@ releases:
   version: 2.10.1
   values:
   - ./values/loki-stack.yaml
+  - {{ .Values | toYaml | nindent 8 }}
 
 - name: kube-prometheus-stack
   installed: true
@@ -34,12 +37,7 @@ releases:
   disableValidation: true
   values:
   - ./values/prometheus.yaml
-  - alertmanager:
-      enabled: {{ .Values.prometheus.alertmanager.enabled }}
-  {{- if .Values.prometheus.alertmanager.enabled }}
-  - alertmanager:
-      config: {{ index .Values "cluster-configs" "secrets" "alertmanager" "config" | toYaml | nindent 8 }}
-  {{- end }}
+  - {{ .Values | toYaml | nindent 8 }}
 
 - name: jaeger
   installed: false
@@ -48,6 +46,7 @@ releases:
   version: 0.35.0
   values:
   - ./values/jaeger.yaml
+  - {{ .Values | toYaml | nindent 8 }}
   - storage:
       elasticsearch:
         password: {{ .Values.secrets.elasticsearch.password }}
@@ -62,12 +61,16 @@ releases:
   version: 7.3.0
   values:
   - ./values/grafana.yaml
+  - grafana.ini:
+      auth.github:
+        allowed_organizations: {{ .Values.grafana.github.allowed_organizations }}
+        role_attribute_path: {{ .Values.grafana.github.role_attribute_path }}
   - envRenderSecret:
-      GF_AUTH_GITHUB_YAMLAPPLICATIONCONFIG_AUTH_OAUTH2_CLIENT_GITHUB_CLIENTID: {{ .Values.secrets.oauth2.clientID }}
-      GF_AUTH_GITHUB_CLIENT_SECRET: {{ .Values.secrets.oauth2.clientSecret }}
+      GF_AUTH_GITHUB_YAMLAPPLICATIONCONFIG_AUTH_OAUTH2_CLIENT_GITHUB_CLIENTID: {{ .Values.secrets.grafana.clientID }}
+      GF_AUTH_GITHUB_CLIENT_SECRET: {{ .Values.secrets.grafana.clientSecret }}
   set:
     - name: ingress.hosts[0]
-      value: "{{ .Values.global.domain }}"
+      value: {{ .Values.global.domain | quote }}
     - name: ingress.tls[0].hosts[0]
       value: {{ .Values.global.domain | quote }}
 
@@ -77,7 +80,8 @@ releases:
   chart: prometheus-community/prometheus-blackbox-exporter
   version: 8.2.0
   values:
-  - ./values/blackbox-exporter.yaml     
+  - ./values/blackbox-exporter.yaml
+  - {{ .Values | toYaml | nindent 8 }}
 
 - name: kafka-ui
   installed: true
@@ -85,20 +89,10 @@ releases:
   chart: kafka-ui/kafka-ui
   version: 0.7.6
   values:
-  - ./values/kafka-ui.yaml  
-
-- name: apm-server
-  installed: true
-  namespace: es-cluster
-  chart: elastic/apm-server
-  version: 8.5.1
-  values:
-  - ./values/apm-server.yaml
-
-- name: apm-attacher
-  installed: true
-  namespace: es-cluster
-  chart: elastic/apm-attacher
-  version: 1.0.0
-  values:
-  - ./values/apm-attacher.yaml
+  - ./values/kafka-ui.yaml
+  - {{ .Values | toYaml | nindent 8 }}
+  set:
+    - name: ingress.host
+      value: {{ .Values.global.domain | quote }}
+    - name: ingress.tls.secretName
+      value: {{ printf "%s-tls-certs" .Values.global.domain | quote }}

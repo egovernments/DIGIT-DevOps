@@ -4,6 +4,7 @@
 
 provider "aws" {
   region = "ap-south-1"
+  version = "5.36.0"
 }
 
 # Using these data sources allows the configuration to be

@@ -1,10 +1,10 @@
 terraform {
   backend "s3" {
-    bucket = <terraform_state_bucket_name>
+    bucket = "digit-lts-s3"
     key    = "digit-bootcamp-setup/terraform.tfstate"
     region = "ap-south-1"
     # The below line is optional depending on whether you are using DynamoDB for state locking and consistency
-    dynamodb_table = <terraform_state_bucket_name>
+    dynamodb_table = "digit-lts-s3"
     # The below line is optional if your S3 bucket is encrypted
     encrypt = true
   }
@@ -18,22 +18,22 @@ module "network" {
 }
 
 # PostGres DB
-module "db" {
-  source                        = "../modules/db/aws"
-  subnet_ids                    = "${module.network.private_subnets}"
-  vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
-  availability_zone             = "${element(var.availability_zones, 0)}"
-  instance_class                = "db.t3.medium"  ## postgres db instance type
-  engine_version                = "11.20"   ## postgres version
-  storage_type                  = "gp2"
-  storage_gb                    = "10"     ## postgres disk size
-  backup_retention_days         = "7"
-  administrator_login           = "${var.db_username}"
-  administrator_login_password  = "${var.db_password}"
-  identifier                    = "${var.cluster_name}-db"
-  db_name                       = "${var.db_name}"
-  environment                   = "${var.cluster_name}"
-}
+#module "db" {
+#  source                        = "../modules/db/aws"
+#  subnet_ids                    = "${module.network.private_subnets}"
+#  vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
+#  availability_zone             = "${element(var.availability_zones, 0)}"
+#  instance_class                = "db.t3.medium"  ## postgres db instance type
+#  engine_version                = "11.20"   ## postgres version
+#  storage_type                  = "gp2"
+#  storage_gb                    = "10"     ## postgres disk size
+#  backup_retention_days         = "7"
+#  administrator_login           = "${var.db_username}"
+#  administrator_login_password  = "${var.db_password}"
+#  identifier                    = "${var.cluster_name}-db"
+#  db_name                       = "${var.db_name}"
+#  environment                   = "${var.cluster_name}"
+#}
 
 data "aws_eks_cluster" "cluster" {
   name = "${module.eks.cluster_id}"
@@ -161,53 +161,52 @@ resource "aws_eks_addon" "core_dns" {
 resource "aws_eks_addon" "aws_ebs_csi_driver" {
   cluster_name      = data.aws_eks_cluster.cluster.name
   addon_name        = "aws-ebs-csi-driver"
-  addon_version     = "v1.23.0-eksbuild.1"
   resolve_conflicts = "OVERWRITE"
 }
 
-module "es-master" {
+#module "es-master" {
+#
+#  source = "../modules/storage/aws"
+#  storage_count = 3
+# environment = "${var.cluster_name}"
+#  disk_prefix = "es-master"
+#  availability_zones = "${var.availability_zones}"
+#  storage_sku = "gp2"
+#  disk_size_gb = "2"
+#  
+#}
+#module "es-data-v1" {
+#
+#  source = "../modules/storage/aws"
+#  storage_count = 3
+#  environment = "${var.cluster_name}"
+# disk_prefix = "es-data-v1"
+# availability_zones = "${var.availability_zones}"
+#  storage_sku = "gp2"
+#  disk_size_gb = "25"
+#  
+#}
 
-  source = "../modules/storage/aws"
-  storage_count = 3
-  environment = "${var.cluster_name}"
-  disk_prefix = "es-master"
-  availability_zones = "${var.availability_zones}"
-  storage_sku = "gp2"
-  disk_size_gb = "2"
-  
-}
-module "es-data-v1" {
+#module "zookeeper" {
+#
+#  source = "../modules/storage/aws"
+#  storage_count = 3
+#  environment = "${var.cluster_name}"
+#  disk_prefix = "zookeeper"
+#  availability_zones = "${var.availability_zones}"
+#  storage_sku = "gp2"
+#  disk_size_gb = "2"
+#  
+#}
 
-  source = "../modules/storage/aws"
-  storage_count = 3
-  environment = "${var.cluster_name}"
-  disk_prefix = "es-data-v1"
-  availability_zones = "${var.availability_zones}"
-  storage_sku = "gp2"
-  disk_size_gb = "25"
-  
-}
-
-module "zookeeper" {
-
-  source = "../modules/storage/aws"
-  storage_count = 3
-  environment = "${var.cluster_name}"
-  disk_prefix = "zookeeper"
-  availability_zones = "${var.availability_zones}"
-  storage_sku = "gp2"
-  disk_size_gb = "2"
-  
-}
-
-module "kafka" {
-
-  source = "../modules/storage/aws"
-  storage_count = 3
-  environment = "${var.cluster_name}"
-  disk_prefix = "kafka"
-  availability_zones = "${var.availability_zones}"
-  storage_sku = "gp2"
-  disk_size_gb = "50"
-  
-}
+#module "kafka" {
+#
+#  source = "../modules/storage/aws"
+#  storage_count = 3
+#  environment = "${var.cluster_name}"
+#  disk_prefix = "kafka"
+# availability_zones = "${var.availability_zones}"
+#  storage_sku = "gp2"
+#  disk_size_gb = "50"
+#  
+#}

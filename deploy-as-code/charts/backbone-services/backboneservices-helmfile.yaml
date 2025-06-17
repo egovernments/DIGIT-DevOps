@@ -1,3 +1,9 @@
+environments:
+  uat:
+    values:
+      - ../environments/env-secrets.yaml
+      - ../environments/env.yaml
+---
 repositories:
 - name: bitnami
   url: https://charts.bitnami.com/bitnami
@@ -6,10 +12,6 @@ templates:
   default: &default
     namespace: backbone
     missingFileHandler: Warn
-
-values:
-  - ../environments/env-secrets.yaml
-  - ../environments/env.yaml
 
 releases:
 - name: cert-manager
@@ -20,6 +22,7 @@ releases:
   disableValidation: true
   values:
     - ./cert-manager/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
 
 - name: minio
   installed: false
@@ -28,6 +31,7 @@ releases:
   <<: *default
   values:
     - ./minio/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
 
 - name: postgresql
   installed: false
@@ -36,6 +40,7 @@ releases:
   <<: *default
   values:
     - ./postgresql/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
     - global:
         postgresql:
           auth:
@@ -48,6 +53,7 @@ releases:
   <<: *default
   values:
     - ./redis/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
 
 - name: elasticsearch
   chart: ./elasticsearch
@@ -55,6 +61,7 @@ releases:
   <<: *default
   values:
     - ./elasticsearch/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
     - secret:
         password: {{ .Values.secrets.elasticsearch.password }}
 
@@ -64,6 +71,7 @@ releases:
   <<: *default
   values:
     - ./elasticsearch-data/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
 
 - name: kibana
   chart: ./kibana
@@ -72,6 +80,7 @@ releases:
   <<: *default
   values:
     - ./kibana/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
     - ingress:
         hosts:
           - host: {{ .Values.global.domain }}
@@ -89,6 +98,7 @@ releases:
   <<: *default
   values:
     - ./kafka-kraft/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
   set:
     - name: kraft.clusterId
       value: {{ .Values.secrets.kafka.clusterID }}
@@ -100,12 +110,5 @@ releases:
   <<: *default
   values:
     - ./ingress-nginx/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
     - domain: {{ .Values.global.domain }}
-
-- name: playground
-  installed: true
-  chart: ./playground
-  version: 0.1.0
-  <<: *default
-  values:
-    - ./playground/values.yaml

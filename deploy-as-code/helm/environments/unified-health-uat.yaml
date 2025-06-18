@@ -172,6 +172,7 @@ cluster-configs:
               health-expense-calculator: 'http://health-expense-calculator.health:8080/'
               health-muster-roll: 'http://health-muster-roll.health:8080/'
               health-service-request: 'http://health-service-request.health:8080/'
+              health-idgen: 'http://health-idgen.health:8080/'
 
 employee:
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
@@ -387,6 +388,53 @@ health-muster-roll:
   egov-mdms-service-host-key: 'egov-mdms-service'
   egov-mdms-service-endpoint-key: "egov-mdms-service/v1/_search"
 
+health-idgen:
+  idformat-from-mdms: "true"
+  java-args: -Dspring.profiles.active=monitoring
+  autocreate-new-seq: "true"
+  mdmsSearchPath: "/mdms-v2/v1/_search"
+  redis-ttl-in-days: 1
+  java-enable-debug: true
+  kafka:
+    topics:
+      saveInIdPool: "save-in-id-pool"
+      updateIdPoolStatus: "update-id-pool-status"
+      saveInDispatchLog: "save-dispatch-id-log"
+  spring:
+    redis:
+      host: "redis.backbone"
+      port: 6379
+      cache:
+        type: "redis"
+        timeToLive: 86400
+        autoExpiry: true
+  redisson:
+    redis:
+      host: "redis.backbone"
+      port: 6379
+      timeout: 10000
+      connectionPoolSize: 20
+      connectionMinimumIdleSize: 10
+      threads: 4
+      nettyThreads: 4
+  multiLock:
+    waitTime: 5
+    leaseTime: 10
+  idPool:
+    validation:
+      enabled: true
+    create:
+      maxBatchSize: 500
+  idgen:
+    pool:
+      seqCode: "id.pool.number.random"
+    random:
+      buffer: 5
+    limit:
+      perUser: 100
+    fetch:
+      limitFromDb: 100
+
 transformer:
   egov-boundary-hierarchy-name: "MICROPLAN"
   egov-mdms-service-host-key: 'egov-mdms-service'
@@ -443,7 +491,7 @@ egov-persister:
   replicas: 1
   images:
     - egovio/egov-persister
-  persist-yml-path: "file:///work-dir/configs/health/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/health/egov-persister/product-persister.yml,file:///work-dir/configs/health/egov-persister/project-persister.yml,file:///work-dir/configs/health/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/household-persister.yml,file:///work-dir/configs/health/egov-persister/project-task-persister.yml,file:///work-dir/configs/health/egov-persister/stock-persister.yml,file:///work-dir/configs/health/egov-persister/facility-persister.yml,file:///work-dir/configs/health/egov-persister/service-request-persister.yml,file:///work-dir/configs/health/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/health/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/health/egov-persister/mdms-persister.yml,file:///work-dir/configs/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/health/egov-persister/project-factory-persister.yml,file:///work-dir/configs/egov-persister/boundary-persister.yml,file:///work-dir/configs/health/egov-persister/plan-service-persister.yml,file:///work-dir/configs/health/egov-persister/census-service-persister.yml,file:///work-dir/configs/health/egov-persister/muster-service-persister.yml,file:///work-dir/configs/health/egov-persister/expense-bill-payment-persister.yml"
+  persist-yml-path: "file:///work-dir/configs/health/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/health/egov-persister/product-persister.yml,file:///work-dir/configs/health/egov-persister/project-persister.yml,file:///work-dir/configs/health/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/household-persister.yml,file:///work-dir/configs/health/egov-persister/project-task-persister.yml,file:///work-dir/configs/health/egov-persister/stock-persister.yml,file:///work-dir/configs/health/egov-persister/facility-persister.yml,file:///work-dir/configs/health/egov-persister/service-request-persister.yml,file:///work-dir/configs/health/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/health/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/health/egov-persister/mdms-persister.yml,file:///work-dir/configs/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/health/egov-persister/project-factory-persister.yml,file:///work-dir/configs/egov-persister/boundary-persister.yml,file:///work-dir/configs/health/egov-persister/plan-service-persister.yml,file:///work-dir/configs/health/egov-persister/census-service-persister.yml,file:///work-dir/configs/health/egov-persister/muster-service-persister.yml,file:///work-dir/configs/health/egov-persister/expense-bill-payment-persister.yml,file:///work-dir/configs/health/egov-persister/id-pool-persister.yml,file:///work-dir/configs/health/egov-persister/id-pool-dispatch-log-persister.yml"
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url

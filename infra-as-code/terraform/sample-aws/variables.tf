@@ -26,28 +26,27 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.28"
+  default = "1.31"
 }
 
-variable "instance_type" {
+variable "instance_types" {
   description = "eGov recommended below instance type as a default"
-  default = "r5ad.large"
+  default = ["r6g.xlarge"]
 }
 
-variable "override_instance_types" {
-  description = "Arry of instance types for SPOT instances"
-  default = ["r5a.large", "r5ad.large", "r5d.large", "m4.xlarge"]
-  
+variable "min_worker_nodes" {
+  description = "eGov recommended below worker node counts as default for min nodes"
+  default = "1" #REPLACE IF NEEDED
 }
 
-variable "number_of_worker_nodes" {
-  description = "eGov recommended below worker node counts as default"
-  default = "3" #REPLACE IF NEEDED
+variable "desired_worker_nodes" {
+  description = "eGov recommended below worker node counts as default for desired nodes"
+  default = "4" #REPLACE IF NEEDED
 }
 
-variable "ssh_key_name" {
-  description = "ssh key name, not required if your using spot instance types"
-  default = "digit-lts" #REPLACE
+variable "max_worker_nodes" {
+  description = "eGov recommended below worker node counts as default for max nodes"
+  default = "5" #REPLACE IF NEEDED
 }
 
 
@@ -62,14 +61,8 @@ variable "db_username" {
 }
 
 #DO NOT fill in here. This will be asked at runtime
-variable "db_password" {}
+#variable "db_password" {}
 
-variable "public_key" {
-  default = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDPyFldf44vtDQaD2oAB1/UWg5a2jJc/R0XShPV4U305ph0V7IpYK9o6XpLIjyTivp6+A93+CNb1sw7l44P7gYpIjfJKKT+q/fwtWabGfp2L/0EBsNzonOsFVjFz9pCQr0kObVFW+TQ68bq/n2tXKsm2dw8woSMDk/c+M6o14JhUAw9mvQHuEPLWLV3v11QB9CZzN1l/yWebOREkN6rUZGI1PqkmOFSwSvSVyo+sMUhEaRbp7r/KoqNGWHsHAedV3Fqry1KxF9K8c8BEfW/xkat62h91ff42ODhitVAFHhukN8RCQsWoS0mC572aF4WGqzQc0P+2W1TAy6QQAPLTgBr"
-  description = "ssh key"
-}
-
-## change ssh key_name eg. digit-quickstart_your-name
 
 
 

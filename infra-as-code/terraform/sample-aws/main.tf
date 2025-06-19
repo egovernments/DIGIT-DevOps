@@ -3,8 +3,6 @@ terraform {
     bucket = "digit-lts-s3"
     key    = "digit-bootcamp-setup/terraform.tfstate"
     region = "ap-south-1"
-    # The below line is optional depending on whether you are using DynamoDB for state locking and consistency
-    dynamodb_table = "digit-lts-s3"
     # The below line is optional if your S3 bucket is encrypted
     encrypt = true
   }
@@ -18,29 +16,29 @@ module "network" {
 }
 
 # PostGres DB
-module "db" {
-  source                        = "../modules/db/aws"
-  subnet_ids                    = "${module.network.private_subnets}"
-  vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
-  availability_zone             = "${element(var.availability_zones, 0)}"
-  instance_class                = "db.t3.medium"  ## postgres db instance type
-  engine_version                = "11.20"   ## postgres version
-  storage_type                  = "gp2"
-  storage_gb                    = "10"     ## postgres disk size
-  backup_retention_days         = "7"
-  administrator_login           = "${var.db_username}"
-  administrator_login_password  = "${var.db_password}"
-  identifier                    = "${var.cluster_name}-db"
-  db_name                       = "${var.db_name}"
-  environment                   = "${var.cluster_name}"
-}
+#module "db" {
+#  source                        = "../modules/db/aws"
+#  subnet_ids                    = "${module.network.private_subnets}"
+#  vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
+#  availability_zone             = "${element(var.availability_zones, 0)}"
+#  instance_class                = "db.t3.medium"  ## postgres db instance type
+#  engine_version                = "11.20"   ## postgres version
+#  storage_type                  = "gp2"
+#  storage_gb                    = "10"     ## postgres disk size
+#  backup_retention_days         = "7"
+#  administrator_login           = "${var.db_username}"
+#  administrator_login_password  = "${var.db_password}"
+#  identifier                    = "${var.cluster_name}-db"
+#  db_name                       = "${var.db_name}"
+#  environment                   = "${var.cluster_name}"
+#}
 
 data "aws_eks_cluster" "cluster" {
-  name = "${module.eks.cluster_id}"
+  name = var.cluster_name
 }
 
 data "aws_eks_cluster_auth" "cluster" {
-  name = "${module.eks.cluster_id}"
+  name = var.cluster_name
 }
 
 data "aws_caller_identity" "current" {}
@@ -57,34 +55,123 @@ provider "kubernetes" {
 
 module "eks" {
   source          = "terraform-aws-modules/eks/aws"
-  version         = "17.24.0"
-  cluster_name    = "${var.cluster_name}"
-  vpc_id          = "${module.network.vpc_id}"
-  cluster_version = "${var.kubernetes_version}"
-  subnets         = "${concat(module.network.private_subnets, module.network.public_subnets)}"
+  version         = "~> 20.0"
+  cluster_name    = var.cluster_name
+  cluster_version = var.kubernetes_version
+  vpc_id          = module.network.vpc_id
+  create_iam_role = false
+  iam_role_arn    = "arn:aws:iam::680148267093:role/digit-lts20240125073044405800000003"
+  cluster_endpoint_public_access  = true
+  cluster_endpoint_private_access = true
+  authentication_mode = "API_AND_CONFIG_MAP"
+  subnet_ids      = concat(module.network.private_subnets, module.network.public_subnets)
+  node_security_group_additional_rules = {
+    ingress_self_ephemeral = {
+      description = "Node to node communication"
+      protocol    = "-1"
+      from_port   = 0
+      to_port     = 0
+      type        = "ingress"
+      self        = true
+    }
+  }
+  cluster_addons = {
+    vpc-cni = {
+      most_recent              = true
+      before_compute           = true
+      configuration_values = jsonencode({
+        env = {
+          # Reference docs https://docs.aws.amazon.com/eks/latest/userguide/cni-increase-ip-addresses.html
+          ENABLE_PREFIX_DELEGATION           = "true"
+        }
+      })
+    }
+  }
+  cluster_timeouts = {
+    create = "30m"
+    delete = "15m" 
+    update = "60m"
+  }
+  node_security_group_tags = {
+    "karpenter.sh/discovery" = var.cluster_name
+  }
+  tags = {
+    "KubernetesCluster" = var.cluster_name
+    "Name"              = var.cluster_name
+  }
+}
 
-##By default worker groups is Configured with SPOT, As per your requirement you can below values.
+module "eks_managed_node_group" {
+  source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+  name            = "${var.cluster_name}-spot"
+  cluster_name    = var.cluster_name
+  cluster_version = var.kubernetes_version
+  ami_type        = "AL2_ARM_64"
+  subnet_ids = slice(module.network.private_subnets, 0, length(var.availability_zones))
+  vpc_security_group_ids  = [module.eks.node_security_group_id]
+  cluster_service_cidr = module.eks.cluster_service_cidr
+  use_custom_launch_template = true
+  launch_template_name = "${var.cluster_name}-lt"
+  block_device_mappings = {
+    xvda = {
+      device_name = "/dev/xvda"
+      ebs = {
+        volume_size           = 100
+        volume_type           = "gp3"
+        delete_on_termination = true
+      }
+    }
+  }
+  min_size     = var.min_worker_nodes
+  max_size     = var.max_worker_nodes
+  desired_size = var.desired_worker_nodes
+  instance_types = var.instance_types
+  capacity_type  = "SPOT"
+  ebs_optimized  = "true"
+  enable_monitoring = "true"
+  iam_role_additional_policies = {
+    CSI_DRIVER_POLICY = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+    AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+    SQS_POLICY                   = "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
+  }
+  labels = {
+    Environment = var.cluster_name
+  }
+  tags = {
+    "KubernetesCluster" = var.cluster_name
+    "Name"              = var.cluster_name
+  }
+}
 
-  worker_groups = [
+module "aws_auth" {
+  source  = "terraform-aws-modules/eks/aws//modules/aws-auth"
+  version = "~> 20.0"
+  manage_aws_auth_configmap = true
+  aws_auth_roles = [
     {
-      name                          = "spot"
-      ami_id                        = "ami-0a82b544ef71a207d"   
-      subnets                       = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)))}"
-      instance_type                 = "${var.instance_type}"
-      override_instance_types       = "${var.override_instance_types}"
-      kubelet_extra_args            = "--node-labels=node.kubernetes.io/lifecycle=spot"
-      asg_max_size                  = "${var.number_of_worker_nodes}"
-      asg_desired_capacity          = "${var.number_of_worker_nodes}"
-      spot_allocation_strategy      = "capacity-optimized"
-      spot_instance_pools           = null
+      groups = ["system:bootstrappers", "system:nodes"]
+      rolearn = "arn:aws:iam::680148267093:role/digit-lts2024012507373138240000000c"
+      username = "system:node:{{EC2PrivateDNSName}}"
+    },
+    {
+      groups = ["system:bootstrappers", "system:nodes"]
+      rolearn = "arn:aws:iam::680148267093:role/digit-lts-spot-eks-node-group-20250618163058341900000002"
+      username = "system:node:{{EC2PrivateDNSName}}"
     }
   ]
-  tags = "${
-    tomap({
-      "kubernetes.io/cluster/${var.cluster_name}" = "owned",
-      "KubernetesCluster" = "${var.cluster_name}"
-    })
-  }"
+
+  aws_auth_users = [
+    {
+      groups = ["global-readonly"]
+      userarn = "arn:aws:iam::680148267093:user/Harish-bastion"
+      username = "Harish-bastion"
+    },
+    {
+      groups = ["global-readonly"]
+      userarn = "arn:aws:iam::680148267093:user/digit-lts-user"
+      username = "digit-lts-user"
+    } 
+  ]
 }
 
 resource "aws_iam_role" "eks_iam" {
@@ -132,19 +219,13 @@ resource "aws_iam_role_policy_attachment" "cluster_AmazonEC2FullAccess" {
   role       = "${aws_iam_role.eks_iam.name}"
 }
 
-resource "aws_iam_openid_connect_provider" "eks_oidc_provider" {
-  client_id_list = ["sts.amazonaws.com"]
-  thumbprint_list = ["${data.tls_certificate.thumb.certificates.0.sha1_fingerprint}"] # This should be empty or provide certificate thumbprints if needed
-  url            = "${data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer}" # Replace with the OIDC URL from your EKS cluster details
-}
-
 resource "aws_security_group_rule" "rds_db_ingress_workers" {
   description              = "Allow worker nodes to communicate with RDS database" 
   from_port                = 5432
   to_port                  = 5432
   protocol                 = "tcp"
   security_group_id        = "${module.network.rds_db_sg_id}"
-  source_security_group_id = "${module.eks.worker_security_group_id}"
+  source_security_group_id = module.eks.node_security_group_id
   type                     = "ingress"
 }
 

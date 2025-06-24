@@ -63,6 +63,20 @@ variable "db_username" {
 #DO NOT fill in here. This will be asked at runtime
 #variable "db_password" {}
 
+variable "ami_id" {
+  description = "Provide the AMI ID that supports your eks version"
+  default = {
+    id   = "ami-0431db82d7dc815dd"
+    name = "amazon-eks-arm64-node-1.31-v20250610"
+  }
+}
+
+variable "enable_karpenter" {
+  description = "Enable the karpenter."
+  type        = bool
+  default     = true
+}
+
 
 
 

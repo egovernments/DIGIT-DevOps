@@ -8,8 +8,8 @@ terraform {
   }
   required_providers {
     kubectl = {
-      source  = "gavinbunney/kubectl"
-      version = "~> 1.14.0" 
+      source  = "alekc/kubectl"
+      version = ">= 2.0.0"
     }
   }
 }
@@ -292,7 +292,9 @@ resource "aws_iam_role_policy" "karpenter_policy" {
           "ec2:CreateFleet",
           "ec2:RunInstances",
           "ec2:DeleteLaunchTemplate",
-          "ec2:TerminateInstances"
+          "ec2:TerminateInstances",
+          "iam:RemoveRoleFromInstanceProfile",
+          "iam:DeleteInstanceProfile"
         ],
         "Resource": "*"
       }
@@ -398,8 +400,6 @@ resource "kubectl_manifest" "karpenter_node_pool" {
     spec:
       template:
         spec:
-          kubelet:
-            maxPods: 40
           nodeClassRef:
             name: default
             group: karpenter.k8s.aws  # Updated since only a single version will be served
@@ -407,19 +407,22 @@ resource "kubectl_manifest" "karpenter_node_pool" {
           requirements:
             - key: "karpenter.k8s.aws/instance-category"
               operator: In
-              values: ["c", "m", "r", "t", "a"]
+              values: ["r", "t"]
+            - key: "karpenter.k8s.aws/instance-family"
+              operator: In
+              values: ["t4g", "r6"]
+            - key: "node.kubernetes.io/instance-type"
+              operator: Exists
+              values: ["r6g.large", "t4g.xlarge", "t4g.2xlarge"]
             - key: "karpenter.k8s.aws/instance-cpu"
               operator: In
-              values: ["4", "8", "16"]
+              values: ["2", "4", "8"]
             - key: "kubernetes.io/arch"
               operator: In
               values: ["arm64"]
-            - key: "karpenter.k8s.aws/instance-hypervisor"
-              operator: In
-              values: ["nitro"]
             - key: "karpenter.sh/capacity-type"
               operator: In
-              values: ["spot"]
+              values: ["spot", "on-demand"]
             - key: "karpenter.k8s.aws/instance-generation"
               operator: Gt
               values: ["2"]
@@ -435,7 +438,6 @@ resource "kubectl_manifest" "karpenter_node_pool" {
           reasons: 
           - "Underutilized"
   YAML
-
   depends_on = [
     kubectl_manifest.karpenter_node_class
   ]

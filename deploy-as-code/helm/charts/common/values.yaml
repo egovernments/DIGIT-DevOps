@@ -48,6 +48,11 @@ initContainers:
             configMapKeyRef:
               name: egov-config
               key: health-db-url-no-schema
+        {{- else if and (index .Values "central-instance-build") (eq (index .Values "central-instance-name") "egov") }}
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url-no-schema
         {{- else if eq .Values.namespace "health" }}
           valueFrom:
             configMapKeyRef:
@@ -65,7 +70,7 @@ initContainers:
               key: db-url
         {{- end }}
         - name: "SCHEMA_NAME"
-        {{- if and (index .Values "central-instance-build") (eq (index .Values "central-instance-name") "health") (index .Values "central-instance-enabled") }}
+        {{- if and (index .Values "central-instance-build") (index .Values "central-instance-enabled") }}
           value: {{ index .Values "db-schema-names" | quote }}
         {{- else if and (index .Values "central-instance-build") (eq (index .Values "central-instance-name") "health") }}
           valueFrom:

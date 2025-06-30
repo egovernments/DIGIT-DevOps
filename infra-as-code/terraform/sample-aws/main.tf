@@ -17,10 +17,19 @@ terraform {
 }
 
 locals {
-  az_to_find           = var.availability_zones[0] 
-  az_index_in_network  = index(var.network_availability_zones, local.az_to_find)
+  # Use first 2 AZs for network subnets
+  network_availability_zones = slice(data.aws_availability_zones.available.names, 0, 2)
+  # Use all available AZs for EKS if desired
+  availability_zones   = data.aws_availability_zones.available.names
+  az_to_find           = local.availability_zones[0] 
+  az_index_in_network  = index(local.network_availability_zones, local.az_to_find)
 }
-
+resource "random_password" "db_password" {
+  length           = 16
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+/*
 resource "aws_iam_user" "filestore_user" {
   name = "${var.cluster_name}-filestore-user"
 
@@ -137,12 +146,13 @@ resource "aws_iam_user_policy_attachment" "filestore_attachment" {
   user       = "${aws_iam_user.filestore_user.name}"  # Reference the IAM user
   policy_arn = "${aws_iam_policy.filestore_policy.arn}" # Reference the policy
 }
+*/
 
 module "network" {
   source             = "../modules/kubernetes/aws/network"
   vpc_cidr_block     = "${var.vpc_cidr_block}"
   cluster_name       = "${var.cluster_name}"
-  availability_zones = "${var.network_availability_zones}"
+  availability_zones = "${local.network_availability_zones}"
 }
 
 # PostGres DB
@@ -150,14 +160,14 @@ module "db" {
   source                        = "../modules/db/aws"
   subnet_ids                    = "${module.network.private_subnets}"
   vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
-  availability_zone             = "${element(var.availability_zones, 0)}"
+  availability_zone             = local.az_to_find
   instance_class                = "db.t4g.medium"  ## postgres db instance type
   engine_version                = "15.8"   ## postgres version
   storage_type                  = "gp3"
   storage_gb                    = "20"     ## postgres disk size
   backup_retention_days         = "7"
   administrator_login           = "${var.db_username}"
-  administrator_login_password  = "${var.db_password}"
+  administrator_login_password  = random_password.db_password.result
   identifier                    = "${var.cluster_name}-db"
   db_name                       = "${var.db_name}"
   environment                   = "${var.cluster_name}"
@@ -208,9 +218,8 @@ module "eks" {
 }
 
 module "eks_managed_node_group" {
-  depends_on = [module.eks]
   source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
-  name            = "${var.cluster_name}-spot"
+  name            = "${var.cluster_name}"
   cluster_name    = var.cluster_name
   cluster_version = var.kubernetes_version
   subnet_ids      = [module.network.private_subnets[local.az_index_in_network]]
@@ -233,7 +242,6 @@ module "eks_managed_node_group" {
   max_size     = var.max_worker_nodes
   desired_size = var.desired_worker_nodes
   instance_types = var.instance_types
-  capacity_type  = "SPOT"
   ebs_optimized  = "true"
   enable_monitoring = "true"
   iam_role_additional_policies = {
@@ -276,18 +284,33 @@ resource "aws_eks_addon" "kube_proxy" {
   cluster_name      = var.cluster_name
   addon_name        = "kube-proxy"
   resolve_conflicts_on_create = "OVERWRITE"
+  tags = {
+    Environment = var.cluster_name
+    Terraform   = "true"
+    "KubernetesCluster" = var.cluster_name
+  }
 }
 resource "aws_eks_addon" "core_dns" {
   depends_on = [module.eks_managed_node_group]
   cluster_name      = var.cluster_name
   addon_name        = "coredns"
   resolve_conflicts_on_create = "OVERWRITE"
+  tags = {
+    Environment = var.cluster_name
+    Terraform   = "true"
+    "KubernetesCluster" = var.cluster_name
+  }
 }
 resource "aws_eks_addon" "aws_ebs_csi_driver" {
   depends_on = [module.eks_managed_node_group]
   cluster_name      = var.cluster_name
   addon_name        = "aws-ebs-csi-driver"
   resolve_conflicts_on_create = "OVERWRITE"
+  tags = {
+    Environment = var.cluster_name
+    Terraform   = "true"
+    "KubernetesCluster" = var.cluster_name
+  }
 }
 
 provider "kubernetes" {
@@ -316,7 +339,7 @@ resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
 }
 
 provider "helm" {
-  kubernetes {
+  kubernetes = {
     host                   = data.aws_eks_cluster.cluster.endpoint
     cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
     token                  = data.aws_eks_cluster_auth.cluster.token

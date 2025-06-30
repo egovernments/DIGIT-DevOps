@@ -20,7 +20,6 @@ output "db_instance_endpoint" {
   value = module.db.db_instance_endpoint
 }
 
-
 output "db_instance_name" {
   description = "The database name"
   value       = module.db.db_instance_name
@@ -37,7 +36,23 @@ output "db_instance_port" {
   value       = module.db.db_instance_port
 }
 
+/*
 output "s3_filestore_bucket" {
   description = "Name of the filestore bucket"
   value       = aws_s3_bucket.filestore_bucket.id
+}
+*/
+
+output "db_password" {
+  description = "The password for the database"
+  value = module.db.db_instance_password
+  sensitive   = true
+}
+
+output "network_availability_zones" {
+  value = local.network_availability_zones
+}
+
+output "availability_zone" {
+  value = local.az_to_find
 }

@@ -5,23 +5,29 @@
 
 variable "cluster_name" {
   description = "Name of the Kubernetes cluster"
-  default = <cluster_name> #REPLACE
+  validation {
+    condition = (
+      length(var.cluster_name) <= 30 &&
+      can(regex("^[a-zA-Z0-9][a-zA-Z0-9_-]*$", var.cluster_name))
+    )
+    error_message = "Cluster name must start with an alphanumeric character, contain only alphanumerics, hyphens (-), or underscores (_), and be no longer than 30 characters."
+  }
+}
+
+variable "eks_managed_node_group" {
+  description = "Name of the Kubernetes cluster"
+  validation {
+    condition = (
+      length(var.cluster_name) <= 30 &&
+      can(regex("^[a-zA-Z0-9][a-zA-Z0-9_-]*$", var.eks_managed_node_group))
+    )
+    error_message = "Managed nodegroup name must start with an alphanumeric character, contain only alphanumerics, hyphens (-), or underscores (_), and be no longer than 30 characters."
+  }
 }
 
 variable "vpc_cidr_block" {
   description = "CIDR block"
   default = "192.168.0.0/16"
-}
-
-
-variable "network_availability_zones" {
-  description = "Configure availability zones configuration for VPC. Leave as default for India. Recommendation is to have subnets in at least two availability zones"
-  default = ["ap-south-1a", "ap-south-1b"] #REPLACE IF NEEDED
-}
-
-variable "availability_zones" {
-  description = "Amazon EKS runs and scales the Kubernetes control plane across multiple AWS Availability Zones to ensure high availability. Specify a comma separated list to have a cluster spanning multiple zones. Note that this will have cost implications"
-  default = ["ap-south-1b"] #REPLACE IF NEEDED
 }
 
 variable "kubernetes_version" {
@@ -31,7 +37,7 @@ variable "kubernetes_version" {
 
 variable "instance_types" {
   description = "Arry of instance types for SPOT instances"
-  default = ["m5a.xlarge"]
+  default = ["m5a.xlarge", "r5ad.xlarge"]
   
 }
 
@@ -50,15 +56,31 @@ variable "max_worker_nodes" {
   default = "5" #REPLACE IF NEEDED
 }
 
-
 variable "db_name" {
   description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
-  default = <db_name> #REPLACE
+  validation {
+    condition = (
+      length(var.db_name) >= 1 &&
+      length(var.db_name) <= 63 &&
+      can(regex("^[a-zA-Z][a-zA-Z0-9_]*$", var.db_name))
+    )
+    error_message = "Database name must start with a letter and contain only alphanumeric characters and underscores (no hyphens), and be 1–63 characters long."
+  }
 }
 
 variable "db_username" {
   description = "RDS database user name"
-  default = <db_username> #REPLACE
+  validation {
+    condition = (
+      length(var.db_username) >= 1 &&
+      length(var.db_username) <= 63 &&
+      can(regex("^[a-zA-Z][a-zA-Z0-9_]*$", var.db_username)) &&
+      lower(var.db_username) != "admin" &&
+      lower(var.db_username) != "root" &&
+      lower(var.db_username) != "rdsadmin"
+    )
+    error_message = "Username must start with a letter, contain only letters, numbers, and underscores, be 1–63 characters long, and not be one of the reserved names: admin, root, rdsadmin."
+  }
 }
 
 variable "ami_id" {
@@ -80,6 +102,5 @@ variable "enable_karpenter" {
   default     = false
 }
 
-#DO NOT fill in here. This will be asked at runtime
-variable "db_password" {}
+variable "region" {}
 

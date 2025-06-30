@@ -18,6 +18,12 @@ output "db_instance_username" {
   sensitive   = true
 }
 
+output "db_instance_password" {
+  description = "The master username for the database"
+  value       = "${aws_db_instance.rds_postgres.password}"
+  sensitive   = true
+}
+
 output "db_instance_port" {
   description = "The database port"
   value       = "${aws_db_instance.rds_postgres.port}"

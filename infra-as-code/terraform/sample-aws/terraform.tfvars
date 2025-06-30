@@ -1,0 +1,7 @@
+cluster_name = "<cluster_name>"
+bucket_name  = "<cluster_name>-s3-state-bckt"
+filestore_namespace = "egov"
+eks_managed_node_group = "<cluster_name>-ng"
+region = "<region>"
+db_name = "<db_name>"
+db_username = "<db_username>"

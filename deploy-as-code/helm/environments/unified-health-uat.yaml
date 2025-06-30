@@ -79,6 +79,7 @@ cluster-configs:
               hcm-bff: "http://hcm-bff.health:8080/"
               egov-localization: 'http://egov-localization.egov:8080/'
               egov-idgen: 'http://egov-idgen.egov:8080/'
+              beneficiary-idgen: 'http://beneficiary-idgen.health:8080/'
               egov-otp: 'http://egov-otp.egov:8080/'
               egov-common-workflows: 'http://egov-common-workflows:8080/'
               mdms-service-v2: 'http://mdms-v2.egov:8080/'
@@ -238,6 +239,53 @@ egov-idgen:
   idformat-from-mdms: "true"
   java-args: -Dspring.profiles.active=monitoring
   autocreate-new-seq: "true"
+
+beneficiary-idgen:
+  idformat-from-mdms: "true"
+  java-args: -Dspring.profiles.active=monitoring
+  autocreate-new-seq: "true"
+  mdmsSearchPath: "/egov-mdms-service/v1/_search"
+  redis-ttl-in-days: 1
+  java-enable-debug: true
+  kafka:
+    topics:
+      saveInIdPool: "save-in-id-pool"
+      updateIdPoolStatus: "update-id-pool-status"
+      saveInDispatchLog: "save-dispatch-id-log"
+  spring:
+    redis:
+      host: "redis.backbone"
+      port: 6379
+      cache:
+        type: "redis"
+        timeToLive: 86400
+        autoExpiry: true
+  redisson:
+    redis:
+      host: "redis.backbone"
+      port: 6379
+      timeout: 10000
+      connectionPoolSize: 20
+      connectionMinimumIdleSize: 10
+      threads: 4
+      nettyThreads: 4
+  multiLock:
+    waitTime: 5
+    leaseTime: 10
+  idPool:
+    validation:
+      enabled: true
+    create:
+      maxBatchSize: 500
+  idgen:
+    pool:
+      seqCode: "id.pool.number.random"
+    random:
+      buffer: 5
+    limit:
+      perUser: 100
+    fetch:
+      limitFromDb: 100
 
 health-mdms-v2:
   memory_limits: 512Mi
@@ -989,6 +1037,11 @@ health-pgr-services:
 #  egov-mdms-service-host-key: "egov-mdms-service-legacy"
 health-project:
   central-instance-name: health
+  egov-idgen-host-key: "egov-idgen"
+  egov-beneficiary-idgen-host-key: "beneficiary-idgen"
+  egov-idgen-generate-path: "egov-idgen/id/_generate"
+  egov-beneficiary-idgen-idpool-search-path: "beneficiary-idgen/id/id_pool/_search"
+  egov-beneficiary-idgen-idpool-update-path: "beneficiary-idgen/id/id_pool/_update"
   central-instance-build: true
   central-instance-enabled: false
   replicas : 2

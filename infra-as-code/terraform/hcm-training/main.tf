@@ -1,10 +1,10 @@
 terraform {
   backend "s3" {
-    bucket = "pgr-demo-s3"
+    bucket = "hcm-training-s3"
     key    = "terraform-setup/terraform.tfstate"
     region = "ap-south-1"
     # The below line is optional depending on whether you are using DynamoDB for state locking and consistency
-    dynamodb_table = "pgr-demo-s3"
+    dynamodb_table = "hcm-training-s3"
     # The below line is optional if your S3 bucket is encrypted
     encrypt = true
   }

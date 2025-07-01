@@ -5,7 +5,7 @@
 
 variable "cluster_name" {
   description = "Name of the Kubernetes cluster"
-  default = "pgr-demo" #REPLACE
+  default = "hcm-training" #REPLACE
 }
 
 variable "vpc_cidr_block" {
@@ -50,12 +50,12 @@ variable "max_worker_nodes" {
 
 variable "db_name" {
   description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
-  default = "pgr_demo_db" #REPLACE
+  default = "hcm_training_db" #REPLACE
 }
 
 variable "db_username" {
   description = "RDS database user name"
-  default = "pgrdemo" #REPLACE
+  default = "hcmtraining" #REPLACE
 }
 
 variable "ami_id" {

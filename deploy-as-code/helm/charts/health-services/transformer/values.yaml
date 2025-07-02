@@ -36,11 +36,12 @@ memory_limits: "1Gi"
 egov-mdms-service-host-key: "egov-mdms-service"
 egov-mdms-service-endpoint-key: "/egov-mdms-service/v1/_search"
 
+# Additional Container Envs
 env: |
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: "health-transformer"
+    value: health-transformer
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
-    value: "org.apache.kafka.common.serialization.StringSerializer"
+    value: org.apache.kafka.common.serialization.StringSerializer
   {{- if index .Values "global" "tracer-errors-provideexceptionindetails" }}
   - name: TRACER_ERRORS_PROVIDEEXCEPTIONINDETAILS
     valueFrom:
@@ -49,9 +50,9 @@ env: |
         key: tracer-errors-provideexceptionindetails
   {{- end }}
   - name: JAVA_OPTS
-    value: {{ .Values.heap | quote }}
+    value: {{ index .Values "heap" | quote }}
   - name: JAVA_ARGS
-    value: {{ .Values.java-args | quote }}
+    value: {{ index .Values "java-args" | quote }}
   - name: SERVER_PORT
     value: "8080"
   - name: SECURITY_BASIC_ENABLED
@@ -70,10 +71,12 @@ env: |
     value: "update-project-staff-health-topic"
   - name: TRANSFORMER_PRODUCER_BULK_PROJECT_STAFF_INDEX_V1_TOPIC
     value: "transformer-producer-bulk-project-staff-index-v1-health-topic"
+  
   - name: TRANSFORMER_PRODUCER_BULK_PROJECT_INDEX_V1_TOPIC
     value: "transformer-producer-bulk-project-index-v1-health-topic"
   - name: TRANSFORMER_CONSUMER_CREATE_PROJECT_TOPIC
     value: "save-project-health"
+
   - name: TRANSFORMER_CONSUMER_UPDATE_PROJECT_TOPIC
     value: "update-project-health"
   - name: EGOV_PROJECT_HOST
@@ -115,8 +118,8 @@ env: |
   - name: EGOV_INDIVIDUAL_HOST
     valueFrom:
       configMapKeyRef:
-        name: egov-service-host
-        key: health-individual
+       name: egov-service-host
+       key: health-individual
   - name: EGOV_SEARCH_INDIVIDUAL_URL
     value: "/health-individual/v1/_search"
   - name: EGOV_PRODUCT_HOST
@@ -154,7 +157,7 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: facility
+        key: facility     
   - name: EGOV_SEARCH_FACILITY_URL
     value: "/facility/v1/_search"
   - name: TRANSFORMER_CONSUMER_CREATE_FACILITY_TOPIC
@@ -197,7 +200,7 @@ env: |
   - name: EGOV_SEARCH_USER_URL
     value: "/user/_search"
   - name: PROJECT_STAFF_ROLE_MDMS_MODULE
-    value: "HCM-PROJECT-STAFF-ROLES"
+    value: HCM-PROJECT-STAFF-ROLES
   - name: EGOV_SEARCH_PROJECT_BENEFICIARY_URL
     value: "/health-project/beneficiary/v1/_search"
   - name: EGOV_SEARCH_PROJECT_TASK_URL
@@ -226,7 +229,7 @@ env: |
   {{- fail "The value for 'egov-boundary-hierarchy-name' is required." }}
   {{- end }}
   - name: SPRING_REDIS_HOST
-    value: "redis.backbone"
+    value: redis.backbone
   - name: SPRING_REDIS_PORT
     value: "6379"
   - name: SPRING_CACHE_TYPE
@@ -262,3 +265,59 @@ env: |
     value: "save-hfreferral-health-topic"
   - name: TRANSFORMER_CONSUMER_UPDATE_HFREFERRAL_TOPIC
     value: "update-hfreferral-health-topic"
+  - name: TRANSFORMER_PRODUCER_HFREFERRAL_INDEX_V1_TOPIC
+    value: "transformer-producer-hfreferral-index-v1-health-topic"
+  - name: TRANSFORMER_PRODUCER_HFREFERRAL_SERVICE_INDEX_TOPIC
+    value: "transformer-producer-hfreferral-service-index-health-topic"
+  - name: TRANSFORMER_PRODUCER_SIDE_EFFECT_INDEX_V1_TOPIC
+    value: "transformer-producer-side-effect-index-v1-health-topic"
+  - name: TRANSFORMER_CONSUMER_CREATE_SIDE_EFFECT_TOPIC
+    value: "save-side-effect-health-topic"
+  - name: TRANSFORMER_CONSUMER_UPDATE_SIDE_EFFECT_TOPIC
+    value: "update-side-effect-health-topic"
+  - name: AGGREGATOR_CONSUMER_CREATE_HOUSEHOLD_TOPIC
+    value: "save-household-health-topic"
+  - name: AGGREGATOR_CONSUMER_UPDATE_HOUSEHOLD_TOPIC
+    value: "update-household-health-topic"
+  - name: AGGREGATOR_CONSUMER_CREATE_INDIVIDUAL_TOPIC
+    value: "save-individual-health-topic"
+  - name: AGGREGATOR_CONSUMER_UPDATE_INDIVIDUAL_TOPIC
+    value: "update-individual-health-topic"
+  - name: AGGREGATOR_CONSUMER_SAVE_HOUSEHOLD_MEMBER_TOPIC
+    value: "save-household-member-health-topic"
+  - name: AGGREGATOR_CONSUMER_UPDATE_HOUSEHOLD_MEMBER_TOPIC
+    value: "update-household-member-health-topic"
+  - name: TRANSFORMER_CONSUMER_CREATE_PGR_TOPIC
+    value: "save-pgr-request-health"
+  - name: TRANSFORMER_CONSUMER_UPDATE_PGR_TOPIC
+    value: "save-pgr-request-health"
+  - name: TRANSFORMER_PRODUCER_CREATE_PGR_TOPIC
+    value: "transformer-save-pgr-request-health"
+  - name: EGOV_SEARCH_ATTENDANCE_REGISTER_URL
+    value: "/health-attendance/v1/_search"
+  - name: EGOV_LOCALIZATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-localization
+  {{- if index .Values "egov-localization-module-name" }}
+  - name: EGOV_LOCALIZATION_MODULE_NAME
+    value: {{ index .Values "egov-localization-module-name" | quote }}
+  {{- else }}
+  - name: EGOV_LOCALIZATION_MODULE_NAME
+    value: "hcm-boundary-admin"
+  {{- end }}
+  {{- if index .Values "egov-localization-locale-code" }}
+  - name: EGOV_LOCALIZATION_LOCALE_CODE
+    value: {{ index .Values "egov-localization-locale-code" | quote }}
+  {{- else }}
+  - name: EGOV_LOCALIZATION_LOCALE_CODE
+    value: "en_MZ"
+  {{- end }}
+  - name: EGOV_PROJECT_FACTORY_HOST
+    valueFrom:
+      configMapKeyRef:
+      name: egov-service-host
+      key: project-factory
+  - name: EGOV_PROJECT_FACTORY_SEARCH_ENDPOINT
+    value: "project-factory/v1/project-type/search"

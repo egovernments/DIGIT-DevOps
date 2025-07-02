@@ -33,9 +33,9 @@ spec:
       {{- if not .Values.disableAnnotationTimestamp }}      
         deployment-timestamp: "{{ date "20060102150405" .Release.Time }}"    
       {{- end }}          
-      {{- if .Values.additionalAnnotations }}                                   
-        {{- tpl  .Values.additionalAnnotations . | nindent 8 }}
-      {{- end }}        
+      {{- if .Values.additionalAnnotations }}
+        {{- tpl (printf "\n%s" .Values.additionalAnnotations) . | nindent 8 }}
+      {{- end }}
       labels:
       {{- include "common.labels" . | nindent 8 }}            
     spec:
@@ -63,7 +63,7 @@ spec:
         emptyDir: {}               
     {{- end }}     
       {{- with .Values.extraVolumes }}
-        {{- tpl . $ | nindent 6 }}
+        {{- tpl (printf "\n%s" .) $ | nindent 6 }}
       {{- end }}     
     {{- end }}        
     {{- if .Values.affinity.preferSpreadAcrossAZ }}
@@ -82,7 +82,7 @@ spec:
     {{- end }}     
       initContainers:
       {{- with .Values.initContainers.extraInitContainers }}
-        {{- tpl . $ | nindent 8 }}
+        {{- tpl (printf "\n%s" .) $ | nindent 8 }}
       {{- end }}
       {{- if .Values.initContainers.dbMigration.enabled }}
       {{ with .Values.initContainers.dbMigration}}
@@ -90,9 +90,9 @@ spec:
         image: {{ template "common.image" (dict "Values" $.Values "repository" .image.repository "tag" .image.tag) }}
         imagePullPolicy: {{ .image.pullPolicy }} 
       {{- end }}    
-        {{- if .Values.initContainers.dbMigration.env }}               
-        env: 
-          {{- tpl  .Values.initContainers.dbMigration.env . | nindent 12 }}
+        {{- if .Values.initContainers.dbMigration.env }}
+        env:
+          {{- tpl (printf "\n%s" .Values.initContainers.dbMigration.env) . | nindent 12 }}
         {{- end }}
       {{- end }}        
       {{- if .Values.initContainers.gitSync.enabled }}
@@ -108,33 +108,33 @@ spec:
           mountPath: /etc/git-secret              
         - name: workdir
           mountPath: "/work-dir"                   
-        {{- if .Values.initContainers.gitSync.env }}               
-        env: 
-          {{- tpl  .Values.initContainers.gitSync.env . | nindent 12 }}
+        {{- if .Values.initContainers.gitSync.env }}
+        env:
+          {{- tpl (printf "\n%s" .Values.initContainers.gitSync.env) . | nindent 12 }}
         {{- end }}        
       {{- end }}
       imagePullSecrets:
         - name: docker-registry-secret            
       containers:
       {{- with .Values.extraContainers }}
-        {{- tpl . $ | nindent 8 }}
+        {{- tpl (printf "\n%s" .) $ | nindent 8 }}
       {{- end }}      
         - name: {{ template "common.name" . }}
           image: {{ template "common.image" (dict "Values" $.Values "repository" .Values.image.repository "tag" .Values.image.tag) }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}  
-      {{- if .Values.args }}              
-          args:  
-          {{- tpl  .Values.args . | nindent 12 }}          
-       {{- end }}             
+      {{- if .Values.args }}
+          args:
+          {{- tpl (printf "\n%s" .Values.args) . | nindent 12 }}
+      {{- end }}             
           ports:
             - name: http
               containerPort: {{ .Values.httpPort }}
               protocol: TCP
       {{- if .Values.healthChecks.enabled }}              
           readinessProbe:
-          {{- tpl  .Values.healthChecks.readinessProbe . | nindent 12 }} 
+          {{- tpl (printf "\n%s" .Values.healthChecks.readinessProbe) . | nindent 12 }}
           livenessProbe:
-          {{- tpl  .Values.healthChecks.livenessProbe . | nindent 12 }}                      
+          {{- tpl (printf "\n%s" .Values.healthChecks.livenessProbe) . | nindent 12 }}                      
        {{- end }}       
         {{- if .Values.lifecycle }}
           lifecycle:
@@ -147,27 +147,27 @@ spec:
             mountPath: "/work-dir"
         {{- end }}             
         {{- with .Values.extraVolumeMounts }}
-          {{- tpl . $ | nindent 10 }}
+          {{- tpl (printf "\n%s" .) $ | nindent 10 }}
         {{- end }}          
         {{- end }}     
       {{- if or .Values.env (eq .Values.appType "java-spring") (index .Values "global" "tracing-enabled") }}
-          env:      
-        {{- if .Values.env }}                                   
-          {{- tpl  .Values.env . | nindent 12 }}
-        {{- end -}}
-        {{- if eq .Values.appType "java-spring" }} 
-          {{- tpl  .Values.extraEnv.java . | nindent 12 }}         
-        {{- end -}} 
-        {{- if or (index .Values "global" "tracing-enabled") (index .Values "tracing-enabled") }} 
-          {{- tpl  .Values.extraEnv.jaeger . | nindent 12 }}         
+          env:
+        {{- if .Values.env }}
+          {{- tpl (printf "\n%s" .Values.env) . | nindent 12 }}
+        {{- end }}
+        {{- if eq .Values.appType "java-spring" }}
+          {{- tpl (printf "\n%s" .Values.extraEnv.java) . | nindent 12 }}
+        {{- end }}
+        {{- if or (index .Values "global" "tracing-enabled") (index .Values "tracing-enabled") }}
+          {{- tpl (printf "\n%s" .Values.extraEnv.jaeger) . | nindent 12 }}
         {{- end }}
         {{- if .Values.extraEnv.app }}
-          {{- tpl .Values.extraEnv.app . | nindent 12 }}
+          {{- tpl (printf "\n%s" .Values.extraEnv.app) . | nindent 12 }}
         {{- end }}
       {{- end }}
-      {{- if .Values.resources }}                                     
+      {{- if .Values.resources }}
           resources:
-            {{- tpl .Values.resources . | nindent 12 }}
+            {{- tpl (printf "\n%s" .Values.resources) . | nindent 12 }}
       {{- end }}            
     {{- with .Values.nodeSelector }}
       nodeSelector:

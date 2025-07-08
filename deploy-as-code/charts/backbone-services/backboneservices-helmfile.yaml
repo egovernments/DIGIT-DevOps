@@ -1,8 +1,14 @@
 environments:
-  uat:
+  aws-helmfile:
     values:
-      - ../environments/env-secrets.yaml
-      - ../environments/env.yaml
+      - ../environments/aws-helmfile.yaml
+    secrets:
+      - ../environments/aws-helmfile-secrets.yaml
+  gcp-helmfile:
+    values:
+      - ../environments/gcp-helmfile.yaml
+    secrets:
+      - ../environments/gcp-helmfile-secrets.yaml
 ---
 repositories:
 - name: bitnami
@@ -10,15 +16,17 @@ repositories:
 
 templates: 
   default: &default
+    labels:
+      target: ./{{`{{ .Release.Name }}`}}
     namespace: backbone
     missingFileHandler: Warn
 
 releases:
 - name: cert-manager
   chart: ./cert-manager
-  namespace: egov
   installed: true
   version: v1.13.3
+  <<: *default
   disableValidation: true
   values:
     - ./cert-manager/values.yaml

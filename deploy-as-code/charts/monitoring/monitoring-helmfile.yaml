@@ -1,9 +1,14 @@
 environments:
-  uat:
+  aws-helmfile:
     values:
-      - namespace: monitoring
-      - ../environments/env-secrets.yaml
-      - ../environments/env.yaml
+      - ../environments/aws-helmfile.yaml
+    secrets:
+      - ../environments/aws-helmfile-secrets.yaml
+  gcp-helmfile:
+    values:
+      - ../environments/gcp-helmfile.yaml
+    secrets:
+      - ../environments/gcp-helmfile-secrets.yaml
 ---
 repositories:
 - name: grafana
@@ -19,21 +24,28 @@ repositories:
 - name: apm-attacher
   url: https://helm.elastic.co
 
+templates:
+  default: &default
+    labels:
+      target: ./{{`{{ .Release.Name }}`}}
+    namespace: monitoring
+    missingFileHandler: Warn
+
 releases:
 - name: loki-stack
   installed: true
-  namespace: {{ .Values.namespace | default "default-namespace" }}
   chart: grafana/loki-stack
   version: 2.10.1
+  <<: *default
   values:
   - ./values/loki-stack.yaml
   - {{ .Values | toYaml | nindent 8 }}
 
 - name: kube-prometheus-stack
   installed: true
-  namespace: {{ .Values.namespace | default "default-namespace" }}
   chart: prometheus-community/kube-prometheus-stack
   version: 56.6.2
+  <<: *default
   disableValidation: true
   values:
   - ./values/prometheus.yaml
@@ -41,9 +53,9 @@ releases:
 
 - name: jaeger
   installed: false
-  namespace: es-cluster
   chart: jaegertracing/jaeger
   version: 0.35.0
+  <<: *default
   values:
   - ./values/jaeger.yaml
   - {{ .Values | toYaml | nindent 8 }}
@@ -56,9 +68,9 @@ releases:
 
 - name: grafana
   installed: true
-  namespace: {{ .Values.namespace | default "default-namespace" }}
   chart: grafana/grafana
   version: 7.3.0
+  <<: *default
   values:
   - ./values/grafana.yaml
   - grafana.ini:
@@ -76,18 +88,18 @@ releases:
 
 - name: blackbox
   installed: false
-  namespace: {{ .Values.namespace | default "default-namespace" }}
   chart: prometheus-community/prometheus-blackbox-exporter
   version: 8.2.0
+  <<: *default
   values:
   - ./values/blackbox-exporter.yaml
   - {{ .Values | toYaml | nindent 8 }}
 
 - name: kafka-ui
   installed: true
-  namespace: backbone
   chart: kafka-ui/kafka-ui
   version: 0.7.6
+  <<: *default
   values:
   - ./values/kafka-ui.yaml
   - {{ .Values | toYaml | nindent 8 }}

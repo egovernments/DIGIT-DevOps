@@ -1,17 +1,22 @@
 environments:
-  uat:
+  aws-helmfile:
     values:
-      - ../environments/env-secrets.yaml
-      - ../environments/env.yaml
+      - ../environments/aws-helmfile.yaml
+    secrets:
+      - ../environments/aws-helmfile-secrets.yaml
+  gcp-helmfile:
+    values:
+      - ../environments/gcp-helmfile.yaml
+    secrets:
+      - ../environments/gcp-helmfile-secrets.yaml
 ---
 templates:
   default: &default
     chart: ./{{`{{ .Release.Name }}`}}
+    labels:
+      target: ./{{`{{ .Release.Name }}`}}
     version: 0.1.0
     namespace: egov
-    # This prevents helmfile exiting when it encounters a missing file
-    # Valid values are "Error", "Warn", "Info", "Debug". The default is "Error"
-    # Use "Debug" to make missing files errors invisible at the default log level(--log-level=INFO)
     missingFileHandler: Warn
     values:
       - {{ .Values | toYaml | nindent 8 }}

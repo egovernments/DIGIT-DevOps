@@ -1,0 +1,27 @@
+#cloud-config
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="//"
+
+--//
+Content-Type: text/x-shellscript
+Mime-Version: 1.0
+
+#!/bin/bash
+CONFIG_FILE="/etc/kubernetes/kubelet/config.json.d/00-nodeadm.conf"
+
+# Wait for the kubelet configuration file to be created
+until [ -f $CONFIG_FILE ]; do
+  echo "Waiting for kubelet config file: $CONFIG_FILE" >> /var/log/user-data.log
+  sleep 5
+done
+
+# Update maxPods in the kubelet configuration file
+echo "Updating maxPods in $CONFIG_FILE..." >> /var/log/user-data.log
+sed -i 's/"maxPods": [0-9]\+/"maxPods": 50/' $CONFIG_FILE
+
+# Restart kubelet to apply the changes
+echo "Restarting kubelet..." >> /var/log/user-data.log
+systemctl restart kubelet >> /var/log/user-data.log 2>&1
+echo "User data script execution completed!" >> /var/log/user-data.log
+
+--//

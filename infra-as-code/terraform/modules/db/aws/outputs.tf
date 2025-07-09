@@ -9,7 +9,7 @@ output "db_instance_endpoint" {
 
 output "db_instance_name" {
   description = "The database name"
-  value       = "${aws_db_instance.rds_postgres.name}"
+  value       = "${aws_db_instance.rds_postgres.db_name}"
 }
 
 output "db_instance_username" {

@@ -1,0 +1,119 @@
+# Common Labels
+labels:
+  app: "default-data-handler"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "default-data-handler"
+
+
+# Container Configs
+image:
+  repository: "default-data-handler"
+  tag: sandbox-pgr-7d547af-6
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/default-data-handler/health"
+  readinessProbePath: "/default-data-handler/health"
+appType: "java-spring"
+tracing-enabled: true
+memory_limits: 512Mi
+heap: "-Xmx512m -Xms512m"
+java-args: "-Dspring.profiles.active=monitoring"
+egov-mdms-schema-definition-save-topic: "save-mdms-schema-definition"
+egov-mdms-data-save-topic: "save-mdms-data"
+default-mdms-schemacode-list: "SandBoxLanding.AdditionalModuleLinks,tenant.cities,SandBoxLanding.LandingPageRoles,HomeScreenOrder.CardsAndLinksOrder,dss-dashboard.dashboard-config,dss-dashboard.About,dss-dashboard.FAQs,RAINMAKER-PGR.ServiceDefs,common-masters.Department,common-masters.IdFormat,common-masters.Designation,egov-hrms.EmployeeDepartment,egov-hrms.CommonFieldsConfig,egov-hrms.CampaignAssignmentFieldsConfig,egov-hrms.Degree,egov-hrms.DeactivationReason,egov-hrms.EmployeeStatus,egov-hrms.EmployeeType,egov-hrms.EmploymentTest,egov-hrms.Specalization,commonUiConfig.PrivacyPolicy,sandbox-ui.ModuleMasterConfig,common-masters.uiHomePage,tenant.citymodule,DIGIT-UI.ApiCachingSettings,tenant.tenants,egov-location.TenantBoundary,common-masters.GenderType,ACCESSCONTROL-ACTIONS-TEST.actions-test,ACCESSCONTROL-ROLES.roles,ACCESSCONTROL-ROLEACTIONS.roleactions,DataSecurity.DecryptionABAC,DataSecurity.EncryptionPolicy,DataSecurity.MaskingPatterns,DataSecurity.SecurityPolicy"
+mdms-schemacode-map: "{PGR:'RAINMAKER-PGR.ServiceDefs,common-masters.Department,common-masters.IdFormat', HRMS:'common-masters.Department,common-masters.Designation,common-masters.IdFormat,common-masters.GenderType,egov-hrms.Specalization,egov-hrms.EmployeeType,egov-hrms.EmployeeStatus,egov-hrms.EmployeeDepartment,egov-hrms.DeactivationReason,egov-hrms.CommonFieldsConfig,egov-hrms.CampaignAssignmentFieldsConfig'}"
+default-localization-locale-list: "en_IN,hi_IN"
+default-localization-module-list: "egov-user,rainmaker-dss,digit-ui,digit-sandbox,rainmaker-common,digit-privacy-policy,rainmaker-pgr,rainmaker-hr,rainmaker-workbench,rainmaker-mdms,rainmaker-schema"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_CONTEXT_PATH
+    value: /default-data-handler
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: mdms-service-v2  
+  - name: EGOV_HRMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-hrms  
+  - name: EGOV_LOCALIZATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-localization
+  - name: EGOV_USER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: EGOV_USER_OTP_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: user-otp 
+  - name: EGOV_TENANT_MANAGEMENT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: tenant-management
+  - name: EGOV_WORKFLOW_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-workflow-v2
+  - name: EGOV_INDEXER_ES_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: elasticsearch-master-credentials
+        key: username
+  - name: EGOV_INDEXER_ES_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: elasticsearch-master-credentials
+        key: password
+  - name: EGOV_INFRA_INDEXER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: es-indexer-host
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: default-data-handler
+  - name: KAFKA_TOPICS_CREATE_TENANT
+    value: create-tenant
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  {{- if index .Values "global" "serializers-timezone-in-ist" }}
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+  {{- end }}
+  - name: DEFAULT_TENANT_ID
+    value: DEFAULT
+  - name: DEFAULT_MDMS_SCHEMA_CREATE_LIST
+    value: {{ index .Values "default-mdms-schemacode-list" | quote }}
+  - name: MDMS_SCHEMACODE_MAP
+    value: {{ index .Values "mdms-schemacode-map" | quote }}
+  - name: DEFAULT_LOCALIZATION_LOCALE_LIST
+    value: {{ index .Values "default-localization-locale-list" | quote }}
+  - name: DEFAULT_LOCALIZATION_MODULE_CREATE_LIST
+    value: {{ index .Values "default-localization-module-list" | quote }}
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"
+  - name: JAVA_ENABLE_DEBUG
+    value: "true"

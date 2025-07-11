@@ -24,7 +24,7 @@ module "db" {
   vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
   availability_zone             = "${element(var.availability_zones, 0)}"
   instance_class                = "db.t4g.medium"  ## postgres db instance type
-  engine_version                = "15.5"   ## postgres version
+  engine_version                = "15.12"   ## postgres version - keep current, don't downgrade
   storage_type                  = "gp3"
   storage_gb                    = "20"     ## postgres disk size
   backup_retention_days         = "7"
@@ -70,10 +70,12 @@ module "eks_managed_node_group" {
   name            = "${var.cluster_name}-ng"
   cluster_name    = var.cluster_name
   cluster_version = var.kubernetes_version
-  subnet_ids = slice(module.network.private_subnets, 0, length(var.availability_zones))
+  subnet_ids = module.network.private_subnets  # Use all private subnets for better availability
   vpc_security_group_ids  = [module.eks.node_security_group_id]
   cluster_service_cidr = module.eks.cluster_service_cidr
   use_custom_launch_template = true
+  
+  # Block device mappings
   block_device_mappings = {
     xvda = {
       device_name = "/dev/xvda"
@@ -84,23 +86,97 @@ module "eks_managed_node_group" {
       }
     }
   }
+  
+  # Scaling configuration
   min_size     = var.min_worker_nodes
   max_size     = var.max_worker_nodes
   desired_size = var.desired_worker_nodes
-  instance_types = var.instance_types
+  
+  # Instance configuration for better stability
+  instance_types = [
+    "m5.xlarge",     # Most stable and widely available
+    "m5d.xlarge",    # Good alternative with local storage  
+    "c5.xlarge",     # Compute optimized, usually cheaper
+    "r5.xlarge",     # Memory optimized
+    "m5a.xlarge",    # AMD variant, often better availability
+    "c5n.xlarge"     # Network optimized, good availability
+  ]
+  
+  # Mixed capacity strategy for stability
   capacity_type  = "SPOT"
+  
+  # Launch template configuration
   ebs_optimized  = "true"
   enable_monitoring = "true"
   launch_template_name = "${var.cluster_name}-lt"
+  
+  # Update configuration for better stability
+  update_config = {
+    max_unavailable_percentage = 25  # More conservative than 33%
+  }
+  
+  # Force update version to ensure compatibility
+  force_update_version = true
   iam_role_additional_policies = {
     CSI_DRIVER_POLICY = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
   }
   labels = {
     Environment = var.cluster_name
+    NodeType = "spot"
   }
   tags = {
     "KubernetesCluster" = var.cluster_name
+    "NodeType" = "spot"
   }
+}
+
+# On-Demand Node Group for critical workloads and stability
+module "eks_managed_node_group_ondemand" {
+  depends_on = [module.eks]
+  source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+  name            = "${var.cluster_name}-ng-ondemand"
+  cluster_name    = var.cluster_name
+  cluster_version = var.kubernetes_version
+  subnet_ids = module.network.private_subnets
+  vpc_security_group_ids  = [module.eks.node_security_group_id]
+  cluster_service_cidr = module.eks.cluster_service_cidr
+  use_custom_launch_template = true
+  
+  # Block device mappings
+  block_device_mappings = {
+    xvda = {
+      device_name = "/dev/xvda"
+      ebs = {
+        volume_size           = 50
+        volume_type           = "gp3"
+        delete_on_termination = true
+      }
+    }
+  }
+  
+  # Conservative scaling for stability
+  min_size     = 1
+  max_size     = 3
+  desired_size = 1  # Start with 1 stable On-Demand node
+  
+  # Stable instance types
+  instance_types = ["m5.xlarge"]  # Single, stable instance type
+  
+  # On-Demand for maximum stability
+  capacity_type  = "ON_DEMAND"
+  
+  # Launch template configuration
+  ebs_optimized  = "true"
+  enable_monitoring = "true"
+  launch_template_name = "${var.cluster_name}-ondemand-lt"
+  
+  # Update configuration
+  update_config = {
+    max_unavailable_percentage = 25
+  }
+  
+  # Force update version to ensure compatibility
+  force_update_version = true
 }
 
 resource "aws_security_group_rule" "rds_db_ingress_workers" {
@@ -145,39 +221,25 @@ resource "kubernetes_annotations" "gp2_default" {
   depends_on = [aws_eks_addon.aws_ebs_csi_driver]
 }
 
-resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
-  metadata {
-    name = "gp3"
-    annotations = {
-      "storageclass.kubernetes.io/is-default-class" : "true"
-    }
-  }
-
-  storage_provisioner    = "ebs.csi.aws.com"
-  reclaim_policy         = "Delete"
-  allow_volume_expansion = true
-  volume_binding_mode    = "WaitForFirstConsumer"
-  parameters = {
-    fsType    = "ext4"
-    encrypted = true
-    type      = "gp3"
-  }
-
-  depends_on = [kubernetes_annotations.gp2_default]
-}
-
 resource "aws_eks_addon" "kube_proxy" {
-  cluster_name      = data.aws_eks_cluster.cluster.name
-  addon_name        = "kube-proxy"
-  resolve_conflicts = "OVERWRITE"
+  cluster_name             = data.aws_eks_cluster.cluster.name
+  addon_name               = "kube-proxy"
+  addon_version            = "v1.31.2-eksbuild.3"
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 }
+
 resource "aws_eks_addon" "core_dns" {
-  cluster_name      = data.aws_eks_cluster.cluster.name
-  addon_name        = "coredns"
-  resolve_conflicts = "OVERWRITE"
+  cluster_name             = data.aws_eks_cluster.cluster.name
+  addon_name               = "coredns"
+  addon_version            = "v1.11.3-eksbuild.1"
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 }
+
 resource "aws_eks_addon" "aws_ebs_csi_driver" {
-  cluster_name      = data.aws_eks_cluster.cluster.name
-  addon_name        = "aws-ebs-csi-driver"
-  resolve_conflicts = "OVERWRITE"
+  cluster_name             = data.aws_eks_cluster.cluster.name
+  addon_name               = "aws-ebs-csi-driver"
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 }

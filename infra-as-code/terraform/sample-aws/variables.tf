@@ -26,13 +26,12 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.30"
+  default = "1.31"
 }
 
 variable "instance_types" {
-  description = "Arry of instance types for SPOT instances"
-  default = ["r5ad.xlarge"]
-  
+  description = "Array of instance types for SPOT instances - multiple types for better availability"
+  default = ["r5ad.xlarge", "r5.xlarge", "r5d.xlarge", "m5.xlarge", "m5d.xlarge", "c5.xlarge"]
 }
 
 variable "min_worker_nodes" {
@@ -59,6 +58,11 @@ variable "db_name" {
 variable "db_username" {
   description = "RDS database user name"
   default = "digit_sandbox" #REPLACE
+}
+
+variable "db_engine_version" {
+  description = "PostgreSQL engine version"
+  default = "15.12"  # Keep current version, don't downgrade
 }
 
 variable "iam_user_arn" {

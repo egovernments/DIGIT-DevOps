@@ -223,112 +223,112 @@ def load_actions_from_yaml(yaml_file):
         data = yaml.safe_load(f)
     return data.get('actions', [])
 
-def build_resource_arn(action, account_id, region, cluster_name):
-    # Only includes relevant mappings based on your policy
-    dummy = cluster_name
-    service, operation = action.split(":")
-    eks_operations = {
-        "DeleteCluster", "UpdateClusterConfig", "TagResource",
-        "CreateNodegroup", "DeleteNodegroup", "AssociateAccessPolicy",
-        "DisassociateAccessPolicy", "ListAddons", "CreateAddon",
-        "CreateAccessEntry", "DeleteAccessEntry", "DeleteAddon"
-    }
+# def build_resource_arn(action, account_id, region, cluster_name):
+#     # Only includes relevant mappings based on your policy
+#     dummy = cluster_name
+#     service, operation = action.split(":")
+#     eks_operations = {
+#         "DeleteCluster", "UpdateClusterConfig", "TagResource",
+#         "CreateNodegroup", "DeleteNodegroup", "AssociateAccessPolicy",
+#         "DisassociateAccessPolicy", "ListAddons", "CreateAddon",
+#         "CreateAccessEntry", "DeleteAccessEntry", "DeleteAddon"
+#     }
 
-    if service == "eks":
-        if operation in eks_operations:
-            return [
-                f"arn:aws:eks:{region}:{account_id}:cluster/{dummy}",
-                f"arn:aws:eks:{region}:{account_id}:access-entry/{dummy}/*",
-                f"arn:aws:eks:{region}:{account_id}:addon/{dummy}/*",
-                f"arn:aws:eks:{region}:{account_id}:nodegroup/{dummy}/{dummy}-ng"
-            ]
-        return "*"
+#     if service == "eks":
+#         if operation in eks_operations:
+#             return [
+#                 f"arn:aws:eks:{region}:{account_id}:cluster/{dummy}",
+#                 f"arn:aws:eks:{region}:{account_id}:access-entry/{dummy}/*",
+#                 f"arn:aws:eks:{region}:{account_id}:addon/{dummy}/*",
+#                 f"arn:aws:eks:{region}:{account_id}:nodegroup/{dummy}/{dummy}-ng"
+#             ]
+#         return "*"
 
-    elif service == "ec2":
-        ec2_mappings = {
-            "LaunchTemplate": f"arn:aws:ec2:{region}:{account_id}:launch-template/lt-{dummy}",
-            "Vpc": f"arn:aws:ec2:{region}:{account_id}:vpc/*",
-            "Subnet": f"arn:aws:ec2:{region}:{account_id}:subnet/*",
-            "SecurityGroup": f"arn:aws:ec2:{region}:{account_id}:security-group/*",
-            "Route": f"arn:aws:ec2:{region}:{account_id}:route-table/*",
-            "InternetGateway": f"arn:aws:ec2:{region}:{account_id}:internet-gateway/*",
-            "NatGateway": f"arn:aws:ec2:{region}:{account_id}:natgateway/*",
-            "AllocateAddress": f"arn:aws:ec2:{region}:{account_id}:elastic-ip/*",
-            "ReleaseAddress": f"arn:aws:ec2:{region}:{account_id}:elastic-ip/*",
-            "Tags": f"arn:aws:ec2:{region}:{account_id}:elastic-ip/*",
-            "Address": f"arn:aws:ec2:{region}:{account_id}:network-interface/*"
-        }
-        for key, arn in ec2_mappings.items():
-            if key in operation:
-                return arn
-        if "RunInstances" in operation:
-            return [
-                f"arn:aws:ec2:{region}:{account_id}:*",
-                f"arn:aws:ec2:{region}::image/*"
-            ]
-        return "*"
+#     elif service == "ec2":
+#         ec2_mappings = {
+#             "LaunchTemplate": f"arn:aws:ec2:{region}:{account_id}:launch-template/lt-{dummy}",
+#             "Vpc": f"arn:aws:ec2:{region}:{account_id}:vpc/*",
+#             "Subnet": f"arn:aws:ec2:{region}:{account_id}:subnet/*",
+#             "SecurityGroup": f"arn:aws:ec2:{region}:{account_id}:security-group/*",
+#             "Route": f"arn:aws:ec2:{region}:{account_id}:route-table/*",
+#             "InternetGateway": f"arn:aws:ec2:{region}:{account_id}:internet-gateway/*",
+#             "NatGateway": f"arn:aws:ec2:{region}:{account_id}:natgateway/*",
+#             "AllocateAddress": f"arn:aws:ec2:{region}:{account_id}:elastic-ip/*",
+#             "ReleaseAddress": f"arn:aws:ec2:{region}:{account_id}:elastic-ip/*",
+#             "Tags": f"arn:aws:ec2:{region}:{account_id}:elastic-ip/*",
+#             "Address": f"arn:aws:ec2:{region}:{account_id}:network-interface/*"
+#         }
+#         for key, arn in ec2_mappings.items():
+#             if key in operation:
+#                 return arn
+#         if "RunInstances" in operation:
+#             return [
+#                 f"arn:aws:ec2:{region}:{account_id}:*",
+#                 f"arn:aws:ec2:{region}::image/*"
+#             ]
+#         return "*"
 
-    elif service == "iam":
-        if operation in {
-            "CreateRole", "DeleteRole", "GetRole", "PassRole",
-            "AttachRolePolicy", "DetachRolePolicy", "GetRolePolicy",
-            "Tag*", "List*"
-        }:
-            return f"arn:aws:iam::{account_id}:role/{dummy}-role"
-        elif operation == "SimulatePrincipalPolicy":
-            return "*"
-        elif operation in {
-            "DeletePolicy", "CreatePolicy", "AttachPolicy", "DetachPolicy",
-            "GetPolicy", "ListPolicyVersions", "CreatePolicyVersion", "GetPolicyVersion"
-        }:
-            return f"arn:aws:iam::{account_id}:policy/{dummy}-policy"
-        elif operation == "CreateInstanceProfile":
-            return f"arn:aws:iam::{account_id}:instance-profile/{dummy}-profile"
-        elif operation == "AddRoleToInstanceProfile":
-            return [
-                f"arn:aws:iam::{account_id}:nodegroup/{dummy}",
-                f"arn:aws:iam::{account_id}:role/{dummy}-role",
-                f"arn:aws:iam::{account_id}:instance-profile/{dummy}-profile"
-            ]
-        elif operation == "RemoveRoleFromInstanceProfile":
-            return f"arn:aws:iam::{account_id}:role/{dummy}-role"
-        elif "OpenIDConnectProvider" in operation:
-            return f"arn:aws:iam::{account_id}:oidc-provider/oidc.eks.{region}.amazonaws.com/id/{dummy}"
-        return "*"
+#     elif service == "iam":
+#         if operation in {
+#             "CreateRole", "DeleteRole", "GetRole", "PassRole",
+#             "AttachRolePolicy", "DetachRolePolicy", "GetRolePolicy",
+#             "Tag*", "List*"
+#         }:
+#             return f"arn:aws:iam::{account_id}:role/{dummy}-role"
+#         elif operation == "SimulatePrincipalPolicy":
+#             return "*"
+#         elif operation in {
+#             "DeletePolicy", "CreatePolicy", "AttachPolicy", "DetachPolicy",
+#             "GetPolicy", "ListPolicyVersions", "CreatePolicyVersion", "GetPolicyVersion"
+#         }:
+#             return f"arn:aws:iam::{account_id}:policy/{dummy}-policy"
+#         elif operation == "CreateInstanceProfile":
+#             return f"arn:aws:iam::{account_id}:instance-profile/{dummy}-profile"
+#         elif operation == "AddRoleToInstanceProfile":
+#             return [
+#                 f"arn:aws:iam::{account_id}:nodegroup/{dummy}",
+#                 f"arn:aws:iam::{account_id}:role/{dummy}-role",
+#                 f"arn:aws:iam::{account_id}:instance-profile/{dummy}-profile"
+#             ]
+#         elif operation == "RemoveRoleFromInstanceProfile":
+#             return f"arn:aws:iam::{account_id}:role/{dummy}-role"
+#         elif "OpenIDConnectProvider" in operation:
+#             return f"arn:aws:iam::{account_id}:oidc-provider/oidc.eks.{region}.amazonaws.com/id/{dummy}"
+#         return "*"
 
-    elif service == "logs":
-        return f"arn:aws:logs:{region}:{account_id}:log-group:/aws/eks/{dummy}/*"
+#     elif service == "logs":
+#         return f"arn:aws:logs:{region}:{account_id}:log-group:/aws/eks/{dummy}/*"
 
-    elif service == "s3":
-        return f"arn:aws:s3:::{dummy}-bucket"
+#     elif service == "s3":
+#         return f"arn:aws:s3:::{dummy}-bucket"
 
-    elif service == "dynamodb":
-        return f"arn:aws:dynamodb:{region}:{account_id}:table/{dummy}-table"
+#     elif service == "dynamodb":
+#         return f"arn:aws:dynamodb:{region}:{account_id}:table/{dummy}-table"
 
-    elif service == "rds":
-        if "DBSubnetGroup" in operation:
-            return f"arn:aws:rds:{region}:{account_id}:subgrp:db-subnet-group-{dummy}"
-        return f"arn:aws:rds:{region}:{account_id}:db:{dummy}-db"
+#     elif service == "rds":
+#         if "DBSubnetGroup" in operation:
+#             return f"arn:aws:rds:{region}:{account_id}:subgrp:db-subnet-group-{dummy}"
+#         return f"arn:aws:rds:{region}:{account_id}:db:{dummy}-db"
 
-    elif service == "autoscaling":
-        if "AutoScalingGroup" in operation:
-            return f"arn:aws:autoscaling:{region}:{account_id}:autoScalingGroup:*:autoScalingGroupName/{dummy}-ng*"
-        elif "LaunchConfiguration" in operation:
-            return f"arn:aws:autoscaling:{region}:{account_id}:launchConfiguration:*:launchConfigurationName/{dummy}"
-        return [
-            f"arn:aws:autoscaling:{region}:{account_id}:autoScalingGroup:*:autoScalingGroupName/{dummy}-ng*",
-            f"arn:aws:autoscaling:{region}:{account_id}:launchConfiguration:*:launchConfigurationName/{dummy}"
-        ]
+#     elif service == "autoscaling":
+#         if "AutoScalingGroup" in operation:
+#             return f"arn:aws:autoscaling:{region}:{account_id}:autoScalingGroup:*:autoScalingGroupName/{dummy}-ng*"
+#         elif "LaunchConfiguration" in operation:
+#             return f"arn:aws:autoscaling:{region}:{account_id}:launchConfiguration:*:launchConfigurationName/{dummy}"
+#         return [
+#             f"arn:aws:autoscaling:{region}:{account_id}:autoScalingGroup:*:autoScalingGroupName/{dummy}-ng*",
+#             f"arn:aws:autoscaling:{region}:{account_id}:launchConfiguration:*:launchConfigurationName/{dummy}"
+#         ]
 
-    elif service == "kms":
-        if "Alias" in operation:
-            return f"arn:aws:kms:{region}:{account_id}:alias/eks/{dummy}"
-        return "*"
+#     elif service == "kms":
+#         if "Alias" in operation:
+#             return f"arn:aws:kms:{region}:{account_id}:alias/eks/{dummy}"
+#         return "*"
 
-    elif service == "sts":
-        return "*"
+#     elif service == "sts":
+#         return "*"
 
-    return "*"
+#     return "*"
 
 def simulate_permissions(session, actions, cluster_name):
     context = get_identity_and_context(session)
@@ -336,26 +336,14 @@ def simulate_permissions(session, actions, cluster_name):
     results = {}
     KUBERNETES_CLUSTER_NAME = cluster_name
     for action in actions:
-        resource_arn = build_resource_arn(action, context["account_id"], context["region"], cluster_name)
-        if not isinstance(resource_arn, list):
-            resource_arn = [resource_arn]
+        # resource_arn = build_resource_arn(action, context["account_id"], context["region"], cluster_name)
+        # if not isinstance(resource_arn, list):
+        resource_arn = ["*"]
         try:
             resp = iam.simulate_principal_policy(
                 PolicySourceArn=context["caller_arn"],
                 ActionNames=[action],
-                ResourceArns=resource_arn,
-                ContextEntries=[
-                    {
-                        "ContextKeyName": "aws:RequestTag/KubernetesCluster",
-                        "ContextKeyValues": [KUBERNETES_CLUSTER_NAME],
-                        "ContextKeyType": "string"
-                    },
-                    {
-                        "ContextKeyName": "aws:ResourceTag/KubernetesCluster",
-                        "ContextKeyValues": [KUBERNETES_CLUSTER_NAME],
-                        "ContextKeyType": "string"
-                    }
-                ]
+                ResourceArns=resource_arn
             )
             decision = resp["EvaluationResults"][0]["EvalDecision"]
         except Exception as e:

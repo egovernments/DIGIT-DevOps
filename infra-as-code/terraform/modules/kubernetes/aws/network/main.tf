@@ -14,6 +14,7 @@ resource "aws_vpc" "vpc" {
     tomap({
       Name = "${var.cluster_name}"
       "kubernetes.io/cluster/${var.cluster_name}" = "shared"
+      "KubernetesCluster" = "${var.cluster_name}"
     })
   }"
 }

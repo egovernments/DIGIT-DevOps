@@ -1,0 +1,164 @@
+terraform {
+  backend "s3" {
+    bucket = "digit-sandbox-terraform-bucket"
+    key    = "terraform-setup/terraform.tfstate"
+    region = "ap-south-1"
+    # The below line is optional depending on whether you are using DynamoDB for state locking and consistency
+    dynamodb_table = "digit-sandbox-terraform-bucket"
+    # The below line is optional if your S3 bucket is encrypted
+    encrypt = true
+  }
+  required_providers {
+    kubectl = {
+      source  = "alekc/kubectl"
+      version = ">= 2.0.0"
+    }
+  }
+}
+
+module "network" {
+  source             = "../modules/kubernetes/aws/network"
+  vpc_cidr_block     = "${var.vpc_cidr_block}"
+  cluster_name       = "${var.cluster_name}"
+  availability_zones = "${var.network_availability_zones}"
+}
+
+# PostGres DB
+module "db" {
+  source                        = "../modules/db/aws"
+  subnet_ids                    = "${module.network.private_subnets}"
+  vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
+  availability_zone             = "${element(var.availability_zones, 0)}"
+  instance_class                = "db.t4g.medium"  ## postgres db instance type
+  engine_version                = "15.12"   ## postgres version
+  storage_type                  = "gp3"
+  storage_gb                    = "20"     ## postgres disk size
+  backup_retention_days         = "7"
+  administrator_login           = "${var.db_username}"
+  administrator_login_password  = "${var.db_password}"
+  identifier                    = "${var.cluster_name}-db"
+  db_name                       = "${var.db_name}"
+  environment                   = "${var.cluster_name}"
+}
+
+data "aws_caller_identity" "current" {}
+
+module "eks" {
+  source          = "terraform-aws-modules/eks/aws"
+  version         = "~> 20.0"
+  cluster_name    = var.cluster_name
+  cluster_version = var.kubernetes_version
+  vpc_id          = module.network.vpc_id
+  cluster_endpoint_public_access  = true
+  cluster_endpoint_private_access = true
+  authentication_mode = "API_AND_CONFIG_MAP"
+  subnet_ids      = concat(module.network.private_subnets, module.network.public_subnets)
+  access_entries = {
+    devops = {
+      kubernetes_groups = []
+      principal_arn     = "${var.iam_user_arn}"
+
+      policy_associations = {
+        devops = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
+  tags = {
+    "KubernetesCluster" = var.cluster_name
+  }
+}
+
+module "eks_managed_node_group" {
+  source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+  name            = "${var.cluster_name}-ng"
+  cluster_name    = var.cluster_name
+  cluster_version = var.kubernetes_version
+  subnet_ids = slice(module.network.private_subnets, 0, length(var.availability_zones))
+  vpc_security_group_ids  = [module.eks.node_security_group_id]
+  cluster_service_cidr = module.eks.cluster_service_cidr
+  use_custom_launch_template = true
+  block_device_mappings = {
+    xvda = {
+      device_name = "/dev/xvda"
+      ebs = {
+        volume_size           = 50
+        volume_type           = "gp3"
+        delete_on_termination = true
+      }
+    }
+  }
+  min_size     = var.min_worker_nodes
+  max_size     = var.max_worker_nodes
+  desired_size = var.desired_worker_nodes
+  instance_types = var.instance_types
+  capacity_type  = "SPOT"
+  ebs_optimized  = "true"
+  enable_monitoring = "true"
+  launch_template_name = "${var.cluster_name}-lt"
+  iam_role_additional_policies = {
+    CSI_DRIVER_POLICY = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  }
+  labels = {
+    Environment = var.cluster_name
+  }
+  tags = {
+    "KubernetesCluster" = var.cluster_name
+  }
+}
+
+resource "aws_security_group_rule" "rds_db_ingress_workers" {
+  description              = "Allow node groups to communicate with RDS database"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = module.network.rds_db_sg_id
+  source_security_group_id = module.eks.node_security_group_id
+  type                     = "ingress"
+}
+
+# Fetching EKS Cluster Data after its creation
+data "aws_eks_cluster" "cluster" {
+  depends_on = [module.eks]
+  name = var.cluster_name
+}
+
+data "aws_eks_cluster_auth" "cluster" {
+  depends_on = [module.eks]
+  name = var.cluster_name
+}
+
+provider "helm" {
+  kubernetes = {
+    host                   = data.aws_eks_cluster.cluster.endpoint
+    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+    token                  = data.aws_eks_cluster_auth.cluster.token
+  }
+}
+
+provider "kubectl" {
+  host                   = data.aws_eks_cluster.cluster.endpoint
+  cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+  token                  = data.aws_eks_cluster_auth.cluster.token
+  load_config_file       = false
+}
+
+resource "aws_eks_addon" "kube_proxy" {
+  cluster_name      = data.aws_eks_cluster.cluster.name
+  addon_name        = "kube-proxy"
+  resolve_conflicts = "OVERWRITE"
+}
+resource "aws_eks_addon" "core_dns" {
+  cluster_name      = data.aws_eks_cluster.cluster.name
+  addon_name        = "coredns"
+  resolve_conflicts = "OVERWRITE"
+}
+resource "aws_eks_addon" "aws_ebs_csi_driver" {
+  cluster_name      = data.aws_eks_cluster.cluster.name
+  addon_name        = "aws-ebs-csi-driver"
+  resolve_conflicts = "OVERWRITE"
+}

@@ -121,7 +121,7 @@ def upgrade_terraform_commands(cluster_name, region,working_dir="."):
         infra_commands = [
             ["terraform", "init"],
             ["terraform", "plan"],
-            ["terraform", "apply", "-auto-approve"]
+            ["terraform", "apply"]
         ]
 
         def execute(directory, commands):
@@ -258,6 +258,7 @@ def terraform_destroy_commands(cluster_name, region,working_dir="."):
                 except subprocess.CalledProcessError as e:
                     print(f"❌ Error running {' '.join(cmd)}:\n{e.stderr}")
                     break  # Stop further execution if one command fails
+            # delete_s3_and_dynamodb(bucket)
         tf_file_path = "terraform.tfvars"
         bucket = extract_s3_bucket_name(tf_file_path)
         print(bucket)
@@ -272,7 +273,6 @@ def terraform_destroy_commands(cluster_name, region,working_dir="."):
             print("📦 Bucket is NOT empty. Proceeding with 2-step destroy.")
             cleanup_terraform_artifacts(Path(working_dir))
             execute(Path(working_dir), destroy_commands)
-            delete_s3_and_dynamodb(bucket)
     except subprocess.CalledProcessError as e:
         print(f"❌ Terraform error:\n{e.stderr}")
     finally:

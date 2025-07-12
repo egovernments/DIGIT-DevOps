@@ -15,20 +15,18 @@ import boto3
 from botocore.exceptions import ClientError
 
 def cleanup_terraform_artifacts(directory):
-    paths_to_delete = [
-        ".terraform",                  # Plugin and backend cache
-        ".terraform.lock.hcl",        # Lock file
-        "terraform.tfstate",          # State file (optional)
-        "terraform.tfstate.backup"    # State backup (optional)
-    ]
-    for path in paths_to_delete:
-        full_path = os.path.join(directory, path)
-        if os.path.isdir(full_path):
-            print(f"🧹 Removing directory: {full_path}")
-            shutil.rmtree(full_path, ignore_errors=True)
-        elif os.path.isfile(full_path):
-            print(f"🧹 Removing file: {full_path}")
-            os.remove(full_path)
+    """
+    Delete Terraform-generated files and directories in the given directory
+    """
+    patterns = [".terraform", ".terraform.lock.hcl", "terraform.tfstate", "terraform.tfstate.backup"]
+    for pattern in patterns:
+        path = directory / pattern
+        if path.is_dir():
+            shutil.rmtree(path, ignore_errors=True)
+            print(f"🧹 Removed directory: {path}")
+        elif path.is_file():
+            path.unlink()
+            print(f"🧹 Removed file: {path}")
 
 def run_terraform_commands(cluster_name, region,working_dir="."):
     """
@@ -53,7 +51,7 @@ def run_terraform_commands(cluster_name, region,working_dir="."):
                 backups.append((file_path, backup_path))
             else:
                 print(f"⚠️ Skipping missing file: {file_name}")
-
+        remote_state_dir = Path(working_dir) / "remote-state"
         # Commands for remote state dir (with var-file)
         remote_state_commands = [
             ["terraform", "init"],
@@ -70,7 +68,6 @@ def run_terraform_commands(cluster_name, region,working_dir="."):
 
         def execute(directory, commands):
             print(f"\n📁 Entering: {directory}")
-            cleanup_terraform_artifacts(directory)
             for cmd in commands:
                 print(f"🔧 Running: {' '.join(cmd)}")
                 try:
@@ -83,14 +80,18 @@ def run_terraform_commands(cluster_name, region,working_dir="."):
                 except subprocess.CalledProcessError as e:
                     print(f"❌ Error running {' '.join(cmd)}:\n{e.stderr}")
                     break  # Stop further execution if one command fails
-        execute("./remote-state", remote_state_commands)
-        execute("./", infra_commands)
+        cleanup_terraform_artifacts(Path(working_dir))
+        cleanup_terraform_artifacts(remote_state_dir)
+        execute(remote_state_dir, remote_state_commands)
+        execute(Path(working_dir), infra_commands)
     except subprocess.CalledProcessError as e:
         print(f"❌ Terraform error:\n{e.stderr}")
     finally:
         # Restore original files
         for original, backup in backups:
             restore_file(original, backup)
+        cleanup_terraform_artifacts(Path(working_dir))
+        cleanup_terraform_artifacts(remote_state_dir)
 
 def upgrade_terraform_commands(cluster_name, region,working_dir="."):
     """
@@ -116,13 +117,6 @@ def upgrade_terraform_commands(cluster_name, region,working_dir="."):
             else:
                 print(f"⚠️ Skipping missing file: {file_name}")
 
-        # Commands for remote state dir (with var-file)
-        remote_state_commands = [
-            ["terraform", "init"],
-            ["terraform", "plan", "-var-file=../terraform.tfvars"],
-            ["terraform", "apply", "-auto-approve", "-var-file=../terraform.tfvars"]
-        ]
-
         # Commands for the other dir (basic commands)
         infra_commands = [
             ["terraform", "init"],
@@ -132,7 +126,6 @@ def upgrade_terraform_commands(cluster_name, region,working_dir="."):
 
         def execute(directory, commands):
             print(f"\n📁 Entering: {directory}")
-            cleanup_terraform_artifacts(directory)
             for cmd in commands:
                 print(f"🔧 Running: {' '.join(cmd)}")
                 try:
@@ -145,13 +138,15 @@ def upgrade_terraform_commands(cluster_name, region,working_dir="."):
                 except subprocess.CalledProcessError as e:
                     print(f"❌ Error running {' '.join(cmd)}:\n{e.stderr}")
                     break  # Stop further execution if one command fails
-        execute("./", infra_commands)
+        cleanup_terraform_artifacts(Path(working_dir))
+        execute(Path(working_dir), infra_commands)
     except subprocess.CalledProcessError as e:
         print(f"❌ Terraform error:\n{e.stderr}")
     finally:
         # Restore original files
         for original, backup in backups:
             restore_file(original, backup)
+        cleanup_terraform_artifacts(Path(working_dir))
 
 def terraform_destroy_commands(cluster_name, region,working_dir="."):
     """
@@ -275,8 +270,8 @@ def terraform_destroy_commands(cluster_name, region,working_dir="."):
             delete_s3_and_dynamodb(bucket)
         else:
             print("📦 Bucket is NOT empty. Proceeding with 2-step destroy.")
-            cleanup_terraform_artifacts("./")
-            execute("./", destroy_commands)
+            cleanup_terraform_artifacts(Path(working_dir))
+            execute(Path(working_dir), destroy_commands)
             delete_s3_and_dynamodb(bucket)
     except subprocess.CalledProcessError as e:
         print(f"❌ Terraform error:\n{e.stderr}")
@@ -284,6 +279,7 @@ def terraform_destroy_commands(cluster_name, region,working_dir="."):
         # Restore original files
         for original, backup in backups:
             restore_file(original, backup)
+        cleanup_terraform_artifacts(Path(working_dir))
 
 def replace_placeholders(file_path, replacements):
     """Replace placeholders in the given file and backup the original."""

@@ -1,10 +1,10 @@
 terraform {
   backend "s3" {
-    bucket = <terraform_state_bucket_name>
+    bucket = "<cluster_name>-s3-state-bckt"
     key    = "terraform-setup/terraform.tfstate"
     region = "ap-south-1"
     # The below line is optional depending on whether you are using DynamoDB for state locking and consistency
-    dynamodb_table = <terraform_state_bucket_name>
+    dynamodb_table = "<cluster_name>-s3-state-bckt"
     # The below line is optional if your S3 bucket is encrypted
     encrypt = true
   }
@@ -237,7 +237,6 @@ module "eks_managed_node_group" {
       }
     }
   }
-  user_data_template_path = "user-data.yaml"
   min_size     = var.min_worker_nodes
   max_size     = var.max_worker_nodes
   desired_size = var.desired_worker_nodes

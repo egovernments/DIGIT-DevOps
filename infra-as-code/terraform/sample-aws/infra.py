@@ -11,6 +11,8 @@ import tempfile
 import importlib.util
 import shutil
 import json
+import boto3
+from botocore.exceptions import ClientError
 
 def cleanup_terraform_artifacts(directory):
     paths_to_delete = [
@@ -193,38 +195,43 @@ def terraform_destroy_commands(cluster_name, region,working_dir="."):
         except json.JSONDecodeError as e:
             print(f"❌ JSON parsing error while checking S3 bucket: {e}")
             return False
+    def delete_s3_and_dynamodb(name):
+        print(f"🧹 Deleting resources with name: {name}")
 
-    def empty_s3_bucket(bucket):
-        print(f"🧹 Emptying S3 bucket: {bucket}")
+        s3 = boto3.client('s3')
+        dynamodb = boto3.client('dynamodb')
+
+        # Step 1: Delete all versions in the S3 bucket
         try:
-            result = subprocess.run([
-                "aws", "s3api", "list-object-versions",
-                "--bucket", bucket,
-                "--output", "json"
-            ], check=True, stdout=subprocess.PIPE, text=True)
+            print(f"🔸 Emptying S3 bucket: {name}")
+            paginator = s3.get_paginator('list_object_versions')
+            for page in paginator.paginate(Bucket=name):
+                objects = [
+                    {'Key': obj['Key'], 'VersionId': obj['VersionId']}
+                    for obj in page.get('Versions', []) + page.get('DeleteMarkers', [])
+                ]
+                if objects:
+                    s3.delete_objects(Bucket=name, Delete={'Objects': objects})
+            print(f"✅ Emptied S3 bucket: {name}")
+        except ClientError as e:
+            print(f"⚠️ Skipped S3 deletion: {e.response['Error']['Message']}")
 
-            data = json.loads(result.stdout)
-            objects = [
-                {"Key": obj["Key"], "VersionId": obj["VersionId"]}
-                for obj in data.get("Versions", []) + data.get("DeleteMarkers", [])
-            ]
+        # Step 2: Delete the S3 bucket itself
+        try:
+            s3.delete_bucket(Bucket=name)
+            print(f"✅ Deleted S3 bucket: {name}")
+        except ClientError as e:
+            print(f"⚠️ Could not delete bucket: {e.response['Error']['Message']}")
 
-            if not objects:
-                print("✅ Bucket is already empty.")
-                return
-
-            delete_payload = {"Objects": objects}
-            subprocess.run([
-                "aws", "s3api", "delete-objects",
-                "--bucket", bucket,
-                "--delete", "file:///dev/stdin"
-            ], input=json.dumps(delete_payload), text=True, check=True)
-
-            print("✅ Bucket emptied successfully.")
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to empty bucket:\n{e.stderr}")
-        except json.JSONDecodeError as e:
-            print(f"❌ Failed to parse JSON from AWS CLI output:\n{e}")
+        # Step 3: Delete DynamoDB table
+        try:
+            print(f"🔸 Deleting DynamoDB table: {name}")
+            dynamodb.delete_table(TableName=name)
+            waiter = dynamodb.get_waiter('table_not_exists')
+            waiter.wait(TableName=name)
+            print(f"✅ Deleted DynamoDB table: {name}")
+        except ClientError as e:
+            print(f"⚠️ Skipped DynamoDB deletion: {e.response['Error']['Message']}")
 
     backups = []
     try:
@@ -239,12 +246,7 @@ def terraform_destroy_commands(cluster_name, region,working_dir="."):
         # Commands for the other dir (basic commands)
         destroy_commands = [
             ["terraform", "init"],
-            ["terraform", "destroy", "-lock=false", "-auto-approve"]
-        ]
-
-        remote_state_commands = [
-            ["terraform", "init"],
-            ["terraform", "destroy", "-lock=false", "-auto-approve", "-var-file=../terraform.tfvars"]
+            ["terraform", "destroy", "-lock=false"]
         ]
 
         def execute(directory, commands):
@@ -270,13 +272,12 @@ def terraform_destroy_commands(cluster_name, region,working_dir="."):
         bucket_empty = is_s3_bucket_empty(bucket)
         if bucket_empty:
             print("📦 Bucket is empty. Proceeding to destroy only in remote state directory.")
-            execute("./remote-state", remote_state_commands)
+            delete_s3_and_dynamodb(bucket)
         else:
             print("📦 Bucket is NOT empty. Proceeding with 2-step destroy.")
             cleanup_terraform_artifacts("./")
             execute("./", destroy_commands)
-            empty_s3_bucket(bucket)
-            execute("./remote-state", remote_state_commands)
+            delete_s3_and_dynamodb(bucket)
     except subprocess.CalledProcessError as e:
         print(f"❌ Terraform error:\n{e.stderr}")
     finally:

@@ -1,7 +1,6 @@
 import subprocess
 import sys
 import os
-from InquirerPy import inquirer
 import configparser
 import yaml
 import threading

@@ -402,7 +402,7 @@ def ensure_aws_dependencies():
 
     install_boto_and_other_dependencies()
 
-    global boto3,botocore,inquirer,yaml,get_aws_inputs_and_validate,simulate_permissions,load_actions_from_yaml,Spinner,print_results,ProfileNotFound,setup_session
+    global boto3,botocore,yaml,get_aws_inputs_and_validate,simulate_permissions,load_actions_from_yaml,Spinner,print_results,ProfileNotFound,setup_session
     import boto3
     import botocore
     import yaml

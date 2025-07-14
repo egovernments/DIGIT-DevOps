@@ -5,14 +5,11 @@ import sys
 import os
 import re
 from pathlib import Path
-from InquirerPy import inquirer
 import argparse
 import tempfile
 import importlib.util
 import shutil
 import json
-import boto3
-from botocore.exceptions import ClientError
 
 def cleanup_terraform_artifacts(directory):
     """
@@ -402,16 +399,18 @@ def ensure_aws_dependencies():
 
     install_boto_and_other_dependencies()
 
-    global boto3,botocore,yaml,get_aws_inputs_and_validate,simulate_permissions,load_actions_from_yaml,Spinner,print_results,ProfileNotFound,setup_session
+    global boto3,botocore,inquirer,yaml,get_aws_inputs_and_validate,simulate_permissions,load_actions_from_yaml,Spinner,print_results,ProfileNotFound,setup_session
     import boto3
     import botocore
     import yaml
+    from InquirerPy import inquirer
     from aws_iam import get_aws_inputs_and_validate
     from aws_iam import simulate_permissions
     from aws_iam import load_actions_from_yaml
     from aws_iam import Spinner
     from aws_iam import print_results
     from aws_iam import setup_session
+    from botocore.exceptions import ClientError
     from botocore.exceptions import ProfileNotFound
 
     try:
@@ -441,6 +440,7 @@ def main():
     parser.add_argument('--upgrade', action='store_true', help='Upgrade infrastructure')
     parser.add_argument('--destroy', action='store_true', help='Destroy infrastructure')
     args = parser.parse_args()
+    ensure_aws_dependencies()
     os.environ.pop('AWS_PROFILE', None)
     cloud_choice = inquirer.select(
         message="Choose your cloud provider:",
@@ -452,7 +452,6 @@ def main():
     ).execute()
     if args.create:
         if cloud_choice == "aws":
-            ensure_aws_dependencies()
             config = get_aws_inputs_and_validate()
             actions = load_actions_from_yaml('permissions.yaml')
             cluster_name = input("Enter the Cluster Name: ")
@@ -472,7 +471,6 @@ def main():
             print("Only AWS is currently supported. Others coming soon!")
     elif args.destroy:
         if cloud_choice == "aws":
-            ensure_aws_dependencies()
             config = get_aws_inputs_and_validate()
             actions = load_actions_from_yaml('permissions.yaml')
             cluster_name = input("Enter the Cluster Name: ")
@@ -492,7 +490,6 @@ def main():
             print("Only AWS is currently supported. Others coming soon!")
     elif args.upgrade:
         if cloud_choice == "aws":
-            ensure_aws_dependencies()
             config = get_aws_inputs_and_validate()
             actions = load_actions_from_yaml('permissions.yaml')
             cluster_name = input("Enter the Cluster Name: ")

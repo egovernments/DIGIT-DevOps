@@ -327,6 +327,7 @@ provider "kubernetes" {
 }
 
 resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
+  depends_on = [module.eks_managed_node_group]
   metadata {
     name = "gp3"
     annotations = {

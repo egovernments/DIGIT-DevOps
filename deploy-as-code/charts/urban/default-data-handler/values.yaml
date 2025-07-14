@@ -3,22 +3,27 @@ labels:
   app: "default-data-handler"
   group: "core"
 
-# Ingress Configs
-ingress:
-  enabled: true
-  zuul: true
-  context: "default-data-handler"
+initContainers:
+  extraInitContainers: |
+    - name: wait-for-dependencies
+      image: busybox
+      command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for dependent services..."
+          until nc -z boundary-service 8080 && nc -z egov-hrms 8080 && nc -z egov-user 8080 && nc -z egov-enc-service 8080 && nc -z egov-workflow-v2 8080 && nc -z mdms-v2 8080 && nc -z egov-localization 8080; do
+            echo "Waiting for services to be ready..."
+            sleep 5
+          done
+          echo "All services are ready and then proceeded..."
 
 
 # Container Configs
 image:
   repository: "default-data-handler"
-  tag: sandbox-pgr-7d547af-6
-replicas: "1"
-healthChecks:
-  enabled: true
-  livenessProbePath: "/default-data-handler/health"
-  readinessProbePath: "/default-data-handler/health"
+  tag: sandbox-pgr-752a892-13
+
 appType: "java-spring"
 tracing-enabled: true
 memory_limits: 512Mi
@@ -30,6 +35,7 @@ default-mdms-schemacode-list: "SandBoxLanding.AdditionalModuleLinks,tenant.citie
 mdms-schemacode-map: "{PGR:'RAINMAKER-PGR.ServiceDefs,common-masters.Department,common-masters.IdFormat', HRMS:'common-masters.Department,common-masters.Designation,common-masters.IdFormat,common-masters.GenderType,egov-hrms.Specalization,egov-hrms.EmployeeType,egov-hrms.EmployeeStatus,egov-hrms.EmployeeDepartment,egov-hrms.DeactivationReason,egov-hrms.CommonFieldsConfig,egov-hrms.CampaignAssignmentFieldsConfig'}"
 default-localization-locale-list: "en_IN,hi_IN"
 default-localization-module-list: "egov-user,rainmaker-dss,digit-ui,digit-sandbox,rainmaker-common,digit-privacy-policy,rainmaker-pgr,rainmaker-hr,rainmaker-workbench,rainmaker-mdms,rainmaker-schema"
+
 
 # Additional Container Envs
 env: |

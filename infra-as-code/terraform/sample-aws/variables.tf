@@ -29,6 +29,16 @@ variable "kubernetes_version" {
   default = "1.31"
 }
 
+variable "db_version" {
+  description = "DB version"
+  default = "15.8"
+}
+
+variable "db_instance_class" {
+  description = "DB instance class"
+  default = "db.t4g.medium"
+}
+
 variable "instance_types" {
   description = "Arry of instance types for SPOT instances"
   default = ["m5a.xlarge"]

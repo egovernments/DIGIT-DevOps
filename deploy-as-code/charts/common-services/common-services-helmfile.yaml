@@ -1,0 +1,28 @@
+environments:
+  env:
+    values:
+      - ../environments/env-secrets.yaml
+      - ../environments/env.yaml
+---
+templates:
+  default: &default
+    chart: ./{{`{{ .Release.Name }}`}}
+    labels:
+      target: ./{{`{{ .Release.Name }}`}}
+    version: 0.1.0
+    namespace: egov
+    # This prevents helmfile exiting when it encounters a missing file
+    # Valid values are "Error", "Warn", "Info", "Debug". The default is "Error"
+    # Use "Debug" to make missing files errors invisible at the default log level(--log-level=INFO)
+    missingFileHandler: Warn
+    values:
+    - {{ .Values | toYaml | nindent 8 }}
+
+releases:
+  - name: egov-user-event # Replace with your desired namespace
+    installed: true
+    <<: *default
+  
+  - name: egov-hrms # Replace with your desired namespace
+    installed: true
+    <<: *default

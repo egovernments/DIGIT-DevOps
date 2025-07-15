@@ -1,0 +1,98 @@
+environments:
+  env:
+    values:
+      - namespace: monitoring
+      - ../environments/env-secrets.yaml
+      - ../environments/env.yaml
+---
+repositories:
+- name: grafana
+  url: https://grafana.github.io/helm-charts
+- name: prometheus-community
+  url: https://prometheus-community.github.io/helm-charts
+- name: jaegertracing
+  url: https://jaegertracing.github.io/helm-charts
+- name: kafka-ui
+  url: https://provectus.github.io/kafka-ui-charts
+- name: apm-server
+  url: https://helm.elastic.co
+- name: apm-attacher
+  url: https://helm.elastic.co
+
+releases:
+- name: loki-stack
+  installed: true
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: grafana/loki-stack
+  version: 2.10.1
+  values:
+  - ./values/loki-stack.yaml
+  - {{ .Values | toYaml | nindent 8 }}
+
+- name: kube-prometheus-stack
+  installed: true
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: prometheus-community/kube-prometheus-stack
+  version: 56.6.2
+  disableValidation: true
+  values:
+  - ./values/prometheus.yaml
+  - {{ .Values | toYaml | nindent 8 }}
+
+- name: jaeger
+  installed: false
+  namespace: es-cluster
+  chart: jaegertracing/jaeger
+  version: 0.35.0
+  values:
+  - ./values/jaeger.yaml
+  - {{ .Values | toYaml | nindent 8 }}
+  - storage:
+      elasticsearch:
+        password: {{ .Values.secrets.elasticsearch.password }}
+  set:
+    - name: query.ingress.hosts[0]
+      value: "{{ .Values.global.domain }}"
+
+- name: grafana
+  installed: true
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: grafana/grafana
+  version: 7.3.0
+  values:
+  - ./values/grafana.yaml
+  - grafana.ini:
+      auth.github:
+        allowed_organizations: {{ .Values.grafana.github.allowed_organizations }}
+        role_attribute_path: {{ .Values.grafana.github.role_attribute_path }}
+  - envRenderSecret:
+      GF_AUTH_GITHUB_YAMLAPPLICATIONCONFIG_AUTH_OAUTH2_CLIENT_GITHUB_CLIENTID: {{ .Values.secrets.grafana.clientID }}
+      GF_AUTH_GITHUB_CLIENT_SECRET: {{ .Values.secrets.grafana.clientSecret }}
+  set:
+    - name: ingress.hosts[0]
+      value: {{ .Values.global.domain | quote }}
+    - name: ingress.tls[0].hosts[0]
+      value: {{ .Values.global.domain | quote }}
+
+- name: blackbox
+  installed: false
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: prometheus-community/prometheus-blackbox-exporter
+  version: 8.2.0
+  values:
+  - ./values/blackbox-exporter.yaml
+  - {{ .Values | toYaml | nindent 8 }}
+
+- name: kafka-ui
+  installed: true
+  namespace: backbone
+  chart: kafka-ui/kafka-ui
+  version: 0.7.6
+  values:
+  - ./values/kafka-ui.yaml
+  - {{ .Values | toYaml | nindent 8 }}
+  set:
+    - name: ingress.host
+      value: {{ .Values.global.domain | quote }}
+    - name: ingress.tls.secretName
+      value: {{ printf "%s-tls-certs" .Values.global.domain | quote }}

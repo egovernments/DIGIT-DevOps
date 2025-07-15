@@ -1,0 +1,34 @@
+environments:
+  env:
+    values:
+      - ../environments/env-secrets.yaml
+      - ../environments/env.yaml
+---
+templates:
+  default: &default
+    chart: ./{{`{{ .Release.Name }}`}}
+    labels:
+      target: ./{{`{{ .Release.Name }}`}}
+    version: 0.1.0
+    namespace: egov
+    # This prevents helmfile exiting when it encounters a missing file
+    # Valid values are "Error", "Warn", "Info", "Debug". The default is "Error"
+    # Use "Debug" to make missing files errors invisible at the default log level(--log-level=INFO)
+    missingFileHandler: Warn
+    values:
+      - {{ .Values | toYaml | nindent 8 }}
+
+releases:
+  - name: pgr-services # Replace with your desired namespace
+    installed: true
+    <<: *default
+
+  - name: digit-ui # Replace with your desired namespace
+    installed: true
+    <<: *default
+
+  - name: default-data-handler # Replace with your desired namespace
+    installed: true
+    <<: *default
+
+  # Frontend services end

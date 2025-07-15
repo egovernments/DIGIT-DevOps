@@ -55,8 +55,8 @@ resource "kubernetes_secret" "egov-filestore" {
   type = "Opaque"
 }
 
-resource "aws_s3_bucket" "filestore_bucket" {
-  bucket = "${var.cluster_name}-filestore-bucket"
+resource "aws_s3_bucket" "assets_bucket" {
+  bucket = "${var.cluster_name}-assets-bucket"
 
   tags = {
     "KubernetesCluster" = var.cluster_name
@@ -64,8 +64,8 @@ resource "aws_s3_bucket" "filestore_bucket" {
   }
 }
 
-resource "aws_s3_bucket_public_access_block" "filestore_bucket_access" {
-  bucket = aws_s3_bucket.filestore_bucket.id
+resource "aws_s3_bucket_public_access_block" "assets_bucket_access" {
+  bucket = aws_s3_bucket.assets_bucket.id
 
   block_public_acls       = false
   block_public_policy     = false
@@ -73,14 +73,14 @@ resource "aws_s3_bucket_public_access_block" "filestore_bucket_access" {
   restrict_public_buckets = false
 }
 
-resource "aws_s3_bucket_policy" "filestore_bucket_policy" {
-  depends_on = [aws_s3_bucket_public_access_block.filestore_bucket_access]
-  bucket = aws_s3_bucket.filestore_bucket.id
-  policy = data.aws_iam_policy_document.filestore_bucket_policy.json
+resource "aws_s3_bucket_policy" "assets_bucket_policy" {
+  depends_on = [aws_s3_bucket_public_access_block.assets_bucket_access]
+  bucket = aws_s3_bucket.assets_bucket.id
+  policy = data.aws_iam_policy_document.assets_bucket_policy.json
 }
 
-data "aws_iam_policy_document" "filestore_bucket_policy" {
-  depends_on = [aws_s3_bucket_public_access_block.filestore_bucket_access]
+data "aws_iam_policy_document" "assets_bucket_policy" {
+  depends_on = [aws_s3_bucket_public_access_block.assets_bucket_access]
   statement {
     sid           = "PublicReadGetObject"
     principals {
@@ -93,13 +93,31 @@ data "aws_iam_policy_document" "filestore_bucket_policy" {
     ]
 
     resources = [
-      "${aws_s3_bucket.filestore_bucket.arn}/*",
+      "${aws_s3_bucket.assets_bucket.arn}/*",
     ]
   }
 }
 
+resource "aws_s3_bucket" "filestore_bucket" {
+  bucket = "${var.cluster_name}-filestore-bucket"
+
+  tags = {
+    "KubernetesCluster" = var.cluster_name
+    "Name"              = var.cluster_name
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "filestore_bucket_access" {
+  bucket = aws_s3_bucket.filestore_bucket.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
 resource "aws_iam_policy" "filestore_policy" {
-  name        = "filestore_policy"  # Replace with your desired policy name
+  name        = "${var.cluster_name}-filestore-bucket-policy"  # Replace with your desired policy name
   description = "Filestore Policy for S3 access"
   policy = jsonencode({
     "Version" = "2012-10-17"
@@ -151,8 +169,8 @@ module "db" {
   subnet_ids                    = "${module.network.private_subnets}"
   vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
   availability_zone             = "${element(var.availability_zones, 0)}"
-  instance_class                = "db.t4g.medium"  ## postgres db instance type
-  engine_version                = "15.8"   ## postgres version
+  instance_class                = "${var.db_instance_type}"  ## postgres db instance type
+  engine_version                = "${var.db_version}"   ## postgres version
   storage_type                  = "gp3"
   storage_gb                    = "20"     ## postgres disk size
   backup_retention_days         = "7"
@@ -232,7 +250,7 @@ module "eks_managed_node_group" {
   max_size     = var.max_worker_nodes
   desired_size = var.desired_worker_nodes
   instance_types = var.instance_types
-  capacity_type  = "SPOT"
+  capacity_type  = "${var.instance_reservation}"
   ebs_optimized  = "true"
   enable_monitoring = "true"
   iam_role_additional_policies = {
@@ -314,13 +332,13 @@ resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
   }
 }
 
-provider "helm" {
-  kubernetes = {
-    host                   = data.aws_eks_cluster.cluster.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-    token                  = data.aws_eks_cluster_auth.cluster.token
-  }
-}
+# provider "helm" {
+#   kubernetes {
+#     host                   = data.aws_eks_cluster.cluster.endpoint
+#     cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+#     token                  = data.aws_eks_cluster_auth.cluster.token
+#   }
+# }
 
 provider "kubectl" {
   host                   = data.aws_eks_cluster.cluster.endpoint

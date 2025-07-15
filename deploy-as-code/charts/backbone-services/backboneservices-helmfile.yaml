@@ -1,0 +1,114 @@
+environments:
+  env:
+    values:
+      - ../environments/env-secrets.yaml
+      - ../environments/env.yaml
+---
+repositories:
+- name: bitnami
+  url: https://charts.bitnami.com/bitnami
+
+templates: 
+  default: &default
+    namespace: backbone
+    missingFileHandler: Warn
+
+releases:
+- name: cert-manager
+  chart: ./cert-manager
+  namespace: egov
+  installed: true
+  version: v1.13.3
+  disableValidation: true
+  values:
+    - ./cert-manager/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
+
+- name: minio
+  installed: false
+  chart: ./minio
+  version: 13.3.1
+  <<: *default
+  values:
+    - ./minio/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
+
+- name: postgresql
+  installed: false
+  chart: ./postgresql
+  version: 11.9.13
+  <<: *default
+  values:
+    - ./postgresql/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
+    - global:
+        postgresql:
+          auth:
+            postgresPassword: {{ .Values.secrets.db.password | quote }}
+
+- name: redis
+  installed: true
+  chart: ./redis
+  version: 7.2.4
+  <<: *default
+  values:
+    - ./redis/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
+
+- name: elasticsearch
+  chart: ./elasticsearch
+  version: 8.11.3
+  <<: *default
+  values:
+    - ./elasticsearch/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
+    - secret:
+        password: {{ .Values.secrets.elasticsearch.password }}
+
+- name: elasticsearch-data
+  chart: ./elasticsearch-data
+  version: 8.11.3
+  <<: *default
+  values:
+    - ./elasticsearch-data/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
+
+- name: kibana
+  chart: ./kibana
+  version: 8.11.3
+  force: true
+  <<: *default
+  values:
+    - ./kibana/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
+    - ingress:
+        hosts:
+          - host: {{ .Values.global.domain }}
+            paths:
+              - path: /kibana
+        tls: 
+          - secretName: {{ .Values.global.domain }}-tls-certs
+            hosts:
+              - {{ .Values.global.domain }}
+
+- name: kafka-kraft
+  installed: true
+  chart: ./kafka-kraft
+  version: 26.2.0
+  <<: *default
+  values:
+    - ./kafka-kraft/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
+  set:
+    - name: kraft.clusterId
+      value: {{ .Values.secrets.kafka.clusterID }}
+
+- name: ingress-nginx
+  installed: true
+  chart: ./ingress-nginx
+  version: 4.10.0
+  <<: *default
+  values:
+    - ./ingress-nginx/values.yaml
+    - {{ .Values | toYaml | nindent 8 }}
+    - domain: {{ .Values.global.domain }}

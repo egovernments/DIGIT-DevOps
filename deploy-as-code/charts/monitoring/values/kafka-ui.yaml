@@ -1,0 +1,196 @@
+namespace: backbone
+
+labels:
+  app: kafka-ui
+  group: kafka
+
+# ingress:
+#   enabled: true
+#   context: "kafka-ui(/|$)"
+#   waf:
+#     enabled: false
+#   annotations:
+#     nginx.ingress.kubernetes.io/auth-signin:  https://$host/oauth2/start?rd=$escaped_request_uri
+#     nginx.ingress.kubernetes.io/auth-url:     https://$host/oauth2/auth
+#     kubernetes.io/ingress.class:              nginx
+#     nginx.ingress.kubernetes.io/configuration-snippet: |
+#       if ($request_uri ~* "^/kafka-ui$") {
+#         return 301 $scheme://$host/kafka-ui/;
+#       }
+
+livenessProbe:
+  httpGet:
+    path: /kafka-ui/actuator/health
+    port: 8080
+  initialDelaySeconds: 180
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /kafka-ui/actuator/health
+    port: 8080
+  initialDelaySeconds: 180
+  periodSeconds: 10
+
+
+replicaCount: 1
+
+image:
+  registry: docker.io
+  repository: provectuslabs/kafka-ui
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+existingConfigMap: ""
+yamlApplicationConfig:
+  kafka:
+    clusters:
+      - name: kafka-kraft
+        bootstrapServers: kafka-kraft-controller-headless.backbone:9092
+        readonly: true
+  # auth:
+  #   type: OAUTH2
+  #   oauth2:
+  #     client:
+  #       github:
+  #         provider: github
+  #         scope: read:org
+  #         user-name-attribute: login
+  #         custom-params:
+  #           type: github
+  # rbac:
+  #   roles:
+  #     - name: "readonly"
+  #       clusters:
+  #         - unified-qa
+  #       subjects:
+  #         - provider: oauth_github
+  #           type: team
+  #           value: "egovernments/micro-service-qa"
+  #       permissions:
+  #         - resource: topic
+  #           value: ".*"
+  #           actions: [ "view" ]
+  #         - resource: consumer
+  #           value: ".*"
+  #           actions: [ "view" ]
+      # - name: "admins"
+      #   clusters:
+      #     - unified-uat
+      #   subjects:
+      #     - provider: oauth_github
+      #       type: team
+      #       value: "egovernments/uat-kafka-ui-master"
+      #   permissions:
+      #     - resource: topic
+      #       value: ".*"
+      #       actions: all
+      #     - resource: consumer
+      #       value: ".*"
+      #       actions: all
+
+yamlApplicationConfigConfigMap:
+  {}
+existingSecret: ""
+envs:
+  secret: {}
+  config:
+    SERVER_SERVLET_CONTEXT_PATH: "/kafka-ui"
+ingress:
+  # Enable ingress resource
+  enabled: true
+
+  # Annotations for the Ingress
+  annotations: 
+    kubernetes.io/ingress.class: nginx
+    # nginx.ingress.kubernetes.io/configuration-snippet: |
+    #   if ($request_uri ~* "^/kafka-ui$") {
+    #     return 301 $scheme://$host/kafka-ui/;
+    #   }
+
+  # ingressClassName for the Ingress
+  ingressClassName: ""
+
+  # The path for the Ingress
+  path: "/kafka-ui"
+
+  # The path type for the Ingress
+  pathType: "Prefix"  
+
+  # The hostname for the Ingress
+  host: "domain.com"
+
+  # configs for Ingress TLS
+  tls:
+    # Enable TLS termination for the Ingress
+    enabled: true
+    # the name of a pre-created Secret containing a TLS private key and certificate
+    secretName: ""
+
+  # HTTP paths to add to the Ingress before the default path
+  precedingPaths: []
+
+  # Http paths to add to the Ingress after the default path
+  succeedingPaths: []
+networkPolicy:
+  enabled: false
+  egressRules:
+    customRules: []
+  ingressRules:
+    customRules: []
+
+podAnnotations: {}
+podLabels: {}
+
+annotations: {}
+
+probes:
+  useHttpsScheme: false
+
+podSecurityContext:
+  {}
+securityContext:
+  {}
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 512Mi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+env:
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    value: /kafka-ui
+
+initContainers: {}
+
+volumeMounts: {}
+
+volumes: {}

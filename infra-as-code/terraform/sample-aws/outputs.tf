@@ -37,6 +37,11 @@ output "db_instance_port" {
   value       = module.db.db_instance_port
 }
 
+output "s3_assets_bucket" {
+  description = "Name of the assets bucket"
+  value       = aws_s3_bucket.assets_bucket.id
+}
+
 output "s3_filestore_bucket" {
   description = "Name of the filestore bucket"
   value       = aws_s3_bucket.filestore_bucket.id

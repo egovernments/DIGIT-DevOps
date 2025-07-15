@@ -1,0 +1,92 @@
+# Common Labels
+name: kafka-connect
+labels:
+  app: "kafka-connect"
+  group: "infra"
+
+# Container Configs
+image:
+  repository: cp-kafka-connect
+  tag: 8.1.3
+
+replicas: "1"
+httpPort: 8083
+heap: "-Xms512M -Xmx512M"
+config-storage-replication-factor: "3"
+offset-storage-replication-factor: "3"
+status-storage-replication-factor: "3"
+memory_limits: 1Gi
+resources: |
+  requests:
+    memory: {{ .Values.memory_limits | quote }}
+  limits:
+    memory: {{ .Values.memory_limits | quote }}
+
+# Init Containers Configs
+initContainers:
+  extraInitContainers: |
+    - name: init-keystore
+      image: adoptopenjdk:11-jre-hotspot
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -e;
+          openssl pkcs12 -export -in /etc/kafka-connect/secrets/tls.crt -inkey /etc/kafka-connect/secrets/tls.key -out /tmp/keystore/keystore.p12 -name elasticsearch-master -passout pass:changeit;
+          keytool -importkeystore -deststorepass changeit -destkeypass changeit -destkeystore /tmp/keystore/es.keystore.jks -srckeystore /tmp/keystore/keystore.p12 -srcstoretype PKCS12 -srcstorepass changeit -alias elasticsearch-master;
+          keytool -import -file /etc/kafka-connect/secrets/ca.crt -alias elasticsearch-master -keystore /tmp/keystore/es.truststore.jks -storepass changeit -noprompt;
+      volumeMounts:
+        - mountPath: /etc/kafka-connect/secrets
+          name: elasticsearch-certs
+        - mountPath: /tmp/keystore
+          name: keystore
+
+extraVolumes: |
+  - name: elasticsearch-certs
+    secret:
+      defaultMode: 420
+      secretName: elasticsearch-master-certs
+  - name: keystore
+    emptyDir: {}
+
+extraVolumeMounts: |
+  - name: keystore
+    mountPath: /tmp/keystore
+
+# Additional Container Envs
+env: |
+  - name: CONNECT_REST_ADVERTISED_HOST_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
+  - name: CONNECT_BOOTSTRAP_SERVERS
+    value: "PLAINTEXT://{{ index $.Values "configmaps" "egov-config" "data" "kafka-brokers" }}"
+  - name: CONNECT_GROUP_ID
+    value: {{ .Values.name }}
+  - name: CONNECT_CONFIG_STORAGE_TOPIC
+    value: {{ .Values.name }}-config
+  - name: CONNECT_OFFSET_STORAGE_TOPIC
+    value: {{ .Values.name }}-offset
+  - name: CONNECT_STATUS_STORAGE_TOPIC
+    value: {{ .Values.name }}-status
+  - name: KAFKA_HEAP_OPTS
+    value: {{ .Values.heap | quote }}
+  - name: "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR"
+    value: {{ index .Values "config-storage-replication-factor" | quote }}
+  - name: "CONNECT_INTERNAL_KEY_CONVERTER"
+    value: "org.apache.kafka.connect.json.JsonConverter"
+  - name: "CONNECT_INTERNAL_VALUE_CONVERTER"
+    value: "org.apache.kafka.connect.json.JsonConverter"
+  - name: "CONNECT_KEY_CONVERTER"
+    value: "org.apache.kafka.connect.json.JsonConverter"
+  - name: "CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE"
+    value: "false"
+  - name: "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR"
+    value: {{ index .Values "offset-storage-replication-factor" | quote }}
+  - name: "CONNECT_PLUGIN_PATH"
+    value: "/usr/share/java"
+  - name: "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR"
+    value: {{ index .Values "status-storage-replication-factor" | quote }}
+  - name: "CONNECT_VALUE_CONVERTER"
+    value: "org.apache.kafka.connect.json.JsonConverter"
+  - name: "CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE"
+    value: "false"

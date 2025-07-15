@@ -30,7 +30,7 @@ module "db" {
   backup_retention_days         = "7"
   administrator_login           = "${var.db_username}"
   administrator_login_password  = "${var.db_password}"
-  identifier                    = "${var.cluster_name}-db"
+  identifier                    = "${var.cluster_name}-db-new"
   db_name                       = "${var.db_name}"
   environment                   = "${var.cluster_name}" 
 }
@@ -159,45 +159,97 @@ module "aws_auth" {
   ]
 }
 
-module "eks_managed_node_group" {
-  source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
-  name            = "${var.cluster_name}-spot"
-  cluster_name    = var.cluster_name
-  cluster_version = var.kubernetes_version
-  subnet_ids = slice(module.network.private_subnets, 0, length(var.availability_zones))
-  vpc_security_group_ids  = [module.eks.node_security_group_id]
-  cluster_service_cidr = module.eks.cluster_service_cidr
-  use_custom_launch_template = true
-  launch_template_name = "${var.cluster_name}-lt"
-  block_device_mappings = {
-    xvda = {
-      device_name = "/dev/xvda"
-      ebs = {
-        volume_size           = 100
-        volume_type           = "gp3"
-        delete_on_termination = true
+# EKS Node Group IAM Role
+resource "aws_iam_role" "node_group_role" {
+  name_prefix = "${var.cluster_name}-spot-eks-node-group-"
+
+  assume_role_policy = jsonencode({
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
       }
-    }
-  }
-  min_size     = var.min_worker_nodes
-  max_size     = var.max_worker_nodes
-  desired_size = var.desired_worker_nodes
-  instance_types = var.instance_types
-  capacity_type  = "SPOT"
-  ebs_optimized  = "true"
-  enable_monitoring = "true"
-  iam_role_additional_policies = {
-    CSI_DRIVER_POLICY = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-    AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-    SQS_POLICY                   = "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
-  }
-  labels = {
-    Environment = var.cluster_name
-  }
+      Sid = "EKSNodeAssumeRole"
+    }]
+    Version = "2012-10-17"
+  })
+
   tags = {
     "KubernetesCluster" = var.cluster_name
-    "Name"              = var.cluster_name
+    "Name"              = "${var.cluster_name}-node-group-role"
   }
+}
+
+# Required IAM policy attachments for EKS node group
+resource "aws_iam_role_policy_attachment" "node_group_AmazonEKSWorkerNodePolicy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+  role       = aws_iam_role.node_group_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "node_group_AmazonEKS_CNI_Policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+  role       = aws_iam_role.node_group_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "node_group_AmazonEC2ContainerRegistryReadOnly" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  role       = aws_iam_role.node_group_role.name
+}
+
+# Additional policies
+resource "aws_iam_role_policy_attachment" "node_group_AmazonSSMManagedInstanceCore" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+  role       = aws_iam_role.node_group_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "node_group_CSI_DRIVER_POLICY" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  role       = aws_iam_role.node_group_role.name
+}
+
+resource "aws_iam_role_policy_attachment" "node_group_SQS_POLICY" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
+  role       = aws_iam_role.node_group_role.name
+}
+
+# ARM64 On-Demand Node Group - Direct Resource
+resource "aws_eks_node_group" "arm64_ondemand" {
+  cluster_name    = var.cluster_name
+  node_group_name = "${var.cluster_name}-arm64-ondemand"
+  node_role_arn   = aws_iam_role.node_group_role.arn
+  subnet_ids      = slice(module.network.private_subnets, 0, 1)
+  
+  capacity_type   = "ON_DEMAND"
+  ami_type        = "AL2023_ARM_64_STANDARD"
+  instance_types  = ["t4g.xlarge", "m6g.xlarge", "c6g.xlarge", "r6g.xlarge"]
+  disk_size       = 20
+  version         = var.kubernetes_version
+  
+  scaling_config {
+    desired_size = 10
+    max_size     = 15
+    min_size     = 5
+  }
+  
+  update_config {
+    max_unavailable = 1
+  }
+  
+  labels = {
+    Environment = var.cluster_name
+    Architecture = "arm64"
+    CapacityType = "on-demand"
+  }
+  
+  tags = {
+    "KubernetesCluster" = var.cluster_name
+    "Name"              = "${var.cluster_name}-arm64-ondemand"
+  }
+  
+  depends_on = [
+    aws_iam_role.node_group_role
+  ]
 }
 
 resource "aws_security_group_rule" "rds_db_ingress_workers" {

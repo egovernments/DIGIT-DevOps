@@ -245,16 +245,12 @@ def terraform_destroy_commands(cluster_name, region,working_dir="."):
             print(f"\n📁 Entering: {directory}")
             for cmd in commands:
                 print(f"🔧 Running: {' '.join(cmd)}")
-                try:
-                    result = subprocess.run(
-                        cmd,
-                        cwd=directory,
-                        check=True
-                    )
-                    print(f"✅ Output:\n{result.stdout}")
-                except subprocess.CalledProcessError as e:
-                    print(f"❌ Error running {' '.join(cmd)}:\n{e.stderr}")
-                    break  # Stop further execution if one command fails
+                result = subprocess.run(
+                    cmd,
+                    cwd=directory,
+                    check=True
+                )
+                print(f"✅ Output:\n{result.stdout}")
             # delete_s3_and_dynamodb(bucket)
         tf_file_path = "terraform.tfvars"
         bucket = extract_s3_bucket_name(tf_file_path)
@@ -270,6 +266,7 @@ def terraform_destroy_commands(cluster_name, region,working_dir="."):
             print("📦 Bucket is NOT empty. Proceeding with 2-step destroy.")
             cleanup_terraform_artifacts(Path(working_dir))
             execute(Path(working_dir), destroy_commands)
+            delete_s3_and_dynamodb(bucket)
     except subprocess.CalledProcessError as e:
         print(f"❌ Terraform error:\n{e.stderr}")
     finally:

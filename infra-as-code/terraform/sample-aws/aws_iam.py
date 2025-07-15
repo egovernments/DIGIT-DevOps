@@ -137,7 +137,12 @@ def choose_or_create_profile(existing_profiles):
                 print("❌ Invalid input. Please enter 'y' or 'n'.")
 
     # Fallthrough to create new profile
-    new_profile = input("Enter name for the new AWS profile: ").strip()
+    new_profile = input("Enter name for the new AWS profile (press Enter for 'default'): ").strip()
+    if not new_profile:
+        new_profile = "default"
+        print("ℹ️  No profile name entered. Using 'default' as the profile name.")
+    else:
+        print(f"✅ Creating new profile '{new_profile}'.")
     return new_profile
 
 

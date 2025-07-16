@@ -1,15 +1,19 @@
-output "zookeeper_storage_ids" {
-  value = "${module.zookeeper.storage_ids}"
+output "azurerm_postgresql_flexible_server" {
+  value = module.postgres-db.azurerm_postgresql_flexible_server
 }
 
-output "kafka_storage_ids" {
-  value = "${module.kafka.storage_ids}"
+output "postgresql_flexible_server_database_name" {
+  value = module.postgres-db.postgresql_flexible_server_database_name
 }
 
-output "es_master_storage_ids" {
-  value = "${module.es-master.storage_ids}"
+output "resource_group"{
+  value = var.resource_group
 }
 
-output "es_data_v1_storage_ids" {
-  value = "${module.es-data-v1.storage_ids}"
+output "db_user" {
+  value = var.db_user
+}
+
+output "cluster_name" {
+  value = var.environment
 }

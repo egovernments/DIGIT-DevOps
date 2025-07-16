@@ -303,12 +303,24 @@ def restore_file(original_path, backup_path):
 def run_command(command, shell=False, check=True):
     print(f"Running: {' '.join(command) if isinstance(command, list) else command}")
     subprocess.run(command, shell=shell, check=check)
+
+def refresh_sys_path():
+    """
+    Refresh sys.path to include user site-packages after installing with pip.
+    Needed especially if user-level install happens dynamically.
+    """
+    from site import getusersitepackages
+    user_site = getusersitepackages()
+    if user_site not in sys.path:
+        sys.path.append(user_site)
+
 def ensure_package(pip_name, import_name=None):
     if import_name is None:
         import_name = pip_name
     if importlib.util.find_spec(import_name) is None:
         print(f"Installing missing Python package: {pip_name}")
         run_command([sys.executable, "-m", "pip", "install", pip_name])
+        refresh_sys_path()
 
 def install_boto_and_other_dependencies():
     required = [

@@ -31,7 +31,7 @@ variable "kubernetes_version" {
 
 variable "instance_types" {
   description = "eGov recommended below instance type as a default"
-  default = ["r6a.large", "r5a.large", "r5ad.large"]
+  default = ["t3a.xlarge", "m6a.xlarge"]
 }
 
 variable "min_worker_nodes" {
@@ -41,7 +41,7 @@ variable "min_worker_nodes" {
 
 variable "desired_worker_nodes" {
   description = "eGov recommended below worker node counts as default for desired nodes"
-  default = "9" #REPLACE IF NEEDED
+  default = "6" #REPLACE IF NEEDED
 }
 
 variable "max_worker_nodes" {

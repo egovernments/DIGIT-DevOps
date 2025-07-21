@@ -6,6 +6,7 @@ resource "aws_db_subnet_group" "db_subnet_group" {
     tomap({
       "Name" = "db-subnet-group-${var.environment}",
       "environment" = "${var.environment}"
+      "KubernetesCluster" = "${var.environment}"
     })
   }"
 }

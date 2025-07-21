@@ -207,12 +207,10 @@ module "eks_managed_node_group" {
       }
     }
   }
-  user_data_template_path = "user-data.yaml"
   min_size     = var.min_worker_nodes
   max_size     = var.max_worker_nodes
   desired_size = var.desired_worker_nodes
   instance_types = var.instance_types
-  capacity_type  = "SPOT"
   ebs_optimized  = "true"
   enable_monitoring = "true"
   iam_role_additional_policies = {

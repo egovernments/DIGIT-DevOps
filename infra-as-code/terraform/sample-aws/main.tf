@@ -1,4 +1,4 @@
-terraform { 
+terraform {
   backend "s3" {
     bucket = <terraform_state_bucket_name>
     key    = "terraform-setup/terraform.tfstate"
@@ -11,7 +11,7 @@ terraform {
   required_providers {
     kubectl = {
       source  = "gavinbunney/kubectl"
-      version = "~> 1.14.0" 
+      version = "~> 1.14.0"
     }
   }
 }
@@ -214,7 +214,7 @@ resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
 }
 
 provider "helm" {
-  kubernetes {
+  kubernetes= {
     host                   = data.aws_eks_cluster.cluster.endpoint
     cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
     token                  = data.aws_eks_cluster_auth.cluster.token
@@ -389,11 +389,11 @@ resource "kubectl_manifest" "karpenter_node_pool" {
         consolidateAfter: 1m
         budgets:
         - nodes: "80%"
-          reasons: 
+          reasons:
           - "Empty"
           - "Drifted"
         - nodes: "80%"
-          reasons: 
+          reasons:
           - "Underutilized"
   YAML
 

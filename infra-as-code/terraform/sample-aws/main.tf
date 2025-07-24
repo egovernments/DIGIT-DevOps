@@ -210,7 +210,6 @@ module "eks" {
 module "eks_managed_node_group" {
   depends_on = [module.eks]
   source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
-  version         = "~> 20.0"
   name            = "${var.cluster_name}-spot"
   cluster_name    = var.cluster_name
   cluster_version = var.kubernetes_version

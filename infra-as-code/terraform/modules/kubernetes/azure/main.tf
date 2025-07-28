@@ -6,10 +6,12 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   
   default_node_pool {
-    name       = "default"
+    name       = "defaultpool"
     node_count = "${var.node_count}"
     vm_size    = "${var.vm_size}"
     vnet_subnet_id = "${var.vnet_subnet_id}"
+    node_public_ip_enabled = false
+    temporary_name_for_rotation = "tempnodepool" 
   }
 
   service_principal {

@@ -7,14 +7,20 @@ resource "azurerm_kubernetes_cluster" "aks" {
   
   default_node_pool {
     name       = "default"
-    node_count = "${var.nodes}"
+    node_count = "${var.node_count}"
     vm_size    = "${var.vm_size}"
+    vnet_subnet_id = "${var.vnet_subnet_id}"
   }
-
 
   service_principal {
     client_id     = "${var.client_id}"
     client_secret = "${var.client_secret}"
+  }
+
+  network_profile {
+    network_plugin     = "azure"
+    dns_service_ip     = "10.2.0.10"
+    service_cidr       = "10.2.0.0/16"
   }
 
   tags = {

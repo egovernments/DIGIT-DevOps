@@ -4,19 +4,18 @@ provider "azurerm" {
   client_id                  = var.client_id
   client_secret              = var.client_secret
   features {}
-
 }
 
 terraform {
   backend "azurerm" {
-    resource_group_name  = "demo-azure-rg-terraform"
-    storage_account_name = "tfstatea9qof"
-    container_name       = "demo-azure-container"
+    resource_group_name  = "digit-infra-terraform-rg"
+    storage_account_name = "tfstateanaks"
+    container_name       = "digit-infra-terraform-container"
     key                  = "terraform.tfstate"
   }
 }
 
-resource "azurerm_virtual_network" "example" {
+resource "azurerm_virtual_network" "vnet" {
   name                = "${var.resource_group}-virtual-network"
   address_space       = ["10.0.0.0/16"]
   location            = var.location
@@ -26,14 +25,14 @@ resource "azurerm_virtual_network" "example" {
 resource "azurerm_subnet" "aks" {
   name                 = "${var.resource_group}-aks-subnet"
   resource_group_name  = var.resource_group
-  virtual_network_name = azurerm_virtual_network.example.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
   address_prefixes     = ["10.0.1.0/24"]
 }
 
 resource "azurerm_subnet" "postgres" {
   name                 = "${var.resource_group}-postgres-subnet"
   resource_group_name  = var.resource_group
-  virtual_network_name = azurerm_virtual_network.example.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
   address_prefixes     = ["10.0.2.0/24"]
   service_endpoints    = ["Microsoft.Storage"]
 
@@ -47,7 +46,19 @@ resource "azurerm_subnet" "postgres" {
   }
 }
 
-resource "azurerm_network_security_group" "aks_nsg" {
+resource "azurerm_private_dns_zone_virtual_network_link" "db_net_link" {
+  name                  = "${var.environment}VnetZone.com"
+  private_dns_zone_name = azurerm_private_dns_zone.db.name
+  virtual_network_id    = azurerm_virtual_network.vnet.id
+  resource_group_name   = var.resource_group
+}
+
+resource "azurerm_private_dns_zone" "db" {
+  name                = "${var.environment}.postgres.database.azure.com"
+  resource_group_name = var.resource_group
+}
+
+/* resource "azurerm_network_security_group" "aks_nsg" {
   name                = "aks-nsg"
   location            = var.location
   resource_group_name = var.resource_group
@@ -86,6 +97,7 @@ resource "azurerm_network_security_rule" "example2" {
   resource_group_name         = var.resource_group
   network_security_group_name = azurerm_network_security_group.aks_nsg.name
 }
+*/
 
 module "kubernetes" {
   source                    = "../modules/kubernetes/azure"
@@ -95,24 +107,22 @@ module "kubernetes" {
   resource_group            = var.resource_group
   client_id                 = var.client_id
   client_secret             = var.client_secret
-  vm_size                   = "Standard_B2ms"
-  ssh_public_key            = var.environment
-  node_count                = 5
-  network_security_group_id = azurerm_network_security_group.aks_nsg.id
-  subnet_id                 = azurerm_subnet.aks.id
+  vm_size                   = "Standard_D2_v2"
+  node_count                = 3
+  vnet_subnet_id            = azurerm_subnet.aks.id
 }
 
 module "postgres-db" {
   source                    = "../modules/db/azure"
+  environment               = var.environment
   resource_group            = var.resource_group
   location                  = var.location
-  sku_tier                  = "B_Standard_B1ms"
+  sku_name                  = "B_Standard_B1ms"
   storage_mb                = "65536"
   backup_retention_days     = "7"
   administrator_login       = var.db_user
   administrator_password    = var.db_password
   db_version                = var.db_version
-  subnet_id                 = azurerm_subnet.postgres.id
-  network_security_group_id = azurerm_network_security_group.db_nsg.id
-  virtual_network_id        = azurerm_virtual_network.example.id
+  delegated_subnet_id       = azurerm_subnet.postgres.id
+  private_dns_zone_id       = azurerm_private_dns_zone.db.id
 }

@@ -1,0 +1,71 @@
+# Common Labels
+labels:
+  app: "boundary-go"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "boundary-go"
+
+
+# Container Configs
+
+initContainers:
+  dbMigration:
+    enabled: false # Go service handles its own migrations
+
+# Container Configs
+image:
+  repository: "sahuaradhya222/boundary-go"
+  tag: "v4"
+replicas: 1
+appType: "go"
+tracing-enabled: true # Assuming you want to keep tracing
+memory_limits: 100Mi
+cpu_limits: 50m
+healthChecks:
+  enabled: false # Disabled as requested
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+
+# Additional Container Envs
+env: |
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_USER
+    valueFrom:
+        secretKeyRef:
+          name: db
+          key: username
+  - name: DB_PASSWORD
+    valueFrom:
+        secretKeyRef:
+          name: db
+          key: password
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: SERVER_PORT
+    value: "8081"
+  - name: SERVER_CONTEXT_PATH
+    value: "/boundary-service"
+  - name: FILESTORE_BASEPATH
+    value: "http://localhost:8001"
+  - name: FILESTORE_ENDPOINT
+    value: "/filestore/v1/files"
+  - name: CACHE_TYPE
+    value: "inmemory"
+  # If you want to use Redis, uncomment and set these:
+  # - name: CACHE_TYPE
+  #   value: "redis"
+  # - name: CACHE_REDIS_ADDR
+  #   value: "localhost:6379"
+  # - name: CACHE_REDIS_PASSWORD
+  #   value: ""
+  # - name: CACHE_REDIS_DB
+  #   value: "0" 

@@ -1,0 +1,54 @@
+# Common Labels
+labels:
+  app: "template-config"
+  group: "accelerators"
+
+global:
+  containerRegistry: varunkumar704
+
+namespace: egov
+
+# Ingress Configs
+ingress:
+  enabled: false
+  zuul: false
+  context: "clamav-wrapper"
+
+# Container Configs
+image:
+  repository: "template-config"
+  tag: "multiarch"
+replicas: "1"
+healthChecks:
+  enabled: false
+  livenessProbePath: "/template-config/health"
+  readinessProbePath: "/template-config/health"
+appType: "go"
+memory_limits: 512Mi
+
+# Additional Container Envs
+env: |
+  - name: HTTP_PORT
+    value: "8080" 
+  - name: SERVER_CONTEXT_PATH
+    value: "template-config/v1"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: MIGRATION_SCRIPT_PATH
+    value: "./migrations"

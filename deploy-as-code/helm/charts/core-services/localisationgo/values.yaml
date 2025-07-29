@@ -1,0 +1,70 @@
+# Common Labels
+labels:
+  app: "localisationgo"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "localisationgo"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: false # Go service handles its own migrations
+
+# Container Configs
+image:
+  repository: "mithunhegdeegov/localisationgo"
+  tag: "multiarch4"
+replicas: 1
+appType: "go"
+tracing-enabled: true # Assuming you want to keep tracing
+healthChecks:
+  enabled: false # Disabled as requested
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+localisationgo:
+  resources:
+    limits:
+      cpu:    "50m"
+      memory: "100Mi"
+    requests:
+      cpu:    "100m"
+      memory: "256Mi"  
+
+# Additional Container Envs
+env: |
+  - name: REST_PORT
+    value: "8088"
+  - name: GRPC_PORT
+    value: "8089"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: REDIS_HOST
+    value: "redis.backbone"
+  - name: REDIS_PORT
+    value: "6379"
+  - name: REDIS_PASSWORD
+    value: ""
+  - name: REDIS_DB
+    value: "0"
+  - name: JAEGER_SAMPLER_PARAM
+    value: "1" 

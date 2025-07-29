@@ -23,12 +23,18 @@ image:
 replicas: 1
 appType: "go"
 tracing-enabled: true # Assuming you want to keep tracing
-memory_limits: 100Mi
-cpu_limits: 50m
 healthChecks:
   enabled: false # Disabled as requested
   livenessProbePath: "/health"
   readinessProbePath: "/health"
+boundary-go:
+  resources:
+    limits:
+      cpu:    "50m"
+      memory: "100Mi"
+    requests:
+      cpu:    "100m"
+      memory: "256Mi"
 
 # Additional Container Envs
 env: |
@@ -46,6 +52,11 @@ env: |
         secretKeyRef:
           name: db
           key: password
+  - name: BOUNDARY_GO_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: boundary-go
   - name: DB_NAME
     value: "postgres"
   - name: DB_SSL_MODE
@@ -65,7 +76,5 @@ env: |
   #   value: "redis"
   # - name: CACHE_REDIS_ADDR
   #   value: "localhost:6379"
-  # - name: CACHE_REDIS_PASSWORD
-  #   value: ""
   # - name: CACHE_REDIS_DB
   #   value: "0" 

@@ -13,6 +13,10 @@ terraform {
       source  = "gavinbunney/kubectl"
       version = "~> 1.14.0" 
     }
+    kubernetes = {
+      source = "hashicorp/kubernetes"
+      version = "2.37.1"
+    }
   }
 }
 
@@ -291,9 +295,13 @@ resource "aws_eks_addon" "aws_ebs_csi_driver" {
 }
 
 provider "kubernetes" {
-  host                   = data.aws_eks_cluster.cluster.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.cluster.token
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    args        = ["eks", "get-token", "--cluster-name", var.cluster_name]
+    command     = "aws"
+  }
 }
 
 resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {

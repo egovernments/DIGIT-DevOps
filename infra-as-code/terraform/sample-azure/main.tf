@@ -46,6 +46,34 @@ resource "azurerm_subnet" "postgres" {
   }
 }
 
+# Create Public IP for Internet Gateway
+resource "azurerm_public_ip" "public_ip" {
+  name                = "${var.environment}-public-ip"
+  resource_group_name = var.resource_group
+  location            = var.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+}
+
+# Create NAT Gateway (optional, for private subnet internet access)
+resource "azurerm_nat_gateway" "nat" {
+  name                = "${var.environment}-nat-gateway"
+  location            = var.location
+  resource_group_name = var.resource_group
+  sku_name            = "Standard"
+}
+
+resource "azurerm_nat_gateway_public_ip_association" "nat_assoc" {
+  nat_gateway_id       = azurerm_nat_gateway.nat.id
+  public_ip_address_id = azurerm_public_ip.public_ip.id
+}
+
+# Associate NAT with private subnet (to give it outbound access)
+resource "azurerm_subnet_nat_gateway_association" "nat_private" {
+  subnet_id      = azurerm_subnet.aks.id
+  nat_gateway_id = azurerm_nat_gateway.nat.id
+}
+
 resource "azurerm_private_dns_zone_virtual_network_link" "db_net_link" {
   name                  = "${var.environment}VnetZone.com"
   private_dns_zone_name = azurerm_private_dns_zone.db.name
@@ -57,47 +85,6 @@ resource "azurerm_private_dns_zone" "db" {
   name                = "${var.environment}.postgres.database.azure.com"
   resource_group_name = var.resource_group
 }
-
-/* resource "azurerm_network_security_group" "aks_nsg" {
-  name                = "aks-nsg"
-  location            = var.location
-  resource_group_name = var.resource_group
-}
-
-resource "azurerm_network_security_group" "db_nsg" {
-  name                = "db-nsg"
-  location            = var.location
-  resource_group_name = var.resource_group
-}
-
-resource "azurerm_network_security_rule" "example" {
-  name                        = "aks_rule1"
-  priority                    = 100
-  direction                   = "Inbound"
-  access                      = "Allow"
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = "80"
-  source_address_prefix       = "Internet"
-  destination_address_prefix  = "*"
-  resource_group_name         = var.resource_group
-  network_security_group_name = azurerm_network_security_group.aks_nsg.name
-}
-
-resource "azurerm_network_security_rule" "example2" {
-  name                        = "aks_rule2"
-  priority                    = 500
-  direction                   = "Inbound"
-  access                      = "Allow"
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = "443"
-  source_address_prefix       = "Internet"
-  destination_address_prefix  = "*"
-  resource_group_name         = var.resource_group
-  network_security_group_name = azurerm_network_security_group.aks_nsg.name
-}
-*/
 
 module "kubernetes" {
   source                    = "../modules/kubernetes/azure"

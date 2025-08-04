@@ -1,8 +1,8 @@
 variable "environment" {
-    default = "demo-azure-terraform"
+    default = "digit-infra-terraform"
 }
 variable "resource_group" {
-    default = "demo-azure-rg-terraform"
+    default = "digit-infra-terraform-rg"
 }
 
 variable "location" {
@@ -18,6 +18,7 @@ variable "db_user" {
 }
 
 variable "db_password"{}
+
 variable "subscription_id" {
   description = "The Subscription ID for Azure"
   type        = string

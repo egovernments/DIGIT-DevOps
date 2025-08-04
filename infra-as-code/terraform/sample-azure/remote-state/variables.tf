@@ -1,12 +1,12 @@
 # Other variables
 variable "tfstate" {
   description = "The name of the Azure Storage container for Terraform state"
-  default     = "demo-azure-container"
+  default     = "digit-infra-terraform-container"
 }
 
 variable "environment" {
   description = "The environment tag for Azure resources"
-  default     = "demo-azure-terraform"
+  default     = "digit-infra-terraform"
 }
 
 variable "location" {
@@ -16,7 +16,7 @@ variable "location" {
 
 variable "resource_group" {
   description = "The resource group name for the Azure resources"
-  default     = "demo-azure-rg-terraform"
+  default     = "digit-infra-terraform-rg"
 }
 variable "subscription_id" {
   description = "The Subscription ID for Azure"

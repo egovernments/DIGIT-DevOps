@@ -21,6 +21,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   network_profile {
     network_plugin     = "azure"
+    outbound_type      = "userAssignedNATGateway" # Use NAT Gateway
     dns_service_ip     = "10.2.0.10"
     service_cidr       = "10.2.0.0/16"
   }

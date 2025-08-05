@@ -11,7 +11,7 @@ REQUIRED_ACTIONS = [
     "Microsoft.DBforPostgreSQL/*",
     "Microsoft.Network/natGateways/*",
     "Microsoft.Network/publicIPAddresses/*",
-    "Microsoft.Storage/storageAccounts/*"
+    "Microsoft.Storage/*"
 ]
 
 def run_command(command, capture_output=True):
@@ -60,12 +60,20 @@ def configure_default_profile():
         print("❌ Failed to authenticate with provided credentials.")
         sys.exit(1)
 
-def set_active_profile(profile_name):
+    # Fetch and return the subscription ID
     try:
-        run_command(["az", "account", "set", "--subscription", profile_name])
-        print(f"✅ Profile '{profile_name}' is set as active.")
+        account_info = json.loads(run_command(["az", "account", "show", "-o", "json"]))
+        return account_info["id"]
+    except Exception:
+        print("❌ Failed to retrieve subscription ID after login.")
+        sys.exit(1)
+
+def set_active_profile(subscription_id):
+    try:
+        run_command(["az", "account", "set", "--subscription", subscription_id])
+        print(f"✅ Subscription '{subscription_id}' is set as active.")
     except subprocess.CalledProcessError:
-        print(f"❌ Failed to set profile '{profile_name}' as active.")
+        print(f"❌ Failed to set subscription '{subscription_id}' as active.")
         sys.exit(1)
 
 def get_current_sp_object_id():
@@ -133,11 +141,11 @@ def main():
         if selected:
             set_active_profile(selected)
         else:
-            configure_default_profile()
-            set_active_profile("default")
+            subscription_id = configure_default_profile()
+            set_active_profile(subscription_id)
     else:
-        configure_default_profile()
-        set_active_profile("default")
+        subscription_id = configure_default_profile()
+        set_active_profile(subscription_id)
 
     object_id = get_current_sp_object_id()
     check_permissions(object_id)

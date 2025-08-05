@@ -2,7 +2,7 @@
 labels:
   app: "hcm-abha"
   group: "health"
-  
+
 namespace: health
 
 global:
@@ -18,7 +18,34 @@ ingress:
 # Init Containers Configs
 initContainers:
   dbMigration:
-    enabled: false # Go service handles its own migrations
+    enabled: true
+    image: "sreejithk1903/hcm-abha-migrate:multiarch"
+    env:
+      - name: DB_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-host
+      - name: DB_PORT
+        value: "5432"
+      - name: DB_NAME
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-name
+      - name: DB_USER
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: username
+      - name: DB_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: password
+      - name: DB_SSL_MODE
+        value: "disable"  
+
 
 # Container Configs
 image:
@@ -31,7 +58,7 @@ healthChecks:
   enabled: false # Disabled as requested
   livenessProbePath: "/health"
   readinessProbePath: "/health"
-localisationgo:
+hcm-abha:
   resources:
     limits:
       cpu:    "50m"
@@ -104,3 +131,5 @@ env: |
     value: "https://healthidsbx.abdm.gov.in/api/v1/account/getPngCard"
   - name: ABHA_GET_CARD_URL
     value: "https://healthidsbx.abdm.gov.in/api/v1/account/qrCode"
+  - name: ENABLE_MIGRATIONS
+    value: "false"

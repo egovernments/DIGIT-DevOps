@@ -1,0 +1,98 @@
+# Common Labels
+labels:
+  app: "hcm-abha"
+  group: "health"
+
+global:
+    containerRegistry: sreejithk1903
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "hcm-abha"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: false # Go service handles its own migrations
+
+# Container Configs
+image:
+  repository: "hcm-abdm-service"
+  tag: "v1"
+replicas: 1
+appType: "go"
+tracing-enabled: true # Assuming you want to keep tracing
+healthChecks:
+  enabled: false # Disabled as requested
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+localisationgo:
+  resources:
+    limits:
+      cpu:    "50m"
+      memory: "100Mi"
+    requests:
+      cpu:    "100m"
+      memory: "256Mi"  
+
+# Additional Container Envs
+env: |
+  - name: REST_PORT
+    value: "8088"
+  - name: GRPC_PORT
+    value: "8089"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: REDIS_HOST
+    value: "redis.backbone"
+  - name: REDIS_PORT
+    value: "6379"
+  - name: REDIS_DB
+    value: "0"
+  - name: JAEGER_SAMPLER_PARAM
+    value: "1" 
+  - name: PUBLIC_KEY_URL
+    value: "https://healthidsbx.abdm.gov.in/api/v1/auth/cert"
+  - name: OTP_REQUEST_URL
+    value: "https://abhasbx.abdm.gov.in/abha/api/v3/enrollment/request/otp"
+  - name: ENROL_BY_AADHAAR_URL
+    value: "https://abhasbx.abdm.gov.in/abha/api/v3/enrollment/enrol/byAadhaar"
+  - name: ABDM_CLIENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: egov-abha
+        key: abha_client_id
+  - name: ABDM_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: egov-abha
+        key: abha_client_secret
+  - name: ABDM_AUTH_URL
+    value: "https://dev.abdm.gov.in/gateway/v0.5/sessions"
+  - name: ABHA_GET_CARD_URL
+    value: "https://healthidsbx.abdm.gov.in/api/v1/account/getCard"
+  - name: ABHA_GET_SVG_CARD_URL
+    value: "https://healthidsbx.abdm.gov.in/api/v1/account/getSvgCard"
+  - name: ABHA_GET_CARD_URL
+    value: "https://healthidsbx.abdm.gov.in/api/v1/account/getPngCard"
+  - name: ABHA_GET_CARD_URL
+    value: "https://healthidsbx.abdm.gov.in/api/v1/account/qrCode"

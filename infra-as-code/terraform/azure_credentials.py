@@ -2,6 +2,7 @@ import os
 import json
 import subprocess
 import sys
+from pathlib import Path
 import fnmatch
 
 REQUIRED_ACTIONS = [
@@ -14,84 +15,235 @@ REQUIRED_ACTIONS = [
     "Microsoft.Storage/*"
 ]
 
+AZURE_CONFIG_PATH = os.path.expanduser("~/.azure")
+AZURE_CONFIG_DIR = Path.home() / ".azure"
+SERVICE_PRINCIPAL_FILE = AZURE_CONFIG_DIR / "service_principal_entries.json"
+
 def run_command(command, capture_output=True):
     result = subprocess.run(command, capture_output=capture_output, text=True)
     if result.returncode != 0:
         raise subprocess.CalledProcessError(result.returncode, result.args, output=result.stdout, stderr=result.stderr)
     return result.stdout.strip()
 
-def list_existing_profiles():
+def run_az_cli(cmd):
     try:
-        output = run_command(["az", "account", "list", "--output", "json"])
+        output = subprocess.check_output(cmd, shell=True)
         return json.loads(output)
-    except Exception:
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Error running az command: {e.output.decode()}")
         return []
 
-def prompt_existing_profile(profiles):
-    print("\n🧾 Available Azure Profiles:")
-    for idx, profile in enumerate(profiles):
-        print(f"{idx + 1}. {profile['name']} ({profile['user']['name']})")
-    print("0. Enter new credentials")
+def validate_profile(profile):
+    if profile["type"] == "sp":
+        try:
+            output = run_command([
+                "az", "login",
+                "--service-principal",
+                "--username", profile["client_id"],
+                "--password", profile["client_secret"],
+                "--tenant", profile["tenant"],
+                "--output", "json"
+            ])
+            login_data = json.loads(output)
+            profile["subscription"] = login_data[0]["id"] if login_data else None
+            print(f"✅ SP credentials validated successfully for {profile['client_id']}")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to authenticate SP: {str(e)}")
+            return False
+    else:
+        try:
+            result = run_command(["az", "account", "show", "--output", "json"])
+            data = json.loads(result)
+            if data.get("id") == profile["subscription"]:
+                print("✅ User credentials are active.")
+                return True
+            else:
+                print("⚠️ User profile subscription mismatch.")
+                return False
+        except Exception as e:
+            print(f"❌ Failed to authenticate user profile: {str(e)}")
+            return False
 
-    while True:
-        choice = input("👉 Select a profile or enter 0 to configure a new one: ")
-        if choice.isdigit():
-            choice = int(choice)
-            if 0 <= choice <= len(profiles):
-                return profiles[choice - 1]['name'] if choice != 0 else None
-        print("⚠️ Invalid choice.")
+def get_user_profiles(subscription_id=None):
+    accounts = run_az_cli("az account list --output json")
+    user_profiles = []
 
-def configure_default_profile():
-    print("🛠️ Configuring new profile as 'default'...")
-    client_id = input("🔑 Enter Client ID: ").strip()
-    client_secret = input("🕵️ Enter Client Secret: ").strip()
-    tenant_id = input("🏢 Enter Tenant ID: ").strip()
+    for acc in accounts:
+        if acc.get("user") and acc.get("user").get("type") == "user":
+            # Only filter if subscription_id is explicitly passed
+            if subscription_id is None or acc.get("id") == subscription_id:
+                user_profiles.append({
+                    "name": acc.get("name"),
+                    "subscription": acc.get("id"),
+                    "type": "user",
+                    "user": acc.get("user").get("name")
+                })
+
+    return user_profiles
+
+def get_sp_profiles(subscription_id=None):
+    if not SERVICE_PRINCIPAL_FILE.exists():
+        return []
 
     try:
-        run_command([
-            "az", "login", 
-            "--service-principal", 
-            "--username", client_id,
-            "--password", client_secret,
-            "--tenant", tenant_id
-        ])
-        print("✅ Logged in successfully.")
-    except subprocess.CalledProcessError:
-        print("❌ Failed to authenticate with provided credentials.")
-        sys.exit(1)
+        with open(SERVICE_PRINCIPAL_FILE) as f:
+            profiles = json.load(f)
+    except json.JSONDecodeError:
+        print("❌ Error parsing service_principal_entries.json")
+        return []
 
-    # Fetch and return the subscription ID
-    try:
-        account_info = json.loads(run_command(["az", "account", "show", "-o", "json"]))
-        return account_info["id"]
-    except Exception:
-        print("❌ Failed to retrieve subscription ID after login.")
-        sys.exit(1)
+    filtered = []
+    for p in profiles:
+        tenant = p.get("tenant")
+        client_id = p.get("client_id")
+        client_secret = p.get("client_secret")
 
-def set_active_profile(subscription_id):
-    try:
-        run_command(["az", "account", "set", "--subscription", subscription_id])
-        print(f"✅ Subscription '{subscription_id}' is set as active.")
-    except subprocess.CalledProcessError:
-        print(f"❌ Failed to set subscription '{subscription_id}' as active.")
-        sys.exit(1)
+        if not (tenant and client_id and client_secret):
+            continue
 
-def get_current_sp_object_id():
-    account_info = json.loads(run_command(["az", "account", "show", "-o", "json"]))
-    client_id = account_info.get("user", {}).get("name")
+        try:
+            # Try logging in with the SP to get its subscription
+            login_result = run_command([
+                "az", "login",
+                "--service-principal",
+                "--username", client_id,
+                "--password", client_secret,
+                "--tenant", tenant,
+                "--output", "json"
+            ])
+            login_data = json.loads(login_result)
+            sp_subscription = login_data[0]["id"] if login_data else None
+
+            # Only keep if no filtering or if subscription matches
+            if subscription_id is None or sp_subscription == subscription_id:
+                filtered.append({
+                    "tenant": tenant,
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "subscription": sp_subscription,
+                    "type": "sp"
+                })
+
+        except Exception as e:
+            print(f"⚠️ Failed to validate SP with Client ID {client_id}: {str(e)}")
+
+    return filtered
+
+def prompt_for_new_profile():
+    print("⚙️  Configure a new Azure Service Principal profile")
+    tenant = input("Enter Tenant ID: ").strip()
+    client_id = input("Enter Client ID: ").strip()
+    client_secret = input("Enter Client Secret: ").strip()
+
+    return {
+        "tenant": tenant,
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "type": "sp"
+    }
+
+def select_or_create_profile():
+    # Try to get current subscription
+    # current_sub = run_az_cli("az account show --output json")
+    # subscription_id = current_sub.get("id") if current_sub else None
+
+    user_profiles = get_user_profiles(None)
+    sp_profiles = get_sp_profiles(None)
+
+    all_profiles = user_profiles + sp_profiles
+
+    if all_profiles:
+        print("🔍 Found the following Azure profiles under the current subscription:")
+        for i, profile in enumerate(all_profiles, 1):
+            if profile["type"] == "user":
+                print(f"{i}. User Profile: {profile['user']} | Sub: {profile['subscription']}")
+            else:
+                print(f"{i}. SP Profile: ClientID {profile['client_id']} | Sub: {profile['subscription']}")
+        choice = input("Select a profile (number), or type 'n' to create a new SP profile: ").strip()
+
+        if choice.lower() == 'n':
+            new_profile = prompt_for_new_profile()
+            # 🔍 Check for duplicate SP entry
+            for sp in sp_profiles:
+                if (
+                    sp["type"] == "sp"
+                    and sp["client_id"] == new_profile["client_id"]
+                    and sp["tenant"] == new_profile["tenant"]
+                ):
+                    print("⚠️ This Service Principal already exists in your profiles. Skipping addition.")
+                    if validate_profile(sp):
+                        return sp
+                    else:
+                        print("❌ Existing profile validation failed. Exiting.")
+                        exit(1)
+            if not validate_profile(new_profile):
+                print("❌ Validation failed. Exiting.")
+                exit(1)
+            save_sp_profile(new_profile)
+            return new_profile
+        elif choice.isdigit() and 1 <= int(choice) <= len(all_profiles):
+            selected_profile = all_profiles[int(choice) - 1]
+            if not validate_profile(selected_profile):
+                print("❌ Validation failed. Exiting.")
+                exit(1)
+            return selected_profile
+        else:
+            print("❌ Invalid choice. Exiting.")
+            exit(1)
+    else:
+        print("📭 No profiles found under the current subscription.")
+        new_profile = prompt_for_new_profile()
+        if not validate_profile(new_profile):
+            print("❌ Validation failed. Exiting.")
+            exit(1)
+        save_sp_profile(new_profile)
+        return new_profile
+def save_sp_profile(profile):
+    if SERVICE_PRINCIPAL_FILE.exists():
+        try:
+            with open(SERVICE_PRINCIPAL_FILE) as f:
+                profiles = json.load(f)
+        except json.JSONDecodeError:
+            profiles = []
+    else:
+        profiles = []
+
+    profiles.append(profile)
+    with open(SERVICE_PRINCIPAL_FILE, "w") as f:
+        json.dump(profiles, f, indent=2)
+
+def set_azure_env(profile):
+    os.environ["AZURE_CONFIG_DIR"] = AZURE_CONFIG_PATH
+    if profile["type"] == "sp":
+        os.environ["AZURE_TENANT_ID"] = profile["tenant"]
+        os.environ["AZURE_CLIENT_ID"] = profile["client_id"]
+        os.environ["AZURE_CLIENT_SECRET"] = profile["client_secret"]
+        print("✅ Azure environment variables set for selected SP profile.")
+    else:
+        print("✅ Using user-based Azure profile via Azure CLI. No environment variables required.")
+
+def get_current_sp_object_id(profile):
+    """
+    Gets the object ID of the selected SP profile (using client_id).
+    """
+    client_id = profile.get("client_id")
     if not client_id:
-        raise RuntimeError("Unable to extract client_id from current profile.")
+        raise RuntimeError("Client ID not found in selected profile.")
 
-    object_id = run_command([
-        "az", "ad", "sp", "list",
-        "--filter", f"appId eq '{client_id}'",
-        "--query", "[0].id",
-        "-o", "tsv"
-    ])
-    
+    try:
+        object_id = run_command([
+            "az", "ad", "sp", "list",
+            "--filter", f"appId eq '{client_id}'",
+            "--query", "[0].id",
+            "-o", "tsv"
+        ])
+    except Exception as e:
+        raise RuntimeError(f"Failed to fetch object ID for client_id {client_id}: {e}")
+
     if not object_id:
-        raise RuntimeError("Failed to get Service Principal objectId. Ensure the SP exists and has permissions.")
-    
+        raise RuntimeError("Service Principal not found. Ensure it's created and has proper directory read permissions.")
+
     return object_id
 
 def get_sp_permissions(object_id):
@@ -120,35 +272,27 @@ def matches_permission(required, granted):
 def check_permissions(object_id):
     print("🔎 Checking required permissions...")
     permissions = get_sp_permissions(object_id)
+    missing = []
     for required in REQUIRED_ACTIONS:
         if not any(matches_permission(required, allowed) for allowed in permissions):
             print(f"❌ Missing permission: {required}")
-            sys.exit(1)
+            missing.append(required)
         else:
             print(f"✅ Permission granted: {required}")
+    if missing:
+        print("\n🚫 Profile is missing required permissions. Please assign proper roles.")
+        sys.exit(1)
+    else:
+        print("\n🎉 All required permissions are granted!")
 
 def main():
     print("🚀 Azure Credential & Permission Validator")
 
-    profiles = list_existing_profiles()
-    profile_names = [p['name'] for p in profiles]
+    selected_profile = select_or_create_profile()
+    set_azure_env(selected_profile)
 
-    if "default" in profile_names:
-        print("✅ 'default' profile is already configured. Using it.")
-        set_active_profile("default")
-    elif profiles:
-        selected = prompt_existing_profile(profiles)
-        if selected:
-            set_active_profile(selected)
-        else:
-            subscription_id = configure_default_profile()
-            set_active_profile(subscription_id)
-    else:
-        subscription_id = configure_default_profile()
-        set_active_profile(subscription_id)
-
-    object_id = get_current_sp_object_id()
+    object_id = get_current_sp_object_id(selected_profile)
     check_permissions(object_id)
 
 if __name__ == "__main__":
-    main()
+    main()    

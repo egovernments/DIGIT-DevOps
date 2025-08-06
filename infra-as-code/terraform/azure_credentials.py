@@ -199,17 +199,35 @@ def select_or_create_profile():
             exit(1)
         save_sp_profile(new_profile)
         return new_profile
+
 def save_sp_profile(profile):
+    # Load existing profiles
     if SERVICE_PRINCIPAL_FILE.exists():
         try:
             with open(SERVICE_PRINCIPAL_FILE) as f:
                 profiles = json.load(f)
         except json.JSONDecodeError:
+            print("⚠️ Malformed service_principal_entries.json. Starting fresh.")
             profiles = []
     else:
         profiles = []
 
-    profiles.append(profile)
+    updated = False
+    for i, existing in enumerate(profiles):
+        if (
+            existing.get("client_id") == profile["client_id"] and
+            existing.get("tenant") == profile["tenant"]
+        ):
+            # Update the existing profile (overwrite secrets, subscription, type)
+            profiles[i] = profile
+            updated = True
+            print("🔁 Existing profile updated in service_principal_entries.json.")
+            break
+
+    if not updated:
+        profiles.append(profile)
+        print("✅ New profile added to service_principal_entries.json.")
+
     with open(SERVICE_PRINCIPAL_FILE, "w") as f:
         json.dump(profiles, f, indent=2)
 

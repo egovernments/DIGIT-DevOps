@@ -322,6 +322,16 @@ def ensure_package(pip_name, import_name=None):
         run_command([sys.executable, "-m", "pip", "install", pip_name])
         refresh_sys_path()
 
+def install_inquirerPy():
+    required = [
+        ("InquirerPy", None), 
+    ]
+    for pip_name, import_name in required:
+        ensure_package(pip_name, import_name)
+    
+    global inquirer
+    from InquirerPy import inquirer
+
 def install_boto_and_other_dependencies():
     required = [
         ("boto3", None),
@@ -331,6 +341,37 @@ def install_boto_and_other_dependencies():
     ]
     for pip_name, import_name in required:
         ensure_package(pip_name, import_name)
+
+def install_homebrew_if_needed():
+    try:
+        run_command(["brew", "--version"])
+        print("Homebrew is already installed.")
+    except subprocess.CalledProcessError:
+        print("Homebrew not found. Installing Homebrew...")
+        run_command(
+            '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+        )
+        # Add Homebrew to PATH for current script if it's not automatically sourced
+        brew_path = "/opt/homebrew/bin/brew"  # Apple Silicon default
+        if not shutil.which("brew") and os.path.exists(brew_path):
+            os.environ["PATH"] += os.pathsep + "/opt/homebrew/bin"
+        print("Homebrew installation completed.")
+
+def install_az_cli():
+    os_type = platform.system().lower()
+
+    if os_type == "linux":
+        run_command(["curl", "-sL", "https://aka.ms/InstallAzureCLIDeb", "-o", "install.sh"])
+        run_command(["chmod", "+x", "install.sh"])
+        run_command(["sudo", "./install.sh"])
+        run_command(["rm", "-f", "install.sh"])
+
+    elif os_type == "darwin":
+        install_homebrew_if_needed()
+        run_command(["brew", "update"])
+        run_command(["brew", "install", "azure-cli"])
+    else:
+        print(f"Azure CLI installation not supported for {os_type}")
 
 def install_aws_cli():
     os_type = platform.system().lower()
@@ -403,24 +444,68 @@ def install_terraform():
     run_command(["sudo", "mv", "terraform", "/usr/local/bin/terraform"])
     run_command(["rm", tf_zip])
 
+def import_from_different_folder(module_path, module_name):
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+def ensure_azure_dependencies():
+    # -- Import your Azure-specific logic from another folder --
+    AZURE_MODULE_PATH = "sample-azure/azure_credentials.py"  # <-- UPDATE THIS
+    azure_iam = import_from_different_folder(AZURE_MODULE_PATH, "azure_credentials")
+
+    # Optional: make functions available globally if needed like you did for AWS
+    global select_or_create_profile, set_azure_env, get_current_sp_object_id, check_permissions
+    select_or_create_profile = azure_iam.select_or_create_profile
+    set_azure_env = azure_iam.set_azure_env
+    get_current_sp_object_id = azure_iam.get_current_sp_object_id
+    check_permissions = azure_iam.check_permissions
+
+    # -- Ensure az CLI --
+    try:
+        subprocess.run(["az", "--version"], check=True, stdout=subprocess.DEVNULL)
+        print("Azure CLI already installed.")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("Installing Azure CLI...")
+        install_az_cli()
+
+    # -- Ensure Terraform --
+    try:
+        subprocess.run(["terraform", "-version"], check=True, stdout=subprocess.DEVNULL)
+        print("Terraform already installed.")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("Installing Terraform...")
+        install_terraform()
+
+    # -- Ensure Git --
+    try:
+        subprocess.run(["git", "--version"], check=True, stdout=subprocess.DEVNULL)
+        print("Git already installed.")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("Installing Git...")
+        install_git()
+
 def ensure_aws_dependencies():
     import importlib.util
 
     install_boto_and_other_dependencies()
+    AWS_MODULE_PATH = "sample-aws/aws_iam.py"  # <-- UPDATE THIS
+    aws_iam = import_from_different_folder(AWS_MODULE_PATH, "aws_iam")
 
-    global boto3,botocore,inquirer,yaml,get_aws_inputs_and_validate,simulate_permissions,load_actions_from_yaml,Spinner,print_results,ProfileNotFound,setup_session
+    global boto3,botocore,yaml,get_aws_inputs_and_validate,simulate_permissions,load_actions_from_yaml,Spinner,print_results,ProfileNotFound,setup_session
     import boto3
     import botocore
     import yaml
-    from InquirerPy import inquirer
-    from aws_iam import get_aws_inputs_and_validate
-    from aws_iam import simulate_permissions
-    from aws_iam import load_actions_from_yaml
-    from aws_iam import Spinner
-    from aws_iam import print_results
-    from aws_iam import setup_session
     from botocore.exceptions import ClientError
     from botocore.exceptions import ProfileNotFound
+    get_aws_inputs_and_validate = aws_iam.get_aws_inputs_and_validate
+    simulate_permissions = aws_iam.simulate_permissions
+    load_actions_from_yaml = aws_iam.load_actions_from_yaml
+    Spinner = aws_iam.Spinner
+    print_results = aws_iam.print_results
+    setup_session = aws_iam.setup_session
 
     try:
         subprocess.run(["aws", "--version"], check=True, stdout=subprocess.DEVNULL)
@@ -449,7 +534,7 @@ def main():
     parser.add_argument('--upgrade', action='store_true', help='Upgrade infrastructure')
     parser.add_argument('--destroy', action='store_true', help='Destroy infrastructure')
     args = parser.parse_args()
-    ensure_aws_dependencies()
+    install_inquirerPy()
     os.environ.pop('AWS_PROFILE', None)
     cloud_choice = inquirer.select(
         message="Choose your cloud provider:",
@@ -461,6 +546,7 @@ def main():
     ).execute()
     if args.create:
         if cloud_choice == "aws":
+            ensure_aws_dependencies()
             config = get_aws_inputs_and_validate()
             actions = load_actions_from_yaml('permissions.yaml')
             cluster_name = input("Enter the Cluster Name: ")
@@ -476,10 +562,18 @@ def main():
             print("\n...Configuring Infra...")
             setup_session(config['profile'], config['region'])
             run_terraform_commands(cluster_name, config['region'])
+        elif cloud_choice == "azure":
+            ensure_azure_dependencies()
+            print("🚀 Azure Credential & Permission Validator")
+            selected_profile = select_or_create_profile()
+            set_azure_env(selected_profile)
+            object_id = get_current_sp_object_id(selected_profile)
+            check_permissions(object_id)
         else:
-            print("Only AWS is currently supported. Others coming soon!")
+            print("Only AWS and Azure is currently supported. Others coming soon!")
     elif args.destroy:
         if cloud_choice == "aws":
+            ensure_aws_dependencies()
             config = get_aws_inputs_and_validate()
             actions = load_actions_from_yaml('permissions.yaml')
             cluster_name = input("Enter the Cluster Name: ")
@@ -499,6 +593,7 @@ def main():
             print("Only AWS is currently supported. Others coming soon!")
     elif args.upgrade:
         if cloud_choice == "aws":
+            ensure_aws_dependencies()
             config = get_aws_inputs_and_validate()
             actions = load_actions_from_yaml('permissions.yaml')
             cluster_name = input("Enter the Cluster Name: ")

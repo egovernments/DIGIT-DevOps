@@ -1,0 +1,66 @@
+# Common Labels
+labels:
+  app: "metabase"
+  group: "analytics"
+
+namespace: health
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "metabase"
+
+# Container Configs
+image:
+  repository: metabase/metabase
+  tag: v0.51.9
+replicas: 1
+healthChecks:
+  enabled: true
+  livenessProbePath: "/api/health"
+  readinessProbePath: "/api/health"
+appType: "java-spring"
+tracing-enabled: false
+httpPort: 3001
+
+# Environment Variables
+env: |
+  - name: MB_DB_TYPE
+    value: "postgres"
+  - name: MB_DB_HOST
+    valueFrom:
+      secretKeyRef:
+        name: unified-health-dev
+        key: db-host
+  - name: MB_DB_PORT
+    value: "5432"
+  - name: MB_DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: unified-health-dev
+        key: db-username
+  - name: MB_DB_PASS
+    valueFrom:
+      secretKeyRef:
+        name: unified-health-dev
+        key: db-password
+  - name: MB_DB_DBNAME
+    valueFrom:
+      secretKeyRef:
+        name: unified-health-dev
+        key: db-name
+  - name: JAVA_TIMEZONE
+    valueFrom:
+      configMapKeyRef:
+        key: timezone
+        name: egov-config
+
+resources: |
+  limits:
+    memory: 1024Mi
+  requests:
+    memory: 512Mi
+
+# Service will be auto-configured based on httpPort

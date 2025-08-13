@@ -25,7 +25,7 @@ def cleanup_terraform_artifacts(directory):
             path.unlink()
             print(f"🧹 Removed file: {path}")
 
-def run_terraform_commands(cluster_name, region,working_dir="."):
+def run_terraform_commands(cluster_name, region, cloud_provider, working_dir):
     """
     Run terraform commands in two directories:
     - In remote_state_dir: use a var-file
@@ -40,6 +40,28 @@ def run_terraform_commands(cluster_name, region,working_dir="."):
         "<region>": region
     }
     backups = []
+    def extract_resource_group_name(tf_file):
+        with open(tf_file, "r") as f:
+            content = f.read()
+        match = re.search(r'resource_group\s*=\s*"([^"]+)"', content)
+        return match.group(1) if match else None
+    
+    def get_storage_account_name(resource_group, prefix="tfstate"):
+        """Fetch the Azure storage account name by prefix in the given resource group."""
+        try:
+            result = subprocess.run(
+                ["az", "storage", "account", "list", "--resource-group", resource_group, "--query", "[].name", "-o", "json"],
+                capture_output=True, text=True, check=True
+            )
+            accounts = json.loads(result.stdout)
+            for acc in accounts:
+                if acc.startswith(prefix):
+                    return acc
+            print(f"⚠️ No storage account found starting with '{prefix}' in resource group '{resource_group}'.")
+            return None
+        except subprocess.CalledProcessError as e:
+            print(f"⚠️ Failed to fetch storage account name: {e}")
+            return None
     try:
         for file_name in source_files:
             file_path = Path(working_dir) / file_name
@@ -80,7 +102,21 @@ def run_terraform_commands(cluster_name, region,working_dir="."):
         cleanup_terraform_artifacts(Path(working_dir))
         cleanup_terraform_artifacts(remote_state_dir)
         execute(remote_state_dir, remote_state_commands)
-        execute(Path(working_dir), infra_commands)
+        if cloud_provider.lower() == "aws":
+            execute(Path(working_dir), infra_commands)
+        elif cloud_provider.lower() == "azure":
+            tf_file = Path(working_dir)/"terraform.tfvars"
+            resourcegroup = extract_resource_group_name(tf_file)
+            storage_account = get_storage_account_name(resourcegroup)
+            storage_account_replacement = {
+                "<storage_account>": storage_account
+            }
+            storage_account_replace_file = Path(working_dir)/"main.tf"
+            replace_placeholders(storage_account_replace_file, storage_account_replacement)
+            execute(Path(working_dir), infra_commands)
+        else:
+            print(f"❌ Unsupported cloud provider: {cloud_provider}")
+            return
     except subprocess.CalledProcessError as e:
         print(f"❌ Terraform error:\n{e.stderr}")
     finally:
@@ -145,7 +181,7 @@ def upgrade_terraform_commands(cluster_name, region,working_dir="."):
             restore_file(original, backup)
         cleanup_terraform_artifacts(Path(working_dir))
 
-def terraform_destroy_commands(cluster_name, region,working_dir="."):
+def terraform_destroy_commands(cluster_name, region, cloud_provider, working_dir="."):
     """
     Run terraform commands in two directories:
     - In remote_state_dir: use a var-file
@@ -165,6 +201,68 @@ def terraform_destroy_commands(cluster_name, region,working_dir="."):
             content = f.read()
         match = re.search(r'bucket_name\s*=\s*"([^"]+)"', content)
         return match.group(1) if match else None
+    
+    def extract_environment_name(tf_file):
+        with open(tf_file, "r") as f:
+            content = f.read()
+        match = re.search(r'environment\s*=\s*"([^"]+)"', content)
+        return match.group(1) if match else None
+    
+    def get_storage_account_name(resource_group, prefix="tfstate"):
+        """Fetch the Azure storage account name by prefix in the given resource group."""
+        try:
+            result = subprocess.run(
+                ["az", "storage", "account", "list", "--resource-group", resource_group, "--query", "[].name", "-o", "json"],
+                capture_output=True, text=True, check=True
+            )
+            accounts = json.loads(result.stdout)
+            for acc in accounts:
+                if acc.startswith(prefix):
+                    return acc
+            print(f"⚠️ No storage account found starting with '{prefix}' in resource group '{resource_group}'.")
+            return None
+        except subprocess.CalledProcessError as e:
+            print(f"⚠️ Failed to fetch storage account name: {e}")
+            return None
+    
+    def delete_azure_storage(storage_account, resource_group, container):
+        """Delete blobs, container, storage account, and resource group in Azure."""
+        try:
+            print(f"🧹 Deleting all blobs in Azure container '{container}' from account '{storage_account}'...")
+            subprocess.run([
+                "az", "storage", "blob", "delete-batch",
+                "--source", container,
+                "--account-name", storage_account
+            ], check=True)
+            print(f"✅ Blobs deleted from container '{container}'.")
+
+            print(f"🗑  Deleting container '{container}'...")
+            subprocess.run([
+                "az", "storage", "container", "delete",
+                "--name", container,
+                "--account-name", storage_account
+            ], check=True)
+            print(f"✅ Container '{container}' deleted.")
+
+            print(f"🗑  Deleting storage account '{storage_account}'...")
+            subprocess.run([
+                "az", "storage", "account", "delete",
+                "--name", storage_account,
+                "--resource-group", resource_group,
+                "--yes"
+            ], check=True)
+            print(f"✅ Storage account '{storage_account}' deleted.")
+
+            print(f"🗑  Deleting resource group '{resource_group}'...")
+            subprocess.run([
+                "az", "group", "delete",
+                "--name", resource_group,
+                "--yes", "--no-wait"
+            ], check=True)
+            print(f"✅ Resource group '{resource_group}' scheduled for deletion.")
+
+        except subprocess.CalledProcessError as e:
+            print(f"⚠️ Failed to delete Azure storage resources: {e}")
     
     def is_s3_bucket_empty(bucket):
         try:
@@ -187,6 +285,7 @@ def terraform_destroy_commands(cluster_name, region,working_dir="."):
         except json.JSONDecodeError as e:
             print(f"❌ JSON parsing error while checking S3 bucket: {e}")
             return False
+        
     def delete_s3_and_dynamodb(name):
         print(f"🧹 Deleting resources with name: {name}")
 
@@ -252,21 +351,44 @@ def terraform_destroy_commands(cluster_name, region,working_dir="."):
                 )
                 print(f"✅ Output:\n{result.stdout}")
             # delete_s3_and_dynamodb(bucket)
-        tf_file_path = "terraform.tfvars"
-        bucket = extract_s3_bucket_name(tf_file_path)
-        print(bucket)
-        if not bucket:
-            print("❌ Could not determine S3 bucket name from remote state main.tf.")
-            return
-        bucket_empty = is_s3_bucket_empty(bucket)
-        if bucket_empty:
-            print("📦 Bucket is empty. Proceeding to destroy only in remote state directory.")
-            delete_s3_and_dynamodb(bucket)
-        else:
-            print("📦 Bucket is NOT empty. Proceeding with 2-step destroy.")
+        tf_file_path = Path(working_dir)/"terraform.tfvars"
+        if cloud_provider.lower() == "aws":
+        # === AWS Cleanup ===
+            bucket = extract_s3_bucket_name(tf_file_path)
+            print(bucket)
+            if not bucket:
+                print("❌ Could not determine S3 bucket name from remote state main.tf.")
+                return
+            bucket_empty = is_s3_bucket_empty(bucket)
+            if bucket_empty:
+                print("📦 Bucket is empty. Proceeding to destroy only in remote state directory.")
+                delete_s3_and_dynamodb(bucket)
+            else:
+                print("📦 Bucket is NOT empty. Proceeding with 2-step destroy.")
+                cleanup_terraform_artifacts(Path(working_dir))
+                execute(Path(working_dir), destroy_commands)
+                delete_s3_and_dynamodb(bucket)
+        elif cloud_provider.lower() == "azure":
+        # === Azure Cleanup ===
+            environment = extract_environment_name(tf_file_path)
+            resourcegroup = f"{environment}-rg"
+            container     = f"{environment}-container"
+            storage_account = get_storage_account_name(resourcegroup)
+            if not storage_account or not resourcegroup:
+                print("❌ Could not determine Azure Storage Account or Resourcegroup.")
+                return
+
             cleanup_terraform_artifacts(Path(working_dir))
+            storage_account_replacement = {
+                "<storage_account>": storage_account
+            }
+            storage_account_replace_file = Path(working_dir)/"main.tf"
+            replace_placeholders(storage_account_replace_file, storage_account_replacement)
             execute(Path(working_dir), destroy_commands)
-            delete_s3_and_dynamodb(bucket)
+            delete_azure_storage(storage_account, resourcegroup, container)
+        else:
+            print(f"❌ Unsupported cloud provider: {cloud_provider}")
+            return
     except subprocess.CalledProcessError as e:
         print(f"❌ Terraform error:\n{e.stderr}")
     finally:
@@ -457,11 +579,12 @@ def ensure_azure_dependencies():
     azure_iam = import_from_different_folder(AZURE_MODULE_PATH, "azure_credentials")
 
     # Optional: make functions available globally if needed like you did for AWS
-    global select_or_create_profile, set_azure_env, get_current_sp_object_id, check_permissions
+    global select_or_create_profile, set_azure_env, get_current_sp_object_id, check_permissions, validate_azure_location
     select_or_create_profile = azure_iam.select_or_create_profile
     set_azure_env = azure_iam.set_azure_env
     get_current_sp_object_id = azure_iam.get_current_sp_object_id
     check_permissions = azure_iam.check_permissions
+    validate_azure_location = azure_iam.validate_azure_location
 
     # -- Ensure az CLI --
     try:
@@ -540,7 +663,7 @@ def main():
         message="Choose your cloud provider:",
         choices=[
             {"name": "AWS", "value": "aws"},
-            {"name": "Azure (coming soon)", "value": "azure"},
+            {"name": "Azure ", "value": "azure"},
             {"name": "GCP (coming soon)", "value": "gcp"},
         ],
     ).execute()
@@ -566,9 +689,13 @@ def main():
             ensure_azure_dependencies()
             print("🚀 Azure Credential & Permission Validator")
             selected_profile = select_or_create_profile()
+            region = input("Enter the Region Name: ")
+            validate_azure_location(region)
+            cluster_name = input("Enter the Cluster Name: ")
             set_azure_env(selected_profile)
             object_id = get_current_sp_object_id(selected_profile)
             check_permissions(object_id)
+            run_terraform_commands(cluster_name, region, cloud_choice, "sample-azure")
         else:
             print("Only AWS and Azure is currently supported. Others coming soon!")
     elif args.destroy:
@@ -589,8 +716,19 @@ def main():
             print("\n...Destroying Infra...")
             setup_session(config['profile'], config['region'])
             terraform_destroy_commands(cluster_name, config['region'])
+        elif cloud_choice == "azure":
+            ensure_azure_dependencies()
+            print("🚀 Azure Credential & Permission Validator")
+            selected_profile = select_or_create_profile()
+            region = input("Enter the Region Name: ")
+            validate_azure_location(region)
+            cluster_name = input("Enter the Cluster Name: ")
+            set_azure_env(selected_profile)
+            object_id = get_current_sp_object_id(selected_profile)
+            check_permissions(object_id)
+            terraform_destroy_commands(cluster_name, region, cloud_choice, "sample-azure")
         else:
-            print("Only AWS is currently supported. Others coming soon!")
+            print("Only AWS and Azure is currently supported. Others coming soon!")
     elif args.upgrade:
         if cloud_choice == "aws":
             ensure_aws_dependencies()

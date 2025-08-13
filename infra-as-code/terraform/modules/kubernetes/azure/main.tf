@@ -14,9 +14,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
     temporary_name_for_rotation = "tempnodepool" 
   }
 
-  service_principal {
-    client_id     = "${var.client_id}"
-    client_secret = "${var.client_secret}"
+  identity {
+    type = "SystemAssigned"
   }
 
   network_profile {

@@ -25,6 +25,27 @@ def run_command(command, capture_output=True):
         raise subprocess.CalledProcessError(result.returncode, result.args, output=result.stdout, stderr=result.stderr)
     return result.stdout.strip()
 
+def validate_azure_location(location):
+    try:
+        result = subprocess.run(
+            ["az", "account", "list-locations", "--query", "[].name", "-o", "tsv"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        valid_locations = result.stdout.strip().split("\n")
+
+        if location not in valid_locations:
+            print(f"❌ ERROR: '{location}' is not a valid Azure location.")
+            print("✅ Valid locations are:", ", ".join(valid_locations))
+            sys.exit(1)  # Exit with error
+        else:
+            print(f"✅ '{location}' is a valid Azure location.")
+
+    except subprocess.CalledProcessError as e:
+        print("❌ Failed to fetch Azure locations. Ensure Azure CLI is installed and logged in.")
+        sys.exit(1)
+
 def run_az_cli(cmd):
     try:
         output = subprocess.check_output(cmd, shell=True)
@@ -136,10 +157,27 @@ def prompt_for_new_profile():
     client_id = input("Enter Client ID: ").strip()
     client_secret = input("Enter Client Secret: ").strip()
 
+    # ✅ Fetch subscription ID right away
+    try:
+        login_result = run_command([
+            "az", "login",
+            "--service-principal",
+            "--username", client_id,
+            "--password", client_secret,
+            "--tenant", tenant,
+            "--output", "json"
+        ])
+        login_data = json.loads(login_result)
+        subscription_id = login_data[0]["id"] if login_data else None
+    except Exception as e:
+        print(f"❌ Failed to fetch subscription ID for new SP: {str(e)}")
+        subscription_id = None
+
     return {
         "tenant": tenant,
         "client_id": client_id,
         "client_secret": client_secret,
+        "subscription": subscription_id,
         "type": "sp"
     }
 
@@ -237,6 +275,7 @@ def set_azure_env(profile):
         os.environ["AZURE_TENANT_ID"] = profile["tenant"]
         os.environ["AZURE_CLIENT_ID"] = profile["client_id"]
         os.environ["AZURE_CLIENT_SECRET"] = profile["client_secret"]
+        os.environ["ARM_SUBSCRIPTION_ID"] = profile["subscription"]
         print("✅ Azure environment variables set for selected SP profile.")
     else:
         print("✅ Using user-based Azure profile via Azure CLI. No environment variables required.")
@@ -295,8 +334,6 @@ def check_permissions(object_id):
         if not any(matches_permission(required, allowed) for allowed in permissions):
             print(f"❌ Missing permission: {required}")
             missing.append(required)
-        else:
-            print(f"✅ Permission granted: {required}")
     if missing:
         print("\n🚫 Profile is missing required permissions. Please assign proper roles.")
         sys.exit(1)

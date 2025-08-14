@@ -66,8 +66,12 @@ def run_terraform_commands(cluster_name, region, cloud_provider, working_dir):
         for file_name in source_files:
             file_path = Path(working_dir) / file_name
             if file_path.exists():
-                backup_path = replace_placeholders(file_path, replacements)
+                path = Path(file_path)
+                backup_path = path.with_suffix(".bak")
+                # Backup
+                shutil.copy(path, backup_path)
                 backups.append((file_path, backup_path))
+                replace_placeholders(path, replacements)
             else:
                 print(f"⚠️ Skipping missing file: {file_name}")
         remote_state_dir = Path(working_dir) / "remote-state"
@@ -126,7 +130,7 @@ def run_terraform_commands(cluster_name, region, cloud_provider, working_dir):
         cleanup_terraform_artifacts(Path(working_dir))
         cleanup_terraform_artifacts(remote_state_dir)
 
-def upgrade_terraform_commands(cluster_name, region,working_dir="."):
+def upgrade_terraform_commands(cluster_name, region, cloud_provider, working_dir):
     """
     Run terraform commands in two directories:
     - In remote_state_dir: use a var-file
@@ -141,12 +145,38 @@ def upgrade_terraform_commands(cluster_name, region,working_dir="."):
         "<region>": region
     }
     backups = []
+    def extract_resource_group_name(tf_file):
+        with open(tf_file, "r") as f:
+            content = f.read()
+        match = re.search(r'resource_group\s*=\s*"([^"]+)"', content)
+        return match.group(1) if match else None
+    
+    def get_storage_account_name(resource_group, prefix="tfstate"):
+        """Fetch the Azure storage account name by prefix in the given resource group."""
+        try:
+            result = subprocess.run(
+                ["az", "storage", "account", "list", "--resource-group", resource_group, "--query", "[].name", "-o", "json"],
+                capture_output=True, text=True, check=True
+            )
+            accounts = json.loads(result.stdout)
+            for acc in accounts:
+                if acc.startswith(prefix):
+                    return acc
+            print(f"⚠️ No storage account found starting with '{prefix}' in resource group '{resource_group}'.")
+            return None
+        except subprocess.CalledProcessError as e:
+            print(f"⚠️ Failed to fetch storage account name: {e}")
+            return None
     try:
         for file_name in source_files:
             file_path = Path(working_dir) / file_name
             if file_path.exists():
-                backup_path = replace_placeholders(file_path, replacements)
+                path = Path(file_path)
+                backup_path = path.with_suffix(".bak")
+                # Backup
+                shutil.copy(path, backup_path)
                 backups.append((file_path, backup_path))
+                replace_placeholders(path, replacements)
             else:
                 print(f"⚠️ Skipping missing file: {file_name}")
 
@@ -172,7 +202,21 @@ def upgrade_terraform_commands(cluster_name, region,working_dir="."):
                     print(f"❌ Error running {' '.join(cmd)}:\n{e.stderr}")
                     break  # Stop further execution if one command fails
         cleanup_terraform_artifacts(Path(working_dir))
-        execute(Path(working_dir), infra_commands)
+        if cloud_provider.lower() == "aws":
+            execute(Path(working_dir), infra_commands)
+        elif cloud_provider.lower() == "azure":
+            tf_file = Path(working_dir)/"terraform.tfvars"
+            resourcegroup = extract_resource_group_name(tf_file)
+            storage_account = get_storage_account_name(resourcegroup)
+            storage_account_replacement = {
+                "<storage_account>": storage_account
+            }
+            storage_account_replace_file = Path(working_dir)/"main.tf"
+            replace_placeholders(storage_account_replace_file, storage_account_replacement)
+            execute(Path(working_dir), infra_commands)
+        else:
+            print(f"❌ Unsupported cloud provider: {cloud_provider}")
+            return
     except subprocess.CalledProcessError as e:
         print(f"❌ Terraform error:\n{e.stderr}")
     finally:
@@ -329,8 +373,12 @@ def terraform_destroy_commands(cluster_name, region, cloud_provider, working_dir
         for file_name in source_files:
             file_path = Path(working_dir) / file_name
             if file_path.exists():
-                backup_path = replace_placeholders(file_path, replacements)
+                path = Path(file_path)
+                backup_path = path.with_suffix(".bak")
+                # Backup
+                shutil.copy(path, backup_path)
                 backups.append((file_path, backup_path))
+                replace_placeholders(path, replacements)
             else:
                 print(f"⚠️ Skipping missing file: {file_name}")
 
@@ -397,13 +445,13 @@ def terraform_destroy_commands(cluster_name, region, cloud_provider, working_dir
             restore_file(original, backup)
         cleanup_terraform_artifacts(Path(working_dir))
 
-def replace_placeholders(file_path, replacements):
+def replace_placeholders(path, replacements):
     """Replace placeholders in the given file and backup the original."""
-    path = Path(file_path)
-    backup_path = path.with_suffix(".bak")
+    # path = Path(file_path)
+    # backup_path = path.with_suffix(".bak")
 
-    # Backup
-    shutil.copy(path, backup_path)
+    # # Backup
+    # shutil.copy(path, backup_path)
 
     with open(path, "r") as f:
         content = f.read()
@@ -415,7 +463,7 @@ def replace_placeholders(file_path, replacements):
         f.write(content)
 
     print(f"✅ Updated: {path.name}")
-    return backup_path
+    # return backup_path
 
 def restore_file(original_path, backup_path):
     """Restore file from backup."""
@@ -747,8 +795,19 @@ def main():
             print("\n...Upgrading Infra...")
             setup_session(config['profile'], config['region'])
             upgrade_terraform_commands(cluster_name, config['region'])
+        elif cloud_choice == "azure":
+            ensure_azure_dependencies()
+            print("🚀 Azure Credential & Permission Validator")
+            selected_profile = select_or_create_profile()
+            region = input("Enter the Region Name: ")
+            validate_azure_location(region)
+            cluster_name = input("Enter the Cluster Name: ")
+            set_azure_env(selected_profile)
+            object_id = get_current_sp_object_id(selected_profile)
+            check_permissions(object_id)
+            upgrade_terraform_commands(cluster_name, region, cloud_choice, "sample-azure")
         else:
-            print("Only AWS is currently supported. Others coming soon!")
+            print("Only AWS and Azure is currently supported. Others coming soon!")
     else:
         print("❗ Please specify --create or --destroy")
 

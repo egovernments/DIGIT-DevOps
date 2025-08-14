@@ -4,9 +4,9 @@ provider "azurerm" {
 
 terraform {
   backend "azurerm" {
-    resource_group_name  = "azure-automation-rg"
+    resource_group_name  = "<cluster_name>-rg"
     storage_account_name = "<storage_account>"
-    container_name       = "azure-automation-container"
+    container_name       = "<cluster_name>-container"
     key                  = "terraform.tfstate"
   }
 }
@@ -96,7 +96,7 @@ module "kubernetes" {
   location                  = var.location
   resource_group            = var.resource_group
   vm_size                   = "Standard_D2_v2"
-  node_count                = 3
+  node_count                = 4
   vnet_subnet_id            = azurerm_subnet.aks.id
 }
 

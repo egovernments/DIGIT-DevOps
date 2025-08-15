@@ -1,10 +1,10 @@
 terraform {
   backend "s3" {
-    bucket = "<cluster_name>-s3-state-bckt"
+    bucket = "aws-automation-s3-state-bckt"
     key    = "terraform-setup/terraform.tfstate"
     region = "ap-south-1"
     # The below line is optional depending on whether you are using DynamoDB for state locking and consistency
-    dynamodb_table = "<cluster_name>-s3-state-bckt"
+    dynamodb_table = "aws-automation-s3-state-bckt"
     # The below line is optional if your S3 bucket is encrypted
     encrypt = true
   }
@@ -223,6 +223,7 @@ module "eks" {
 
 module "eks_managed_node_group" {
   source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+  version         = "~> 20.0"
   name            = "${var.cluster_name}"
   cluster_name    = var.cluster_name
   cluster_version = var.kubernetes_version
@@ -401,6 +402,7 @@ resource "aws_iam_role_policy" "karpenter_policy" {
 module "karpenter" {
   count = var.enable_karpenter ? 1 : 0
   source = "terraform-aws-modules/eks/aws//modules/karpenter"
+  version         = "~> 20.0"
   cluster_name = module.eks.cluster_name
 
   create_node_iam_role = false

@@ -3,6 +3,7 @@ import sys
 import os
 import configparser
 import yaml
+from pathlib import Path
 import threading
 import itertools
 import time
@@ -233,8 +234,9 @@ def setup_session(profile_name, region):
 
     return session
 
-def load_actions_from_yaml(yaml_file):
-    with open(yaml_file, 'r') as f:
+def load_actions_from_yaml(working_dir, yaml_file):
+    file = Path(working_dir)/yaml_file
+    with open(file, 'r') as f:
         data = yaml.safe_load(f)
     return data.get('actions', [])
 

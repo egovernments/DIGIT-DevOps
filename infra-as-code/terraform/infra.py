@@ -719,7 +719,7 @@ def main():
         if cloud_choice == "aws":
             ensure_aws_dependencies()
             config = get_aws_inputs_and_validate()
-            actions = load_actions_from_yaml('permissions.yaml')
+            actions = load_actions_from_yaml('sample-aws', 'permissions.yaml')
             cluster_name = input("Enter the Cluster Name: ")
             spinner = Spinner()
             spinner.start()
@@ -732,7 +732,7 @@ def main():
                     print(f"{k}: {v}")
             print("\n...Configuring Infra...")
             setup_session(config['profile'], config['region'])
-            run_terraform_commands(cluster_name, config['region'])
+            run_terraform_commands(cluster_name, config['region'], cloud_choice, "sample-aws")
         elif cloud_choice == "azure":
             ensure_azure_dependencies()
             print("🚀 Azure Credential & Permission Validator")
@@ -750,7 +750,7 @@ def main():
         if cloud_choice == "aws":
             ensure_aws_dependencies()
             config = get_aws_inputs_and_validate()
-            actions = load_actions_from_yaml('permissions.yaml')
+            actions = load_actions_from_yaml('sample-aws', 'permissions.yaml')
             cluster_name = input("Enter the Cluster Name: ")
             spinner = Spinner()
             spinner.start()
@@ -763,7 +763,7 @@ def main():
                     print(f"{k}: {v}")
             print("\n...Destroying Infra...")
             setup_session(config['profile'], config['region'])
-            terraform_destroy_commands(cluster_name, config['region'])
+            terraform_destroy_commands(cluster_name, config['region'], cloud_choice, "sample-aws")
         elif cloud_choice == "azure":
             ensure_azure_dependencies()
             print("🚀 Azure Credential & Permission Validator")
@@ -781,7 +781,7 @@ def main():
         if cloud_choice == "aws":
             ensure_aws_dependencies()
             config = get_aws_inputs_and_validate()
-            actions = load_actions_from_yaml('permissions.yaml')
+            actions = load_actions_from_yaml('sample-aws', 'permissions.yaml')
             cluster_name = input("Enter the Cluster Name: ")
             spinner = Spinner()
             spinner.start()
@@ -794,7 +794,7 @@ def main():
                     print(f"{k}: {v}")
             print("\n...Upgrading Infra...")
             setup_session(config['profile'], config['region'])
-            upgrade_terraform_commands(cluster_name, config['region'])
+            upgrade_terraform_commands(cluster_name, config['region'], cloud_choice, "sample-aws")
         elif cloud_choice == "azure":
             ensure_azure_dependencies()
             print("🚀 Azure Credential & Permission Validator")

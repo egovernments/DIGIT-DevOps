@@ -225,7 +225,7 @@ def upgrade_terraform_commands(cluster_name, region, cloud_provider, working_dir
             restore_file(original, backup)
         cleanup_terraform_artifacts(Path(working_dir))
 
-def terraform_destroy_commands(cluster_name, region, cloud_provider, working_dir="."):
+def terraform_destroy_commands(cluster_name, region, cloud_provider, working_dir, session):
     """
     Run terraform commands in two directories:
     - In remote_state_dir: use a var-file
@@ -330,11 +330,11 @@ def terraform_destroy_commands(cluster_name, region, cloud_provider, working_dir
             print(f"❌ JSON parsing error while checking S3 bucket: {e}")
             return False
         
-    def delete_s3_and_dynamodb(name):
+    def delete_s3_and_dynamodb(name, session):
         print(f"🧹 Deleting resources with name: {name}")
 
-        s3 = boto3.client('s3')
-        dynamodb = boto3.client('dynamodb')
+        s3 = session.client('s3')
+        dynamodb = session.client('dynamodb')
 
         # Step 1: Delete all versions in the S3 bucket
         try:
@@ -407,15 +407,25 @@ def terraform_destroy_commands(cluster_name, region, cloud_provider, working_dir
             if not bucket:
                 print("❌ Could not determine S3 bucket name from remote state main.tf.")
                 return
+            # Check if bucket exists before anything else
+            s3_client = session.client("s3")
+            try:
+                s3_client.head_bucket(Bucket=bucket)
+            except ClientError as e:
+                if e.response["Error"]["Code"] in ["NoSuchBucket", "404"]:
+                    print(f"❌ S3 bucket '{bucket}' does not exist. Skipping all destroy steps.")
+                    return  # <-- Will still trigger finally
+                else:
+                    raise  # Unexpected error
             bucket_empty = is_s3_bucket_empty(bucket)
             if bucket_empty:
                 print("📦 Bucket is empty. Proceeding to destroy only in remote state directory.")
-                delete_s3_and_dynamodb(bucket)
+                delete_s3_and_dynamodb(bucket, session)
             else:
                 print("📦 Bucket is NOT empty. Proceeding with 2-step destroy.")
                 cleanup_terraform_artifacts(Path(working_dir))
                 execute(Path(working_dir), destroy_commands)
-                delete_s3_and_dynamodb(bucket)
+                delete_s3_and_dynamodb(bucket, session)
         elif cloud_provider.lower() == "azure":
         # === Azure Cleanup ===
             environment = extract_environment_name(tf_file_path)
@@ -665,7 +675,7 @@ def ensure_aws_dependencies():
     AWS_MODULE_PATH = "sample-aws/aws_iam.py"  # <-- UPDATE THIS
     aws_iam = import_from_different_folder(AWS_MODULE_PATH, "aws_iam")
 
-    global boto3,botocore,yaml,get_aws_inputs_and_validate,simulate_permissions,load_actions_from_yaml,Spinner,print_results,ProfileNotFound,setup_session
+    global boto3,botocore,yaml,get_aws_inputs_and_validate,simulate_permissions,load_actions_from_yaml,Spinner,print_results,ProfileNotFound,setup_session, ClientError
     import boto3
     import botocore
     import yaml
@@ -762,8 +772,8 @@ def main():
                 if k != "session" and k!= "profile":
                     print(f"{k}: {v}")
             print("\n...Destroying Infra...")
-            setup_session(config['profile'], config['region'])
-            terraform_destroy_commands(cluster_name, config['region'], cloud_choice, "sample-aws")
+            session = setup_session(config['profile'], config['region'])
+            terraform_destroy_commands(cluster_name, config['region'], cloud_choice, "sample-aws", session)
         elif cloud_choice == "azure":
             ensure_azure_dependencies()
             print("🚀 Azure Credential & Permission Validator")

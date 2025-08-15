@@ -223,6 +223,7 @@ module "eks" {
 
 module "eks_managed_node_group" {
   source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+  version         = "~> 20.0"
   name            = "${var.cluster_name}"
   cluster_name    = var.cluster_name
   cluster_version = var.kubernetes_version
@@ -401,6 +402,7 @@ resource "aws_iam_role_policy" "karpenter_policy" {
 module "karpenter" {
   count = var.enable_karpenter ? 1 : 0
   source = "terraform-aws-modules/eks/aws//modules/karpenter"
+  version         = "~> 20.0"
   cluster_name = module.eks.cluster_name
 
   create_node_iam_role = false

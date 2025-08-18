@@ -225,7 +225,7 @@ def upgrade_terraform_commands(cluster_name, region, cloud_provider, working_dir
             restore_file(original, backup)
         cleanup_terraform_artifacts(Path(working_dir))
 
-def terraform_destroy_commands(cluster_name, region, cloud_provider, working_dir, session):
+def terraform_destroy_commands(cluster_name, region, cloud_provider, working_dir, session=None):
     """
     Run terraform commands in two directories:
     - In remote_state_dir: use a var-file
@@ -480,9 +480,9 @@ def restore_file(original_path, backup_path):
     shutil.move(backup_path, original_path)
     print(f"🔁 Restored original: {original_path.name}")
 
-def run_command(command, shell=False, check=True):
+def run_command(command, shell=False, check=True, input=None):
     print(f"Running: {' '.join(command) if isinstance(command, list) else command}")
-    subprocess.run(command, shell=shell, check=check)
+    subprocess.run(command, shell=shell, check=check, input=input)
 
 def refresh_sys_path():
     """
@@ -537,14 +537,48 @@ def install_homebrew_if_needed():
             os.environ["PATH"] += os.pathsep + "/opt/homebrew/bin"
         print("Homebrew installation completed.")
 
+
 def install_az_cli():
     os_type = platform.system().lower()
-
     if os_type == "linux":
-        run_command(["curl", "-sL", "https://aka.ms/InstallAzureCLIDeb", "-o", "install.sh"])
-        run_command(["chmod", "+x", "install.sh"])
-        run_command(["sudo", "./install.sh"])
-        run_command(["rm", "-f", "install.sh"])
+        # Detect if it's Amazon Linux
+        distro = ""
+        try:
+            with open("/etc/os-release") as f:
+                data = f.read().lower()
+                if "amzn" in data or "amazon linux" in data:
+                    distro = "amazon"
+                elif "ubuntu" in data or "debian" in data:
+                    distro = "debian"
+                elif "centos" in data or "rhel" in data:
+                    distro = "rhel"
+        except FileNotFoundError:
+            pass
+
+        if distro == "debian":
+            run_command(["curl", "-sL", "https://aka.ms/InstallAzureCLIDeb", "-o", "install.sh"])
+            run_command(["chmod", "+x", "install.sh"])
+            run_command(["sudo", "./install.sh"])
+            run_command(["rm", "-f", "install.sh"])
+
+        elif distro == "amazon" or distro == "rhel":
+            # Official Microsoft repo install method for Amazon Linux / RHEL
+            run_command(["sudo", "rpm", "--import", "https://packages.microsoft.com/keys/microsoft.asc"])
+            run_command([
+            "bash", "-c",
+            "cat <<EOF | sudo tee /etc/yum.repos.d/azure-cli.repo\n"
+            "[azure-cli]\n"
+            "name=Azure CLI\n"
+            "baseurl=https://packages.microsoft.com/yumrepos/azure-cli\n"
+            "enabled=1\n"
+            "gpgcheck=1\n"
+            "gpgkey=https://packages.microsoft.com/keys/microsoft.asc\n"
+            "EOF"
+            ])
+            run_command(["sudo", "yum", "install", "-y", "azure-cli"])
+
+        else:
+            print("⚠️ Unknown Linux distribution. Please install Azure CLI manually.")
 
     elif os_type == "darwin":
         install_homebrew_if_needed()

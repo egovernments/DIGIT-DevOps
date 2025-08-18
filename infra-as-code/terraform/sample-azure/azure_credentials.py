@@ -272,9 +272,9 @@ def save_sp_profile(profile):
 def set_azure_env(profile):
     os.environ["AZURE_CONFIG_DIR"] = AZURE_CONFIG_PATH
     if profile["type"] == "sp":
-        os.environ["AZURE_TENANT_ID"] = profile["tenant"]
-        os.environ["AZURE_CLIENT_ID"] = profile["client_id"]
-        os.environ["AZURE_CLIENT_SECRET"] = profile["client_secret"]
+        os.environ["ARM_TENANT_ID"] = profile["tenant"]
+        os.environ["ARM_CLIENT_ID"] = profile["client_id"]
+        os.environ["ARM_CLIENT_SECRET"] = profile["client_secret"]
         os.environ["ARM_SUBSCRIPTION_ID"] = profile["subscription"]
         print("✅ Azure environment variables set for selected SP profile.")
     else:

@@ -32,6 +32,7 @@ heap: "-Xmx256m -Xms256m"
 file-storage-mount-path: "/filestore"
 is-nfs-enabled: false
 is-s3-enabled: true
+minio-enabled: true
 filestore:
   resources:
     limits:
@@ -86,7 +87,8 @@ env: |
   {{- if index .Values "is-s3-enabled" }}
   - name: ISS3ENABLED
     value: "true"
-  {{- end }}
+  {{- end }}  
+  {{- if index .Values "minio-enabled" }}
   - name: MINIO_ACCESS_KEY
     valueFrom:
       secretKeyRef:
@@ -97,6 +99,7 @@ env: |
       secretKeyRef:
         key: secretkey
         name: minio
+  {{else}}
   - name: AWS_KEY
     valueFrom:
       secretKeyRef:
@@ -107,6 +110,7 @@ env: |
       secretKeyRef:
         name: egov-filestore
         key: awssecretkey
+  {{- end }}
   {{- if index .Values "is-bucket-fixed" }}
   - name: IS_BUCKET_FIXED
     value: {{ index .Values "is-bucket-fixed" | quote }}
@@ -119,6 +123,7 @@ env: |
     value: {{ index .Values "heap" | quote }}
   - name: ALLOWED_FORMATS_MAP
     value: {{ index .Values "allowed-file-formats-map" | quote }}
+  {{- if index .Values "minio-enabled" }}  
   - name: MINIO_ENDPOINT
     valueFrom:
       configMapKeyRef:
@@ -129,4 +134,3 @@ env: |
   - name: PRESIGNED_URL_EXPIRY_TIME_IN_SECS     
     value: {{ index .Values "filestore-url-validity" | quote }}   
   {{- end }}  
-

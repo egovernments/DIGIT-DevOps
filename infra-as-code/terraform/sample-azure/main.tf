@@ -1,18 +1,20 @@
 provider "azurerm" {
-  subscription_id            = var.subscription_id
-  tenant_id                  = var.tenant_id
-  client_id                  = var.client_id
-  client_secret              = var.client_secret
   features {}
 }
 
 terraform {
   backend "azurerm" {
-    resource_group_name  = "digit-infra-terraform-rg"
-    storage_account_name = "tfstateanaks"
-    container_name       = "digit-infra-terraform-container"
+    resource_group_name  = "<cluster_name>-rg"
+    storage_account_name = "<storage_account>"
+    container_name       = "<cluster_name>-container"
     key                  = "terraform.tfstate"
   }
+}
+
+resource "random_password" "db_password" {
+  length           = 16
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
 resource "azurerm_virtual_network" "vnet" {
@@ -87,15 +89,14 @@ resource "azurerm_private_dns_zone" "db" {
 }
 
 module "kubernetes" {
+  depends_on = [azurerm_nat_gateway_public_ip_association.nat_assoc]
   source                    = "../modules/kubernetes/azure"
   environment               = var.environment
   name                      = var.environment
   location                  = var.location
   resource_group            = var.resource_group
-  client_id                 = var.client_id
-  client_secret             = var.client_secret
   vm_size                   = "Standard_D2_v2"
-  node_count                = 3
+  node_count                = 4
   vnet_subnet_id            = azurerm_subnet.aks.id
 }
 
@@ -108,7 +109,7 @@ module "postgres-db" {
   storage_mb                = "65536"
   backup_retention_days     = "7"
   administrator_login       = var.db_user
-  administrator_password    = var.db_password
+  administrator_password    = random_password.db_password.result
   db_version                = var.db_version
   delegated_subnet_id       = azurerm_subnet.postgres.id
   private_dns_zone_id       = azurerm_private_dns_zone.db.id

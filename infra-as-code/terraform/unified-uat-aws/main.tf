@@ -189,6 +189,7 @@ module "aws_auth" {
 
 module "eks_managed_node_group" {
   source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+  version = "~> 20.0"
   name            = "${var.cluster_name}-spot"
   cluster_name    = var.cluster_name
   cluster_version = var.kubernetes_version
@@ -197,6 +198,10 @@ module "eks_managed_node_group" {
   cluster_service_cidr = module.eks.cluster_service_cidr
   use_custom_launch_template = true
   launch_template_name = "${var.cluster_name}-lt"
+  
+  # ARM64 configuration
+  ami_type = "AL2_ARM_64"
+  
   block_device_mappings = {
     xvda = {
       device_name = "/dev/xvda"
@@ -220,10 +225,12 @@ module "eks_managed_node_group" {
   }
   labels = {
     Environment = var.cluster_name
+    Architecture = "arm64"
   }
   tags = {
     "KubernetesCluster" = var.cluster_name
     "Name"              = var.cluster_name
+    "Architecture"      = "arm64"
   }
 }
 

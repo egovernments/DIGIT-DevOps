@@ -5,7 +5,7 @@
 
 variable "cluster_name" {
   description = "Name of the Kubernetes cluster"
-  default = "unified-qa" #REPLACE
+  default = "digit-sandbox" #REPLACE
 }
 
 variable "vpc_cidr_block" {
@@ -26,12 +26,13 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.31"
+  default = "1.30"
 }
 
 variable "instance_types" {
-  description = "eGov recommended ARM64 instance types for better cost efficiency"
-  default = ["r6gd.xlarge", "r6g.xlarge", "m6gd.xlarge", "m6g.xlarge", "c6gd.xlarge", "c6g.xlarge"]
+  description = "Arry of instance types for SPOT instances"
+  default = ["r5ad.xlarge"]
+  
 }
 
 variable "min_worker_nodes" {
@@ -41,43 +42,30 @@ variable "min_worker_nodes" {
 
 variable "desired_worker_nodes" {
   description = "eGov recommended below worker node counts as default for desired nodes"
-  default = "11" #REPLACE IF NEEDED
+  default = "3" #REPLACE IF NEEDED
 }
 
 variable "max_worker_nodes" {
   description = "eGov recommended below worker node counts as default for max nodes"
-  default = "13" #REPLACE IF NEEDED
-}
-
-variable "ssh_key_name" {
-  description = "ssh key name, not required if your using spot instance types"
-  default = "unified-qa-ssh" #REPLACE
+  default = "5" #REPLACE IF NEEDED
 }
 
 
 variable "db_name" {
   description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
-  default = "unifiedqadb" #REPLACE
+  default = "digitsandboxdb" #REPLACE
 }
 
 variable "db_username" {
   description = "RDS database user name"
-  default = "unifiedqa" #REPLACE
+  default = "digit_sandbox" #REPLACE
+}
+
+variable "iam_user_arn" {
+  description = "Provide the IAM user arn which you are using to create infrastructure"
+  default = "arn:aws:iam::680148267093:user/digit_sandbox" #REPLACE 
 }
 
 #DO NOT fill in here. This will be asked at runtime
 variable "db_password" {}
-
-variable "public_key" {
-  default = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCPWTCpDOJm32GgjYAqSZ0nf/tXcp4RcSDqEUtxa/TUwQduMelvnlZIIkN15QmwUo0sswf08qHWAgFFc2A/kfpokq5kmh5iiTO8Q/uFlW1lGjpl6c76/1DWo+BdnFQIW/2sfLaCuIceuTKyCsCMO3v08ghlbJcKTUgwBtbzStly1xeH7zo7jErIAf0+uezeKbjI5grbylbskdqcqIIp0i4/QYkZ9NB07gXCTUcHySfgf4Wa3KMVcDmECLc2JuD2KtiiQSK0AVU8cXa6Loc6eYmLa8Ut9mPDunkAxkZOKDMzhtCWDkwRUYWPvqQB0DckzaCVEmvVNKVpFjBZWxE6K9EH"
-  description = "ssh key"
-}
-
-## change ssh key_name eg. digit-quickstart_your-name
-
-variable "iam_user_arn" {
-  description = "Provide the IAM user arn which you are using to create infrastructure"
-  default = "arn:aws:iam::349271159511:user/unified-qa"
-}
-
 

@@ -30,8 +30,8 @@ variable "kubernetes_version" {
 }
 
 variable "instance_types" {
-  description = "eGov recommended below instance type as a default"
-  default = ["t3a.xlarge", "m6a.xlarge"]
+  description = "ARM64-based instance types for better price-performance"
+  default = ["t4g.xlarge", "m6g.xlarge"]
 }
 
 variable "min_worker_nodes" {

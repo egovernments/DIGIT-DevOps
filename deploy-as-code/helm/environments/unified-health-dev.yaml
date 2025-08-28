@@ -184,6 +184,7 @@ cluster-configs:
         health-expense-calculator: 'http://health-expense-calculator.health:8080/'
         health-muster-roll: 'http://health-muster-roll.health:8080/'
         excel-ingestion: 'http://excel-ingestion.health:8080/'
+        hcm-abha: "http://hcm-abha:8080/"
 
 employee:
   dashboard-url: 'https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))'
@@ -191,7 +192,7 @@ employee:
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://unpkg.com/@egovernments/telemetry@0.0.2/dist/egov-telemetry-1557467338.js type=text/javascript></script>
-      <script src=https://egov-health-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigs.js type=text/javascript></script>
+      <script src=https://egov-health-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigs.js type=text/javascript ></script>
       ';"
 
 citizen:
@@ -199,7 +200,7 @@ citizen:
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://unpkg.com/@egovernments/telemetry@0.0.2/dist/egov-telemetry-1557467338.js type=text/javascript></script>
-      <script src=https://egov-health-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigs.js type=text/javascript></script>
+      <script src=https://egov-health-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigs.js type=text/javascript ></script>
       ';"
 
 
@@ -207,8 +208,7 @@ health-ui:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter '<head>' '<head>
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/analytics/analytics.js type=text/javascript></script>      
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsDevHealthImpl.js type=text/javascript></script>
+      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsDevHealthImpl.js type=text/javascript ></script>
       ';"
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 egov-filestore:
@@ -499,7 +499,7 @@ beneficiary-idgen:
   management-health-kafka-enabled: "false"
   kafka-topics-consumer-bulk-update-topic: "beneficiary-id-gen-bulk-update-health-topic"
   kafka-topics-consumer-bulk-create-topic: "beneficiary-id-gen-bulk-create-health-topic"
-  httpPort: "8081"
+  healthPort: "8081"
   healthChecks:
     enabled: true
     livenessProbePath: "/beneficiary-idgen/actuator/health/liveness"
@@ -928,19 +928,24 @@ kafka-v2:
   minInsyncReplicas: '1'
   offsetsReplicationFactor: '3'
 
+dashboard-ui:
+  custom-js-injection: |
+    sub_filter.conf: "
+      sub_filter '<head>' '<head>
+      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsWorkbenchDev.js type=text/javascript></script>
+      ';"
+
 microplan-ui:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter '<head>' '<head>
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/analytics/analytics.js type=text/javascript></script>      
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsMicroplanDev.js type=text/javascript></script>
+      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsDashboardDev.js type=text/javascript></script>
       ';"
 
 workbench-ui:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/analytics/analytics.js type=text/javascript></script>      
       <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsWorkbenchDev.js type=text/javascript></script>
       ';"   
 
@@ -948,7 +953,6 @@ console:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/analytics/analytics.js type=text/javascript></script>      
       <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/hcm/globalConfigsConsoleDev.js type=text/javascript></script>';"     
 
 
@@ -956,7 +960,6 @@ payments-ui:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter '<head>' '<head>
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/analytics/analytics.js type=text/javascript></script>      
       <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsPaymentDev.js type=text/javascript></script>
       ';"
 
@@ -1040,6 +1043,16 @@ pgadmin:
   maintenance-db-name: 'unifieddevdb'
   db-admin-username: 'unifieddev'
   db-read-username: 'dev_readonly'
+
+# Metabase Configuration
+metabase:
+  image:
+    tag: 'v0.55.10.3'
+  httpPort: 3000
+  healthChecks:
+    enabled: true
+    livenessProbePath: "/api/health"
+    readinessProbePath: "/api/health"
 
 es-curator:
   schedule: '45 18 * * *'

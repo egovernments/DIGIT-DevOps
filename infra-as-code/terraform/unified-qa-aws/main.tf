@@ -182,30 +182,22 @@ module "aws_auth" {
 
 module "eks_managed_node_group" {
   source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+  version = "~> 20.0"
   name            = "${var.cluster_name}-spot"
   cluster_name    = var.cluster_name
   cluster_version = var.kubernetes_version
   subnet_ids = slice(module.network.private_subnets, 0, length(var.availability_zones))
   vpc_security_group_ids  = [module.eks.node_security_group_id]
   cluster_service_cidr = module.eks.cluster_service_cidr
-  use_custom_launch_template = true
-  launch_template_name = "${var.cluster_name}-lt"
-  block_device_mappings = {
-    xvda = {
-      device_name = "/dev/xvda"
-      ebs = {
-        volume_size           = 100
-        volume_type           = "gp3"
-        delete_on_termination = true
-      }
-    }
-  }
-  user_data_template_path = "user-data.yaml"
+  use_custom_launch_template = false
+  # user_data_template_path = "user-data.yaml"  # Disable custom user-data for ARM64
+  disk_size    = 100
   min_size     = var.min_worker_nodes
   max_size     = var.max_worker_nodes
   desired_size = var.desired_worker_nodes
   instance_types = var.instance_types
-  capacity_type  = "SPOT"
+  ami_type      = "AL2_ARM_64"
+  capacity_type  = "ON_DEMAND"
   ebs_optimized  = "true"
   enable_monitoring = "true"
   iam_role_additional_policies = {

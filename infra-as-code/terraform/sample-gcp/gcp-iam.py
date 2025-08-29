@@ -193,6 +193,9 @@ def main():
         if not profile_name:
             profile_name = "default"
         create_or_modify_profile(profile_name)
+        project_id = get_project_id()
+        required_permissions = load_required_permissions("permissions.yaml")
+        validate_permissions(project_id, required_permissions)
         return
 
     print("\nAvailable gcloud profiles:")
@@ -206,6 +209,10 @@ def main():
             if choice == "y":
                 subprocess.run(["gcloud", "config", "configurations", "activate", "default"], check=True)
                 print("✅ Using default profile.")
+                profile_name = "default"
+                project_id = get_project_id()
+                required_permissions = load_required_permissions("permissions.yaml")
+                validate_permissions(project_id, required_permissions)
                 return
             elif choice == "n":
                 break
@@ -228,6 +235,17 @@ def main():
         profile_name = profiles[choice-1]
         subprocess.run(["gcloud", "config", "configurations", "activate", profile_name], check=True)
         print(f"✅ Using profile '{profile_name}'.")
+        result = subprocess.run(
+        ["gcloud", "config", "list", "--format=json"],
+        capture_output=True, text=True, check=True
+        )
+        config = json.loads(result.stdout)
+        account = config.get("core", {}).get("account")
+        project = config.get("core", {}).get("project")
+        if not account or not project:
+            print(f"⚠️ Profile '{profile_name}' looks incomplete (missing account/project).")
+            print("👉 Let's configure it now...")
+            create_or_modify_profile(profile_name)
     else:
         print("❌ Invalid choice. Exiting.")
         sys.exit(1)

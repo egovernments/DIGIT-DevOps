@@ -44,6 +44,33 @@ def get_project_id():
         sys.exit(1)
     return project_id
 
+def is_valid_region(region):
+    """Check if region is valid in GCP."""
+    import subprocess, json
+    try:
+        result = subprocess.run(
+            ["gcloud", "compute", "regions", "list", "--format=json"],
+            capture_output=True, text=True, check=True
+        )
+        regions = [r["name"] for r in json.loads(result.stdout)]
+        return region in regions
+    except Exception as e:
+        print(f"⚠️ Could not validate region: {e}")
+        return False
+
+def is_valid_zone(zone):
+    """Check if zone is valid in GCP."""
+    import subprocess, json
+    try:
+        result = subprocess.run(
+            ["gcloud", "compute", "zones", "list", "--format=json"],
+            capture_output=True, text=True, check=True
+        )
+        zones = [z["name"] for z in json.loads(result.stdout)]
+        return zone in zones
+    except Exception as e:
+        print(f"⚠️ Could not validate zone: {e}")
+        return False
 
 def create_or_modify_profile(profile_name):
     """Create a new profile, or modify it if it already exists."""
@@ -100,11 +127,19 @@ def create_or_modify_profile(profile_name):
     if project:
         subprocess.run(["gcloud", "config", "set", "project", project], check=True)
 
-    region = input("Enter default region (or press Enter to skip): ").strip()
+    while True:
+        region = input("Enter default region (or press Enter to skip): ").strip()
+        if not region or is_valid_region(region):
+            break
+        print(f"❌ '{region}' is not a valid region. Please try again.")
     if region:
         subprocess.run(["gcloud", "config", "set", "compute/region", region], check=True)
 
-    zone = input("Enter default zone (or press Enter to skip): ").strip()
+    while True:
+        zone = input("Enter default zone (or press Enter to skip): ").strip()
+        if not zone or is_valid_zone(zone):
+            break
+        print(f"❌ '{zone}' is not a valid zone. Please try again.")
     if zone:
         subprocess.run(["gcloud", "config", "set", "compute/zone", zone], check=True)
 

@@ -1,0 +1,40 @@
+environments:
+  prod:
+    values:
+      - namespace: monitoring
+      - ../../environments/central-instance-secrets.yaml
+      - ../../environments/central-instance.yaml
+---
+
+repositories:
+- name: grafana
+  url: https://grafana.github.io/helm-charts
+- name: prometheus-community
+  url: https://prometheus-community.github.io/helm-charts
+- name: jaegertracing
+  url: https://jaegertracing.github.io/helm-charts
+
+releases:
+
+
+- name: kube-prometheus-stack
+  installed: true
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: prometheus-community/kube-prometheus-stack
+  version: 56.6.2
+  disableValidation: true
+  values:
+  - ./values/prometheus.yaml
+  - alertmanager:
+      enabled: {{ .Values.prometheus.alertmanager.enabled }}
+  {{- if .Values.prometheus.alertmanager.enabled }}
+  - alertmanager:
+      config: {{ index .Values "cluster-configs" "secrets" "alertmanager" "config" | toYaml | nindent 8 }}
+  {{- end }}
+  - prometheus:
+      prometheusSpec:
+        additionalScrapeConfigs: {{ .Values.prometheus.additionalScrapeConfigs | toYaml | nindent 8 }}
+        externalLabels: {{ .Values.prometheus.externalLabels | toYaml | nindent 10 }}
+        storageSpec: {{ .Values.prometheus.storageSpec | toYaml | nindent 10 }}
+        retention: {{ .Values.prometheus.retention | toYaml | nindent 10 }}
+

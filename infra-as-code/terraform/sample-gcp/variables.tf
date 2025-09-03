@@ -1,18 +1,12 @@
 variable "project_id" {
-  default     = "<GCP_PROJECT_ID>"
   description = "Name of the GCp Project"
 }
 
-variable "region" {
-  default     = "<GCP_REGION>"
-}
+variable "region" {}
 
-variable "zone" {
-  default = "<GCP_AVAILABILITY_ZONE>"
-}
+variable "zone" {}
 
 variable "env_name" {
-  default     = "<ENVIRONMENT_NAME>"
   description = "Name of the env"
 }
 
@@ -27,7 +21,7 @@ variable "public_subnet_cidr" {
 }
 
 variable "gke_version" {
-  default = "1.31.7-gke.1265000"
+  default = "1.31"
 }
 
 variable "node_machine_type" {
@@ -50,15 +44,9 @@ variable "node_disk_size_gb" {
   default = "50"
 }
 
-variable "db_name" {
-  default = "<DATABASE_NAME>"
-}
+variable "db_name" {}
 
-variable "db_username" {
-  default = "<DATABASE_USERNAME>"
-}
-
-variable "db_password" {}
+variable "db_username" {}
 
 variable "db_cpu" {
   default = 2

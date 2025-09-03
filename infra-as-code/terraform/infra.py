@@ -37,7 +37,9 @@ def run_terraform_commands(cluster_name, region, cloud_provider, working_dir):
         "<cluster_name>": cluster_name,
         "<db_name>": f"{cluster_clean}db",
         "<db_username>": f"{cluster_clean}admin",
-        "<region>": region
+        "<region>": region,
+        "<zone>": zone,
+        "<project_id>": project_id
     }
     backups = []
     def extract_resource_group_name(tf_file):
@@ -45,6 +47,43 @@ def run_terraform_commands(cluster_name, region, cloud_provider, working_dir):
             content = f.read()
         match = re.search(r'resource_group\s*=\s*"([^"]+)"', content)
         return match.group(1) if match else None
+    
+    def get_gke_bucket_with_prefix(cluster_name, project_id=None):
+        """Fetch GCS bucket(s) with a specific prefix"""
+        cmd = ["gcloud", "storage", "buckets", "list", "--format=value(name)"]
+        if project_id:
+            cmd += [f"--project={project_id}"]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        buckets = result.stdout.strip().splitlines()
+
+        # filter with prefix
+        matching = [b for b in buckets if b.startswith(cluster_name)]
+        return matching
+
+    def choose_bucket(cluster_name, project_id=None):
+        buckets = get_gke_bucket_with_prefix(cluster_name, project_id)
+
+        if not buckets:
+            print(f"❌ No buckets found with prefix '{cluster_name}'")
+            return None
+
+        if len(buckets) == 1:
+            # Auto-select single bucket
+            print(f"✅ Found only one bucket: {buckets[0]}")
+            return buckets[0]
+
+        # Prompt user for selection
+        print("\nMultiple buckets found:")
+        for i, bucket in enumerate(buckets, 1):
+            print(f"{i}. {bucket}")
+
+        while True:
+            choice = input(f"Select a bucket [1-{len(buckets)}]: ").strip()
+            if choice.isdigit() and 1 <= int(choice) <= len(buckets):
+                return buckets[int(choice) - 1]
+            else:
+                print("Invalid choice. Please try again.")
     
     def get_storage_account_name(resource_group, prefix="tfstate"):
         """Fetch the Azure storage account name by prefix in the given resource group."""
@@ -118,6 +157,14 @@ def run_terraform_commands(cluster_name, region, cloud_provider, working_dir):
             storage_account_replace_file = Path(working_dir)/"main.tf"
             replace_placeholders(storage_account_replace_file, storage_account_replacement)
             execute(Path(working_dir), infra_commands)
+        elif cloud_provider.lower() == "gcp":
+            bucketname = choose_bucket(cluster_name, project_id)
+            bucket_name_replacement = {
+                "<bucket_name>": bucketname
+            }
+            bucket_name_replace_file = Path(working_dir)/"main.tf"
+            replace_placeholders(bucket_name_replace_file, bucket_name_replacement)
+            execute(Path(working_dir), infra_commands)
         else:
             print(f"❌ Unsupported cloud provider: {cloud_provider}")
             return
@@ -142,9 +189,49 @@ def upgrade_terraform_commands(cluster_name, region, cloud_provider, working_dir
         "<cluster_name>": cluster_name,
         "<db_name>": f"{cluster_clean}db",
         "<db_username>": f"{cluster_clean}admin",
-        "<region>": region
+        "<region>": region,
+        "<zone>": zone,
+        "<project_id>": project_id
     }
     backups = []
+
+    def get_gke_bucket_with_prefix(cluster_name, project_id=None):
+        """Fetch GCS bucket(s) with a specific prefix"""
+        cmd = ["gcloud", "storage", "buckets", "list", "--format=value(name)"]
+        if project_id:
+            cmd += [f"--project={project_id}"]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        buckets = result.stdout.strip().splitlines()
+
+        # filter with prefix
+        matching = [b for b in buckets if b.startswith(cluster_name)]
+        return matching
+
+    def choose_bucket(cluster_name, project_id=None):
+        buckets = get_gke_bucket_with_prefix(cluster_name, project_id)
+
+        if not buckets:
+            print(f"❌ No buckets found with prefix '{cluster_name}'")
+            return None
+
+        if len(buckets) == 1:
+            # Auto-select single bucket
+            print(f"✅ Found only one bucket: {buckets[0]}")
+            return buckets[0]
+
+        # Prompt user for selection
+        print("\nMultiple buckets found:")
+        for i, bucket in enumerate(buckets, 1):
+            print(f"{i}. {bucket}")
+
+        while True:
+            choice = input(f"Select a bucket [1-{len(buckets)}]: ").strip()
+            if choice.isdigit() and 1 <= int(choice) <= len(buckets):
+                return buckets[int(choice) - 1]
+            else:
+                print("Invalid choice. Please try again.")
+
     def extract_resource_group_name(tf_file):
         with open(tf_file, "r") as f:
             content = f.read()
@@ -214,6 +301,14 @@ def upgrade_terraform_commands(cluster_name, region, cloud_provider, working_dir
             storage_account_replace_file = Path(working_dir)/"main.tf"
             replace_placeholders(storage_account_replace_file, storage_account_replacement)
             execute(Path(working_dir), infra_commands)
+        elif cloud_provider.lower() == "gcp":
+            bucketname = choose_bucket(cluster_name, project_id)
+            bucket_name_replacement = {
+                "<bucket_name>": bucketname
+            }
+            bucket_name_replace_file = Path(working_dir)/"main.tf"
+            replace_placeholders(bucket_name_replace_file, bucket_name_replacement)
+            execute(Path(working_dir), infra_commands)
         else:
             print(f"❌ Unsupported cloud provider: {cloud_provider}")
             return
@@ -237,8 +332,74 @@ def terraform_destroy_commands(cluster_name, region, cloud_provider, working_dir
         "<cluster_name>": cluster_name,
         "<db_name>": f"{cluster_clean}db",
         "<db_username>": f"{cluster_clean}admin",
-        "<region>": region
+        "<region>": region,
+        "<zone>": zone,
+        "<project_id>": project_id
     }
+    def get_gke_bucket_with_prefix(cluster_name, project_id=None):
+        """Fetch GCS bucket(s) with a specific prefix"""
+        cmd = ["gcloud", "storage", "buckets", "list", "--format=value(name)"]
+        if project_id:
+            cmd += [f"--project={project_id}"]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        buckets = result.stdout.strip().splitlines()
+
+        # filter with prefix
+        matching = [b for b in buckets if b.startswith(cluster_name)]
+        return matching
+
+    def choose_bucket(cluster_name, project_id=None):
+        buckets = get_gke_bucket_with_prefix(cluster_name, project_id)
+
+        if not buckets:
+            print(f"❌ No buckets found with prefix '{cluster_name}'")
+            return None
+
+        if len(buckets) == 1:
+            # Auto-select single bucket
+            print(f"✅ Found only one bucket: {buckets[0]}")
+            return buckets[0]
+
+        # Prompt user for selection
+        print("\nMultiple buckets found:")
+        for i, bucket in enumerate(buckets, 1):
+            print(f"{i}. {bucket}")
+
+        while True:
+            choice = input(f"Select a bucket [1-{len(buckets)}]: ").strip()
+            if choice.isdigit() and 1 <= int(choice) <= len(buckets):
+                return buckets[int(choice) - 1]
+            else:
+                print("Invalid choice. Please try again.")
+
+    def is_gcp_bucket_empty(bucket_name):
+        """Check if a GCS bucket is empty using gcloud or fallback to gsutil."""
+        try:
+            # Try with gcloud first
+            cmd = [
+                "gcloud", "storage", "objects", "list",
+                bucket_name,
+                "--limit=1",
+                "--format=value(name)"
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            objects = result.stdout.strip()
+            return not bool(objects)  # True if empty
+        except subprocess.CalledProcessError:
+            # Fallback to gsutil
+            print("⚠️ gcloud failed, falling back to gsutil...")
+            cmd = ["gsutil", "ls", f"gs://{bucket_name}"]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            return not bool(result.stdout.strip())
+    
+    def delete_gcp_state_bucket(bucket_name, project_id=None):
+        cmd = ["gcloud", "storage", "rm", "-r", f"gs://{bucket_name}", "--quiet"]
+        if project_id:
+            cmd.append(f"--project={project_id}")
+        subprocess.run(cmd, check=True)
+        print(f"✅ Bucket '{bucket_name}' deleted successfully.")
+        return True
 
     def extract_s3_bucket_name(tf_file):
         with open(tf_file, "r") as f:
@@ -444,6 +605,21 @@ def terraform_destroy_commands(cluster_name, region, cloud_provider, working_dir
             replace_placeholders(storage_account_replace_file, storage_account_replacement)
             execute(Path(working_dir), destroy_commands)
             delete_azure_storage(storage_account, resourcegroup, container)
+        elif cloud_provider.lower() == "gcp":
+        # === GCP Cleanup ===
+            bucketname = choose_bucket(cluster_name, project_id)
+            if is_gcp_bucket_empty(bucketname):
+                print(f"🗑️ Bucket '{bucketname}' is empty. Deleting...")
+                delete_gcp_state_bucket(bucketname, project_id)
+            else:
+                cleanup_terraform_artifacts(Path(working_dir))
+                bucket_name_replacement = {
+                    "<bucket_name>": bucketname
+                }
+                bucket_name_replace_file = Path(working_dir)/"main.tf"
+                replace_placeholders(bucket_name_replace_file, bucket_name_replacement)
+                execute(Path(working_dir), destroy_commands)
+                delete_gcp_state_bucket(bucketname, project_id)
         else:
             print(f"❌ Unsupported cloud provider: {cloud_provider}")
             return
@@ -665,6 +841,17 @@ def import_from_different_folder(module_path, module_name):
     spec.loader.exec_module(module)
     return module
 
+def ensure_gcp_dependencies():
+    # -- Import your Azure-specific logic from another folder --
+    AZURE_MODULE_PATH = "sample-gcp/gcp-iam.py"  # <-- UPDATE THIS
+    gcp_iam = import_from_different_folder(AZURE_MODULE_PATH, "gcp-iam")
+
+    # Optional: make functions available globally if needed like you did for AWS
+    global gcp_main, project_id, region_name, zone
+    gcp_main = gcp_iam.gcp_main()
+    project_id = gcp_iam.get_project_id()
+    region_name, zone = gcp_iam.fetch_region_zone()
+
 def ensure_azure_dependencies():
     # -- Import your Azure-specific logic from another folder --
     AZURE_MODULE_PATH = "sample-azure/azure_credentials.py"  # <-- UPDATE THIS
@@ -788,6 +975,10 @@ def main():
             object_id = get_current_sp_object_id(selected_profile)
             check_permissions(object_id)
             run_terraform_commands(cluster_name, region, cloud_choice, "sample-azure")
+        elif cloud_choice == "gcp":
+            ensure_gcp_dependencies()
+            cluster_name = input("Enter the Cluster Name: ")
+            run_terraform_commands(cluster_name, region_name, cloud_choice, "sample-gcp")
         else:
             print("Only AWS and Azure is currently supported. Others coming soon!")
     elif args.destroy:
@@ -819,6 +1010,10 @@ def main():
             object_id = get_current_sp_object_id(selected_profile)
             check_permissions(object_id)
             terraform_destroy_commands(cluster_name, region, cloud_choice, "sample-azure")
+        elif cloud_choice == "gcp":
+            ensure_gcp_dependencies()
+            cluster_name = input("Enter the Cluster Name: ")
+            terraform_destroy_commands(cluster_name, region_name, cloud_choice, "sample-gcp")
         else:
             print("Only AWS and Azure is currently supported. Others coming soon!")
     elif args.upgrade:
@@ -850,6 +1045,10 @@ def main():
             object_id = get_current_sp_object_id(selected_profile)
             check_permissions(object_id)
             upgrade_terraform_commands(cluster_name, region, cloud_choice, "sample-azure")
+        elif cloud_choice == "gcp":
+            ensure_gcp_dependencies()
+            cluster_name = input("Enter the Cluster Name: ")
+            upgrade_terraform_commands(cluster_name, region_name, cloud_choice, "sample-gcp")
         else:
             print("Only AWS and Azure is currently supported. Others coming soon!")
     else:

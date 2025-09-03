@@ -1,6 +1,6 @@
 terraform {
   backend "gcs" {
-    bucket = "<terraform_state_bucket_name>"  # Replace with the name after creating remote state bucket
+    bucket = "<bucket_name>"  # Replace with the name after creating remote state bucket
     prefix  = "terraform/state"
   }
 
@@ -25,6 +25,12 @@ provider "google" {
 }
 
 data "google_client_openid_userinfo" "me" {}
+
+resource "random_password" "db_password" {
+  length           = 16
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
 
 resource "google_kms_key_ring" "sops_ring" {
   name     = "${var.env_name}-sops-keyring"
@@ -66,7 +72,7 @@ module "db" {
   vpc_id                 = module.network.vpc_id
   db_name                = var.db_name
   db_username            = var.db_username
-  db_password            = var.db_password
+  db_password            = random_password.db_password.result
 
   depends_on = [module.network]
 }

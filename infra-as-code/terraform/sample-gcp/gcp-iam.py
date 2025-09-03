@@ -5,6 +5,39 @@ import glob
 import json
 import yaml
 
+def get_gcloud_config_value(key: str) -> str:
+    """Fetch a gcloud config value (like region, zone, project)."""
+    result = subprocess.run(
+        ["gcloud", "config", "get-value", key],
+        capture_output=True, text=True
+    )
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+def fetch_region_zone():
+    """Fetch region and zone from active profile, prompt if missing."""
+    # Get current values
+    region = get_gcloud_config_value("compute/region")
+    zone = get_gcloud_config_value("compute/zone")
+
+    # Ask for region if missing
+    while not region:
+        region = input("🌍 Enter default region (e.g., asia-south1): ").strip()
+        if not region:
+            print("⚠️ Region cannot be empty. Please try again.")
+        else:
+            subprocess.run(["gcloud", "config", "set", "compute/region", region], check=True)
+
+    # Ask for zone if missing
+    while not zone:
+        zone = input("🗂️ Enter default zone (e.g., asia-south1-a): ").strip()
+        if not zone:
+            print("⚠️ Zone cannot be empty. Please try again.")
+        else:
+            subprocess.run(["gcloud", "config", "set", "compute/zone", zone], check=True)
+
+    print(f"✅ Active profile is configured with region '{region}' and zone '{zone}'")
+    return region, zone
+
 def run_cmd(cmd):
     """Run a shell command and return output"""
     try:
@@ -219,7 +252,7 @@ def validate_permissions(project_id, required_permissions):
         print("✅ All required permissions are granted.")
 
 
-def main():
+def gcp_main():
     profiles = list_gcloud_profiles()
 
     if not profiles:
@@ -229,7 +262,7 @@ def main():
             profile_name = "default"
         create_or_modify_profile(profile_name)
         project_id = get_project_id()
-        required_permissions = load_required_permissions("permissions.yaml")
+        required_permissions = load_required_permissions("sample-gcp/permissions.yaml")
         validate_permissions(project_id, required_permissions)
         return
 
@@ -246,7 +279,7 @@ def main():
                 print("✅ Using default profile.")
                 profile_name = "default"
                 project_id = get_project_id()
-                required_permissions = load_required_permissions("permissions.yaml")
+                required_permissions = load_required_permissions("sample-gcp/permissions.yaml")
                 validate_permissions(project_id, required_permissions)
                 return
             elif choice == "n":
@@ -285,9 +318,5 @@ def main():
         print("❌ Invalid choice. Exiting.")
         sys.exit(1)
     project_id = get_project_id()
-    required_permissions = load_required_permissions("permissions.yaml")
+    required_permissions = load_required_permissions("sample-gcp/permissions.yaml")
     validate_permissions(project_id, required_permissions)
-
-
-if __name__ == "__main__":
-    main()

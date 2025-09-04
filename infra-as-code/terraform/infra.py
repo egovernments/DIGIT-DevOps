@@ -713,6 +713,57 @@ def install_homebrew_if_needed():
             os.environ["PATH"] += os.pathsep + "/opt/homebrew/bin"
         print("Homebrew installation completed.")
 
+def install_gcloud_cli():
+    os_type = platform.system().lower()
+    if os_type == "linux":
+        # Detect package manager
+        if shutil.which("apt-get"):
+            # Debian/Ubuntu
+            run_command(["sudo", "apt-get", "update", "-y"])
+            run_command(["sudo", "apt-get", "install", "-y", "apt-transport-https", "ca-certificates", "gnupg", "curl"])
+            run_command([
+                "bash", "-c",
+                "curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -"
+            ])
+            run_command([
+                "bash", "-c",
+                "echo 'deb https://packages.cloud.google.com/apt cloud-sdk main' | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list"
+            ])
+            run_command(["sudo", "apt-get", "update", "-y"])
+            run_command(["sudo", "apt-get", "install", "-y", "google-cloud-cli"])
+
+        elif shutil.which("dnf") or shutil.which("yum"):
+            # RHEL/CentOS/Rocky/AlmaLinux/Fedora
+            pkg_mgr = "dnf" if shutil.which("dnf") else "yum"
+            run_command(["sudo", pkg_mgr, "install", "-y", "dnf-plugins-core"])
+            run_command(["sudo", "tee", "/etc/yum.repos.d/google-cloud-sdk.repo"],)
+            with open("/etc/yum.repos.d/google-cloud-sdk.repo", "w") as f:
+                f.write(
+                    "[google-cloud-cli]\n"
+                    "name=Google Cloud CLI\n"
+                    "baseurl=https://packages.cloud.google.com/yum/repos/cloud-sdk-el7-x86_64\n"
+                    "enabled=1\n"
+                    "gpgcheck=1\n"
+                    "repo_gpgcheck=0\n"
+                    "gpgkey=https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg\n"
+                )
+            run_command(["sudo", pkg_mgr, "install", "-y", "google-cloud-cli"])
+        else:
+            print("❌ Unsupported Linux distribution. Install manually from https://cloud.google.com/sdk/docs/install")
+
+    elif os_type == "darwin":
+        # macOS
+        run_command([
+            "curl", "-O", "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-460.0.0-darwin-x86_64.tar.gz"
+        ])
+        run_command(["tar", "xvf", "google-cloud-cli-460.0.0-darwin-x86_64.tar.gz"])
+        run_command(["./google-cloud-sdk/install.sh", "-q"])
+        run_command(["rm", "google-cloud-cli-460.0.0-darwin-x86_64.tar.gz"])
+
+    else:
+        print(f"❌ Google Cloud CLI installation not supported for {os_type}")
+    print("✅ Google Cloud CLI installation complete!")
+
 
 def install_az_cli():
     os_type = platform.system().lower()
@@ -848,9 +899,18 @@ def ensure_gcp_dependencies():
 
     # Optional: make functions available globally if needed like you did for AWS
     global gcp_main, project_id, region_name, zone
-    gcp_main = gcp_iam.gcp_main()
+    gcp_main = gcp_iam.gcp_main
     project_id = gcp_iam.get_project_id()
     region_name, zone = gcp_iam.fetch_region_zone()
+
+    """Check if gcloud is installed, otherwise install it"""
+    try:
+        subprocess.run(["gcloud", "--version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print("✅ Google Cloud CLI already installed.")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("⬇️ Installing Google Cloud CLI...")
+        install_gcloud_cli()
+
 
 def ensure_azure_dependencies():
     # -- Import your Azure-specific logic from another folder --
@@ -977,6 +1037,7 @@ def main():
             run_terraform_commands(cluster_name, region, cloud_choice, "sample-azure")
         elif cloud_choice == "gcp":
             ensure_gcp_dependencies()
+            gcp_main()
             cluster_name = input("Enter the Cluster Name: ")
             run_terraform_commands(cluster_name, region_name, cloud_choice, "sample-gcp")
         else:
@@ -1012,6 +1073,7 @@ def main():
             terraform_destroy_commands(cluster_name, region, cloud_choice, "sample-azure")
         elif cloud_choice == "gcp":
             ensure_gcp_dependencies()
+            gcp_main()
             cluster_name = input("Enter the Cluster Name: ")
             terraform_destroy_commands(cluster_name, region_name, cloud_choice, "sample-gcp")
         else:
@@ -1047,6 +1109,7 @@ def main():
             upgrade_terraform_commands(cluster_name, region, cloud_choice, "sample-azure")
         elif cloud_choice == "gcp":
             ensure_gcp_dependencies()
+            gcp_main()
             cluster_name = input("Enter the Cluster Name: ")
             upgrade_terraform_commands(cluster_name, region_name, cloud_choice, "sample-gcp")
         else:

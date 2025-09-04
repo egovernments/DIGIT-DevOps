@@ -153,24 +153,67 @@ matomoSkipInstall: false
 ##     ...
 ##
 customPostInitScripts:
-  set-geoip-provider.sh: |
-    #!/bin/bash
-    set -euo pipefail
-    cd /opt/bitnami/matomo
-    php ./console plugin:activate GeoIp2 || true
-    php ./console usercountry:geoip-setup --accept-license --yes || true
-  add-proxy-headers.sh: |
+  90-add-proxy-headers.sh: |-
     #!/bin/bash
     set -euo pipefail
     INI="/bitnami/matomo/config/config.ini.php"
-    for i in $(seq 1 60); do [[ -f "$INI" ]] && break; echo "Waiting for $INI ..."; sleep 2; done
-    grep -q "^\[General\]" "$INI" || echo "[General]" >> "$INI"
-    add(){ grep -qF "$1" "$INI" || printf "%s\n" "$1" >> "$INI"; }
-    add "proxy_client_headers[] = HTTP_X_FORWARDED_FOR"
-    add "proxy_client_headers[] = HTTP_X_REAL_IP"
-    add "proxy_host_headers[] = HTTP_X_FORWARDED_HOST"
-    add "assume_secure_protocol = 1"
-    php ./console core:clear-caches || true
+
+    # wait for config.ini.php (up to 120s)
+    for i in $(seq 1 120); do [[ -f "$INI" ]] && break; echo "postinit: waiting for $INI ..."; sleep 1; done
+    [[ -f "$INI" ]] || { echo "postinit: $INI not found, skipping"; exit 0; }
+
+    tmp1="$(mktemp)"
+    # 1) write [General] with the four lines directly under it; drop any duplicates
+    awk '
+      # when [General] appears, print it and immediately the four settings
+      /^\[General\]$/ {
+        print
+        print "proxy_client_headers[] = HTTP_X_FORWARDED_FOR"
+        print "proxy_client_headers[] = HTTP_X_REAL_IP"
+        print "proxy_host_headers[]   = HTTP_X_FORWARDED_HOST"
+        print "assume_secure_protocol = 1"
+        next
+      }
+      { print }
+    ' "$INI" > "$tmp1"
+
+    tmp2="$(mktemp)"
+    # 2) ensure [usercountry] has location_provider = geoip2_php
+    awk '
+      /^\[usercountry\]$/ { seen=1; inUC=1; print; next }
+      inUC && /^location_provider[[:space:]]*=/ { have=1 }
+      inUC && /^\[/ { if(!have) print "location_provider = geoip2_php"; inUC=0; print; next }
+      { print }
+      END{
+        if(inUC && !have) print "location_provider = geoip2_php"
+        if(!seen) { print ""; print "[usercountry]"; print "location_provider = geoip2_php" }
+      }
+    ' "$tmp1" > "$tmp2"
+
+    cp "$tmp2" "$INI"
+    rm -f "$tmp1" "$tmp2"
+
+    /opt/bitnami/php/bin/php /opt/bitnami/matomo/console core:clear-caches --no-interaction || true
+
+  99-set-geoip-provider.sh: |-
+    #!/bin/bash
+    set -euo pipefail
+
+    # wait until Matomo console works (up to 120s)
+    for i in $(seq 1 60); do
+      /opt/bitnami/php/bin/php /opt/bitnami/matomo/console core:version >/dev/null 2>&1 && break
+      echo "postinit: waiting for Matomo console/DB ..."; sleep 2
+    done
+
+    # keep GeoIp2 enabled
+    /opt/bitnami/php/bin/php /opt/bitnami/matomo/console plugin:activate GeoIp2 --no-interaction || true
+
+    # Run geoip-setup only if the command exists (older Matomo)
+    if /opt/bitnami/php/bin/php /opt/bitnami/matomo/console list --raw | grep -q '^usercountry:geoip-setup$'; then
+      /opt/bitnami/php/bin/php /opt/bitnami/matomo/console usercountry:geoip-setup --accept-license --yes --no-interaction || true
+    fi
+
+    /opt/bitnami/php/bin/php /opt/bitnami/matomo/console core:clear-caches --no-interaction || true
 
 ## @param allowEmptyPassword Allow DB blank passwords
 ## ref: https://github.com/bitnami/containers/tree/main/bitnami/matomo#environment-variables
@@ -254,6 +297,7 @@ pdb:
   maxUnavailable: ""
 ## @param sidecars Attach additional containers to the pod (evaluated as a template)
 ##
+#sidecars: {}
 sidecars: |
   - name: matomo-archiver
     image: {{ template "matomo.image" . }}
@@ -271,6 +315,7 @@ sidecars: |
     args:
       - |
         set -euo pipefail
+        echo "Waiting for matomo set-up" && sleep 300
         . /opt/bitnami/scripts/matomo-env.sh &&
         . /opt/bitnami/scripts/libbitnami.sh &&
         . /opt/bitnami/scripts/liblog.sh &&
@@ -325,6 +370,7 @@ sidecars: |
     args:
       - |
         set -euo pipefail
+        echo "Waiting for matomo set-up" && sleep 300
         . /opt/bitnami/scripts/matomo-env.sh &&
         . /opt/bitnami/scripts/libbitnami.sh &&
         . /opt/bitnami/scripts/liblog.sh &&
@@ -382,6 +428,7 @@ sidecars: |
     args:
       - |
         set -euo pipefail
+        echo "Waiting for matomo set-up" && sleep 300
         mkdir -p "$GEOIP_PATH"
         while true; do
           now="$(date -u +%Y-%m)"

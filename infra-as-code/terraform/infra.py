@@ -1009,7 +1009,7 @@ def ensure_aws_dependencies():
     try:
         subprocess.run(["aws", "--version"], check=True, stdout=subprocess.DEVNULL)
         print("AWS CLI already installed.")
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         print("Installing AWS CLI...")
         install_aws_cli()
 

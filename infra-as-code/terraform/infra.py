@@ -10,6 +10,9 @@ import tempfile
 import importlib.util
 import shutil
 import json
+import tarfile
+import zipfile
+import urllib.request
 
 def cleanup_terraform_artifacts(directory):
     """
@@ -656,7 +659,7 @@ def restore_file(original_path, backup_path):
     shutil.move(backup_path, original_path)
     print(f"🔁 Restored original: {original_path.name}")
 
-def run_command(command, shell=False, check=True, input=None):
+def run_command(command, cwd=None, shell=False, check=True, input=None):
     print(f"Running: {' '.join(command) if isinstance(command, list) else command}")
     subprocess.run(command, shell=shell, check=check, input=input)
 
@@ -716,54 +719,78 @@ def install_homebrew_if_needed():
 def install_gcloud_cli():
     os_type = platform.system().lower()
     if os_type == "linux":
-        # Detect package manager
-        if shutil.which("apt-get"):
-            # Debian/Ubuntu
-            run_command(["sudo", "apt-get", "update", "-y"])
-            run_command(["sudo", "apt-get", "install", "-y", "apt-transport-https", "ca-certificates", "gnupg", "curl"])
-            run_command([
-                "bash", "-c",
-                "curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -"
-            ])
-            run_command([
-                "bash", "-c",
-                "echo 'deb https://packages.cloud.google.com/apt cloud-sdk main' | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list"
-            ])
-            run_command(["sudo", "apt-get", "update", "-y"])
-            run_command(["sudo", "apt-get", "install", "-y", "google-cloud-cli"])
-
-        elif shutil.which("dnf") or shutil.which("yum"):
-            # RHEL/CentOS/Rocky/AlmaLinux/Fedora
-            pkg_mgr = "dnf" if shutil.which("dnf") else "yum"
-            run_command(["sudo", pkg_mgr, "install", "-y", "dnf-plugins-core"])
-            run_command(["sudo", "tee", "/etc/yum.repos.d/google-cloud-sdk.repo"],)
-            with open("/etc/yum.repos.d/google-cloud-sdk.repo", "w") as f:
-                f.write(
-                    "[google-cloud-cli]\n"
-                    "name=Google Cloud CLI\n"
-                    "baseurl=https://packages.cloud.google.com/yum/repos/cloud-sdk-el7-x86_64\n"
-                    "enabled=1\n"
-                    "gpgcheck=1\n"
-                    "repo_gpgcheck=0\n"
-                    "gpgkey=https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg\n"
-                )
-            run_command(["sudo", pkg_mgr, "install", "-y", "google-cloud-cli"])
+        # Detect distro
+        try:
+            distro = subprocess.check_output(["cat", "/etc/os-release"], text=True).lower()
+        except Exception as e:
+            print(f"⚠️ Could not detect Linux distro: {e}")
+            return
+        if "amzn" in distro:  # Amazon Linux fallback
+            print("⚠️ Amazon Linux detected. Falling back to Google tarball installer.")
+            tarball = "google-cloud-cli-484.0.0-linux-x86_64.tar.gz"
+            url = f"https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/{tarball}"
+            install_dir = "/opt/google-cloud-sdk"
+            cmds = [
+                ["curl", "-O", url],
+                ["sudo", "rm", "-rf", install_dir],  # cleanup if re-run
+                ["sudo", "tar", "-xf", tarball, "-C", "/opt/"],
+                ["sudo", "/opt/google-cloud-sdk/install.sh", "--quiet"],
+                # ✅ Symlink both gcloud & gsutil
+                ["sudo", "ln", "-sf", "/opt/google-cloud-sdk/bin/gcloud", "/usr/local/bin/gcloud"],
+                ["sudo", "ln", "-sf", "/opt/google-cloud-sdk/bin/gsutil", "/usr/local/bin/gsutil"],
+                ["sudo", "ln", "-sf", "/opt/google-cloud-sdk/bin/bq", "/usr/local/bin/bq"]
+            ]
+        elif "ubuntu" in distro or "debian" in distro:
+            cmds = [
+                ["sudo", "apt-get", "update", "-y"],
+                ["sudo", "apt-get", "install", "-y", "apt-transport-https", "ca-certificates", "gnupg", "curl"],
+                ["sudo", "apt-get", "install", "-y", "google-cloud-cli"],
+            ]
+        elif "rhel" in distro or "centos" in distro or "fedora" in distro:
+            cmds = [
+                ["sudo", "dnf", "install", "-y", "dnf-plugins-core"],
+                ["sudo", "dnf", "install", "-y", "google-cloud-cli"],
+            ]
+        elif "sles" in distro or "opensuse" in distro:
+            cmds = [
+                ["sudo", "zypper", "install", "-y", "google-cloud-cli"],
+            ]
         else:
-            print("❌ Unsupported Linux distribution. Install manually from https://cloud.google.com/sdk/docs/install")
+            print("❌ Unsupported Linux distribution for automatic gcloud install.")
+            return
 
-    elif os_type == "darwin":
-        # macOS
-        run_command([
-            "curl", "-O", "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-460.0.0-darwin-x86_64.tar.gz"
-        ])
-        run_command(["tar", "xvf", "google-cloud-cli-460.0.0-darwin-x86_64.tar.gz"])
-        run_command(["./google-cloud-sdk/install.sh", "-q"])
-        run_command(["rm", "google-cloud-cli-460.0.0-darwin-x86_64.tar.gz"])
+        for cmd in cmds:
+            print("Running:", " ".join(cmd))
+            subprocess.run(cmd, check=True)
+    elif os_type == "darwin":  # macOS
+        install_homebrew_if_needed()
+        cmds = [
+            ["brew", "install", "--cask", "google-cloud-sdk"]
+        ]
+        for cmd in cmds:
+            print("Running:", " ".join(cmd))
+            subprocess.run(cmd, check=True)
+    elif os_type == "windows":
+        try:
+            subprocess.run(["choco", "--version"], check=True, stdout=subprocess.DEVNULL)
+        except Exception:
+            print("❌ Chocolatey is required but not installed. Install from https://chocolatey.org/")
+            sys.exit(1)
 
+        cmds = [
+            ["choco", "install", "googlecloudsdk", "-y"]
+        ]
+        for cmd in cmds:
+            print("Running:", " ".join(cmd))
+            subprocess.run(cmd, check=True, shell=True)
     else:
-        print(f"❌ Google Cloud CLI installation not supported for {os_type}")
-    print("✅ Google Cloud CLI installation complete!")
-
+        print(f"❌ gcloud installer not supported for {os_type}")
+        return
+    # Verify installation
+    if shutil.which("gcloud") and shutil.which("gsutil"):
+        print("✅ Google Cloud CLI installed system-wide with gcloud & gsutil.")
+    else:
+        print("⚠️ Installation completed but gcloud not found in PATH. Add it manually to your shell profile.")
 
 def install_az_cli():
     os_type = platform.system().lower()
@@ -893,16 +920,6 @@ def import_from_different_folder(module_path, module_name):
     return module
 
 def ensure_gcp_dependencies():
-    # -- Import your Azure-specific logic from another folder --
-    AZURE_MODULE_PATH = "sample-gcp/gcp-iam.py"  # <-- UPDATE THIS
-    gcp_iam = import_from_different_folder(AZURE_MODULE_PATH, "gcp-iam")
-
-    # Optional: make functions available globally if needed like you did for AWS
-    global gcp_main, project_id, region_name, zone
-    gcp_main = gcp_iam.gcp_main
-    project_id = gcp_iam.get_project_id()
-    region_name, zone = gcp_iam.fetch_region_zone()
-
     """Check if gcloud is installed, otherwise install it"""
     try:
         subprocess.run(["gcloud", "--version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -910,6 +927,30 @@ def ensure_gcp_dependencies():
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("⬇️ Installing Google Cloud CLI...")
         install_gcloud_cli()
+    # -- Ensure Terraform --
+    try:
+        subprocess.run(["terraform", "-version"], check=True, stdout=subprocess.DEVNULL)
+        print("Terraform already installed.")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("Installing Terraform...")
+        install_terraform()
+
+    # -- Ensure Git --
+    try:
+        subprocess.run(["git", "--version"], check=True, stdout=subprocess.DEVNULL)
+        print("Git already installed.")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("Installing Git...")
+        install_git()
+    # -- Import your Azure-specific logic from another folder --
+    AZURE_MODULE_PATH = "sample-gcp/gcp-iam.py"  # <-- UPDATE THIS
+    gcp_iam = import_from_different_folder(AZURE_MODULE_PATH, "gcp-iam")
+
+    # Optional: make functions available globally if needed like you did for AWS
+    global gcp_main, project_id, region_name, zone
+    gcp_main = gcp_iam.gcp_main()
+    project_id = gcp_iam.get_project_id()
+    region_name, zone = gcp_iam.fetch_region_zone()
 
 
 def ensure_azure_dependencies():
@@ -1037,7 +1078,18 @@ def main():
             run_terraform_commands(cluster_name, region, cloud_choice, "sample-azure")
         elif cloud_choice == "gcp":
             ensure_gcp_dependencies()
-            gcp_main()
+            # ✅ Ensure default login is set
+            try:
+                subprocess.run(
+                    ["gcloud", "auth", "application-default", "print-access-token"],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                print("✅ gcloud already authenticated with application-default login.")
+            except subprocess.CalledProcessError:
+                print("⚠️ gcloud not authenticated. Running application-default login...")
+                subprocess.run(["gcloud", "auth", "application-default", "login"], check=True)
             cluster_name = input("Enter the Cluster Name: ")
             run_terraform_commands(cluster_name, region_name, cloud_choice, "sample-gcp")
         else:
@@ -1073,7 +1125,18 @@ def main():
             terraform_destroy_commands(cluster_name, region, cloud_choice, "sample-azure")
         elif cloud_choice == "gcp":
             ensure_gcp_dependencies()
-            gcp_main()
+            # ✅ Ensure default login is set
+            try:
+                subprocess.run(
+                    ["gcloud", "auth", "application-default", "print-access-token"],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                print("✅ gcloud already authenticated with application-default login.")
+            except subprocess.CalledProcessError:
+                print("⚠️ gcloud not authenticated. Running application-default login...")
+                subprocess.run(["gcloud", "auth", "application-default", "login"], check=True)
             cluster_name = input("Enter the Cluster Name: ")
             terraform_destroy_commands(cluster_name, region_name, cloud_choice, "sample-gcp")
         else:
@@ -1109,7 +1172,18 @@ def main():
             upgrade_terraform_commands(cluster_name, region, cloud_choice, "sample-azure")
         elif cloud_choice == "gcp":
             ensure_gcp_dependencies()
-            gcp_main()
+            # ✅ Ensure default login is set
+            try:
+                subprocess.run(
+                    ["gcloud", "auth", "application-default", "print-access-token"],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                print("✅ gcloud already authenticated with application-default login.")
+            except subprocess.CalledProcessError:
+                print("⚠️ gcloud not authenticated. Running application-default login...")
+                subprocess.run(["gcloud", "auth", "application-default", "login"], check=True)
             cluster_name = input("Enter the Cluster Name: ")
             upgrade_terraform_commands(cluster_name, region_name, cloud_choice, "sample-gcp")
         else:

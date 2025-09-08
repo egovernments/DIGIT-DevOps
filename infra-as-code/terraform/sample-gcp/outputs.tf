@@ -39,6 +39,6 @@ output "db_password" {
   sensitive = true
 }
 
-output "sops_key" {
-  value = "projects/${var.project_id}/locations/${var.region}/keyRings/${google_kms_key_ring.sops_ring.name}/cryptoKeys/${google_kms_crypto_key.sops_key.name}"
+output "sops_key" {  
+  value = var.enable_sops_key ? "projects/${var.project_id}/locations/${var.region}/keyRings/${google_kms_key_ring.sops_ring[0].name}/cryptoKeys/${google_kms_crypto_key.sops_key[0].name}" : null
 }

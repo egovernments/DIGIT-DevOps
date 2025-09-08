@@ -33,17 +33,25 @@ resource "random_password" "db_password" {
 }
 
 resource "google_kms_key_ring" "sops_ring" {
-  name     = "${var.env_name}-sops-keyring"
+  count    = var.enable_sops_key ? 1 : 0
+  name     = "${var.env_name}-sops-keyring-${random_id.sops_ring_suffix[count.index].hex}"
   location = var.region
 }
 
+resource "random_id" "sops_ring_suffix" {
+  count           = var.enable_sops_key ? 1 : 0
+  byte_length = 2
+}
+
 resource "google_kms_crypto_key" "sops_key" {
+  count           = var.enable_sops_key ? 1 : 0
   name            = "${var.env_name}-sops-key"
-  key_ring        = google_kms_key_ring.sops_ring.id
+  key_ring        = google_kms_key_ring.sops_ring[count.index].id
 }
 
 resource "google_kms_crypto_key_iam_member" "sops_user_binding" {
-  crypto_key_id = google_kms_crypto_key.sops_key.id
+  count         = var.enable_sops_key ? 1 : 0
+  crypto_key_id = google_kms_crypto_key.sops_key[count.index].id
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
   member        = "user:${data.google_client_openid_userinfo.me.email}"
 }

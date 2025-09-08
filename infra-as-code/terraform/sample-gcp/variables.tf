@@ -44,6 +44,12 @@ variable "node_disk_size_gb" {
   default = "50"
 }
 
+variable "enable_sops_key" {
+  description = "Enable the sops keyring."
+  type        = bool
+  default     = false
+} 
+
 variable "db_name" {}
 
 variable "db_username" {}

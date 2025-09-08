@@ -18,6 +18,7 @@ resource "google_container_node_pool" "primary_nodes" {
   name       = "${var.cluster_name}-node-pool"
   cluster    = google_container_cluster.gke_cluster.name
   location   = var.zone
+  version    = var.k8s_version
 
   node_config {
     preemptible = var.spot_enabled

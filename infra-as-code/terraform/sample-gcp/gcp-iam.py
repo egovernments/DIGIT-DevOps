@@ -20,18 +20,18 @@ def fetch_region_zone():
     zone = get_gcloud_config_value("compute/zone")
 
     # Ask for region if missing
-    while not region:
-        region = input("🌍 Enter default region (e.g., asia-south1): ").strip()
-        if not region:
-            print("⚠️ Region cannot be empty. Please try again.")
+    while not region or not is_valid_region(region):
+        region = input("🌍 Enter the region (e.g., asia-south1): ").strip()
+        if not region or not is_valid_region(region):
+            print("⚠️ Region is invalid. Please try again.")
         else:
             subprocess.run(["gcloud", "config", "set", "compute/region", region], check=True)
 
     # Ask for zone if missing
-    while not zone:
-        zone = input("🗂️ Enter default zone (e.g., asia-south1-a): ").strip()
-        if not zone:
-            print("⚠️ Zone cannot be empty. Please try again.")
+    while not zone or not is_valid_zone(zone):
+        zone = input("🗂️ Enter the zone (e.g., asia-south1-a): ").strip()
+        if not zone or not is_valid_zone(zone):
+            print("⚠️ Zone is invalid. Please try again.")
         else:
             subprocess.run(["gcloud", "config", "set", "compute/zone", zone], check=True)
 
@@ -278,6 +278,17 @@ def gcp_main():
                 subprocess.run(["gcloud", "config", "configurations", "activate", "default"], check=True)
                 print("✅ Using default profile.")
                 profile_name = "default"
+                result = subprocess.run(
+                ["gcloud", "config", "list", "--format=json"],
+                capture_output=True, text=True, check=True
+                )   
+                config = json.loads(result.stdout)
+                account = config.get("core", {}).get("account")
+                project = config.get("core", {}).get("project")
+                if not account or not project:
+                    print(f"⚠️ Profile '{profile_name}' looks incomplete (missing account/project).")
+                    print("👉 Let's configure it now...")
+                    create_or_modify_profile(profile_name)
                 project_id = get_project_id()
                 required_permissions = load_required_permissions("sample-gcp/permissions.yaml")
                 validate_permissions(project_id, required_permissions)

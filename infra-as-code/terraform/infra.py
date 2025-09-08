@@ -36,14 +36,22 @@ def run_terraform_commands(cluster_name, region, cloud_provider, working_dir):
     """
     source_files = ["terraform.tfvars", "main.tf"]
     cluster_clean = re.sub(r'[^A-Za-z0-9]', '', cluster_name)
-    replacements = {
-        "<cluster_name>": cluster_name,
-        "<db_name>": f"{cluster_clean}db",
-        "<db_username>": f"{cluster_clean}admin",
-        "<region>": region,
-        "<zone>": zone,
-        "<project_id>": project_id
-    }
+    if cloud_provider.lower() == "gcp":
+        replacements = {
+            "<cluster_name>": cluster_name,
+            "<db_name>": f"{cluster_clean}db",
+            "<db_username>": f"{cluster_clean}admin",
+            "<region>": region,
+            "<zone>": zone,
+            "<project_id>": project_id
+        }
+    else:
+        replacements = {
+            "<cluster_name>": cluster_name,
+            "<db_name>": f"{cluster_clean}db",
+            "<db_username>": f"{cluster_clean}admin",
+            "<region>": region
+        } 
     backups = []
     def extract_resource_group_name(tf_file):
         with open(tf_file, "r") as f:
@@ -187,14 +195,22 @@ def upgrade_terraform_commands(cluster_name, region, cloud_provider, working_dir
     """
     source_files = ["terraform.tfvars", "main.tf"]
     cluster_clean = re.sub(r'[^A-Za-z0-9]', '', cluster_name)
-    replacements = {
-        "<cluster_name>": cluster_name,
-        "<db_name>": f"{cluster_clean}db",
-        "<db_username>": f"{cluster_clean}admin",
-        "<region>": region,
-        "<zone>": zone,
-        "<project_id>": project_id
-    }
+    if cloud_provider.lower() == "gcp":
+        replacements = {
+            "<cluster_name>": cluster_name,
+            "<db_name>": f"{cluster_clean}db",
+            "<db_username>": f"{cluster_clean}admin",
+            "<region>": region,
+            "<zone>": zone,
+            "<project_id>": project_id
+        }
+    else:
+        replacements = {
+            "<cluster_name>": cluster_name,
+            "<db_name>": f"{cluster_clean}db",
+            "<db_username>": f"{cluster_clean}admin",
+            "<region>": region
+        }
     backups = []
 
     def get_gke_bucket_with_prefix(cluster_name, project_id=None):
@@ -329,14 +345,22 @@ def terraform_destroy_commands(cluster_name, region, cloud_provider, working_dir
     """
     source_files = ["terraform.tfvars", "main.tf"]
     cluster_clean = re.sub(r'[^A-Za-z0-9]', '', cluster_name)
-    replacements = {
-        "<cluster_name>": cluster_name,
-        "<db_name>": f"{cluster_clean}db",
-        "<db_username>": f"{cluster_clean}admin",
-        "<region>": region,
-        "<zone>": zone,
-        "<project_id>": project_id
-    }
+    if cloud_provider.lower() == "gcp":
+        replacements = {
+            "<cluster_name>": cluster_name,
+            "<db_name>": f"{cluster_clean}db",
+            "<db_username>": f"{cluster_clean}admin",
+            "<region>": region,
+            "<zone>": zone,
+            "<project_id>": project_id
+        }
+    else:
+        replacements = {
+            "<cluster_name>": cluster_name,
+            "<db_name>": f"{cluster_clean}db",
+            "<db_username>": f"{cluster_clean}admin",
+            "<region>": region
+        }
     def get_gke_bucket_with_prefix(cluster_name, project_id=None):
         """Fetch GCS bucket(s) with a specific prefix"""
         cmd = ["gcloud", "storage", "buckets", "list", "--format=value(name)"]

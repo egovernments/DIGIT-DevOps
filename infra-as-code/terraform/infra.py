@@ -1039,8 +1039,8 @@ def main():
         message="Choose your cloud provider:",
         choices=[
             {"name": "AWS", "value": "aws"},
-            {"name": "Azure ", "value": "azure"},
-            {"name": "GCP (coming soon)", "value": "gcp"},
+            {"name": "Azure", "value": "azure"},
+            {"name": "GCP", "value": "gcp"},
         ],
     ).execute()
     if args.create:
@@ -1089,7 +1089,7 @@ def main():
             cluster_name = input("Enter the Cluster Name: ")
             run_terraform_commands(cluster_name, region_name, cloud_choice, "sample-gcp")
         else:
-            print("Only AWS and Azure is currently supported. Others coming soon!")
+            print("Only AWS,Azure and GCP are currently supported. Others are not supported!")
     elif args.destroy:
         if cloud_choice == "aws":
             ensure_aws_dependencies()
@@ -1136,7 +1136,7 @@ def main():
             cluster_name = input("Enter the Cluster Name: ")
             terraform_destroy_commands(cluster_name, region_name, cloud_choice, "sample-gcp")
         else:
-            print("Only AWS and Azure is currently supported. Others coming soon!")
+            print("Only AWS,Azure and GCP are currently supported. Others are not supported!")
     elif args.upgrade:
         if cloud_choice == "aws":
             ensure_aws_dependencies()
@@ -1183,7 +1183,7 @@ def main():
             cluster_name = input("Enter the Cluster Name: ")
             upgrade_terraform_commands(cluster_name, region_name, cloud_choice, "sample-gcp")
         else:
-            print("Only AWS and Azure is currently supported. Others coming soon!")
+            print("Only AWS,Azure and GCP are currently supported. Others are not supported!")
     else:
         print("❗ Please specify --create or --destroy")
 

@@ -50,7 +50,7 @@ def run_terraform_commands(cluster_name, region, cloud_provider, working_dir):
             content = f.read()
         match = re.search(r'resource_group\s*=\s*"([^"]+)"', content)
         return match.group(1) if match else None
-    
+   
     def get_gke_bucket_with_prefix(cluster_name, project_id=None):
         """Fetch GCS bucket(s) with a specific prefix"""
         cmd = ["gcloud", "storage", "buckets", "list", "--format=value(name)"]
@@ -87,7 +87,6 @@ def run_terraform_commands(cluster_name, region, cloud_provider, working_dir):
                 return buckets[int(choice) - 1]
             else:
                 print("Invalid choice. Please try again.")
-    
     def get_storage_account_name(resource_group, prefix="tfstate"):
         """Fetch the Azure storage account name by prefix in the given resource group."""
         try:
@@ -234,7 +233,6 @@ def upgrade_terraform_commands(cluster_name, region, cloud_provider, working_dir
                 return buckets[int(choice) - 1]
             else:
                 print("Invalid choice. Please try again.")
-
     def extract_resource_group_name(tf_file):
         with open(tf_file, "r") as f:
             content = f.read()
@@ -715,7 +713,6 @@ def install_homebrew_if_needed():
         if not shutil.which("brew") and os.path.exists(brew_path):
             os.environ["PATH"] += os.pathsep + "/opt/homebrew/bin"
         print("Homebrew installation completed.")
-
 def install_gcloud_cli():
     os_type = platform.system().lower()
     if os_type == "linux":
@@ -951,7 +948,6 @@ def ensure_gcp_dependencies():
     gcp_main = gcp_iam.gcp_main()
     project_id = gcp_iam.get_project_id()
     region_name, zone = gcp_iam.fetch_region_zone()
-
 
 def ensure_azure_dependencies():
     # -- Import your Azure-specific logic from another folder --

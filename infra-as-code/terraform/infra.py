@@ -765,11 +765,15 @@ def install_gcloud_cli():
             cmds = [
                 ["sudo", "apt-get", "update", "-y"],
                 ["sudo", "apt-get", "install", "-y", "apt-transport-https", "ca-certificates", "gnupg", "curl"],
+                "curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg",
+                "echo 'deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main' | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list",
+                ["sudo", "apt-get", "update", "-y"],
                 ["sudo", "apt-get", "install", "-y", "google-cloud-cli"],
             ]
         elif "rhel" in distro or "centos" in distro or "fedora" in distro:
             cmds = [
                 ["sudo", "dnf", "install", "-y", "dnf-plugins-core"],
+                ["sudo", "tee", "/etc/yum.repos.d/google-cloud-sdk.repo", "<<EOF\ngpgcheck=1\nrepo_gpgcheck=1\nsigned-by=/etc/pki/rpm-gpg/google-cloud.gpg\nname=Google Cloud SDK\nbaseurl=https://packages.cloud.google.com/yum/repos/cloud-sdk-el7-x86_64\nenabled=1\nEOF"],
                 ["sudo", "dnf", "install", "-y", "google-cloud-cli"],
             ]
         elif "sles" in distro or "opensuse" in distro:
@@ -781,8 +785,11 @@ def install_gcloud_cli():
             return
 
         for cmd in cmds:
-            print("Running:", " ".join(cmd))
-            subprocess.run(cmd, check=True)
+            if isinstance(cmd, str):  # shell command (pipes, redirects)
+                print("Running (shell):", cmd)
+                subprocess.run(cmd, check=True, shell=True)
+            else:
+                print("Running:", " ".join(cmd))
     elif os_type == "darwin":  # macOS
         install_homebrew_if_needed()
         cmds = [

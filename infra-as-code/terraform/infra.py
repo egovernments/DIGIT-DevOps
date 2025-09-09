@@ -970,9 +970,10 @@ def ensure_gcp_dependencies():
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("Installing Git...")
         install_git()
-    # -- Import your Azure-specific logic from another folder --
-    AZURE_MODULE_PATH = "sample-gcp/gcp-iam.py"  # <-- UPDATE THIS
-    gcp_iam = import_from_different_folder(AZURE_MODULE_PATH, "gcp-iam")
+    # -- Import your GCP-specific logic from another folder --
+    ensure_package('PyYAML', 'yaml')
+    GCP_MODULE_PATH = "sample-gcp/gcp-iam.py"  # <-- UPDATE THIS
+    gcp_iam = import_from_different_folder(GCP_MODULE_PATH, "gcp-iam")
 
     # Optional: make functions available globally if needed like you did for AWS
     global gcp_main, project_id, region_name, zone

@@ -3,7 +3,7 @@ labels:
   app: "egov-bff-service"
   group: "works"
 
-namespace: works
+namespace: egov
 
 # Ingress Configs
 ingress:
@@ -15,32 +15,18 @@ image:
   repository: "egov-bff-service"
 replicas: '1'
 env: |
-  {{- if index .Values "egov-bff-service-ismultischema-enabled" }}        
-      - name: SCHEMA_NAME
-        value: {{ index .Values "egov-bff-service-schemas" | quote }}
-      {{- end }}
-      - name: "DB_URL"
-        valueFrom: 
-          configMapKeyRef: 
-            name: egov-config
-            key: db-url
-      - name: "SCHEMA_TABLE"
-        value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}              
-      - name: "FLYWAY_USER"
-        valueFrom: 
-          secretKeyRef: 
-              name: db
-              key: flyway-username
-      - name: "FLYWAY_PASSWORD"
-        valueFrom:
-          secretKeyRef: 
-              name: db
-              key: flyway-password
-      - name: "FLYWAY_LOCATIONS"
-        valueFrom: 
-          configMapKeyRef: 
-              name: egov-config
-              key: flyway-locations
+  {{- if index .Values.global "is-environment-central-instance" }}        
+  - name: IS_ENVIRONMENT_CENTRAL_INSTANCE
+  valueFrom:
+    configMapKeyRef:
+      name: egov-config
+      key: is-environment-central-instance
+  - name: STATE_LEVEL_TENANTID_LENGTH
+  valueFrom:
+    configMapKeyRef:
+      name: egov-config
+      key: state-level-tenantid-length
+  {{- end }}
   - name: EGOV_MDMS_HOST
     valueFrom:
       configMapKeyRef:

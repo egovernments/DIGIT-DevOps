@@ -3,7 +3,7 @@ labels:
   app: "muster-roll"
   group: "works"
 
-namespace: works
+namespace: staging
 
 # Ingress Configs
 ingress:
@@ -34,18 +34,30 @@ initContainers:
       - name: "FLYWAY_USER"
         valueFrom: 
           secretKeyRef: 
-              name: db
-              key: flyway-username
+            name: db
+            key: flyway-username
       - name: "FLYWAY_PASSWORD"
         valueFrom:
           secretKeyRef: 
-              name: db
-              key: flyway-password
+            name: db
+            key: flyway-password
       - name: "FLYWAY_LOCATIONS"
         valueFrom: 
           configMapKeyRef: 
-              name: egov-config
-              key: flyway-locations
+            name: egov-config
+            key: flyway-locations  
+      {{- if index .Values.global "is-environment-central-instance" }}        
+      - name: IS_ENVIRONMENT_CENTRAL_INSTANCE
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: is-environment-central-instance
+      - name: STATE_LEVEL_TENANTID_LENGTH
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: state-level-tenantid-length
+      {{- end }}
 
 # Container Configs
 image:

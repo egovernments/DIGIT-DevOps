@@ -31,22 +31,22 @@ variable "kubernetes_version" {
 
 variable "instance_types" {
   description = "eGov recommended ARM64 instance types for better cost efficiency"
-  default = ["r6gd.xlarge", "r6g.xlarge", "m6gd.xlarge", "m6g.xlarge", "c6gd.xlarge", "c6g.xlarge"]
+  default = ["t4g.xlarge", "t4g.2xlarge"]
 }
 
 variable "min_worker_nodes" {
   description = "eGov recommended below worker node counts as default for min nodes"
-  default = "1" #REPLACE IF NEEDED
+  default = "4" #REPLACE IF NEEDED
 }
 
 variable "desired_worker_nodes" {
   description = "eGov recommended below worker node counts as default for desired nodes"
-  default = "11" #REPLACE IF NEEDED
+  default = "6" #REPLACE IF NEEDED
 }
 
 variable "max_worker_nodes" {
   description = "eGov recommended below worker node counts as default for max nodes"
-  default = "13" #REPLACE IF NEEDED
+  default = "10" #REPLACE IF NEEDED
 }
 
 variable "ssh_key_name" {

@@ -49,6 +49,10 @@ data "tls_certificate" "thumb" {
   url = "${data.aws_eks_cluster.cluster.identity.0.oidc.0.issuer}"
 }
 
+data "aws_iam_openid_connect_provider" "oidc_arn" {
+  url = data.aws_eks_cluster.cluster.identity.0.oidc.0.issuer
+}
+
 provider "kubernetes" {
   host                   = "${data.aws_eks_cluster.cluster.endpoint}"
   cluster_ca_certificate = "${base64decode(data.aws_eks_cluster.cluster.certificate_authority.0.data)}"
@@ -162,6 +166,11 @@ module "aws_auth" {
     {
       groups = ["system:bootstrappers", "system:nodes"]
       rolearn = "arn:aws:iam::349271159511:role/unified-qa-spot-eks-node-group-20241227193343020700000001"
+      username = "system:node:{{EC2PrivateDNSName}}"
+    },
+    {
+      groups = ["system:bootstrappers", "system:nodes"]
+      rolearn = "arn:aws:iam::349271159511:role/cast-unified-qa-eks-ae81901c"
       username = "system:node:{{EC2PrivateDNSName}}"
     },
     {
@@ -323,5 +332,25 @@ resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
   }
 
   depends_on = [kubernetes_annotations.gp2_default]
+}
+
+provider "helm" {
+  kubernetes  {
+    host                   = data.aws_eks_cluster.cluster.endpoint
+    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+    token                  = data.aws_eks_cluster_auth.cluster.token
+  }
+}
+
+module "eks-cluster-autoscaler" {
+  source  = "lablabs/eks-cluster-autoscaler/aws"
+  version = "3.1.0"
+  cluster_name = var.cluster_name
+  cluster_identity_oidc_issuer = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+  cluster_identity_oidc_issuer_arn = data.aws_iam_openid_connect_provider.oidc_arn.arn
+  irsa_role_name = var.cluster_name
+  namespace = "autoscaler"
+  service_account_name = "cluster-autoscaler"
+  service_account_namespace = "autoscaler"
 }
 

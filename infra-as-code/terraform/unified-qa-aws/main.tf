@@ -352,5 +352,13 @@ module "eks-cluster-autoscaler" {
   namespace = "autoscaler"
   service_account_name = "cluster-autoscaler"
   service_account_namespace = "autoscaler"
+  values = yamlencode({
+    extraArgs = {
+      logtostderr: true
+      stderrthreshold: "info"
+      v: 4
+      scale-down-utilization-threshold: 0.6
+    }
+  })
 }
 

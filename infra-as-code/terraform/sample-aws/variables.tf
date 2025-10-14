@@ -73,23 +73,23 @@ variable "min_worker_nodes" {
 
 variable "desired_worker_nodes" {
   description = "eGov recommended below worker node counts as default for desired nodes"
-  default = "1" #REPLACE IF NEEDED
+  default = "3" #REPLACE IF NEEDED
 }
 
 variable "max_worker_nodes" {
   description = "eGov recommended below worker node counts as default for max nodes"
-  default = "1" #REPLACE IF NEEDED
+  default = "5" #REPLACE IF NEEDED
 }
 
 
 variable "db_name" {
   description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
-  default = "testdemodb" #REPLACE
+  default = <db_name> #REPLACE
 }
 
 variable "db_username" {
   description = "RDS database user name"
-  default = "testdemo" #REPLACE
+  default = <db_username> #REPLACE
 }
 
 variable "ami_id" {
@@ -108,7 +108,7 @@ variable "filestore_namespace" {
 variable "enable_karpenter" {
   description = "Enable the karpenter."
   type        = bool
-  default     = true
+  default     = false
 }
 
 #DO NOT fill in here. This will be asked at runtime

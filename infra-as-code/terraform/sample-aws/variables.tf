@@ -26,12 +26,12 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.31"
+  default = "1.32"
 }
 
 variable "db_version" {
   description = "DB version"
-  default = "15.8"
+  default = "15.12"
 }
 
 variable "db_instance_class" {
@@ -39,10 +39,31 @@ variable "db_instance_class" {
   default = "db.t4g.medium"
 }
 
+variable "architecture" {
+  description = "Architecture for worker nodes (x86_64 or arm64)"
+  type        = string
+  default     = "x86_64"
+  validation {
+    condition     = contains(["x86_64", "arm64"], var.architecture)
+    error_message = "Architecture must be either x86_64 or arm64."
+  }
+}
+
+# Map of architecture → instance types
+variable "instance_types_map" {
+  description = "Map of instance types per architecture"
+  type = map(list(string))
+  default = {
+    x86_64 = ["m5a.xlarge"]
+    arm64  = ["t4g.xlarge"]
+  }
+}
+
+# Optional override variable (if users want to specify directly)
 variable "instance_types" {
-  description = "Arry of instance types for SPOT instances"
-  default = ["m5a.xlarge"]
-  
+  description = "List of instance types to use (optional — overrides architecture defaults)"
+  type        = list(string)
+  default     = []
 }
 
 variable "min_worker_nodes" {
@@ -52,30 +73,30 @@ variable "min_worker_nodes" {
 
 variable "desired_worker_nodes" {
   description = "eGov recommended below worker node counts as default for desired nodes"
-  default = "3" #REPLACE IF NEEDED
+  default = "1" #REPLACE IF NEEDED
 }
 
 variable "max_worker_nodes" {
   description = "eGov recommended below worker node counts as default for max nodes"
-  default = "5" #REPLACE IF NEEDED
+  default = "1" #REPLACE IF NEEDED
 }
 
 
 variable "db_name" {
   description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
-  default = <db_name> #REPLACE
+  default = "testdemodb" #REPLACE
 }
 
 variable "db_username" {
   description = "RDS database user name"
-  default = <db_username> #REPLACE
+  default = "testdemo" #REPLACE
 }
 
 variable "ami_id" {
   description = "Provide the AMI ID that supports your eks version"
   default = {
-    id   = "ami-0d1008f82aca87cb9"
-    name = "amazon-eks-node-1.30-v20241024"
+    id   = "ami-0b6753867a45581f3"
+    name = "bottlerocket-aws-k8s-1.32-x86_64-v1.49.0-713f44ce"
   }
 }
 
@@ -87,7 +108,7 @@ variable "filestore_namespace" {
 variable "enable_karpenter" {
   description = "Enable the karpenter."
   type        = bool
-  default     = false
+  default     = true
 }
 
 #DO NOT fill in here. This will be asked at runtime

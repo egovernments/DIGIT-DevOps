@@ -31,7 +31,7 @@ variable "kubernetes_version" {
 
 variable "db_version" {
   description = "DB version"
-  default = "15.8"
+  default = "15.12"
 }
 
 variable "db_instance_class" {

@@ -111,6 +111,12 @@ variable "enable_karpenter" {
   default     = false
 }
 
+variable "enable_ClusterAutoscaler" {
+  description = "Enable the Cluster Autoscaler."
+  type        = bool
+  default     = false
+}
+
 #DO NOT fill in here. This will be asked at runtime
 variable "db_password" {}
 

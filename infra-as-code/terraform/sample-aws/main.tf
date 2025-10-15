@@ -255,6 +255,9 @@ module "eks_managed_node_group" {
     AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
     SQS_POLICY                   = "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
   }
+  update_config = {
+    "max_unavailable_percentage": 10
+  }
   labels = {
     Environment = var.cluster_name
   }
@@ -303,6 +306,11 @@ data "aws_eks_cluster_auth" "cluster" {
   name = var.cluster_name
 }
 
+data "aws_iam_openid_connect_provider" "oidc_arn" {
+  depends_on = [module.eks_managed_node_group]
+  url = data.aws_eks_cluster.cluster.identity.0.oidc.0.issuer
+}
+
 resource "aws_eks_addon" "kube_proxy" {
   depends_on = [module.eks_managed_node_group]
   cluster_name      = var.cluster_name
@@ -324,6 +332,7 @@ resource "aws_eks_addon" "aws_ebs_csi_driver" {
 }
 
 resource "aws_eks_addon" "eks-pod-identity-agent" {
+  count = var.enable_karpenter ? 1 : 0
   depends_on = [module.eks_managed_node_group]
   cluster_name      = var.cluster_name
   addon_name        = "eks-pod-identity-agent"
@@ -554,4 +563,25 @@ resource "kubectl_manifest" "karpenter_node_pool" {
   depends_on = [
     kubectl_manifest.karpenter_node_class
   ]
+}
+
+module "eks-cluster-autoscaler" {
+  count = var.enable_ClusterAutoscaler ? 1 : 0
+  source  = "lablabs/eks-cluster-autoscaler/aws"
+  version = "3.1.0"
+  cluster_name = var.cluster_name
+  cluster_identity_oidc_issuer = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+  cluster_identity_oidc_issuer_arn = data.aws_iam_openid_connect_provider.oidc_arn.arn
+  irsa_role_name = var.cluster_name
+  namespace = "autoscaler"
+  service_account_name = "cluster-autoscaler"
+  service_account_namespace = "autoscaler"
+  values = yamlencode({
+    extraArgs = {
+      logtostderr: true
+      stderrthreshold: "info"
+      v: 4
+      scale-down-utilization-threshold: 0.6
+    }
+  })
 }

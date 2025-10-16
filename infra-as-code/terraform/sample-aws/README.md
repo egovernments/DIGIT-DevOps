@@ -11,42 +11,66 @@ As part of the **EKS upgrade to Kubernetes v1.32**, the following updates and en
   |--------|-----------------|----------------|
   | terraform-aws-eks | ~> 20.0 | ~> 21.0 |
   | eks-managed-node-group | ~> 20.0 | ~> 21.0 |
-  | karpenter | ~> 20.0 | ~> 21.0 |
+  | karpenter | ~> 20.0 |  21.3.1 |
 
 ---
 
 ## 2️⃣ Architecture Flexibility
-- Terraform now supports **AMD (x86_64)** and **ARM (arm64)** architectures.
-- Architecture type is **dynamically selected** via `variables.tf` using the `architecture` variable.
-- Corresponding **AMI types and instance types** are automatically selected:
+- Terraform now supports **AMD (x86_64)** and **ARM (arm64)** architectures for worker nodes.
+- Architecture is selected using the `architecture` variable in `variables.tf`:
 
 ```hcl
-ami_type_map = {
-  x86_64 = "BOTTLEROCKET_x86_64"
-  arm64  = "BOTTLEROCKET_ARM_64"
+variable "architecture" {
+  description = "Architecture for worker nodes (x86_64 or arm64)"
+  type        = string
+  default     = "x86_64"
+  validation {
+    condition     = contains(["x86_64", "arm64"], var.architecture)
+    error_message = "Architecture must be either x86_64 or arm64."
+  }
 }
 ```
+- **Default instance types** are mapped to architecture using `instance_types_map`:
+```hcl
+variable "instance_types_map" {
+  description = "Map of instance types per architecture"
+  type        = map(list(string))
+  default = {
+    x86_64 = ["m5a.xlarge"]
+    arm64  = ["t4g.xlarge"]
+  }
+}
+```
+- **Optional override:** Provide custom instance types in `instance_types` to override defaults:
+```hcl
+variable "instance_types" {
+  description = "List of instance types to use (optional — overrides architecture defaults)"
+  type        = list(string)
+  default     = []
+}
+```
+
 ## 3️⃣ AMI Upgrade
-- **Node group AMI upgraded from Amazon Linux 2 (AL2) → Bottlerocket for improved:
-    **Security
-    **Performance
-    **Container-optimized operations
+- Node group AMI upgraded from Amazon Linux 2 (AL2) → Bottlerocket for improved:
+    Security
+    Performance
+    Container-optimized operations
     
 ## 4️⃣ Provider & Dependency Fixes
-- **Fixed the `kubectl` provider issue where multiple `terraform apply` executions failed due to context mismatch.
-- **Updated kubectl provider to version >= 2.0.2.
+- Fixed the `kubectl` provider issue where multiple `terraform apply` executions failed due to context mismatch.
+- Updated kubectl provider to version >= 2.0.2.
 
 ## 5️⃣ Addon & Module Enhancements
-- **Added EBS CSI Controller addon with IRSA support to enable secure IAM-based access to EBS volumes.
-- **Added Cluster Autoscaler module `(lablabs/eks-cluster-autoscaler/aws)` to dynamically scale node groups based on workload demand.
-- **Updated Karpenter Helm chart version from `v1.5.0` → `v1.8.1` for enhanced node provisioning and lifecycle improvements.
-- **Added `eks-pod-identity-agent` addon to simplify IAM role assignment for pods when Karpenter is enabled.
+- Added EBS CSI Controller addon with IRSA support to enable secure IAM-based access to EBS volumes.
+- Added Cluster Autoscaler module `(lablabs/eks-cluster-autoscaler/aws)` to dynamically scale node groups based on workload demand.
+- Updated Karpenter Helm chart version from `v1.5.0` → `v1.8.1` for enhanced node provisioning and lifecycle improvements.
+- Added `eks-pod-identity-agent` addon to simplify IAM role assignment for pods when Karpenter is enabled.
 
 ## 6️⃣ Key Benefits
-- **Multi-architecture support (ARM + AMD) for broader instance type compatibility.
-- **Bottlerocket AMIs for container-optimized performance and security.
-- **Simplified scaling with both Karpenter and Cluster Autoscaler integration.
-- **Stronger IAM isolation using IRSA-based service accounts.
+- Multi-architecture support (ARM + AMD) for broader instance type compatibility.
+- Bottlerocket AMIs for container-optimized performance and security.
+- Simplified scaling with both Karpenter and Cluster Autoscaler integration.
+- Stronger IAM isolation using IRSA-based service accounts.
 
 ## 📚 Documentation
 

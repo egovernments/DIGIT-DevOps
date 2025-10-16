@@ -52,9 +52,9 @@ variable "instance_types" {
 
 ## 3️⃣ AMI Upgrade
 - Node group AMI upgraded from Amazon Linux 2 (AL2) → Bottlerocket for improved:
-    Security
-    Performance
-    Container-optimized operations
+    - Security
+    - Performance
+    - Container-optimized operations
     
 ## 4️⃣ Provider & Dependency Fixes
 - Fixed the `kubectl` provider issue where multiple `terraform apply` executions failed due to context mismatch.

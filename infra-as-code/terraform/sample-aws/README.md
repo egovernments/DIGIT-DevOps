@@ -1,53 +1,53 @@
-# Infrastructure Update - Kubernetes 1.31 Deployment
+# EKS v1.32 Upgrade - Summary of Changes
 
-## 🚀 What’s New
+As part of the **EKS upgrade to Kubernetes v1.32**, the following updates and enhancements were implemented.
 
-We have made the following updates to our Terraform codebase:
+---
 
-Kubernetes Version: Upgraded to v1.31
+## 1️⃣ Core Upgrades
+- **Kubernetes version:** `v1.31` → `v1.32`  
+- **Terraform module upgrades:**
+  | Module | Previous Version | Upgraded Version |
+  |--------|-----------------|----------------|
+  | terraform-aws-eks | ~> 20.0 | ~> 21.0 |
+  | eks-managed-node-group | ~> 20.0 | ~> 21.0 |
+  | karpenter | ~> 20.0 | ~> 21.0 |
 
-S3 Filestore Bucket: Filestore S3 bucket will be created automatically and filestore Secrets are now automatically created during infra creation.
-By default, secrets are created in the egov namespace.
+---
 
-To change the namespace, update the namespace variable in variables.tf.
-```
-variable "filestore_namespace" {
-  description = "Provide the namespace to create filestore secret"
-  default = "egov" #REPLACE  
+## 2️⃣ Architecture Flexibility
+- Terraform now supports **AMD (x86_64)** and **ARM (arm64)** architectures.
+- Architecture type is **dynamically selected** via `variables.tf` using the `architecture` variable.
+- Corresponding **AMI types and instance types** are automatically selected:
+
+```hcl
+ami_type_map = {
+  x86_64 = "BOTTLEROCKET_x86_64"
+  arm64  = "BOTTLEROCKET_ARM_64"
 }
 ```
+## 3️⃣ AMI Upgrade
+- **Node group AMI upgraded from Amazon Linux 2 (AL2) → Bottlerocket for improved:
+    **Security
+    **Performance
+    **Container-optimized operations
+    
+## 4️⃣ Provider & Dependency Fixes
+- **Fixed the `kubectl` provider issue where multiple `terraform apply` executions failed due to context mismatch.
+- **Updated kubectl provider to version >= 2.0.2.
 
-## ⚙️ Configuration Details
-Instance Type: Default instance type is set to m5.xlarge
+## 5️⃣ Addon & Module Enhancements
+- **Added EBS CSI Controller addon with IRSA support to enable secure IAM-based access to EBS volumes.
+- **Added Cluster Autoscaler module `(lablabs/eks-cluster-autoscaler/aws)` to dynamically scale node groups based on workload demand.
+- **Updated Karpenter Helm chart version from `v1.5.0` → `v1.8.1` for enhanced node provisioning and lifecycle improvements.
+- **Added `eks-pod-identity-agent` addon to simplify IAM role assignment for pods when Karpenter is enabled.
 
-Max Pods per Node: Set to 50
+## 6️⃣ Key Benefits
+- **Multi-architecture support (ARM + AMD) for broader instance type compatibility.
+- **Bottlerocket AMIs for container-optimized performance and security.
+- **Simplified scaling with both Karpenter and Cluster Autoscaler integration.
+- **Stronger IAM isolation using IRSA-based service accounts.
 
-To Modify Configurations:
-Update variables.tf to change instance type or to provide multiple instance types
-```
-variable "instance_types" {
-  description = "Arry of instance types for SPOT instances"
-  default = ["m5a.xlarge", "r5ad.xlarge", "m6a.xlarge"] 
-}
-```
-Update user-data.yaml to modify the maxPods value
-```
-sed -i 's/"maxPods": [0-9]\+/"maxPods": 50/' $CONFIG_FILE
-```
-
-## 📌 Note on Max Pods
-
-To find the recommended maxPods value for your instance type, run the following command in your terminal:
-
-```
-curl -O https://raw.githubusercontent.com/awslabs/amazon-eks-ami/master/templates/al2/runtime/max-pods-calculator.sh
-
-chmod +x max-pods-calculator.sh
-
-./max-pods-calculator.sh --instance-type m5.large --cni-version 1.9.0-eksbuild.1
-```
-
-Or refer to this site [here](https://www.middlewareinventory.com/blog/kubernetes-max-pods-per-node/)
 ## 📚 Documentation
 
 Refer to our [Core Infrastructure Documentation](https://core.digit.org/guides/installation-guide/infrastructure-setup/aws/3.-provision-infrastructure) to deploy the infrastructure end-to-end.

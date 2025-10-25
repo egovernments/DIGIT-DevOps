@@ -24,7 +24,6 @@ def is_valid_region(region):
     return region in VALID_AWS_REGIONS
 
 def get_aws_inputs_and_validate():
-
     print("\n--- AWS Configuration ---")
 
     existing_profiles = check_existing_profiles()
@@ -32,8 +31,12 @@ def get_aws_inputs_and_validate():
 
     aws_config_dir = os.path.expanduser("~/.aws")
     config_path = os.path.join(aws_config_dir, "config")
+    creds_path = os.path.join(aws_config_dir, "credentials")
+
     config = configparser.ConfigParser()
     config.read(config_path)
+    creds_config = configparser.ConfigParser()
+    creds_config.read(creds_path)
 
     profile_key = f"profile {profile_name}" if profile_name != "default" else "default"
 
@@ -45,38 +48,49 @@ def get_aws_inputs_and_validate():
                 region_to_use = user_region if user_region else current_region
             else:
                 region_to_use = input(f"Enter AWS Region for profile '{profile_name}' (e.g., us-east-1): ").strip()
+
             if is_valid_region(region_to_use):
                 return region_to_use
             print(f"❌ '{region_to_use}' is not a valid AWS region. Please try again.\n")
 
-    # Initial region
-    existing_region = config.get(profile_key, "region").strip() if config.has_section(profile_key) and config.has_option(profile_key, "region") else None
+    # Get existing region if any
+    existing_region = (
+        config.get(profile_key, "region").strip()
+        if config.has_section(profile_key) and config.has_option(profile_key, "region")
+        else None
+    )
     region = prompt_for_region(existing_region)
-    # For new profile, prompt credentials
+
+    # Load credentials
+    access_key = secret_key = None
     if profile_name not in existing_profiles:
-        print(f"\nConfiguring new AWS profile '{profile_name}' with region '{region}'")
+        print(f"\n🆕 Configuring new AWS profile '{profile_name}' with region '{region}'")
         access_key = input("Enter AWS Access Key ID: ").strip()
         secret_key = input("Enter AWS Secret Access Key: ").strip()
     else:
-        # Read credentials from stored profile
-        aws_creds_path = os.path.join(aws_config_dir, "credentials")
-        creds_config = configparser.ConfigParser()
-        creds_config.read(aws_creds_path)
         access_key = creds_config.get(profile_name, "aws_access_key_id", fallback=None)
         secret_key = creds_config.get(profile_name, "aws_secret_access_key", fallback=None)
 
+    # Validation loop
     while True:
         status = validate_aws_credentials(access_key, secret_key, region)
-        print(status)
 
         if status == "valid":
-            if profile_name not in existing_profiles:
-                configure_aws_profile(profile_name, access_key, secret_key, region)
+            # ✅ Save region to config
             if not config.has_section(profile_key):
                 config.add_section(profile_key)
             config.set(profile_key, "region", region)
             with open(config_path, "w", encoding="utf-8") as f:
                 config.write(f)
+
+            # ✅ Save credentials if newly entered or re-entered
+            if not creds_config.has_section(profile_name):
+                creds_config.add_section(profile_name)
+            creds_config.set(profile_name, "aws_access_key_id", access_key)
+            creds_config.set(profile_name, "aws_secret_access_key", secret_key)
+            with open(creds_path, "w", encoding="utf-8") as f:
+                creds_config.write(f)
+
             session = boto3.Session(profile_name=profile_name, region_name=region)
             print(f"✅ AWS profile '{profile_name}' ready with region '{region}'.")
             return {
@@ -84,26 +98,31 @@ def get_aws_inputs_and_validate():
                 "secret_key": secret_key or "From profile",
                 "region": region,
                 "session": session,
-                "profile": profile_name
+                "profile": profile_name,
             }
 
         elif status == "invalid_region":
             print(f"\n❌ Region '{region}' is disabled or unsupported. Please choose another region.\n")
-            region = prompt_for_region()
-            # If new profile, loop will also prompt credentials
+            region = prompt_for_region(existing_region)
             continue
 
         elif status == "invalid_credentials":
             print(f"\n❌ AWS credentials are invalid. Please enter new credentials.\n")
-             # For both new and existing profiles, re-prompt region + credentials
-            region = prompt_for_region()
             access_key = input("Enter AWS Access Key ID: ").strip()
             secret_key = input("Enter AWS Secret Access Key: ").strip()
+
+            # Immediately update credentials in file so boto3 can use them
+            if not creds_config.has_section(profile_name):
+                creds_config.add_section(profile_name)
+            creds_config.set(profile_name, "aws_access_key_id", access_key)
+            creds_config.set(profile_name, "aws_secret_access_key", secret_key)
+            with open(creds_path, "w", encoding="utf-8") as f:
+                creds_config.write(f)
             continue
 
         else:
             print("❌ Unexpected error. Please check your inputs.\n")
-            region = prompt_for_region()
+            region = prompt_for_region(existing_region)
             access_key = input("Enter AWS Access Key ID: ").strip()
             secret_key = input("Enter AWS Secret Access Key: ").strip()
 

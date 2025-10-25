@@ -52,21 +52,20 @@ def get_aws_inputs_and_validate():
     # Initial region
     existing_region = config.get(profile_key, "region").strip() if config.has_section(profile_key) and config.has_option(profile_key, "region") else None
     region = prompt_for_region(existing_region)
-    # Main loop
-    while True:
-        # For new profile, prompt credentials
-        if profile_name not in existing_profiles:
-            print(f"\nConfiguring new AWS profile '{profile_name}' with region '{region}'")
-            access_key = input("Enter AWS Access Key ID: ").strip()
-            secret_key = input("Enter AWS Secret Access Key: ").strip()
-        else:
-            # Read credentials from stored profile
-            aws_creds_path = os.path.join(aws_config_dir, "credentials")
-            creds_config = configparser.ConfigParser()
-            creds_config.read(aws_creds_path)
-            access_key = creds_config.get(profile_name, "aws_access_key_id", fallback=None)
-            secret_key = creds_config.get(profile_name, "aws_secret_access_key", fallback=None)
+    # For new profile, prompt credentials
+    if profile_name not in existing_profiles:
+        print(f"\nConfiguring new AWS profile '{profile_name}' with region '{region}'")
+        access_key = input("Enter AWS Access Key ID: ").strip()
+        secret_key = input("Enter AWS Secret Access Key: ").strip()
+    else:
+        # Read credentials from stored profile
+        aws_creds_path = os.path.join(aws_config_dir, "credentials")
+        creds_config = configparser.ConfigParser()
+        creds_config.read(aws_creds_path)
+        access_key = creds_config.get(profile_name, "aws_access_key_id", fallback=None)
+        secret_key = creds_config.get(profile_name, "aws_secret_access_key", fallback=None)
 
+    while True:
         status = validate_aws_credentials(access_key, secret_key, region)
         print(status)
 

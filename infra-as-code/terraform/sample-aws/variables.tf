@@ -89,7 +89,7 @@ variable "max_worker_nodes" {
 
 variable "db_name" {
   description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
-  default = demodb #REPLACE
+  default = "demodb" #REPLACE
   validation {
     condition = (
       length(var.db_name) >= 1 &&
@@ -102,7 +102,7 @@ variable "db_name" {
 
 variable "db_username" {
   description = "RDS database user name"
-  default = demouser #REPLACE
+  default = "demouser" #REPLACE
   validation {
     condition = (
       length(var.db_username) >= 1 &&
@@ -146,5 +146,5 @@ variable "enable_ClusterAutoscaler" {
 #DO NOT fill in here. This will be asked at runtime
 variable "db_password" {
   description = "RDS database upassword"
-  default = demo1234 #REPLACE
+  default = "demo1234" #REPLACE
 }

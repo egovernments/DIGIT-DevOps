@@ -160,20 +160,20 @@ def validate_aws_credentials(access_key, secret_key, region):
     import boto3
     from botocore.exceptions import ClientError, EndpointConnectionError, NoCredentialsError
 
-    # Step 1: Validate credentials only
+    # --- Step 1: Validate credentials without region ---
     try:
         session = boto3.Session(
             aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
+            aws_secret_access_key=secret_key
         )
-        sts = session.client("sts")
-        sts.get_caller_identity()  # checks credentials
+        sts = session.client("sts", region_name="us-east-1")  # safe default region
+        sts.get_caller_identity()
     except (NoCredentialsError, ClientError):
         return "invalid_credentials"
     except Exception:
         return "error"
 
-    # Step 2: Validate region
+    # --- Step 2: Validate region separately ---
     try:
         session_region = boto3.Session(
             aws_access_key_id=access_key,

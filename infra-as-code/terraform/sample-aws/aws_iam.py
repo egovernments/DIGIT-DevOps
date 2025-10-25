@@ -222,23 +222,6 @@ def choose_or_create_profile(existing_profiles):
         print(f"✅ Creating new profile '{new_profile}'.")
     return new_profile
 
-def configure_aws_profile(profile_name, access_key, secret_key, region):
-    aws_config_dir = os.path.expanduser("~/.aws")
-    os.makedirs(aws_config_dir, exist_ok=True)
-
-    credentials_path = os.path.join(aws_config_dir, "credentials")
-    config_path = os.path.join(aws_config_dir, "config")
-
-    # Write credentials
-    with open(credentials_path, "a", encoding="utf-8", newline='') as cred_file:
-        cred_file.write(f"\n[{profile_name}]\naws_access_key_id={access_key}\naws_secret_access_key={secret_key}\n")
-
-    # Write config
-    with open(config_path, "a", encoding="utf-8", newline='') as config_file:
-        config_file.write(f"\n[profile {profile_name}]\nregion={region}\n")
-
-    print(f"✅ AWS CLI profile '{profile_name}' configured.")
-
 class Spinner:
     def __init__(self, message="Verifying roles..."):
         self.spinner = itertools.cycle(['|', '/', '-', '\\'])

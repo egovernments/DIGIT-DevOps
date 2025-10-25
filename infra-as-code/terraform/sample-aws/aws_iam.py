@@ -156,32 +156,39 @@ def choose_or_create_profile(existing_profiles):
     return new_profile
 
 
-def validate_aws_credentials(access_key, secret_key, region):
+def validate_aws_credentials(access_key=None, secret_key=None, region=None):
     import boto3
     from botocore.exceptions import ClientError, EndpointConnectionError, NoCredentialsError
 
-    # --- Step 1: Validate credentials without region ---
+    safe_region = "us-east-1"  # Step 1: safe region to validate credentials
+
     try:
+        # Step 1: validate credentials
         session = boto3.Session(
             aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key
+            aws_secret_access_key=secret_key,
+            region_name=safe_region
         )
-        sts = session.client("sts", region_name="us-east-1")  # safe default region
+        sts = session.client("sts")
         sts.get_caller_identity()
-    except (NoCredentialsError, ClientError):
+    except NoCredentialsError:
         return "invalid_credentials"
+    except ClientError as e:
+        if e.response['Error']['Code'] == "InvalidClientTokenId":
+            return "invalid_credentials"
+        return "error"
     except Exception:
         return "error"
 
-    # --- Step 2: Validate region separately ---
+    # Step 2: validate the chosen region
     try:
-        session_region = boto3.Session(
+        session = boto3.Session(
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
             region_name=region
         )
-        sts_region = session_region.client("sts")
-        sts_region.get_caller_identity()
+        sts = session.client("sts")
+        sts.get_caller_identity()
         return "valid"
     except EndpointConnectionError:
         return "invalid_region"
@@ -192,6 +199,7 @@ def validate_aws_credentials(access_key, secret_key, region):
         return "error"
     except Exception:
         return "error"
+
 
 def configure_aws_profile(profile_name, access_key, secret_key, region):
     aws_config_dir = os.path.expanduser("~/.aws")

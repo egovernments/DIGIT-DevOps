@@ -24,9 +24,6 @@ def is_valid_region(region):
     return region in VALID_AWS_REGIONS
 
 def get_aws_inputs_and_validate():
-    import os, configparser, boto3
-    from botocore.exceptions import ClientError, EndpointConnectionError, NoCredentialsError
-
     print("\n--- AWS Configuration ---")
 
     existing_profiles = check_existing_profiles()
@@ -36,6 +33,7 @@ def get_aws_inputs_and_validate():
     config_path = os.path.join(aws_config_dir, "config")
     config = configparser.ConfigParser()
     config.read(config_path)
+
     profile_key = f"profile {profile_name}" if profile_name != "default" else "default"
 
     def prompt_for_region(current_region=None):
@@ -51,71 +49,110 @@ def get_aws_inputs_and_validate():
             print(f"❌ '{region_to_use}' is not a valid AWS region. Please try again.\n")
 
     while True:
-        # --- Get region ---
+        # --- Determine region ---
         if config.has_section(profile_key) and config.has_option(profile_key, "region"):
             region = prompt_for_region(config.get(profile_key, "region").strip())
         else:
             region = prompt_for_region()
 
-        # --- Get credentials ---
+        # --- Determine credentials ---
         if profile_name in existing_profiles:
-            # Read stored credentials
-            creds_path = os.path.join(aws_config_dir, "credentials")
+            # Read credentials from stored profile
+            aws_creds_path = os.path.join(aws_config_dir, "credentials")
             creds_config = configparser.ConfigParser()
-            creds_config.read(creds_path)
+            creds_config.read(aws_creds_path)
             access_key = creds_config.get(profile_name, "aws_access_key_id", fallback=None)
             secret_key = creds_config.get(profile_name, "aws_secret_access_key", fallback=None)
         else:
             access_key = input("Enter AWS Access Key ID: ").strip()
             secret_key = input("Enter AWS Secret Access Key: ").strip()
 
-        # --- Validate credentials + region together ---
-        try:
-            session = boto3.Session(
-                aws_access_key_id=access_key,
-                aws_secret_access_key=secret_key,
-                region_name=region
-            )
-            sts = session.client("sts")
-            sts.get_caller_identity()
-            # Success
-            if profile_name not in existing_profiles:
-                configure_aws_profile(profile_name, access_key, secret_key, region)
+        # --- Validate credentials ---
+        cred_status = validate_aws_credentials(access_key, secret_key, "us-east-1")
+        if cred_status == "invalid_credentials":
+            print("❌ AWS credentials are invalid. Please try again.\n")
+            continue
+        elif cred_status != "valid":
+            print("❌ Unexpected error while validating credentials. Please try again.\n")
+            continue
 
-            if not config.has_section(profile_key):
-                config.add_section(profile_key)
-            config.set(profile_key, "region", region)
-            with open(config_path, "w", encoding="utf-8") as f:
-                config.write(f)
+        # --- Validate region ---
+        region_status = validate_aws_credentials(access_key, secret_key, region)
+        if region_status == "invalid_region":
+            print(f"❌ Region '{region}' is disabled or unsupported. Please choose another region.\n")
+            continue
+        elif region_status == "invalid_credentials":
+            print("❌ AWS credentials are invalid. Please re-enter.\n")
+            continue
+        elif region_status != "valid":
+            print("❌ Unexpected error. Please check your inputs.\n")
+            continue
 
-            print(f"✅ AWS profile '{profile_name}' ready with region '{region}'.")
-            return {
-                "access_key": access_key or "From profile",
-                "secret_key": secret_key or "From profile",
-                "region": region,
-                "session": session,
-                "profile": profile_name
-            }
+        # --- All valid: configure profile ---
+        if profile_name not in existing_profiles:
+            configure_aws_profile(profile_name, access_key, secret_key, region)
 
-        except EndpointConnectionError:
-            print(f"\n❌ Region '{region}' is disabled or unsupported. Please choose another region.\n")
-            continue
-        except ClientError as e:
-            code = e.response['Error']['Code']
-            print(code)
-            if code == "InvalidClientTokenId":
-                print("\n❌ AWS credentials are invalid. Please re-enter.\n")
-            elif code in ["AuthFailure", "InvalidEndpoint", "InvalidEndpointURL"]:
-                print(f"\n❌ Region '{region}' is disabled or unsupported. Please choose another region.\n")
-            else:
-                print(f"\n❌ Unexpected AWS Client error: {e.response['Error']['Message']}\n")
-            continue
-        except NoCredentialsError:
-            print("\n❌ AWS credentials are missing or invalid. Please re-enter.\n")
-            continue
-        except Exception as e:
-            print(f"\n❌ Unexpected error: {str(e)}\n")
-            continue
+        if not config.has_section(profile_key):
+            config.add_section(profile_key)
+        config.set(profile_key, "region", region)
+        with open(config_path, "w", encoding="utf-8") as f:
+            config.write(f)
+
+        session = boto3.Session(profile_name=profile_name, region_name=region)
+        print(f"✅ AWS profile '{profile_name}' ready with region '{region}'.")
+        return {
+            "access_key": access_key,
+            "secret_key": secret_key,
+            "region": region,
+            "session": session,
+            "profile": profile_name
+        }
+
+def validate_aws_credentials(access_key=None, secret_key=None, region=None):
+    import boto3
+    from botocore.exceptions import ClientError, EndpointConnectionError, NoCredentialsError
+
+    # Step 1: Validate credentials in a safe region
+    safe_region = "us-east-1"
+    try:
+        session = boto3.Session(
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            region_name=safe_region
+        )
+        sts = session.client("sts")
+        sts.get_caller_identity()
+    except NoCredentialsError:
+        return "invalid_credentials"
+    except ClientError as e:
+        if e.response['Error']['Code'] == "InvalidClientTokenId":
+            return "invalid_credentials"
+        return "error"
+    except Exception:
+        return "error"
+
+    # Step 2: Validate requested region
+    try:
+        session = boto3.Session(
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            region_name=region
+        )
+        sts = session.client("sts")
+        sts.get_caller_identity()
+        return "valid"
+    except EndpointConnectionError:
+        return "invalid_region"
+    except ClientError as e:
+        code = e.response['Error']['Code']
+        # Treat region errors as invalid_region
+        if code in ["AuthFailure", "InvalidEndpoint", "InvalidEndpointURL", "InvalidClientTokenId"]:
+            return "invalid_region"
+        return "error"
+    except Exception:
+        return "error"
+
+
 
 def check_existing_profiles():
     profiles = []

@@ -60,9 +60,12 @@ def get_aws_inputs_and_validate():
             access_key = input("Enter AWS Access Key ID: ").strip()
             secret_key = input("Enter AWS Secret Access Key: ").strip()
         else:
-            # For existing profile, assume stored credentials
-            access_key = None
-            secret_key = None
+            # Read credentials from stored profile
+            aws_creds_path = os.path.join(aws_config_dir, "credentials")
+            creds_config = configparser.ConfigParser()
+            creds_config.read(aws_creds_path)
+            access_key = creds_config.get(profile_name, "aws_access_key_id", fallback=None)
+            secret_key = creds_config.get(profile_name, "aws_secret_access_key", fallback=None)
 
         status = validate_aws_credentials(access_key, secret_key, region)
         print(status)

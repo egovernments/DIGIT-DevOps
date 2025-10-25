@@ -65,6 +65,7 @@ def get_aws_inputs_and_validate():
             secret_key = None
 
         status = validate_aws_credentials(access_key, secret_key, region)
+        print(status)
 
         if status == "valid":
             if profile_name not in existing_profiles:

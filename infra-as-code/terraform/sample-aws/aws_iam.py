@@ -107,7 +107,7 @@ def get_aws_inputs_and_validate():
             continue
 
         elif status == "invalid_credentials":
-            print(f"\n❌ AWS credentials are invalid. Please enter new credentials.\n")
+            print(f"\n❌ AWS credentials are invalid. Please enter proper credentials.\n")
             access_key = input("Enter AWS Access Key ID: ").strip()
             secret_key = input("Enter AWS Secret Access Key: ").strip()
 
@@ -121,7 +121,7 @@ def get_aws_inputs_and_validate():
             continue
 
         else:
-            print("❌ Unexpected error. Please check your inputs.\n")
+            print("❌ Unexpected error. Please check your inputs and re-enter.\n")
             region = prompt_for_region(existing_region)
             access_key = input("Enter AWS Access Key ID: ").strip()
             secret_key = input("Enter AWS Secret Access Key: ").strip()

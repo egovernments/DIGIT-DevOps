@@ -160,21 +160,20 @@ def validate_aws_credentials(access_key, secret_key, region):
     import boto3
     from botocore.exceptions import ClientError, EndpointConnectionError, NoCredentialsError
 
+    # Step 1: Validate credentials only
     try:
-        # First, check credentials using default STS endpoint
         session = boto3.Session(
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
         )
         sts = session.client("sts")
-        sts.get_caller_identity()  # validate credentials
-
-    except (ClientError, NoCredentialsError):
+        sts.get_caller_identity()  # checks credentials
+    except (NoCredentialsError, ClientError):
         return "invalid_credentials"
     except Exception:
         return "error"
 
-    # Now check region
+    # Step 2: Validate region
     try:
         session_region = boto3.Session(
             aws_access_key_id=access_key,
@@ -184,7 +183,6 @@ def validate_aws_credentials(access_key, secret_key, region):
         sts_region = session_region.client("sts")
         sts_region.get_caller_identity()
         return "valid"
-
     except EndpointConnectionError:
         return "invalid_region"
     except ClientError as e:
@@ -192,8 +190,8 @@ def validate_aws_credentials(access_key, secret_key, region):
         if code in ["AuthFailure", "InvalidEndpoint", "InvalidEndpointURL"]:
             return "invalid_region"
         return "error"
-
-
+    except Exception:
+        return "error"
 
 def configure_aws_profile(profile_name, access_key, secret_key, region):
     aws_config_dir = os.path.expanduser("~/.aws")

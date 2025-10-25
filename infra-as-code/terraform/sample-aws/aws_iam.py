@@ -108,12 +108,13 @@ def get_aws_inputs_and_validate():
             "profile": profile_name
         }
 
-
 def validate_aws_credentials(access_key=None, secret_key=None, region=None):
+    import boto3
     from botocore.exceptions import ClientError, EndpointConnectionError, NoCredentialsError
-    safe_region = "us-east-1"  # validate credentials
+
+    # Step 1: validate credentials in a safe region
+    safe_region = "us-east-1"
     try:
-        # Step 1: Validate credentials
         session = boto3.Session(
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
@@ -130,7 +131,7 @@ def validate_aws_credentials(access_key=None, secret_key=None, region=None):
     except Exception:
         return "error"
 
-    # Step 2: Validate requested region
+    # Step 2: validate requested region
     try:
         session = boto3.Session(
             aws_access_key_id=access_key,
@@ -146,8 +147,6 @@ def validate_aws_credentials(access_key=None, secret_key=None, region=None):
         code = e.response['Error']['Code']
         if code in ["AuthFailure", "InvalidEndpoint", "InvalidEndpointURL"]:
             return "invalid_region"
-        elif code == "InvalidClientTokenId":
-            return "invalid_credentials"
         return "error"
     except Exception:
         return "error"

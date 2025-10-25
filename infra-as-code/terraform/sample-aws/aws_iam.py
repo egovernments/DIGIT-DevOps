@@ -50,8 +50,8 @@ def get_aws_inputs_and_validate():
             print(f"❌ '{region_to_use}' is not a valid AWS region. Please try again.\n")
 
     # Initial region
-    region = config.get(profile_key, "region").strip() if config.has_section(profile_key) and config.has_option(profile_key, "region") else prompt_for_region()
-
+    existing_region = config.get(profile_key, "region").strip() if config.has_section(profile_key) and config.has_option(profile_key, "region") else None
+    region = prompt_for_region(existing_region)
     # Main loop
     while True:
         # For new profile, prompt credentials

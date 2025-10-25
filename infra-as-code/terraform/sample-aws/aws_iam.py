@@ -102,6 +102,7 @@ def get_aws_inputs_and_validate():
             continue
         except ClientError as e:
             code = e.response['Error']['Code']
+            print(code)
             if code == "InvalidClientTokenId":
                 print("\n❌ AWS credentials are invalid. Please re-enter.\n")
             elif code in ["AuthFailure", "InvalidEndpoint", "InvalidEndpointURL"]:

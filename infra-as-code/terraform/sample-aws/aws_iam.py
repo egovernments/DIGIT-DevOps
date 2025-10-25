@@ -213,17 +213,35 @@ def validate_aws_credentials(access_key, secret_key, region):
         print("✅ AWS credentials are valid.")
         print(f"Account: {identity['Account']}, ARN: {identity['Arn']}")
         return True
+
     except NoCredentialsError:
         print(f"❌ No credentials provided or credentials are not properly configured.")
+        return False
+
     except EndpointConnectionError:
-        print(f"❌ Cannot connect to endpoint in region '{region}'. Check the region and try again.")
+        print(f"❌ Cannot connect to endpoint in region '{region}'. This region may be disabled or unsupported.")
+        return False
+
     except ClientError as e:
         error_code = e.response['Error']['Code']
+
+        # Region-related errors
+        if error_code in ["AuthFailure", "InvalidEndpoint", "InvalidEndpointURL"]:
+            print(f"❌ The region '{region}' appears disabled or unsupported for your account.")
+            return False
+
+        # Credentials-related errors
         if error_code == "InvalidClientTokenId":
             print("❌ The provided AWS Access Key or Secret Key is invalid. Please try again.")
-        else:
-            print(f"❌ AWS Client error: {e.response['Error']['Message']}")
-    return False
+            return False
+
+        print(f"❌ AWS Client error: {e.response['Error']['Message']}")
+        return False
+
+    except Exception as e:
+        print(f"❌ Unexpected error: {str(e)}")
+        return False
+
 
 def configure_aws_profile(profile_name, access_key, secret_key, region):
     aws_config_dir = os.path.expanduser("~/.aws")

@@ -92,15 +92,11 @@ def get_aws_inputs_and_validate():
 
         elif status == "invalid_credentials":
             print(f"\n❌ AWS credentials are invalid. Please enter new credentials.\n")
-            # Force new credentials input for next iteration
-            if profile_name not in existing_profiles:
-                continue
-            else:
-                # Existing profile with wrong credentials → ask region + credentials
-                region = prompt_for_region()
-                access_key = input("Enter AWS Access Key ID: ").strip()
-                secret_key = input("Enter AWS Secret Access Key: ").strip()
-                continue
+             # For both new and existing profiles, re-prompt region + credentials
+            region = prompt_for_region()
+            access_key = input("Enter AWS Access Key ID: ").strip()
+            secret_key = input("Enter AWS Secret Access Key: ").strip()
+            continue
 
         else:
             print("❌ Unexpected error. Please check your inputs.\n")

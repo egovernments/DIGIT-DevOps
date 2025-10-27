@@ -106,3 +106,9 @@ variable "iam_user_arn" {
   description = "Provide the IAM user arn which you are using to create infrastructure"
   default = "arn:aws:iam::349271159511:user/egov-unified-dev-kube-deployer"
 }
+
+variable "enable_ClusterAutoscaler" {
+  description = "Enable the Cluster Autoscaler."
+  type        = bool
+  default     = true
+}

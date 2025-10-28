@@ -959,7 +959,7 @@ def create_terraform_commands(cloud, work_dir, session, region, cluster_name):
                 sys.exit(1)
     if cloud == "aws":
         # Run Terraform in remote-state and main directories
-        # execute(work_dir / "remote-state", "Terraform remote-state")
+        execute(work_dir / "remote-state", "Terraform remote-state")
         bucket_name = fetch_s3_bucket_from_api(cluster_name, session)
         update_main_backend_with_bucket(work_dir, bucket_name, region)
         execute(work_dir, "Terraform main directory")

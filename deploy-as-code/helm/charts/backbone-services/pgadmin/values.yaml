@@ -2,18 +2,18 @@
 labels:
   app: "pgadmin"
   group: "pgadmin"
-namespace: playground
 
+namespace: playground
 # Ingress Configs
 ingress:
   enabled: true
   context: "pgadmin"
-  additionalAnnotations: |
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      proxy_set_header X-Script-Name /pgadmin;
-    {{- if index .Values "whitelist-ips" }}
-    nginx.ingress.kubernetes.io/whitelist-source-range: {{ index .Values "whitelist-ips" | quote }}
-    {{- end }}
+  # additionalAnnotations: |
+  #   nginx.ingress.kubernetes.io/configuration-snippet: |
+  #     proxy_set_header X-Script-Name /pgadmin;
+  #   {{- if index .Values "whitelist-ips" }}
+  #   nginx.ingress.kubernetes.io/whitelist-source-range: {{ index .Values "whitelist-ips" | quote }}
+  #   {{- end }}
   #   nginx.ingress.kubernetes.io/auth-signin:  https://$host/oauth2/start?rd=$escaped_request_uri
   #   nginx.ingress.kubernetes.io/auth-url:     https://$host/oauth2/auth 
 
@@ -48,8 +48,8 @@ max-login-attempts: "5"
 shared-storage: "[{'name': 'Shared Folder', 'path': '/var/lib/pgadmin/shared_folder', 'restricted_access': True}]"
 
 persistence:
-  enabled: false
-  storageClassName: default
+  enabled: true
+  storageClassName: gp3
   accessMode: ReadWriteOnce
   volumeMode: Filesystem
 #  dataDirSize: 1Gi
@@ -105,3 +105,5 @@ env: |
     value: {{ .Values.httpPort | quote }}
   - name: PGADMIN_DISABLE_POSTFIX
     value: "true"
+  - name: SCRIPT_NAME
+    value: /{{ .Values.ingress.context }}

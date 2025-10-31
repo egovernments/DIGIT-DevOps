@@ -29,9 +29,19 @@ def get_aws_inputs_and_validate():
     existing_profiles = check_existing_profiles()
     profile_name = choose_or_create_profile(existing_profiles)
 
+    # ✅ Ensure ~/.aws directory exists
+    aws_config_dir = os.path.expanduser("~/.aws")
+    os.makedirs(aws_config_dir, exist_ok=True)
+
     aws_config_dir = os.path.expanduser("~/.aws")
     config_path = os.path.join(aws_config_dir, "config")
     creds_path = os.path.join(aws_config_dir, "credentials")
+
+     # ✅ Ensure empty files exist if missing
+    for path in [config_path, creds_path]:
+        if not os.path.exists(path):
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("")  # create an empty file
 
     config = configparser.ConfigParser()
     config.read(config_path)

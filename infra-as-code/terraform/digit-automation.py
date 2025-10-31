@@ -13,19 +13,12 @@ import importlib.util
 import shutil
 import re
 import json
+from InquirerPy import inquirer
 
 GITHUB_USER = "egovernments"
 REPO_NAME = "DIGIT-DevOps"
 BRANCH = "digit-automation"
 GITHUB_BASE_URL = f"https://github.com/{GITHUB_USER}/{REPO_NAME}/archive/refs/heads/{BRANCH}.zip"
-
-def ensure_package(pip_name, import_name=None):
-    if import_name is None:
-        import_name = pip_name
-    if importlib.util.find_spec(import_name) is None:
-        print(f"Installing missing Python package: {pip_name}")
-        run_command([sys.executable, "-m", "pip", "install", pip_name])
-        refresh_sys_path()
 
 def run_command(command, cwd=None, shell=False, check=True, input=None, ignore_error=False):
     """Execute shell commands cleanly."""
@@ -54,256 +47,13 @@ def refresh_sys_path():
     if user_site not in sys.path:
         sys.path.append(user_site)
 
-def install_inquirerPy():
-    """Ensure InquirerPy is installed and import it."""
-    ensure_package("InquirerPy")
-    global inquirer
-    from InquirerPy import inquirer
 
-def install_boto_and_other_dependencies():
-    required = [
-        ("boto3", None),
-        ("botocore", None),
-        ("PyYAML", "yaml"),  # Example of pip name vs import name
-    ]
-    for pip_name, import_name in required:
-        ensure_package(pip_name, import_name)
 
 def check_prerequisites():
     for cmd in ["curl", "unzip", "sudo"]:
         if shutil.which(cmd) is None:
             print(f"❌ Required tool '{cmd}' not found. Please install it manually.")
             sys.exit(1)
-
-def install_homebrew_if_needed():
-    try:
-        run_command(["brew", "--version"])
-        print("Homebrew is already installed.")
-    except subprocess.CalledProcessError:
-        print("Homebrew not found. Installing Homebrew...")
-        run_command(
-            '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
-        )
-        # Add Homebrew to PATH for current script if it's not automatically sourced
-        brew_path = "/opt/homebrew/bin/brew"  # Apple Silicon default
-        if not shutil.which("brew") and os.path.exists(brew_path):
-            os.environ["PATH"] += os.pathsep + "/opt/homebrew/bin"
-        print("Homebrew installation completed.")
-
-def install_gcloud_cli():
-    os_type = platform.system().lower()
-    if os_type == "linux":
-        # Detect distro
-        try:
-            distro = subprocess.check_output(["cat", "/etc/os-release"], text=True).lower()
-        except Exception as e:
-            print(f"⚠️ Could not detect Linux distro: {e}. Please install gcloud cli manually.")
-            sys.exit(1)
-        if "amzn" in distro:  # Amazon Linux fallback
-            print("⚠️ Amazon Linux detected. Falling back to Google tarball installer.")
-            tarball = "google-cloud-cli-484.0.0-linux-x86_64.tar.gz"
-            url = f"https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/{tarball}"
-            install_dir = "/opt/google-cloud-sdk"
-            cmds = [
-                ["curl", "-O", url],
-                ["sudo", "rm", "-rf", install_dir],  # cleanup if re-run
-                ["sudo", "tar", "-xf", tarball, "-C", "/opt/"],
-                ["sudo", "/opt/google-cloud-sdk/install.sh", "--quiet"],
-                # ✅ Symlink both gcloud & gsutil
-                ["sudo", "ln", "-sf", "/opt/google-cloud-sdk/bin/gcloud", "/usr/local/bin/gcloud"],
-                ["sudo", "ln", "-sf", "/opt/google-cloud-sdk/bin/gsutil", "/usr/local/bin/gsutil"],
-                ["sudo", "ln", "-sf", "/opt/google-cloud-sdk/bin/bq", "/usr/local/bin/bq"]
-            ]
-        elif "ubuntu" in distro or "debian" in distro:
-            cmds = [
-                "sudo apt-get update -y",
-                "sudo apt-get install -y apt-transport-https ca-certificates gnupg curl",
-                "curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg",
-                "echo 'deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main' | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list",
-                "sudo apt-get update -y",
-                "sudo apt-get install -y google-cloud-cli",
-            ]
-        elif "rhel" in distro or "centos" in distro or "fedora" in distro:
-            cmds = [
-                ["sudo", "dnf", "install", "-y", "dnf-plugins-core"],
-                ["sudo", "tee", "/etc/yum.repos.d/google-cloud-sdk.repo", "<<EOF\ngpgcheck=1\nrepo_gpgcheck=1\nsigned-by=/etc/pki/rpm-gpg/google-cloud.gpg\nname=Google Cloud SDK\nbaseurl=https://packages.cloud.google.com/yum/repos/cloud-sdk-el7-x86_64\nenabled=1\nEOF"],
-                ["sudo", "dnf", "install", "-y", "google-cloud-cli"],
-            ]
-        elif "sles" in distro or "opensuse" in distro:
-            cmds = [
-                ["sudo", "zypper", "install", "-y", "google-cloud-cli"],
-            ]
-        else:
-            print("❌ Unsupported Linux distribution for automatic gcloud install. Please install manually")
-            sys.exit(1)
-
-        for cmd in cmds:
-            if isinstance(cmd, str):  # shell command (pipes, redirects)
-                print("Running (shell):", cmd)
-                subprocess.run(cmd, check=True, shell=True)
-            else:
-                print("Running:", " ".join(cmd))
-    elif os_type == "darwin":  # macOS
-        install_homebrew_if_needed()
-        cmds = [
-            ["brew", "install", "--cask", "google-cloud-sdk"]
-        ]
-        for cmd in cmds:
-            print("Running:", " ".join(cmd))
-            subprocess.run(cmd, check=True)
-    elif os_type == "windows":
-        try:
-            subprocess.run(["choco", "--version"], check=True, stdout=subprocess.DEVNULL)
-        except Exception:
-            print("❌ Chocolatey is required but not installed. Install from https://chocolatey.org/")
-            sys.exit(1)
-
-        cmds = [
-            ["choco", "install", "googlecloudsdk", "-y"]
-        ]
-        for cmd in cmds:
-            print("Running:", " ".join(cmd))
-            subprocess.run(cmd, check=True, shell=True)
-    else:
-        print(f"❌ gcloud installer not supported for {os_type}")
-        sys.exit(1)
-    # Verify installation
-    if shutil.which("gcloud") and shutil.which("gsutil"):
-        print("✅ Google Cloud CLI installed system-wide with gcloud & gsutil.")
-    else:
-        print("⚠️ Installation completed but gcloud not found in PATH. Add it manually to your shell profile.")
-        sys.exit(1)
-
-def install_az_cli():
-    os_type = platform.system().lower()
-    if os_type == "linux":
-        # Detect if it's Amazon Linux
-        distro = ""
-        try:
-            with open("/etc/os-release") as f:
-                data = f.read().lower()
-                if "amzn" in data or "amazon linux" in data:
-                    distro = "amazon"
-                elif "ubuntu" in data or "debian" in data:
-                    distro = "debian"
-                elif "centos" in data or "rhel" in data:
-                    distro = "rhel"
-        except FileNotFoundError:
-            print("⚠️ Could not detect Linux distro. Install az cli manually.")
-            sys.exit(1)
-
-        if distro == "debian":
-            run_command(["curl", "-sL", "https://aka.ms/InstallAzureCLIDeb", "-o", "install.sh"])
-            run_command(["chmod", "+x", "install.sh"])
-            run_command(["sudo", "./install.sh"])
-            run_command(["rm", "-f", "install.sh"])
-
-        elif distro == "amazon" or distro == "rhel":
-            # Official Microsoft repo install method for Amazon Linux / RHEL
-            run_command(["sudo", "rpm", "--import", "https://packages.microsoft.com/keys/microsoft.asc"])
-            run_command([
-            "bash", "-c",
-            "cat <<EOF | sudo tee /etc/yum.repos.d/azure-cli.repo\n"
-            "[azure-cli]\n"
-            "name=Azure CLI\n"
-            "baseurl=https://packages.microsoft.com/yumrepos/azure-cli\n"
-            "enabled=1\n"
-            "gpgcheck=1\n"
-            "gpgkey=https://packages.microsoft.com/keys/microsoft.asc\n"
-            "EOF"
-            ])
-            run_command(["sudo", "yum", "install", "-y", "azure-cli"])
-
-        else:
-            print("⚠️ Unknown Linux distribution. Please install Azure CLI manually.")
-            sys.exit(1)
-
-    elif os_type == "darwin":
-        install_homebrew_if_needed()
-        run_command(["brew", "update"])
-        run_command(["brew", "install", "azure-cli"])
-    else:
-        print(f"Azure CLI installation not supported for {os_type}. Please install manually.")
-        sys.exit(1)
-
-def install_aws_cli():
-    os_type = platform.system().lower()
-
-    if os_type == "linux":
-        run_command([
-            "curl", "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip", "-o", "awscliv2.zip"
-        ])
-        run_command(["unzip", "-o", "awscliv2.zip"])
-        run_command(["sudo", "./aws/install", "--update"])
-        run_command(["rm", "-rf", "awscliv2.zip", "aws/"])
-    elif os_type == "darwin":
-        run_command([
-            "curl", "https://awscli.amazonaws.com/AWSCLIV2.pkg", "-o", "AWSCLIV2.pkg"
-        ])
-        run_command(["sudo", "installer", "-pkg", "AWSCLIV2.pkg", "-target", "/"])
-        run_command(["rm", "AWSCLIV2.pkg"])
-    else:
-        print(f"❌ AWS CLI installation not supported for {os_type}. Please install manually.")
-        sys.exit(1)
-
-def install_git():
-    os_type = platform.system().lower()
-    if os_type == "linux":
-        distro = "unknown"
-        try:
-            with open("/etc/os-release") as f:
-                data = f.read().lower()
-                if "ubuntu" in data: distro = "ubuntu"
-                elif "debian" in data: distro = "debian"
-                elif "amzn" in data or "amazon" in data: distro = "amazon"
-                elif "centos" in data: distro = "centos"
-                elif "red hat" in data or "rhel" in data: distro = "rhel"
-                elif "alpine" in data: distro = "alpine"
-        except FileNotFoundError:
-            print("⚠️ Could not detect Linux distro. Install Git manually.")
-            sys.exit(1)
-        try:
-            if distro in ("ubuntu", "debian"):
-                run_command(["sudo", "apt", "update"])
-                run_command(["sudo", "apt", "install", "-y", "git"])
-            elif distro in ("amazon", "centos", "rhel"):
-                run_command(["sudo", "yum", "install", "-y", "git"])
-            elif distro == "alpine":
-                run_command(["sudo", "apk", "add", "git"])
-            else:
-                print(f"❌ Unsupported Linux distro: {distro}. Please install Git manually.")
-                sys.exit(1)
-        except Exception as e:
-            print(f"Error installing Git: {e}")
-            sys.exit(1)
-    elif os_type == "darwin":
-        install_homebrew_if_needed()
-        run_command(["brew", "update"])
-        run_command(["brew", "install", "git"])
-    elif os_type == "windows":
-        try:
-            subprocess.run(["choco", "--version"], check=True, stdout=subprocess.DEVNULL)
-        except Exception:
-            print("❌ Chocolatey is required but not installed. Install from https://chocolatey.org/")
-            sys.exit(1)
-        run_command(["choco", "install", "git", "-y"])
-    else:
-        print(f"❌ Git installation not supported for {os_type}. Please install manually.")
-        sys.exit(1)
-
-def install_terraform():
-    os_type = platform.system().lower()
-    arch = platform.machine().lower()
-    arch = "amd64" if "x86_64" in arch else arch
-
-    terraform_version = "1.8.5"  # update as needed
-    tf_zip = f"terraform_{terraform_version}_{os_type}_{arch}.zip"
-    url = f"https://releases.hashicorp.com/terraform/{terraform_version}/{tf_zip}"
-
-    run_command(["curl", "-o", tf_zip, url])
-    run_command(["unzip", "-o", tf_zip])
-    run_command(["sudo", "mv", "terraform", "/usr/local/bin/terraform"])
-    run_command(["rm", tf_zip])
 
 def import_from_file(file_path: str, module_name: str):
     """
@@ -324,7 +74,6 @@ def ensure_aws_dependencies(run_dir):
     """
     Ensure AWS CLI, Terraform, Git, and AWS module scripts are available
     """
-    install_boto_and_other_dependencies()
     # 1️⃣ Path to aws_iam.py inside the extracted sample folder
     aws_module_path = Path(run_dir) / f"{REPO_NAME}-{BRANCH}/infra-as-code/terraform/sample-aws/aws_iam.py"
     
@@ -345,38 +94,39 @@ def ensure_aws_dependencies(run_dir):
     print_results = aws_iam.print_results
     setup_session = aws_iam.setup_session
 
-    # 4️⃣ Install Python dependencies if any
-    subprocess.run([sys.executable, "-m", "pip", "install", "boto3", "botocore", "pyyaml"], check=True)
-
     # 5️⃣ Ensure CLI tools installed
     aws_path = shutil.which("aws")
-    if aws_path:
-        try:
-            result = subprocess.run(["aws", "--version"], capture_output=True, text=True, check=True)
-            version_output = result.stdout + result.stderr
-            if "aws-cli/2" in version_output:
-                print("✅ AWS CLI v2 already installed.")
-                return
-            elif "aws-cli/1" in version_output:
-                print("❌ AWS CLI v1 detected. AWS CLI v2 is required. Please uninstall v1.")
-                sys.exit(1)
-        except Exception:
-            print("❌ Unable to determine AWS CLI version. Please check manually.")
+    if not aws_path:
+        print("❌ AWS CLI not found.")
+        print("Please install AWS CLI v2 and ensure it is available in your PATH.")
+        print("👉 Installation guide: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html")
+        sys.exit(1)
+
+    try:
+        result = subprocess.run(["aws", "--version"], capture_output=True, text=True, check=True)
+        version_output = (result.stdout or "") + (result.stderr or "")
+        if "aws-cli/2" in version_output:
+            print("✅ AWS CLI v2 detected.")
+        elif "aws-cli/1" in version_output:
+            print("❌ AWS CLI v1 detected. Please uninstall v1 and install v2.")
             sys.exit(1)
-    print("⬇️ Installing AWS CLI v2...")
-    install_aws_cli()
-    check_prerequisites()
+        else:
+            print("⚠️ Unable to determine AWS CLI version. Proceeding with caution.")
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError) as e:
+        print(f"❌ Error checking AWS CLI version: {e}")
+        print("Please verify AWS CLI installation.")
+        sys.exit(1)
     try:
         subprocess.run(["terraform", "-version"], check=True, stdout=subprocess.DEVNULL)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("⬇️ Installing Terraform...")
-        install_terraform()  # your function
+        print("Please install the Terraform...")
+        sys.exit(1)
 
     try:
         subprocess.run(["git", "--version"], check=True, stdout=subprocess.DEVNULL)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("⬇️ Installing Git...")
-        install_git()
+        print("Please Install the Git...")
+        sys.exit(1)
 
 def ensure_azure_dependencies(run_dir):
     AZURE_MODULE_PATH = Path(run_dir) / f"{REPO_NAME}-{BRANCH}/infra-as-code/terraform/sample-azure/azure_credentials.py"  # <-- UPDATE THIS
@@ -395,8 +145,8 @@ def ensure_azure_dependencies(run_dir):
         subprocess.run(["az", "--version"], check=True, stdout=subprocess.DEVNULL)
         print("Azure CLI already installed.")
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("Installing Azure CLI...")
-        install_az_cli()
+        print("Please install the Azure CLI...")
+        sys.exit(1)
 
     # -- Ensure Terraform --
     check_prerequisites()
@@ -404,16 +154,16 @@ def ensure_azure_dependencies(run_dir):
         subprocess.run(["terraform", "-version"], check=True, stdout=subprocess.DEVNULL)
         print("Terraform already installed.")
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("Installing Terraform...")
-        install_terraform()
+        print("Please install the Terraform...")
+        sys.exit(1)
 
     # -- Ensure Git --
     try:
         subprocess.run(["git", "--version"], check=True, stdout=subprocess.DEVNULL)
         print("Git already installed.")
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("Installing Git...")
-        install_git()
+        print("Please Install the Git...")
+        sys.exit(1)
 
 def ensure_gcp_dependencies(run_dir):
     """Check if gcloud is installed, otherwise install it"""
@@ -421,26 +171,27 @@ def ensure_gcp_dependencies(run_dir):
         subprocess.run(["gcloud", "--version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print("✅ Google Cloud CLI already installed.")
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("⬇️ Installing Google Cloud CLI...")
-        install_gcloud_cli()
+        print("Please install Google Cloud CLI...")
+        sys.exit(1)
     # -- Ensure Terraform --
     check_prerequisites()
     try:
         subprocess.run(["terraform", "-version"], check=True, stdout=subprocess.DEVNULL)
         print("Terraform already installed.")
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("Installing Terraform...")
-        install_terraform()
+        print("Please install the Terraform...")
+        sys.exit(1)
 
     # -- Ensure Git --
     try:
         subprocess.run(["git", "--version"], check=True, stdout=subprocess.DEVNULL)
         print("Git already installed.")
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("Installing Git...")
-        install_git()
+        print("Please Install the Git...")
+        sys.exit(1)
     # -- Import your GCP-specific logic from another folder --
-    ensure_package('PyYAML', 'yaml')
+    import PyYAML
+    import yaml
     GCP_MODULE_PATH = Path(run_dir) / f"{REPO_NAME}-{BRANCH}/infra-as-code/terraform/sample-gcp/gcp-iam.py"  # <-- UPDATE THIS
     gcp_iam = import_from_file(GCP_MODULE_PATH, "gcp-iam")
 
@@ -1193,12 +944,12 @@ def run_deployment(work_dir, extra_args=None):
 
 def main():
     parser = argparse.ArgumentParser(description="Deploy DIGIT Platform")
-    parser.add_argument('--create', action='store_true', help='Create infrastructure')
-    parser.add_argument('--upgrade', action='store_true', help='Upgrade infrastructure')
+    parser.add_argument('--create', action='store_true', help='Create infrastructure and Deploy the Application')
+    parser.add_argument('--upgrade', action='store_true', help='Upgrade infrastructure and Deploy the Application ')
     parser.add_argument('--destroy', action='store_true', help='Destroy infrastructure')
     parser.add_argument("--var", action="append", help="Pass additional Terraform variables (e.g., --var key=value). Can be used multiple times.")
+    parser.add_argument('--deploy', action='store_true', help='Deploy the Application')
     args = parser.parse_args()
-    install_inquirerPy()
     cloud_choice = inquirer.select(
         message="Choose your cloud provider:",
         choices=[
@@ -1208,13 +959,13 @@ def main():
         ],
     ).execute()
     cluster_name = input("Enter the Cluster Name: ")
-    domain_name = input("Enter the Domain Name: ")
     if not cluster_name:
             raise ValueError("[Step: Input] Cluster name cannot be empty.")
-    if not domain_name:
-            raise ValueError("[Step: Input] Domain name cannot be empty.")
     try:
         if args.create:
+            domain_name = input("Enter the Domain Name: ")
+            if not domain_name:
+                raise ValueError("[Step: Input] Domain name cannot be empty.")
             if cloud_choice == "aws":
                 run_dir = create_run_directory(cluster_name)
                 zip_ref = download_github_zip()
@@ -1289,6 +1040,9 @@ def main():
             else:
                 print("Only AWS,Azure and GCP are currently supported. Others are not supported!")
         elif args.upgrade:
+            domain_name = input("Enter the Domain Name: ")
+            if not domain_name:
+                raise ValueError("[Step: Input] Domain name cannot be empty.")
             if cloud_choice == "aws":
                 run_dir = create_run_directory(cluster_name)
                 zip_ref = download_github_zip()
@@ -1367,6 +1121,23 @@ def main():
                 destroy_terraform_commands(cloud_choice, work_dir,config['session'], config['region'], cluster_name)
             else:
                 print("Only AWS is currently supported. Others are not supported!")
+        elif args.deploy:
+            domain_name = input("Enter the Domain Name: ")
+            if not domain_name:
+                raise ValueError("[Step: Input] Domain name cannot be empty.")
+            run_dir = create_run_directory(cluster_name)
+            modules, versions = get_deployment_choices(branch="automation")
+            work_dir = run_dir/f"{REPO_NAME}-{BRANCH}"
+            download_deployment_files(
+                owner="egovernments",
+                repo="helm-charts",
+                branch="automation",
+                paths=["env-templates", "helmfile_deploy.py"],
+                dest_dir=run_dir/f"{REPO_NAME}-{BRANCH}"
+            )
+            print("\n✅ Deployment files ready at:", run_dir/f"{REPO_NAME}-{BRANCH}")
+            update_env_files(run_dir/f"{REPO_NAME}-{BRANCH}/env-templates/env.yaml", run_dir/f"{REPO_NAME}-{BRANCH}/env-templates/env-secrets.yaml", work_dir, domain_name)
+            run_deployment(run_dir/f"{REPO_NAME}-{BRANCH}", extra_args=["--modules", *modules,"--versions", *versions,])
         else:
             print("❗ Please specify --create --upgrade or --destroy")
     except Exception as e:

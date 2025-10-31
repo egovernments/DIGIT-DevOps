@@ -1,0 +1,45 @@
+punjab-analysis-infra:
+  # Enable/disable this chart
+  enabled: false
+
+  # Namespace where Punjab Analysis pods will run
+  namespace: egov
+
+  # ServiceAccount configuration
+  serviceAccount:
+    name: airflow-worker
+
+  # RBAC configuration
+  rbac:
+    roleName: airflow-worker-role
+    roleBindingName: airflow-worker-rolebinding
+
+  # Database credentials
+  # NOTE: Uses existing 'db' Secret in egov namespace (created by cluster-configs chart)
+  # No new Secret needed - reuses cluster-configs.secrets.db from unified-dev-secrets.yaml
+
+  # Persistent Volume Claims
+  persistentVolumes:
+    punjab-data-pvc:
+      size: 10Gi
+      storageClassName: gp3
+      accessModes:
+        - ReadWriteMany
+
+    punjab-output-pvc:
+      size: 5Gi
+      storageClassName: gp3
+      accessModes:
+        - ReadWriteMany
+
+    punjab-secrets-pvc:
+      size: 1Gi
+      storageClassName: gp3
+      accessModes:
+        - ReadWriteOnce
+
+  # Configuration is read from existing cluster ConfigMaps and Secrets:
+  # - Database host/name: egov-config ConfigMap
+  # - Database credentials: cluster-configs.secrets.db (unified-dev-secrets.yaml)
+  # - Filestore URL: egov-service-host ConfigMap
+  # No additional configuration needed here

@@ -1,0 +1,53 @@
+{{- if index .Values "punjab-analysis-infra" "enabled" }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ index .Values "punjab-analysis-infra" "rbac" "roleName" }}
+  namespace: {{ index .Values "punjab-analysis-infra" "namespace" }}
+  labels:
+    app: punjab-analysis
+    component: rbac
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "pods/exec"]
+  verbs: ["get", "list", "watch", "create", "delete", "patch"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims", "configmaps", "secrets"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ index .Values "punjab-analysis-infra" "rbac" "roleBindingName" }}
+  namespace: {{ index .Values "punjab-analysis-infra" "namespace" }}
+  labels:
+    app: punjab-analysis
+    component: rbac
+subjects:
+- kind: ServiceAccount
+  name: {{ index .Values "punjab-analysis-infra" "serviceAccount" "name" }}
+  namespace: {{ index .Values "punjab-analysis-infra" "namespace" }}
+roleRef:
+  kind: Role
+  name: {{ index .Values "punjab-analysis-infra" "rbac" "roleName" }}
+  apiGroup: rbac.authorization.k8s.io
+---
+# Cross-namespace RoleBinding to allow Airflow scheduler to create pods in egov namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: airflow-to-egov-binding
+  namespace: {{ index .Values "punjab-analysis-infra" "namespace" }}
+  labels:
+    app: punjab-analysis
+    component: rbac
+subjects:
+- kind: ServiceAccount
+  name: airflow-scheduler
+  namespace: airflow
+roleRef:
+  kind: Role
+  name: {{ index .Values "punjab-analysis-infra" "rbac" "roleName" }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

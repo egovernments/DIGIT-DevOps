@@ -1,0 +1,24 @@
+{{- if index .Values "punjab-analysis-infra" "enabled" }}
+{{- range $pvcName, $pvcConfig := index .Values "punjab-analysis-infra" "persistentVolumes" }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $pvcName }}
+  namespace: {{ index $.Values "punjab-analysis-infra" "namespace" }}
+  labels:
+    app: punjab-analysis
+    component: storage
+spec:
+  accessModes:
+    {{- range $pvcConfig.accessModes }}
+    - {{ . }}
+    {{- end }}
+  {{- if $pvcConfig.storageClassName }}
+  storageClassName: {{ $pvcConfig.storageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $pvcConfig.size }}
+{{- end }}
+{{- end }}

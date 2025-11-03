@@ -83,6 +83,11 @@ def get_aws_inputs_and_validate():
 
     # Validation loop
     while True:
+        if not access_key or not secret_key:
+            print("\n❌ AWS credentials cannot be empty. Please enter valid credentials.\n")
+            access_key = input("Enter AWS Access Key ID: ").strip()
+            secret_key = input("Enter AWS Secret Access Key: ").strip()
+            continue
         status = validate_aws_credentials(access_key, secret_key, region)
 
         if status == "valid":

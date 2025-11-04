@@ -942,6 +942,54 @@ def run_deployment(work_dir, extra_args=None):
         print("🧾 STDOUT:\n", e.stdout)
         sys.exit(1)
 
+def configure_kubeconfig(cluster_name, region, profile=None):
+    """
+    Fetches and updates kubeconfig for the created EKS cluster.
+    Merges it into ~/.kube/config and verifies the context.
+    """
+    print(f"\n⚙️ Generating kubeconfig for EKS cluster: {cluster_name} (region: {region})")
+
+    # --- Wait for the cluster to become ACTIVE ---
+    wait_cmd = ["aws", "eks", "wait", "cluster-active", "--name", cluster_name, "--region", region]
+    if profile:
+        wait_cmd += ["--profile", profile]
+
+    print("⏳ Waiting for EKS cluster to become active...")
+    try:
+        subprocess.run(wait_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print("✅ Cluster is active.")
+    except subprocess.CalledProcessError:
+        print(f"⚠️ Timeout or error waiting for cluster '{cluster_name}' to become active. Proceeding anyway...")
+
+    # --- Update kubeconfig ---
+    update_cmd = [
+        "aws", "eks", "update-kubeconfig",
+        "--name", cluster_name,
+        "--region", region,
+        "--alias", cluster_name
+    ]
+    if profile:
+        update_cmd += ["--profile", profile]
+
+    try:
+        subprocess.run(update_cmd, check=True)
+        print(f"✅ Kubeconfig updated successfully for cluster '{cluster_name}'")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to update kubeconfig for {cluster_name}.")
+        if e.stderr:
+            print(f"Error:\n{e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr}")
+        sys.exit(1)
+
+    # --- Verify kubeconfig and context ---
+    try:
+        print("\n🔍 Verifying Kubernetes connection...")
+        subprocess.run(["kubectl", "config", "use-context", cluster_name], check=True)
+        subprocess.run(["kubectl", "get", "nodes"], check=True)
+        print("✅ Verified kubeconfig context and cluster access.")
+    except subprocess.CalledProcessError:
+        print("⚠️ Unable to verify cluster context. Please check manually with:")
+        print(f"   kubectl config get-contexts && kubectl get nodes")
+
 def main():
     parser = argparse.ArgumentParser(description="Deploy DIGIT Platform")
     parser.add_argument('--create', action='store_true', help='Create infrastructure and Deploy the Application')
@@ -1004,6 +1052,7 @@ def main():
                 print("\n...Configuring Infra...")
                 setup_session(config['profile'], config['region'])
                 create_terraform_commands(cloud_choice, work_dir,config['session'], config['region'], cluster_name)
+                configure_kubeconfig(cluster_name, config['region'], config.get('profile'))
                 update_env_files(run_dir/f"{REPO_NAME}-{BRANCH}/env-templates/env.yaml", run_dir/f"{REPO_NAME}-{BRANCH}/env-templates/env-secrets.yaml", work_dir, domain_name)
                 run_deployment(run_dir/f"{REPO_NAME}-{BRANCH}", extra_args=["--modules", *modules,"--versions", *versions,])
             elif cloud_choice == "azure":
@@ -1085,6 +1134,7 @@ def main():
                 print("\n...Configuring Infra...")
                 setup_session(config['profile'], config['region'])
                 upgrade_terraform_commands(cloud_choice, work_dir,config['session'], config['region'], cluster_name)
+                configure_kubeconfig(cluster_name, config['region'], config.get('profile'))
                 if (deployment in ['y', 'yes']) or not deployment:
                     update_env_files(run_dir/f"{REPO_NAME}-{BRANCH}/env-templates/env.yaml", run_dir/f"{REPO_NAME}-{BRANCH}/env-templates/env-secrets.yaml", work_dir, domain_name)
                     run_deployment(run_dir/f"{REPO_NAME}-{BRANCH}", extra_args=["--modules", *modules,"--versions", *versions,])
@@ -1126,7 +1176,6 @@ def main():
             if not domain_name:
                 raise ValueError("[Step: Input] Domain name cannot be empty.")
             run_dir = create_run_directory(cluster_name)
-            modules, versions = get_deployment_choices(branch="automation")
             work_dir = run_dir/f"{REPO_NAME}-{BRANCH}"
             download_deployment_files(
                 owner="egovernments",
@@ -1137,7 +1186,7 @@ def main():
             )
             print("\n✅ Deployment files ready at:", run_dir/f"{REPO_NAME}-{BRANCH}")
             update_env_files(run_dir/f"{REPO_NAME}-{BRANCH}/env-templates/env.yaml", run_dir/f"{REPO_NAME}-{BRANCH}/env-templates/env-secrets.yaml", work_dir, domain_name)
-            run_deployment(run_dir/f"{REPO_NAME}-{BRANCH}", extra_args=["--modules", *modules,"--versions", *versions,])
+            run_deployment(run_dir/f"{REPO_NAME}-{BRANCH}")
         else:
             print("❗ Please specify --create --upgrade or --destroy")
     except Exception as e:

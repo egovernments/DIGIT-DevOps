@@ -693,7 +693,7 @@ def create_terraform_commands(cloud, work_dir, session, region, cluster_name):
         cmds = [
             ["terraform", "init"],
             ["terraform", "plan"],
-            ["terraform", "apply"]
+            ["terraform", "apply", "-auto-approve"]
         ]
         for cmd in cmds:
             print(f"🔧 Running: {' '.join(cmd)} in {directory}")

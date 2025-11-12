@@ -43,16 +43,12 @@ resources: |
 # Additional Container Envs
 env: |
 
-  - name: HTTP_PORT
+  - name: SERVER_PORT
     value: "8080"
   - name: SERVER_CONTEXT_PATH
     value: "/individual"
-
   - name: DB_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-host
+    value: "postgresql-lts.egov"
   - name: DB_PORT
     value: "5432"
   - name: DB_SSL_MODE
@@ -78,17 +74,13 @@ env: |
   - name: LOG_LEVEL
     value: "info"
   
-  - name: REDIS_ENABLED
-    value: "true"
+
   - name: REDIS_HOST
-    value: "redis-master.redis.svc.cluster.local"
+    value: "redis.backbone"
   - name: REDIS_PORT
     value: "6379"
   - name: REDIS_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: redis-secrets
-        key: redis-password
+    value: ""
   - name: REDIS_DB
     value: "0"
   - name: REDIS_POOL_SIZE
@@ -105,7 +97,7 @@ env: |
   - name: IDGEN_ENABLED
     value: "true"
   - name: IDGEN_INDIVIDUAL_ID_FORMAT
-    value: "individual.id"
+    value: "individual"
 
 
 
@@ -127,6 +119,7 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-enc-service
+        
 
   - name: LOCALIZATION_SERVICE_HOST
     valueFrom:
@@ -136,29 +129,12 @@ env: |
   - name: LOCALIZATION_SEARCH_PATH
     value: "/localization/messages/v1/_search"
 
-
-
-  - name: USER_SERVICE_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: egov-user
-  - name: USER_CREATE_PATH
-    value: "/user/users/_createnovalidate"
-  - name: USER_SEARCH_PATH
-    value: "/user/_search"
-  - name: USER_UPDATE_PATH
-    value: "/user/users/_updatenovalidate"
-  - name: USER_INTEGRATION_ENABLED
+  - name: KEYCLOAK_BASE_URL
+    value: "https://digit-lts.digit.org/keycloak"
+  - name: KEYCLOAK_ENABLED
     value: "true"
-  - name: USER_SYNC_ENABLED
-    value: "false"
-  - name: USER_SERVICE_USER_TYPE
-    value: "CITIZEN"
-  - name: USER_SERVICE_ACCOUNT_LOCKED
-    value: "false"
-
-
+  - name: KEYCLOAK_ASSIGNABLE_ROLES
+    value: "ASSIGNER,CITIZEN"
 
 
 
@@ -185,10 +161,7 @@ env: |
         name: egov-service-host
         key: vault-host
   - name: VAULT_TOKEN
-    valueFrom:
-      secretKeyRef:
-        name: vault-root-token
-        key: token
+    value: ""
   - name: VAULT_TRANSIT_BASE_PATH
     value: v1/transit/
   - name: VAULT_SYS_MOUNT_TRANSIT_PATH
@@ -211,3 +184,10 @@ env: |
     value: verify/
   - name: VAULT_DECRYPT_PATH
     value: decrypt/
+  
+  - name: VAULT_ENABLED
+    value: "true"
+  - name: VAULT_ENCRYPT_KEY
+    value: IndividualEncrypt
+  - name: VAULT_DECRYPT_KEY
+    value: IndividualEncrypt

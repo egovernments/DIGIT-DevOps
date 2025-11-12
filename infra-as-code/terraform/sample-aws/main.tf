@@ -333,6 +333,7 @@ resource "aws_eks_addon" "aws_ebs_csi_driver" {
   addon_name        = "aws-ebs-csi-driver"
   service_account_role_arn = module.ebs_csi_driver_irsa.iam_role_arn
   resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 }
 
 resource "aws_eks_addon" "eks-pod-identity-agent" {

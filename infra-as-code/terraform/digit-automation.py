@@ -990,6 +990,59 @@ def configure_kubeconfig(cluster_name, region, profile=None):
         print("⚠️ Unable to verify cluster context. Please check manually with:")
         print(f"   kubectl config get-contexts && kubectl get nodes")
 
+def check_and_delete_loadbalancers(cluster_name):
+    try:
+        print("\n🔍 Verifying Kubernetes connection...")
+        subprocess.run(["kubectl", "config", "use-context", cluster_name], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(["kubectl", "get", "nodes"], check=True)
+        print("✅ Verified kubeconfig context and cluster access.")
+
+        # Get all LoadBalancer-type services across namespaces
+        print("\n🔍 Checking for LoadBalancer services...")
+        result = subprocess.run(
+            ["kubectl", "get", "svc", "--all-namespaces", "-o", "json"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        services = json.loads(result.stdout)
+        lb_services = [
+            f"{svc['metadata']['namespace']}/{svc['metadata']['name']}"
+            for svc in services["items"]
+            if svc["spec"].get("type") == "LoadBalancer"
+        ]
+
+        if not lb_services:
+            print("✅ No LoadBalancer services found. Continuing with infra destroy...")
+            return True
+
+        print(f"⚠️ Found {len(lb_services)} LoadBalancer service(s):")
+        for s in lb_services:
+            print(f"   - {s}")
+
+        # Try deleting them
+        for s in lb_services:
+            ns, name = s.split("/")
+            print(f"🧹 Deleting LoadBalancer: {s}")
+            try:
+                subprocess.run(
+                    ["kubectl", "delete", "svc", name, "-n", ns],
+                    check=True
+                )
+                print(f"✅ Deleted {s}")
+            except subprocess.CalledProcessError:
+                print(f"❌ Failed to delete {s}. Please delete it manually before destroying infra.")
+                return False
+
+        print("✅ All LoadBalancers deleted successfully.")
+        return True
+
+    except subprocess.CalledProcessError:
+        print("⚠️ Unable to verify cluster context. Please check manually with:")
+        print(f"   kubectl config get-contexts && kubectl get nodes")
+        return False
+
 def main():
     parser = argparse.ArgumentParser(description="Deploy DIGIT Platform")
     parser.add_argument('--create', action='store_true', help='Create infrastructure and Deploy the Application')
@@ -1168,6 +1221,10 @@ def main():
                         print(f"{k}: {v}")
                 print("\n...Configuring Infra...")
                 setup_session(config['profile'], config['region'])
+                success = check_and_delete_loadbalancers(cluster_name)
+                if not success:
+                    print("🚫 Exiting gracefully due to LoadBalancer cleanup failure.")
+                    sys.exit(0)
                 destroy_terraform_commands(cloud_choice, work_dir,config['session'], config['region'], cluster_name)
             else:
                 print("Only AWS is currently supported. Others are not supported!")

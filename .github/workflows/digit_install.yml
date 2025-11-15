@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - DIGIT-2.9LTS
+      - release-githubactions
   workflow_dispatch:
     inputs:
       destroyCommand:
@@ -123,13 +124,13 @@ jobs:
         id: extract
         run: |
           db_password=$(jq -r '.secrets.db.password' secrets.json)
-          echo "db_password=$db_password" >> $GITHUB_ENV     
+          echo "db_password=$db_password" >> $GITHUB_ENV    
       - name: Download Terraform
         run: |
           curl -o terraform.zip https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
           unzip terraform.zip
           sudo mv terraform /usr/local/bin/
-          terraform -version             
+          terraform -version                          
       - name: Terraform Init - remotestate
         id: init
         run: terraform init
@@ -461,8 +462,14 @@ jobs:
           cat ~/.kube/config > kubeconfig
         continue-on-error: true
       - name: Deleting Loadbalancer 
-        run: kubectl delete svc ingress-nginx-controller -n backbone   
+        run: kubectl delete svc ingress-nginx-controller -n backbone     
         continue-on-error: true
+      - name: Download Terraform
+        run: |
+          curl -o terraform.zip https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
+          unzip terraform.zip
+          sudo mv terraform /usr/local/bin/
+          terraform -version               
       - name: Terraform Init - remotestate
         run: terraform init
         working-directory: infra-as-code/terraform/sample-aws/remote-state

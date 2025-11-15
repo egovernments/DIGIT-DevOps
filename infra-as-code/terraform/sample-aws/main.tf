@@ -9,6 +9,11 @@ terraform {
     encrypt = true
   }
   required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      # pick 5.x or 6.x – see below; for now assume 5.x:
+      version = ">= 5.95.0, < 6.0.0"
+    }
     kubectl = {
       source  = "gavinbunney/kubectl"
       version = "~> 1.14.0" 

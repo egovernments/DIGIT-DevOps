@@ -29,7 +29,7 @@ resource "aws_db_instance" "rds_postgres" {
   skip_final_snapshot     = "true"
   deletion_protection     = "true"
 
-    tags = "${
+  tags = "${
     tomap({
       "KubernetesCluster" = "${var.environment}"
       "Name" =  "${var.environment}-db",

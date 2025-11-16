@@ -83,6 +83,7 @@ module "eks" {
   iam_role_arn    = "arn:aws:iam::349271159511:role/unified-uat2023100406154873020000000c"
   endpoint_public_access  = true
   endpoint_private_access = true
+  create_cloudwatch_log_group = false
   authentication_mode = "API_AND_CONFIG_MAP"
   subnet_ids      = concat(module.network.private_subnets, module.network.public_subnets)
   node_security_group_additional_rules = {
@@ -158,7 +159,6 @@ module "eks_managed_node_group" {
   desired_size = var.desired_worker_nodes
   instance_types = var.instance_types
   ebs_optimized  = "true"
-  enable_monitoring = "true"
   update_config = {
     "max_unavailable_percentage": 10
   }

@@ -49,7 +49,7 @@ variable "db_version" {
 variable "db_user" {
   description = "Azure DB User name"
   type        = string
-
+  default     = "demouser"
   validation {
     condition = (
       length(var.db_user) >= 3 &&
@@ -71,7 +71,7 @@ EOT
 variable "db_password" {
   description = "Azure DB password"
   type        = string
-
+  default     = "demo1234"
   validation {
     condition = (
     length(var.db_password) >= 6 &&

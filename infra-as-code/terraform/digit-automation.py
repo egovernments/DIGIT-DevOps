@@ -552,9 +552,11 @@ def generate_tfvars_for_cloud(cloud, base_dir, config, extra_vars):
             "region": config.get("region", "us-east-1")
         }
     elif cloud == "azure":
+        environment = config.get("environment", "demo")
         base_vars = {
-            "environment": config.get("environment", "dev"),
-            "location": config.get("location", "eastus")
+            "environment": environment,
+            "location": config.get("location", "southindia"),
+            "resource_group": f"{environment}-rg"
         }
     elif cloud == "gcp":
         base_vars = {

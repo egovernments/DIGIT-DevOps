@@ -1,0 +1,109 @@
+# Common Labels
+labels:
+  app: "otp"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "otp"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "otp_schema"
+    image:
+      repository: "otp-db"
+
+# Container Configs
+image:
+  repository: "otp"
+replicas: 1
+appType: "go"
+tracing-enabled: true # Assuming you want to keep tracing
+healthChecks:
+  enabled: false # Disabled as requested
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: "/otp"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+
+
+  - name: REDIS_HOST
+    value: "redis.backbone"
+  - name: REDIS_PORT
+    value: "6379"
+  - name: REDIS_PASSWORD
+    value: ""
+  - name: REDIS_DB
+    value: "0"
+  - name: REDIS_POOL_SIZE
+    value: "10"
+
+  - name: VAULT_HOST
+    value: "http://vault.vault-new.svc.cluster.local:8200"
+  - name: VAULT_TOKEN
+    value: ""
+  - name: VAULT_ENCRYPT_PATH
+    value: encrypt/
+  - name: VAULT_TRANSIT_BASE_PATH
+    value: v1/transit/
+  - name: VAULT_SYS_MOUNT_TRANSIT_PATH
+    value: v1/sys/mounts/transit
+  - name: VAULT_KEY_CREATE_PATH
+    value: keys/
+  - name: VAULT_ASYM_SUFFIX
+    value: -asym
+  - name: VAULT_ASYM_ENCRYPT_PATH
+    value: encrypt/
+  - name: VAULT_AUTH_KUBERNETES_LOGIN_PATH
+    value: v1/auth/kubernetes/login
+  - name: VAULT_AUTH_KUBERNETES_ROLE
+    value: enc-service-role
+  - name: VAULT_K8S_TOKEN_PATH
+    value: /var/run/secrets/kubernetes.io/serviceaccount/token
+  - name: VAULT_SIGN_PATH
+    value: sign/
+  - name: VAULT_VERIFY_PATH
+    value: verify/
+  - name: VAULT_DECRYPT_PATH
+    value: decrypt/
+  
+  - name: VAULT_ENABLED
+    value: "true"
+  - name: VAULT_ENCRYPT_KEY
+    value: OtpEncrypt
+

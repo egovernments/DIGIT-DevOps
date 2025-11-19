@@ -1,5 +1,6 @@
 provider "azurerm" {
   features {}
+  subscription_id = "<subscription_id>"
 }
 
 terraform {
@@ -9,12 +10,6 @@ terraform {
     container_name       = "<cluster_name>-container"
     key                  = "terraform.tfstate"
   }
-}
-
-resource "random_password" "db_password" {
-  length           = 16
-  special          = true
-  override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
 resource "azurerm_virtual_network" "vnet" {
@@ -28,14 +23,14 @@ resource "azurerm_subnet" "aks" {
   name                 = "${var.resource_group}-aks-subnet"
   resource_group_name  = var.resource_group
   virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = ["10.0.1.0/24"]
+  address_prefixes     = ["10.0.1.0/21"]
 }
 
 resource "azurerm_subnet" "postgres" {
   name                 = "${var.resource_group}-postgres-subnet"
   resource_group_name  = var.resource_group
   virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = ["10.0.2.0/24"]
+  address_prefixes     = ["10.0.8.0/21"]
   service_endpoints    = ["Microsoft.Storage"]
 
   delegation {
@@ -95,9 +90,10 @@ module "kubernetes" {
   name                      = var.environment
   location                  = var.location
   resource_group            = var.resource_group
-  vm_size                   = "Standard_D2_v2"
+  vm_size                   = "Standard_E2as_v5"
   node_count                = 4
   vnet_subnet_id            = azurerm_subnet.aks.id
+  os_disk_size_gb           = 64
 }
 
 module "postgres-db" {
@@ -105,11 +101,11 @@ module "postgres-db" {
   environment               = var.environment
   resource_group            = var.resource_group
   location                  = var.location
-  sku_name                  = "B_Standard_B1ms"
+  sku_name                  = "B_Standard_B2ms"
   storage_mb                = "65536"
   backup_retention_days     = "7"
   administrator_login       = var.db_user
-  administrator_password    = random_password.db_password.result
+  administrator_password    = var.db_password
   db_version                = var.db_version
   delegated_subnet_id       = azurerm_subnet.postgres.id
   private_dns_zone_id       = azurerm_private_dns_zone.db.id

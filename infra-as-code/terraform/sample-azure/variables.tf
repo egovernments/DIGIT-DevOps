@@ -67,3 +67,22 @@ DB User name must:
 EOT
   }
 }
+
+variable "db_password" {
+  description = "Azure DB password"
+  type        = string
+
+  validation {
+    condition = (
+    length(var.db_password) >= 6 &&
+    length(var.db_password) <= 16 &&
+    can(regex("^[a-z][a-z0-9@#]$", var.db_password))
+    )
+    error_message = <<EOT
+DB password must:
+- Be 6 to 16 characters long
+- Start with a lowercase letter
+- Use only lowercase letters, numbers, and @ or # (no other symbols)
+EOT
+  }
+}

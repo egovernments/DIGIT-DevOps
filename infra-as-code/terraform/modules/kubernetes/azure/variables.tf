@@ -5,3 +5,4 @@ variable "resource_group" {}
 variable "location" {}
 variable "environment" {}
 variable "vnet_subnet_id" {}
+variable "os_disk_size_gb" {}

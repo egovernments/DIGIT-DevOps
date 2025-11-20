@@ -25,8 +25,8 @@ appType: "go"
 tracing-enabled: true # Assuming you want to keep tracing
 healthChecks:
   enabled: false # Disabled as requested
-  livenessProbePath: "/health"
-  readinessProbePath: "/health"
+  livenessProbePath: "/otp/health"
+  readinessProbePath: "/otp/health"
 # Resource configuration for Go service
 resources: |
   requests:
@@ -62,6 +62,41 @@ env: |
         key: password
 
 
+  - name: OTP_LENGTH
+    value: "6"
+  - name: OTP_CHARSET
+    value: "digits"
+  - name: OTP_LIFETIME_SECONDS
+    value: "300"
+  - name: RESEND_DELAY_SECONDS
+    value: "30"
+  - name: MAX_RESEND_COUNT
+    value: "3"
+  - name: MAX_VERIFY_ATTEMPTS
+    value: "5"
+  - name: USE_SINGLE_ACTIVE_OTP
+    value: "true"
+  - name: RESEND_SAME_CODE
+    value: "true"
+  - name: MAX_GENERATE_PER_DEST_HOUR
+    value: "2"
+  - name: MAX_GENERATE_PER_IP_HOUR
+    value: "0"
+  - name: ENABLE_RATE_LIMIT
+    value: "true" 
+
+  - name: NOTIFY_BASE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: notification
+  - name: NOTIFY_ASYNC
+    value: "true"
+
+  - name: HMAC_SECRET
+    value: "change-me-secret"
+
+
   - name: REDIS_HOST
     value: "redis.backbone"
   - name: REDIS_PORT
@@ -70,13 +105,14 @@ env: |
     value: ""
   - name: REDIS_DB
     value: "0"
-  - name: REDIS_POOL_SIZE
-    value: "10"
 
   - name: VAULT_HOST
     value: "http://vault.vault-new.svc.cluster.local:8200"
   - name: VAULT_TOKEN
-    value: ""
+    valueFrom:
+      secretKeyRef:
+        name: vault-root-token
+        key: token
   - name: VAULT_ENCRYPT_PATH
     value: encrypt/
   - name: VAULT_TRANSIT_BASE_PATH

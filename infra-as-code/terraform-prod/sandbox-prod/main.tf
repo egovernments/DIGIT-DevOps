@@ -9,9 +9,13 @@ terraform {
     encrypt = true
   }
   required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.95.0"
+    }
     kubectl = {
       source  = "gavinbunney/kubectl"
-      version = "~> 1.14.0" 
+      version = "~> 1.14.0"
     }
   }
 }
@@ -45,7 +49,7 @@ data "aws_caller_identity" "current" {}
 
 module "eks" {
   source          = "terraform-aws-modules/eks/aws"
-  version         = "~> 20.0"
+  version         = "20.31.6"
   cluster_name    = var.cluster_name
   cluster_version = var.kubernetes_version
   vpc_id          = module.network.vpc_id
@@ -100,7 +104,8 @@ module "eks" {
 }
 
 module "eks_managed_node_group" {
-  source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+  source  = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+  version = "20.31.6"
   name            = "${var.cluster_name}-spot"
   cluster_name    = var.cluster_name
   cluster_version = var.kubernetes_version
@@ -279,8 +284,9 @@ resource "aws_iam_role_policy" "karpenter_policy" {
 }
 
 module "karpenter" {
-  count = var.enable_karpenter ? 1 : 0
-  source = "terraform-aws-modules/eks/aws//modules/karpenter"
+  count   = var.enable_karpenter ? 1 : 0
+  source  = "terraform-aws-modules/eks/aws//modules/karpenter"
+  version = "20.31.6"
   cluster_name = module.eks.cluster_name
 
   create_node_iam_role = false

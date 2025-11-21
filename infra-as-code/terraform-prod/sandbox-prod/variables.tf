@@ -24,7 +24,7 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.31"
+  default = "1.32"
 }
 
 variable "instance_types" {
@@ -65,8 +65,8 @@ variable "iam_user_arn" {
 variable "ami_id" {
   description = "Provide the AMI ID that supports your eks version"
   default = {
-    id   = "ami-0d1008f82aca87cb9"
-    name = "amazon-eks-node-1.30-v20241024"
+    id   = "ami-06e17e21dbce5d1cd"
+    name = "amazon-eks-node-al2023-x86_64-standard-1.32-v20251108"
   }
 }
 

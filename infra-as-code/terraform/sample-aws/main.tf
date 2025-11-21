@@ -9,7 +9,15 @@ terraform {
   required_providers {
     kubectl = {
       source  = "alekc/kubectl"
-      version = ">= 2.0.0"
+      version = ">= 2.0.2"
+    }
+    kubernetes = {
+      source = "hashicorp/kubernetes"
+      version = "2.37.1"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = ">= 2.10.1, < 3.0.0"
     }
   }
 }
@@ -61,14 +69,15 @@ provider "kubernetes" {
 
 module "eks" {
   source          = "terraform-aws-modules/eks/aws"
-  version         = "~> 20.0"
-  cluster_name    = var.cluster_name
-  cluster_version = var.kubernetes_version
+  version         = "~> 21.0"
+  name    = var.cluster_name
+  kubernetes_version = var.kubernetes_version
   vpc_id          = module.network.vpc_id
   create_iam_role = false
   iam_role_arn    = "arn:aws:iam::680148267093:role/digit-lts20240125073044405800000003"
-  cluster_endpoint_public_access  = true
-  cluster_endpoint_private_access = true
+  endpoint_public_access  = true
+  endpoint_private_access = true
+  create_cloudwatch_log_group = false
   authentication_mode = "API_AND_CONFIG_MAP"
   subnet_ids      = concat(module.network.private_subnets, module.network.public_subnets)
   node_security_group_additional_rules = {
@@ -81,7 +90,7 @@ module "eks" {
       self        = true
     }
   }
-  cluster_addons = {
+  addons = {
     vpc-cni = {
       most_recent              = true
       before_compute           = true
@@ -93,10 +102,17 @@ module "eks" {
       })
     }
   }
-  cluster_timeouts = {
+  timeouts = {
     create = "30m"
     delete = "15m" 
     update = "60m"
+  }
+  access_entries = {
+    readonly = {
+      kubernetes_groups = ["global-readonly"]
+      principal_arn     = "arn:aws:iam::680148267093:user/digit-lts-user"
+      user_name         = "digit-lts-user"
+    }
   }
   node_security_group_tags = {
     "karpenter.sh/discovery" = var.cluster_name
@@ -109,10 +125,11 @@ module "eks" {
 
 module "eks_managed_node_group" {
   source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+  version         = "~> 21.0"
   name            = "${var.cluster_name}-spot"
   cluster_name    = var.cluster_name
-  cluster_version = var.kubernetes_version
-  ami_type        = "AL2_ARM_64"
+  kubernetes_version = var.kubernetes_version
+  ami_type        = "AL2023_ARM_64_STANDARD"
   subnet_ids = slice(module.network.private_subnets, 0, length(var.availability_zones))
   vpc_security_group_ids  = [module.eks.node_security_group_id]
   cluster_service_cidr = module.eks.cluster_service_cidr
@@ -128,13 +145,14 @@ module "eks_managed_node_group" {
       }
     }
   }
+  update_config = {
+    "max_unavailable_percentage": 10
+  }
   min_size     = var.min_worker_nodes
   max_size     = var.max_worker_nodes
   desired_size = var.desired_worker_nodes
   instance_types = var.instance_types
-  capacity_type  = "SPOT"
   ebs_optimized  = "true"
-  enable_monitoring = "true"
   iam_role_additional_policies = {
     CSI_DRIVER_POLICY = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
     AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
@@ -147,37 +165,6 @@ module "eks_managed_node_group" {
     "KubernetesCluster" = var.cluster_name
     "Name"              = var.cluster_name
   }
-}
-
-module "aws_auth" {
-  source  = "terraform-aws-modules/eks/aws//modules/aws-auth"
-  version = "~> 20.0"
-  manage_aws_auth_configmap = true
-  aws_auth_roles = [
-    {
-      groups = ["system:bootstrappers", "system:nodes"]
-      rolearn = "arn:aws:iam::680148267093:role/digit-lts2024012507373138240000000c"
-      username = "system:node:{{EC2PrivateDNSName}}"
-    },
-    {
-      groups = ["system:bootstrappers", "system:nodes"]
-      rolearn = "arn:aws:iam::680148267093:role/digit-lts-spot-eks-node-group-20250618163058341900000002"
-      username = "system:node:{{EC2PrivateDNSName}}"
-    }
-  ]
-
-  aws_auth_users = [
-    {
-      groups = ["global-readonly"]
-      userarn = "arn:aws:iam::680148267093:user/Harish-bastion"
-      username = "Harish-bastion"
-    },
-    {
-      groups = ["global-readonly"]
-      userarn = "arn:aws:iam::680148267093:user/digit-lts-user"
-      username = "digit-lts-user"
-    } 
-  ]
 }
 
 resource "aws_iam_role" "eks_iam" {
@@ -238,21 +225,21 @@ resource "aws_security_group_rule" "rds_db_ingress_workers" {
 resource "aws_eks_addon" "kube_proxy" {
   cluster_name      = data.aws_eks_cluster.cluster.name
   addon_name        = "kube-proxy"
-  resolve_conflicts = "OVERWRITE"
+  resolve_conflicts_on_create = "OVERWRITE"
 }
 resource "aws_eks_addon" "core_dns" {
   cluster_name      = data.aws_eks_cluster.cluster.name
   addon_name        = "coredns"
-  resolve_conflicts = "OVERWRITE"
+  resolve_conflicts_on_create = "OVERWRITE"
 }
 resource "aws_eks_addon" "aws_ebs_csi_driver" {
   cluster_name      = data.aws_eks_cluster.cluster.name
   addon_name        = "aws-ebs-csi-driver"
-  resolve_conflicts = "OVERWRITE"
+  resolve_conflicts_on_create = "OVERWRITE"
 }
 
 provider "helm" {
-  kubernetes = {
+  kubernetes  {
     host                   = data.aws_eks_cluster.cluster.endpoint
     cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
     token                  = data.aws_eks_cluster_auth.cluster.token
@@ -305,6 +292,7 @@ resource "aws_iam_role_policy" "karpenter_policy" {
 module "karpenter" {
   count = var.enable_karpenter ? 1 : 0
   source = "terraform-aws-modules/eks/aws//modules/karpenter"
+  version         = "~> 21.0"
   cluster_name = module.eks.cluster_name
 
   create_node_iam_role = false

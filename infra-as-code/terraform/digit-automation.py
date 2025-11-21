@@ -1123,6 +1123,13 @@ def main():
                 set_azure_env(selected_profile)
                 object_id = get_current_sp_object_id(selected_profile)
                 check_permissions(object_id)
+                extra_vars = args.var or []
+                vars_dict = {
+                    "environment": cluster_name,
+                    "location": region,
+                }
+                work_dir = run_dir/f"{REPO_NAME}-{BRANCH}/infra-as-code/terraform/sample-{cloud_choice}"
+                generate_tfvars_for_cloud(cloud_choice, work_dir, vars_dict, extra_vars)
             elif cloud_choice == "gcp":
                 run_dir = create_run_directory(cluster_name)
                 zip_ref = download_github_zip()

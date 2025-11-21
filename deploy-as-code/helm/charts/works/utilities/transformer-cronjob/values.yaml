@@ -1,0 +1,67 @@
+# Common Labels
+labels:
+  app: "transformer-cronjob"
+  group: "transformer-cronjob"
+
+cron:
+  schedule: "0 */2 * * *"
+
+# Container Configs
+image:
+  repository: "egovio/transformer-cronjob"
+  tag: "latest"
+
+command: 
+  - "python3"
+  - "transformer.py"
+
+# Additional Container Envs
+env: |
+  - name: ES_HOST_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: es-indexer-host
+  - name: ES_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: elasticsearch-credential
+        key: username
+  - name: ES_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: elasticsearch-credential
+        key: password
+  - name: ES_PI_INDEX
+  {{- if index .Values "ifms-pi-index-name" }}
+    value: {{ index .Values "ifms-pi-index-name" | quote }}
+  {{- else }}
+    value: "ifms-pi-index"
+  {{- end }}
+  - name: ES_INDIVIDUAL_INDEX
+  {{- if index .Values "individual-index-name" }}
+    value: {{ index .Values "individual-index-name" | quote }}
+  {{- else }}
+    value: "individual-index-v1"
+  {{- end }}
+  - name: ES_TRANSFORMER_PI_INDEX
+  {{- if index .Values "transformer-ifms-pi-index-name" }}
+    value: {{ index .Values "transformer-ifms-pi-index-name" | quote }}
+  {{- else }}
+    value: "transform-ifms-pi-index"
+  {{- end }}
+  - name: KAFKA_BROKER
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: TRANSFORMER_PI_KAFKA_TOPIC
+  {{- if index .Values "transformer-ifms-pi-index-kafka-topic" }}
+    value: {{ index .Values "transformer-ifms-pi-index-kafka-topic" | quote }}
+  {{- else }}
+    value: "transformer-ifms-pi-index-topic"
+  {{- end }}
+resources: |
+  requests: {}
+  
+    

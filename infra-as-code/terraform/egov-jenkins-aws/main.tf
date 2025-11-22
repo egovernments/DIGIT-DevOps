@@ -37,12 +37,13 @@ provider "kubernetes" {
   
 module "eks" {
   source          = "terraform-aws-modules/eks/aws"
-  version         = "~> 20.0"
-  cluster_name    = var.cluster_name
-  cluster_version = var.kubernetes_version
+  version         = "~> 21.0"
+  name    = var.cluster_name
+  kubernetes_version = var.kubernetes_version
   vpc_id          = module.network.vpc_id
-  cluster_endpoint_public_access  = true
-  cluster_endpoint_private_access = true
+  endpoint_public_access  = true
+  endpoint_private_access = true
+  create_cloudwatch_log_group = false
   create_iam_role = false
   iam_role_arn    = "arn:aws:iam::218381940040:role/egov-jenkins20240526132545029000000004"
   authentication_mode = "API_AND_CONFIG_MAP"
@@ -57,7 +58,7 @@ module "eks" {
       self        = true
     }
   }
-  cluster_addons = {
+  addons = {
     vpc-cni = {
       most_recent              = true
       before_compute           = true
@@ -80,9 +81,10 @@ module "eks" {
 
 module "eks_managed_node_group" {
   source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
-  name            = "${var.cluster_name}-spot"
+  version         = "~> 21.0"
+  name            = "${var.cluster_name}"
   cluster_name    = var.cluster_name
-  cluster_version = var.kubernetes_version
+  kubernetes_version = var.kubernetes_version
   subnet_ids = slice(module.network.private_subnets, 0, length(var.availability_zones))
   vpc_security_group_ids  = [module.eks.node_security_group_id]
   cluster_service_cidr = module.eks.cluster_service_cidr
@@ -98,12 +100,14 @@ module "eks_managed_node_group" {
       }
     }
   }
+  update_config = {
+    "max_unavailable_percentage": 10
+  }
   min_size     = var.min_worker_nodes
   max_size     = var.max_worker_nodes
   desired_size = var.desired_worker_nodes
   instance_types = var.instance_types
   ebs_optimized  = "true"
-  enable_monitoring = "true"
   iam_role_additional_policies = {
     CSI_DRIVER_POLICY = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
     AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
@@ -167,17 +171,17 @@ resource "aws_iam_role_policy_attachment" "cluster_AmazonEC2FullAccess" {
 resource "aws_eks_addon" "kube_proxy" {
   cluster_name      = data.aws_eks_cluster.cluster.name
   addon_name        = "kube-proxy"
-  resolve_conflicts = "OVERWRITE"
+  resolve_conflicts_on_create = "OVERWRITE"
 }
 resource "aws_eks_addon" "core_dns" {
   cluster_name      = data.aws_eks_cluster.cluster.name
   addon_name        = "coredns"
-  resolve_conflicts = "OVERWRITE"
+  resolve_conflicts_on_create = "OVERWRITE"
 }
 resource "aws_eks_addon" "aws_ebs_csi_driver" {
   cluster_name      = data.aws_eks_cluster.cluster.name
   addon_name        = "aws-ebs-csi-driver"
-  resolve_conflicts = "OVERWRITE"
+  resolve_conflicts_on_create = "OVERWRITE"
 }
 module "jenkins" {
 

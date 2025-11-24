@@ -26,27 +26,49 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.31"
+  default = "1.32"
 }
 
+variable "architecture" {
+  description = "Architecture for worker nodes (x86_64 or arm64)"
+  type        = string
+  default     = "arm64"
+  validation {
+    condition     = contains(["x86_64", "arm64"], var.architecture)
+    error_message = "Architecture must be either x86_64 or arm64."
+  }
+}
+
+# Map of architecture → instance types
+variable "instance_types_map" {
+  description = "Map of instance types per architecture"
+  type = map(list(string))
+  default = {
+    x86_64 = ["m5a.xlarge"]
+    arm64  = ["t4g.xlarge"]
+  }
+}
+
+# Optional override variable (if users want to specify directly)
 variable "instance_types" {
-  description = "eGov recommended below instance type as a default"
-  default = ["r5ad.xlarge", "r5d.xlarge", "m5ad.xlarge", "m5d.xlarge"]
+  description = "List of instance types to use (optional — overrides architecture defaults)"
+  type        = list(string)
+  default     = ["t4g.xlarge", "t4g.2xlarge"]
 }
 
 variable "min_worker_nodes" {
   description = "eGov recommended below worker node counts as default for min nodes"
-  default = "5" #REPLACE IF NEEDED
+  default = "4" #REPLACE IF NEEDED
 }
 
 variable "desired_worker_nodes" {
   description = "eGov recommended below worker node counts as default for desired nodes"
-  default = "10" #REPLACE IF NEEDED
+  default = "6" #REPLACE IF NEEDED
 }
 
 variable "max_worker_nodes" {
   description = "eGov recommended below worker node counts as default for max nodes"
-  default = "15" #REPLACE IF NEEDED
+  default = "10" #REPLACE IF NEEDED
 }
 
 variable "ssh_key_name" {
@@ -83,4 +105,10 @@ variable "key_name" {
 variable "iam_user_arn" {
   description = "Provide the IAM user arn which you are using to create infrastructure"
   default = "arn:aws:iam::349271159511:user/egov-unified-dev-kube-deployer"
+}
+
+variable "enable_ClusterAutoscaler" {
+  description = "Enable the Cluster Autoscaler."
+  type        = bool
+  default     = true
 }

@@ -2,7 +2,7 @@
 # and non-blank strings. For more details, see the configuration reference.
 fullnameOverride: "jupyter"
 nameOverride:
-namespace: jupyter
+namespace: jupyterhub
 # enabled is ignored by the jupyterhub chart itself, but a chart depending on
 # the jupyterhub chart conditionally can make use this config option as the
 # condition.
@@ -404,8 +404,8 @@ singleuser:
       volumeNameTemplate: volume-{username}{servername}
       storageAccessModes: [ReadWriteOnce]
   image:
-    name: docker.io/egovio/jhub-singleuser
-    tag: "20240403-debug"
+    name: "quay.io/jupyterhub/singleuser"
+    tag: "5.3.0-7"
     pullPolicy:
     pullSecrets: []
   startTimeout: 300
@@ -650,12 +650,18 @@ prePuller:
       pullSecrets: []
 
 ingress:
-  enabled: false
+  enabled: true
   annotations: {}
   ingressClassName: nginx
   pathSuffix: hub
-  userPathSuffix: user(/|$)(.*)
+  userPathSuffix: user
   pathType: Prefix
+  hosts:
+    - "{{ .Values.global.domain }}"
+  tls:
+    - hosts:
+        - "{{ .Values.global.domain }}"
+      secretName: "{{ .Values.global.domain }}-tls-certs"
 
 # cull relates to the jupyterhub-idle-culler service, responsible for evicting
 # inactive singleuser pods.

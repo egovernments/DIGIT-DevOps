@@ -1,0 +1,50 @@
+version: v3.0
+modules:
+    - name: backbone
+      services:
+        - kafka-kraft
+        - elasticsearch-master
+        - elasticsearch-data
+        - kibana
+    - name: authn-authz
+      services:
+        - redis
+        - ingress-nginx
+        - cert-manager    
+    - name: core
+      dependencies:
+        - "backbone"
+        - "authn-authz"    
+      services:
+        - egovio/account:realm-config-individual-dd6a5d0
+        - egovio/boundary:develop-0d9e421 
+        - egovio/filestore:develop-eae753d
+        - egovio/idgen:develop-90ee41f 
+        - egovio/individual:individualSVC-5ad5af0 
+        - egovio/localization:develop-eae753d 
+        - egovio/mdms-v2:mdms-aaradhya-1-ceb5f64
+        - egovio/notification:develop-notification-version-update-6b58bcb
+        - egovio/registry:registry-service-de36392
+        - egovio/template-config:develop-template-config-version-1caa4a6
+        - egovio/url-shortener:develop-eae753d
+        - egovio/workflow:workflow-optimization-5852878
+    - name: business
+      dependencies:
+        - "core"
+      services:
+        - egovio/egov-hrms:DIGIT-2.9-LTS-4553648f56-9
+    - name: "frontend"             
+      dependencies:
+        - "business"
+      services:
+        - egovio/citizen:v1.10.0-beta-0ad561e837-30
+        - egovio/digit-ui:v1.8.0-2873b1f2fe-31
+        - egovio/employee:v1.10.0-beta-e7a69e05d3-33  
+    - name: m_pgr             #PGR
+      dependencies:
+        - "core"
+        - "business"
+        - "frontend"
+      services:
+        - egovio/pgr-services:core-digit-2.9-lts-pgr-02df4964cb-3
+

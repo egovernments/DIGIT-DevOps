@@ -1,0 +1,80 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hcm-db-migration-{{ .Release.Revision }}
+  namespace: {{ .Values.namespace }}
+  annotations:
+    # Auto-run on helm install/upgrade
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+
+      # Step 1: Pull code from git
+      initContainers:
+        - name: git-sync
+          image: k8s.gcr.io/git-sync/git-sync:v3.6.2
+          args:
+            - "--repo={{ .Values.git.repo }}"
+            - "--branch={{ .Values.git.branch }}"
+            - "--root=/work-dir"
+            - "--dest=health-campaign-services"
+            - "--one-time"
+          securityContext:
+            runAsUser: 65533
+          volumeMounts:
+            - name: workdir
+              mountPath: /work-dir
+            - name: git-secret
+              mountPath: /etc/git-secret
+              readOnly: true
+
+      # Step 2: Run migrations
+      containers:
+        - name: migrations
+          image: python:3.10-slim
+          workingDir: /work-dir/health-campaign-services/utilities/hcm-db-migrations
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              pip install --quiet -r requirements.txt
+              alembic upgrade head
+          env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: egov-config
+                  key: db-host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: egov-config
+                  key: db-name
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db
+                  key: password
+          volumeMounts:
+            - name: workdir
+              mountPath: /work-dir
+
+      volumes:
+        - name: workdir
+          emptyDir: {}
+        - name: git-secret
+          secret:
+            secretName: git-creds
+            defaultMode: 0400

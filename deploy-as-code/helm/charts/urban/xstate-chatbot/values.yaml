@@ -6,7 +6,7 @@ labels:
 # Ingress Configs
 ingress:
   enabled: true
-  zuul: false
+  zuul: true
   context: "xstate-chatbot"
   ip-whitelist: "0.0.0.0/0"
   additionalAnnotations: | 
@@ -16,7 +16,7 @@ ingress:
 # Init Containers Configs
 initContainers:
   dbMigration:
-    enabled: true
+    enabled: false
     schemaTable: "xstate_chatbot_schema"
     image:
       repository: "xstate-chatbot-db"
@@ -26,9 +26,7 @@ image:
   repository: "xstate-chatbot"
 replicas: "1"
 tracing-enabled: true
-heap: "-Xmx256m -Xms256m"
-memory_limits: 512Mi
-
+heap: "-Xmx512m -Xms511m"
 # Additional Container Envs
 env: |  
   - name: KAFKA_BOOTSTRAP_SERVER
@@ -56,13 +54,6 @@ env: |
       secretKeyRef:
         name: db
         key: password
-  - name: DB_SSL
-    value: "true"
-  - name: GOOGLE_MAPS_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: egov-location
-        key: gmapskey
   - name: EGOV_SERVICES_HOST
     valueFrom:
       configMapKeyRef:
@@ -87,7 +78,7 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-mdms-service
+        key: zuul
   - name: URL_SHORTNER_HOST
     valueFrom:
       configMapKeyRef:
@@ -102,22 +93,22 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-localization
+        key: zuul
   - name: EGOV_FILESTORE_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-filestore
+        key: zuul
   - name: BILL_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: billing-service
+        key: zuul
   - name: COLLECTION_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: collection-services      
+        key: zuul      
   - name: ROOT_TENANTID
     valueFrom:
       configMapKeyRef:
@@ -142,6 +133,11 @@ env: |
       secretKeyRef:
         name: chatbot
         key: valuefirst-password
+  - name: VALUEFIRST_LOGIN_AUTHORIZATION_HEADER
+    valueFrom:
+      secretKeyRef:
+        name: chatbot
+        key: valuefirst-basic-auth-header
   - name: TRACER_OPENTRACING_ENABLED
     value: "true"
   - name: FLOW_RESET_KEYWORDS
@@ -209,7 +205,7 @@ env: |
   {{- if index .Values "valuefirst-notification-other-ws-bill-success-templateid" }}
   - name: VALUEFIRST_NOTIFICATION_OTHER_WS_BILL_SUCCESS_TEMPLATEID
     value: {{ index .Values "valuefirst-notification-other-ws-bill-success-templateid" | quote }}
-  {{- end }}
+  {{- end }}  
   {{- if index .Values "valuefirst-send-message-url" }}
   - name: VALUEFIRST_SEND_MESSAGE_URL
     value: {{ index .Values "valuefirst-send-message-url" | quote }}

@@ -1278,8 +1278,7 @@ role sets used in the charts. Updating these requires separating out cluster
 resource roles into their separate templates.
 */}}
 {{- define "kong.kubernetesRBACRules" -}}
-{{- if and (semverCompare ">= 3.1.0" (include "kong.effectiveVersion" .Values.ingressController.image))
-           (contains (print .Values.ingressController.env.feature_gates) "KongServiceFacade=true") }}
+{{- if and (semverCompare ">= 3.1.0" (include "kong.effectiveVersion" .Values.ingressController.image)) (contains (print .Values.ingressController.env.feature_gates) "KongServiceFacade=true") }}
 - apiGroups:
   - incubator.ingress-controller.konghq.com
   resources:

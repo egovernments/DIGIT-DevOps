@@ -1,0 +1,80 @@
+# Common Labels
+labels:
+  app: "pdf"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "pdf"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "pdf_schema_history"
+    image:
+      repository: "pdf-db"
+    env:
+      - name: DB_URL
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: jdbc-url
+      - name: FLYWAY_USER
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: username
+      - name: FLYWAY_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: password
+      - name: FLYWAY_LOCATIONS
+        value: "filesystem:/flyway/sql"
+  gitSync:
+    enabled: false
+    repo: ""
+    branch: ""
+
+# Container Configs
+image:
+  repository: "pdf"
+replicas: 1
+appType: "go"
+memory_limits: 512Mi
+
+# Additional Container Envs
+env: |
+  - name: HTTP_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: "/pdf"
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: OTEL_TRACES_EXPORTER
+    value: "none"

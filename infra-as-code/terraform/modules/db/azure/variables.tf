@@ -10,3 +10,4 @@ variable "administrator_login_password" {}
 variable "ssl_enforce" {}
 variable "db_name" {}
 variable "environment" {}
+variable "db_version" {}

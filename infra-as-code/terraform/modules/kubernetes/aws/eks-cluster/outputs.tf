@@ -42,3 +42,6 @@ output "eks_cluster" {
   value = "${aws_eks_cluster.eks_cluster}"
 }
 
+output "cluster_security_group_id" {
+    value   = "${aws_eks_cluster.cluster.vpc_config[0].worker_security_group_id}"
+}

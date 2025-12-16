@@ -28,8 +28,8 @@ locals {
   az_to_find           = var.availability_zones[0] 
   az_index_in_network  = index(var.network_availability_zones, local.az_to_find)
   ami_type_map = {
-    x86_64 = "BOTTLEROCKET_x86_64"
-    arm64  = "BOTTLEROCKET_ARM_64"
+    x86_64 = "AL2023_x86_64_STANDARD"
+    arm64  = "AL2023_ARM_64_STANDARD"
   }
 
   # Use user-specified instance_types if provided, else choose from map
@@ -186,6 +186,7 @@ module "eks_managed_node_group" {
   cluster_service_cidr = module.eks.cluster_service_cidr
   use_custom_launch_template = true
   launch_template_name = "${var.cluster_name}-lt"
+  pre_bootstrap_user_data = file("user-data.sh")
   block_device_mappings = {
     xvda = {
       device_name = "/dev/xvda"

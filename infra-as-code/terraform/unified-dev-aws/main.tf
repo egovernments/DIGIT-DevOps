@@ -177,7 +177,7 @@ module "eks" {
 module "eks_managed_node_group" {
   source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
   version         = "~> 21.0"
-  name            = "${var.cluster_name}-spot"
+  name            = "${var.cluster_name}"
   ami_type        = local.ami_type_map[var.architecture]
   cluster_name    = var.cluster_name
   kubernetes_version = var.kubernetes_version
@@ -201,7 +201,6 @@ module "eks_managed_node_group" {
   max_size     = var.max_worker_nodes
   desired_size = var.desired_worker_nodes
   instance_types = local.selected_instance_types
-  capacity_type  = "SPOT"
   ebs_optimized  = "true"
   iam_role_additional_policies = {
     CSI_DRIVER_POLICY = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"

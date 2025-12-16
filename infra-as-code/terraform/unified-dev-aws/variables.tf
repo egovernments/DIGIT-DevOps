@@ -63,7 +63,7 @@ variable "min_worker_nodes" {
 
 variable "desired_worker_nodes" {
   description = "eGov recommended below worker node counts as default for desired nodes"
-  default = "6" #REPLACE IF NEEDED
+  default = "5" #REPLACE IF NEEDED
 }
 
 variable "max_worker_nodes" {

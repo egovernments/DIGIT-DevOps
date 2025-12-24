@@ -25,7 +25,7 @@ cluster-configs:
                 egov-state-level-tenant-id: "pg" 
                 s3-assets-bucket: "(pg-egov-assets|egov-playground-assets)"
                 es-host: "elasticsearch-master-v1.es-upgrade"
-                es-indexer-host: "https://elasticsearch-master-v1.es-upgrade:9200/"
+                es-indexer-host: "http://elasticsearch-master-v1.es-upgrade:9200/"
                 flyway-locations: "filesystem:/flyway/sql,filesystem:/flyway/seed,filesystem:/flyway/qa"
                 kafka-brokers: "release-name-kafka-controller-headless.kafka-kraft:9092"
                 kafka-infra-brokers: kafka-v2-infra.kafka-cluster:9092
@@ -51,6 +51,7 @@ cluster-configs:
               audit-service: 'http://audit-service.egov:8080/'
               billing-service: 'http://billing-service.egov:8080/'
               boundary-service: 'http://boundary-service.egov:8080/'
+              boundary-management: 'http://boundary-management:8080/'
               collection-services: 'http://collection-services.egov:8080/'
               collection-masters: 'http://collection-masters:8080/'
               collection-search-indexer: 'http://collection-search-indexer:8080/'
@@ -89,7 +90,7 @@ cluster-configs:
               egov-data-uploader: 'http://egov-data-uploader.egov:8080/'
               egov-indexer: 'http://egov-indexer.egov:8080/'
               egov-hrms: 'http://egov-hrms.egov:8080/'
-              es-client: 'https://elasticsearch-master-v1.es-upgrade:9200'
+              es-client: 'http://elasticsearch-master-v1.es-upgrade:9200'
               hr-masters: 'http://hr-masters:8080/'
               hr-employee: 'http://hr-employee:8080/'
               hr-masters-v2: 'http://hr-masters-v2:8080/'
@@ -171,6 +172,7 @@ cluster-configs:
               health-expense: 'http://health-expense.health:8080/'
               health-expense-calculator: 'http://health-expense-calculator.health:8080/'
               health-muster-roll: 'http://health-muster-roll.health:8080/'
+              excel-ingestion: 'http://excel-ingestion.health:8080/'
 employee:
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
   custom-js-injection: |
@@ -183,22 +185,21 @@ digit-ui:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
-      <script src=https://s3.ap-south-1.amazonaws.com/egov-uat-assets/globalConfigs.js type=text/javascript></script>
+      <script src=https://s3.ap-south-1.amazonaws.com/egov-uat-assets/globalConfigs.js type=text/javascript defer></script>
       ';"     
 citizen:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://unpkg.com/@egovernments/telemetry@0.0.2/dist/egov-telemetry-1557467338.js type=text/javascript></script>
-      <script src=https://s3.ap-south-1.amazonaws.com/egov-uat-assets/globalConfigs.js type=text/javascript></script>
+      <script src=https://s3.ap-south-1.amazonaws.com/egov-uat-assets/globalConfigs.js type=text/javascript defer></script>
       ';"
 
 health-ui:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/analytics/analytics.js type=text/javascript></script>      
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsHealthImpl.js type=text/javascript></script>
+      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsHealthImpl.js type=text/javascript ></script>
       ';"
   heap: "-Xmx512m -Xms512m"          
   memory_limits: 1024Mi
@@ -241,8 +242,8 @@ beneficiary-idgen:
   limit-id-user-device-per-day-enabled: "true"
   limit-id-user-device-per-day: 600
   limit-id-user-device-total: 6000
-  id-pool-generation-max-records-per-persist-batch: 1000
-  id-pool-generation-max-size: 50000
+  id-pool-generation-max-records-per-persist-batch: 200
+  id-pool-generation-max-size: 20000
   id-dispatch-retrieval-limit-to-today-enabled: "true"
   kafka-topics-consumer-bulk-update-topic: "beneficiary-id-gen-bulk-update-health-topic"
   kafka-topics-consumer-bulk-create-topic: "beneficiary-id-gen-bulk-create-health-topic"
@@ -336,7 +337,7 @@ chatbot:
   user-service-chatbot-citizen-passwrord: "123456"
 
 health-pgr-services:
-  central-instance-build: false
+  central-instance-build: true
   central-instance-name: health
   central-instance-enabled: false
   db-schema-names: "kano,kebbi"
@@ -405,7 +406,7 @@ stock:
 
 health-project:
   central-instance-name: health
-  central-instance-build: false
+  central-instance-build: true
   central-instance-enabled: false
   db-schema-names: "kano,kebbi"
   replicas : 4
@@ -449,10 +450,12 @@ health-attendance:
   memory_limits: 1024Mi 
   egov-mdms-service-host-key: 'mdms-service-v2'
   egov-mdms-service-endpoint-key: "/mdms-v2/v1/_search"
+  egov-expense-calculator-billing-period-search-endpoint: "health-expense-calculator/billing-config/v1/periods/_search"
+  egov-muster-roll-search-endpoint: "health-muster-roll/v1/_search"
 
 health-expense:
   central-instance-name: health
-  central-instance-build: false
+  central-instance-build: true
   central-instance-enabled: false
   db-schema-names: "kano,kebbi"
   tracing-enabled: true
@@ -479,11 +482,13 @@ health-expense-calculator:
   spring-kafka-producer-properties-max-request-size: "10485760"
   heap: "-Xmx512m -Xms512m"          
   memory_limits: 1024Mi
+  billing-frequency-custom-minimum-days: 1
+  excell-state-level-tenant-id: "mz"
   
 
 health-muster-roll:
   central-instance-name: health
-  central-instance-build: false
+  central-instance-build: true
   central-instance-enabled: false
   db-schema-names: "kano,kebbi"
   tracing-enabled: true
@@ -521,10 +526,10 @@ facility:
 
 
 transformer:
-  egov-boundary-hierarchy-name: "ICCD"
+  egov-boundary-hierarchy-name: "MICROPLAN"
   egov-mdms-service-host-key: 'mdms-service-v2'
   egov-mdms-service-endpoint-key: "/mdms-v2/v1/_search"
-  egov-localization-module-name: "hcm-boundary-iccd"
+  egov-localization-module-name: "hcm-boundary-microplan"
   heap: "-Xmx512m -Xms512m"          
   memory_limits: 1024Mi
   spring-kafka-consumer-max-poll-records: 20
@@ -574,7 +579,7 @@ egov-persister:
   replicas: 1
   images:
     - egovio/egov-persister
-  persist-yml-path: "file:///work-dir/configs/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/health/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/egov-persister/pt-mutation-calculator-persister.yml,file:///work-dir/configs/egov-persister/apportion-persister.yml,file:///work-dir/configs/egov-persister/billing-services-persist.yml,file:///work-dir/configs/egov-persister/egf-bill.yaml,file:///work-dir/configs/egov-persister/egov-user-event-persister.yml,file:///work-dir/configs/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/egov-persister/firenoc_persiter.yaml,file:///work-dir/configs/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/egov-persister/pdf-generator.yml,file:///work-dir/configs/egov-persister/pg-service-persister.yml,file:///work-dir/configs/egov-persister/pgr.v3.yml,file:///work-dir/configs/egov-persister/property-services.yml,file:///work-dir/configs/egov-persister/pt-calculator-v2-persister.yml,file:///work-dir/configs/egov-persister/pt-drafts.yml,file:///work-dir/configs/egov-persister/pt-persist.yml,file:///work-dir/configs/egov-persister/tl-billing-slab-persister.yml,file:///work-dir/configs/egov-persister/tl-calculation-persister.yml,file:///work-dir/configs/egov-persister/uploader-persister.yml,file:///work-dir/configs/egov-persister/collection-migration-persister.yml,file:///work-dir/configs/egov-persister/property-services-registry.yml,file:///work-dir/configs/egov-persister/tradelicense.yml,file:///work-dir/configs/egov-persister/sewerage-persist.yml,file:///work-dir/configs/egov-persister/water-persist.yml,file:///work-dir/configs/egov-persister/water-meter.yml,file:///work-dir/configs/egov-persister/bpa-persister.yml,file:///work-dir/configs/egov-persister/assessment-persister.yml,file:///work-dir/configs/egov-persister/chatbot.yml,file:///work-dir/configs/works/egov-persister/measurement-persister.yml,file:///work-dir/configs/works/egov-persister/measurement-service-persister.yml,file:///work-dir/configs/works/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/works/egov-persister/audit-service-persister.yml,file:///work-dir/configs/works/egov-persister/bankaccounts-persister.yml,file:///work-dir/configs/works/egov-persister/btr-persister.yml,file:///work-dir/configs/works/egov-persister/contract-service-persister.yml,file:///work-dir/configs/works/egov-persister/estimate-service.yml,file:///work-dir/configs/works/egov-persister/expence-calculator-service-persister.yml,file:///work-dir/configs/works/egov-persister/expense-bill-payment-persister.yaml,file:///work-dir/configs/works/egov-persister/expense-billarray-payment-persister.yaml,file:///work-dir/configs/works/egov-persister/expensebilling-service-persister.yml,file:///work-dir/configs/works/egov-persister/muster-service-persister.yml,file:///work-dir/configs/works/egov-persister/organisation-persister.yml,file:///work-dir/configs/works/egov-persister/project-persister.yml,file:///work-dir/configs/health/egov-persister/service-request-persister.yml,file:///work-dir/configs/egov-persister/service-request-persister.yml,file:///work-dir/configs/egov-persister/mdms-persister.yml,file:///work-dir/configs/sanitation/egov-persister/pqm-anomaly-finder-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/pqm-persister.yaml,file:///work-dir/configs/health/egov-persister/product-persister.yml,file:///work-dir/configs/health/egov-persister/household-persister.yml,file:///work-dir/configs/health/egov-persister/stock-persister.yml,file:///work-dir/configs/health/egov-persister/facility-persister.yml,file:///work-dir/configs/health/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/project-persister.yml,file:///work-dir/configs/health/egov-persister/project-task-persister.yml,file:///work-dir/configs/works/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/health/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/health/egov-persister/plan-service-persister.yml,file:///work-dir/configs/health/egov-persister/project-factory-persister.yml,file:///work-dir/configs/health/egov-persister/census-service-persister.yml,file:///work-dir/configs/health/egov-persister/id-pool-persister.yml,file:///work-dir/configs/health/egov-persister/id-pool-dispatch-log-persister.yml"
+  persist-yml-path: "file:///work-dir/configs/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/health/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/egov-persister/pt-mutation-calculator-persister.yml,file:///work-dir/configs/egov-persister/apportion-persister.yml,file:///work-dir/configs/egov-persister/billing-services-persist.yml,file:///work-dir/configs/egov-persister/egf-bill.yaml,file:///work-dir/configs/egov-persister/egov-user-event-persister.yml,file:///work-dir/configs/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/egov-persister/firenoc_persiter.yaml,file:///work-dir/configs/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/egov-persister/pdf-generator.yml,file:///work-dir/configs/egov-persister/pg-service-persister.yml,file:///work-dir/configs/egov-persister/pgr.v3.yml,file:///work-dir/configs/egov-persister/property-services.yml,file:///work-dir/configs/egov-persister/pt-calculator-v2-persister.yml,file:///work-dir/configs/egov-persister/pt-drafts.yml,file:///work-dir/configs/egov-persister/pt-persist.yml,file:///work-dir/configs/egov-persister/tl-billing-slab-persister.yml,file:///work-dir/configs/egov-persister/tl-calculation-persister.yml,file:///work-dir/configs/egov-persister/uploader-persister.yml,file:///work-dir/configs/egov-persister/collection-migration-persister.yml,file:///work-dir/configs/egov-persister/property-services-registry.yml,file:///work-dir/configs/egov-persister/tradelicense.yml,file:///work-dir/configs/egov-persister/sewerage-persist.yml,file:///work-dir/configs/egov-persister/water-persist.yml,file:///work-dir/configs/egov-persister/water-meter.yml,file:///work-dir/configs/egov-persister/bpa-persister.yml,file:///work-dir/configs/egov-persister/assessment-persister.yml,file:///work-dir/configs/egov-persister/chatbot.yml,file:///work-dir/configs/works/egov-persister/measurement-persister.yml,file:///work-dir/configs/works/egov-persister/measurement-service-persister.yml,file:///work-dir/configs/works/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/works/egov-persister/audit-service-persister.yml,file:///work-dir/configs/works/egov-persister/bankaccounts-persister.yml,file:///work-dir/configs/works/egov-persister/btr-persister.yml,file:///work-dir/configs/works/egov-persister/contract-service-persister.yml,file:///work-dir/configs/works/egov-persister/estimate-service.yml,file:///work-dir/configs/works/egov-persister/expence-calculator-service-persister.yml,file:///work-dir/configs/works/egov-persister/expense-bill-payment-persister.yaml,file:///work-dir/configs/works/egov-persister/expense-billarray-payment-persister.yaml,file:///work-dir/configs/works/egov-persister/expensebilling-service-persister.yml,file:///work-dir/configs/works/egov-persister/muster-service-persister.yml,file:///work-dir/configs/works/egov-persister/organisation-persister.yml,file:///work-dir/configs/works/egov-persister/project-persister.yml,file:///work-dir/configs/health/egov-persister/service-request-persister.yml,file:///work-dir/configs/egov-persister/service-request-persister.yml,file:///work-dir/configs/egov-persister/mdms-persister.yml,file:///work-dir/configs/sanitation/egov-persister/pqm-anomaly-finder-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/pqm-persister.yaml,file:///work-dir/configs/health/egov-persister/product-persister.yml,file:///work-dir/configs/health/egov-persister/household-persister.yml,file:///work-dir/configs/health/egov-persister/stock-persister.yml,file:///work-dir/configs/health/egov-persister/facility-persister.yml,file:///work-dir/configs/health/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/project-persister.yml,file:///work-dir/configs/health/egov-persister/project-task-persister.yml,file:///work-dir/configs/works/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/health/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/health/egov-persister/plan-service-persister.yml,file:///work-dir/configs/health/egov-persister/project-factory-persister.yml,file:///work-dir/configs/health/egov-persister/census-service-persister.yml,file:///work-dir/configs/health/egov-persister/id-pool-persister.yml,file:///work-dir/configs/health/egov-persister/id-pool-dispatch-log-persister.yml,file:///work-dir/configs/health/egov-persister/boundary-management-persister.yml,file:///work-dir/configs/egov-persister/studio-pdf-helper-persister.yml,file:///work-dir/configs/health/egov-persister/excel-ingestion-persister.yml"
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
@@ -789,13 +794,30 @@ project-factory:
   mdmsV1SearchEndpoint: 'mdms-v2/v1/_search'
   mdmsV2CreateEndpoint: 'mdms-v2/v2/_create'
   mdmsV2UpdateEndpoint: 'mdms-v2/v2/_update'
-  validateCampaignIdInMetadata: 'true'
+  validateCampaignIdInMetadata: 'false'
   notCreateUserIfAlreadyThere: 'true'
   heap: "-Xmx512m -Xms512m"          
   mdmsV1SchemaSearchEndpoint: 'mdms-v2/schema/v1/_search'
   central-instance-name: health
   central-instance-build: true
   central-instance-enabled: false
+  formConfigTemplateName: 'FormConfigTemplate'
+  formConfigName: 'FormConfig'
+  excelIngestionProcess: 'excel-ingestion/v1/data/process/_create'
+  excelIngestionGenerate: 'excel-ingestion/v1/data/generate/_init'
+
+boundary-management:
+   DEBUG: 'true'
+   namespace: 'health'
+   logLevel: 'debug'
+   defaultLocale: 'en_MZ'
+   mdmsV2SearchEndpoint: 'mdms-v2/v2/_search'
+   mdmsV1SearchEndpoint: 'mdms-v2/v1/_search'
+   defaultTenantId: 'mz'
+   validateCampaignIdInMetadata: 'false'
+   central-instance-name: health
+   central-instance-build: true
+   central-instance-enabled: false
 
 plan-service:
   egov-mdms-service-host-key: 'mdms-service-v2'
@@ -810,6 +832,14 @@ resource-estimation-service:
   egov-mdms-service-endpoint-key: "/mdms-v2/v1/_search"
   heap: "-Xmx512m -Xms512m"          
   memory_limits: 1024Mi 
+
+excel-ingestion:
+  egov-mdms-service-host-key: 'mdms-service-v2'
+  egov-mdms-service-endpoint-key: "mdms-v2/v2/_search"
+  defaultLocale: 'en_MZ'
+  central-instance-name: health
+  central-instance-build: true
+  central-instance-enabled: false
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -957,13 +987,20 @@ zookeeper-v2:
       - volumeId: "vol-0606452427a946dac" ## REPLACE: add volume id
         zone: ap-south-1b ## REPLACE: add zone
 
+dashboard-ui:
+  custom-js-injection: |
+    sub_filter.conf: "
+      sub_filter  '<head>' '<head>
+      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsDashboardQA.js type=text/javascript ></script>
+      ';"
+  heap: "-Xmx512m -Xms512m"
+  memory_limits: 1024Mi
 
 microplan-ui:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/analytics/analytics.js type=text/javascript></script>      
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsMicroplan.js type=text/javascript></script>
+      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsMicroplan.js type=text/javascript ></script>
       ';" 
   heap: "-Xmx512m -Xms512m"          
   memory_limits: 1024Mi
@@ -972,8 +1009,7 @@ payments-ui:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/analytics/analytics.js type=text/javascript></script>      
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsPayments.js type=text/javascript></script>
+      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsPayments.js type=text/javascript ></script>
       ';" 
   heap: "-Xmx512m -Xms512m"          
   memory_limits: 1024Mi

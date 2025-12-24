@@ -16,6 +16,7 @@ initContainers:
     schemaTable: "egov_hrms_schema"
     image:
       repository: "egov-hrms-db"
+      tag: "hrms-boundary-dfe1cb188f-16"
 
 resources: |
   limits:
@@ -28,6 +29,7 @@ resources: |
 # Container Configs
 image:
   repository: "egov-hrms"
+  tag: "hrms-boundary-dfe1cb188f-16"
 replicas: "1"
 healthChecks:
   enabled: true
@@ -83,12 +85,22 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-idgen
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url      
   - name: EGOV_SERVICES_EGOV_IDGEN_CREATEPATH
     value: /egov-idgen/id/_generate
   - name: EGOV_SERVICES_EGOV_IDGEN_EMP_CODE_NAME
     value: employee.code
   - name: EGOV_SERVICES_EGOV_IDGEN_EMP_CODE_FORMAT
     value: EMP_[SEQ_EMPLOYEE_CODE]
+  - name: EGOV_BOUNDARY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: boundary-service     
   - name: EGOV_USER_HOST
     valueFrom:
       configMapKeyRef:
@@ -104,6 +116,11 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: egov-services-fqdn-name
+  - name: EGOV_INDIVIDUAL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: health-individual      
   - name: EGOV_USER_SEARCH_ENDPOINT
     value: /user/v1/_search
   - name: EGOV_USER_CREATE_ENDPOINT
@@ -118,9 +135,9 @@ env: |
     value: org.apache.kafka.common.serialization.StringSerializer
   - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
     value: org.springframework.kafka.support.serializer.JsonSerializer
-  - name: KAFKA_TOPICS_HRMS_SAVE_SERVICE
+  - name: KAFKA_TOPICS_SAVE_SERVICE
     value: save-hrms-employee
-  - name: KAFKA_TOPICS_HRMS_UPDATE_SERVICE
+  - name: KAFKA_TOPICS_UPDATE_SERVICE
     value: update-hrms-employee
   - name: KAFKA_TOPICS_NOTIFICATION_SMS
     value: egov.core.notification.sms
@@ -134,10 +151,21 @@ env: |
     value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED
     value: "false"
-  - name: EGOV_INDIVIDUAL_DELETE_ENDPOINT
-    value: /individual/v1/_delete
-  - name: EGOV_INDIVIDUAL_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: individual
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}  
+  - name: EGOV.INDIVIDUAL.DELETE.ENDPOINT
+    value: /health-individual/v1/_delete
+  - name: EGOV.INDIVIDUAL.CREATE.ENDPOINT
+    value: /health-individual/v1/_create
+  - name: EGOV.INDIVIDUAL.UPDATE.ENDPOINT
+    value: /health-individual/v1/_update
+  - name: EGOV.INDIVIDUAL.SEARCH.ENDPOINT
+    value: /health-individual/v1/_search
+  - name: EGOV_HRMS_LOCATION_INTEGRATION_ENABLED
+    value: "false"
+  - name: EGOV_HRMS_DEV_MODE
+    value: "true"
+  - name: EGOV_HRMS_EMPLOYEE_DEFAULT_PASSWORD
+    value: "eGov@123"

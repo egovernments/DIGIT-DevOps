@@ -8,6 +8,32 @@ terraform {
     # The below line is optional if your S3 bucket is encrypted
     encrypt = true
   }
+  required_providers {
+    kubectl = {
+      source  = "alekc/kubectl"
+      version = ">= 2.0.2"
+    }
+    kubernetes = {
+      source = "hashicorp/kubernetes"
+      version = "2.37.1"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = ">= 2.10.1, < 3.0.0"
+    }
+  }
+}
+
+locals {
+  az_to_find           = var.availability_zones[0] 
+  az_index_in_network  = index(var.network_availability_zones, local.az_to_find)
+  ami_type_map = {
+    x86_64 = "AL2023_x86_64_STANDARD"
+    arm64  = "AL2023_ARM_64_STANDARD"
+  }
+
+  # Use user-specified instance_types if provided, else choose from map
+  selected_instance_types = length(var.instance_types) > 0 ? var.instance_types : var.instance_types_map[var.architecture]
 }
 
 module "network" {
@@ -43,24 +69,54 @@ data "aws_eks_cluster_auth" "cluster" {
   name = var.cluster_name
 }
 
+data "aws_iam_openid_connect_provider" "oidc_arn" {
+  depends_on = [module.eks_managed_node_group]
+  url = data.aws_eks_cluster.cluster.identity.0.oidc.0.issuer
+}
+
 provider "kubernetes" {
-  host                   = "${data.aws_eks_cluster.cluster.endpoint}"
-  cluster_ca_certificate = "${base64decode(data.aws_eks_cluster.cluster.certificate_authority.0.data)}"
-  token                  = "${data.aws_eks_cluster_auth.cluster.token}"
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    args        = ["eks", "get-token", "--cluster-name", var.cluster_name]
+    command     = "aws"
+  }
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = data.aws_eks_cluster.cluster.endpoint
+    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      args        = ["eks", "get-token", "--cluster-name", var.cluster_name]
+      command     = "aws"
+    }
+  }
+}
+
+provider "kubectl" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    args        = ["eks", "get-token", "--cluster-name", var.cluster_name]
+    command     = "aws"
+  }              
 }
 
 module "eks" {
   source          = "terraform-aws-modules/eks/aws"
-  version         = "~> 20.0"
-  cluster_name    = var.cluster_name
-  cluster_version = var.kubernetes_version
+  version         = "~> 21.0"
+  name            = var.cluster_name
+  kubernetes_version = var.kubernetes_version
   vpc_id          = module.network.vpc_id
   create_iam_role = false
-#  create_cluster_security_group = false
-  iam_role_arn    = "arn:aws:iam::349271159511:role/unified-dev20230314045530411500000005" 
-#  cluster_security_group_id       = "sg-0cb5e88c54d68f957"
-  cluster_endpoint_public_access  = true
-  cluster_endpoint_private_access = true
+  iam_role_arn    = "arn:aws:iam::349271159511:role/unified-dev20230314045530411500000005"
+  endpoint_public_access  = true
+  endpoint_private_access = true
+  create_cloudwatch_log_group = false
   authentication_mode = "API_AND_CONFIG_MAP"
   subnet_ids      = concat(module.network.private_subnets, module.network.public_subnets)
   node_security_group_additional_rules = {
@@ -86,9 +142,19 @@ module "eks" {
           }
         }
       }
+    },
+    sunbirdrc = {
+      kubernetes_groups = ["global-readonly"]
+      principal_arn     = "arn:aws:iam::349271159511:user/sunbirdrc"
+      user_name         = "sunbirdrc"
+    },
+    readonly = {
+      kubernetes_groups = ["global-readonly"]
+      principal_arn     = "arn:aws:iam::349271159511:user/egov-unified-dev-kube-user"
+      user_name         = "egov-unified-dev-kube-user"
     }
   }
-  cluster_timeouts = {
+  timeouts = {
     create = "30m"
     delete = "15m" 
     update = "60m"
@@ -108,148 +174,49 @@ module "eks" {
   }
 }
 
-module "aws_auth" {
-  source  = "terraform-aws-modules/eks/aws//modules/aws-auth"
-  version = "~> 20.0"
-  manage_aws_auth_configmap = true
-  aws_auth_roles = [
-    {
-      groups = ["system:bootstrappers", "system:nodes"]
-      rolearn = "arn:aws:iam::349271159511:role/unified-dev20230314050701738200000018"
-      username = "system:node:{{EC2PrivateDNSName}}"
-    },
-    {
-      groups = ["system:bootstrappers", "system:nodes"]
-      rolearn = "arn:aws:iam::349271159511:role/KarpenterNodeRole-unified-dev"
-      username = "system:node:{{EC2PrivateDNSName}}"
-    },
-    {
-      groups = ["system:bootstrappers", "system:nodes"]
-      rolearn = "arn:aws:iam::349271159511:role/unified-dev-spot-eks-node-group-20241213165811702400000001"
-      username = "system:node:{{EC2PrivateDNSName}}"
-    }
-  ]
-
-  aws_auth_users = [
-    {
-      groups = ["system:masters"]
-      userarn = "arn:aws:iam::349271159511:user/egov-unified-dev-kube-deployer"
-      username = "egov-unified-dev-kube-deployer"
-    },
-    {
-      groups = ["global-readonly"]
-      userarn = "arn:aws:iam::349271159511:user/sunbirdrc"
-      username = "sunbirdrc"
-    },
-    {
-      groups = ["system:masters"]
-      userarn = "arn:aws:iam::349271159511:user/update-elastic"
-      username = "update-elastic"
-    },
-    {
-      groups = ["global-readonly", "digit-user"]
-      userarn = "arn:aws:iam::349271159511:user/egov-unified-dev-kube-admin"
-      username = "egov-unified-dev-kube-admin"
-    },
-    {
-      groups = ["global-readonly"]
-      userarn = "arn:aws:iam::349271159511:user/egov-unified-dev-kube-user"
-      username = "egov-unified-dev-kube-user"
-    } 
-  ]
-}
-
-# EKS Node Group IAM Role
-resource "aws_iam_role" "node_group_role" {
-  name_prefix = "${var.cluster_name}-spot-eks-node-group-"
-
-  assume_role_policy = jsonencode({
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "ec2.amazonaws.com"
-      }
-      Sid = "EKSNodeAssumeRole"
-    }]
-    Version = "2012-10-17"
-  })
-
-  tags = {
-    "KubernetesCluster" = var.cluster_name
-    "Name"              = "${var.cluster_name}-node-group-role"
-  }
-}
-
-# Required IAM policy attachments for EKS node group
-resource "aws_iam_role_policy_attachment" "node_group_AmazonEKSWorkerNodePolicy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-  role       = aws_iam_role.node_group_role.name
-}
-
-resource "aws_iam_role_policy_attachment" "node_group_AmazonEKS_CNI_Policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-  role       = aws_iam_role.node_group_role.name
-}
-
-resource "aws_iam_role_policy_attachment" "node_group_AmazonEC2ContainerRegistryReadOnly" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-  role       = aws_iam_role.node_group_role.name
-}
-
-# Additional policies
-resource "aws_iam_role_policy_attachment" "node_group_AmazonSSMManagedInstanceCore" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-  role       = aws_iam_role.node_group_role.name
-}
-
-resource "aws_iam_role_policy_attachment" "node_group_CSI_DRIVER_POLICY" {
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-  role       = aws_iam_role.node_group_role.name
-}
-
-resource "aws_iam_role_policy_attachment" "node_group_SQS_POLICY" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
-  role       = aws_iam_role.node_group_role.name
-}
-
-# ARM64 On-Demand Node Group - Direct Resource
-resource "aws_eks_node_group" "arm64_ondemand" {
+module "eks_managed_node_group" {
+  source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+  version         = "~> 21.0"
+  name            = "${var.cluster_name}"
+  ami_type        = local.ami_type_map[var.architecture]
   cluster_name    = var.cluster_name
-  node_group_name = "${var.cluster_name}-arm64-ondemand"
-  node_role_arn   = aws_iam_role.node_group_role.arn
-  subnet_ids      = slice(module.network.private_subnets, 0, 1)
-  
-  capacity_type   = "ON_DEMAND"
-  ami_type        = "AL2023_ARM_64_STANDARD"
-  instance_types  = ["t4g.xlarge", "m6g.xlarge", "c6g.xlarge", "r6g.xlarge"]
-  disk_size       = 20
-  version         = var.kubernetes_version
-  
-  scaling_config {
-    desired_size = 10
-    max_size     = 15
-    min_size     = 5
+  kubernetes_version = var.kubernetes_version
+  subnet_ids      = [module.network.private_subnets[local.az_index_in_network]]
+  vpc_security_group_ids  = [module.eks.node_security_group_id]
+  cluster_service_cidr = module.eks.cluster_service_cidr
+  use_custom_launch_template = true
+  launch_template_name = "${var.cluster_name}-lt"
+  pre_bootstrap_user_data = file("user-data.sh")
+  block_device_mappings = {
+    xvda = {
+      device_name = "/dev/xvda"
+      ebs = {
+        volume_size           = 100
+        volume_type           = "gp3"
+        delete_on_termination = true
+      }
+    }
   }
-  
-  update_config {
-    max_unavailable = 1
+  min_size     = var.min_worker_nodes
+  max_size     = var.max_worker_nodes
+  desired_size = var.desired_worker_nodes
+  instance_types = local.selected_instance_types
+  ebs_optimized  = "true"
+  iam_role_additional_policies = {
+    CSI_DRIVER_POLICY = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+    AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+    SQS_POLICY                   = "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
   }
-  
+  update_config = {
+    "max_unavailable_percentage": 10
+  }
   labels = {
     Environment = var.cluster_name
-    Architecture = "arm64"
-    CapacityType = "on-demand"
   }
-  
   tags = {
     "KubernetesCluster" = var.cluster_name
-    "Name"              = "${var.cluster_name}-arm64-ondemand"
+    "Name"              = var.cluster_name
   }
-  
-  depends_on = [
-    aws_iam_role.node_group_role
-  ]
 }
 
 resource "aws_security_group_rule" "rds_db_ingress_workers" {
@@ -307,6 +274,52 @@ resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
   }
 
   depends_on = [kubernetes_annotations.gp2_default]
+}
+
+module "ebs_csi_driver_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.20"
+  role_name_prefix = "ebs-csi-driver-"
+  attach_ebs_csi_policy = true
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:ebs-csi-controller-sa"]
+    }
+  }
+  tags = {
+    "KubernetesCluster" = var.cluster_name
+    "Name"              = var.cluster_name
+  }
+}
+
+resource "aws_eks_addon" "aws_ebs_csi_driver" {
+  depends_on = [module.eks_managed_node_group]
+  cluster_name      = var.cluster_name
+  addon_name        = "aws-ebs-csi-driver"
+  service_account_role_arn = module.ebs_csi_driver_irsa.iam_role_arn
+  resolve_conflicts_on_create = "OVERWRITE"
+}
+
+module "eks-cluster-autoscaler" {
+  count = var.enable_ClusterAutoscaler ? 1 : 0
+  source  = "lablabs/eks-cluster-autoscaler/aws"
+  version = "3.1.0"
+  cluster_name = var.cluster_name
+  cluster_identity_oidc_issuer = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+  cluster_identity_oidc_issuer_arn = data.aws_iam_openid_connect_provider.oidc_arn.arn
+  irsa_role_name = var.cluster_name
+  namespace = "autoscaler"
+  service_account_name = "cluster-autoscaler"
+  service_account_namespace = "autoscaler"
+  values = yamlencode({
+    extraArgs = {
+      logtostderr: true
+      stderrthreshold: "info"
+      v: 4
+      scale-down-utilization-threshold: 0.6
+    }
+  })
 }
 
 

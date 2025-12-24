@@ -101,6 +101,8 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: boundary-service
+  - name: EGOV_BOUNDARY_SEARCH_URL
+    value: {{ index .Values "egov-boundary-search-url" | default "/boundary-service/boundary-relationships/_search" }}
   - name: PROJECT_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
@@ -118,11 +120,16 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: pdf-service
+  {{- if index .Values "excell-state-level-tenant-id" }}
+  - name: STATE_LEVEL_TENANT_ID
+    value: {{ index .Values "excell-state-level-tenant-id" | quote }}
+  {{- else }}
   - name: STATE_LEVEL_TENANT_ID
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: egov-state-level-tenant-id
+  {{- end }}
   {{- if index .Values "payment-pdf-key" }}
   - name: PAYMENT_PDF_KEY
     value: {{ index .Values "payment-pdf-key" | quote }}
@@ -193,3 +200,5 @@ env: |
   - name: SPRING_KAFKA_PRODUCER_PROPERTIES_MAX_REQUEST_SIZE
     value: {{ index .Values "spring-kafka-producer-properties-max-request-size" | quote }} 
   {{- end }}
+  - name: BILLING_FREQUENCY_CUSTOM_MINIMUM_DAYS
+    value: {{ index .Values "billing-frequency-custom-minimum-days" | quote }} 

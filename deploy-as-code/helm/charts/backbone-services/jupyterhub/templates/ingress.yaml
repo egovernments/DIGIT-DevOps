@@ -33,11 +33,17 @@ spec:
                 port:
                   name: http
       {{- if $host }}
-      host: {{ $host | quote }}
+      host: {{ tpl $host $ | quote }}
       {{- end }}
     {{- end }}
-  {{- with .Values.ingress.tls }}
+  {{- if .Values.ingress.tls }}
   tls:
-    {{- . | toYaml | nindent 4 }}
+    {{- range .Values.ingress.tls }}
+    - hosts:
+      {{- range .hosts }}
+        - {{ tpl . $ | quote }}
+      {{- end }}
+      secretName: {{ tpl .secretName $ }}
+    {{- end }}
   {{- end }}
   {{- end }}

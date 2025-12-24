@@ -26,27 +26,27 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.31"
+  default = "1.32"
 }
 
 variable "instance_types" {
-  description = "eGov recommended below instance type as a default"
-  default = ["r5ad.xlarge", "r5d.xlarge", "m5ad.xlarge", "m5d.xlarge"]
+  description = "eGov recommended ARM64 instance types for better cost efficiency"
+  default = ["t4g.xlarge", "t4g.2xlarge"]
 }
 
 variable "min_worker_nodes" {
   description = "eGov recommended below worker node counts as default for min nodes"
-  default = "1" #REPLACE IF NEEDED
+  default = "4" #REPLACE IF NEEDED
 }
 
 variable "desired_worker_nodes" {
   description = "eGov recommended below worker node counts as default for desired nodes"
-  default = "11" #REPLACE IF NEEDED
+  default = "6" #REPLACE IF NEEDED
 }
 
 variable "max_worker_nodes" {
   description = "eGov recommended below worker node counts as default for max nodes"
-  default = "13" #REPLACE IF NEEDED
+  default = "10" #REPLACE IF NEEDED
 }
 
 variable "ssh_key_name" {

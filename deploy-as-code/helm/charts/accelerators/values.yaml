@@ -1,0 +1,67 @@
+# Common Labels
+labels:
+  app: "template-config"
+  group: "accelerators"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "template-config"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "template_config_schema"
+    image:
+      repository: "template-config-db"
+
+# Container Configs
+image:
+  repository: "template-config"
+replicas: "1"
+healthChecks:
+  enabled: false
+  livenessProbePath: "/template-config/health"
+  readinessProbePath: "/template-config/health"
+appType: "go"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+  - name: HTTP_PORT
+    value: "8080" 
+  - name: SERVER_CONTEXT_PATH
+    value: "/template-config"
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
+  - name: DB_SSL_MODE
+    value: "require"

@@ -1,0 +1,97 @@
+environments:
+  unified-dev:
+    values:
+      - namespace: monitoring
+      - ../../environments/unified-dev.yaml
+      - ../../environments/unified-dev-secrets.yaml
+
+---
+
+repositories:
+- name: grafana
+  url: https://grafana.github.io/helm-charts
+- name: prometheus-community
+  url: https://prometheus-community.github.io/helm-charts
+- name: jaegertracing
+  url: https://jaegertracing.github.io/helm-charts
+
+releases:
+
+- name: loki-stack
+  installed: true
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: grafana/loki-stack
+  version: 2.10.1
+  values:
+  - ./values/loki-stack.yaml
+  - loki:
+      persistence: {{ .Values.loki.persistence | toYaml | nindent 8 }}
+      {{- if .Values.loki.additionalConfigs }}
+      config:
+        schema_config: {{ .Values.loki.additionalConfigs.schema_config | toYaml | nindent 10 }}
+        storage_config: {{ .Values.loki.additionalConfigs.storage_config | toYaml | nindent 10 }}
+        compactor: {{ .Values.loki.additionalConfigs.compactor | toYaml | nindent 10 }}
+        table_manager: {{ .Values.loki.additionalConfigs.table_manager | toYaml | nindent 10 }}
+      {{- end }}
+      {{- if .Values.loki.serviceAccount.annotations }}
+      serviceAccount:
+        annotations: {{ .Values.loki.serviceAccount.annotations | toYaml | nindent 10 }}
+      {{- end }}
+
+- name: kube-prometheus-stack
+  installed: true
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: prometheus-community/kube-prometheus-stack
+  version: 56.6.2
+  disableValidation: true
+  values:
+  - ./values/prometheus.yaml
+  - alertmanager:
+      enabled: {{ .Values.prometheus.alertmanager.enabled }}
+  {{- if .Values.prometheus.alertmanager.enabled }}
+  - alertmanager:
+      config: {{ index .Values "cluster-configs" "secrets" "alertmanager" "config" | toYaml | nindent 8 }}
+  {{- end }}
+  - prometheus:
+      prometheusSpec:
+        additionalScrapeConfigs: {{ .Values.prometheus.additionalScrapeConfigs | toYaml | nindent 8 }}
+        externalLabels: {{ .Values.prometheus.externalLabels | toYaml | nindent 10 }}
+
+- name: jaeger
+  installed: false
+  namespace: es-cluster
+  chart: jaegertracing/jaeger
+  version: 0.35.0
+  values:
+    - ./values/jaeger.yaml
+  set:
+    - name: query.ingress.hosts[0]
+      value: "{{ .Values.global.domain }}"
+
+- name: grafana
+  installed: true
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: grafana/grafana
+  version: 7.3.0
+  values:
+    - ./values/grafana.yaml
+    - grafana.ini:
+        auth.github:
+          allowed_organizations: {{ .Values.grafana.github.allowed_organizations }}
+          role_attribute_path: {{ .Values.grafana.github.role_attribute_path }}
+    - envRenderSecret:
+        GF_AUTH_GITHUB_CLIENT_ID: {{ index .Values "cluster-configs" "secrets" "grafana" "clientID" }}
+        GF_AUTH_GITHUB_CLIENT_SECRET: {{ index .Values "cluster-configs" "secrets" "grafana" "clientSecret" }}
+  set:
+    - name: ingress.hosts[0]
+      value: "{{ .Values.global.domain }}"
+    - name: ingress.tls[0].hosts[0]
+      value: "{{ .Values.global.domain }}"
+    - name: ingress.tls[0].secretName
+      value: "{{ .Values.global.domain }}-tls-certs"
+
+- name: blackbox
+  installed: true
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: ../backbone-services/prometheus-blackbox-exporter
+  version: 8.2.0

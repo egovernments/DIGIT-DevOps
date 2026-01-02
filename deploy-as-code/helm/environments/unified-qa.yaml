@@ -899,3 +899,91 @@ jupyterhub:
       - hosts:
           - unified-qa.digit.org
         secretName: unified-qa.digit.org-tls-certs 
+
+### Grafana >>>>>>>>>>>>>>>>>>>>
+grafana:
+  github:
+    allowed_organizations: ["egovernments"]
+    role_attribute_path: contains(groups[*], '@egovernments/egov-devops') && 'Admin' || contains(groups[*], '@egovernments/micro-service-qa') && 'Viewer'
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+### Prometheus & Alertmanager >>>>>>>>>>>>>>>>>>>>
+prometheus:
+  retention: 7d
+  storageSpec:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: gp3
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 15Gi
+  alertmanager:
+    enabled: true
+  externalLabels:
+    cluster: unified-qa
+  additionalScrapeConfigs:
+    - job_name: 'nginx-ingress-metrics'
+      static_configs:
+        - targets: [ 'ingress-nginx-controller-metrics.backbone:10254' ]
+    - job_name: 'redis-exporter'
+      static_configs:
+        - targets: [ 'prometheus-redis-exporter.backbone:9121' ]
+    - job_name: 'blackbox'
+      metrics_path: /probe
+      params:
+        module: [ http_2xx ]
+      static_configs:
+        - targets:
+            - https://unified-qa.digit.org/monitoring/ 
+            - https://unified-qa.digit.org/pgadmin/login?next=%2Fpgadmin%2F
+            - https://unified-qa.digit.org/kibana/
+      relabel_configs:
+        - source_labels: [ __address__ ]
+          target_label: __param_target
+        - source_labels: [ __param_target ]
+          target_label: instance
+        - target_label: __address__
+          replacement: prometheus-blackbox-exporter:9115
+    - job_name: 'blackbox_exporter'
+      static_configs:
+        - targets: [ 'prometheus-blackbox-exporter:9115' ]
+
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+### loki-stack >>>>>>>>>>>>>>>>>>>>
+loki:
+  persistence:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    size: 15Gi
+  serviceAccount:
+    annotations: { }
+  additionalConfigs:
+    schema_config:
+      configs:
+        - from: 2020-10-24
+          store: boltdb-shipper
+          object_store: filesystem
+          schema: v11
+          index:
+            prefix: index_
+            period: 24h
+    storage_config:
+      boltdb_shipper:
+        active_index_directory: /data/loki/index
+        cache_location: /data/loki/index_cache
+        shared_store: filesystem
+        cache_ttl: 24h
+      filesystem:
+        directory: /data/loki/chunks
+    compactor:
+      working_directory: /data/loki/boltdb-shipper-compactor
+      shared_store: filesystem
+      retention_enabled: true
+      compaction_interval: 72h
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 72h  # 3 days
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

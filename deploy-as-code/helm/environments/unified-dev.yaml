@@ -1111,6 +1111,15 @@ grafana:
 
 ### Prometheus & Alertmanager >>>>>>>>>>>>>>>>>>>>
 prometheus:
+  retention: 7d
+  storageSpec:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: gp3
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 15Gi
   alertmanager:
     enabled: true
   externalLabels:
@@ -1118,14 +1127,19 @@ prometheus:
   additionalScrapeConfigs:
     - job_name: 'nginx-ingress-metrics'
       static_configs:
-        - targets: [ 'nginx-ingress-controller-metrics.egov:10254' ]
+        - targets: [ 'ingress-nginx-controller-metrics.backbone:10254' ]
+    - job_name: 'redis-exporter'
+      static_configs:
+        - targets: [ 'prometheus-redis-exporter.backbone:9121' ]
     - job_name: 'blackbox'
       metrics_path: /probe
       params:
         module: [ http_2xx ]
       static_configs:
         - targets:
-            - https://unified-dev.digit.org
+            - https://unified-dev.digit.org/monitoring/ 
+            - https://unified-dev.digit.org/pgadmin/login?next=%2Fpgadmin%2F
+            - https://unified-dev.digit.org/kibana/
       relabel_configs:
         - source_labels: [ __address__ ]
           target_label: __param_target
@@ -1136,6 +1150,7 @@ prometheus:
     - job_name: 'blackbox_exporter'
       static_configs:
         - targets: [ 'prometheus-blackbox-exporter:9115' ]
+
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 ### loki-stack >>>>>>>>>>>>>>>>>>>>
@@ -1169,8 +1184,11 @@ loki:
       working_directory: /data/loki/boltdb-shipper-compactor
       shared_store: filesystem
       retention_enabled: true
-      compaction_interval: 168h
+      compaction_interval: 72h
     table_manager:
       retention_deletes_enabled: true
-      retention_period: 168h  # 7 days
+      retention_period: 72h  # 3 days
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+

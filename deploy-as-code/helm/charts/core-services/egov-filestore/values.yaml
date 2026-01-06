@@ -39,6 +39,11 @@ persistence:
 memory_limits: "512Mi"
 cpu_limits: "200m"
 
+# Malware Scanning Configuration (disabled by default)
+# Enable only when egov-malware-detection service is deployed
+kafka-malware-scan-enabled: false
+kafka-topics-malware-scan-request: "egov.malware.file-scan-request"
+
 # Additional Container Envs
 env: |
   - name: SERVER_PORT
@@ -112,8 +117,12 @@ env: |
         name: egov-service-host
         key: minio-url
   {{- end }}
-  {{- if index .Values "filestore-url-validity" }}   
-  - name: PRESIGNED_URL_EXPIRY_TIME_IN_SECS     
-    value: {{ index .Values "filestore-url-validity" | quote }}   
-  {{- end }}  
+  {{- if index .Values "filestore-url-validity" }}
+  - name: PRESIGNED_URL_EXPIRY_TIME_IN_SECS
+    value: {{ index .Values "filestore-url-validity" | quote }}
+  {{- end }}
+  - name: KAFKA_MALWARE_SCAN_ENABLED
+    value: {{ index .Values "kafka-malware-scan-enabled" | quote }}
+  - name: KAFKA_TOPICS_MALWARE_SCAN_REQUEST
+    value: {{ index .Values "kafka-topics-malware-scan-request" | quote }}  
 

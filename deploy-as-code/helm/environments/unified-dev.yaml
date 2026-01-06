@@ -73,6 +73,7 @@ cluster-configs:
         egov-user-egov: "http://egov-user.egov:8080/"
         egov-location: "http://egov-location.egov:8080/"
         egov-filestore: "http://egov-filestore.egov:8080/"
+        egov-malware-detection: "http://egov-malware-detection.egov:8080/"
         egov-localization: "http://egov-localization.egov:8080/"
         egov-idgen: "http://egov-idgen.egov:8080/"
         egov-otp: "http://egov-otp.egov:8080/"
@@ -375,11 +376,46 @@ egov-filestore:
   aws.s3.url : "https://s3.amazonaws.com"
   is-s3-enabled: "true"
   minio-enabled: false
+  # Malware Scanning - Enable only when egov-malware-detection is deployed
+  kafka-malware-scan-enabled: false
+  kafka-topics-malware-scan-request: "egov.malware.file-scan-request"
   allowed-file-formats-map: "{jpg:{'image/jpg','image/jpeg'},jpeg:{'image/jpeg','image/jpg'},png:{'image/png'},pdf:{'application/pdf'},odt:{'application/vnd.oasis.opendocument.text'},ods:{'application/vnd.oasis.opendocument.spreadsheet'},docx:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},doc:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},dxf:{'text/plain','application/dxf','application/octet-stream','image/vnd.dxf','image/vnd.dxf; format=ascii','image/vnd.dxf; format=binary','image/vnd.dxb'},csv:{'text/plain'},txt:{'text/plain'},xlsx:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/zip','multipart/form-data'},xls:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel','multipart/form-data'},zip:{'application/zip','application/octet-stream'},geojson:{'application/json','text/plain','application/geo+json','multipart/form-data'},json:{'application/json','text/plain'}}"
   allowed-file-formats: "jpg,jpeg,png,doc,docx,pdf,odt,ods,text,dxf,xls,xlsx,zip,geojson,json"
   filestore-url-validity: 3600
   fixed-bucketname: "unified-dev-bucket-s3"
   heap: "-Xmx256m -Xms256m"
+
+egov-malware-detection:
+  # ClamAV Configuration
+  clamav-host: "clamav.security"
+  clamav-port: "3310"
+  clamav-timeout: "60000"
+  clamav-chunk-size: "2048"
+  # S3 Configuration (uses same AWS credentials from egov-filestore secret)
+  is-s3-enabled: true
+  minio-enabled: false
+  fixed-bucketname: "unified-dev-bucket-s3"
+  fixed-bucket-region: "ap-south-1"
+  quarantine-bucketname: "unified-dev-quarantine-s3"
+  # Slack Notification (optional - enable and provide webhook URL to use)
+  slack-enabled: false
+  # slack-webhook-url: "https://hooks.slack.com/services/xxx/xxx/xxx"
+  slack-channel: "#security-alerts"
+  slack-username: "MalwareBot"
+  slack-icon-emoji: ":warning:"
+  # Email Notification (uses egov-notification-mail via Kafka)
+  mail-enabled: true
+  mail-notification-mode: "kafka"
+  mail-alert-recipients: "security-team@example.com,sreejith.kanjarla@egovernments.org"
+  mail-alert-subject: "DIGIT Security Alert - Malware Detected"
+  # Scan Settings
+  scan-max-file-size-mb: "50"
+  # Quarantine Settings
+  quarantine-enabled: true
+  quarantine-delete-original: true
+  # JVM Settings
+  heap: "-Xmx512m -Xms512m"
+  memory_limits: "768Mi"
 
 egov-url-shortening:
   heap: "-Xmx256m -Xms256m"

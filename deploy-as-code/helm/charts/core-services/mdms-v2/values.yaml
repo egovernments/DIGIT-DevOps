@@ -26,7 +26,6 @@ healthChecks:
   readinessProbePath: "/mdms-v2/health"
 appType: "java-spring"
 tracing-enabled: true
-memory_limits: 512Mi
 heap: "-Xmx512m -Xms512m"
 java-args: "-Dspring.profiles.active=monitoring"
 egov-mdms-schema-definition-save-topic: "save-mdms-schema-definition"
@@ -35,7 +34,9 @@ egov-mdms-data-save-topic: "save-mdms-data"
 # Additional Container Envs
 env: |
   - name: SERVER_CONTEXT_PATH
-    value: /mdms-v2
+    value: {{ .Values.contextPath | default "/mdms-v2" }}
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    value: {{ .Values.contextPath | default "/mdms-v2" }} 
   - name: SPRING_KAFKA_CONSUMER_GROUP_ID
     value: egov-mdms-service-consumer-group
   - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
@@ -54,9 +55,12 @@ env: |
     value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED
     value: "false"
-  - name: JAVA_ENABLE_DEBUG
-    value: "true"
   - name: EGOV_MDMS_SCHEMA_DEFINITION_SAVE_TOPIC
     value: {{ index .Values "egov-mdms-schema-definition-save-topic" | quote }}
   - name: EGOV_MDMS_DATA_SAVE_TOPIC
     value: {{ index .Values "egov-mdms-data-save-topic" | quote }}  
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url

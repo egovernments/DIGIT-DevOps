@@ -1,33 +1,31 @@
 # Common Labels
 labels:
-  app: "boundary"
+  app: "account"
   group: "core"
 
 # Ingress Configs
 ingress:
   enabled: true
   zuul: true
-  context: "boundary"
-
-
-# Container Configs
+  context: "account"
 
 # Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
-    schemaTable: "boundary_schema"
+    schemaTable: "account_schema"
     image:
-      repository: "boundary-db"
+      repository: "account-db"
 
 # Container Configs
 image:
-  repository: "boundary"
+  repository: "account"
 replicas: 1
 appType: "go"
-tracing-enabled: true # Assuming you want to keep tracing
+tracing-enabled: true
+memory_limits: 512Mi
 healthChecks:
-  enabled: false # Disabled as requested
+  enabled: false
   livenessProbePath: "/health"
   readinessProbePath: "/health"
 # Resource configuration for Go service
@@ -38,7 +36,6 @@ resources: |
   limits:
     cpu: "200m"
     memory: "512Mi"
-
 # Additional Container Envs
 env: |
   - name: DB_HOST
@@ -67,21 +64,35 @@ env: |
     value: "require"
   - name: SERVER_PORT
     value: "8080"
-  - name: SERVER_CONTEXT_PATH
-    value: "/boundary"
-  - name: BOUNDARY_BASEPATH
+  - name: KEYCLOAK_BASE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: keycloak-base-url
+  - name: KEYCLOAK_ADMIN_USER
+    valueFrom:
+      secretKeyRef:
+        name: keycloak
+        key: keycloak-admin-user
+  - name: KEYCLOAK_ADMIN_PASS
+    valueFrom:
+      secretKeyRef:
+        name: keycloak
+        key: keycloak-admin-pass
+  - name: GIN_MODE
+    value: "release"
+  - name: CITIZEN_BROKER_CLIENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: keycloak
+        key: citizen-broker-client-id
+  - name: CITIZEN_BROKER_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: keycloak
+        key: citizen-broker-client-secret
+  - name: NOTIFICATION_BASE_URL
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: boundary
-  - name: FILESTORE_ENDPOINT
-    value: "/filestore/v1/files"
-  - name: CACHE_TYPE
-    value: "inmemory"
-  # If you want to use Redis, uncomment and set these:
-  # - name: CACHE_TYPE
-  #   value: "redis"
-  # - name: CACHE_REDIS_ADDR
-  #   value: "localhost:6379"
-  # - name: CACHE_REDIS_DB
-  #   value: "0" 
+        key: notification 

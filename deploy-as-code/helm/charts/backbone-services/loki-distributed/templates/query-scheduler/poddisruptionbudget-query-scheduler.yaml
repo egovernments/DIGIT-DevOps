@@ -1,0 +1,15 @@
+{{- if and .Values.queryScheduler.enabled (gt (int .Values.queryScheduler.replicas) 1) }}
+apiVersion: {{ include "loki.pdb.apiVersion" . }}
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "loki.querySchedulerFullname" . }}
+  labels:
+    {{- include "loki.querySchedulerLabels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "loki.querySchedulerSelectorLabels" . | nindent 6 }}
+  {{- with .Values.queryScheduler.maxUnavailable }}
+  maxUnavailable: {{ . }}
+  {{- end }}
+{{- end }}

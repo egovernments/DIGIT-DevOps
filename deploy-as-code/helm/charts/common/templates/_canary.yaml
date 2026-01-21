@@ -1,0 +1,32 @@
+{{- define "common.canary" -}}
+{{- if .Values.global.canary -}}
+---
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: {{ template "common.name" . }}
+  namespace: {{ .Values.namespace }} 
+spec:
+  provider: nginx
+  ingressRef:
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    name: {{ template "common.name" . }}
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ template "common.name" . }}
+{{- if .Values.hpa.enabled }}
+  autoscalerRef:
+    apiVersion: autoscaling/v1
+    kind: HorizontalPodAutoscaler
+    name: {{ template "common.name" . }}
+{{- end }}
+  progressDeadlineSeconds: {{ .Values.canary.progressDeadlineSeconds }} 
+  service:
+    port: {{ .Values.httpPort }}
+    targetPort: {{ .Values.httpPort }}
+  analysis:
+  {{- toYaml .Values.canary.analysis | nindent 4 }}
+{{- end -}}
+{{- end -}}

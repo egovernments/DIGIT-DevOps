@@ -5,7 +5,7 @@ global:
 cluster-configs:
     namespaces:  
       create: true
-      values: [ backbone, cert-manager, egov, es-cluster, es-upgrade, kafka-cluster, logging, monitoring, playground, zookeeper-cluster ]
+      values: [ backbone, cert-manager, egov, es-upgrade, monitoring, playground ]
       
     root-ingress:
       cert-issuer: letsencrypt-prod
@@ -159,6 +159,24 @@ cluster-configs:
               public-service-init: "http://public-service-init.egov:8080/"
               health-individual: "http://health-individual.health:8080/"
               health-service-request: "http://health-service-request.health:8080/"
+    
+    secrets:
+      db: 
+        namespace: [ egov ]
+        name: db
+      keycloak: 
+        namespace: [ egov ]
+        name: keycloak
+      egov-notification-sms:
+        namespace: [ egov ]
+        name: egov-notification-sms
+      git-sync: 
+        namespace: [ egov ]
+        name: git-creds 
+      elasticsearch-master-creds:
+        namespace: [ es-upgrade, egov ]
+        name: elasticsearch-master-credentials
+
 
 employee:
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
@@ -931,3 +949,39 @@ jupyterhub:
         seconds_before_next_try: 300
       JupyterHub:
         admin_access: true
+
+matomo:
+  fullnameOverride: "matomo"
+  namespaceOverride: "monitoring"
+  resourcesPreset: "medium"
+  existingSecret: "matomo"
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 8Gi
+  ingress:
+    enabled: true
+    path: /matomo
+    hostname: unified-uat.digit.org
+    tls: true
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
+  matomoUsername: matomo-uat-admin
+  matomoEmail: unified-alerts@egovernments.org
+  matomoWebsiteHost: https://unified-uat.digit.org/
+  matomoWebsiteName: unified-uat
+
+mariadb:
+  fullnameOverride: "matomo-mariadb"
+  namespaceOverride: "monitoring"
+  auth:
+    existingSecret: "matomo-mariadb"
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 8Gi
+  image:
+    registry: bitnamilegacy
+    repository: mariadb
+    tag: 12.0.2-debian-12-r0

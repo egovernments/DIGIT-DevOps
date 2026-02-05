@@ -10,7 +10,7 @@ variable "cluster_name" {
 
 variable "vpc_cidr_block" {
   description = "CIDR block"
-  default = "192.168.0.0/16"
+  default = "10.30.0.0/16"
 }
 
 

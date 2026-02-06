@@ -1,10 +1,10 @@
 terraform {
   backend "s3" {
-    bucket = "central-instance"
-    key    = "terraform/terraform.tfstate"
+    bucket = "unified-demo-s3"
+    key    = "terraform-setup/terraform.tfstate"
     region = "ap-south-1"
     # The below line is optional depending on whether you are using DynamoDB for state locking and consistency
-    dynamodb_table = "central-instance"
+    dynamodb_table = "unified-demo-s3"
     # The below line is optional if your S3 bucket is encrypted
     encrypt = true
   }
@@ -25,15 +25,132 @@ terraform {
 }
 
 locals {
-  az_to_find           = var.availability_zones[0]
+  az_to_find           = var.availability_zones[0] 
   az_index_in_network  = index(var.network_availability_zones, local.az_to_find)
   ami_type_map = {
-    x86_64 = "BOTTLEROCKET_x86_64"
-    arm64  = "BOTTLEROCKET_ARM_64"
+    x86_64 = "AL2023_x86_64_STANDARD"
+    arm64  = "AL2023_ARM_64_STANDARD"
   }
 
   # Use user-specified instance_types if provided, else choose from map
   selected_instance_types = length(var.instance_types) > 0 ? var.instance_types : var.instance_types_map[var.architecture]
+}
+
+resource "aws_iam_user" "filestore_user" {
+  name = "${var.cluster_name}-filestore-user"
+
+  tags = {
+    "KubernetesCluster" = var.cluster_name
+    "Name"              = var.cluster_name
+  }
+}
+
+resource "aws_iam_access_key" "filestore_key" {
+  user    = aws_iam_user.filestore_user.name
+}
+
+resource "kubernetes_namespace" "namespace" {
+  metadata {
+    name = var.filestore_namespace
+  }
+}
+
+resource "kubernetes_secret" "egov-filestore" {
+  depends_on  = [kubernetes_namespace.namespace]
+  metadata {
+    name      = "egov-filestore"
+    namespace = var.filestore_namespace  # Change this as needed
+  }
+
+  data = {
+    awssecretkey = aws_iam_access_key.filestore_key.secret
+    awskey       = aws_iam_access_key.filestore_key.id
+  }
+
+  type = "Opaque"
+}
+
+resource "aws_s3_bucket" "filestore_bucket" {
+  bucket = "${var.cluster_name}-filestore-bucket"
+
+  tags = {
+    "KubernetesCluster" = var.cluster_name
+    "Name"              = var.cluster_name
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "filestore_bucket_access" {
+  bucket = aws_s3_bucket.filestore_bucket.id
+
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
+resource "aws_s3_bucket_policy" "filestore_bucket_policy" {
+  depends_on = [aws_s3_bucket_public_access_block.filestore_bucket_access]
+  bucket = aws_s3_bucket.filestore_bucket.id
+  policy = data.aws_iam_policy_document.filestore_bucket_policy.json
+}
+
+data "aws_iam_policy_document" "filestore_bucket_policy" {
+  depends_on = [aws_s3_bucket_public_access_block.filestore_bucket_access]
+  statement {
+    sid           = "PublicReadGetObject"
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions = [
+      "s3:GetObject",
+    ]
+
+    resources = [
+      "${aws_s3_bucket.filestore_bucket.arn}/*",
+    ]
+  }
+}
+
+resource "aws_iam_policy" "filestore_policy" {
+  name        = "filestore_policy"  # Replace with your desired policy name
+  description = "Filestore Policy for S3 access"
+  policy = jsonencode({
+    "Version" = "2012-10-17"
+    "Statement" = [
+      {
+        "Effect" = "Allow"
+        "Action" = [
+          "s3:GetBucketLocation",
+          "s3:ListAllMyBuckets"
+        ]
+        "Resource" = "arn:aws:s3:::*"
+      },
+      {
+        "Effect" = "Allow"
+        "Action" = [
+          "s3:*"
+        ]
+        "Resource" = "${aws_s3_bucket.filestore_bucket.arn}" # Allow access to the bucket
+      },
+      {
+        "Effect" = "Allow"
+        "Action" = [
+          "s3:PutObject",
+          "s3:PutObjectAcl",
+          "s3:GetObject",
+          "s3:DeleteObject"
+        ]
+        "Resource" = "${aws_s3_bucket.filestore_bucket.arn}/*" # Allow access to objects in the bucket
+      }
+    ]
+  })
+}
+
+resource "aws_iam_user_policy_attachment" "filestore_attachment" {
+  user       = "${aws_iam_user.filestore_user.name}"  # Reference the IAM user
+  policy_arn = "${aws_iam_policy.filestore_policy.arn}" # Reference the policy
 }
 
 module "network" {
@@ -97,6 +214,9 @@ module "eks" {
       })
     }
   }
+  compute_config = {
+    enabled    = false
+  }
   node_security_group_tags = {
     "karpenter.sh/discovery" = var.cluster_name
   }
@@ -132,7 +252,6 @@ module "eks_managed_node_group" {
   max_size     = var.max_worker_nodes
   desired_size = var.desired_worker_nodes
   instance_types = local.selected_instance_types
-  capacity_type  = "ON_DEMAND"
   ebs_optimized  = "true"
   iam_role_additional_policies = {
     CSI_DRIVER_POLICY = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
@@ -216,6 +335,14 @@ resource "aws_eks_addon" "aws_ebs_csi_driver" {
   resolve_conflicts_on_update = "OVERWRITE"
 }
 
+resource "aws_eks_addon" "eks-pod-identity-agent" {
+  count = var.enable_karpenter ? 1 : 0
+  depends_on = [module.eks_managed_node_group]
+  cluster_name      = var.cluster_name
+  addon_name        = "eks-pod-identity-agent"
+  resolve_conflicts_on_create = "OVERWRITE"
+}
+
 provider "kubernetes" {
   host                   = module.eks.cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
@@ -223,6 +350,25 @@ provider "kubernetes" {
     api_version = "client.authentication.k8s.io/v1beta1"
     args        = ["eks", "get-token", "--cluster-name", var.cluster_name]
     command     = "aws"
+  }
+}
+
+resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
+  metadata {
+    name = "gp3"
+    annotations = {
+      "storageclass.kubernetes.io/is-default-class" : "true"
+    }
+  }
+
+  storage_provisioner    = "ebs.csi.aws.com"
+  reclaim_policy         = "Delete"
+  allow_volume_expansion = true
+  volume_binding_mode    = "Immediate"
+  parameters = {
+    fsType    = "ext4"
+    encrypted = true
+    type      = "gp3"
   }
 }
 
@@ -245,7 +391,7 @@ provider "kubectl" {
     api_version = "client.authentication.k8s.io/v1beta1"
     args        = ["eks", "get-token", "--cluster-name", var.cluster_name]
     command     = "aws"
-  }
+  }              
 }
 
 resource "aws_iam_role_policy" "karpenter_policy" {
@@ -327,7 +473,7 @@ resource "helm_release" "karpenter" {
 
   values = [
     <<-EOT
-    logLevel: error
+    logLevel: info
     serviceAccount:
       name: ${var.enable_karpenter ? module.karpenter[0].service_account : ""}
     settings:
@@ -346,9 +492,9 @@ resource "kubectl_manifest" "karpenter_node_class" {
     metadata:
       name: default
     spec:
-      amiFamily: Bottlerocket
+      amiFamily: AL2023
       amiSelectorTerms:
-      - id: ami-0b6753867a45581f3
+      - id: ami-0474c4a8f9ad6ca62
       role: ${module.eks_managed_node_group.iam_role_name}
       subnetSelectorTerms:
         - tags:
@@ -366,7 +512,7 @@ resource "kubectl_manifest" "karpenter_node_class" {
     - key: kubernetes.io/arch
       operator: In
       values:
-      - amd64
+      - arm64
   YAML
 
   depends_on = [
@@ -389,37 +535,25 @@ resource "kubectl_manifest" "karpenter_node_pool" {
             group: karpenter.k8s.aws  # Updated since only a single version will be served
             kind: EC2NodeClass
           requirements:
-            - key: "karpenter.k8s.aws/instance-category"
-              operator: In
-              values: ["t"]
-            - key: "karpenter.k8s.aws/instance-family"
-              operator: In
-              values: ["t3a"]
             - key: "node.kubernetes.io/instance-type"
               operator: Exists
-              values: ["t3a.xlarge"]
-            - key: "karpenter.k8s.aws/instance-cpu"
-              operator: In
-              values: ["4"]
+              values: ["t4g.xlarge"]
             - key: "kubernetes.io/arch"
               operator: In
-              values: ["amd64"]
+              values: ["arm64"]
             - key: "karpenter.sh/capacity-type"
               operator: In
               values: ["on-demand"]
-            - key: "karpenter.k8s.aws/instance-generation"
-              operator: Gt
-              values: ["2"]
       disruption:
         consolidationPolicy: WhenEmptyOrUnderutilized
         consolidateAfter: 1m
         budgets:
         - nodes: "80%"
-          reasons:
+          reasons: 
           - "Empty"
           - "Drifted"
-        - nodes: "50%"
-          reasons:
+        - nodes: "80%"
+          reasons: 
           - "Underutilized"
   YAML
   depends_on = [

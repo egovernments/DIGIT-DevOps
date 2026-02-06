@@ -55,12 +55,12 @@ variable "instance_types_map" {
 
 variable "min_worker_nodes" {
   description = "eGov recommended below worker node counts as default for min nodes"
-  default = "1" #REPLACE IF NEEDED
+  default = "6" #REPLACE IF NEEDED
 }
 
 variable "desired_worker_nodes" {
   description = "eGov recommended below worker node counts as default for desired nodes"
-  default = "6" #REPLACE IF NEEDED
+  default = "9" #REPLACE IF NEEDED
 }
 
 variable "max_worker_nodes" {
@@ -103,6 +103,12 @@ variable "ami_id" {
 
 variable "enable_karpenter" {
   description = "Enable the karpenter."
+  type        = bool
+  default     = true
+}
+
+variable "enable_ClusterAutoscaler" {
+  description = "Enable the Cluster Autoscaler."
   type        = bool
   default     = false
 }

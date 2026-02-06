@@ -9,7 +9,12 @@ SPDX-License-Identifier: APACHE-2.0
 Expand the name of the chart.
 */}}
 {{- define "kafka.name" -}}
+{{- $envOverrides := index .Values (tpl (default .Chart.Name .Values.name) .) -}}
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -685,7 +690,7 @@ Kubernetes standard labels
 */}}
 {{- define "common.labels.standard" -}}
 {{- if and (hasKey . "customLabels") (hasKey . "context") -}}
-{{- $default := dict "app.kubernetes.io/name" (include "common.names.name" .context) "helm.sh/chart" (include "common.names.chart" .context) "app.kubernetes.io/instance" .context.Release.Name "app.kubernetes.io/managed-by" .context.Release.Service -}}
+{{- $default := dict "app.kubernetes.io/name" (include "common.names.name" .context) "helm.sh/chart" (include "common.names.chart" .context) "app.kubernetes.io/managed-by" .context.Release.Service -}}
 {{- with .context.Chart.AppVersion -}}
 {{- $_ := set $default "app.kubernetes.io/version" . -}}
 {{- end -}}
@@ -693,7 +698,6 @@ Kubernetes standard labels
 {{- else -}}
 app.kubernetes.io/name: {{ include "common.names.name" . }}
 helm.sh/chart: {{ include "common.names.chart" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- with .Chart.AppVersion }}
 app.kubernetes.io/version: {{ . | quote }}
@@ -712,10 +716,9 @@ overwrote them on metadata.labels fields.
 */}}
 {{- define "common.labels.matchLabels" -}}
 {{- if and (hasKey . "customLabels") (hasKey . "context") -}}
-{{ merge (pick (include "common.tplvalues.render" (dict "value" .customLabels "context" .context) | fromYaml) "app.kubernetes.io/name" "app.kubernetes.io/instance") (dict "app.kubernetes.io/name" (include "common.names.name" .context) "app.kubernetes.io/instance" .context.Release.Name ) | toYaml }}
+{{ merge (pick (include "common.tplvalues.render" (dict "value" .customLabels "context" .context) | fromYaml) "app.kubernetes.io/name") (dict "app.kubernetes.io/name" (include "common.names.name" .context)) | toYaml }}
 {{- else -}}
 app.kubernetes.io/name: {{ include "common.names.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- end -}}
 

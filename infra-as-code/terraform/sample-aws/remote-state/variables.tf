@@ -1,3 +1,3 @@
 variable "bucket_name" {
-  default = "digit-sandbox-terraform-bucket"
+  default = <terraform_state_bucket_name>
 }

@@ -5,7 +5,7 @@
 
 variable "cluster_name" {
   description = "Name of the Kubernetes cluster"
-  default = "digit-sandbox" #REPLACE
+  default = <cluster_name> #REPLACE
 }
 
 variable "vpc_cidr_block" {
@@ -16,7 +16,7 @@ variable "vpc_cidr_block" {
 
 variable "network_availability_zones" {
   description = "Configure availability zones configuration for VPC. Leave as default for India. Recommendation is to have subnets in at least two availability zones"
-  default = ["ap-south-1b", "ap-south-1a"] #REPLACE IF NEEDED
+  default = ["ap-south-1a", "ap-south-1b"] #REPLACE IF NEEDED
 }
 
 variable "availability_zones" {
@@ -26,13 +26,44 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.30"
+  default = "1.33"
 }
 
+variable "db_version" {
+  description = "DB version"
+  default = "15.12"
+}
+
+variable "db_instance_class" {
+  description = "DB instance class"
+  default = "db.t4g.medium"
+}
+
+variable "architecture" {
+  description = "Architecture for worker nodes (x86_64 or arm64)"
+  type        = string
+  default     = "x86_64"
+  validation {
+    condition     = contains(["x86_64", "arm64"], var.architecture)
+    error_message = "Architecture must be either x86_64 or arm64."
+  }
+}
+
+# Map of architecture → instance types
+variable "instance_types_map" {
+  description = "Map of instance types per architecture"
+  type = map(list(string))
+  default = {
+    x86_64 = ["m5a.xlarge"]
+    arm64  = ["t4g.xlarge"]
+  }
+}
+
+# Optional override variable (if users want to specify directly)
 variable "instance_types" {
-  description = "Arry of instance types for SPOT instances"
-  default = ["r5ad.xlarge"]
-  
+  description = "List of instance types to use (optional — overrides architecture defaults)"
+  type        = list(string)
+  default     = []
 }
 
 variable "min_worker_nodes" {
@@ -53,17 +84,37 @@ variable "max_worker_nodes" {
 
 variable "db_name" {
   description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
-  default = "digitsandboxdb" #REPLACE
+  default = <db_name> #REPLACE
 }
 
 variable "db_username" {
   description = "RDS database user name"
-  default = "digit_sandbox" #REPLACE
+  default = <db_username> #REPLACE
 }
 
-variable "iam_user_arn" {
-  description = "Provide the IAM user arn which you are using to create infrastructure"
-  default = "arn:aws:iam::680148267093:user/digit_sandbox" #REPLACE 
+variable "ami_id" {
+  description = "Provide the AMI ID that supports your eks version"
+  default = {
+    id   = "ami-0b6753867a45581f3"
+    name = "bottlerocket-aws-k8s-1.32-x86_64-v1.49.0-713f44ce"
+  }
+}
+
+variable "filestore_namespace" {
+  description = "Provide the namespace to create filestore secret"
+  default = "egov" #REPLACE  
+}
+
+variable "enable_karpenter" {
+  description = "Enable the karpenter."
+  type        = bool
+  default     = false
+}
+
+variable "enable_ClusterAutoscaler" {
+  description = "Enable the Cluster Autoscaler."
+  type        = bool
+  default     = false
 }
 
 #DO NOT fill in here. This will be asked at runtime

@@ -31,6 +31,7 @@ resource "aws_db_instance" "rds_postgres" {
     tomap({
       "Name" =  "${var.environment}-db",
       "environment" = "${var.environment}"
+      "KubernetesCluster" = "${var.environment}"
     })
   }"  
 }

@@ -256,25 +256,6 @@ resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
   depends_on = [kubernetes_annotations.gp2_default]
 }
 
-module "es-master" {
-  source = "../modules/storage/aws"
-  storage_count = 3
-  environment = "${var.cluster_name}"
-  disk_prefix = "es-master"
-  availability_zones = "${var.availability_zones}"
-  storage_sku = "gp3"
-  disk_size_gb = "2"  
-}
-module "es-data-v1" {
-  source = "../modules/storage/aws"
-  storage_count = 3
-  environment = "${var.cluster_name}"
-  disk_prefix = "es-data-v1"
-  availability_zones = "${var.availability_zones}"
-  storage_sku = "gp3"
-  disk_size_gb = "25"  
-}
-
 provider "helm" {
   kubernetes  {
     host                   = data.aws_eks_cluster.cluster.endpoint

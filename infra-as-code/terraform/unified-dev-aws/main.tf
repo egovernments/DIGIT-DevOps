@@ -230,18 +230,6 @@ resource "aws_security_group_rule" "rds_db_ingress_workers" {
 }
 
 
-module "zookeeper" {
-
-  source = "../modules/storage/aws"
-  storage_count = 3
-  environment = "${var.cluster_name}"
-  disk_prefix = "zookeeper"
-  availability_zones = "${var.availability_zones}"
-  storage_sku = "gp3"
-  disk_size_gb = "10"
-  
-}
-
 resource "kubernetes_annotations" "gp2_default" {
   annotations = {
     "storageclass.kubernetes.io/is-default-class" : "false"

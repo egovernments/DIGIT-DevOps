@@ -5,7 +5,12 @@
 
 variable "cluster_name" {
   description = "Name of the Kubernetes cluster"
-  default = <cluster_name> #REPLACE
+  default = "test-demo" #REPLACE
+}
+
+variable "terraform_state_bucket_name" {
+  description = "Name of the S3 bucket used to store the terraform state"
+  default = "test-demo-state-s3-bucket" #REPLACE
 }
 
 variable "vpc_cidr_block" {
@@ -29,15 +34,15 @@ variable "kubernetes_version" {
   default = "1.33"
 }
 
-variable "db_version" {
-  description = "DB version"
-  default = "15.12"
-}
-
-variable "db_instance_class" {
-  description = "DB instance class"
-  default = "db.t4g.medium"
-}
+# variable "db_version" {
+#   description = "DB version"
+#   default = "15.12"
+# }
+#
+# variable "db_instance_class" {
+#   description = "DB instance class"
+#   default = "db.t4g.medium"
+# }
 
 variable "architecture" {
   description = "Architecture for worker nodes (x86_64 or arm64)"
@@ -82,15 +87,15 @@ variable "max_worker_nodes" {
 }
 
 
-variable "db_name" {
-  description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
-  default = <db_name> #REPLACE
-}
-
-variable "db_username" {
-  description = "RDS database user name"
-  default = <db_username> #REPLACE
-}
+# variable "db_name" {
+#   description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
+#   default = "db_name" #REPLACE
+# }
+#
+# variable "db_username" {
+#   description = "RDS database user name"
+#   default = "db_username" #REPLACE
+# }
 
 variable "ami_id" {
   description = "Provide the AMI ID that supports your eks version"
@@ -100,10 +105,10 @@ variable "ami_id" {
   }
 }
 
-variable "filestore_namespace" {
-  description = "Provide the namespace to create filestore secret"
-  default = "egov" #REPLACE  
-}
+# variable "filestore_namespace" {
+#   description = "Provide the namespace to create filestore secret"
+#   default = "egov" #REPLACE
+# }
 
 variable "enable_karpenter" {
   description = "Enable the karpenter."
@@ -117,6 +122,6 @@ variable "enable_ClusterAutoscaler" {
   default     = false
 }
 
-#DO NOT fill in here. This will be asked at runtime
-variable "db_password" {}
+# #DO NOT fill in here. This will be asked at runtime
+# variable "db_password" {}
 

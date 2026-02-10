@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "${var.bucket_name}"
+  bucket = var.bucket
 
   lifecycle {
     prevent_destroy = true
@@ -19,7 +19,7 @@ resource "aws_s3_bucket_versioning" "versioning" {
 
 
 resource "aws_dynamodb_table" "terraform_state_lock" {
-  name           = "${var.bucket_name}"
+  name           = var.dynamodb_table
   read_capacity  = 1
   write_capacity = 1
   hash_key       = "LockID"

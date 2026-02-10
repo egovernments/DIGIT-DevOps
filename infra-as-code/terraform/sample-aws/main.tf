@@ -1,11 +1,7 @@
 terraform {
   backend "s3" {
-    bucket = <terraform_state_bucket_name>
-    key    = "terraform-setup/terraform.tfstate"
-    region = "ap-south-1"
-    # The below line is optional depending on whether you are using DynamoDB for state locking and consistency
-    dynamodb_table = <terraform_state_bucket_name>
-    # The below line is optional if your S3 bucket is encrypted
+    key     = "terraform-setup/terraform.tfstate"
+    region  = "ap-south-1"
     encrypt = true
   }
   required_providers {
@@ -36,121 +32,55 @@ locals {
   selected_instance_types = length(var.instance_types) > 0 ? var.instance_types : var.instance_types_map[var.architecture]
 }
 
-resource "aws_iam_user" "filestore_user" {
-  name = "${var.cluster_name}-filestore-user"
+# resource "aws_iam_user" "filestore_user" {
+#   name = "${var.cluster_name}-filestore-user"
+#
+#   tags = {
+#     "KubernetesCluster" = var.cluster_name
+#     "Name"              = var.cluster_name
+#   }
+# }
+#
+# resource "aws_iam_access_key" "filestore_key" {
+#   user    = aws_iam_user.filestore_user.name
+# }
+#
+# resource "kubernetes_namespace" "namespace" {
+#   metadata {
+#     name = var.filestore_namespace
+#   }
+# }
+#
+# resource "kubernetes_secret" "egov-filestore" {
+#   depends_on  = [kubernetes_namespace.namespace]
+#   metadata {
+#     name      = "egov-filestore"
+#     namespace = var.filestore_namespace
+#   }
+#
+#   data = {
+#     awssecretkey = aws_iam_access_key.filestore_key.secret
+#     awskey       = aws_iam_access_key.filestore_key.id
+#   }
+#
+#   type = "Opaque"
+# }
+
+# KMS key for SOPS encryption/decryption of env-secrets.yaml
+resource "aws_kms_key" "sops" {
+  description             = "KMS key for SOPS encryption/decryption"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
 
   tags = {
     "KubernetesCluster" = var.cluster_name
-    "Name"              = var.cluster_name
+    "Name"              = "${var.cluster_name}-sops-key"
   }
 }
 
-resource "aws_iam_access_key" "filestore_key" {
-  user    = aws_iam_user.filestore_user.name
-}
-
-resource "kubernetes_namespace" "namespace" {
-  metadata {
-    name = var.filestore_namespace
-  }
-}
-
-resource "kubernetes_secret" "egov-filestore" {
-  depends_on  = [kubernetes_namespace.namespace]
-  metadata {
-    name      = "egov-filestore"
-    namespace = var.filestore_namespace  # Change this as needed
-  }
-
-  data = {
-    awssecretkey = aws_iam_access_key.filestore_key.secret
-    awskey       = aws_iam_access_key.filestore_key.id
-  }
-
-  type = "Opaque"
-}
-
-resource "aws_s3_bucket" "filestore_bucket" {
-  bucket = "${var.cluster_name}-filestore-bucket"
-
-  tags = {
-    "KubernetesCluster" = var.cluster_name
-    "Name"              = var.cluster_name
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "filestore_bucket_access" {
-  bucket = aws_s3_bucket.filestore_bucket.id
-
-  block_public_acls       = false
-  block_public_policy     = false
-  ignore_public_acls      = false
-  restrict_public_buckets = false
-}
-
-resource "aws_s3_bucket_policy" "filestore_bucket_policy" {
-  depends_on = [aws_s3_bucket_public_access_block.filestore_bucket_access]
-  bucket = aws_s3_bucket.filestore_bucket.id
-  policy = data.aws_iam_policy_document.filestore_bucket_policy.json
-}
-
-data "aws_iam_policy_document" "filestore_bucket_policy" {
-  depends_on = [aws_s3_bucket_public_access_block.filestore_bucket_access]
-  statement {
-    sid           = "PublicReadGetObject"
-    principals {
-      type        = "*"
-      identifiers = ["*"]
-    }
-
-    actions = [
-      "s3:GetObject",
-    ]
-
-    resources = [
-      "${aws_s3_bucket.filestore_bucket.arn}/*",
-    ]
-  }
-}
-
-resource "aws_iam_policy" "filestore_policy" {
-  name        = "${var.cluster_name}-filestore_policy"  # Replace with your desired policy name
-  description = "Filestore Policy for S3 access"
-  policy = jsonencode({
-    "Version" = "2012-10-17"
-    "Statement" = [
-      {
-        "Effect" = "Allow"
-        "Action" = [
-          "s3:GetBucketLocation",
-          "s3:ListAllMyBuckets"
-        ]
-        "Resource" = "arn:aws:s3:::*"
-      },
-      {
-        "Effect" = "Allow"
-        "Action" = [
-          "s3:*"
-        ]
-        "Resource" = "${aws_s3_bucket.filestore_bucket.arn}" # Allow access to the bucket
-      },
-      {
-        "Effect" = "Allow"
-        "Action" = [
-          "s3:PutObject",
-          "s3:PutObjectAcl",
-          "s3:GetObject",
-          "s3:DeleteObject"
-        ]
-        "Resource" = "${aws_s3_bucket.filestore_bucket.arn}/*" # Allow access to objects in the bucket
-      }
-    ]
-  })
-}
-
-resource "aws_iam_user_policy_attachment" "filestore_attachment" {
-  user       = "${aws_iam_user.filestore_user.name}"  # Reference the IAM user
-  policy_arn = "${aws_iam_policy.filestore_policy.arn}" # Reference the policy
+resource "aws_kms_alias" "sops" {
+  name          = "alias/${var.cluster_name}-sops-key"
+  target_key_id = aws_kms_key.sops.key_id
 }
 
 module "network" {
@@ -160,23 +90,23 @@ module "network" {
   availability_zones = "${var.network_availability_zones}"
 }
 
-# PostGres DB
-module "db" {
-  source                        = "../modules/db/aws"
-  subnet_ids                    = "${module.network.private_subnets}"
-  vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
-  availability_zone             = "${element(var.availability_zones, 0)}"
-  instance_class                = var.db_instance_class  ## postgres db instance type
-  engine_version                = var.db_version   ## postgres version
-  storage_type                  = "gp3"
-  storage_gb                    = "20"     ## postgres disk size
-  backup_retention_days         = "7"
-  administrator_login           = "${var.db_username}"
-  administrator_login_password  = "${var.db_password}"
-  identifier                    = "${var.cluster_name}-db"
-  db_name                       = "${var.db_name}"
-  environment                   = "${var.cluster_name}"
-}
+# PostGres DB - commented out, using postgres pod instead
+# module "db" {
+#   source                        = "../modules/db/aws"
+#   subnet_ids                    = "${module.network.private_subnets}"
+#   vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
+#   availability_zone             = "${element(var.availability_zones, 0)}"
+#   instance_class                = var.db_instance_class
+#   engine_version                = var.db_version
+#   storage_type                  = "gp3"
+#   storage_gb                    = "20"
+#   backup_retention_days         = "7"
+#   administrator_login           = "${var.db_username}"
+#   administrator_login_password  = "${var.db_password}"
+#   identifier                    = "${var.cluster_name}-db"
+#   db_name                       = "${var.db_name}"
+#   environment                   = "${var.cluster_name}"
+# }
 
 data "aws_caller_identity" "current" {}
 
@@ -288,15 +218,15 @@ module "ebs_csi_driver_irsa" {
   }
 }
 
-resource "aws_security_group_rule" "rds_db_ingress_workers" {
-  description              = "Allow node groups to communicate with RDS database"
-  from_port                = 5432
-  to_port                  = 5432
-  protocol                 = "tcp"
-  security_group_id        = module.network.rds_db_sg_id
-  source_security_group_id = module.eks.node_security_group_id
-  type                     = "ingress"
-}
+# resource "aws_security_group_rule" "rds_db_ingress_workers" {
+#   description              = "Allow node groups to communicate with RDS database"
+#   from_port                = 5432
+#   to_port                  = 5432
+#   protocol                 = "tcp"
+#   security_group_id        = module.network.rds_db_sg_id
+#   source_security_group_id = module.eks.node_security_group_id
+#   type                     = "ingress"
+# }
 
 # Fetching EKS Cluster Data after its creation
 data "aws_eks_cluster" "cluster" {

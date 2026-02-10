@@ -1,0 +1,87 @@
+# Common Labels
+labels:
+  app: "keycloak"
+  group: "keycloak"
+namespace: keycloak
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: false
+  context: "keycloak"
+
+# Container Configs
+image:
+  repository: "keycloak"
+replicas: "1"
+events-listeners: "jboss-logging,register-citizen-listener"
+cpu_requests: "250m"
+memory_requests: "512Mi"
+cpu_limits: "500m"
+memory_limits: "1024Mi"
+
+resources: |
+  requests:
+    {{- if index .Values "cpu_requests" }} 
+    cpu: {{ index .Values "cpu_requests" | quote }}
+    {{- end }}
+    {{- if index .Values "memory_requests" }} 
+    memory: {{ .Values.memory_requests | quote }}
+    {{- end }}
+  limits:
+    {{- if index .Values "cpu_limits" }} 
+    cpu: {{ index .Values "cpu_limits" | quote }}
+    {{- end }}
+    {{- if index .Values "memory_limits" }}
+    memory: {{ .Values.memory_limits | quote }}
+    {{- end }}
+
+# Additional Container Envs
+env: |  
+  - name: SERVER_PORT
+    value: "8080"
+  - name: KC_PROXY
+    value: "edge"
+  - name: KC_HTTP_RELATIVE_PATH
+    value: "/keycloak"
+  - name: KC_DB_URL
+    value: "jdbc:postgresql://postgresql-lts.egov:5432/new_keycloak"
+  - name: KC_DB
+    value: "postgres"
+  - name: DB_PORT
+    value: "5432"
+  - name: KC_DB_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: kc-db
+        key: username
+  - name: KC_DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: kc-db
+        key: password
+  - name: KEYCLOAK_ADMIN
+    valueFrom:
+      secretKeyRef:
+        name: kc-admin
+        key: username
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: kc-admin
+        key: password
+  - name: KC_EVENTS_LISTENERS
+    value: {{ index .Values "events-listeners" | quote }}
+  - name: KC_SPI_EVENTS_LISTENER_REGISTER_CITIZEN_LISTENER_ENABLED
+    value: "true"
+  - name: KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: KC_FEATURES
+    value: "token-exchange,admin-fine-grained-authz"   
+  - name: OTEL_TRACES_EXPORTER
+    value: "none"
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "org.postgresql.Driver"     

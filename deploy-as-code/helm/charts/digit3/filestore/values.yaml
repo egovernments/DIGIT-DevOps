@@ -1,0 +1,134 @@
+# Common Labels
+labels:
+  app: "filestore"
+  group: "core"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "filestore_schema"
+    image:
+      repository: "filestore-db"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "filestore"
+
+# Container Configs
+image:
+  repository: "filestore"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/filestore/health"
+  readinessProbePath: "/filestore/health"
+appType: "java-spring"
+tracing-enabled: true
+is-bucket-fixed: "true"
+fixed-bucketname: "unified-dev-bucket-s3"
+heap: "-Xmx256m -Xms256m"
+file-storage-mount-path: "/filestore"
+is-nfs-enabled: false
+is-s3-enabled: true
+minio-enabled: true
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+persistence:
+  enabled: false
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: MINIO_BUCKET
+    value: "digit"
+  - name: MINIO_READ_BUCKET
+    value: "digit"
+  - name: MINIO_USE_SSL
+    value: "false"
+  - name: ISNFSSTORAGEENABLED
+    value: {{ index .Values "is-nfs-enabled" | quote }}
+  {{- if index .Values "is-nfs-enabled" }}
+  - name: ISNFSSTORAGEENABLED
+    value: "true"
+  - name: DISK_STORAGE_HOST_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  - name: SOURCE_DISK
+    value: "diskStorage"
+  {{- end }}
+  {{- if index .Values "is-s3-enabled" }}
+  - name: ISS3ENABLED
+    value: "true"
+  {{- end }}  
+  {{- if index .Values "minio-enabled" }}
+  - name: MINIO_ACCESS_KEY
+    value: "digit"
+  - name: MINIO_SECRET_KEY
+    value: "Digit@123"
+  {{else}}
+  - name: AWS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-filestore
+        key: awskey
+  - name: AWS_SECRETKEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-filestore
+        key: awssecretkey
+  {{- end }}
+  {{- if index .Values "is-bucket-fixed" }}
+  - name: IS_BUCKET_FIXED
+    value: {{ index .Values "is-bucket-fixed" | quote }}
+  {{- end }}
+  {{- if index .Values "fixed-bucketname" }}
+  - name: FIXED_BUCKETNAME
+    value: {{ index .Values "fixed-bucketname" | quote }}
+  {{- end }}
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: ALLOWED_FORMATS_MAP
+    value: {{ index .Values "allowed-file-formats-map" | quote }}
+  {{- if index .Values "minio-enabled" }}  
+  - name: MINIO_ENDPOINT
+    value: "minio.default.svc.cluster.local:9000"
+  {{- end }}
+  {{- if index .Values "filestore-url-validity" }}   
+  - name: PRESIGNED_URL_EXPIRY_TIME_IN_SECS     
+    value: {{ index .Values "filestore-url-validity" | quote }}   
+  {{- end }} 
+  - name: OTEL_TRACES_EXPORTER
+    value: "none"
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "org.postgresql.Driver" 

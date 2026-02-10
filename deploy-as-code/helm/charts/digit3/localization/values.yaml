@@ -1,0 +1,106 @@
+# Common Labels
+labels:
+  app: "localization"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "localization"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "localization_schema"
+    image:
+      repository: "localization-db"
+
+# Container Configs
+image:
+  repository: "localization"
+replicas: 1
+appType: "go"
+tracing-enabled: true # Assuming you want to keep tracing
+healthChecks:
+  enabled: false # Disabled as requested
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+      
+# Additional Container Envs
+env: |
+  - name: REST_PORT
+    value: "8088"
+  - name: GRPC_PORT
+    value: "8089"
+  - name: DB_MAX_OPEN_CONNS
+    value: "100"
+  - name: DB_MAX_IDLE_CONNS
+    value: "50"
+  - name: DB_CONN_MAX_LIFETIME
+    value: "15m"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: REDIS_HOST
+    value: "redis.backbone"
+  - name: REDIS_PORT
+    value: "6379"
+  - name: REDIS_DB
+    value: "0"
+  - name: OTEL_EXPORTER_TYPE
+    value: "otlp"
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: "jaeger-collector.tracing:4318"
+  - name: OTEL_SERVICE_NAME
+    value: "localization-service"
+  - name: OTEL_TRACES_EXPORTER
+    value: "otlp"
+  - name: OTEL_METRICS_EXPORTER
+    value: "otlp"
+  - name: OTEL_SAMPLING_RATIO
+    value: "1.0"
+  - name: JAEGER_SAMPLER_PARAM
+    value: "1"
+  - name: OTEL_ENABLED
+    value: "true"
+  - name: JAEGER_SAMPLER_TYPE
+    value: "remote"
+  - name: JAEGER_AGENT_HOST
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: JAEGER_AGENT_PORT
+    value: "6831"
+  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+    value: "$(JAEGER_AGENT_HOST):5778"
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true"
+  - name: OTEL_TRACES_EXPORTER
+    value: "none"
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "org.postgresql.Driver"

@@ -1,0 +1,93 @@
+# Common Labels
+labels:
+  app: "hrms"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "hrms"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "hrms_schema"
+    image:
+      repository: "hrms-db"
+
+# Container Configs
+image:
+  repository: "hrms"
+replicas: 1
+appType: "go"
+tracing-enabled: true # Assuming you want to keep tracing
+healthChecks:
+  enabled: false # Disabled as requested
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: "/hrms"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+
+  - name: IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: idgen
+  - name: IDGEN_PATH
+    value: "idgen/v1/generate"
+  - name: IDGEN_NAME
+    value: "hrms.idgen"
+
+  - name: BOUNDARY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: boundary
+  - name: BOUNDARY_ENABLED
+    value: "true"  
+
+  - name: INDIVIDUAL_HOST
+    value: "http://individual:8080/"
+  - name: INDIVIDUAL_ENABLED
+    value: "true"
+
+  - name: KEYCLOAK_BASE_URL
+    value: "https://digit-lts.digit.org/keycloak"
+  - name: KEYCLOAK_ENABLED
+    value: "true"
+
+
+

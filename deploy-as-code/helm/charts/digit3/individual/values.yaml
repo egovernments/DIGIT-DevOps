@@ -1,0 +1,196 @@
+# Common Labels
+labels:
+  app: "individual"
+  group: "core"
+
+namespace: egov
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "individual"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "individual_schema"
+    image:
+      repository: "individual-db"
+
+# Container Configs
+image:
+  repository: "individual"
+replicas: "1"
+healthChecks:
+  enabled: false
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+appType: "go"
+tracing-enabled: true
+state-level-tenant-id: "pg"
+
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+ - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: "/individual"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: MAX_IDLE_CONNS
+    value: "10"
+  - name: MAX_OPEN_CONNS
+    value: "50"
+  - name: CONN_MAX_LIFETIME
+    value: "5m"
+  - name: LOG_LEVEL
+    value: "info"
+  
+
+  - name: REDIS_HOST
+    value: "redis.backbone"
+  - name: REDIS_PORT
+    value: "6379"
+  - name: REDIS_PASSWORD
+    value: ""
+  - name: REDIS_DB
+    value: "0"
+  - name: REDIS_POOL_SIZE
+    value: "10"
+
+
+  - name: IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: idgen
+  - name: IDGEN_PATH
+    value: "idgen/v1/generate"
+  - name: IDGEN_ENABLED
+    value: "true"
+  - name: IDGEN_INDIVIDUAL_ID_FORMAT
+    value: "individual"
+
+
+
+  {{- if index .Values "state-level-tenant-id" }}
+  - name: STATE_LEVEL_TENANT_ID
+    value: {{ index .Values "state-level-tenant-id" | quote }}
+  {{- end }}
+
+
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: mdms-service-v2
+  - name: EGOV_MDMS_SEARCH_ENDPOINT
+    value: "/mdms-v2/v1/_search"
+  - name: EGOV_ENC_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-enc-service
+        
+
+  - name: LOCALIZATION_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: localization
+  - name: LOCALIZATION_SEARCH_PATH
+    value: "/localization/messages/v1/_search"
+
+  - name: KEYCLOAK_BASE_URL
+    value: "https://digit-lts.digit.org/keycloak"
+  - name: KEYCLOAK_ENABLED
+    value: "true"
+  - name: KEYCLOAK_ASSIGNABLE_ROLES
+    value: "ASSIGNER,CITIZEN"
+
+
+
+  - name: BOUNDARY_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: boundary
+  - name: BOUNDARY_SEARCH_PATH
+    value: "/boundary/v1"
+  - name: BOUNDARY_HIERARCHY
+    value: "HCM-Hierarchy"
+
+  - name: VAULT_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: vault-host
+  - name: VAULT_ENCRYPT_PATH
+    value: encrypt/
+  - name: VAULT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: vault-host
+  - name: VAULT_TOKEN
+    value: ""
+  - name: VAULT_TRANSIT_BASE_PATH
+    value: v1/transit/
+  - name: VAULT_SYS_MOUNT_TRANSIT_PATH
+    value: v1/sys/mounts/transit
+  - name: VAULT_KEY_CREATE_PATH
+    value: keys/
+  - name: VAULT_ASYM_SUFFIX
+    value: -asym
+  - name: VAULT_ASYM_ENCRYPT_PATH
+    value: encrypt/
+  - name: VAULT_AUTH_KUBERNETES_LOGIN_PATH
+    value: v1/auth/kubernetes/login
+  - name: VAULT_AUTH_KUBERNETES_ROLE
+    value: enc-service-role
+  - name: VAULT_K8S_TOKEN_PATH
+    value: /var/run/secrets/kubernetes.io/serviceaccount/token
+  - name: VAULT_SIGN_PATH
+    value: sign/
+  - name: VAULT_VERIFY_PATH
+    value: verify/
+  - name: VAULT_DECRYPT_PATH
+    value: decrypt/
+  
+  - name: VAULT_ENABLED
+    value: "true"
+  - name: VAULT_ENCRYPT_KEY
+    value: IndividualEncrypt
+  - name: VAULT_DECRYPT_KEY
+    value: IndividualEncrypt
+  - name: OTEL_TRACES_EXPORTER
+    value: "none"
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "org.postgresql.Driver"

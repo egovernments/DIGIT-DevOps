@@ -1,0 +1,86 @@
+# Common Labels
+labels:
+  app: "registry"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "registry"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true  # We handle migrations in the app
+    schemaTable: registry_schema
+    image:
+      repository: "registry-db"
+
+# Container Configs
+image:
+  repository: "registry"
+replicas: "1"
+appType: "go"
+tracing-enabled: false
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+  - name: PORT
+    value: "8080"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: RUN_MIGRATIONS
+    value: "true"
+  - name: MIGRATION_PATH
+    value: "db/migration"
+  - name: MIGRATION_TIMEOUT
+    value: "300s"
+  - name: VAULT_REQUIRED
+    value: "false"
+  - name: VAULT_TRANSIT_MOUNT
+    value: "transit"
+  - name: VAULT_KEY_PREFIX
+    value: "registry-"
+  - name: VAULT_TIMEOUT
+    value: "30s"
+  - name: LOG_LEVEL
+    value: "info"
+  - name: GIN_MODE
+    value: "release"
+  - name: IDGEN_BASE_URL
+    value: "http://idgen.egov.svc.cluster.local:8080/idgen"
+  - name: IDGEN_TEMPLATE_ID
+    value: "registryId"
+  - name: IDGEN_ORG_VALUE
+    value: "REGISTRY"
+  - name: IDGEN_HTTP_TIMEOUT
+    value: "5s"
+  - name: OTEL_TRACES_EXPORTER
+    value: "none"
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "org.postgresql.Driver"

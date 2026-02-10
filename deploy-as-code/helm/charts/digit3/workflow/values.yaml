@@ -1,0 +1,82 @@
+# Common Labels
+labels:
+  app: "workflow"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "workflow"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true  # We handle migrations in the app
+    schemaTable: workflow_schema
+    image:
+      repository: "workflow-db"
+
+# Container Configs
+image:
+  repository: "workflow"
+replicas: "1"
+appType: "go"
+tracing-enabled: false
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: RUN_MIGRATIONS
+    value: "true"
+  - name: MIGRATION_PATH
+    value: "db/migration"
+  - name: MIGRATION_TIMEOUT
+    value: "300s"
+  - name: LOG_LEVEL
+    value: "info"
+  - name: GIN_MODE
+    value: "release"
+  {{- if index .Values "workflow-default-limit" }}
+  - name: WORKFLOW_DEFAULT_LIMIT
+    value: {{ index .Values "workflow-default-limit" | quote }}
+  {{- end }}
+  {{- if index .Values "workflow-max-limit" }}
+  - name: WORKFLOW_MAX_LIMIT
+    value: {{ index .Values "workflow-max-limit" | quote }}
+  {{- end }}
+  - name: OTEL_TRACES_EXPORTER
+    value: "none"
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "org.postgresql.Driver"
+
+# Workflow specific configurations
+workflow-default-limit: "100"
+workflow-max-limit: "1000" 

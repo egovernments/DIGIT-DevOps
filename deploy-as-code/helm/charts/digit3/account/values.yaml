@@ -1,0 +1,83 @@
+# Common Labels
+labels:
+  app: "account"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "account"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "account_schema"
+    image:
+      repository: "account-db"
+
+# Container Configs
+image:
+  repository: "account"
+replicas: 1
+appType: "go"
+tracing-enabled: true
+memory_limits: 512Mi
+healthChecks:
+  enabled: false
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+
+# Additional Container Envs
+env: |
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_USER
+    valueFrom:
+        secretKeyRef:
+          name: db
+          key: username
+  - name: DB_PASSWORD
+    valueFrom:
+        secretKeyRef:
+          name: db
+          key: password
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: KEYCLOAK_BASE_URL
+    value: "https://digit-lts.digit.org/keycloak"
+  - name: KEYCLOAK_ADMIN_USER
+    value: "digit"
+  - name: KEYCLOAK_ADMIN_PASS
+    value: "digit@321"
+  - name: GIN_MODE
+    value: "release"
+  - name: CITIZEN_BROKER_CLIENT_ID
+    value: "citizen-broker"
+  - name: CITIZEN_BROKER_CLIENT_SECRET
+    value: "zjlrLxJCFpsRIemN9pJpUC9Wy9gjWS7m"
+  - name: NOTIFICATION_BASE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: notification 
+  - name: OTEL_TRACES_EXPORTER
+     value: "none"
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+     value: "org.postgresql.Driver"

@@ -1,0 +1,84 @@
+# Common Labels
+labels:
+  app: "url-shortener"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "url-shortener"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "url_shortener_schema"
+    image:
+      repository: "url-shortener-db"
+
+# Container Configs
+image:
+  repository: "url-shortener"
+replicas: 1
+appType: "go"
+tracing-enabled: true # Assuming you want to keep tracing
+healthChecks:
+  enabled: false # Disabled as requested
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+  - name: HTTP_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: "/url-shortener"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: CACHE_ENABLED
+    value: "false"
+  - name: CACHE_TYPE
+    value: "redis"
+  - name: CACHE_TTL
+    value: "24*time.Hour"
+  - name: REDIS_ADDR
+    value: "redis.backbone:6379"
+  - name: REDIS_DB
+    value: "0"
+  - name: SHORT_KEY_MIN_LENGTH
+    value: "4"
+  - name: MAX_SHORT_KEY_RETRIES
+    value: "10"
+  - name: HOST_NAME
+    value: "https://digit-lts.digit.org/"
+  - name: JAEGER_SAMPLER_PARAM
+    value: "1" 
+  - name: OTEL_TRACES_EXPORTER
+    value: "none"
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "org.postgresql.Driver"

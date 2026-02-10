@@ -1,0 +1,148 @@
+# Common Labels
+labels:
+  app: "otp"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "otp"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "otp_schema"
+    image:
+      repository: "otp-db"
+
+# Container Configs
+image:
+  repository: "otp"
+replicas: 1
+appType: "go"
+tracing-enabled: true # Assuming you want to keep tracing
+healthChecks:
+  enabled: false # Disabled as requested
+  livenessProbePath: "/otp/health"
+  readinessProbePath: "/otp/health"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: "/otp"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+
+
+  - name: OTP_LENGTH
+    value: "6"
+  - name: OTP_CHARSET
+    value: "digits"
+  - name: OTP_LIFETIME_SECONDS
+    value: "300"
+  - name: RESEND_DELAY_SECONDS
+    value: "30"
+  - name: MAX_RESEND_COUNT
+    value: "3"
+  - name: MAX_VERIFY_ATTEMPTS
+    value: "5"
+  - name: USE_SINGLE_ACTIVE_OTP
+    value: "true"
+  - name: RESEND_SAME_CODE
+    value: "true"
+  - name: MAX_GENERATE_PER_DEST_HOUR
+    value: "2"
+  - name: MAX_GENERATE_PER_IP_HOUR
+    value: "0"
+  - name: ENABLE_RATE_LIMIT
+    value: "true" 
+
+  - name: NOTIFY_BASE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: notification
+  - name: NOTIFY_ASYNC
+    value: "true"
+
+  - name: HMAC_SECRET
+    value: "change-me-secret"
+
+
+  - name: REDIS_HOST
+    value: "redis.backbone"
+  - name: REDIS_PORT
+    value: "6379"
+  - name: REDIS_PASSWORD
+    value: ""
+  - name: REDIS_DB
+    value: "0"
+
+  - name: VAULT_HOST
+    value: "http://vault.vault-new.svc.cluster.local:8200"
+  - name: VAULT_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: vault-root-token
+        key: token
+  - name: VAULT_ENCRYPT_PATH
+    value: encrypt/
+  - name: VAULT_TRANSIT_BASE_PATH
+    value: v1/transit/
+  - name: VAULT_SYS_MOUNT_TRANSIT_PATH
+    value: v1/sys/mounts/transit
+  - name: VAULT_KEY_CREATE_PATH
+    value: keys/
+  - name: VAULT_ASYM_SUFFIX
+    value: -asym
+  - name: VAULT_ASYM_ENCRYPT_PATH
+    value: encrypt/
+  - name: VAULT_AUTH_KUBERNETES_LOGIN_PATH
+    value: v1/auth/kubernetes/login
+  - name: VAULT_AUTH_KUBERNETES_ROLE
+    value: enc-service-role
+  - name: VAULT_K8S_TOKEN_PATH
+    value: /var/run/secrets/kubernetes.io/serviceaccount/token
+  - name: VAULT_SIGN_PATH
+    value: sign/
+  - name: VAULT_VERIFY_PATH
+    value: verify/
+  - name: VAULT_DECRYPT_PATH
+    value: decrypt/
+  
+  - name: VAULT_ENABLED
+    value: "true"
+  - name: VAULT_ENCRYPT_KEY
+    value: OtpEncrypt
+  - name: OTEL_TRACES_EXPORTER
+    value: "none"
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "org.postgresql.Driver"

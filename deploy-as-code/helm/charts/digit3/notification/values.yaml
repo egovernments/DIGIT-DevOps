@@ -1,0 +1,135 @@
+# Common Labels
+labels:
+  app: "notification"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "notification"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "notification_schema"
+    image:
+      repository: "notification-db"
+
+# Container Configs
+image:
+  repository: "notification"
+replicas: "1"
+healthChecks:
+  enabled: false
+  livenessProbePath: "/notification/health"
+  readinessProbePath: "/notification/health"
+appType: "go"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+  - name: HTTP_PORT
+    value: "8080" 
+  - name: SERVER_CONTEXT_PATH
+    value: "/notification"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: TEMPLATE_CONFIG_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: template-config
+  - name: TEMPLATE_CONFIG_PATH
+    value: "template-config/v1/render"
+  - name: FILESTORE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: filestore
+  - name: FILESTORE_PATH
+    value: "filestore/v1/files"
+  - name: SMTP_HOST
+    value: "smtp.gmail.com"
+  - name: SMTP_PORT
+    value: "587"
+  - name: SMTP_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: egov-notification-mail
+        key: mailsenderusername
+  - name: SMTP_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: egov-notification-mail
+        key: mailsenderpassword
+  - name: SMTP_FROM_ADDRESS
+    valueFrom:
+      secretKeyRef:
+        name: egov-notification-mail
+        key: mailsenderusername
+  - name: SMTP_FROM_NAME
+    value: "eGov Foundation"
+  - name: SMS_PROVIDER_URL
+    value: "http://api.smscountry.com/SMSCwebservice_bulk.aspx"
+  - name: SMS_PROVIDER_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: egov-notification-sms
+        key: username
+  - name: SMS_PROVIDER_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: egov-notification-sms
+        key: password
+  - name: SMS_PROVIDER_CONTENT_TYPE
+    value: "application/x-www-form-urlencoded"
+  - name: MESSAGE_BROKER_ENABLED
+    value: "true"
+  - name: MESSAGE_BROKER_TYPE
+    value: "KAFKA"
+  - name: KAFKA_BROKERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: KAFKA_CONSUMER_GROUP
+    value: "notification-consumer-group"
+  - name: REDIS_ADDR
+    value: "redis.backbone:6379"
+  - name: REDIS_PASSWORD
+    value: ""
+  - name: REDIS_DB
+    value: "0"
+  - name: EMAIL_TOPIC
+    value: "notification-email"
+  - name: SMS_TOPIC
+    value: "notification-sms"
+  - name: OTEL_TRACES_EXPORTER
+    value: "none"
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "org.postgresql.Driver"

@@ -1,0 +1,87 @@
+# Common Labels
+labels:
+  app: "boundary"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "boundary"
+
+
+# Container Configs
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "boundary_schema"
+    image:
+      repository: "boundary-db"
+
+# Container Configs
+image:
+  repository: "boundary"
+replicas: 1
+appType: "go"
+tracing-enabled: true # Assuming you want to keep tracing
+healthChecks:
+  enabled: false # Disabled as requested
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_USER
+    valueFrom:
+        secretKeyRef:
+          name: db
+          key: username
+  - name: DB_PASSWORD
+    valueFrom:
+        secretKeyRef:
+          name: db
+          key: password
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: "/boundary"
+  - name: BOUNDARY_BASEPATH
+    value: "http://boundary:8080/"
+  - name: FILESTORE_BASEPATH
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: filestore
+  - name: FILESTORE_ENDPOINT
+    value: "/filestore/v1/files"
+  - name: CACHE_TYPE
+    value: "inmemory"
+  # If you want to use Redis, uncomment and set these:
+  # - name: CACHE_TYPE
+  #   value: "redis"
+  # - name: CACHE_REDIS_ADDR
+  #   value: "localhost:6379"
+  # - name: CACHE_REDIS_DB
+  #   value: "0" 
+  - name: OTEL_TRACES_EXPORTER
+    value: "none"
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "org.postgresql.Driver"

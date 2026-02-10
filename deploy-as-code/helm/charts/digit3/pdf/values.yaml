@@ -1,0 +1,56 @@
+# Common Labels
+labels:
+  app: "pdf"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "pdf"
+
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "pdf_schema"
+    image:
+      repository: "pdf-db"
+
+# Container Configs
+image:
+  repository: "pdf"
+replicas: 1
+appType: "go"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "1000m"
+    memory: "512Mi"
+  limits:
+    cpu: "1000m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+  - name: HTTP_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: "/pdf"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password

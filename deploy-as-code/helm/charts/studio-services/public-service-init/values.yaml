@@ -1,0 +1,176 @@
+# Common Labels
+labels:
+  app: "public-service-init"
+  group: "rainmaker"
+
+namespace: studio
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "public-service-init"
+  
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "public_service_init_schema"
+    image:
+      repository: "public-service-init-db"
+# Container Configs
+image:
+  repository: "public-service-init"
+replicas: "1"
+memory_limits: "512Mi"
+cpu_limits: "300m"
+tracing-enabled: true
+appType: "java-spring"
+
+# Additional Container Envs
+env: |
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: DB_PORT
+    value: "5432"     
+  - name: WORKFLOW_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-workflow-v2 
+  - name: KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers         
+  - name: WORKFLOW_TRANSITION_PATH
+    value: "egov-workflow-v2/egov-wf/process/_transition"
+  - name: WORKFLOW_SEARCH_PATH
+    value: "egov-workflow-v2/egov-wf/process/_search" 
+  - name: WF_BUSINESS_SERVICE_CREATE_URL
+    value: "egov-workflow-v2/egov-wf/businessservice/_create"
+  - name: WF_BUSINESS_SERVICE_SEARCH_PATH
+    value: "egov-workflow-v2/egov-wf/businessservice/_search"
+  - name: WF_BUSINESS_SERVICE_UPDATE_PATH
+    value: "egov-workflow-v2/egov-wf/businessservice/_update"   
+  - name: INDIVIDUAL_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: studio-individual
+  - name: INDIVIDUAL_CREATE_ENDPOINT
+    value: "studio-individual/v1/_create"
+  - name: INDIVIDUAL_UPDATE_ENDPOINT
+    value: "studio-individual/v1/_update"
+  - name: INDIVIDUAL_SEARCH_ENDPOINT
+    value: "studio-individual/v1/_search"
+  - name: MDMS_SERVICE_HOST
+    value: {{ index .Values "mdms-service-host" | quote }}
+  - name: MDMS_SEARCH_ENDPOINT 
+    value: {{ index .Values "mdms-search-enpoint" | quote }}
+  - name: MDMS_V2_SEARCH_ENDPOINT 
+    value: {{ index .Values "mdms-v2-search-endpoint" | quote }} 
+  - name: MDMS_SEARCH_V2_ENDPOINT
+    value: {{ index .Values "mdms-search-v2-endpoint" | quote }}
+  - name: MDMS_V2_CREATE_ENDPOINT
+    value: {{ index .Values "mdms-v2-create-endpoint" | quote }} 
+  - name: MDMS_V2_UPDATE_ENDPOINT
+    value: {{ index .Values "mdms-v2-update-endpoint" | quote }} 
+  - name: BILLING_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: billing-service
+  - name: DEMAND_CREATE_ENDPOINT
+    value: "billing-service/demand/_create"
+  - name: BILL_FETCH_ENDPOINT
+    value: "billing-service/bill/v2/_fetchbill"
+  - name: IDGEN_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-idgen
+  - name: IDGEN_SERVICE_GENERATE_URL
+    value: "egov-idgen/id/_generate" 
+  - name: LOCALIZATION_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-localization
+  - name: LOCALIZATION_CONTEXT_PATH
+    value: "localization/messages/v1" 
+  - name: LOCALIZATION_SEARCH_ENDPOINT
+    value: "/_search"
+  - name: LOCALIZATION_UPSERT_ENDPOINT
+    value: "/_upsert"   
+  - name: SERVICE_MASTER_NAME
+    value: "ServiceConfiguration" 
+  - name: SERVICE_MODULE_NAME
+    value: "Studio"    
+  - name: NOTIFICATION_LOCALE
+    value: "en_IN"
+  - name: KAFKA_PAYMENT_CONSUMER_ENABLED
+    value: "true"   
+  - name: SAVE_PUBLIC_SERVICE_APPLICATION_TOPIC
+    value: "save-public-service-application"
+  - name: UPDATE_PUBLIC_SERVICE_APPLICATION_TOPIC
+    value: "update-public-service-application" 
+  - name: SAVE_PUBLIC_SERVICE_APPLICATION_TOPIC_INDEXER
+    value: "save-public-service-application-indexer"
+  - name: UPDATE_PUBLIC_SERVICE_APPLICATION_TOPIC_INDEXER
+    value: "update-public-service-application-indexer"    
+  - name: SEND_SMS_TOPIC
+    value: "egov.core.notification.sms" 
+  - name: SEND_EMAIL_TOPIC
+    value: "egov.core.notification.email"  
+  - name: KAFKA_TOPICS_PAYMENT_CREATE_NAME
+    value: "egov.collection.payment-create"  
+  - name: UPDATE_PUBLIC_SERVICE
+    value: "update-public-service"
+  - name: SAVE_PUBLIC_SERVICE
+    value: "save-public-service"
+  - name: MDMS_MAPPING
+    value: "{\"documents\": {\"schemaCode\": \"DigitStudio.DocumentConfig2\"}, \"idgen\":{\"schemaCode\": \"common-masters.IdFormat\"}, \"bill\":{\"schemaCode\":\"BillingService\"}}"
+  - name: TAXHEAD
+    value: "TaxHeadMaster"
+  - name: TAXPERIOD
+    value: "TaxPeriod"   
+  - name: BusinessService
+    value: "BusinessService"
+  - name: LOCALIZATION_MODULE
+    value: "rainmaker-studio-"
+  - name: SAVE_PUBLIC_SERVICE_PROCESS
+    value: "save-public-service-process"
+  - name: SERVICE_REQUEST_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key:  studio-service-request
+  - name: SERVICE_REQUEST_CREATE_ENDPOINT
+    value: "studio-service-request/service/definition/v1/_create"
+  - name: SERVICE_REQUEST_SEARCH_ENDPOINT
+    value: "studio-service-request/service/definition/v1/_search"
+  - name: SERVICE_REQUEST_UPDATE_ENDPOINT
+    value: "studio-service-request/service/definition/v1/_update"
+  - name: SAVE_SERVICE_VERSION_CONFIG_MAPPING
+    value: "save-service-version-config-mapping"
+  - name: DELETE_BUSINESS_SERVICE_TOPIC
+    value: "delete-business-service-topic" 
+  - name: STUDIO_CITIZEN_ROLE
+    value: "STUDIO_CITIZEN"

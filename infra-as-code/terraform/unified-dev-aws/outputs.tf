@@ -20,10 +20,6 @@ output "db_instance_endpoint" {
   value = module.db.db_instance_endpoint
 }
 
-output "zookeeper_volume_ids" {
-  value = "${module.zookeeper.volume_ids}"
-}
-
 output "db_instance_name" {
   description = "The database name"
   value       = module.db.db_instance_name

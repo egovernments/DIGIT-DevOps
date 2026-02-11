@@ -1,0 +1,76 @@
+# Common Labels
+labels:
+  app: "digit-user-preferences-service"
+  group: "common"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "user-preference"
+
+# Init Containers - DB Migration using Flyway
+# Disabled: Using GORM AutoMigrate instead
+initContainers:
+  dbMigration:
+    enabled: false
+    schemaTable: "digit_user_preferences_schema"
+    image:
+      repository: "digit-user-preferences-service-db"
+
+# Container Configs
+image:
+  repository: "digit-user-preferences-service"
+replicas: "1"
+httpPort: 8080
+
+# Health Checks
+healthChecks:
+  enabled: true
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+
+# Resource allocation for Go service (lighter than Java)
+memory_limits: "256Mi"
+resources: |
+  requests:
+    memory: "64Mi"
+    cpu: "50m"
+  limits:
+    memory: {{ .Values.memory_limits | quote }}
+    cpu: "200m"
+
+# Tracing disabled for Go service (not using Spring/Jaeger by default)
+tracing-enabled: false
+
+# Environment variables
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: "/user-preference"
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_NAME
+    value: {{ index .Values "db-name" | quote }}
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: DB_SSL_MODE
+    value: {{ index .Values "db-ssl-mode" | quote }}
+
+# Default values (can be overridden in environment files)
+db-name: "digit_user_preferences"
+db-ssl-mode: "require"

@@ -1,0 +1,111 @@
+# Common Labels
+labels:
+  app: "billing"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "billing"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "billing_schema"
+    image:
+      repository: "billing-db"
+
+# Container Configs
+image:
+  repository: "billing"
+replicas: "1"
+appType: "go"
+tracing-enabled: true
+healthChecks:
+  enabled: false
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+  - name: HTTP_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: "/billing"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: MESSAGE_BROKER_ENABLED
+    value: "false"
+  - name: MESSAGE_BROKER_TYPE
+    value: "KAFKA"
+  - name: KAFKA_BROKERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: KAFKA_CONSUMER_GROUP
+    value: "notification-consumer-group"
+  - name: REDIS_ADDR
+    value: "redis.backbone:6379"
+  - name: REDIS_PASSWORD
+    value: ""
+  - name: REDIS_DB
+    value: "0"
+  - name: DEMAND_ENABLE_ARREARS
+    value: "TRUE"  
+  - name: IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-apportion-service
+  - name: IDGEN_PATH
+    value: "/idgen/v1/generate"
+  - name: IDGEN_BILL_NUMBER_TEMPLATE_CODE
+    value: "BillNumber"
+  - name: IDGEN_RECEIPT_NUMBER_TEMPLATE_CODE
+    value: "ReceiptNumber"
+  - name: IDGEN_TRANSACTION_NUMBER_TEMPLATE_CODE
+    value: "TransactionNumber"
+  - name: APPORTION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-apportion-service
+  - name: APPORTION_BILL_PATH
+    value: "/apportion-service/v2/bill/_apportion"
+  - name: HTTP_CLIENT_TIMEOUT_SECONDS
+    value: "5"
+  - name: MAX_INSTRUMENT_DATE_AGE_DAYS
+    value: "90"
+  - name: JAEGER_SAMPLER_PARAM
+    value: "1"
+  - name: OTEL_TRACES_EXPORTER
+    value: "none"
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "org.postgresql.Driver"

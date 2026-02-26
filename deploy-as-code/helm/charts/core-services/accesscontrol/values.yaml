@@ -1,0 +1,65 @@
+# Common Labels
+labels:
+  app: "accesscontrol"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "accesscontrol"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "accesscontrol_schema"
+    image:
+      repository: "accesscontrol-db"
+
+# Container Configs
+image:
+  repository: "accesscontrol"
+replicas: 1
+appType: "go"
+tracing-enabled: true # Assuming you want to keep tracing
+healthChecks:
+  enabled: false # Disabled as requested
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: "/access"
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+
+
+

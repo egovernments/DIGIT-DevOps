@@ -492,9 +492,9 @@ resource "kubectl_manifest" "karpenter_node_class" {
     metadata:
       name: default
     spec:
-      amiFamily: Bottlerocket
+      amiFamily: var.ami_family.name
       amiSelectorTerms:
-      - id: ami-0b6753867a45581f3
+      - id: var.ami_id.id
       role: ${module.eks_managed_node_group.iam_role_name}
       subnetSelectorTerms:
         - tags:

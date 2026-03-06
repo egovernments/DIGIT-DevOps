@@ -14,6 +14,7 @@ ingress:
 # Container Configs
 image:
   repository: "inbox"
+  tag: "v1.4.0-dc8b346c25-15"
 replicas: "1"
 healthChecks:
   enabled: true
@@ -37,6 +38,11 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: egov-workflow-v2
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
   - name: EGOV_VEHICLE_HOST
     valueFrom:
       configMapKeyRef:
@@ -46,7 +52,7 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-mdms-service
+        key: mdms-service-v2
   - name: EGOV_USER_HOST
     valueFrom:
       configMapKeyRef:
@@ -56,7 +62,17 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-searcher      
+        key: egov-searcher    
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id
+  - name: PARENT_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id   
   - name: WORKFLOW_PROCESS_SEARCH_PATH
     value: "egov-workflow-v2/egov-wf/process/_search"
   - name: WORKFLOW_BUSINESSSERVICE_SEARCH_PATH
@@ -66,7 +82,9 @@ env: |
   - name: WORKFLOW_PROCESS_STATUSCOUNT_PATH
     value: "egov-workflow-v2/egov-wf/process/_statuscount"
   - name: SERVICE_SEARCH_MAPPING
-    value:  {{ index .Values "service-map" | quote }} 
+    value:  {{ index .Values "service-map" | quote }}
+  - name: BS_BUSINESSCODE_SERVICE_SEARCH
+    value:  {{ index .Values "bs-service-map" | quote }}  
   - name: JAVA_OPTS
     value: {{ index .Values "heap" | quote }}
   - name: JAVA_ARGS
@@ -77,7 +95,19 @@ env: |
     value: "false"  
   - name: MANAGEMENT_SECURITY_ENABLED
     value: "false"
+  - name: EGOV_MDMS_SEARCH_ENDPOINT
+    value: "mdms-v2/v1/_search"
   {{- if index .Values "tracing-enabled" }}
   - name: TRACER_OPENTRACING_ENABLED
     value: "true" 
   {{- end }}
+  - name: SERVICES_ESINDEXER_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name:  elasticsearch-credentials
+        key: username
+  - name: SERVICES_ESINDEXER_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name:  elasticsearch-credentials
+        key: password

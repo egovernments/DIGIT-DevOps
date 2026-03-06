@@ -11,13 +11,19 @@ As part of the **EKS upgrade to Kubernetes v1.33**, the following updates and en
 
 ## Steps to Migrate from EKS v1.32 to v1.33
 
-- Update the Kubernetes version in the `variables.tf` file.
+1. Update the Kubernetes version in the `variables.tf` file.
 
 ```hcl
 variable "kubernetes_version" {
   description = "Kubernetes version"
   default     = "1.33"
 }
+
+2. Later, Run the below commands:
+```hcl
+terrafotm init
+terraform plan
+terraform apply
 
 ## 📚 Documentation
 

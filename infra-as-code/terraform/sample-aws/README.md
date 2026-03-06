@@ -13,17 +13,17 @@ As part of the **EKS upgrade to Kubernetes v1.33**, the following updates and en
 
 1. Update the Kubernetes version in the `variables.tf` file.
 
-```hcl
-variable "kubernetes_version" {
-  description = "Kubernetes version"
-  default     = "1.33"
-}
+    ```hcl
+    variable "kubernetes_version" {
+    description = "Kubernetes version"
+    default     = "1.33"
+    }
 
 2. Later, Run the below commands:
-```hcl
-terrafotm init
-terraform plan
-terraform apply
+    ```hcl
+    terrafotm init
+    terraform plan
+    terraform apply
 
 ## 📚 Documentation
 

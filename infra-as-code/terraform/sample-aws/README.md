@@ -9,6 +9,15 @@ As part of the **EKS upgrade to Kubernetes v1.33**, the following updates and en
     - Performance
     - Container-optimized operations
 
+## Steps to Migrate from EKS v1.32 to v1.33
+
+- Update the Kubernetes version in the `variables.tf` file.
+
+```hcl
+variable "kubernetes_version" {
+  description = "Kubernetes version"
+  default     = "1.33"
+}
 
 ## 📚 Documentation
 

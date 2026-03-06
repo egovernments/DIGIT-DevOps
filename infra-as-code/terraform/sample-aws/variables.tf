@@ -95,8 +95,8 @@ variable "db_username" {
 variable "ami_id" {
   description = "Provide the AMI ID that supports your eks version"
   default = {
-    id   = "ami-0b6753867a45581f3"
-    name = "bottlerocket-aws-k8s-1.32-x86_64-v1.49.0-713f44ce"
+    id   = "ami-0b4109ea30612adf2" #Replace if needed
+    name = "amazon-eks-node-al2023-x86_64-standard-1.33-v20260224" #Replace if needed
   }
 }
 

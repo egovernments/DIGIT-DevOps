@@ -1,13 +1,11 @@
-variable "server_name" {}
-variable "sku_cores" {}
-variable "sku_tier" {}    
+variable "sku_name" {}    
 variable "location" {}
 variable "resource_group" {}
 variable "storage_mb" {}
 variable "backup_retention_days" {}
 variable "administrator_login" {}
-variable "administrator_login_password" {}
-variable "ssl_enforce" {}
-variable "db_name" {}
+variable "administrator_password" {}
 variable "environment" {}
 variable "db_version" {}
+variable "delegated_subnet_id" {}
+variable "private_dns_zone_id" {}

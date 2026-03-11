@@ -1,0 +1,66 @@
+labels:
+  app: "token-exchange-svc"
+  group: "core"
+
+namespace: egov
+
+replicas: "2"
+httpPort: 3000
+appType: "nodejs"
+
+image:
+  repository: "chakshu/token-exchange-svc"
+  tag: "v1.0.0"
+
+ingress:
+  enabled: false
+  zuul: false
+
+healthChecks:
+  enabled: true
+  livenessProbePath: "/healthz"
+  readinessProbePath: "/healthz"
+
+memory_limits: "512Mi"
+
+env: |
+  - name: PORT
+    value: "3000"
+  - name: DIGIT_USER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: DIGIT_GATEWAY_HOST
+    value: "http://gateway:8080"
+  - name: DIGIT_SYSTEM_USERNAME
+    value: "ADMIN"
+  - name: DIGIT_SYSTEM_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: egov-user-creds
+        key: password
+  - name: DIGIT_SYSTEM_TENANT
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id
+  - name: DIGIT_DEFAULT_TENANT
+    value: "pg.citya"
+  - name: KEYCLOAK_ADMIN_URL
+    value: "http://keycloak:8180"
+  - name: KEYCLOAK_ADMIN_USERNAME
+    value: "admin"
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-admin
+        key: password
+  - name: REDIS_HOST
+    value: "redis.backbone"
+  - name: REDIS_PORT
+    value: "6379"
+  - name: TENANT_SYNC_ENABLED
+    value: "true"
+  - name: NODE_OPTIONS
+    value: "--max-old-space-size=384"

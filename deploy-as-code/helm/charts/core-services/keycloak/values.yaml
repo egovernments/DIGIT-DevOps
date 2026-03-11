@@ -1,0 +1,44 @@
+namespace: egov
+
+image:
+  repository: quay.io/keycloak/keycloak
+  tag: "24.0"
+  pullPolicy: IfNotPresent
+
+replicas: 1
+
+httpPort: 8180
+
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "1Gi"
+    cpu: "500m"
+
+# Database — uses existing RDS, separate "keycloak" database
+db:
+  vendor: postgres
+  host: ""
+  port: "5432"
+  database: keycloak
+  username: keycloak
+  # password from secret "keycloak-db" key "password"
+
+# Admin credentials — from secret "keycloak-admin"
+admin:
+  username: admin
+  # password from secret "keycloak-admin" key "password"
+
+# Realm import
+realmImport:
+  enabled: true
+  # ConfigMap name containing realm JSON
+  configMapName: keycloak-realm-import
+
+healthChecks:
+  livenessProbePath: /health/live
+  readinessProbePath: /health/ready
+  initialDelaySeconds: 60
+  periodSeconds: 15

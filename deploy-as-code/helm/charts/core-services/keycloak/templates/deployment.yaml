@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: keycloak
+    group: core
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+        group: core
+    spec:
+      containers:
+        - name: keycloak
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /opt/keycloak/bin/kc.sh
+          args:
+            - start-dev
+            - --import-realm
+            - --http-port={{ .Values.httpPort }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.httpPort }}
+              protocol: TCP
+          env:
+            - name: KC_DB
+              value: {{ .Values.db.vendor | quote }}
+            - name: KC_DB_URL_HOST
+              value: {{ .Values.db.host | quote }}
+            - name: KC_DB_URL_PORT
+              value: {{ .Values.db.port | quote }}
+            - name: KC_DB_URL_DATABASE
+              value: {{ .Values.db.database | quote }}
+            - name: KC_DB_USERNAME
+              value: {{ .Values.db.username | quote }}
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-db
+                  key: password
+            - name: KEYCLOAK_ADMIN
+              value: {{ .Values.admin.username | quote }}
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-admin
+                  key: password
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_HTTP_RELATIVE_PATH
+              value: /auth
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+          {{- if .Values.realmImport.enabled }}
+          volumeMounts:
+            - name: realm-import
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthChecks.livenessProbePath }}
+              port: {{ .Values.httpPort }}
+            initialDelaySeconds: {{ .Values.healthChecks.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthChecks.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthChecks.readinessProbePath }}
+              port: {{ .Values.httpPort }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      {{- if .Values.realmImport.enabled }}
+      volumes:
+        - name: realm-import
+          configMap:
+            name: {{ .Values.realmImport.configMapName }}
+      {{- end }}

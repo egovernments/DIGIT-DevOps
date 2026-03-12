@@ -1,0 +1,86 @@
+test_pod:
+  enabled: false
+loki:
+  enabled: true
+  isDefault: true
+  image:
+    tag: 2.9.3
+    repository: "grafana/loki"
+  service:
+    port: 3100
+  url: http://{{(include "loki.serviceName" .)}}:{{ .Values.loki.service.port }}
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http-metrics
+    initialDelaySeconds: 45
+  livenessProbe:
+    httpGet:
+      path: /ready
+      port: http-metrics
+    initialDelaySeconds: 45
+  config:
+    memberlist:
+      bind_addr:
+        - ${MY_POD_IP}
+      join_members:
+        - 'loki-stack-memberlist'
+    schema_config:
+      configs:
+        - from: 2020-10-24
+          store: boltdb-shipper
+          object_store: s3
+          schema: v11
+          index:
+            prefix: index_
+            period: 24h
+    storage_config:
+      boltdb_shipper:
+        active_index_directory: /data/loki/index
+        cache_location: /data/loki/index_cache
+        shared_store: s3
+        cache_ttl: 72h
+      aws:
+        s3: s3://region/bucket
+      filesystem:
+        directory: /data/loki/chunks
+    compactor:
+      working_directory: /data/loki/boltdb-shipper-compactor
+      shared_store: s3
+    limits_config:
+      enforce_metric_name: false
+      reject_old_samples: true
+      reject_old_samples_max_age: 720h  # 30 days
+    chunk_store_config:
+      max_look_back_period: 168h  # 7 days
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 720h  # 30 days
+  persistence:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi  # Set the desired size for the persistent volume
+
+serviceAccount:
+  annotations: ""
+
+promtail:
+  enabled: true
+  config:
+    logLevel: info
+    serverPort: 3101
+    clients:
+      - url: http://{{ .Release.Name }}:3100/loki/api/v1/push
+
+grafana:
+  enabled: false
+  sidecar:
+    datasources:
+      label: ""
+      labelValue: ""
+      enabled: true
+      maxLines: 1000
+
+prometheus:
+  enabled: false

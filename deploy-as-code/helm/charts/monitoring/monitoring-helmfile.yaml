@@ -1,0 +1,95 @@
+environments:
+  demo:
+    values:
+      - namespace: monitoring
+      - ../../environments/digit-lts.yaml
+    secrets:
+      - ../../environments/digit-lts-secrets.yaml
+
+---
+
+repositories:
+- name: grafana
+  url: https://grafana.github.io/helm-charts
+- name: prometheus-community
+  url: https://prometheus-community.github.io/helm-charts
+- name: jaegertracing
+  url: https://jaegertracing.github.io/helm-charts
+- name: open-telemetry
+  url: https://open-telemetry.github.io/opentelemetry-helm-charts
+
+releases:
+- name: jaeger
+  installed: true
+  namespace: monitoring
+  chart: jaegertracing/jaeger
+  version: 4.4.7
+  values:
+    - ./values/jaeger.yaml
+  set:
+    - name: storage.elasticsearch.user
+      value: "elastic"
+    - name: storage.elasticsearch.password
+      value: {{ index .Values "cluster-configs" "secrets" "elasticsearch-master-creds" "password" }}
+
+- name: open-telemetry
+  installed: true
+  namespace: monitoring
+  chart: open-telemetry/opentelemetry-collector
+  version: 0.147.0
+  values:
+    - ./values/open-telemetry.yaml
+  set:
+    - name: presets.logsCollection.enabled
+      value: true
+    - name: presets.logsCollection.includeCollectorLogs
+      value: true
+    - name: image.repository
+      value: "otel/opentelemetry-collector-k8s"
+    - name: mode
+      value: "deployment"
+
+- name: kube-prometheus-stack
+  installed: true
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: prometheus-community/kube-prometheus-stack
+  version: 56.6.2
+  disableValidation: true
+  values:
+  - ./values/prometheus.yaml
+  - alertmanager:
+      enabled: {{ .Values.prometheus.alertmanager.enabled }}
+  {{- if .Values.prometheus.alertmanager.enabled }}
+  - alertmanager:
+      config: {{ index .Values "cluster-configs" "secrets" "alertmanager" "config" | toYaml | nindent 8 }}
+  {{- end }}
+  - prometheus:
+      prometheusSpec:
+        additionalScrapeConfigs: {{ .Values.prometheus.additionalScrapeConfigs | toYaml | nindent 8 }}
+        externalLabels: {{ .Values.prometheus.externalLabels | toYaml | nindent 10 }}
+
+- name: grafana
+  installed: true
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: grafana/grafana
+  version: 7.3.0
+  values:
+    - ./values/grafana.yaml
+    - grafana.ini:
+        auth.github:
+          allowed_organizations: {{ .Values.grafana.github.allowed_organizations }}
+          role_attribute_path: {{ .Values.grafana.github.role_attribute_path }}
+    - envRenderSecret:
+        GF_AUTH_GITHUB_CLIENT_ID: {{ index .Values "cluster-configs" "secrets" "grafana" "clientID" }}
+        GF_AUTH_GITHUB_CLIENT_SECRET: {{ index .Values "cluster-configs" "secrets" "grafana" "clientSecret" }}
+  set:
+    - name: ingress.hosts[0]
+      value: "{{ .Values.global.domain }}"
+    - name: ingress.tls[0].hosts[0]
+      value: "{{ .Values.global.domain }}"
+
+- name: blackbox
+  installed: true
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: ../backbone-services/prometheus-blackbox-exporter
+  version: 8.2.0

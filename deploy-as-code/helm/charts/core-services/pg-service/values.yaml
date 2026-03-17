@@ -1,0 +1,214 @@
+# Common Labels
+labels:
+  app: "pg-service"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "pg-service"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "pg_service_schema"
+    image:
+      repository: "pg-service-db"
+
+# Container Configs
+image:
+  repository: "pg-service"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/pg-service/health"
+  readinessProbePath: "/pg-service/health"
+appType: "java-spring"
+tracing-enabled: true
+axis: true
+payu-url: ""
+payu-url-status: ""
+ccavenue-status-access-code: ""
+ccavenue-redirect-access-code: ""
+ccavenue-url: ""
+ccavenue-url-status: ""
+ccavenue-url-redirect: ""
+ccavenue-url-cancel: ""
+memory_limits: "512Mi"
+heap: "-Xmx256m -Xms256m"
+java-args: "-Dspring.profiles.active=monitoring"
+java-debug: "true"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false" 
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-otel-url
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "io.opentelemetry.instrumentation.jdbc.OpenTelemetryDriver"
+  - name: MESSAGE_BROKER_ENABLED
+    value: "false"
+  - name: MESSAGE_BROKER_TYPE
+    value: "KAFKA" 
+  - name: MESSAGE_BROKER_TOPIC_CREATE_TXN
+    value: "create-pg-txn"
+  - name: MESSAGE_BROKER_TOPIC_UPDATE_TXN
+    value: "update-pg-txn" 
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: pg-service
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.springframework.kafka.support.serializer.JsonSerializer
+  - name: IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: idgen
+  - name: IDGEN_GENERATE_ID_PATH
+    value: "idgen/v1/generate"
+  - name: IDGEN_TXN_ID_TEMPLATE_CODE
+    value: "TxnID" 
+  - name: BILLING_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: billing
+  - name: BILLING_PAYMENTS_CREATE_PATH
+    value: "billing/v3/payments"
+  - name: BILLING_PAYMENTS_VALIDATE_PATH
+    value: "billing/v3/payments/validate" 
+  - name: REGISTRY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: registry
+  - name: REGISTRY_DATA_SEARCH_PATH
+    value: "registry/v1/schema/{schemaCode}/data/_search"
+  - name: REGISTRY_BANK_ACCOUNT_SCHEMA
+    value: "bankAccount"  
+  - name: INDIVIDUAL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: individual
+  - name: INDIVIDUAL_CREATE_PATH
+    value: "individual/v1"
+  - name: INDIVIDUAL_SEARCH_PATH
+    value: "individual/v1"
+  - name: PG_IS_USER_CREATE_ENABLED
+    value: "false"
+  {{- if .Values.axis }}
+  - name: AXIS_ACTIVE
+    value: "true"
+  - name: AXIS_CURRENCY
+    value: "INR"
+  - name: AXIS_MERCHANT_VPC_VERSION    
+    value: "1"
+  - name: AXIS_MERCHANT_VPC_COMMAND_PAY
+    value: "pay"
+  - name: AXIS_MERCHANT_VPC_COMMAND_STATUS
+    value: "queryDR"
+  - name: AXIS_LOCALE
+    value: "en_IN"
+  - name: AXIS_URL_DEBIT
+    value: "https://migs.mastercard.co.in/vpcpay"
+  - name: AXIS_URL_STATUS
+    value: "https://migs.mastercard.co.in/vpcdps"
+  - name: AXIS_MERCHANT_ID
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: axismerchantid
+  - name: AXIS_MERCHANT_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: axismerchantsecret
+  - name: AXIS_MERCHANT_USER
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: axismerchantuser
+  - name: AXIS_MERCHANT_PWD
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: axismerchantpwd
+  - name: AXIS_MERCHANT_ACCESS_CODE
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: axismerchantaccesscode
+  {{- end }}
+  {{- if index .Values "payu-url" }}
+  - name: PAYU_ACTIVE
+    value: "true"    
+  - name: PAYU_URL
+    value: {{ index .Values "payu-url" | quote }}
+  - name: PAYU_URL_STATUS
+    value: {{ index .Values "payu-url-status" | quote }}
+  - name: PAYU_MERCHANT_KEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: payumerchantkey
+  - name: PAYU_MERCHANT_SALT
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: payumerchantsalt 
+  {{- end }}
+  {{- if .Values.ccavenue }}
+  - name: CCAVENUE_ACTIVE
+    value: "true"
+  - name: CCAVENUE_MERCHANT_ID
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: ccavenue-merchant-id
+  - name: CCAVENUE_STATUS_WORKING_KEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: ccavenue-status-working-key
+  - name: CCAVENUE_REDIRECT_WORKING_KEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: ccavenue-redirect-working-key
+  - name: CCAVENUE_STATUS_ACCESS_CODE
+    value: {{ index .Values "ccavenue-status-access-code" | quote }}
+  - name: CCAVENUE_REDIRECT_ACCESS_CODE
+    value: {{ index .Values "ccavenue-redirect-access-code" | quote }}
+  - name: CCAVENUE_GATEWAY_URL
+    value: {{ index .Values "ccavenue-url" | quote }}
+  - name: CCAVENUE_GATEWAY_STATUS_URL
+    value: {{ index .Values "ccavenue-url-status" | quote }}
+  - name: CCAVENUE_REDIRECT_URL
+    value: {{ index .Values "ccavenue-url-redirect" | quote }}
+  - name: CCAVENUE_CANCEL_URL
+    value: {{ index .Values "ccavenue-url-cancel" | quote }}
+  {{- end }}
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: JAVA_ENABLE_DEBUG
+    value: {{ index .Values "java-debug" | quote }}
+  - name: OTEL_TRACES_EXPORTER
+    value: "none"

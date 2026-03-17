@@ -1019,3 +1019,45 @@ dags:
      repo:  "https://github.com/egovernments/utilities.git"
      repoSubPath: "egov-national-dashboard-accelerator/dags"
      branch: develop
+
+# User Preferences Service (Go)
+digit-user-preferences-service:
+  replicas: 1
+  db-name: "unifieddevdb"
+  db-ssl-mode: "require"
+  memory_limits: "256Mi"
+
+# Config Service (Java/Spring Boot)
+digit-config-service:
+  replicas: 1
+  heap: "-Xmx256m -Xms256m"
+  memory_limits: "512Mi"
+
+# Novu Bridge (Java/Spring Boot) - WhatsApp notifications via Novu/Twilio
+novu-bridge:
+  replicas: 1
+  heap: "-Xmx256m -Xms256m"
+  memory_limits: "512Mi"
+  config-host: "http://digit-config-service.egov:8080"
+  user-host: "http://egov-user.egov:8080"
+  preference-host: "http://digit-user-preferences-service.egov:8080/user-preference"
+  novu-base-url: "http://novu-api.novu:3000"
+  # novu-api-key: "5b390045f466ce42f8589571536e1060"
+  # twilio-account-sid: "AC2ef0de319cc3a37f4e858511e2056832"
+  # twilio-auth-token: "ac5a34f8290228f4a54643a2ee6af9d1"
+  # twilio-whatsapp-from: "whatsapp:+917676472431"
+
+# JupyterNotebook configuration
+jupyterhub:
+  hub:
+    config:
+      Authenticator:
+        admin_users:
+          - unified-dev               # Provide admin username, use the same in step 5 (first-time sign-up)
+      NativeAuthenticator:
+        minimum_password_length: 8     # Minimum password length
+        check_common_password: false   # Checks & restricts common passwords
+        allowed_failed_logins: 5       # Locks user after failed attempts
+        seconds_before_next_try: 300
+      JupyterHub:
+        admin_access: true

@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.ws.name }}
+  namespace: {{ include "novu.namespace" . }}
+  labels:
+{{- toYaml .Values.ws.labels | nindent 4 }}
+spec:
+  replicas: {{ .Values.ws.replicas }}
+  selector:
+    matchLabels:
+{{- toYaml .Values.ws.labels | nindent 6 }}
+  template:
+    metadata:
+      labels:
+{{- toYaml .Values.ws.labels | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: ws
+          image: "{{ .Values.ws.image.repository }}:{{ .Values.ws.image.tag }}"
+          imagePullPolicy: {{ .Values.ws.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.ws.port }}
+          {{- if .Values.ws.env }}
+          env:
+{{- tpl .Values.ws.env $ | nindent 12 }}
+          {{- end }}
+          {{- with .Values.ws.resources }}
+          resources:
+{{- toYaml . | nindent 12 }}
+          {{- end }}

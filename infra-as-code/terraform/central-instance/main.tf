@@ -228,12 +228,12 @@ provider "kubernetes" {
 
 provider "helm" {
   kubernetes {
-    host                   = data.aws_eks_cluster.cluster.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
     exec {
       api_version = "client.authentication.k8s.io/v1beta1"
-      args        = ["eks", "get-token", "--cluster-name", var.cluster_name]
       command     = "aws"
+      args        = ["eks", "get-token", "--cluster-name", var.cluster_name]
     }
   }
 }
@@ -269,11 +269,14 @@ resource "aws_iam_role_policy" "karpenter_policy" {
           "ec2:DescribeLaunchTemplates",
           "ec2:CreateLaunchTemplate",
           "iam:GetInstanceProfile",
+          "iam:TagInstanceProfile",
           "ec2:CreateTags",
           "ec2:CreateFleet",
           "ec2:RunInstances",
           "ec2:DeleteLaunchTemplate",
-          "ec2:TerminateInstances"
+          "ec2:TerminateInstances",
+          "iam:RemoveRoleFromInstanceProfile",
+          "iam:DeleteInstanceProfile"
         ],
         "Resource": "*"
       }
@@ -306,7 +309,7 @@ resource "helm_release" "karpenter-crd" {
   name                = "karpenter-crd"
   repository          = "oci://public.ecr.aws/karpenter"
   chart               = "karpenter-crd"
-  version             = "1.0.8"
+  version             = "1.8.1"
   wait                = true
   values = []
 }
@@ -318,12 +321,13 @@ resource "helm_release" "karpenter" {
   name                = "karpenter"
   repository          = "oci://public.ecr.aws/karpenter"
   chart               = "karpenter"
-  version             = "1.0.8"
+  version             = "1.8.1"
   wait                = false
   skip_crds           = true
 
   values = [
     <<-EOT
+    logLevel: error
     serviceAccount:
       name: ${var.enable_karpenter ? module.karpenter[0].service_account : ""}
     settings:
@@ -342,9 +346,9 @@ resource "kubectl_manifest" "karpenter_node_class" {
     metadata:
       name: default
     spec:
-      amiFamily: AL2023
+      amiFamily: Bottlerocket
       amiSelectorTerms:
-      - id: ami-0d1008f82aca87cb9
+      - id: ami-0b6753867a45581f3
       role: ${module.eks_managed_node_group.iam_role_name}
       subnetSelectorTerms:
         - tags:
@@ -380,8 +384,6 @@ resource "kubectl_manifest" "karpenter_node_pool" {
     spec:
       template:
         spec:
-          kubelet:
-            maxPods: 40
           nodeClassRef:
             name: default
             group: karpenter.k8s.aws  # Updated since only a single version will be served
@@ -389,19 +391,22 @@ resource "kubectl_manifest" "karpenter_node_pool" {
           requirements:
             - key: "karpenter.k8s.aws/instance-category"
               operator: In
-              values: ["c", "m", "r", "t", "a"]
+              values: ["t"]
+            - key: "karpenter.k8s.aws/instance-family"
+              operator: In
+              values: ["t3a"]
+            - key: "node.kubernetes.io/instance-type"
+              operator: Exists
+              values: ["t3a.xlarge"]
             - key: "karpenter.k8s.aws/instance-cpu"
               operator: In
-              values: ["2", "4", "8", "16", "32"]
+              values: ["4"]
             - key: "kubernetes.io/arch"
               operator: In
               values: ["amd64"]
-            - key: "karpenter.k8s.aws/instance-hypervisor"
-              operator: In
-              values: ["nitro"]
             - key: "karpenter.sh/capacity-type"
               operator: In
-              values: ["spot"]
+              values: ["on-demand"]
             - key: "karpenter.k8s.aws/instance-generation"
               operator: Gt
               values: ["2"]
@@ -410,15 +415,35 @@ resource "kubectl_manifest" "karpenter_node_pool" {
         consolidateAfter: 1m
         budgets:
         - nodes: "80%"
-          reasons: 
+          reasons:
           - "Empty"
           - "Drifted"
-        - nodes: "80%"
-          reasons: 
+        - nodes: "50%"
+          reasons:
           - "Underutilized"
   YAML
-
   depends_on = [
     kubectl_manifest.karpenter_node_class
   ]
+}
+
+module "eks-cluster-autoscaler" {
+  count = var.enable_ClusterAutoscaler ? 1 : 0
+  source  = "lablabs/eks-cluster-autoscaler/aws"
+  version = "3.1.0"
+  cluster_name = var.cluster_name
+  cluster_identity_oidc_issuer = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+  cluster_identity_oidc_issuer_arn = data.aws_iam_openid_connect_provider.oidc_arn.arn
+  irsa_role_name = var.cluster_name
+  namespace = "autoscaler"
+  service_account_name = "cluster-autoscaler"
+  service_account_namespace = "autoscaler"
+  values = yamlencode({
+    extraArgs = {
+      logtostderr: true
+      stderrthreshold: "info"
+      v: 4
+      scale-down-utilization-threshold: 0.6
+    }
+  })
 }

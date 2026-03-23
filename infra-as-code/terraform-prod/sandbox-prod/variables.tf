@@ -2,6 +2,7 @@
 # Variables Configuration. Check for REPLACE to substitute custom values. Check the description of each
 # tag for more information
 #
+
 variable "cluster_name" {
   description = "Name of the Kubernetes cluster"
   default = "sandbox-prod" #REPLACE
@@ -24,7 +25,17 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.31"
+  default = "1.33"
+}
+
+variable "architecture" {
+  description = "Architecture for worker nodes (x86_64 or arm64)"
+  type        = string
+  default     = "x86_64"
+  validation {
+    condition     = contains(["x86_64", "arm64"], var.architecture)
+    error_message = "Architecture must be either x86_64 or arm64."
+  }
 }
 
 variable "instance_types" {
@@ -32,19 +43,39 @@ variable "instance_types" {
   default = ["t3a.xlarge"]
 }
 
+# Map of architecture → instance types
+variable "instance_types_map" {
+  description = "Map of instance types per architecture"
+  type = map(list(string))
+  default = {
+    x86_64 = ["t3a.xlarge"]
+    arm64  = ["t4g.xlarge"]
+  }
+}
+
 variable "min_worker_nodes" {
   description = "eGov recommended below worker node counts as default for min nodes"
-  default = "1" #REPLACE IF NEEDED
+  default = "0" #REPLACE IF NEEDED
 }
 
 variable "desired_worker_nodes" {
   description = "eGov recommended below worker node counts as default for desired nodes"
-  default = "3" #REPLACE IF NEEDED
+  default = "4" #REPLACE IF NEEDED
 }
 
 variable "max_worker_nodes" {
   description = "eGov recommended below worker node counts as default for max nodes"
-  default = "4" #REPLACE IF NEEDED
+  default = "5" #REPLACE IF NEEDED
+}
+
+variable "db_version" {
+  description = "DB version"
+  default = "15.12"
+}
+
+variable "db_instance_class" {
+  description = "DB instance class"
+  default = "db.t4g.medium"
 }
 
 variable "db_name" {
@@ -72,6 +103,12 @@ variable "ami_id" {
 
 variable "enable_karpenter" {
   description = "Enable the karpenter."
+  type        = bool
+  default     = false
+}
+
+variable "enable_ClusterAutoscaler" {
+  description = "Enable the Cluster Autoscaler."
   type        = bool
   default     = false
 }

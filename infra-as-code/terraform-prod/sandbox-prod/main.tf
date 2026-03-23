@@ -10,10 +10,30 @@ terraform {
   }
   required_providers {
     kubectl = {
-      source  = "gavinbunney/kubectl"
-      version = "~> 1.14.0" 
+      source  = "alekc/kubectl"
+      version = ">= 2.0.2"
+    }
+    kubernetes = {
+      source = "hashicorp/kubernetes"
+      version = "2.37.1"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = ">= 2.10.1, < 3.0.0"
     }
   }
+}
+
+locals {
+  az_to_find           = var.availability_zones[0]
+  az_index_in_network  = index(var.network_availability_zones, local.az_to_find)
+  ami_type_map = {
+    x86_64 = "BOTTLEROCKET_x86_64"
+    arm64  = "BOTTLEROCKET_ARM_64"
+  }
+
+  # Use user-specified instance_types if provided, else choose from map
+  selected_instance_types = length(var.instance_types) > 0 ? var.instance_types : var.instance_types_map[var.architecture]
 }
 
 module "network" {
@@ -29,8 +49,8 @@ module "db" {
   subnet_ids                    = "${module.network.private_subnets}"
   vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
   availability_zone             = "${element(var.availability_zones, 0)}"
-  instance_class                = "db.t4g.medium"  ## postgres db instance type
-  engine_version                = "15.12"   ## postgres version
+  instance_class                = var.db_instance_class  ## postgres db instance type
+  engine_version                = var.db_version   ## postgres version
   storage_type                  = "gp3"
   storage_gb                    = "80"     ## postgres disk size
   backup_retention_days         = "7"
@@ -45,13 +65,15 @@ data "aws_caller_identity" "current" {}
 
 module "eks" {
   source          = "terraform-aws-modules/eks/aws"
-  version         = "~> 20.0"
-  cluster_name    = var.cluster_name
-  cluster_version = var.kubernetes_version
+  version         = "~> 21.0"
+  name    = var.cluster_name
+  kubernetes_version = var.kubernetes_version
   vpc_id          = module.network.vpc_id
-  cluster_endpoint_public_access  = true
-  cluster_endpoint_private_access = true
+  enable_cluster_creator_admin_permissions = true
+  endpoint_public_access  = true
+  endpoint_private_access = true
   authentication_mode = "API_AND_CONFIG_MAP"
+  create_cloudwatch_log_group = false
   subnet_ids      = concat(module.network.private_subnets, module.network.public_subnets)
   node_security_group_additional_rules = {
     ingress_self_ephemeral = {
@@ -78,7 +100,7 @@ module "eks" {
       }
     }
   }
-  cluster_addons = {
+  addons = {
     vpc-cni = {
       most_recent              = true
       before_compute           = true
@@ -101,10 +123,12 @@ module "eks" {
 
 module "eks_managed_node_group" {
   source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+  version         = "~> 21.0"
   name            = "${var.cluster_name}-spot"
+  ami_type        = local.ami_type_map[var.architecture]
   cluster_name    = var.cluster_name
-  cluster_version = var.kubernetes_version
-  subnet_ids = slice(module.network.private_subnets, 0, length(var.availability_zones))
+  kubernetes_version = var.kubernetes_version
+  subnet_ids      = [module.network.private_subnets[local.az_index_in_network]]
   vpc_security_group_ids  = [module.eks.node_security_group_id]
   cluster_service_cidr = module.eks.cluster_service_cidr
   use_custom_launch_template = true
@@ -113,27 +137,46 @@ module "eks_managed_node_group" {
     xvda = {
       device_name = "/dev/xvda"
       ebs = {
-        volume_size           = 50
+        volume_size           = 100
         volume_type           = "gp3"
         delete_on_termination = true
       }
     }
   }
-  # user_data_template_path = "user-data.yaml"
   min_size     = var.min_worker_nodes
   max_size     = var.max_worker_nodes
   desired_size = var.desired_worker_nodes
-  instance_types = var.instance_types
+  instance_types = local.selected_instance_types
   capacity_type  = "ON_DEMAND"
   ebs_optimized  = "true"
-  enable_monitoring = "true"
   iam_role_additional_policies = {
     CSI_DRIVER_POLICY = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
     AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
     SQS_POLICY                   = "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
   }
+  update_config = {
+    "max_unavailable_percentage": 10
+  }
   labels = {
     Environment = var.cluster_name
+  }
+  tags = {
+    "KubernetesCluster" = var.cluster_name
+    "Name"              = var.cluster_name
+  }
+}
+
+module "ebs_csi_driver_irsa" {
+  depends_on = [module.eks]
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.20"
+  role_name_prefix = "ebs-csi-driver-"
+  attach_ebs_csi_policy = true
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:ebs-csi-controller-sa"]
+    }
   }
   tags = {
     "KubernetesCluster" = var.cluster_name
@@ -162,6 +205,11 @@ data "aws_eks_cluster_auth" "cluster" {
   name = var.cluster_name
 }
 
+data "aws_iam_openid_connect_provider" "oidc_arn" {
+  depends_on = [module.eks_managed_node_group]
+  url = data.aws_eks_cluster.cluster.identity.0.oidc.0.issuer
+}
+
 resource "aws_eks_addon" "kube_proxy" {
   depends_on = [module.eks_managed_node_group]
   cluster_name      = var.cluster_name
@@ -178,12 +226,11 @@ resource "aws_eks_addon" "aws_ebs_csi_driver" {
   depends_on = [module.eks_managed_node_group]
   cluster_name      = var.cluster_name
   addon_name        = "aws-ebs-csi-driver"
+  service_account_role_arn = module.ebs_csi_driver_irsa.iam_role_arn
   resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 }
 
-# provider "kubernetes" {
-#   config_path = "./sandbox-dev-kubeconfig"
-# }
 provider "kubernetes" {
   host                   = module.eks.cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
@@ -194,55 +241,26 @@ provider "kubernetes" {
   }
 }
 
-resource "kubernetes_annotations" "gp2_default" {
-  annotations = {
-    "storageclass.kubernetes.io/is-default-class" : "false"
-  }
-  api_version = "storage.k8s.io/v1"
-  kind        = "StorageClass"
-  metadata {
-    name = "gp2"
-  }
-
-  force = true
-
-  depends_on = [aws_eks_addon.aws_ebs_csi_driver]
-}
-
-resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
-  metadata {
-    name = "gp3"
-    annotations = {
-      "storageclass.kubernetes.io/is-default-class" : "true"
-    }
-  }
-
-  storage_provisioner    = "ebs.csi.aws.com"
-  reclaim_policy         = "Delete"
-  allow_volume_expansion = true
-  volume_binding_mode    = "Immediate"
-  parameters = {
-    fsType    = "ext4"
-    encrypted = true
-    type      = "gp3"
-  }
-
-  depends_on = [kubernetes_annotations.gp2_default]
-}
-
 provider "helm" {
-  kubernetes = {
-    host                   = data.aws_eks_cluster.cluster.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-    token                  = data.aws_eks_cluster_auth.cluster.token
+  kubernetes {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "aws"
+      args        = ["eks", "get-token", "--cluster-name", var.cluster_name]
+    }
   }
 }
 
 provider "kubectl" {
-  host                   = data.aws_eks_cluster.cluster.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.cluster.token
-  load_config_file       = false
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    args        = ["eks", "get-token", "--cluster-name", var.cluster_name]
+    command     = "aws"
+  }
 }
 
 resource "aws_iam_role_policy" "karpenter_policy" {
@@ -266,11 +284,14 @@ resource "aws_iam_role_policy" "karpenter_policy" {
           "ec2:DescribeLaunchTemplates",
           "ec2:CreateLaunchTemplate",
           "iam:GetInstanceProfile",
+          "iam:TagInstanceProfile",
           "ec2:CreateTags",
           "ec2:CreateFleet",
           "ec2:RunInstances",
           "ec2:DeleteLaunchTemplate",
-          "ec2:TerminateInstances"
+          "ec2:TerminateInstances",
+          "iam:RemoveRoleFromInstanceProfile",
+          "iam:DeleteInstanceProfile"
         ],
         "Resource": "*"
       }
@@ -281,6 +302,7 @@ resource "aws_iam_role_policy" "karpenter_policy" {
 module "karpenter" {
   count = var.enable_karpenter ? 1 : 0
   source = "terraform-aws-modules/eks/aws//modules/karpenter"
+  version = "21.3.1"
   cluster_name = module.eks.cluster_name
 
   create_node_iam_role = false
@@ -302,7 +324,7 @@ resource "helm_release" "karpenter-crd" {
   name                = "karpenter-crd"
   repository          = "oci://public.ecr.aws/karpenter"
   chart               = "karpenter-crd"
-  version             = "1.0.8"
+  version             = "1.8.1"
   wait                = true
   values = []
 }
@@ -314,12 +336,13 @@ resource "helm_release" "karpenter" {
   name                = "karpenter"
   repository          = "oci://public.ecr.aws/karpenter"
   chart               = "karpenter"
-  version             = "1.0.8"
+  version             = "1.8.1"
   wait                = false
   skip_crds           = true
 
   values = [
     <<-EOT
+    logLevel: error
     serviceAccount:
       name: ${var.enable_karpenter ? module.karpenter[0].service_account : ""}
     settings:
@@ -338,9 +361,9 @@ resource "kubectl_manifest" "karpenter_node_class" {
     metadata:
       name: default
     spec:
-      amiFamily: AL2023
+      amiFamily: Bottlerocket
       amiSelectorTerms:
-      - id: ami-0d1008f82aca87cb9
+      - id: ami-0b6753867a45581f3
       role: ${module.eks_managed_node_group.iam_role_name}
       subnetSelectorTerms:
         - tags:
@@ -376,8 +399,6 @@ resource "kubectl_manifest" "karpenter_node_pool" {
     spec:
       template:
         spec:
-          kubelet:
-            maxPods: 40
           nodeClassRef:
             name: default
             group: karpenter.k8s.aws  # Updated since only a single version will be served
@@ -385,19 +406,22 @@ resource "kubectl_manifest" "karpenter_node_pool" {
           requirements:
             - key: "karpenter.k8s.aws/instance-category"
               operator: In
-              values: ["c", "m", "r", "t", "a"]
+              values: ["t"]
+            - key: "karpenter.k8s.aws/instance-family"
+              operator: In
+              values: ["t3a"]
+            - key: "node.kubernetes.io/instance-type"
+              operator: Exists
+              values: ["t3a.xlarge"]
             - key: "karpenter.k8s.aws/instance-cpu"
               operator: In
-              values: ["2", "4", "8", "16", "32"]
+              values: ["4"]
             - key: "kubernetes.io/arch"
               operator: In
               values: ["amd64"]
-            - key: "karpenter.k8s.aws/instance-hypervisor"
-              operator: In
-              values: ["nitro"]
             - key: "karpenter.sh/capacity-type"
               operator: In
-              values: ["spot"]
+              values: ["on-demand"]
             - key: "karpenter.k8s.aws/instance-generation"
               operator: Gt
               values: ["2"]
@@ -406,15 +430,35 @@ resource "kubectl_manifest" "karpenter_node_pool" {
         consolidateAfter: 1m
         budgets:
         - nodes: "80%"
-          reasons: 
+          reasons:
           - "Empty"
           - "Drifted"
-        - nodes: "80%"
-          reasons: 
+        - nodes: "50%"
+          reasons:
           - "Underutilized"
   YAML
-
   depends_on = [
     kubectl_manifest.karpenter_node_class
   ]
+}
+
+module "eks-cluster-autoscaler" {
+  count = var.enable_ClusterAutoscaler ? 1 : 0
+  source  = "lablabs/eks-cluster-autoscaler/aws"
+  version = "3.1.0"
+  cluster_name = var.cluster_name
+  cluster_identity_oidc_issuer = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+  cluster_identity_oidc_issuer_arn = data.aws_iam_openid_connect_provider.oidc_arn.arn
+  irsa_role_name = var.cluster_name
+  namespace = "autoscaler"
+  service_account_name = "cluster-autoscaler"
+  service_account_namespace = "autoscaler"
+  values = yamlencode({
+    extraArgs = {
+      logtostderr: true
+      stderrthreshold: "info"
+      v: 4
+      scale-down-utilization-threshold: 0.6
+    }
+  })
 }

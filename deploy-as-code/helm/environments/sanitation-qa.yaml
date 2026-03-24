@@ -5,13 +5,23 @@ global:
 cluster-configs:
     namespaces:  
       create: true
-      values: [ backbone, cert-manager, egov, es-cluster, kafka-cluster, logging, monitoring, playground, zookeeper-cluster, sanitation ]
+      values: [ sanitation ]
       
     root-ingress:
       cert-issuer: letsencrypt-prod
+    secrets:
+      db:
+        namespace: [ sanitation ]
+        name: db
+      git-sync:
+        namespace: [ sanitation ]
+        name: git-creds
+      elasticsearch-master-creds:
+        namespace: [ sanitation ]
+        name: elasticsearch-master-credentials
     configmaps:
         egov-config:
-            namespace: [ monitoring, sanitation ]
+            namespace: [ sanitation ]
             data:
                 db-host: unified-qa-db.czvokiourya9.ap-south-1.rds.amazonaws.com:5432 ## Add db-host name eg: egov-demo.database.azure.com
                 db-name: unifiedqadb ## Add db-name
@@ -41,7 +51,7 @@ cluster-configs:
                 egov-bnd-live-citizen-tenants: "pg.testing"
 
         egov-service-host:
-            namespace: [ monitoring, sanitation ]
+            namespace: [ sanitation ]
             data:
               asset-services: "http://asset-services:8080/"
               asset-services-maha: "http://asset-services-maha:8080/"
@@ -151,6 +161,11 @@ cluster-configs:
               egov-user-event: "http://egov-user-event.egov:8080/" 
               boundary-service: 'http://boundary-service.egov:8080/'
               trackingservice: "http://trackingservice.sanitation:8080"
+    rbac:
+    - role: user
+      namespaces: [ sanitation ]
+    - role: admin
+      namespaces: [ sanitation ]
 
 employee:
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"

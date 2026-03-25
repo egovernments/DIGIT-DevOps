@@ -4,6 +4,9 @@
 
 provider "aws" {
   region = "ap-south-1"
+  shared_config_files      = ["~/.aws/config"]
+  shared_credentials_files = ["~/.aws/credentials"]
+  profile = "pradeep_aws_Access"
 }
 
 # Using these data sources allows the configuration to be

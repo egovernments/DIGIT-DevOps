@@ -29,6 +29,26 @@ heap: "-Xmx256m -Xms256m"
 memory_limits: 512Mi
 java-args: "-Dspring.profiles.active=monitoring"
 
+# CDC Configs
+cdc-source: "ENGINE"
+cdc-kafka-topic: "dbserver1.public"
+cdc-kafka-consumer-group: "cdc-consumer"
+cdc-debezium-name: "cdc-engine"
+cdc-debezium-database-hostname: "postgresql-lts.egov"
+cdc-debezium-database-port: "5432"
+cdc-debezium-database-dbname: "postgres"
+cdc-debezium-database-server-name: "dbserver1"
+cdc-debezium-slot-name: "debezium_slot"
+cdc-debezium-plugin-name: "pgoutput"
+cdc-debezium-publication-name: "debezium_pub"
+cdc-debezium-schema-include-list: ""
+cdc-debezium-table-include-list: ""
+cdc-storage-type: "postgres"
+cdc-storage-base-dir: "data/events"
+cdc-storage-max-file-bytes: "10485760"
+cdc-storage-max-files: "10"
+cdc-vault-transit-mount: "transit"
+cdc-vault-key-type: "ecdsa-p256"
 
 # Additional Container Envs
 env: |
@@ -39,39 +59,39 @@ env: |
   - name: JAVA_ARGS
     value: {{ index .Values "java-args" | quote }}
   - name: CDC_SOURCE
-    value: {{ index .Values "cdc-source" | quote }}
+    value: {{ default "ENGINE" (index .Values "cdc-source") | quote }}
   - name: CDC_KAFKA_TOPIC
-    value: {{ index .Values "cdc-kafka-topic" | quote }}
+    value: {{ default "dbserver1.public" (index .Values "cdc-kafka-topic") | quote }}
   - name: CDC_KAFKA_CONSUMER_GROUP
-    value: {{ index .Values "cdc-kafka-consumer-group" | quote }}
+    value: {{ default "cdc-consumer" (index .Values "cdc-kafka-consumer-group") | quote }}
   - name: CDC_DEBEZIUM_NAME
-    value: {{ index .Values "cdc-debezium-name" | quote }}
+    value: {{ default "cdc-engine" (index .Values "cdc-debezium-name") | quote }}
   - name: CDC_DEBEZIUM_DATABASE_HOSTNAME
-    value: {{ index .Values "cdc-debezium-database-hostname" | quote }}
+    value: {{ default "postgresql-lts.egov" (index .Values "cdc-debezium-database-hostname") | quote }}
   - name: CDC_DEBEZIUM_DATABASE_PORT
-    value: {{ index .Values "cdc-debezium-database-port" | quote }}
+    value: {{ default "5432" (index .Values "cdc-debezium-database-port") | quote }}
   - name: CDC_DEBEZIUM_DATABASE_DBNAME
-    value: {{ index .Values "cdc-debezium-database-dbname" | quote }}
+    value: {{ default "postgres" (index .Values "cdc-debezium-database-dbname") | quote }}
   - name: CDC_DEBEZIUM_DATABASE_SERVER_NAME
-    value: {{ index .Values "cdc-debezium-database-server-name" | quote }}
+    value: {{ default "dbserver1" (index .Values "cdc-debezium-database-server-name") | quote }}
   - name: CDC_DEBEZIUM_SLOT_NAME
-    value: {{ index .Values "cdc-debezium-slot-name" | quote }}
+    value: {{ default "debezium_slot" (index .Values "cdc-debezium-slot-name") | quote }}
   - name: CDC_DEBEZIUM_PLUGIN_NAME
-    value: {{ index .Values "cdc-debezium-plugin-name" | quote }}
+    value: {{ default "pgoutput" (index .Values "cdc-debezium-plugin-name") | quote }}
   - name: CDC_DEBEZIUM_PUBLICATION_NAME
-    value: {{ index .Values "cdc-debezium-publication-name" | quote }}
+    value: {{ default "debezium_pub" (index .Values "cdc-debezium-publication-name") | quote }}
   - name: CDC_DEBEZIUM_SCHEMA_INCLUDE_LIST
-    value: {{ index .Values "cdc-debezium-schema-include-list" | quote }}
+    value: {{ default "" (index .Values "cdc-debezium-schema-include-list") | quote }}
   - name: CDC_DEBEZIUM_TABLE_INCLUDE_LIST
-    value: {{ index .Values "cdc-debezium-table-include-list" | quote }}
+    value: {{ default "" (index .Values "cdc-debezium-table-include-list") | quote }}
   - name: CDC_STORAGE_TYPE
-    value: {{ index .Values "cdc-storage-type" | quote }}
+    value: {{ default "postgres" (index .Values "cdc-storage-type") | quote }}
   - name: CDC_STORAGE_BASE_DIR
-    value: {{ index .Values "cdc-storage-base-dir" | quote }}
+    value: {{ default "data/events" (index .Values "cdc-storage-base-dir") | quote }}
   - name: CDC_STORAGE_MAX_FILE_BYTES
-    value: {{ index .Values "cdc-storage-max-file-bytes" | quote }}
+    value: {{ default "10485760" (index .Values "cdc-storage-max-file-bytes") | quote }}
   - name: CDC_STORAGE_MAX_FILES
-    value: {{ index .Values "cdc-storage-max-files" | quote }}
+    value: {{ default "10" (index .Values "cdc-storage-max-files") | quote }}
   - name: CDC_VAULT_BASE_URL
     value: "http://vault.vault-new.svc.cluster.local:8200"
   - name: CDC_VAULT_TOKEN
@@ -80,9 +100,9 @@ env: |
         name: vault-root-token
         key: token
   - name: CDC_VAULT_TRANSIT_MOUNT
-    value: {{ index .Values "cdc-vault-transit-mount" | quote }}
+    value: {{ default "transit" (index .Values "cdc-vault-transit-mount") | quote }}
   - name: CDC_VAULT_KEY_TYPE
-    value: {{ index .Values "cdc-vault-key-type" | quote }}
+    value: {{ default "ecdsa-p256" (index .Values "cdc-vault-key-type") | quote }}
   {{- if index .Values "cluster-configs" "configmaps" "egov-config" "data" "db-otel-url" }}
   - name: SPRING_DATASOURCE_URL
     valueFrom:

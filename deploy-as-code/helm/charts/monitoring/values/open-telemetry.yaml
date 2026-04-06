@@ -140,7 +140,21 @@ internalTelemetryViaOTLP:
 # For example, {{ REDACTED_EMAIL }} becomes {{` {{ REDACTED_EMAIL }} `}}.
 config:
   exporters:
-    debug: {}
+    otlp:
+      endpoint: jaeger:4317
+      tls:
+        insecure: true
+    prometheus:
+      endpoint: ${env:MY_POD_IP}:8889
+      enable_open_metrics: true
+      resource_to_telemetry_conversion:
+        enabled: true
+    otlphttp/loki:
+      endpoint: http://loki-stack:3100/otlp
+      tls:
+        insecure: true
+    debug: 
+      verbosity: detailed
   extensions:
     # The health_check extension is mandatory for this chart.
     # Without the health_check extension the collector will fail the readiness and liveness probes.
@@ -198,6 +212,7 @@ config:
       logs:
         exporters:
           - debug
+          - otlphttp/loki
         processors:
           - memory_limiter
           - batch
@@ -206,6 +221,7 @@ config:
       metrics:
         exporters:
           - debug
+          - prometheus
         processors:
           - memory_limiter
           - batch
@@ -216,6 +232,7 @@ config:
       traces:
         exporters:
           - debug
+          - otlp
         processors:
           - memory_limiter
           - batch
@@ -371,9 +388,9 @@ ports:
   metrics:
     # The metrics port is disabled by default. However you need to enable the port
     # in order to use the ServiceMonitor (serviceMonitor.enabled) or PodMonitor (podMonitor.enabled).
-    enabled: false
-    containerPort: 8888
-    servicePort: 8888
+    enabled: true
+    containerPort: 8889
+    servicePort: 8889
     protocol: TCP
 
 # When enabled, the chart will set the GOMEMLIMIT env var to 80% of the configured resources.limits.memory.
@@ -604,7 +621,7 @@ podMonitor:
 serviceMonitor:
   # The service monitor by default scrapes the metrics port.
   # The metrics port needs to be enabled as well.
-  enabled: false
+  enabled: true
   metricsEndpoints:
     - port: metrics
       # interval: 15s

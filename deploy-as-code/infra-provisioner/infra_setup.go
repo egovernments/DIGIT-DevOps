@@ -96,7 +96,7 @@ func main() {
 	optedCloud, _ = sel(cloudPlatforms, "Choose the cloud type to provision the required servers for the selectdd gov stack services?")
 
 	var login bool = false
-	var cloud string = "sample-aws"
+	var cloud string = "aws"
 
 	switch {
 	case optedCloud == "AWS":

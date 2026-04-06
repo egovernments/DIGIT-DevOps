@@ -44,11 +44,11 @@ jobs:
         run: echo "Githubactions Workflow has started"
       - name: Displaying the input parameters provided
         run: cat input.yaml
-        working-directory: infra-as-code/terraform/sample-aws
+        working-directory: infra-as-code/terraform/aws
       - name: Convert YAML to ENV
         uses: dcarbone/yaml-to-env-action@main
         with:
-          yaml-file: infra-as-code/terraform/sample-aws/input.yaml
+          yaml-file: infra-as-code/terraform/aws/input.yaml
           debug: true # Optional: set to true to output some debug information
       # Now, use the env vars in subsequent steps
       - name: Display environment variables
@@ -56,7 +56,7 @@ jobs:
           echo "Cluster Name: $CLUSTER_NAME"  
       - name: Change working directory
         run: echo "This command is run in the current directory"
-        working-directory: infra-as-code/terraform/sample-aws/remote-state
+        working-directory: infra-as-code/terraform/aws/remote-state
       - name: Updating different files based on parameters provided in input.yaml
         run: go run init.go
         working-directory: infra-as-code/terraform/scripts
@@ -105,7 +105,7 @@ jobs:
       - name: Convert YAML to ENV
         uses: dcarbone/yaml-to-env-action@main
         with:
-          yaml-file: infra-as-code/terraform/sample-aws/input.yaml
+          yaml-file: infra-as-code/terraform/aws/input.yaml
           debug: true # Optional: set to true to output some debug information
       # Now, use the env vars in subsequent steps
       - name: Install dependencies
@@ -121,41 +121,41 @@ jobs:
       - name: Terraform Init - remotestate
         id: init
         run: terraform init
-        working-directory: infra-as-code/terraform/sample-aws/remote-state
+        working-directory: infra-as-code/terraform/aws/remote-state
       - name: Terraform Validate - remotestate
         id: validate
         run: terraform validate -no-color
-        working-directory: infra-as-code/terraform/sample-aws/remote-state  
+        working-directory: infra-as-code/terraform/aws/remote-state  
       - name: Terraform Plan - remotestate
         id: plan
         run: terraform plan -no-color -input=false 
-        working-directory: infra-as-code/terraform/sample-aws/remote-state
+        working-directory: infra-as-code/terraform/aws/remote-state
       - name: Terraform Apply - remotestate
         id: apply
         run: terraform apply -no-color -input=false -auto-approve
         continue-on-error: true  
-        working-directory: infra-as-code/terraform/sample-aws/remote-state
+        working-directory: infra-as-code/terraform/aws/remote-state
       - name: Terraform init - Infra creation
         id: init-Infra
         run: terraform init
-        working-directory: infra-as-code/terraform/sample-aws
+        working-directory: infra-as-code/terraform/aws
       - name: Terraform Validate - Infra creation
         id: validate-Infra
         run: terraform validate -no-color
-        working-directory: infra-as-code/terraform/sample-aws
+        working-directory: infra-as-code/terraform/aws
       # - name: unlocking statefile
       #   id: unlocking
       #   run: terraform force-unlock -force 302767c9-a713-f81d-cf1b-393dc958d02a
-      #   working-directory: infra-as-code/terraform/sample-aws
+      #   working-directory: infra-as-code/terraform/aws
       - name: Terraform Plan - Infra creation
         id: plan-Infra
         run: terraform plan -no-color -input=false -var db_password=$db_password   
-        working-directory: infra-as-code/terraform/sample-aws
+        working-directory: infra-as-code/terraform/aws
       - name: Terraform Apply - Infra creation
         id: apply-Infra
         run: terraform apply -no-color -input=false -auto-approve -var db_password=$db_password
         continue-on-error: true  
-        working-directory: infra-as-code/terraform/sample-aws
+        working-directory: infra-as-code/terraform/aws
       - name: Install AWS IAM Authenticator
         run: |
           curl -o aws-iam-authenticator https://amazon-eks.s3.us-west-2.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/aws-iam-authenticator
@@ -178,7 +178,7 @@ jobs:
           AWS_REGION:  ${{ secrets.AWS_REGION }}
       - name: Updating the terraform output data in environment.yaml files for deployment
         run: terraform output -json | go run ../scripts/envYAMLUpdater.go
-        working-directory: infra-as-code/terraform/sample-aws
+        working-directory: infra-as-code/terraform/aws
       - name: Archive infra-as-code folder
         run: tar -czf infra-as-code.tar.gz infra-as-code/
       - name: Archive deploy-as-code folder
@@ -224,7 +224,7 @@ jobs:
       - name: Convert YAML to ENV
         uses: dcarbone/yaml-to-env-action@main
         with:
-          yaml-file: infra-as-code/terraform/sample-aws/input.yaml
+          yaml-file: infra-as-code/terraform/aws/input.yaml
           debug: true # Optional: set to true to output some debug information
       # Now, use the env vars in subsequent steps 
       - name: Install dependencies
@@ -318,13 +318,13 @@ jobs:
   #       run: echo "Deploying because changes were made in deploy-as-code"
   #     - name: Displaying the input parameters provided
   #       run: cat input.yaml
-  #       working-directory: infra-as-code/terraform/sample-aws
+  #       working-directory: infra-as-code/terraform/aws
   #     - name: Display environment variables
   #       run: |
   #         echo "Cluster Name: $CLUSTER_NAME"  
   #     - name: Change working directory
   #       run: echo "This command is run in the current directory"
-  #       working-directory: infra-as-code/terraform/sample-aws/remote-state
+  #       working-directory: infra-as-code/terraform/aws/remote-state
   #     - name: Updating different files based on parameters provided in input.yaml
   #       run: go run init.go
   #       working-directory: infra-as-code/terraform/scripts        
@@ -332,7 +332,7 @@ jobs:
   #     - name: Convert YAML to ENV
   #       uses: dcarbone/yaml-to-env-action@main
   #       with:
-  #         yaml-file: infra-as-code/terraform/sample-aws/input.yaml
+  #         yaml-file: infra-as-code/terraform/aws/input.yaml
   #         debug: true # Optional: set to true to output some debug information
   #     # Now, use the env vars in subsequent steps
   #     - name: Install dependencies
@@ -426,14 +426,14 @@ jobs:
       - name: Convert YAML to ENV
         uses: dcarbone/yaml-to-env-action@main
         with:
-          yaml-file: infra-as-code/terraform/sample-aws/input.yaml
+          yaml-file: infra-as-code/terraform/aws/input.yaml
           debug: true # Optional: set to true to output some debug information
       - name: Display environment variables
         run: |
           echo "Cluster Name: $CLUSTER_NAME"  
       - name: Change working directory
         run: echo "This command is run in the current directory"
-        working-directory: infra-as-code/terraform/sample-aws/remote-state
+        working-directory: infra-as-code/terraform/aws/remote-state
       - name: Updating different files based on parameters provided in input.yaml
         run: go run init.go
         working-directory: infra-as-code/terraform/scripts
@@ -453,19 +453,19 @@ jobs:
         continue-on-error: true
       - name: Terraform Init - remotestate
         run: terraform init
-        working-directory: infra-as-code/terraform/sample-aws/remote-state
+        working-directory: infra-as-code/terraform/aws/remote-state
       - name: Terraform Validate - remotestate
         run: terraform validate -no-color
-        working-directory: infra-as-code/terraform/sample-aws/remote-state
+        working-directory: infra-as-code/terraform/aws/remote-state
       - name: Terraform Init - Infra destruction
         run: terraform init
-        working-directory: infra-as-code/terraform/sample-aws
+        working-directory: infra-as-code/terraform/aws
       - name: Terraform Validate - Infra destruction
         run: terraform validate -no-color
-        working-directory: infra-as-code/terraform/sample-aws
+        working-directory: infra-as-code/terraform/aws
       - name: Terraform Plan - Infra destruction
         run: terraform plan -destroy -no-color -input=false -var db_password=demo123456
-        working-directory: infra-as-code/terraform/sample-aws
+        working-directory: infra-as-code/terraform/aws
       - name: Terraform Destroy - Infra destruction
         run: terraform destroy -no-color -auto-approve -var db_password=demo123456
-        working-directory: infra-as-code/terraform/sample-aws
+        working-directory: infra-as-code/terraform/aws

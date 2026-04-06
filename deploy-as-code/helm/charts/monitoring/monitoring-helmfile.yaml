@@ -45,7 +45,9 @@ releases:
     - name: presets.logsCollection.includeCollectorLogs
       value: true
     - name: image.repository
-      value: "otel/opentelemetry-collector-k8s"
+      value: "otel/opentelemetry-collector-contrib"
+    - name: command.name
+      value: "otelcol-contrib"
     - name: mode
       value: "deployment"
 
@@ -67,6 +69,27 @@ releases:
       prometheusSpec:
         additionalScrapeConfigs: {{ .Values.prometheus.additionalScrapeConfigs | toYaml | nindent 8 }}
         externalLabels: {{ .Values.prometheus.externalLabels | toYaml | nindent 10 }}
+
+- name: loki-stack
+  installed: true
+  namespace: {{ .Values.namespace | default "default-namespace" }}
+  chart: grafana/loki-stack
+  version: 2.10.1
+  values:
+  - ./values/loki-stack.yaml
+  - loki:
+      persistence: {{ .Values.loki.persistence | toYaml | nindent 8 }}
+      {{- if .Values.loki.additionalConfigs }}
+      config:
+        schema_config: {{ .Values.loki.additionalConfigs.schema_config | toYaml | nindent 10 }}
+        storage_config: {{ .Values.loki.additionalConfigs.storage_config | toYaml | nindent 10 }}
+        compactor: {{ .Values.loki.additionalConfigs.compactor | toYaml | nindent 10 }}
+        table_manager: {{ .Values.loki.additionalConfigs.table_manager | toYaml | nindent 10 }}
+      {{- end }}
+      {{- if .Values.loki.serviceAccount.annotations }}
+      serviceAccount:
+        annotations: {{ .Values.loki.serviceAccount.annotations | toYaml | nindent 10 }}
+      {{- end }}
 
 - name: grafana
   installed: true

@@ -1,0 +1,147 @@
+# Common Labels
+labels:
+  app: "cdc-consumer"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "cdc-consumer"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: false
+    schemaTable: "egov_cdc_consumer_schema"
+    image:
+      repository: "egov-cdc-consumer-db"
+
+# Container Configs
+image:
+  repository: "cdc-consumer"
+replicas: "1"
+healthChecks:
+  enabled: false
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx256m -Xms256m"
+memory_limits: 512Mi
+java-args: "-Dspring.profiles.active=monitoring"
+
+# CDC Configs
+cdc-source: "ENGINE"
+cdc-kafka-topic: "dbserver1.public"
+cdc-kafka-consumer-group: "cdc-consumer"
+cdc-debezium-name: "cdc-engine"
+cdc-debezium-database-hostname: "postgresql-lts.egov"
+cdc-debezium-database-port: "5432"
+cdc-debezium-database-dbname: "postgres"
+cdc-debezium-database-server-name: "dbserver1"
+cdc-debezium-slot-name: "debezium_slot"
+cdc-debezium-plugin-name: "pgoutput"
+cdc-debezium-publication-name: "debezium_pub"
+cdc-debezium-schema-include-list: ""
+cdc-debezium-table-include-list: ""
+cdc-storage-type: "postgres"
+cdc-storage-base-dir: "data/events"
+cdc-storage-max-file-bytes: "10485760"
+cdc-storage-max-files: "10"
+cdc-vault-transit-mount: "transit"
+cdc-vault-key-type: "ecdsa-p256"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: CDC_SOURCE
+    value: {{ default "ENGINE" (index .Values "cdc-source") | quote }}
+  - name: CDC_KAFKA_TOPIC
+    value: {{ default "dbserver1.public" (index .Values "cdc-kafka-topic") | quote }}
+  - name: CDC_KAFKA_CONSUMER_GROUP
+    value: {{ default "cdc-consumer" (index .Values "cdc-kafka-consumer-group") | quote }}
+  - name: CDC_DEBEZIUM_NAME
+    value: {{ default "cdc-engine" (index .Values "cdc-debezium-name") | quote }}
+  - name: CDC_DEBEZIUM_DATABASE_HOSTNAME
+    value: {{ default "postgresql-lts.egov" (index .Values "cdc-debezium-database-hostname") | quote }}
+  - name: CDC_DEBEZIUM_DATABASE_PORT
+    value: {{ default "5432" (index .Values "cdc-debezium-database-port") | quote }}
+  - name: CDC_DEBEZIUM_DATABASE_DBNAME
+    value: {{ default "postgres" (index .Values "cdc-debezium-database-dbname") | quote }}
+  - name: CDC_DEBEZIUM_DATABASE_SERVER_NAME
+    value: {{ default "dbserver1" (index .Values "cdc-debezium-database-server-name") | quote }}
+  - name: CDC_DEBEZIUM_SLOT_NAME
+    value: {{ default "debezium_slot" (index .Values "cdc-debezium-slot-name") | quote }}
+  - name: CDC_DEBEZIUM_PLUGIN_NAME
+    value: {{ default "pgoutput" (index .Values "cdc-debezium-plugin-name") | quote }}
+  - name: CDC_DEBEZIUM_PUBLICATION_NAME
+    value: {{ default "debezium_pub" (index .Values "cdc-debezium-publication-name") | quote }}
+  - name: CDC_DEBEZIUM_SCHEMA_INCLUDE_LIST
+    value: {{ default "" (index .Values "cdc-debezium-schema-include-list") | quote }}
+  - name: CDC_DEBEZIUM_TABLE_INCLUDE_LIST
+    value: {{ default "" (index .Values "cdc-debezium-table-include-list") | quote }}
+  - name: CDC_STORAGE_TYPE
+    value: {{ default "postgres" (index .Values "cdc-storage-type") | quote }}
+  - name: CDC_STORAGE_BASE_DIR
+    value: {{ default "data/events" (index .Values "cdc-storage-base-dir") | quote }}
+  - name: CDC_STORAGE_MAX_FILE_BYTES
+    value: {{ default "10485760" (index .Values "cdc-storage-max-file-bytes") | quote }}
+  - name: CDC_STORAGE_MAX_FILES
+    value: {{ default "10" (index .Values "cdc-storage-max-files") | quote }}
+  - name: CDC_VAULT_BASE_URL
+    value: "http://vault.vault-new.svc.cluster.local:8200"
+  - name: CDC_VAULT_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: vault-root-token
+        key: token
+  - name: CDC_VAULT_TRANSIT_MOUNT
+    value: {{ default "transit" (index .Values "cdc-vault-transit-mount") | quote }}
+  - name: CDC_VAULT_KEY_TYPE
+    value: {{ default "ecdsa-p256" (index .Values "cdc-vault-key-type") | quote }}
+  {{- if index .Values "cluster-configs" "configmaps" "egov-config" "data" "db-otel-url" }}
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-otel-url
+  {{- else if index .Values "cluster-configs" "configmaps" "egov-config" "data" "db-url" }}
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  {{- end }}
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: CDC_DEBEZIUM_DATABASE_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: CDC_DEBEZIUM_DATABASE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: OTEL_TRACES_EXPORTER
+    value: "none"
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "org.postgresql.Driver"

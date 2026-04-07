@@ -41,8 +41,8 @@ cdc-debezium-database-server-name: "dbserver1"
 cdc-debezium-slot-name: "debezium_slot"
 cdc-debezium-plugin-name: "pgoutput"
 cdc-debezium-publication-name: "debezium_pub"
-cdc-debezium-schema-include-list: ""
-cdc-debezium-table-include-list: ""
+cdc-debezium-schema-include-list: "public"
+cdc-debezium-table-include-list: "public.processes,public.states,public.actions,public.transitions"
 cdc-storage-type: "postgres"
 cdc-storage-base-dir: "data/events"
 cdc-storage-max-file-bytes: "10485760"
@@ -103,19 +103,8 @@ env: |
     value: {{ default "transit" (index .Values "cdc-vault-transit-mount") | quote }}
   - name: CDC_VAULT_KEY_TYPE
     value: {{ default "ecdsa-p256" (index .Values "cdc-vault-key-type") | quote }}
-  {{- if index .Values "cluster-configs" "configmaps" "egov-config" "data" "db-otel-url" }}
   - name: SPRING_DATASOURCE_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-otel-url
-  {{- else if index .Values "cluster-configs" "configmaps" "egov-config" "data" "db-url" }}
-  - name: SPRING_DATASOURCE_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-url
-  {{- end }}
+    value: "jdbc:postgresql://postgresql-lts.egov:5432/postgres"
   - name: SPRING_DATASOURCE_USERNAME
     valueFrom:
       secretKeyRef:
@@ -145,3 +134,7 @@ env: |
     value: "none"
   - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
     value: "org.postgresql.Driver"
+  - name: FLYWAY_ENABLED
+    value: "true"
+  - name: SPRING_FLYWAY_ENABLED
+    value: "true"

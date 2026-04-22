@@ -75,7 +75,7 @@ variable "db_password" {
     condition = (
     length(var.db_password) >= 6 &&
     length(var.db_password) <= 16 &&
-    can(regex("^[a-z][a-z0-9@#]$", var.db_password))
+    can(regex("^[a-z][a-z0-9@#]*$", var.db_password))
     )
     error_message = <<EOT
 DB password must:

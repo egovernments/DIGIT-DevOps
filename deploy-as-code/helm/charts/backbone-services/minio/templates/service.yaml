@@ -1,23 +1,47 @@
+{{ $scheme := .Values.tls.enabled | ternary "https" "http" }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ template "name" . }}
+  name: {{ template "minio.fullname" . }}
   namespace: {{ .Values.namespace }}
-  labels: 
-    app: {{ template "name" . }}
+  labels:
+    app: {{ template "minio.name" . }}
+    chart: {{ template "minio.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    monitoring: "true"
+  {{- if .Values.service.annotations }}
+  annotations: {{- toYaml .Values.service.annotations | nindent 4 }}
+  {{- end }}
 spec:
   type: {{ .Values.service.type }}
+  {{- if and (eq .Values.service.type "ClusterIP") .Values.service.clusterIP }}
+  clusterIP: {{ .Values.service.clusterIP }}
+  {{- end }}
+  {{- if or (eq .Values.service.type "LoadBalancer") (eq .Values.service.type "NodePort") }}
+  externalTrafficPolicy: {{ .Values.service.externalTrafficPolicy | quote }}
+  {{- end }}
+  {{- if and (eq .Values.service.type "LoadBalancer") .Values.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges: {{ .Values.service.loadBalancerSourceRanges }}
+  {{ end }}
   {{- if and (eq .Values.service.type "LoadBalancer") (not (empty .Values.service.loadBalancerIP)) }}
-  loadBalancerIP: {{ .Values.service.loadBalancerIP }}
+  loadBalancerIP: {{ default "" .Values.service.loadBalancerIP | quote }}
   {{- end }}
   ports:
-    - name: minio
+    - name: {{ $scheme }}
       port: {{ .Values.service.port }}
-      targetPort: minio
-      {{- if and (or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) (not (empty .Values.service.nodePort)) }}
+      protocol: TCP
+      {{- if (and (eq .Values.service.type "NodePort") ( .Values.service.nodePort)) }}
       nodePort: {{ .Values.service.nodePort }}
-      {{- else if eq .Values.service.type "ClusterIP" }}
-      nodePort: null
+      {{- else }}
+      targetPort: {{ .Values.minioAPIPort }}
       {{- end }}
-  selector: 
-    app: {{ template "name" . }}
+  {{- if .Values.service.externalIPs }}
+  externalIPs:
+    {{- range $i , $ip := .Values.service.externalIPs }}
+    - {{ $ip }}
+    {{- end }}
+  {{- end }}
+  selector:
+    app: {{ template "minio.name" . }}
+    release: {{ .Release.Name }}

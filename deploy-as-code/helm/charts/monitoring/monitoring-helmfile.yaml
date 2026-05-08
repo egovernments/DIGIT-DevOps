@@ -16,15 +16,46 @@ repositories:
 - name: kafka-ui
   url: https://provectus.github.io/kafka-ui-charts
 
+templates:
+  default: &default
+    labels:
+      target: ./{{`{{ .Release.Name }}`}}
+    missingFileHandler: Warn
+
 releases:
 - name: loki-stack
   installed: true
   namespace: {{ .Values.namespace | default "default-namespace" }}
   chart: grafana/loki-stack
   version: 2.10.1
+  <<: *default
   values:
   - ./values/loki-stack.yaml
-  - {{ .Values | toYaml | nindent 8 }}
+  - loki:
+      persistence: {{ .Values.loki.persistence | toYaml | nindent 8 }}
+      {{- if .Values.loki.resources }}
+      resources: {{ .Values.loki.resources | toYaml | nindent 8 }}
+      {{- end }}
+      {{- if .Values.loki.additionalConfigs }}
+      config:
+        schema_config: {{ .Values.loki.additionalConfigs.schema_config | toYaml | nindent 10 }}
+        storage_config: {{ .Values.loki.additionalConfigs.storage_config | toYaml | nindent 10 }}
+        compactor: {{ .Values.loki.additionalConfigs.compactor | toYaml | nindent 10 }}
+        table_manager: {{ .Values.loki.additionalConfigs.table_manager | toYaml | nindent 10 }}
+        {{- if .Values.loki.additionalConfigs.ingester }}
+        ingester: {{ .Values.loki.additionalConfigs.ingester | toYaml | nindent 10 }}
+        {{- end }}
+        {{- if .Values.loki.additionalConfigs.chunk_store_config }}
+        chunk_store_config: {{ .Values.loki.additionalConfigs.chunk_store_config | toYaml | nindent 10 }}
+        {{- end }}
+        {{- if .Values.loki.additionalConfigs.query_range }}
+        query_range: {{ .Values.loki.additionalConfigs.query_range | toYaml | nindent 10 }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.loki.serviceAccount.annotations }}
+      serviceAccount:
+        annotations: {{ .Values.loki.serviceAccount.annotations | toYaml | nindent 10 }}
+      {{- end }}
 
 - name: kube-prometheus-stack
   installed: true
@@ -32,6 +63,7 @@ releases:
   chart: prometheus-community/kube-prometheus-stack
   version: 56.6.2
   disableValidation: true
+  <<: *default
   values:
   - ./values/prometheus.yaml
   - alertmanager:
@@ -52,6 +84,7 @@ releases:
   namespace: {{ .Values.namespace | default "default-namespace" }}
   chart: grafana/grafana
   version: 7.3.0
+  <<: *default
   values:
   - ./values/grafana.yaml
   - grafana.ini:
@@ -59,8 +92,8 @@ releases:
         allowed_organizations: {{ .Values.grafana.github.allowed_organizations }}
         role_attribute_path: {{ .Values.grafana.github.role_attribute_path }}
   - envRenderSecret:
-      GF_AUTH_GITHUB_YAMLAPPLICATIONCONFIG_AUTH_OAUTH2_CLIENT_GITHUB_CLIENTID: {{ .Values.secrets.grafana.clientID }}
-      GF_AUTH_GITHUB_CLIENT_SECRET: {{ .Values.secrets.grafana.clientSecret }}
+      GF_AUTH_GITHUB_CLIENT_ID: {{ index .Values "cluster-configs" "secrets" "grafana" "clientID" }}
+      GF_AUTH_GITHUB_CLIENT_SECRET: {{ index .Values "cluster-configs" "secrets" "grafana" "clientSecret" }}
   set:
     - name: ingress.hosts[0]
       value: {{ .Values.global.domain | quote }}
@@ -72,6 +105,7 @@ releases:
   namespace: {{ .Values.namespace | default "default-namespace" }}
   chart: prometheus-community/prometheus-blackbox-exporter
   version: 8.2.0
+  <<: *default
   values:
   - ./values/blackbox-exporter.yaml
   - {{ .Values | toYaml | nindent 8 }}
@@ -81,6 +115,7 @@ releases:
   namespace: backbone
   chart: kafka-ui/kafka-ui
   version: 0.7.6
+  <<: *default
   values:
   - ./values/kafka-ui.yaml
   - {{ .Values | toYaml | nindent 8 }}
@@ -95,12 +130,13 @@ releases:
   namespace: es-cluster
   chart: jaegertracing/jaeger
   version: 0.35.0
+  <<: *default
   values:
   - ./values/jaeger.yaml
   - {{ .Values | toYaml | nindent 8 }}
   - storage:
       elasticsearch:
-        password: {{ .Values.secrets.elasticsearch.password }}
+        password: {{ index .Values "cluster-configs" "secrets" "elasticsearch-master-creds" "password" }}
   set:
     - name: query.ingress.hosts[0]
       value: "{{ .Values.global.domain }}"

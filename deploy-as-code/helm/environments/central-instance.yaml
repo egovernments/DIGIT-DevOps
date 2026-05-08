@@ -1047,26 +1047,6 @@ whatsapp-webhook:
     - rushang7/push-to-kafka:1.0.0-bronze
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-minio:
-  namespace: backbone
-  mode: distributed
-  disableWebUI: false
-  persistence:
-    enabled: true
-    dataDirSize: 10G
-    aws:
-      - volumeId: "vol-0085073c65f7568a3"
-        zone: ap-south-1a
-      - volumeId: "vol-031fa52f18391ddab"
-        zone: ap-south-1a
-      - volumeId: "vol-054c367d60f236577"
-        zone: ap-south-1a
-      - volumeId: "vol-015c0f14cb3927c68"
-        zone: ap-south-1a
-  ingress:
-    hostName: minio-uat.digit.org
-
-
 oauth2-proxy:
   namespace: egov
   config:
@@ -1174,6 +1154,13 @@ prometheus:
 
 ### loki-stack >>>>>>>>>>>>>>>>>>>>
 loki:
+  resources:
+    requests:
+      memory: 2Gi
+      cpu: 50m
+    limits:
+      memory: 5Gi
+      cpu: 1000m
   persistence:
     enabled: true
     accessModes:
@@ -1211,6 +1198,23 @@ loki:
     table_manager:
       retention_deletes_enabled: true
       retention_period: 720h  # 30 days
+    ingester:
+      chunk_idle_period: 30m    # flush chunk after 30min idle — keeps WAL small
+      max_chunk_age: 1h         # force flush after 1h regardless — prevents WAL bloat
+      chunk_target_size: 1572864
+      chunk_encoding: snappy
+    chunk_store_config:
+      max_look_back_period: 72h
+      chunk_cache_config:
+        embedded_cache:
+          enabled: true
+          max_size_mb: 2048     # 2Gi local chunk cache — serves 72h without hitting S3
+    query_range:
+      results_cache:
+        cache:
+          embedded_cache:
+            enabled: true
+            max_size_mb: 256
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 ### jupyter-hub >>>>>>>>>>>>>>>>>>>>
@@ -1315,3 +1319,12 @@ xstate-chatbot:
   bill-search-limit: 3
   receipt-search-limit: 3
   complaint-search-limit: 3
+
+
+### minio >>>>>>>>>>>>>>>>>>>>
+minio:
+  persistence:
+    storageClass: gp3
+    accessMode: ReadWriteOnce
+    size: 20Gi
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

@@ -16,11 +16,40 @@ initContainers:
     schemaTable: "template_config_schema"
     image:
       repository: "template-config-db"
+    env: |
+      - name: DB_URL
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-url
+      - name: SCHEMA_TABLE
+        value: "template_config_schema"
+      - name: FLYWAY_USER
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-username
+      - name: FLYWAY_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-password
+      - name: JAVA_ENABLE_DEBUG
+        value: "TRUE"
+      - name: FLYWAY_LOCATIONS
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: flyway-locations
+      - name: FLYWAY_SCHEMAS
+        value: "public"
+      - name: FLYWAY_DEFAULT_SCHEMA
+        value: "public"
 
 # Container Configs
 image:
   repository: "template-config"
-replicas: "1"
+replicas: 1
 healthChecks:
   enabled: false
   livenessProbePath: "/template-config/health"
@@ -38,7 +67,7 @@ resources: |
 # Additional Container Envs
 env: |
   - name: HTTP_PORT
-    value: "8080" 
+    value: "8080"
   - name: SERVER_CONTEXT_PATH
     value: "/template-config"
   - name: DB_HOST
@@ -59,3 +88,67 @@ env: |
     value: "postgres"
   - name: DB_SSL_MODE
     value: "disable"
+  - name: OTEL_ENABLED
+    value: "false"
+  - name: OTEL_SERVICE_NAME
+    value: "template-config"
+  - name: OTEL_SERVICE_VERSION
+    value: "1.0.0"
+  - name: OTEL_METRICS_ENABLED
+    value: "true"
+  - name: PROMETHEUS_PORT
+    value: "9090"
+  - name: OTEL_TRACES_SAMPLER_ARG
+    value: "1.0"
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: "open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318"
+  - name: CONSOLE_LOGS_ENABLED
+    value: "true"
+  - name: PUBSUB_ENABLED
+    value: "false"
+  - name: PUBSUB_TYPE
+    value: "kafka"
+  - name: KAFKA_BROKERS
+    value: "release-name-kafka-controller-headless.kafka-kraft:9092"
+  - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+    value: "true"
+  - name: KAFKA_PARTITION_COUNT
+    value: "1"
+  - name: KAFKA_REPLICATION_FACTOR
+    value: "1"
+  - name: KAFKA_CONSUMER_GROUP
+    value: "template-config-service"
+  - name: REDIS_ADDRESS
+    value: "redis.backbone.svc.cluster.local:6379"
+  - name: REDIS_PASSWORD
+    value: ""
+  - name: REDIS_DB
+    value: "0"
+  - name: REDIS_CONSUMER_GROUP
+    value: "template-config-service"
+  - name: REDIS_CONSUMER_ID
+    value: "template-config-service-1"
+  - name: REDIS_RETENTION_DAYS
+    value: "7"
+  - name: REDIS_MAX_STREAM_LENGTH
+    value: "1000000"
+  - name: REDIS_CLEANUP_INTERVAL
+    value: "86400"
+  - name: PUBSUB_TOPIC_CREATE_TEMPLATE_CONFIG
+    value: "template-config-create-template-config"
+  - name: PUBSUB_TOPIC_UPDATE_TEMPLATE_CONFIG
+    value: "template-config-update-template-config"
+  - name: PUBSUB_TOPIC_DELETE_TEMPLATE_CONFIG
+    value: "template-config-delete-template-config"
+  - name: SCHEMA_SEPARATION_MODE
+    value: "false"
+  - name: SCHEMA_SEPARATION_TOPIC
+    value: "account-migration"
+  - name: MIGRATION_FLYWAY_LOCATIONS
+    value: "filesystem:/opt/digit/db/migrations"
+  - name: MIGRATION_SCRIPT_PATH
+    value: "/opt/digit/migrate.sh"
+  - name: MIGRATION_FLYWAY_BIN
+    value: "/opt/flyway/flyway"
+  - name: MIGRATION_SCHEMA_TABLE
+    value: "template_config_schema"

@@ -152,6 +152,31 @@ env: |
     value: {{ index .Values "defaultLocale" | quote }}
   - name: MANAGEMENT_HEALTH_REDIS_ENABLED
     value: "false"
+  
+  - name: SPRING_DATASOURCE_URL
+  {{- if eq .Values.namespace "health" }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: health-db-url
+  {{- else }}
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  {{- end }}
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "org.postgresql.Driver"
 
   - name: DB_HOST
     valueFrom:

@@ -35,6 +35,10 @@ memory_limits: 512Mi
 java-args: ""
 cpu_limits: "300m"
 
+expense-billing-bill-create: expense-bill-create-health
+expense-billing-bill-update: expense-bill-update-health
+report-generation-trigger-topic: report-generation-trigger
+
 # Additional Container Envs
 env: |
   - name: SERVER_PORT
@@ -95,9 +99,9 @@ env: |
   - name: BUSINESS_WORKFLOW_STATUS_MAP
     value: {{ index .Values "business-workflow-status-map" | quote }}
   - name: EXPENSE_BILLING_BILL_CREATE
-    value: "expense-bill-create-health"
+    value: {{ index .Values "expense-billing-bill-create" | quote }}
   - name: EXPENSE_BILLING_BILL_UPDATE
-    value: "expense-bill-update-health"
+    value: {{ index .Values "expense-billing-bill-update" | quote }}
   - name: KAFKA_TOPICS_NOTIFICATION_SMS
     value: "egov.core.notification.sms"
   {{- if index .Values "expense-billing-default-offset" }}
@@ -112,13 +116,18 @@ env: |
   - name: EXPENSE_BILLING_SEARCH_MAX_LIMIT
     value: {{ index .Values "expense-billing-search-max-limit" | quote }} 
   {{- end }}
-  - name: PROJECT_SERVICE_HOST
+  - name: WORKS_PROJECT_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: health-project
-  - name: PROJECT_SEARCH_PATH
+  - name: WORKS_PROJECT_STAFF_ENDPOINT
     value: "health-project/v1/_search"
+  - name: SPRING_DATA_REDIS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: redis-host
   {{- if index .Values "spring-kafka-producer-properties-max-request-size" }}
   - name: SPRING_KAFKA_PRODUCER_PROPERTIES_MAX_REQUEST_SIZE
     value: {{ index .Values "spring-kafka-producer-properties-max-request-size" | quote }} 
@@ -129,3 +138,34 @@ env: |
   {{- end }}
   - name: IS_HEALTH_CONTEXT_ENABLED
     value: "true"
+  - name: EXPENSE_V2_PERIODIC_BILLING_ENABLED
+    value: {{ index .Values "expense-v2-periodic-billing-enabled" | default "false" | quote }}
+  - name: EXPENSE_KAFKA_TENANT_ID_PATTERN
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-tenant-id-pattern
+  - name: TASK_SCHEDULER-BOOTSTRAP_TENANTS
+    value: {{ index .Values "task-scheduler-bootstrap-tenants" | default "dev" | quote}}
+  - name: TASK_SCHEDULER_BOOTSTRAP_TENANTS
+    value: {{ index .Values "task-scheduler-bootstrap-tenants" | default "dev" | quote}}
+  - name: WORKS_WORKER_REGISTRY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: worker-registry-host
+  - name: WORKS_WORKER_REGISTRY_ENDPOINT
+    value: "/worker/v1/_search"
+  - name: WORKS_WORKER_REGISTRY_SEARCH_PAGE_SIZE
+    value: "100"
+  - name: EGOV_FILESTORE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-filestore
+  - name: MTN_API_MOCK_ENABLED
+    value: {{ index .Values "mtn-api-mock-enabled" | default "true" | quote }}
+  - name: TASK_SCHEDULER_BOOTSTRAP_TENANTS
+    value: {{ index .Values "task-scheduler-bootstrap-tenants" | default "dev" | quote}}
+  - name: REPORT_GENERATION_TRIGGER_TOPIC
+    value: {{ index .Values "report-generation-trigger-topic" | quote}}

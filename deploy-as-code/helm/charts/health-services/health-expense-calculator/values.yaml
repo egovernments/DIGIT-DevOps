@@ -103,6 +103,13 @@ env: |
         key: boundary-service
   - name: EGOV_BOUNDARY_SEARCH_URL
     value: {{ index .Values "egov-boundary-search-url" | default "/boundary-service/boundary-relationships/_search" }}
+  - name: EGOV_BOUNDARY_HIERARCHY_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: boundary-hierarchy
+  - name: EGOV_LOCALIZATION_LOCALE_CODE
+    value: "en_IN"
   - name: PROJECT_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
@@ -169,8 +176,22 @@ env: |
   - name: REPORT_ERROR_QUEUE_TOPIC
     value: {{ index .Values "report-error-queue-topic" | quote }}
   {{- end }}
+  {{- if index .Values "report-retry-queue-topic" }}
+  - name: REPORT_RETRY_QUEUE_TOPIC
+    value: {{ index .Values "report-retry-queue-topic" | quote }}
+  {{- end }}
+  {{- if index .Values "expense-bill-create-topic" }}
   - name: EXPENSE_BILLING_BILL_CREATE
-    value: "expense-bill-create-health"
+    value: {{ index .Values "expense-bill-create-topic" | quote }}
+  {{- end }}
+  {{- if index .Values "expense-bill-update-topic" }}
+  - name: EXPENSE_BILLING_BILL_UPDATE
+    value: {{ index .Values "expense-bill-update-topic" | quote }}
+  {{- end }}
+  {{- if index .Values "expense-bill-index-topic" }}
+  - name: EXPENSE_BILLING_BILL_INDEX
+    value: {{ index .Values "expense-bill-index-topic" | quote }}
+  {{- end }}
   - name: EGOV_LOCALIZATION_HOST
     valueFrom:
       configMapKeyRef:
@@ -192,13 +213,52 @@ env: |
   - name: BILL_GENERATION_ASYNC_TOPIC
     value: {{ index .Values "bill-generation-async-topic" | quote }}
   {{- end }}
+  {{- if index .Values "report-generation-trigger-topic" }}
+  - name: REPORT_GENERATION_TRIGGER_TOPIC
+    value: {{ index .Values "report-generation-trigger-topic" | quote }}
+  {{- end }}
+  {{- if index .Values "report-generation-retry-trigger-topic" }}
+  - name: REPORT_GENERATION_RETRY_TRIGGER_TOPIC
+    value: {{ index .Values "report-generation-retry-trigger-topic" | quote }}
+  {{- end }}
   - name: SPRING_DATA_REDIS_HOST
     value: redis.backbone
   - name: SPRING_DATA_REDIS_PORT
     value: "6379"
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: {{ index .Values "spring-kafka-consumer-group-id" | quote }}
   {{- if index .Values "spring-kafka-producer-properties-max-request-size" }}
   - name: SPRING_KAFKA_PRODUCER_PROPERTIES_MAX_REQUEST_SIZE
     value: {{ index .Values "spring-kafka-producer-properties-max-request-size" | quote }} 
   {{- end }}
+  - name: WORKS_ATTENDANCE_REGISTER_SEARCH_ENDPOINT
+    value: health-attendance/v1/_search
+  - name: WORKS_ATTENDANCE_REGISTER_UPDATE_ENDPOINT
+    value: health-attendance/v1/_update
+  - name: EGOV_MUSTERROLL_SEARCH_ENDPOINT 
+    value: {{ index .Values "egov-musterroll-search-endpoint" | quote }} 
+  - name: IS_HEALTH_CONTEXT_ENABLED
+    value: "true"
+  - name: EGOV_INDIVIDUAL_SEARCH_ENDPOINT
+    value: "/health-individual/v1/_search"
+  - name: EGOV_FILESTORE_PATH
+    value: "filestore/v1/files"
   - name: BILLING_FREQUENCY_CUSTOM_MINIMUM_DAYS
-    value: {{ index .Values "billing-frequency-custom-minimum-days" | quote }} 
+    value: {{ index .Values "billing-frequency-custom-minimum-days" | quote }}
+  - name: BILLING_CONFIG_V2_ENABLED
+    value: {{ index .Values "billing-config-v2-enabled" | default "false" | quote }}
+  - name: BILLING_CONFIG_CREATE_TOPIC
+    value: {{ index .Values "billing-config-create-topic" | default "billing-config-create" | quote }}
+  - name: BILLING_CONFIG_UPDATE_TOPIC
+    value: {{ index .Values "billing-config-update-topic" | default "billing-config-update" | quote }}
+  - name: BILLING_PERIOD_STATUS_UPDATE_TOPIC
+    value: {{ index .Values "billing-period-status-update-topic" | default "billing-period-status-update" | quote }}
+  - name: BILLING_PERIOD_GENERATION_ENABLED
+    value: {{ index .Values "billing-period-generation-enabled" | default "false" | quote }}
+  - name: BILLING_MUSTER_ROLL_PERIOD_AWARE_ENABLED
+    value: {{ index .Values "billing-muster-roll-period-aware-enabled" | default "false" | quote }}
+  - name: BILLING_V2_BATCH_PROCESSING_ENABLED
+    value: "false"
+  - name: PROJECT_MANAGEMENT_SYSTEM_KAFKA_UPDATE_TOPIC
+    value: {{ index .Values "project-management-system-kafka-update-topic" | default "update-project" | quote }}
+  

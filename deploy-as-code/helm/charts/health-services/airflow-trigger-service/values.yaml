@@ -1,0 +1,119 @@
+global:
+  hosts:
+    - mc-nigeria-uat.digit.org
+    - bauchi-hcm-uat.digit.org
+    - kebbi-hcm-uat.digit.org
+
+# Common Labels
+labels:
+  app: "airflow-trigger-api"
+  group: "digit-health"
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  rewriteEnable: false
+  rewritePath: ""
+  context: "airflow-trigger-api"
+
+# Init Containers Configs
+initContainers:
+  extraInitContainers: |
+    - name: run-migration
+      image: bhanuprakashmegov/airflow-custom-trigger:central3
+      command: [ "python", "migrate.py" ]
+      env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-host
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-name
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: password
+        - name: DB_SCHEMAS
+          value: "public,ba"
+
+httpPort: 8000
+
+# Container Configs
+image:
+  repository: "bhanuprakashmegov/airflow-custom-trigger"
+  tag: "central3"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+imagePullSecrets: |
+  - name: docker-registry-secret
+#appType: "java-spring"
+#tracing-enabled: true
+#heap: "-Xmx192m -Xms192m"
+#java-args: ""
+#egov-mdms-service-host-key: "mdms-v2"
+
+# Additional Container Envs
+env: |
+  - name: AIRFLOW_BASE_URL
+    value: "http://airflow-api-server.backbone.svc.cluster.local:8080"
+  - name: ALLOWED_ORIGINS
+    value: "*"    # lock this down to your React app's URL in prod
+  - name: AIRFLOW_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: airflow-admin-credentials
+        key: username
+  - name: AIRFLOW_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: airflow-admin-credentials
+        key: password
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
+  - name: DB_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: IS_CENTRAL_INSTANCE_ENABLED
+    value: "true"
+
+resources: |
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"

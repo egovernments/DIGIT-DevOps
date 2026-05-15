@@ -16,13 +16,42 @@ initContainers:
     schemaTable: "hrms_schema"
     image:
       repository: "hrms-db"
+    env: |
+      - name: DB_URL
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-url
+      - name: SCHEMA_TABLE
+        value: "hrms_schema"
+      - name: FLYWAY_USER
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-username
+      - name: FLYWAY_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-password
+      - name: JAVA_ENABLE_DEBUG
+        value: "TRUE"
+      - name: FLYWAY_LOCATIONS
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: flyway-locations
+      - name: FLYWAY_SCHEMAS
+        value: "public"
+      - name: FLYWAY_DEFAULT_SCHEMA
+        value: "public"
 
 # Container Configs
 image:
   repository: "hrms"
 replicas: 1
 appType: "go"
-tracing-enabled: true # Assuming you want to keep tracing
+tracing-enabled: true
 healthChecks:
   enabled: false # Disabled as requested
   livenessProbePath: "/health"
@@ -41,7 +70,7 @@ env: |
   - name: SERVER_PORT
     value: "8080"
   - name: SERVER_CONTEXT_PATH
-    value: "/hrms"
+    value: "/employee"
   - name: DB_HOST
     value: "postgresql-lts.egov"
   - name: DB_PORT
@@ -60,7 +89,6 @@ env: |
       secretKeyRef:
         name: db
         key: password
-
   - name: IDGEN_HOST
     valueFrom:
       configMapKeyRef:
@@ -70,24 +98,84 @@ env: |
     value: "idgen/v1/generate"
   - name: IDGEN_NAME
     value: "hrms.idgen"
-
   - name: BOUNDARY_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: boundary
   - name: BOUNDARY_ENABLED
-    value: "true"  
-
+    value: "true"
   - name: INDIVIDUAL_HOST
     value: "http://individual:8080/"
   - name: INDIVIDUAL_ENABLED
     value: "true"
-
   - name: KEYCLOAK_BASE_URL
     value: "https://digit-lts.digit.org/keycloak"
   - name: KEYCLOAK_ENABLED
     value: "true"
-
-
-
+  - name: JAEGER_SERVICE_NAME
+    value: "hrms"
+  - name: JAEGER_SAMPLER_TYPE
+    value: "remote"
+  - name: JAEGER_AGENT_HOST
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: JAEGER_AGENT_PORT
+    value: "6831"
+  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+    value: "$(JAEGER_AGENT_HOST):5778"
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "false"
+  - name: PUBSUB_ENABLED
+    value: "false"
+  - name: PUBSUB_TYPE
+    value: "redis"
+  - name: KAFKA_BROKERS
+    value: "release-name-kafka-controller-headless.kafka-kraft:9092"
+  - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+    value: "true"
+  - name: KAFKA_PARTITION_COUNT
+    value: "1"
+  - name: KAFKA_REPLICATION_FACTOR
+    value: "1"
+  - name: KAFKA_CONSUMER_GROUP
+    value: "hrms-service"
+  - name: REDIS_ADDRESS
+    value: "redis.backbone.svc.cluster.local:6379"
+  - name: REDIS_PASSWORD
+    value: ""
+  - name: REDIS_DB
+    value: "0"
+  - name: REDIS_CONSUMER_GROUP
+    value: "hrms-service"
+  - name: REDIS_CONSUMER_ID
+    value: "hrms-service-1"
+  - name: REDIS_RETENTION_DAYS
+    value: "7"
+  - name: REDIS_MAX_STREAM_LENGTH
+    value: "1000000"
+  - name: REDIS_CLEANUP_INTERVAL
+    value: "86400"
+  - name: PUBSUB_TOPIC_CREATE_EMPLOYEE
+    value: "hrms-create-employee"
+  - name: PUBSUB_TOPIC_UPDATE_EMPLOYEE
+    value: "hrms-update-employee"
+  - name: PUBSUB_TOPIC_DELETE_EMPLOYEE
+    value: "hrms-delete-employee"
+  - name: PUBSUB_TOPIC_CREATE_JURISDICTION
+    value: "hrms-create-jurisdiction"
+  - name: PUBSUB_TOPIC_UPDATE_JURISDICTION
+    value: "hrms-update-jurisdiction"
+  - name: SCHEMA_SEPARATION_MODE
+    value: "false"
+  - name: SCHEMA_SEPARATION_TOPIC
+    value: "account-migration"
+  - name: MIGRATION_FLYWAY_LOCATIONS
+    value: "filesystem:/opt/digit/db/migrations"
+  - name: MIGRATION_SCRIPT_PATH
+    value: "/opt/digit/migrate.sh"
+  - name: MIGRATION_FLYWAY_BIN
+    value: "/opt/flyway/flyway"
+  - name: MIGRATION_SCHEMA_TABLE
+    value: "employee_schema"

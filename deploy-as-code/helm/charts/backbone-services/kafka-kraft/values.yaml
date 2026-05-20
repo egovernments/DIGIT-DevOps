@@ -32,7 +32,7 @@ namespace: backbone
 nameOverride: ""
 ## @param fullnameOverride String to fully override common.names.fullname
 ##
-fullnameOverride: ""
+fullnameOverride: "kafka-kraft"
 ## @param clusterDomain Default Kubernetes cluster domain
 ##
 clusterDomain: cluster.local
@@ -79,9 +79,9 @@ diagnosticMode:
 ## @param image.debug Specify if debug values should be set
 ##
 image:
-  registry: docker.io
-  repository: bitnami/kafka
-  tag: 3.6.1-debian-11-r0
+  registry: egovio
+  repository: bitnami-kafka
+  tag: 3.6.0-debian-11-r0
   digest: ""
   ## Specify a imagePullPolicy
   ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
@@ -145,7 +145,7 @@ listeners:
   ## @param listeners.client.containerPort Port for the Kafka client listener
   ## @param listeners.client.protocol Security protocol for the Kafka client listener. Allowed values are 'PLAINTEXT', 'SASL_PLAINTEXT', 'SASL_SSL' and 'SSL'
   ## @param listeners.client.sslClientAuth Optional. If SASL_SSL is enabled, configure mTLS TLS authentication type. If SSL protocol is enabled, overrides tls.authType for this listener. Allowed values are 'none', 'requested' and 'required'
-  client: 
+  client:
     containerPort: 9092
     protocol: PLAINTEXT
     name: CLIENT
@@ -155,7 +155,7 @@ listeners:
   ## @param listeners.controller.protocol Security protocol for the Kafka controller listener. Allowed values are 'PLAINTEXT', 'SASL_PLAINTEXT', 'SASL_SSL' and 'SSL'
   ## @param listeners.controller.sslClientAuth Optional. If SASL_SSL is enabled, configure mTLS TLS authentication type. If SSL protocol is enabled, overrides tls.authType for this listener. Allowed values are 'none', 'requested' and 'required'
   ## Ref: https://cwiki.apache.org/confluence/display/KAFKA/KIP-684+-+Support+mutual+TLS+authentication+on+SASL_SSL+listeners
-  controller: 
+  controller:
     name: CONTROLLER
     containerPort: 9093
     protocol: PLAINTEXT
@@ -164,7 +164,7 @@ listeners:
   ## @param listeners.interbroker.containerPort Port for the Kafka inter-broker listener
   ## @param listeners.interbroker.protocol Security protocol for the Kafka inter-broker listener. Allowed values are 'PLAINTEXT', 'SASL_PLAINTEXT', 'SASL_SSL' and 'SSL'
   ## @param listeners.interbroker.sslClientAuth Optional. If SASL_SSL is enabled, configure mTLS TLS authentication type. If SSL protocol is enabled, overrides tls.authType for this listener. Allowed values are 'none', 'requested' and 'required'
-  interbroker: 
+  interbroker:
     containerPort: 9094
     protocol: PLAINTEXT
     name: INTERNAL
@@ -173,7 +173,7 @@ listeners:
   ## @param listeners.external.protocol Security protocol for the Kafka external listener. . Allowed values are 'PLAINTEXT', 'SASL_PLAINTEXT', 'SASL_SSL' and 'SSL'
   ## @param listeners.external.name Name for the Kafka external listener
   ## @param listeners.external.sslClientAuth Optional. If SASL_SSL is enabled, configure mTLS TLS authentication type. If SSL protocol is enabled, overrides tls.sslClientAuth for this listener. Allowed values are 'none', 'requested' and 'required'
-  external: 
+  external:
     containerPort: 9095
     protocol: PLAINTEXT
     name: EXTERNAL
@@ -260,9 +260,9 @@ sasl:
   ## @param sasl.existingSecret Name of the existing secret containing credentials for clientUsers, interBrokerUser, controllerUser and zookeeperUser
   ## Create this secret running the command below where SECRET_NAME is the name of the secret you want to create:
   ##       kubectl create secret generic SECRET_NAME --from-literal=client-passwords=CLIENT_PASSWORD1,CLIENT_PASSWORD2 --from-literal=inter-broker-password=INTER_BROKER_PASSWORD --from-literal=inter-broker-client-secret=INTER_BROKER_CLIENT_SECRET --from-literal=controller-password=CONTROLLER_PASSWORD --from-literal=controller-client-secret=CONTROLLER_CLIENT_SECRET --from-literal=zookeeper-password=ZOOKEEPER_PASSWORD
-  ## The client secrets are only required when using oauthbearer as sasl mechanism. 
+  ## The client secrets are only required when using oauthbearer as sasl mechanism.
   ## Client, interbroker and controller passwords are only required if the sasl mechanism includes something other than oauthbearer.
-  ## 
+  ##
   existingSecret: ""
 
 ## @section Kafka TLS parameters
@@ -2322,6 +2322,13 @@ kraft:
   ## @param kraft.controllerQuorumVoters Override the Kafka controller quorum voters of the Kafka Kraft cluster. If not set, it will be automatically configured to use all controller-elegible nodes.
   ##
   controllerQuorumVoters: ""
+  configuration:
+    linger_ms: "250"
+    num_partitions: "3"
+    default_replication_factor: "2"
+    min_insync_replicas: "1"
+    offsets_topic_replication_factor: "3"
+    log_retention_ms: "432000000"
 
 ## @section ZooKeeper chart parameters
 ##

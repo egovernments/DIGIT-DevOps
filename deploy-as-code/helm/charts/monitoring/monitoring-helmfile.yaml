@@ -73,23 +73,17 @@ releases:
 - name: loki-stack
   installed: true
   namespace: {{ .Values.namespace | default "default-namespace" }}
-  chart: grafana/loki-stack
-  version: 2.10.1
+  chart: grafana/loki
+  version: 6.6.4
   values:
-  - ./values/loki-stack.yaml
-  - loki:
-      persistence: {{ .Values.loki.persistence | toYaml | nindent 8 }}
-      {{- if .Values.loki.additionalConfigs }}
-      config:
-        schema_config: {{ .Values.loki.additionalConfigs.schema_config | toYaml | nindent 10 }}
-        storage_config: {{ .Values.loki.additionalConfigs.storage_config | toYaml | nindent 10 }}
-        compactor: {{ .Values.loki.additionalConfigs.compactor | toYaml | nindent 10 }}
-        table_manager: {{ .Values.loki.additionalConfigs.table_manager | toYaml | nindent 10 }}
-      {{- end }}
-      {{- if .Values.loki.serviceAccount.annotations }}
-      serviceAccount:
-        annotations: {{ .Values.loki.serviceAccount.annotations | toYaml | nindent 10 }}
-      {{- end }}
+  - ./values/loki.yaml
+  - singleBinary:
+      persistence:
+        size: {{ .Values.loki.persistence.size }}
+  {{- if .Values.loki.serviceAccount.annotations }}
+  - serviceAccount:
+      annotations: {{ .Values.loki.serviceAccount.annotations | toYaml | nindent 8 }}
+  {{- end }}
 
 - name: grafana
   installed: true
@@ -110,6 +104,8 @@ releases:
       value: "{{ .Values.global.domain }}"
     - name: ingress.tls[0].hosts[0]
       value: "{{ .Values.global.domain }}"
+    - name: ingress.tls[0].secretName
+      value: "{{ .Values.global.domain }}-tls-certs"
 
 - name: blackbox
   installed: true

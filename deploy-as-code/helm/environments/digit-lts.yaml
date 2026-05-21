@@ -819,38 +819,32 @@ prometheus:
 ### loki-stack >>>>>>>>>>>>>>>>>>>>
 loki:
   persistence:
-    enabled: true
-    accessModes:
-      - ReadWriteOnce
-    size: 30Gi
+    size: 50Gi  # MODIFY: set according to expected log volume for this environment
   serviceAccount:
     annotations: { }
-  additionalConfigs:
-    limits_config:
-      allow_structured_metadata: true
-    schema_config:
-      configs:
-        - from: 2020-10-24
-          store: boltdb-shipper
-          object_store: filesystem
-          schema: v11
-          index:
-            prefix: index_
-            period: 24h
-    storage_config:
-      boltdb_shipper:
-        active_index_directory: /data/loki/index
-        cache_location: /data/loki/index_cache
-        shared_store: filesystem
-        cache_ttl: 24h
-      filesystem:
-        directory: /data/loki/chunks
-    compactor:
-      working_directory: /data/loki/boltdb-shipper-compactor
-      shared_store: filesystem
-      retention_enabled: true
-      compaction_interval: 168h
-    table_manager:
-      retention_deletes_enabled: true
-      retention_period: 168h  # 7 days
+  schemaConfig:
+    configs:
+      # MODIFY: retain this period only if this env has existing boltdb-shipper data.
+      # For a fresh Loki 3.x install, remove this block entirely.
+      - from: "2020-10-24"
+        store: boltdb-shipper
+        object_store: filesystem
+        schema: v11
+        index:
+          prefix: index_
+          period: 24h
+      # MODIFY: set 'from' to the date Loki 3.x was first deployed in this environment.
+      # For a fresh install this should be the deployment date (YYYY-MM-DD).
+      - from: "2026-05-21"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: tsdb_index_
+          period: 24h
+  limitsConfig:
+    retention_period: 168h       # MODIFY: adjust log retention period per env requirements
+    reject_old_samples_max_age: 720h  # MODIFY: max age for ingested log samples (must be >= retention_period)
+  compactor:
+    compaction_interval: 10m  # MODIFY: how often compaction runs; increase for low-traffic envs (e.g. 1h)
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

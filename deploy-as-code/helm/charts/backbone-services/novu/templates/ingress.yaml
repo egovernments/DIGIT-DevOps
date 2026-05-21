@@ -13,7 +13,11 @@ spec:
   ingressClassName: {{ .Values.ingress.className }}
   {{- end }}
   rules:
-    - host: {{ .Values.ingress.host | quote }}
+  {{- if .Values.ingress.hostName }}
+    - host: {{ .Values.ingress.hostName }}
+  {{- else }}
+    - host: {{ .Values.global.domain }}
+  {{- end }}
       http:
         paths:
           - path: {{ .Values.ingress.path | quote }}
@@ -23,4 +27,17 @@ spec:
                 name: {{ .Values.ingress.service.name }}
                 port:
                   number: {{ .Values.ingress.service.port }}
+  tls:
+{{- if .Values.ingress.tls }}
+  {{- tpl .Values.ingress.tls . | nindent 2 }}
+{{- end }}
+{{- if .Values.ingress.hostName }}
+  - hosts:
+    - {{ .Values.ingress.hostName }}
+    secretName: {{ .Values.ingress.hostName }}-tls-certs
+{{- else }}
+  - hosts:
+    - {{ .Values.global.domain }}
+    secretName: {{ .Values.global.domain }}-tls-certs
+{{- end }}
 {{- end }}

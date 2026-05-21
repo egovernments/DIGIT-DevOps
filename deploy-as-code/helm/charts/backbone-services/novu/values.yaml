@@ -1,0 +1,400 @@
+namespace: "novu"
+imagePullSecrets: []
+
+# Ingress for Novu dashboard (defaults to dashboard service)
+ingress:
+  enabled: true
+  name: novu-ingress
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+  host: "unified-dev.digit.org"
+  path: "/novu(/|$)(.*)"
+  pathType: "ImplementationSpecific"
+  service:
+    name: "novu-dashboard"
+    port: 4000
+
+# Global defaults from Novu community .env example
+# Adjust these for your environment.
+global:
+  hostName: "http://localhost"
+  nodeEnv: "local"
+
+novu:
+  secrets:
+    jwtSecret: "your-secret"
+    storeEncryptionKey: "change-this-key-32-characters!!!"
+    novuSecretKey: "change-this-secret-key"
+  subscriberWidgetJwtExpirationTime: "15d"
+  aws:
+    accessKeyId: "test"
+    secretAccessKey: "test"
+  s3:
+    bucketName: "novu-local"
+    region: "us-east-1"
+  redis:
+    password: ""
+    cacheServiceHost: ""
+    cacheServicePort: "6379"
+  mongo:
+    minPoolSize: "5"
+    maxPoolSize: "10"
+    autoCreateIndexes: "true"
+  newRelic:
+    enabled: "false"
+    appName: "NEW_RELIC_APP_NAME"
+    licenseKey: "NEW_RELIC_LICENSE_KEY"
+  sentryDsn: ""
+
+redis:
+  name: "novu-redis"
+  labels:
+    app: "novu-redis"
+    group: "novu"
+  image:
+    repository: "redis"
+    tag: "alpine"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 6379
+  probes:
+    enabled: true
+    liveness:
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 5
+    readiness:
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 5
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+
+mongodb:
+  name: "novu-mongodb"
+  labels:
+    app: "novu-mongodb"
+    group: "novu"
+  image:
+    repository: "mongo"
+    tag: "8.0.3"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 27017
+  auth:
+    username: "root"
+    password: "secret"
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  probes:
+    enabled: true
+    liveness:
+      initialDelaySeconds: 15
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 6
+    readiness:
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 6
+  persistence:
+    enabled: true
+    storageClassName: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 8Gi
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+
+api:
+  name: "novu-api"
+  labels:
+    app: "novu-api"
+    group: "novu"
+  image:
+    repository: "ghcr.io/novuhq/novu/api"
+    tag: "2.3.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 3000
+  service:
+    type: ClusterIP
+    port: 3000
+  flags:
+    apiIdempotencyEnabled: "false"
+    apiRateLimitingEnabled: "false"
+    newMessagesApiResponseEnabled: "true"
+    v2Enabled: "true"
+  contextPath: ""
+  env: |
+    - name: NODE_ENV
+      value: {{ .Values.global.nodeEnv | quote }}
+    - name: API_ROOT_URL
+      value: {{ printf "%s:%d" .Values.global.hostName (int .Values.api.port) | quote }}
+    - name: PORT
+      value: {{ .Values.api.port | quote }}
+    - name: FRONT_BASE_URL
+      value: {{ printf "%s:%d" .Values.global.hostName (int .Values.dashboard.port) | quote }}
+    - name: MONGO_URL
+      value: {{ printf "mongodb://%s:%s@%s:%d/novu-db?authSource=admin" .Values.mongodb.auth.username .Values.mongodb.auth.password .Values.mongodb.name (int .Values.mongodb.port) | quote }}
+    - name: MONGO_MIN_POOL_SIZE
+      value: {{ .Values.novu.mongo.minPoolSize | quote }}
+    - name: MONGO_MAX_POOL_SIZE
+      value: {{ .Values.novu.mongo.maxPoolSize | quote }}
+    - name: REDIS_HOST
+      value: {{ .Values.redis.name | quote }}
+    - name: REDIS_PORT
+      value: {{ .Values.redis.port | quote }}
+    - name: REDIS_PASSWORD
+      value: {{ .Values.novu.redis.password | quote }}
+    - name: REDIS_DB_INDEX
+      value: "2"
+    - name: REDIS_CACHE_SERVICE_HOST
+      value: {{ .Values.novu.redis.cacheServiceHost | quote }}
+    - name: REDIS_CACHE_SERVICE_PORT
+      value: {{ .Values.novu.redis.cacheServicePort | quote }}
+    - name: S3_LOCAL_STACK
+      value: {{ printf "%s:4566" .Values.global.hostName | quote }}
+    - name: S3_BUCKET_NAME
+      value: {{ .Values.novu.s3.bucketName | quote }}
+    - name: S3_REGION
+      value: {{ .Values.novu.s3.region | quote }}
+    - name: AWS_ACCESS_KEY_ID
+      value: {{ .Values.novu.aws.accessKeyId | quote }}
+    - name: AWS_SECRET_ACCESS_KEY
+      value: {{ .Values.novu.aws.secretAccessKey | quote }}
+    - name: JWT_SECRET
+      value: {{ .Values.novu.secrets.jwtSecret | quote }}
+    - name: STORE_ENCRYPTION_KEY
+      value: {{ .Values.novu.secrets.storeEncryptionKey | quote }}
+    - name: NOVU_SECRET_KEY
+      value: {{ .Values.novu.secrets.novuSecretKey | quote }}
+    - name: SUBSCRIBER_WIDGET_JWT_EXPIRATION_TIME
+      value: {{ .Values.novu.subscriberWidgetJwtExpirationTime | quote }}
+    - name: SENTRY_DSN
+      value: {{ .Values.novu.sentryDsn | quote }}
+    - name: NEW_RELIC_ENABLED
+      value: {{ .Values.novu.newRelic.enabled | quote }}
+    - name: NEW_RELIC_APP_NAME
+      value: {{ .Values.novu.newRelic.appName | quote }}
+    - name: NEW_RELIC_LICENSE_KEY
+      value: {{ .Values.novu.newRelic.licenseKey | quote }}
+    - name: API_CONTEXT_PATH
+      value: {{ .Values.api.contextPath | quote }}
+    - name: MONGO_AUTO_CREATE_INDEXES
+      value: {{ .Values.novu.mongo.autoCreateIndexes | quote }}
+    - name: IS_API_IDEMPOTENCY_ENABLED
+      value: {{ .Values.api.flags.apiIdempotencyEnabled | quote }}
+    - name: IS_API_RATE_LIMITING_ENABLED
+      value: {{ .Values.api.flags.apiRateLimitingEnabled | quote }}
+    - name: IS_NEW_MESSAGES_API_RESPONSE_ENABLED
+      value: {{ .Values.api.flags.newMessagesApiResponseEnabled | quote }}
+    - name: IS_V2_ENABLED
+      value: {{ .Values.api.flags.v2Enabled | quote }}
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+worker:
+  name: "novu-worker"
+  labels:
+    app: "novu-worker"
+    group: "novu"
+  image:
+    repository: "ghcr.io/novuhq/novu/worker"
+    tag: "2.3.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  flags:
+    emailInlineCssDisabled: "false"
+    useMergedDigestIdEnabled: "false"
+  queue:
+    broadcastChunkSize: "100"
+    multicastChunkSize: "100"
+  env: |
+    - name: NODE_ENV
+      value: {{ .Values.global.nodeEnv | quote }}
+    - name: MONGO_URL
+      value: {{ printf "mongodb://%s:%s@%s:%d/novu-db?authSource=admin" .Values.mongodb.auth.username .Values.mongodb.auth.password .Values.mongodb.name (int .Values.mongodb.port) | quote }}
+    - name: MONGO_MAX_POOL_SIZE
+      value: {{ .Values.novu.mongo.maxPoolSize | quote }}
+    - name: REDIS_HOST
+      value: {{ .Values.redis.name | quote }}
+    - name: REDIS_PORT
+      value: {{ .Values.redis.port | quote }}
+    - name: REDIS_PASSWORD
+      value: {{ .Values.novu.redis.password | quote }}
+    - name: REDIS_DB_INDEX
+      value: "2"
+    - name: REDIS_CACHE_SERVICE_HOST
+      value: {{ .Values.novu.redis.cacheServiceHost | quote }}
+    - name: REDIS_CACHE_SERVICE_PORT
+      value: {{ .Values.novu.redis.cacheServicePort | quote }}
+    - name: S3_LOCAL_STACK
+      value: {{ printf "%s:4566" .Values.global.hostName | quote }}
+    - name: S3_BUCKET_NAME
+      value: {{ .Values.novu.s3.bucketName | quote }}
+    - name: S3_REGION
+      value: {{ .Values.novu.s3.region | quote }}
+    - name: AWS_ACCESS_KEY_ID
+      value: {{ .Values.novu.aws.accessKeyId | quote }}
+    - name: AWS_SECRET_ACCESS_KEY
+      value: {{ .Values.novu.aws.secretAccessKey | quote }}
+    - name: STORE_ENCRYPTION_KEY
+      value: {{ .Values.novu.secrets.storeEncryptionKey | quote }}
+    - name: SUBSCRIBER_WIDGET_JWT_EXPIRATION_TIME
+      value: {{ .Values.novu.subscriberWidgetJwtExpirationTime | quote }}
+    - name: SENTRY_DSN
+      value: {{ .Values.novu.sentryDsn | quote }}
+    - name: NEW_RELIC_ENABLED
+      value: {{ .Values.novu.newRelic.enabled | quote }}
+    - name: NEW_RELIC_APP_NAME
+      value: {{ .Values.novu.newRelic.appName | quote }}
+    - name: NEW_RELIC_LICENSE_KEY
+      value: {{ .Values.novu.newRelic.licenseKey | quote }}
+    - name: BROADCAST_QUEUE_CHUNK_SIZE
+      value: {{ .Values.worker.queue.broadcastChunkSize | quote }}
+    - name: MULTICAST_QUEUE_CHUNK_SIZE
+      value: {{ .Values.worker.queue.multicastChunkSize | quote }}
+    - name: API_ROOT_URL
+      value: {{ printf "http://%s:%d" .Values.api.name (int .Values.api.port) | quote }}
+    - name: IS_EMAIL_INLINE_CSS_DISABLED
+      value: {{ .Values.worker.flags.emailInlineCssDisabled | quote }}
+    - name: IS_USE_MERGED_DIGEST_ID_ENABLED
+      value: {{ .Values.worker.flags.useMergedDigestIdEnabled | quote }}
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+ws:
+  name: "novu-ws"
+  labels:
+    app: "novu-ws"
+    group: "novu"
+  image:
+    repository: "ghcr.io/novuhq/novu/ws"
+    tag: "2.3.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 3002
+  service:
+    type: ClusterIP
+    port: 3002
+  contextPath: ""
+  env: |
+    - name: PORT
+      value: {{ .Values.ws.port | quote }}
+    - name: NODE_ENV
+      value: {{ .Values.global.nodeEnv | quote }}
+    - name: MONGO_URL
+      value: {{ printf "mongodb://%s:%s@%s:%d/novu-db?authSource=admin" .Values.mongodb.auth.username .Values.mongodb.auth.password .Values.mongodb.name (int .Values.mongodb.port) | quote }}
+    - name: MONGO_MAX_POOL_SIZE
+      value: {{ .Values.novu.mongo.maxPoolSize | quote }}
+    - name: REDIS_HOST
+      value: {{ .Values.redis.name | quote }}
+    - name: REDIS_PORT
+      value: {{ .Values.redis.port | quote }}
+    - name: REDIS_PASSWORD
+      value: {{ .Values.novu.redis.password | quote }}
+    - name: JWT_SECRET
+      value: {{ .Values.novu.secrets.jwtSecret | quote }}
+    - name: WS_CONTEXT_PATH
+      value: {{ .Values.ws.contextPath | quote }}
+    - name: NEW_RELIC_ENABLED
+      value: {{ .Values.novu.newRelic.enabled | quote }}
+    - name: NEW_RELIC_APP_NAME
+      value: {{ .Values.novu.newRelic.appName | quote }}
+    - name: NEW_RELIC_LICENSE_KEY
+      value: {{ .Values.novu.newRelic.licenseKey | quote }}
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+dashboard:
+  name: "novu-dashboard"
+  labels:
+    app: "novu-dashboard"
+    group: "novu"
+  image:
+    repository: "ghcr.io/novuhq/novu/dashboard"
+    tag: "2.3.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 4000
+  basePath: "/novu"
+  service:
+    type: ClusterIP
+    port: 4000
+  env: |
+    - name: VITE_API_HOSTNAME
+      value: {{ printf "http://%s:%d" .Values.api.name (int .Values.api.port) | quote }}
+    - name: VITE_SELF_HOSTED
+      value: "true"
+    - name: VITE_WEBSOCKET_HOSTNAME
+      value: {{ printf "http://%s:%d" .Values.ws.name (int .Values.ws.port) | quote }}
+    - name: VITE_BASE_PATH
+      value: {{ .Values.dashboard.basePath | quote }}
+    - name: VITE_PUBLIC_PATH
+      value: {{ .Values.dashboard.basePath | quote }}
+    - name: VITE_LEGACY_DASHBOARD_URL
+      value: ""
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80

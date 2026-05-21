@@ -23,6 +23,11 @@ spec:
         - name: dashboard
           image: "{{ .Values.dashboard.image.repository }}:{{ .Values.dashboard.image.tag }}"
           imagePullPolicy: {{ .Values.dashboard.image.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              sed -i 's|="/|="{{ .Values.dashboard.basePath }}/|g' /app/dist/index.html
+              exec http-server /app/dist -p {{ .Values.dashboard.port }} --proxy http://localhost:{{ .Values.dashboard.port }}?
           ports:
             - name: http
               containerPort: {{ .Values.dashboard.port }}

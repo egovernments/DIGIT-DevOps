@@ -31,7 +31,7 @@ variable "kubernetes_version" {
 variable "architecture" {
   description = "Architecture for worker nodes (x86_64 or arm64)"
   type        = string
-  default     = "x86_64"
+  default     = "arm64"
   validation {
     condition     = contains(["x86_64", "arm64"], var.architecture)
     error_message = "Architecture must be either x86_64 or arm64."
@@ -40,7 +40,7 @@ variable "architecture" {
 
 variable "instance_types" {
   description = "Arry of instance types for SPOT instances"
-  default = ["t3a.xlarge"]
+  default = ["t4g.xlarge"]
 }
 
 # Map of architecture → instance types
@@ -55,7 +55,7 @@ variable "instance_types_map" {
 
 variable "min_worker_nodes" {
   description = "eGov recommended below worker node counts as default for min nodes"
-  default = "0" #REPLACE IF NEEDED
+  default = "4" #REPLACE IF NEEDED
 }
 
 variable "desired_worker_nodes" {

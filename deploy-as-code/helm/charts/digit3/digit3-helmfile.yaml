@@ -1,0 +1,112 @@
+templates:
+  default: &default
+    chart: ./{{`{{ .Release.Name }}`}}
+    version: 0.1.0
+    namespace: egov
+    missingFileHandler: Warn
+    values:
+      - ../../environments/egov-demo-secrets.yaml
+      - ../../environments/egov-demo.yaml
+
+values:
+  - ../../environments/egov-demo-secrets.yaml
+  - ../../environments/egov-demo.yaml
+
+releases:
+  # --- Auth (deployed first — services that need keycloak declare it in needs) ---
+  - name: keycloak
+    chart: ./keycloak
+    installed: true
+    version: 0.1.0
+    namespace: keycloak
+    missingFileHandler: Warn
+    values:
+      - ../../environments/egov-demo-secrets.yaml
+      - ../../environments/egov-demo.yaml
+      - ./keycloak/values.yaml
+
+  # --- Core Platform ---
+  - name: mdms-v2
+    installed: true
+    <<: *default
+
+  - name: idgen
+    installed: true
+    <<: *default
+
+  - name: localization
+    installed: true
+    <<: *default
+
+  - name: filestore
+    installed: true
+    <<: *default
+
+  - name: url-shortener
+    installed: true
+    <<: *default
+
+  - name: otp
+    installed: true
+    <<: *default
+
+  - name: notification
+    installed: true
+    <<: *default
+
+  - name: pdf
+    installed: true
+    <<: *default
+
+  # --- Registry / Identity ---
+  - name: individual
+    installed: true
+    <<: *default
+
+  - name: boundary
+    installed: true
+    <<: *default
+
+  - name: registry
+    installed: true
+    needs:
+      - keycloak/keycloak
+    <<: *default
+
+  - name: account
+    installed: true
+    needs:
+      - keycloak/keycloak
+    <<: *default
+
+  - name: rbac
+    installed: true
+    needs:
+      - keycloak/keycloak
+    <<: *default
+
+  # --- Business Services ---
+  - name: hrms
+    installed: true
+    needs:
+      - keycloak/keycloak
+    <<: *default
+
+  - name: workflow
+    installed: true
+    <<: *default
+
+  # --- Gateway (last) ---
+  - name: gateway-kong
+    chart: ./gateway-kong
+    installed: true
+    version: 2.33.3
+    namespace: egov
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+      - egov/mdms-v2
+    values:
+      - ../../environments/egov-demo-secrets.yaml
+      - ../../environments/egov-demo.yaml
+      - ./gateway-kong/values.yaml

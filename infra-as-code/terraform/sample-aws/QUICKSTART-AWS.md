@@ -22,7 +22,7 @@
 | Secret encryption | Not enforced | SOPS + KMS (KMS key created by Terraform) |
 | Kubernetes version | Older | 1.33 |
 | Worker node AMI | Bottlerocket | Amazon Linux 2023 (AL2023) |
-| GitHub Actions branch | `release-githubactions` | `digit3-infra` |
+| GitHub Actions branch | `release-githubactions` | `digit3-infra-aar-aar` |
 
 ---
 
@@ -79,7 +79,7 @@ Navigate to **Settings → Security → Secrets and variables → Actions → Ne
 ```bash
 git clone https://github.com/<your-github-username>/DIGIT-DevOps.git
 cd DIGIT-DevOps
-git checkout digit3-infra
+git checkout digit3-infra-aar
 ```
 
 ---
@@ -117,99 +117,69 @@ These defaults in [infra-as-code/terraform/sample-aws/variables.tf](infra-as-cod
 
 ---
 
-## Step 4 — Configure Application Secrets
+## Step 4 — Fill In Your Configuration
 
-Open [deploy-as-code/helm/environments/egov-demo-secrets.yaml](deploy-as-code/helm/environments/egov-demo-secrets.yaml).
+There are two files to update. Every `<...>` placeholder must be replaced before pushing.
 
-> **No SSH key needed.** DIGIT 3 services do not use git-sync. MDMS data is stored in PostgreSQL via the `mdms-v2` service. The `git-sync` block in the secrets file is a legacy 2.x artifact — leave it empty or remove it.
+---
 
-### 4a. Required secrets to fill in
+### 4a. [egov-demo-secrets.yaml](deploy-as-code/helm/environments/egov-demo-secrets.yaml)
 
-#### Database credentials
 ```yaml
 cluster-configs:
   secrets:
+
     db:
-      username: <your_db_username>        # alphanumeric only
-      password: <your_db_password>        # choose a strong password
-      flywayUsername: <your_db_username>
-      flywayPassword: <your_db_password>
-```
+      username: <db_username>          # alphanumeric only, e.g. digit_user
+      password: <db_password>          # strong password
+      flywayUsername: <db_username>    # same as above
+      flywayPassword: <db_password>    # same as above
 
-#### AWS S3 credentials (for file storage)
-```yaml
     egov-filestore:
-      aws-key: <your_aws_access_key>
-      aws-secret-key: <your_aws_secret_key>
-```
+      aws-key: <aws_access_key>        # IAM key with S3 read/write on your filestore bucket
+      aws-secret-key: <aws_secret_key>
 
-> These should be the IAM access keys for a user that has S3 read/write access on your filestore bucket.
-
-#### New in DIGIT 3 — Elasticsearch credentials
-```yaml
-    elasticsearch-master-creds:
-      password: <choose_a_strong_password>
-```
-
-#### New in DIGIT 3 — Kafka Kraft cluster ID
-Generate a unique base64 cluster ID (22 characters):
-```bash
-cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 22
-```
-```yaml
     kafka-kraft:
-      kraft-cluster-id: <22-char-alphanumeric-id>
+      kraft-cluster-id: <22-char-id>  # run: cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 22
+
+    keycloak:
+      kc-db-username: <db_username>    # same as db.username above
+      kc-db-password: <db_password>    # same as db.password above
+      kc-admin-username: admin
+      kc-admin-password: <strong_password>   # Keycloak admin UI password
 ```
 
-#### New in DIGIT 3 — OAuth2 Proxy (for dashboard access)
-```yaml
-    oauth2-proxy:
-      clientID: <github-oauth-app-client-id>
-      clientSecret: <github-oauth-app-client-secret>
-      cookieSecret: <32-byte-base64-secret>   # generate: openssl rand -base64 32
-```
+---
 
-### 4b. Optional secrets (fill in as needed)
-
-| Secret block | Purpose |
-|---|---|
-| `egov-notification-sms` | SMS notifications |
-| `egov-location.gmapskey` | Google Maps integration |
-| `egov-pg-service` | Axis / PayU payment gateway |
-| `pgadmin` | PgAdmin UI access |
-| `egov-enc-service` | Data encryption service |
-| `egov-notification-mail` | Email notifications |
-| `kibana` | Kibana dashboard access |
-| `egov-si-microservice` | Finance service |
-| `egov-edcr-notification` | eDCR notifications |
-| `chatbot` | Chatbot integration |
-
-### 4c. Update domain and DB host in egov-demo.yaml
-
-Open [deploy-as-code/helm/environments/egov-demo.yaml](deploy-as-code/helm/environments/egov-demo.yaml) and replace the placeholders:
+### 4b. [egov-demo.yaml](deploy-as-code/helm/environments/egov-demo.yaml)
 
 ```yaml
 global:
-  domain: "<your-domain-name>"   # same as domain_name in input.yaml
+  domain: "<domain_name>"              # e.g. demo.digit.org  (same as domain_name in input.yaml)
 
 cluster-configs:
   configmaps:
     egov-config:
       data:
-        db-host: "postgres.backbone"         # in-cluster PostgreSQL host
-        db-name: "<your_db_name>"            # name for the DIGIT database
-        db-url: "jdbc:postgresql://postgres.backbone/<your_db_name>"
-        domain: "<your-domain-name>"
-        egov-services-fqdn-name: "https://<your-domain-name>/"
+        db-name: "<db_name>"           # e.g. digit_db  (alphanumeric, no hyphens)
+        db-url: "jdbc:postgresql://postgres.egov:5432/<db_name>"   # update db_name here too
+        domain: "<domain_name>"
+        egov-services-fqdn-name: "https://<domain_name>/"
+
+filestore:
+  fixed-bucketname: "<your-s3-bucket-name>"   # S3 bucket for file uploads
+
+cert-manager:
+  email: "<your-email>"               # email for Let's Encrypt notifications
 ```
 
 ---
 
 ## Step 5 — GitHub Actions Workflow
 
-> **Nothing to do here.** The workflow file [.github/workflows/digit-install.yaml](.github/workflows/digit-install.yaml) is already committed in the `digit3-infra` branch. When you fork the repository, the workflow comes with it automatically — you do not need to create or modify it.
+> **Nothing to do here.** The workflow file [.github/workflows/digit-install.yaml](.github/workflows/digit-install.yaml) is already committed in the `digit3-infra-aar` branch. When you fork the repository, the workflow comes with it automatically — you do not need to create or modify it.
 
-The workflow runs three jobs in sequence when you push to `digit3-infra`:
+The workflow runs three jobs in sequence when you push to `digit3-infra-aar`:
 
 1. **Input_validation** — reads `input.yaml`, runs the Terraform init script, archives artifacts
 2. **Terraform_Infra_Creation** — provisions EKS cluster, VPC, KMS key, node group, and remote state S3 bucket
@@ -223,7 +193,7 @@ To view the full workflow file, see [.github/workflows/digit-install.yaml](.gith
 
 ## Step 6 — Trigger Installation
 
-Commit and push all changes to the `digit3-infra` branch:
+Commit and push all changes to the `digit3-infra-aar` branch:
 
 ```bash
 git add .github/workflows/digit-install.yaml
@@ -231,7 +201,7 @@ git add infra-as-code/terraform/sample-aws/input.yaml
 git add deploy-as-code/helm/environments/egov-demo.yaml
 git add deploy-as-code/helm/environments/egov-demo-secrets.yaml
 git commit -m "Configure DIGIT 3 deployment parameters"
-git push origin digit3-infra
+git push origin digit3-infra-aar
 ```
 
 Open the **Actions** tab in your GitHub repository. The `DIGIT-Install workflow` pipeline will start automatically. The jobs run in sequence:
@@ -346,7 +316,7 @@ The `terraform_infra_destruction` job will:
 
 Monitor the Actions window for completion. A success message confirms all resources have been removed.
 
-> **Important:** If DIGIT is installed from a branch other than `digit3-infra`, update the `branches` list in `.github/workflows/digit-install.yaml` to include the correct branch name before triggering the destroy workflow.
+> **Important:** If DIGIT is installed from a branch other than `digit3-infra-aar`, update the `branches` list in `.github/workflows/digit-install.yaml` to include the correct branch name before triggering the destroy workflow.
 
 ---
 

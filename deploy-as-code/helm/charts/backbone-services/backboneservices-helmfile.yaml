@@ -1,0 +1,101 @@
+repositories:
+  - name: bitnami
+    url: https://charts.bitnami.com/bitnami
+
+templates:
+  backbone: &backbone
+    namespace: backbone
+    missingFileHandler: Warn
+
+values:
+  - ../../environments/egov-demo-secrets.yaml
+  - ../../environments/egov-demo.yaml
+
+releases:
+  # cluster-configs must be first — creates namespaces, configmaps and secrets
+  # that all subsequent services depend on
+  - name: cluster-configs
+    chart: ../cluster-configs
+    installed: true
+    version: 0.1.0
+    namespace: egov
+    missingFileHandler: Warn
+    values:
+      - ../../environments/egov-demo-secrets.yaml
+      - ../../environments/egov-demo.yaml
+
+  - name: cert-manager
+    chart: ./cert-manager
+    namespace: cert-manager
+    installed: true
+    version: v1.13.3
+    disableValidation: true
+    missingFileHandler: Warn
+    needs:
+      - egov/cluster-configs
+    values:
+      - ./cert-manager/values.yaml
+
+  - name: ingress-nginx
+    chart: ./ingress-nginx
+    installed: true
+    version: 4.12.1
+    needs:
+      - egov/cluster-configs
+    <<: *backbone
+    values:
+      - ./ingress-nginx/values.yaml
+
+  - name: postgres
+    chart: ./postgres
+    installed: true
+    version: 0.1.0
+    namespace: egov
+    missingFileHandler: Warn
+    needs:
+      - egov/cluster-configs
+    values:
+      - ./postgres/values.yaml
+
+  - name: redis
+    chart: ./redis
+    installed: true
+    version: 0.1.0
+    needs:
+      - egov/cluster-configs
+    <<: *backbone
+    values:
+      - ./redis/values.yaml
+
+  - name: minio
+    chart: ./minio
+    installed: true
+    version: 5.4.0
+    needs:
+      - egov/cluster-configs
+    <<: *backbone
+    values:
+      - ./minio/values.yaml
+
+  - name: kafka-kraft
+    chart: bitnami/kafka
+    installed: true
+    version: 26.2.0
+    needs:
+      - egov/cluster-configs
+    <<: *backbone
+    set:
+      - name: kraft.clusterId
+        value: {{ index .Values "cluster-configs" "secrets" "kafka-kraft" "kraft-cluster-id" | quote }}
+    values:
+      - controller:
+          replicaCount: 1
+        kraft:
+          enabled: true
+        listeners:
+          client:
+            protocol: PLAINTEXT
+          controller:
+            protocol: PLAINTEXT
+          interbroker:
+            protocol: PLAINTEXT

@@ -3,7 +3,7 @@ name: DIGIT-Install workflow
 on:
   push:
     branches:
-      - digit3-infra
+      - digit3-infra-aar
   workflow_dispatch:
     inputs:
       destroyCommand:
@@ -180,6 +180,10 @@ jobs:
           chmod +x sops
           sudo mv sops /usr/local/bin/sops
           sops --version
+
+      - name: Resolve Helm chart dependencies
+        run: helmfile -f digit-helmfile.yaml deps
+        working-directory: deploy-as-code
 
       - name: Deploy DIGIT
         run: helmfile -f digit-helmfile.yaml apply --include-needs=true

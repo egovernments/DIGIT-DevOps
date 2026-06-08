@@ -36,8 +36,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error reading YAML file: %v\n", err)
 		os.Exit(1)
 	}
-	output := strings.ReplaceAll(string(yamlFile), "<db_host_name>", tfOutput.DBHost.Value)
-	output = strings.ReplaceAll(output, "<db_name>", tfOutput.DBName.Value)
+	// RDS is not used in DIGIT 3 — postgres runs in-cluster, no substitution needed
+	output := string(yamlFile)
 
 	// Write the updated YAML to stdout
 	fmt.Println(output)

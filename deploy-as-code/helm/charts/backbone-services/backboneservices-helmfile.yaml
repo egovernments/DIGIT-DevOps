@@ -1,0 +1,45 @@
+values:
+  - ../../environments/egov-demo-secrets.yaml
+  - ../../environments/egov-demo.yaml
+
+releases:
+  # cert-manager must come first; ingress-nginx depends on it for TLS.
+  # disableValidation skips CRD schema validation which fails before CRDs are installed.
+  - name: cert-manager
+    chart: ./cert-manager
+    namespace: cert-manager
+    installed: true
+    disableValidation: true
+    values:
+      - ./cert-manager/values.yaml
+
+  # Postgres pod — replaces RDS in DIGIT 3.0. Release name matches service DNS used by app charts.
+  - name: postgresql-lts
+    chart: ./postgres
+    namespace: egov
+    installed: true
+    values:
+      - ./postgres/values.yaml
+
+  - name: redis
+    chart: ./redis
+    namespace: backbone
+    installed: true
+    values:
+      - ./redis/values.yaml
+
+  - name: minio
+    chart: ./minio
+    namespace: backbone
+    installed: true
+    values:
+      - ./minio/values.yaml
+
+  - name: ingress-nginx
+    chart: ./ingress-nginx
+    namespace: backbone
+    installed: true
+    needs:
+      - cert-manager
+    values:
+      - ./ingress-nginx/values.yaml

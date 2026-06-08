@@ -1,0 +1,366 @@
+name: DIGIT-Install workflow
+
+# Workflow runs on push to main branch, or manually triggered for destruction.
+# NOTE: This workflow is designed for DIGIT-DevOps-3.0 as a standalone repository.
+# All paths are relative to the repository root.
+on:
+  push:
+    branches:
+      - digit3-release-workflow
+  workflow_dispatch:
+    inputs:
+      destroyCommand:
+        description: 'Type "destroy" to run the terraform_infra_destruction job.'
+        required: true
+        default: ''
+
+jobs:
+  Input_validation:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    env:
+      TF_IN_AUTOMATION: "true"
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Display input parameters
+        run: cat input.yaml
+        working-directory: infra-as-code/terraform/sample-aws
+
+      - name: Convert YAML to ENV
+        uses: dcarbone/yaml-to-env-action@main
+        with:
+          yaml-file: infra-as-code/terraform/sample-aws/input.yaml
+          debug: true
+
+      - name: Display environment variables
+        run: |
+          echo "Cluster Name: $CLUSTER_NAME"
+          echo "Terraform State Bucket: $TERRAFORM_STATE_BUCKET_NAME"
+
+      - name: Update configuration files from input.yaml
+        run: go run init.go
+        working-directory: infra-as-code/terraform/scripts
+
+      - name: Set in-cluster postgres DB values in egov-demo.yaml
+        run: |
+          sed -i 's|<db_host_name>|postgresql-lts.egov|g' deploy-as-code/helm/environments/egov-demo.yaml
+          sed -i 's|<db_name>|egov_ms|g' deploy-as-code/helm/environments/egov-demo.yaml
+
+      - name: Archive infra-as-code
+        run: tar -czf infra-as-code.tar.gz infra-as-code/
+
+      - name: Archive deploy-as-code
+        run: tar -czf deploy-as-code.tar.gz deploy-as-code/
+
+      - name: Upload infra-as-code artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: infra-as-code-artifact
+          path: infra-as-code.tar.gz
+
+      - name: Upload deploy-as-code artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-as-code-artifact
+          path: deploy-as-code.tar.gz
+
+  Terraform_Infra_Creation:
+    if: ${{ github.event_name == 'push' }}
+    needs: Input_validation
+    runs-on: ubuntu-latest
+    env:
+      TF_IN_AUTOMATION: "true"
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Download infra-as-code artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: infra-as-code-artifact
+          path: .
+
+      - name: Download deploy-as-code artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy-as-code-artifact
+          path: .
+
+      - name: Extract artifacts
+        run: |
+          tar -xzf infra-as-code.tar.gz
+          tar -xzf deploy-as-code.tar.gz
+
+      - name: Convert YAML to ENV
+        uses: dcarbone/yaml-to-env-action@main
+        with:
+          yaml-file: infra-as-code/terraform/sample-aws/input.yaml
+          debug: true
+
+      - name: Download Terraform
+        run: |
+          curl -o terraform.zip https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip
+          unzip terraform.zip
+          sudo mv terraform /usr/local/bin/
+          terraform -version
+
+      # Remote state: creates the S3 bucket and DynamoDB table that store Terraform state.
+      # Uses local state itself (no backend block), so no backend-config needed here.
+      - name: Terraform Init - remote state
+        run: terraform init
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+
+      - name: Terraform Validate - remote state
+        run: terraform validate -no-color
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+
+      - name: Terraform Plan - remote state
+        run: terraform plan -no-color -input=false -var bucket=$TERRAFORM_STATE_BUCKET_NAME -var dynamodb_table=$TERRAFORM_STATE_BUCKET_NAME
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+
+      - name: Terraform Apply - remote state
+        run: terraform apply -no-color -input=false -auto-approve -var bucket=$TERRAFORM_STATE_BUCKET_NAME -var dynamodb_table=$TERRAFORM_STATE_BUCKET_NAME
+        continue-on-error: true
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+
+      # Main infra: backend S3 bucket and DynamoDB table are passed via -backend-config
+      # because only the key and region are hardcoded in main.tf's backend block.
+      - name: Terraform Init - infrastructure
+        run: terraform init -backend-config="bucket=$TERRAFORM_STATE_BUCKET_NAME" -backend-config="dynamodb_table=$TERRAFORM_STATE_BUCKET_NAME"
+        working-directory: infra-as-code/terraform/sample-aws
+
+      - name: Terraform Validate - infrastructure
+        run: terraform validate -no-color
+        working-directory: infra-as-code/terraform/sample-aws
+
+      - name: Terraform Plan - infrastructure
+        run: terraform plan -no-color -input=false
+        working-directory: infra-as-code/terraform/sample-aws
+
+      - name: Terraform Apply - infrastructure
+        run: terraform apply -no-color -input=false -auto-approve
+        continue-on-error: true
+        working-directory: infra-as-code/terraform/sample-aws
+
+      - name: Generate kubeconfig
+        run: aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name $CLUSTER_NAME
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+
+      - name: Archive infra-as-code
+        run: tar -czf infra-as-code.tar.gz infra-as-code/
+
+      - name: Archive deploy-as-code
+        run: tar -czf deploy-as-code.tar.gz deploy-as-code/
+
+      - name: Upload infra-as-code artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: infra-as-code-artifact
+          path: infra-as-code.tar.gz
+          overwrite: true
+
+      - name: Upload deploy-as-code artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-as-code-artifact
+          path: deploy-as-code.tar.gz
+          overwrite: true
+
+  DIGIT-deployment:
+    if: ${{ github.event_name == 'push' }}
+    needs: Terraform_Infra_Creation
+    runs-on: ubuntu-latest
+    env:
+      TF_IN_AUTOMATION: "true"
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Download infra-as-code artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: infra-as-code-artifact
+          path: .
+
+      - name: Download deploy-as-code artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy-as-code-artifact
+          path: .
+
+      - name: Extract artifacts
+        run: |
+          tar -xzf infra-as-code.tar.gz
+          tar -xzf deploy-as-code.tar.gz
+
+      - name: Convert YAML to ENV
+        uses: dcarbone/yaml-to-env-action@main
+        with:
+          yaml-file: infra-as-code/terraform/sample-aws/input.yaml
+          debug: true
+
+      - name: Generate kubeconfig
+        run: aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name $CLUSTER_NAME
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+
+      - name: Create namespaces
+        run: |
+          for ns in backbone cert-manager egov es-cluster kafka-kraft logging monitoring playground; do
+            kubectl create namespace $ns --dry-run=client -o yaml | kubectl apply -f -
+          done
+        continue-on-error: true
+
+      - name: Create DB secret
+        run: |
+          DB_USER=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['db']['username'])")
+          DB_PASS=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['db']['password'])")
+          kubectl create secret generic db \
+            --from-literal=username="$DB_USER" \
+            --from-literal=password="$DB_PASS" \
+            --from-literal=flyway-username="$DB_USER" \
+            --from-literal=flyway-password="$DB_PASS" \
+            -n egov --dry-run=client -o yaml | kubectl apply -f -
+        continue-on-error: true
+
+      - name: Create egov-config and egov-service-host configmaps
+        run: |
+          python3 - <<'EOF'
+          import yaml, subprocess, sys
+
+          with open("deploy-as-code/helm/environments/egov-demo.yaml") as f:
+              config = yaml.safe_load(f)
+
+          for cm_name, cm_spec in config.get("cluster-configs", {}).get("configmaps", {}).items():
+              namespaces = cm_spec.get("namespace", ["egov"])
+              data = cm_spec.get("data", {})
+              for ns in namespaces:
+                  args = ["kubectl", "create", "configmap", cm_name]
+                  for k, v in data.items():
+                      args += [f"--from-literal={k}={v}"]
+                  args += ["-n", ns, "--dry-run=client", "-o", "yaml"]
+                  out = subprocess.run(args, capture_output=True, text=True)
+                  r = subprocess.run(["kubectl", "apply", "-f", "-"], input=out.stdout, capture_output=True, text=True)
+                  print(f"configmap/{cm_name} in {ns}: {r.stdout.strip()}")
+                  if r.returncode != 0:
+                      print(r.stderr, file=sys.stderr)
+          EOF
+        continue-on-error: true
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'latest'
+
+      - name: Install Helmfile
+        run: |
+          HELMFILE_VERSION="v0.140.0"
+          curl -L "https://github.com/roboll/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_linux_amd64" -o helmfile
+          chmod +x helmfile
+          sudo mv helmfile /usr/local/bin/helmfile
+          helm plugin install https://github.com/databus23/helm-diff
+          helmfile --version
+
+      - name: Resolve chart dependencies
+        run: helmfile -f digit-helmfile.yaml deps
+        working-directory: deploy-as-code/helm
+
+      - name: Deploy DIGIT 3.0
+        run: helmfile -f digit-helmfile.yaml apply --include-needs=true
+        working-directory: deploy-as-code/helm
+
+      - name: Get LoadBalancer hostname
+        run: |
+          LB_HOST=$(kubectl get svc ingress-nginx-controller -n backbone -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          echo "LoadBalancer hostname: $LB_HOST"
+          echo "Please map $LB_HOST to your domain in your DNS provider"
+          echo "Thank you for installing DIGIT 3.0! Your installation is complete."
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+
+  terraform_infra_destruction:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.destroyCommand == 'destroy' }}
+    runs-on: ubuntu-latest
+    env:
+      TF_IN_AUTOMATION: "true"
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Convert YAML to ENV
+        uses: dcarbone/yaml-to-env-action@main
+        with:
+          yaml-file: infra-as-code/terraform/sample-aws/input.yaml
+          debug: true
+
+      - name: Display environment variables
+        run: echo "Cluster Name: $CLUSTER_NAME"
+
+      - name: Update configuration files from input.yaml
+        run: go run init.go
+        working-directory: infra-as-code/terraform/scripts
+
+      - name: Generate kubeconfig
+        run: aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name $CLUSTER_NAME
+        continue-on-error: true
+
+      - name: Delete LoadBalancer service
+        run: kubectl delete svc ingress-nginx-controller -n backbone
+        continue-on-error: true
+
+      - name: Download Terraform
+        run: |
+          curl -o terraform.zip https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip
+          unzip terraform.zip
+          sudo mv terraform /usr/local/bin/
+          terraform -version
+
+      - name: Terraform Init - remote state
+        run: terraform init
+        working-directory: infra-as-code/terraform/sample-aws/remote-state
+
+      - name: Terraform Init - infrastructure
+        run: terraform init -backend-config="bucket=$TERRAFORM_STATE_BUCKET_NAME" -backend-config="dynamodb_table=$TERRAFORM_STATE_BUCKET_NAME"
+        working-directory: infra-as-code/terraform/sample-aws
+
+      - name: Terraform Plan - infrastructure destruction
+        run: terraform plan -destroy -no-color -input=false
+        working-directory: infra-as-code/terraform/sample-aws
+
+      - name: Terraform Destroy - infrastructure
+        run: terraform destroy -no-color -auto-approve
+        working-directory: infra-as-code/terraform/sample-aws

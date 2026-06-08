@@ -36,7 +36,3 @@ output "cluster_endpoint" {
 #   value       = module.db.db_instance_port
 # }
 
-output "sops_kms_key_arn" {
-  description = "ARN of the KMS key used for SOPS encryption/decryption"
-  value       = aws_kms_key.sops.arn
-}

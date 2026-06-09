@@ -22,7 +22,7 @@ cluster-configs:
               aws-cluster-name: arn:aws:eks:ap-south-1:349271159511:cluster/unified-uat                                                                                        │
               aws-region: ap-south-1
               egov-services-fqdn-name: https://unified-uat.digit.org/ ## Add your Domain Name
-              egov-state-level-tenant-id: 'mz'
+              egov-state-level-tenant-id: 'pg'
               state-level-tenantid-length: "1"
               state-schema-index-position-tenantid: "0"
               s3-assets-bucket: "(pg-egov-assets|egov-playground-assets)"
@@ -182,7 +182,9 @@ cluster-configs:
               health-muster-roll: 'http://health-muster-roll.health:8080/'
               health-service-request: 'http://health-service-request.health:8080/'
               health-filestore: 'http://health-filestore.health:8080/'
-              worker-registry-host: 'http://worker-registry.egov:8080/'
+              worker-registry-host: 'http://worker-registry.health:8080/'
+              egov-notification-push: "http://egov-notification-push.health:8080/"
+              health-notification-service: "http://health-notification-service.health:8080/"
     secrets:
       db: 
         namespace: [ health ]
@@ -196,6 +198,9 @@ cluster-configs:
       elasticsearch-master-creds:
         namespace: [ health ]
         name: elasticsearch-master-credentials
+      egov-notification-push: 
+        namespace: [ health ]
+        name: egov-notification-push
 
     rbac:
     - role: user
@@ -522,6 +527,7 @@ health-expense-calculator:
   billing-muster-roll-period-aware-enabled: "true"
   egov-musterroll-search-endpoint: "/health-muster-roll/v1/_search"
   project-management-system-kafka-update-topic: update-project
+  spring-kafka-consumer-group-id: "health-expense-calculator"
 
 health-muster-roll:
   central-instance-name: health
@@ -606,12 +612,12 @@ egov-indexer:
     gitSync:
       repo: "git@github.com:egovernments/configs"        ##### Change repo url with Your fork Repo url
       branch: "UNIFIED-UAT"                                      ##### Change repo branch with Your fork Repo branch
-  egov-indexer-yaml-repo-path: "file:///work-dir/configs/health/egov-indexer/error-queue.yml,file:///work-dir/configs/health/egov-indexer/product-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-indexer.yml,file:///work-dir/configs/health/egov-indexer/individual-indexer.yml,file:///work-dir/configs/health/egov-indexer/household-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-task-indexer.yml,file:///work-dir/configs/health/egov-indexer/stock-indexer.yml,file:///work-dir/configs/health/egov-indexer/facility-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-staff-indexer.yml,file:///work-dir/configs/health/egov-indexer/egov-error-queue-indexer.yml,file:///work-dir/configs/health/egov-indexer/pgr-services.yml,file:///work-dir/configs/health/egov-indexer/service-request-indexer.yml,file:///work-dir/configs/health/egov-indexer/referral-management-indexer.yml,file:///work-dir/configs/health/egov-indexer/census-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/plan-service-indexer.yml"
+  egov-indexer-yaml-repo-path: "file:///work-dir/configs/health/egov-indexer/error-queue.yml,file:///work-dir/configs/health/egov-indexer/product-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-indexer.yml,file:///work-dir/configs/health/egov-indexer/individual-indexer.yml,file:///work-dir/configs/health/egov-indexer/household-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-task-indexer.yml,file:///work-dir/configs/health/egov-indexer/stock-indexer.yml,file:///work-dir/configs/health/egov-indexer/facility-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-staff-indexer.yml,file:///work-dir/configs/health/egov-indexer/egov-error-queue-indexer.yml,file:///work-dir/configs/health/egov-indexer/pgr-services.yml,file:///work-dir/configs/health/egov-indexer/service-request-indexer.yml,file:///work-dir/configs/health/egov-indexer/referral-management-indexer.yml,file:///work-dir/configs/health/egov-indexer/census-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/plan-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/health-notification-service-indexer.yml"
 egov-persister:
   replicas: 1
   images:
     - egovio/egov-persister
-  persist-yml-path: "file:///work-dir/configs/health/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/health/egov-persister/product-persister.yml,file:///work-dir/configs/health/egov-persister/project-persister.yml,file:///work-dir/configs/health/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/household-persister.yml,file:///work-dir/configs/health/egov-persister/project-task-persister.yml,file:///work-dir/configs/health/egov-persister/stock-persister.yml,file:///work-dir/configs/health/egov-persister/facility-persister.yml,file:///work-dir/configs/health/egov-persister/service-request-persister.yml,file:///work-dir/configs/health/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/health/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/health/egov-persister/mdms-persister.yml,file:///work-dir/configs/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/health/egov-persister/project-factory-persister.yml,file:///work-dir/configs/egov-persister/boundary-persister.yml,file:///work-dir/configs/health/egov-persister/plan-service-persister.yml,file:///work-dir/configs/health/egov-persister/census-service-persister.yml,file:///work-dir/configs/health/egov-persister/muster-service-persister.yml,file:///work-dir/configs/health/egov-persister/expense-bill-payment-persister.yml,file:///work-dir/configs/health/egov-persister/id-pool-persister.yml,file:///work-dir/configs/health/egov-persister/id-pool-dispatch-log-persister.yml,file:///work-dir/configs/health/egov-persister/boundary-management-persister.yml,file:///work-dir/configs/health/egov-persister/excel-ingestion-persister.yml"
+  persist-yml-path: "file:///work-dir/configs/health/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/health/egov-persister/product-persister.yml,file:///work-dir/configs/health/egov-persister/project-persister.yml,file:///work-dir/configs/health/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/household-persister.yml,file:///work-dir/configs/health/egov-persister/project-task-persister.yml,file:///work-dir/configs/health/egov-persister/stock-persister.yml,file:///work-dir/configs/health/egov-persister/facility-persister.yml,file:///work-dir/configs/health/egov-persister/service-request-persister.yml,file:///work-dir/configs/health/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/health/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/health/egov-persister/mdms-persister.yml,file:///work-dir/configs/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/health/egov-persister/project-factory-persister.yml,file:///work-dir/configs/egov-persister/boundary-persister.yml,file:///work-dir/configs/health/egov-persister/plan-service-persister.yml,file:///work-dir/configs/health/egov-persister/census-service-persister.yml,file:///work-dir/configs/health/egov-persister/muster-service-persister.yml,file:///work-dir/configs/health/egov-persister/expense-bill-payment-persister.yml,file:///work-dir/configs/health/egov-persister/id-pool-persister.yml,file:///work-dir/configs/health/egov-persister/id-pool-dispatch-log-persister.yml,file:///work-dir/configs/health/egov-persister/boundary-management-persister.yml,file:///work-dir/configs/health/egov-persister/excel-ingestion-persister.yml,file:///work-dir/configs/health/egov-persister/egov-notification-push-persister.yml,file:///work-dir/configs/health/egov-persister/health-notification-persister.yml"
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
@@ -1039,6 +1045,26 @@ zookeeper-v2:
     requests:
       cpu: 300m
       memory: 384Mi
+
+egov-notification-push:
+  central-instance-build: true
+  central-instance-enabled: false
+  heap: "-Xmx768m -Xms512m"
+  cpu_requests: 50m
+  memory_requests: 512Mi
+  cpu_limits: 300m
+  memory_limits: 1Gi
+  replicas: 1
+
+health-notification-service:
+  central-instance-build: true
+  central-instance-enabled: false
+  heap: "-Xmx768m -Xms512m"
+  cpu_requests: 50m
+  memory_requests: 512Mi
+  cpu_limits: 300m
+  memory_limits: 1Gi
+  replicas: 1
 
 
 # es-v1-cluster AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>

@@ -255,6 +255,16 @@ jobs:
             -n egov --dry-run=client -o yaml | kubectl apply -f -
         continue-on-error: true
 
+      - name: Create egov-filestore secret
+        run: |
+          AWS_KEY=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['egov-filestore']['aws-key'])")
+          AWS_SECRET=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['egov-filestore']['aws-secret-key'])")
+          kubectl create secret generic egov-filestore \
+            --from-literal=awskey="$AWS_KEY" \
+            --from-literal=awssecretkey="$AWS_SECRET" \
+            -n egov --dry-run=client -o yaml | kubectl apply -f -
+        continue-on-error: true
+
       - name: Create egov-config and egov-service-host configmaps
         run: |
           python3 - <<'EOF'

@@ -5,10 +5,6 @@ terraform {
     encrypt = true
   }
   required_providers {
-    kubectl = {
-      source  = "alekc/kubectl"
-      version = ">= 2.0.2"
-    }
     kubernetes = {
       source = "hashicorp/kubernetes"
       version = "2.37.1"
@@ -67,22 +63,6 @@ locals {
 # }
 
 # KMS key for SOPS encryption/decryption of env-secrets.yaml
-resource "aws_kms_key" "sops" {
-  description             = "KMS key for SOPS encryption/decryption"
-  deletion_window_in_days = 7
-  enable_key_rotation     = true
-
-  tags = {
-    "KubernetesCluster" = var.cluster_name
-    "Name"              = "${var.cluster_name}-sops-key"
-  }
-}
-
-resource "aws_kms_alias" "sops" {
-  name          = "alias/${var.cluster_name}-sops-key"
-  target_key_id = aws_kms_key.sops.key_id
-}
-
 module "network" {
   source             = "../modules/kubernetes/aws/network"
   vpc_cidr_block     = "${var.vpc_cidr_block}"
@@ -314,16 +294,6 @@ provider "helm" {
   }
 }
 
-provider "kubectl" {
-  host                   = module.eks.cluster_endpoint
-  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    args        = ["eks", "get-token", "--cluster-name", var.cluster_name]
-    command     = "aws"
-  }              
-}
-
 resource "aws_iam_role_policy" "karpenter_policy" {
   count = var.enable_karpenter ? 1 : 0
   depends_on = [module.eks_managed_node_group]
@@ -411,95 +381,6 @@ resource "helm_release" "karpenter" {
       clusterEndpoint: ${module.eks.cluster_endpoint}
       interruptionQueue: ${var.enable_karpenter ? module.karpenter[0].queue_name : ""}
     EOT
-  ]
-}
-
-resource "kubectl_manifest" "karpenter_node_class" {
-  count = var.enable_karpenter ? 1 : 0
-  yaml_body = <<-YAML
-    apiVersion: karpenter.k8s.aws/v1
-    kind: EC2NodeClass
-    metadata:
-      name: default
-    spec:
-      amiFamily: Bottlerocket
-      amiSelectorTerms:
-      - id: ami-0b6753867a45581f3
-      role: ${module.eks_managed_node_group.iam_role_name}
-      subnetSelectorTerms:
-        - tags:
-            karpenter.sh/discovery: ${module.eks.cluster_name}
-      securityGroupSelectorTerms:
-        - tags:
-            karpenter.sh/discovery: ${module.eks.cluster_name}
-      tags:
-        karpenter.sh/discovery: ${module.eks.cluster_name}
-    status:
-  amis:
-  - id: var.ami_id.id
-    name: var.ami_id.name
-    requirements:
-    - key: kubernetes.io/arch
-      operator: In
-      values:
-      - amd64
-  YAML
-
-  depends_on = [
-    helm_release.karpenter
-  ]
-}
-
-resource "kubectl_manifest" "karpenter_node_pool" {
-  count = var.enable_karpenter ? 1 : 0
-  yaml_body = <<-YAML
-    apiVersion: karpenter.sh/v1
-    kind: NodePool
-    metadata:
-      name: default
-    spec:
-      template:
-        spec:
-          nodeClassRef:
-            name: default
-            group: karpenter.k8s.aws  # Updated since only a single version will be served
-            kind: EC2NodeClass
-          requirements:
-            - key: "karpenter.k8s.aws/instance-category"
-              operator: In
-              values: ["r", "m"]
-            - key: "karpenter.k8s.aws/instance-family"
-              operator: In
-              values: ["m5", "r5ad"]
-            - key: "node.kubernetes.io/instance-type"
-              operator: Exists
-              values: ["m5ad.xlarge", "r5ad.xlarge"]
-            - key: "karpenter.k8s.aws/instance-cpu"
-              operator: In
-              values: ["2", "4"]
-            - key: "kubernetes.io/arch"
-              operator: In
-              values: ["amd64"]
-            - key: "karpenter.sh/capacity-type"
-              operator: In
-              values: ["spot", "on-demand"]
-            - key: "karpenter.k8s.aws/instance-generation"
-              operator: Gt
-              values: ["2"]
-      disruption:
-        consolidationPolicy: WhenEmptyOrUnderutilized
-        consolidateAfter: 1m
-        budgets:
-        - nodes: "80%"
-          reasons: 
-          - "Empty"
-          - "Drifted"
-        - nodes: "80%"
-          reasons: 
-          - "Underutilized"
-  YAML
-  depends_on = [
-    kubectl_manifest.karpenter_node_class
   ]
 }
 

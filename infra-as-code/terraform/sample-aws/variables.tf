@@ -5,12 +5,12 @@
 
 variable "cluster_name" {
   description = "Name of the Kubernetes cluster"
-  default = "test-demo" #REPLACE
+  default = <cluster_name> #REPLACE
 }
 
 variable "terraform_state_bucket_name" {
   description = "Name of the S3 bucket used to store the terraform state"
-  default = "test-demo-state-s3-bucket" #REPLACE
+  default = <terraform_state_bucket_name> #REPLACE
 }
 
 variable "vpc_cidr_block" {

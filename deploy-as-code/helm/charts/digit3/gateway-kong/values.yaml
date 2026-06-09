@@ -81,7 +81,7 @@ deployment:
 initContainers:
   extraInitContainers: |
     - name: kong-migration
-      image: {{ include "kong.image" (dict "Values" .Values "repository" .Values.image.repository "tag" .Values.image.tag) }}
+      image: mithunhegdeegov/gateway-kong:multiarch3
       imagePullPolicy: IfNotPresent
       args:
       - -c
@@ -90,10 +90,7 @@ initContainers:
       - /bin/sh
       env:
       - name: KONG_DATABASE
-        valueFrom:
-          configMapKeyRef:
-            name: egov-config
-            key: db-name
+        value: "postgres"
       - name: KONG_PG_HOST
         valueFrom:
           configMapKeyRef:
@@ -134,7 +131,28 @@ initContainers:
 # e.g. setting pg_user here will override the value normally set when postgresql.enabled
 # is set below. In general, you should not set values here if they are set elsewhere.
 env:
-  database: "off"
+  database: "postgres"
+  pg_host:
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  pg_port: "5432"
+  pg_user:
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  pg_password:
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  pg_database:
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
   # the chart uses the traditional router (for Kong 3.x+) because the ingress
   # controller generates traditional routes. if you do not use the controller,
   # you may set this to "traditional_compatible" or "expressions" to use the new
@@ -149,7 +167,7 @@ env:
   admin_error_log: /dev/stderr
   admin_gui_error_log: /dev/stderr
   portal_api_error_log: /dev/stderr
-  prefix: /kong/
+  prefix: /tmp/kong/
   real_ip_header: X-Real-IP
   real_ip_recursive: "on"
   trusted_ips: 0.0.0.0/0
@@ -174,8 +192,8 @@ extraLabels: {}
 
 # Specify Kong's Docker image and repository details here
 image:
-  repository: kong
-  tag: "3.5"
+  repository: egovio/kong
+  tag: "kong-jwt-fix-956b0d2"
   # Kong Enterprise
   # repository: kong/kong-gateway
   # tag: "3.5"
@@ -851,8 +869,8 @@ waitImage:
   # Optionally specify an image that provides bash for pre-migration database
   # checks. If none is specified, the chart uses the Kong image. The official
   # Kong images provide bash
-  # repository: bash
-  # tag: 5
+  repository: egovio/kong
+  tag: kong-jwt-fix-956b0d2
   pullPolicy: IfNotPresent
 
 # update strategy
@@ -1018,7 +1036,7 @@ securityContext: {}
 
 # securityContext for containers.
 containerSecurityContext:
-  readOnlyRootFilesystem: true
+  readOnlyRootFilesystem: false
   allowPrivilegeEscalation: false
   runAsUser: 1000
   runAsNonRoot: true

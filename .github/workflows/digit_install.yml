@@ -50,7 +50,7 @@ jobs:
       - name: Set in-cluster postgres DB values in egov-demo.yaml
         run: |
           sed -i 's|<db_host_name>|postgresql-lts.egov|g' deploy-as-code/helm/environments/egov-demo.yaml
-          sed -i 's|<db_name>|egov_ms|g' deploy-as-code/helm/environments/egov-demo.yaml
+          sed -i 's|<db_name>|postgres|g' deploy-as-code/helm/environments/egov-demo.yaml
 
       - name: Archive infra-as-code
         run: tar -czf infra-as-code.tar.gz infra-as-code/
@@ -143,13 +143,18 @@ jobs:
         run: terraform validate -no-color
         working-directory: infra-as-code/terraform/sample-aws
 
+      - name: Remove orphaned SOPS KMS state entries
+        run: |
+          terraform state rm aws_kms_key.sops || true
+          terraform state rm aws_kms_alias.sops || true
+        working-directory: infra-as-code/terraform/sample-aws
+
       - name: Terraform Plan - infrastructure
         run: terraform plan -no-color -input=false
         working-directory: infra-as-code/terraform/sample-aws
 
       - name: Terraform Apply - infrastructure
         run: terraform apply -no-color -input=false -auto-approve
-        continue-on-error: true
         working-directory: infra-as-code/terraform/sample-aws
 
       - name: Generate kubeconfig
@@ -233,7 +238,7 @@ jobs:
 
       - name: Create namespaces
         run: |
-          for ns in backbone cert-manager egov es-cluster kafka-kraft logging monitoring playground; do
+          for ns in backbone cert-manager egov es-cluster kafka-kraft keycloak logging monitoring playground; do
             kubectl create namespace $ns --dry-run=client -o yaml | kubectl apply -f -
           done
         continue-on-error: true
@@ -248,6 +253,57 @@ jobs:
             --from-literal=flyway-username="$DB_USER" \
             --from-literal=flyway-password="$DB_PASS" \
             -n egov --dry-run=client -o yaml | kubectl apply -f -
+        continue-on-error: true
+
+      - name: Create egov-filestore secret
+        run: |
+          AWS_KEY=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['egov-filestore']['aws-key'])")
+          AWS_SECRET=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['egov-filestore']['aws-secret-key'])")
+          kubectl create secret generic egov-filestore \
+            --from-literal=awskey="$AWS_KEY" \
+            --from-literal=awssecretkey="$AWS_SECRET" \
+            -n egov --dry-run=client -o yaml | kubectl apply -f -
+        continue-on-error: true
+
+      - name: Create egov-notification-mail secret
+        run: |
+          MAIL_USER=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['egov-notification-mail']['mailsenderusername'])")
+          MAIL_PASS=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['egov-notification-mail']['mailsenderpassword'])")
+          kubectl create secret generic egov-notification-mail \
+            --from-literal=mailsenderusername="$MAIL_USER" \
+            --from-literal=mailsenderpassword="$MAIL_PASS" \
+            -n egov --dry-run=client -o yaml | kubectl apply -f -
+        continue-on-error: true
+
+      - name: Create egov-notification-sms secret
+        run: |
+          SMS_USER=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['egov-notification-sms']['username'])")
+          SMS_PASS=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['egov-notification-sms']['password'])")
+          kubectl create secret generic egov-notification-sms \
+            --from-literal=username="$SMS_USER" \
+            --from-literal=password="$SMS_PASS" \
+            -n egov --dry-run=client -o yaml | kubectl apply -f -
+        continue-on-error: true
+
+      - name: Create vault-root-token secret
+        run: |
+          kubectl create secret generic vault-root-token \
+            --from-literal=token="root" \
+            -n egov --dry-run=client -o yaml | kubectl apply -f -
+        continue-on-error: true
+
+      - name: Create keycloak secrets (kc-db and kc-admin)
+        run: |
+          DB_USER=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['db']['username'])")
+          DB_PASS=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['db']['password'])")
+          kubectl create secret generic kc-db \
+            --from-literal=username="$DB_USER" \
+            --from-literal=password="$DB_PASS" \
+            -n keycloak --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic kc-admin \
+            --from-literal=username="digit" \
+            --from-literal=password="digit@321" \
+            -n keycloak --dry-run=client -o yaml | kubectl apply -f -
         continue-on-error: true
 
       - name: Create egov-config and egov-service-host configmaps
@@ -277,7 +333,7 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v4
         with:
-          version: 'latest'
+          version: '3.14.0'
 
       - name: Install Helmfile
         run: |
@@ -285,7 +341,7 @@ jobs:
           curl -L "https://github.com/roboll/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_linux_amd64" -o helmfile
           chmod +x helmfile
           sudo mv helmfile /usr/local/bin/helmfile
-          helm plugin install https://github.com/databus23/helm-diff
+          helm plugin install https://github.com/databus23/helm-diff --version v3.4.2
           helmfile --version
 
       - name: Resolve chart dependencies
@@ -293,7 +349,7 @@ jobs:
         working-directory: deploy-as-code/helm
 
       - name: Deploy DIGIT 3.0
-        run: helmfile -f digit-helmfile.yaml apply --include-needs=true
+        run: helmfile -f digit-helmfile.yaml sync --include-needs=true
         working-directory: deploy-as-code/helm
 
       - name: Get LoadBalancer hostname
@@ -328,7 +384,8 @@ jobs:
           debug: true
 
       - name: Display environment variables
-        run: echo "Cluster Name: $CLUSTER_NAME"
+        run: |
+          echo "Cluster Name: $CLUSTER_NAME"
 
       - name: Update configuration files from input.yaml
         run: go run init.go

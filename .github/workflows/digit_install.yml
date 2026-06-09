@@ -275,6 +275,16 @@ jobs:
             -n egov --dry-run=client -o yaml | kubectl apply -f -
         continue-on-error: true
 
+      - name: Create egov-notification-sms secret
+        run: |
+          SMS_USER=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['egov-notification-sms']['username'])")
+          SMS_PASS=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['egov-notification-sms']['password'])")
+          kubectl create secret generic egov-notification-sms \
+            --from-literal=username="$SMS_USER" \
+            --from-literal=password="$SMS_PASS" \
+            -n egov --dry-run=client -o yaml | kubectl apply -f -
+        continue-on-error: true
+
       - name: Create vault-root-token secret
         run: |
           kubectl create secret generic vault-root-token \

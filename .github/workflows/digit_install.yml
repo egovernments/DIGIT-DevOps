@@ -265,6 +265,23 @@ jobs:
             -n egov --dry-run=client -o yaml | kubectl apply -f -
         continue-on-error: true
 
+      - name: Create egov-notification-mail secret
+        run: |
+          MAIL_USER=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['egov-notification-mail']['mailsenderusername'])")
+          MAIL_PASS=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['egov-notification-mail']['mailsenderpassword'])")
+          kubectl create secret generic egov-notification-mail \
+            --from-literal=mailsenderusername="$MAIL_USER" \
+            --from-literal=mailsenderpassword="$MAIL_PASS" \
+            -n egov --dry-run=client -o yaml | kubectl apply -f -
+        continue-on-error: true
+
+      - name: Create vault-root-token secret
+        run: |
+          kubectl create secret generic vault-root-token \
+            --from-literal=token="root" \
+            -n egov --dry-run=client -o yaml | kubectl apply -f -
+        continue-on-error: true
+
       - name: Create keycloak secrets (kc-db and kc-admin)
         run: |
           DB_USER=$(python3 -c "import yaml; d=yaml.safe_load(open('deploy-as-code/helm/environments/egov-demo-secrets.yaml')); print(d['cluster-configs']['secrets']['db']['username'])")

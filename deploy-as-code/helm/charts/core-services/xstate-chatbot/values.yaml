@@ -56,6 +56,8 @@ env: |
       secretKeyRef:
         name: db
         key: password
+  - name: DB_SSL
+    value: "true"
   - name: GOOGLE_MAPS_API_KEY
     valueFrom:
       secretKeyRef:
@@ -75,12 +77,14 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: egov-user-chatbot
+        key: egov-user
   - name: MDMS_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: zuul
+        key: mdms-v2
+  - name: MDMS_SEARCH_PATH
+    value: "mdms-v2/v1/_search"
   - name: URL_SHORTNER_HOST
     valueFrom:
       configMapKeyRef:
@@ -90,7 +94,7 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: zuul
+        key: pgr-services
   - name: LOCALIZATION_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
@@ -121,10 +125,9 @@ env: |
   - name: SERVICE_PORT
     value: "8080"
   - name: USER_SERVICE_HARDCODED_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: egov-user-chatbot
-        key: citizen-login-password-otp-fixed-value
+    value: "123456"
+  - name: USER_LOGIN_AUTHORIZATION_HEADER
+    value: "Basic ZWdvdi11c2VyLWNsaWVudDo="
   - name: VALUEFIRST_USERNAME
     valueFrom:
       secretKeyRef:
@@ -139,6 +142,22 @@ env: |
     value: "true"
   - name: FLOW_RESET_KEYWORDS
     value: "Hi,Hey,Hello,mseva,Start,missedCall"
+  # Twilio Configuration - Always include if secrets exist
+  - name: TWILIO_ACCOUNT_SID
+    valueFrom:
+      secretKeyRef:
+        name: chatbot
+        key: twilio-account-sid
+  - name: TWILIO_AUTH_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: chatbot
+        key: twilio-auth-token
+  - name: TWILIO_WHATSAPP_NUMBER
+    valueFrom:
+      secretKeyRef:
+        name: chatbot
+        key: twilio-whatsapp-number
   {{- if index .Values "contact-card-whatsapp-number" }}
   - name: CONTACT_CARD_WHATSAPP_NUMBER
     value: {{ index .Values "contact-card-whatsapp-number" | quote }}
@@ -203,3 +222,5 @@ env: |
   - name: INFORMATION_IMAGE_FILESTORE_ID
     value: {{ index .Values "information-image-filestoreid" | quote }}
   {{- end }}
+  - name: ENABLE_SANDBOX_MODE
+    value: "true"

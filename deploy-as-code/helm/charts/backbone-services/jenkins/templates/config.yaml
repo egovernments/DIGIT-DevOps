@@ -155,6 +155,7 @@ data:
     </jenkins.CLI>
 {{- end }}
   apply_config.sh: |-
+    set -e
     echo "applying Jenkins configuration"
     mkdir -p {{ .Values.master.jenkinsRef }}/secrets/;
 {{- if .Values.master.enableXmlConfig }}
@@ -196,14 +197,13 @@ data:
     rm -rf {{ .Values.master.jenkinsHome }}/plugins/*
 {{- end }}
 {{- if .Values.master.installPlugins }}
-    echo "download plugins"
-    # Install missing plugins
-    cp /var/jenkins_config/plugins.txt {{ .Values.master.jenkinsHome }};
-    rm -rf {{ .Values.master.jenkinsRef }}/plugins/*.lock
-    /usr/local/bin/install-plugins.sh `echo $(cat {{ .Values.master.jenkinsHome }}/plugins.txt)`;
-    echo "copy plugins to shared volume"
-    # Copy plugins to shared volume
-    yes n | cp -i {{ .Values.master.jenkinsRef }}/plugins/* /var/jenkins_plugins/;
+    echo "download plugins via jenkins-plugin-cli"
+    cp /var/jenkins_config/plugins.txt {{ .Values.master.jenkinsHome }}/plugins.txt;
+    rm -rf /var/jenkins_plugins/*.lock
+    # jenkins-plugin-cli replaces the legacy install-plugins.sh (removed in 2.401+)
+    jenkins-plugin-cli \
+      --plugin-file {{ .Values.master.jenkinsHome }}/plugins.txt \
+      --plugin-download-directory /var/jenkins_plugins/;
 {{- end }}
 {{- if .Values.master.scriptApproval }}
   echo "configure script approval"
@@ -283,6 +283,7 @@ data:
     {{- end }}
     {{- $addlPlugin | nindent 4 }}
   {{- end }}
+  {{- include "jenkins.vcsPlugins" . }}
 {{- end }}
 {{ else }}
 {{ include "override_config_map" . }}

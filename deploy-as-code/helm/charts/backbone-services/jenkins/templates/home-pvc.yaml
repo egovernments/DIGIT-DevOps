@@ -28,3 +28,32 @@ spec:
 {{- end }}
 {{- end }}
 {{- end }}
+---
+{{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) -}}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+{{- if .Values.persistence.annotations }}
+  annotations:
+{{ toYaml .Values.persistence.annotations | indent 4 }}
+{{- end }}
+  name: kaniko-cache-claim
+  namespace: {{ template "jenkins.namespace" . }}
+  labels:
+{{- include "common.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.cache.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.cache.size | quote }}
+{{- if .Values.persistence.cache.storageClass }}
+{{- if (eq "-" .Values.persistence.cache.storageClass) }}
+  storageClassName: ""
+  volumeName: ""
+{{- else }}
+  storageClassName: "{{ .Values.persistence.cache.storageClass }}"
+  volumeName: "{{ .Values.persistence.cache.volumeName }}"
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,32 @@
+{{- if .Values.hyperdx.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "clickstack.hyperdx.fullname" . }}
+  namespace: {{ include "clickstack.namespace" . }}
+  labels:
+    {{- include "clickstack.labels" . | nindent 4 }}
+  {{- if .Values.hyperdx.service.annotations }}
+  annotations:
+    {{- with .Values.hyperdx.service.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  type: {{ .Values.hyperdx.service.type | default "ClusterIP" }}
+  ports:
+    - port: {{ .Values.hyperdx.ports.app }}
+      targetPort: {{ .Values.hyperdx.ports.app }}
+      name: app
+    {{- if .Values.hyperdx.service.apiPort.enabled }}
+    - port: {{ .Values.hyperdx.ports.api }}
+      targetPort: {{ .Values.hyperdx.ports.api }}
+      name: api
+    {{- end }}
+    - port: {{ .Values.hyperdx.ports.opamp }}
+      targetPort: {{ .Values.hyperdx.ports.opamp }}
+      name: opamp
+  selector:
+    {{- include "clickstack.selectorLabels" . | nindent 4 }}
+    app: {{ include "clickstack.fullname" . }}
+{{- end }}

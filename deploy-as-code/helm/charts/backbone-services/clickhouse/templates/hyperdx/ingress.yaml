@@ -1,0 +1,76 @@
+{{- if .Values.hyperdx.enabled }}
+{{- if .Values.hyperdx.ingress.enabled }}
+{{- if not .Values.hyperdx.ingress.spec }}
+{{- fail "hyperdx.ingress.spec is required when ingress is enabled" }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "clickstack.hyperdx.fullname" . }}-ingress
+  namespace: {{ include "clickstack.namespace" . }}
+  labels:
+    {{- include "clickstack.labels" . | nindent 4 }}
+  {{- with .Values.hyperdx.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- with .Values.hyperdx.ingress.spec }}
+spec:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- range .Values.hyperdx.ingress.additionalIngresses }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ printf "%s-%s" (include "clickstack.fullname" $) .name }}
+  namespace: {{ include "clickstack.namespace" $ }}
+  labels:
+    {{- include "clickstack.labels" $ | nindent 4 }}
+  {{- if .annotations }}
+  {{- if not (kindIs "map" .annotations) }}
+  {{- fail "annotations must be a map of string key-value pairs" }}
+  {{- end }}
+  annotations:
+    {{ toYaml .annotations | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .ingressClassName }}
+  ingressClassName: {{ .ingressClassName }}
+  {{- end -}}
+  {{- if .tls }}
+  tls:
+    {{- range .tls }}
+    {{- if not .hosts }}
+    {{- fail "TLS configuration must contain hosts property" }}
+    {{- end }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ tpl . $ | quote }}
+        {{- end }}
+      {{- with .secretName }}
+      secretName: {{ . }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .hosts }}
+    - host: {{ tpl .host $ | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          {{- if or (not .path) (not .pathType) (not .port) }}
+          {{- fail "Each path in additional ingress must contain path, pathType, and port properties" }}
+          {{- end }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ if .name }}{{ printf "%s-%s" (include "clickstack.fullname" $) .name }}{{ else }}{{ include "clickstack.fullname" $ }}{{ end }}
+                port:
+                  number: {{ .port }}
+          {{- end }}
+    {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

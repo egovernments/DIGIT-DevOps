@@ -1,0 +1,66 @@
+{{- if .Values.hyperdx.enabled }}
+{{- if .Values.hyperdx.tasks.enabled }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "clickstack.fullname" . }}-check-alerts
+  namespace: {{ include "clickstack.namespace" . }}
+  labels:
+    {{- include "clickstack.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.hyperdx.tasks.checkAlerts.schedule | quote }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "clickstack.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: task
+        spec:
+          {{- if .Values.global.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml .Values.global.imagePullSecrets | nindent 12 }}
+          {{- end }}
+          restartPolicy: OnFailure
+          containers:
+            - name: task
+              image: "{{ .Values.hyperdx.deployment.image.repository }}:{{ .Values.hyperdx.deployment.image.tag | default .Chart.AppVersion }}"
+              imagePullPolicy: {{ .Values.hyperdx.deployment.image.pullPolicy }}
+              {{- $tag := .Values.hyperdx.deployment.image.tag | default .Chart.AppVersion -}}
+              {{- if and (regexMatch "^[0-9]+\\.[0-9]+\\.[0-9]+" $tag) (semverCompare "< 2.7.0" $tag) }} # before esbuild revert
+              command:
+                - "node"
+                - "/app/packages/api/tasks/index"
+                - "check-alerts"
+                {{- range $key, $value := .Values.hyperdx.tasks.checkAlerts.additionalArgs }}
+                - "--{{ $key }}"
+                - "{{ $value }}"
+                {{- end }}
+              {{- else }}
+              command: # after esbuild revert
+                - "node"
+                - "/app/packages/api/build/tasks/index.js"
+                - "check-alerts"
+                {{- range $key, $value := .Values.hyperdx.tasks.checkAlerts.additionalArgs }}
+                - "--{{ $key }}"
+                - "{{ $value }}"
+                {{- end }}
+              {{- end }}
+              envFrom:
+                - configMapRef:
+                    name: clickstack-config
+                - secretRef:
+                    name: clickstack-secret
+              env:
+                - name: NODE_ENV
+                  value: "production"
+                - name: OTEL_SERVICE_NAME
+                  value: "hdx-oss-task-check-alerts"
+                - name: APP_TYPE
+                  value: "scheduled-task"
+              resources:
+                {{- toYaml .Values.hyperdx.tasks.checkAlerts.resources | nindent 16 }}
+{{- end }}
+{{- end }}

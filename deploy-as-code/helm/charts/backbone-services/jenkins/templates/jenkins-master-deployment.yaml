@@ -66,6 +66,7 @@ spec:
 {{- if and (.Values.master.runAsUser) (.Values.master.fsGroup) }}
 {{- if not (eq (int .Values.master.runAsUser) 0) }}
         fsGroup: {{ .Values.master.fsGroup }}
+        fsGroupChangePolicy: {{ default "OnRootMismatch" .Values.master.fsGroupChangePolicy }}
 {{- end }}
 {{- end }}
 {{- end }}
@@ -220,6 +221,15 @@ spec:
               name: {{ $port.name }}
 {{- end }}
 {{- if .Values.master.healthProbes }}
+          {{- if and .Values.master.startupProbe .Values.master.startupProbe.enabled }}
+          startupProbe:
+            httpGet:
+              path: "{{ default "" .Values.master.jenkinsUriPrefix }}/login"
+              port: http
+            periodSeconds: {{ .Values.master.startupProbe.periodSeconds | default 20 }}
+            failureThreshold: {{ .Values.master.startupProbe.failureThreshold | default 12 }}
+            timeoutSeconds: {{ .Values.master.startupProbe.timeoutSeconds | default 5 }}
+          {{- end }}
           livenessProbe:
             httpGet:
               path: "{{ default "" .Values.master.jenkinsUriPrefix }}/login"

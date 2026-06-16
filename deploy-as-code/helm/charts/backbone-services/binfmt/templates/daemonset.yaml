@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ template "binfmt.name" . }}
+  namespace: {{ .Values.namespace | quote }}
+  labels:
+    app: {{ template "binfmt.name" . }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "binfmt.name" . }}
+  updateStrategy:
+    type: {{ .Values.updateStrategy }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "binfmt.name" . }}
+    spec:
+      initContainers:
+        - name: binfmt-clear
+          image: alpine:3.19
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              for entry in qemu-aarch64 qemu-x86_64; do
+                if [ -f /host-binfmt-misc/$entry ]; then
+                  echo -1 > /host-binfmt-misc/$entry || true
+                  echo "Cleared stale $entry binfmt entry"
+                fi
+              done
+              echo "Stale entry cleanup done"
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: binfmt-misc
+              mountPath: /host-binfmt-misc
+        - name: binfmt-install
+          image: "docker.io/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["--install", "{{ .Values.platforms }}"]
+          securityContext:
+            privileged: true
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.9
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+      volumes:
+        - name: binfmt-misc
+          hostPath:
+            path: /proc/sys/fs/binfmt_misc
+            type: Directory
+      {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}

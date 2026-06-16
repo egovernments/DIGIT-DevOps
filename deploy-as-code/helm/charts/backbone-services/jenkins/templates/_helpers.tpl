@@ -80,8 +80,6 @@ jenkins:
   {{- end }}
 {{- end }}
   disableRememberMe: {{ .Values.master.disableRememberMe }}
-  remotingSecurity:
-    enabled: true
   mode: {{ .Values.master.executorMode }}
   numExecutors: {{ .Values.master.numExecutors }}
   projectNamingStrategy: "standard"
@@ -144,8 +142,7 @@ jenkins:
       {{- end }}
   {{- if .Values.master.csrf.defaultCrumbIssuer.enabled }}
   crumbIssuer:
-    standard:
-      excludeClientIPFromCrumb: {{ if .Values.master.csrf.defaultCrumbIssuer.proxyCompatability }}true{{ else }}false{{- end }}
+    standard: {}
   {{- end }}
 security:
   apiToken:
@@ -395,4 +392,60 @@ Create list of allowed jobs
 {{- $jobs = .name | append $jobs -}}
 {{- end -}}
 {{- join "\",\""  $jobs }}
+{{- end -}}
+
+{{/*
+VCS-provider-specific plugins — driven by vcs.provider in ci.yaml.
+Providers: github | gitlab | bitbucket | azure-devops | gitea
+*/}}
+{{- define "jenkins.vcsPlugins" -}}
+{{- $provider := .Values.vcs.provider -}}
+{{- $pluginMap := dict
+  "github"       (list "github" "github-branch-source" "github-oauth")
+  "gitlab"       (list "gitlab-plugin" "gitlab-oauth")
+  "bitbucket"    (list "bitbucket" "bitbucket-branch-source" "bitbucket-oauth")
+  "azure-devops" (list "azure-ad" "oic-auth")
+  "gitea"        (list "gitea" "oic-auth")
+-}}
+{{- range index $pluginMap $provider }}
+{{- . | nindent 4 }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Resolve a repo to a full SSH URL.
+  Short form "org/repo"          → git@<host>:org/repo.git  (host derived from vcs config)
+  Full URL   "git@…" or "https://…" → returned unchanged
+
+Usage: include "jenkins.repoUrl" (dict "repo" $repoString "vcs" .Values.vcs)
+*/}}
+{{- define "jenkins.repoUrl" -}}
+{{- $repo := .repo -}}
+{{- $vcs  := .vcs  -}}
+{{- if or (hasPrefix "git@" $repo) (contains "://" $repo) -}}
+{{- $repo -}}
+{{- else -}}
+{{- $defaults := dict "github" "github.com" "gitlab" "gitlab.com" "bitbucket" "bitbucket.org" "azure-devops" "ssh.dev.azure.com" "gitea" "" -}}
+{{- $host := "" -}}
+{{- if $vcs.webUrl -}}
+{{- $host = $vcs.webUrl | trimPrefix "https://" | trimPrefix "http://" | trimSuffix "/" -}}
+{{- else -}}
+{{- $host = index $defaults $vcs.provider -}}
+{{- end -}}
+{{- printf "git@%s:%s.git" $host $repo -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Render .Values.jobBuilder.repos as a single-quoted comma-separated Groovy list body.
+Each entry is resolved through jenkins.repoUrl.
+
+Usage: include "jenkins.repoUrlList" .
+*/}}
+{{- define "jenkins.repoUrlList" -}}
+{{- $urls := list -}}
+{{- range .Values.jobBuilder.repos -}}
+{{- $urls = append $urls (include "jenkins.repoUrl" (dict "repo" . "vcs" $.Values.vcs)) -}}
+{{- end -}}
+{{- join "','" $urls | printf "'%s'" -}}
 {{- end -}}

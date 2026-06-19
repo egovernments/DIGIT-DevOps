@@ -22,6 +22,12 @@ repositories:
 - name: jaegertracing
   url: https://jaegertracing.github.io/helm-charts
 
+templates:
+  default: &default
+    labels:
+      target: ./{{`{{ .Release.Name }}`}}
+    missingFileHandler: Warn
+
 releases:
 
 - name: loki-stack
@@ -29,21 +35,49 @@ releases:
   namespace: {{ .Values.namespace | default "default-namespace" }}
   chart: grafana/loki-stack
   version: 2.10.1
+  <<: *default
   values:
   - ./values/loki-stack.yaml
   - loki:
       persistence: {{ .Values.loki.persistence | toYaml | nindent 8 }}
+      {{- if hasKey .Values.loki "livenessProbe" }}
+      livenessProbe: {{ .Values.loki.livenessProbe | toYaml | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values.loki "readinessProbe" }}
+      readinessProbe: {{ .Values.loki.readinessProbe | toYaml | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values.loki "nodeSelector" }}
+      nodeSelector: {{ .Values.loki.nodeSelector | toYaml | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values.loki "tolerations" }}
+      tolerations: {{ .Values.loki.tolerations | toYaml | nindent 8 }}
+      {{- end }}
+      {{- if hasKey .Values.loki "securityContext" }}
+      securityContext: {{ .Values.loki.securityContext | toYaml | nindent 8 }}
+      {{- end }}
       {{- if .Values.loki.additionalConfigs }}
       config:
         schema_config: {{ .Values.loki.additionalConfigs.schema_config | toYaml | nindent 10 }}
         storage_config: {{ .Values.loki.additionalConfigs.storage_config | toYaml | nindent 10 }}
         compactor: {{ .Values.loki.additionalConfigs.compactor | toYaml | nindent 10 }}
         table_manager: {{ .Values.loki.additionalConfigs.table_manager | toYaml | nindent 10 }}
+        {{- if hasKey .Values.loki.additionalConfigs "limits_config" }}
+        limits_config: {{ .Values.loki.additionalConfigs.limits_config | toYaml | nindent 10 }}
+        {{- end }}
+        {{- if hasKey .Values.loki.additionalConfigs "chunk_store_config" }}
+        chunk_store_config: {{ .Values.loki.additionalConfigs.chunk_store_config | toYaml | nindent 10 }}
+        {{- end }}
       {{- end }}
       {{- if .Values.loki.serviceAccount.annotations }}
       serviceAccount:
         annotations: {{ .Values.loki.serviceAccount.annotations | toYaml | nindent 10 }}
       {{- end }}
+  {{- if hasKey .Values "promtail" }}
+  - promtail:
+      {{- if .Values.promtail.tolerations }}
+      tolerations: {{ .Values.promtail.tolerations | toYaml | nindent 8 }}
+      {{- end }}
+  {{- end }}
 
 - name: kube-prometheus-stack
   installed: true
@@ -51,6 +85,7 @@ releases:
   chart: prometheus-community/kube-prometheus-stack
   version: 56.6.2
   disableValidation: true
+  <<: *default
   values:
   - ./values/prometheus.yaml
   - alertmanager:
@@ -69,6 +104,7 @@ releases:
   namespace: es-cluster
   chart: jaegertracing/jaeger
   version: 0.35.0
+  <<: *default
   values:
     - ./values/jaeger.yaml
   set:
@@ -80,6 +116,7 @@ releases:
   namespace: {{ .Values.namespace | default "default-namespace" }}
   chart: grafana/grafana
   version: 7.3.0
+  <<: *default
   values:
     - ./values/grafana.yaml
     - grafana.ini:
@@ -102,3 +139,4 @@ releases:
   namespace: {{ .Values.namespace | default "default-namespace" }}
   chart: ../backbone-services/prometheus-blackbox-exporter
   version: 8.2.0
+  <<: *default

@@ -1,0 +1,69 @@
+{{- $root := . -}}
+{{- $t := .Values.temporal -}}
+{{- $pg := $t.persistence.postgres -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: temporal-schema-setup
+  namespace: {{ $t.namespace }}
+  labels:
+    {{- include "temporal.labels" $root | nindent 4 }}
+    component: schema-setup
+spec:
+  backoffLimit: {{ $t.schema.backoffLimit }}
+  activeDeadlineSeconds: {{ $t.schema.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ $t.schema.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "temporal.labels" $root | nindent 8 }}
+        component: schema-setup
+    spec:
+      restartPolicy: OnFailure
+      {{- with $t.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        # 1. Create the dedicated `temporal` database and set up + version the
+        #    default-store schema. create-database is best-effort: it is a no-op
+        #    if the DB already exists or the user lacks CREATEDB.
+        - name: setup-postgres-schema
+          image: "{{ $t.image.admintools.repository }}:{{ $t.image.admintools.tag }}"
+          imagePullPolicy: {{ $t.image.pullPolicy }}
+          command: ['sh', '-c']
+          args:
+            - >-
+              {{- if $pg.createDatabase }}
+              temporal-sql-tool create-database || echo "create-database skipped (exists or no CREATEDB)";
+              {{- end }}
+              temporal-sql-tool setup-schema -v 0.0 &&
+              temporal-sql-tool update-schema --schema-dir /etc/temporal/schema/postgresql/v12/temporal/versioned
+          env:
+            {{- include "temporal.sqlToolEnv" $root | nindent 12 }}
+          resources:
+            {{- toYaml $t.schema.resources | nindent 12 }}
+        {{- if $t.elasticsearch.enabled }}
+        # 2. Create / version the Elasticsearch visibility index.
+        - name: setup-es-index
+          image: "{{ $t.image.admintools.repository }}:{{ $t.image.admintools.tag }}"
+          imagePullPolicy: {{ $t.image.pullPolicy }}
+          command: ['sh', '-c']
+          args:
+            - >-
+              export ES_SERVER="${ES_SCHEME}://${ES_HOST}:${ES_PORT}";
+              temporal-elasticsearch-tool update-schema --index "" &&
+              temporal-elasticsearch-tool create-index &&
+              temporal-elasticsearch-tool update-schema --index "$ES_VISIBILITY_INDEX"
+          env:
+            {{- include "temporal.esToolEnv" $root | nindent 12 }}
+          resources:
+            {{- toYaml $t.schema.resources | nindent 12 }}
+        {{- end }}
+      containers:
+        - name: done
+          image: "{{ $t.image.admintools.repository }}:{{ $t.image.admintools.tag }}"
+          imagePullPolicy: {{ $t.image.pullPolicy }}
+          command: ['sh', '-c', 'echo "Temporal schema setup completed"']
+          resources:
+            {{- toYaml $t.schema.resources | nindent 12 }}

@@ -1,0 +1,101 @@
+{{- $root := . -}}
+{{- $t := .Values.temporal -}}
+{{- range $role, $cfg := $t.server.roles }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-{{ $role }}
+  namespace: {{ $t.namespace }}
+  labels:
+    {{- include "temporal.labels" $root | nindent 4 }}
+    component: {{ $role }}
+spec:
+  replicas: {{ $t.server.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "temporal.selectorLabels" (list $root $role) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "temporal.selectorLabels" (list $root $role) | nindent 8 }}
+      {{- with $t.server.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with $t.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if $t.serviceAccount.create }}
+      serviceAccountName: {{ default (printf "temporal") $t.serviceAccount.name }}
+      {{- end }}
+      containers:
+        - name: temporal-{{ $role }}
+          image: "{{ $t.image.server.repository }}:{{ $t.image.server.tag }}"
+          imagePullPolicy: {{ $t.image.pullPolicy }}
+          env:
+            - name: SERVICES
+              value: {{ $role }}
+            - name: TEMPORAL_SERVICES
+              value: {{ $role }}
+            - name: DYNAMIC_CONFIG_FILE_PATH
+              value: {{ printf "%s/%s" $t.server.dynamicConfig.mountPath $t.server.dynamicConfig.fileName | quote }}
+            {{- include "temporal.serverEnv" $root | nindent 12 }}
+          volumeMounts:
+            - name: dynamic-config
+              mountPath: {{ $t.server.dynamicConfig.mountPath }}
+              readOnly: true
+          ports:
+            {{- if $cfg.grpcPort }}
+            - name: rpc
+              containerPort: {{ $cfg.grpcPort }}
+              protocol: TCP
+            {{- end }}
+            - name: membership
+              containerPort: {{ $cfg.membershipPort }}
+              protocol: TCP
+            {{- if $cfg.httpPort }}
+            - name: http
+              containerPort: {{ $cfg.httpPort }}
+              protocol: TCP
+            {{- end }}
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          livenessProbe:
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+            tcpSocket:
+              port: membership
+          {{- if $cfg.grpcPort }}
+          readinessProbe:
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+            tcpSocket:
+              port: rpc
+          {{- end }}
+          resources:
+            {{- toYaml $t.server.resources | nindent 12 }}
+      volumes:
+        - name: dynamic-config
+          configMap:
+            name: temporal-dynamic-config
+      {{- with $t.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $t.server.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $t.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

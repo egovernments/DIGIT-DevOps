@@ -1,0 +1,52 @@
+{{- $root := . -}}
+{{- $t := .Values.temporal -}}
+{{- if $t.defaultNamespace.create }}
+{{- $ns := $t.defaultNamespace -}}
+{{- $frontendPort := $t.server.roles.frontend.grpcPort -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: temporal-namespace-setup
+  namespace: {{ $t.namespace }}
+  labels:
+    {{- include "temporal.labels" $root | nindent 4 }}
+    component: namespace-setup
+spec:
+  backoffLimit: {{ $t.schema.backoffLimit }}
+  ttlSecondsAfterFinished: {{ $t.schema.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "temporal.labels" $root | nindent 8 }}
+        component: namespace-setup
+    spec:
+      restartPolicy: OnFailure
+      {{- with $t.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        # Waits for the frontend to come up, then idempotently registers the
+        # default namespace.
+        - name: register-{{ $ns.name }}-namespace
+          image: "{{ $t.image.admintools.repository }}:{{ $t.image.admintools.tag }}"
+          imagePullPolicy: {{ $t.image.pullPolicy }}
+          command: ['/bin/sh', '-c']
+          args:
+            - >-
+              temporal operator namespace describe -n {{ $ns.name }} ||
+              temporal operator namespace create -n {{ $ns.name }}
+              {{- if $ns.retention }} --retention {{ $ns.retention }}{{- end }}
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: "temporal-frontend.{{ $t.namespace }}.svc:{{ $frontendPort }}"
+          resources:
+            {{- toYaml $t.schema.resources | nindent 12 }}
+      containers:
+        - name: done
+          image: "{{ $t.image.admintools.repository }}:{{ $t.image.admintools.tag }}"
+          imagePullPolicy: {{ $t.image.pullPolicy }}
+          command: ['sh', '-c', 'echo "Temporal namespace setup completed"']
+          resources:
+            {{- toYaml $t.schema.resources | nindent 12 }}
+{{- end }}

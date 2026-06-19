@@ -1,0 +1,41 @@
+{{- $root := . -}}
+{{- $t := .Values.temporal -}}
+{{- if and $t.web.enabled $t.web.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: temporal-web
+  namespace: {{ $t.namespace }}
+  labels:
+    {{- include "temporal.labels" $root | nindent 4 }}
+    component: web
+  annotations:
+    {{- with $t.web.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if $t.web.ingress.auth.enabled }}
+    nginx.ingress.kubernetes.io/auth-signin: https://$host/oauth2/start?rd=$escaped_request_uri
+    nginx.ingress.kubernetes.io/auth-url: https://$host/oauth2/auth
+    {{- end }}
+    {{- if ne $root.Values.global.setup "quickstart" }}
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    {{- end }}
+spec:
+  rules:
+    - host: {{ $root.Values.global.domain }}
+      http:
+        paths:
+          - path: /{{ $t.web.ingress.context }}
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: temporal-web
+                port:
+                  number: {{ $t.web.service.port }}
+  {{- if ne $root.Values.global.setup "quickstart" }}
+  tls:
+    - hosts:
+        - {{ $root.Values.global.domain }}
+      secretName: {{ $root.Values.global.domain }}-tls-certs
+  {{- end }}
+{{- end }}

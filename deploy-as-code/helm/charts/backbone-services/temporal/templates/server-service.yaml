@@ -1,0 +1,40 @@
+{{- $root := . -}}
+{{- $t := .Values.temporal -}}
+{{- range $role, $cfg := $t.server.roles }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  # `temporal-frontend.<ns>:7233` is the stable address used by the web UI,
+  # the namespace-registration job and any in-cluster Temporal clients.
+  name: temporal-{{ $role }}
+  namespace: {{ $t.namespace }}
+  labels:
+    {{- include "temporal.labels" $root | nindent 4 }}
+    component: {{ $role }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "temporal.selectorLabels" (list $root $role) | nindent 4 }}
+  ports:
+    {{- if $cfg.grpcPort }}
+    - name: rpc
+      port: {{ $cfg.grpcPort }}
+      targetPort: rpc
+      protocol: TCP
+    {{- end }}
+    - name: membership
+      port: {{ $cfg.membershipPort }}
+      targetPort: membership
+      protocol: TCP
+    {{- if $cfg.httpPort }}
+    - name: http
+      port: {{ $cfg.httpPort }}
+      targetPort: http
+      protocol: TCP
+    {{- end }}
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+{{- end }}

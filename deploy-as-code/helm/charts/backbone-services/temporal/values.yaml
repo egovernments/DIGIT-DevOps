@@ -1,0 +1,191 @@
+# =============================================================================
+# Base (default) values for the Temporal chart — DIGIT style.
+#
+# Everything is nested under the top-level `temporal:` key. Environment-specific
+# overrides go under a matching `temporal:` block in
+# deploy-as-code/helm/environments/<env>.yaml and are deep-merged by Helm (`-f`).
+#
+# Architecture (chosen for unified-dev):
+#   * Split services      -> separate Deployment per role (frontend/history/matching/worker)
+#   * Default store        -> PostgreSQL on the existing RDS, dedicated DB `temporal`
+#   * Visibility store     -> existing Elasticsearch cluster (es-upgrade)
+#   * Schema setup         -> one-shot Job (temporalio/admin-tools): postgres schema + ES index
+#   * Default namespace    -> one-shot Job registers the `default` namespace
+#   * Web UI               -> temporalio/ui served under /temporal via ingress
+# =============================================================================
+
+# Defensive defaults — always overridden by the environment file's top-level
+# `global:` block when deployed via go-deployer.
+global:
+  domain: ""
+  setup: fullsetup
+
+temporal:
+  namespace: temporal
+
+  # Common labels applied to all objects
+  labels:
+    app: temporal
+    group: temporal
+
+  image:
+    pullPolicy: IfNotPresent
+    server:
+      repository: temporalio/server
+      tag: "1.31.0"
+    admintools:
+      repository: temporalio/admin-tools
+      tag: "1.31.0"
+    ui:
+      repository: temporalio/ui
+      tag: "2.49.1"
+  imagePullSecrets: []
+
+  # IMMUTABLE after the first deploy. Do not change once the cluster has data.
+  numHistoryShards: 512
+
+  # ---------------------------------------------------------------------------
+  # Default (core) persistence store -> PostgreSQL on the existing RDS instance.
+  # A dedicated logical DB `temporal` is used (isolated from unifieddevdb).
+  #
+  # Host is read from the shared `egov-config` ConfigMap (key db-host) and the
+  # credentials from the shared `db` Secret — both already provisioned by
+  # cluster-configs. Add `temporal` to their namespace lists in the env file.
+  # ---------------------------------------------------------------------------
+  persistence:
+    postgres:
+      driver: postgres12               # postgres12 | postgres12_pgx
+      port: 5432
+      database: temporal               # default-store DB (created by the schema job)
+      createDatabase: true             # run `temporal-sql-tool create-database` in the schema job
+      # Host from an existing ConfigMap key
+      hostConfigMap:
+        name: egov-config
+        key: db-host
+      # Credentials from an existing Secret
+      credentialsSecret:
+        name: db
+        userKey: username
+        passwordKey: password
+      tls:
+        enabled: true                  # RDS enforces SSL (matches DB_SSL=true)
+        disableHostVerification: true
+
+  # ---------------------------------------------------------------------------
+  # Visibility store -> existing Elasticsearch (es-upgrade), under basic auth.
+  # Use the `elasticsearch-master` endpoint, which serves plain HTTP on 9200
+  # (the `elasticsearch-data` endpoint is HTTPS-only / self-signed). Creds come
+  # from the shared `elasticsearch-master-credentials` Secret (user=elastic).
+  # ---------------------------------------------------------------------------
+  elasticsearch:
+    enabled: true
+    scheme: http
+    host: elasticsearch-master.es-upgrade
+    port: 9200
+    version: v8                        # cluster runs ES 8.11.x
+    visibilityIndex: temporal_visibility_v1_dev
+    auth:
+      enabled: true
+      credentialsSecret:
+        name: elasticsearch-master-credentials
+        userKey: username
+        passwordKey: password
+
+  # Default namespace registration (post-setup Job)
+  defaultNamespace:
+    create: true
+    name: default
+    retention: 3d
+
+  # ---------------------------------------------------------------------------
+  # Server (split services). Each role becomes its own Deployment + Service.
+  # ---------------------------------------------------------------------------
+  server:
+    versionCheckDisabled: false
+    # The plain temporalio/server image ships no dynamic-config file, so we mount
+    # our own. `config` is a YAML map of dynamic-config overrides ({} = defaults).
+    dynamicConfig:
+      mountPath: /etc/temporal/dynamicconfig
+      fileName: dynamic_config.yaml
+      config: {}
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    # Per-role port layout (Temporal defaults). grpcPort omitted for worker.
+    roles:
+      frontend:
+        grpcPort: 7233
+        httpPort: 7243
+        membershipPort: 6933
+      history:
+        grpcPort: 7234
+        membershipPort: 6934
+      matching:
+        grpcPort: 7235
+        membershipPort: 6935
+      worker:
+        grpcPort: 7239
+        membershipPort: 6939
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    podAnnotations: {}
+
+  # ---------------------------------------------------------------------------
+  # Web UI (temporalio/ui) — exposed at https://<domain>/temporal
+  # ---------------------------------------------------------------------------
+  web:
+    enabled: true
+    replicaCount: 1
+    # Served under this base path so the app keeps "/".
+    basePath: /temporal
+    # Comma-separated list of allowed CORS origins for the UI API. Defaults to
+    # https://<global.domain> when left empty.
+    corsOrigins: ""
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    service:
+      type: ClusterIP
+      port: 8080
+    ingress:
+      enabled: true
+      context: temporal                # ingress path -> /temporal
+      annotations:
+        kubernetes.io/ingress.class: nginx
+      # Optional oauth2-proxy protection (same pattern as kafka-ui). Disabled by default.
+      auth:
+        enabled: false
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    podAnnotations: {}
+
+  # ---------------------------------------------------------------------------
+  # Schema setup Job (admin-tools). Self-cleans after completion so that the
+  # deployer's `helm template | kubectl apply` flow can re-run it on redeploy.
+  # ---------------------------------------------------------------------------
+  schema:
+    backoffLimit: 12
+    activeDeadlineSeconds: 900
+    ttlSecondsAfterFinished: 600
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  serviceAccount:
+    create: false
+    name: ""

@@ -1,0 +1,70 @@
+{{- $root := . -}}
+{{- $t := .Values.temporal -}}
+{{- if $t.web.enabled }}
+{{- $frontendPort := $t.server.roles.frontend.grpcPort -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-web
+  namespace: {{ $t.namespace }}
+  labels:
+    {{- include "temporal.labels" $root | nindent 4 }}
+    component: web
+spec:
+  replicas: {{ $t.web.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "temporal.selectorLabels" (list $root "web") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "temporal.selectorLabels" (list $root "web") | nindent 8 }}
+      {{- with $t.web.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with $t.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: temporal-web
+          image: "{{ $t.image.ui.repository }}:{{ $t.image.ui.tag }}"
+          imagePullPolicy: {{ $t.image.pullPolicy }}
+          env:
+            - name: TEMPORAL_ADDRESS
+              value: "temporal-frontend.{{ $t.namespace }}.svc:{{ $frontendPort }}"
+            # Serve the whole UI under {{ $t.web.basePath }} so the app keeps "/".
+            - name: TEMPORAL_UI_PUBLIC_PATH
+              value: {{ $t.web.basePath | quote }}
+            - name: TEMPORAL_CORS_ORIGINS
+              value: {{ default (printf "https://%s" $root.Values.global.domain) $t.web.corsOrigins | quote }}
+          ports:
+            - name: http
+              containerPort: {{ $t.web.service.port }}
+              protocol: TCP
+          livenessProbe:
+            initialDelaySeconds: 10
+            tcpSocket:
+              port: http
+          readinessProbe:
+            initialDelaySeconds: 10
+            httpGet:
+              path: {{ $t.web.basePath }}
+              port: http
+          resources:
+            {{- toYaml $t.web.resources | nindent 12 }}
+      {{- with $t.web.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $t.web.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $t.web.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

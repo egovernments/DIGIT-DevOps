@@ -1,0 +1,54 @@
+traefik:
+  deployment:
+    replicas: 1
+
+  ingressClass:
+    enabled: true
+    isDefaultClass: false
+    name: care
+
+  providers:
+    kubernetesCRD:
+      enabled: true
+      namespaces:
+        - care
+    kubernetesIngress:
+      enabled: true
+      namespaces:
+        - care
+      ingressClass: care
+
+  service:
+    type: LoadBalancer
+
+  ports:
+    web:
+      port: 80
+      expose:
+        default: true
+      redirectTo:
+        port: websecure
+    websecure:
+      port: 443
+      expose:
+        default: true
+
+  persistence:
+    enabled: true
+    size: 128Mi
+
+  certResolvers:
+    letsencrypt-prod:
+      email: jagan.kumar@egovernments.org
+      tlsChallenge: true
+      storage: /data/acme.json
+
+  logs:
+    general:
+      level: INFO
+
+  rbac:
+    enabled: true
+
+  serviceAccount:
+    name: care-traefik

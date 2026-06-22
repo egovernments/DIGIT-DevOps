@@ -1,0 +1,79 @@
+namespace: care
+
+imagePullSecrets:
+  - name: docker-registry-secret
+
+storageClassName: local-path
+
+ldap:
+  image:
+    repository: ghcr.io/care-ecosystem/slapd-dcm4chee
+    tag: sha-fc44ffa
+    pullPolicy: IfNotPresent
+  replicas: 1
+  storage:
+    size: 2Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+dcm4chee:
+  image:
+    repository: dcm4che/dcm4chee-arc-psql
+    tag: "5.34.1"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  storage:
+    size: 20Gi
+  resources:
+    requests:
+      cpu: "1"
+      memory: 3Gi
+    limits:
+      cpu: "4"
+      memory: 8Gi
+
+ohif:
+  image:
+    repository: ghcr.io/care-ecosystem/radiology-ohif
+    tag: master-454ac62
+    pullPolicy: Always
+  replicas: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+nginx:
+  image:
+    repository: nginx
+    tag: 1.25-alpine
+    pullPolicy: IfNotPresent
+  replicas: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+config:
+  createConfigmap: false  # set true only if not using cluster-configs to manage radiology-config
+  postgresDb: dicom
+  minioEndpoint: http://minio.backbone:9000
+  minioBucket: dicom-bucket
+  archiveDeviceName: dcm4chee-arc
+  aeTitle: DCM4CHEE
+  dicomPort: "11112"
+  javaOpts: "-Xms4g -Xmx6g -XX:MetaspaceSize=512m -XX:MaxMetaspaceSize=1024m"
+  careBackendServiceName: care-backend
+  ohifRouterBasename: /radiology-ohif
+  radioProxyPath: /radio-proxy

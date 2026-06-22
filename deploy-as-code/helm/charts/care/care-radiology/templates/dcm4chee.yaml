@@ -1,0 +1,274 @@
+{{- $ns := .Values.namespace | default "care" -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: radiology-dcm4chee-data
+  namespace: {{ $ns }}
+  labels:
+    app: care-radiology
+    component: dcm4chee
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.dcm4chee.storage.size | default "20Gi" }}
+  storageClassName: {{ .Values.storageClassName | default "local-path" }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radiology-dcm4chee
+  namespace: {{ $ns }}
+  labels:
+    app: care-radiology
+    component: dcm4chee
+spec:
+  replicas: {{ .Values.dcm4chee.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app: care-radiology
+      component: dcm4chee
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      labels:
+        app: care-radiology
+        component: dcm4chee
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h $POSTGRES_HOST -p 5432; do
+                echo "Waiting for PostgreSQL..."
+                sleep 5
+              done
+              echo "PostgreSQL is ready!"
+          env:
+            - name: POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: egov-config
+                  key: db-host
+        - name: wait-for-ldap
+          image: busybox:latest
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z radiology-ldap 389; do
+                echo "Waiting for LDAP..."
+                sleep 5
+              done
+              echo "LDAP is ready!"
+        - name: create-dicom-db
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              export PGPASSWORD="${POSTGRES_PASSWORD}"
+              psql -h $POSTGRES_HOST -U $POSTGRES_USER -d care -c "CREATE DATABASE dicom;" || echo "Database already exists"
+              psql -h $POSTGRES_HOST -U $POSTGRES_USER -d dicom -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" || true
+          env:
+            - name: POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: egov-config
+                  key: db-host
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  key: POSTGRES_USER
+                  name: care-secrets
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: POSTGRES_PASSWORD
+                  name: care-secrets
+      containers:
+        - name: dcm4chee
+          image: {{ .Values.dcm4chee.image.repository }}:{{ .Values.dcm4chee.image.tag }}
+          imagePullPolicy: {{ .Values.dcm4chee.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 8443
+              name: https
+            - containerPort: 9990
+              name: admin
+            - containerPort: 11112
+              name: dicom
+            - containerPort: 2575
+              name: hl7
+          env:
+            - name: POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  key: db-host
+                  name: egov-config
+            - name: POSTGRES_PORT
+              valueFrom:
+                configMapKeyRef:
+                  key: POSTGRES_PORT
+                  name: radiology-config
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  key: POSTGRES_DB
+                  name: radiology-config
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  key: POSTGRES_USER
+                  name: care-secrets
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: POSTGRES_PASSWORD
+                  name: care-secrets
+            - name: LDAP_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: LDAP_URL
+                  name: radiology-config
+            - name: LDAP_BASE_DN
+              valueFrom:
+                configMapKeyRef:
+                  key: LDAP_BASE_DN
+                  name: radiology-config
+            - name: LDAP_ROOTPASS
+              valueFrom:
+                secretKeyRef:
+                  key: LDAP_ADMIN_PASSWORD
+                  name: radiology-secrets
+            - name: LDAP_CONFIGPASS
+              valueFrom:
+                secretKeyRef:
+                  key: LDAP_CONFIG_PASSWORD
+                  name: radiology-secrets
+            - name: WILDFLY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  key: WILDFLY_ADMIN_USER
+                  name: radiology-secrets
+            - name: WILDFLY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: WILDFLY_ADMIN_PASSWORD
+                  name: radiology-secrets
+            - name: WILDFLY_WAIT_FOR
+              valueFrom:
+                configMapKeyRef:
+                  key: WILDFLY_WAIT_FOR
+                  name: radiology-config
+            - name: ARCHIVE_DEVICE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  key: ARCHIVE_DEVICE_NAME
+                  name: radiology-config
+            - name: AE_TITLE
+              valueFrom:
+                configMapKeyRef:
+                  key: AE_TITLE
+                  name: radiology-config
+            - name: DICOM_PORT
+              valueFrom:
+                configMapKeyRef:
+                  key: DICOM_PORT
+                  name: radiology-config
+            - name: STORAGE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: BUCKET_KEY
+                  name: care-secrets
+            - name: STORAGE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: BUCKET_SECRET
+                  name: care-secrets
+            - name: STORAGE_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  key: MINIO_ENDPOINT
+                  name: radiology-config
+            - name: STORAGE_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  key: MINIO_BUCKET
+                  name: radiology-config
+            - name: JAVA_OPTS
+              valueFrom:
+                configMapKeyRef:
+                  key: JAVA_OPTS
+                  name: radiology-config
+          livenessProbe:
+            httpGet:
+              path: /dcm4chee-arc/ui2
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 300
+            periodSeconds: 30
+            timeoutSeconds: 15
+            successThreshold: 1
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /dcm4chee-arc/ui2
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 240
+            periodSeconds: 10
+            timeoutSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.dcm4chee.resources | nindent 12 }}
+          volumeMounts:
+            - mountPath: /opt/wildfly/standalone
+              name: dcm4chee-data
+      volumes:
+        - name: dcm4chee-data
+          persistentVolumeClaim:
+            claimName: radiology-dcm4chee-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: radiology-dcm4chee
+  namespace: {{ $ns }}
+  labels:
+    app: care-radiology
+    component: dcm4chee
+spec:
+  type: ClusterIP
+  selector:
+    app: care-radiology
+    component: dcm4chee
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+    - port: 8443
+      targetPort: 8443
+      name: https
+    - port: 9990
+      targetPort: 9990
+      name: admin
+    - port: 11112
+      targetPort: 11112
+      name: dicom
+    - port: 2575
+      targetPort: 2575
+      name: hl7

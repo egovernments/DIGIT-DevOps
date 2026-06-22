@@ -1,0 +1,157 @@
+{{- $ns := .Values.namespace | default "care" -}}
+{{- $domain := .Values.global.domain | default "unified-dev.digit.org" -}}
+{{- $proxyPath := .Values.config.radioProxyPath | default "/radio-proxy" -}}
+{{- $routerBase := .Values.config.ohifRouterBasename | default "/radiology-ohif" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: radiology-ohif-config
+  namespace: {{ $ns }}
+  labels:
+    app: care-radiology
+    component: ohif
+data:
+  app-config.js: |
+    window.config = {
+      routerBasename: '{{ $routerBase }}',
+      extensions: [],
+      modes: [],
+      showStudyList: true,
+      maxNumRequests: {
+        interaction: 100,
+        thumbnail: 75,
+        prefetch: 25,
+      },
+      dataSources: [
+        {
+          friendlyName: 'Care Radiology PACS',
+          namespace: '@ohif/extension-default.dataSourcesModule.dicomweb',
+          sourceName: 'dicomweb',
+          configuration: {
+            name: 'DCM4CHEE Production',
+            wadoUriRoot: 'https://{{ $domain }}{{ $proxyPath }}/dicomweb',
+            qidoRoot: 'https://{{ $domain }}{{ $proxyPath }}/dicomweb',
+            wadoRoot: 'https://{{ $domain }}{{ $proxyPath }}/dicomweb',
+            qidoSupportsIncludeField: true,
+            supportsReject: true,
+            imageRendering: 'wadors',
+            thumbnailRendering: 'wadors',
+            enableStudyLazyLoad: true,
+            supportsFuzzyMatching: true,
+            supportsWildcard: true,
+            staticWado: true,
+            singlepart: 'bulkdata,video',
+            bulkDataURI: {
+              enabled: true,
+            },
+          },
+        },
+      ],
+      defaultDataSourceName: 'dicomweb',
+    };
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: radiology-ohif-nginx-config
+  namespace: {{ $ns }}
+  labels:
+    app: care-radiology
+    component: ohif
+data:
+  cors.conf: |
+    add_header Access-Control-Allow-Origin "*" always;
+    add_header Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE" always;
+    add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization" always;
+    add_header Access-Control-Allow-Credentials "true" always;
+    add_header Access-Control-Max-Age "3600" always;
+    add_header Content-Security-Policy "frame-ancestors *" always;
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radiology-ohif
+  namespace: {{ $ns }}
+  labels:
+    app: care-radiology
+    component: ohif
+spec:
+  replicas: {{ .Values.ohif.replicas | default 2 }}
+  selector:
+    matchLabels:
+      app: care-radiology
+      component: ohif
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      labels:
+        app: care-radiology
+        component: ohif
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      containers:
+        - name: ohif
+          image: {{ .Values.ohif.image.repository }}:{{ .Values.ohif.image.tag }}
+          imagePullPolicy: {{ .Values.ohif.image.pullPolicy | default "Always" }}
+          ports:
+            - containerPort: 80
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.ohif.resources | nindent 12 }}
+          volumeMounts:
+            - mountPath: /usr/share/nginx/html/app-config.js
+              name: ohif-config
+              subPath: app-config.js
+            - mountPath: /etc/nginx/conf.d/cors.conf
+              name: ohif-nginx-config
+              subPath: cors.conf
+      volumes:
+        - name: ohif-config
+          configMap:
+            name: radiology-ohif-config
+        - name: ohif-nginx-config
+          configMap:
+            name: radiology-ohif-nginx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: radiology-ohif
+  namespace: {{ $ns }}
+  labels:
+    app: care-radiology
+    component: ohif
+spec:
+  type: ClusterIP
+  selector:
+    app: care-radiology
+    component: ohif
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http

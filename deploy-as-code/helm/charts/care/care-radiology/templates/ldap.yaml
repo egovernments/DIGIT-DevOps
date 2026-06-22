@@ -1,0 +1,137 @@
+{{- $ns := .Values.namespace | default "care" -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: radiology-ldap-data
+  namespace: {{ $ns }}
+  labels:
+    app: care-radiology
+    component: ldap
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.ldap.storage.size | default "2Gi" }}
+  storageClassName: {{ .Values.storageClassName | default "local-path" }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radiology-ldap
+  namespace: {{ $ns }}
+  labels:
+    app: care-radiology
+    component: ldap
+spec:
+  replicas: {{ .Values.ldap.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app: care-radiology
+      component: ldap
+  template:
+    metadata:
+      labels:
+        app: care-radiology
+        component: ldap
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      containers:
+        - name: ldap
+          image: {{ .Values.ldap.image.repository }}:{{ .Values.ldap.image.tag }}
+          imagePullPolicy: {{ .Values.ldap.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: 389
+              name: ldap
+            - containerPort: 636
+              name: ldaps
+          env:
+            - name: LDAP_ORGANISATION
+              value: "dcm4che.org"
+            - name: LDAP_DOMAIN
+              value: "dcm4che.org"
+            - name: LDAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: radiology-secrets
+                  key: LDAP_ADMIN_PASSWORD
+            - name: LDAP_CONFIG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: radiology-secrets
+                  key: LDAP_CONFIG_PASSWORD
+            - name: LDAP_TLS
+              value: "false"
+            - name: LDAP_TLS_VERIFY_CLIENT
+              value: "never"
+            - name: LDAP_READONLY_USER
+              value: "false"
+            - name: LDAP_LOG_LEVEL
+              value: "256"
+            - name: STORAGE_URI
+              value: "jclouds:s3:{{ .Values.config.minioEndpoint | default "http://minio.backbone:9000" }}"
+            - name: STORAGE_BUCKET_NAME
+              value: {{ .Values.config.minioBucket | default "dicom-bucket" | quote }}
+            - name: STORAGE_BUCKET_ENDPOINT
+              value: {{ .Values.config.minioEndpoint | default "http://minio.backbone:9000" | quote }}
+            - name: STORAGE_BUCKET_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: care-secrets
+                  key: BUCKET_KEY
+            - name: STORAGE_BUCKET_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: care-secrets
+                  key: BUCKET_SECRET
+            - name: STORAGE_BUCKET_PATHSTYLE
+              value: "true"
+            - name: STORAGE_BUCKET_VIRTHOST
+              value: "false"
+          livenessProbe:
+            tcpSocket:
+              port: 389
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 389
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.ldap.resources | nindent 12 }}
+          volumeMounts:
+            - name: ldap-data
+              mountPath: /var/lib/ldap
+            - name: ldap-config
+              mountPath: /etc/ldap/slapd.d
+      volumes:
+        - name: ldap-data
+          persistentVolumeClaim:
+            claimName: radiology-ldap-data
+        - name: ldap-config
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: radiology-ldap
+  namespace: {{ $ns }}
+  labels:
+    app: care-radiology
+    component: ldap
+spec:
+  type: ClusterIP
+  selector:
+    app: care-radiology
+    component: ldap
+  ports:
+    - port: 389
+      targetPort: 389
+      protocol: TCP
+      name: ldap
+    - port: 636
+      targetPort: 636
+      protocol: TCP
+      name: ldaps

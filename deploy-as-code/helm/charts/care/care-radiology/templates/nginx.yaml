@@ -1,0 +1,233 @@
+{{- $ns := .Values.namespace | default "care" -}}
+{{- $domain := .Values.global.domain | default "unified-dev.digit.org" -}}
+{{- $careBackend := printf "http://%s.%s:9000" (.Values.config.careBackendServiceName | default "care-backend") $ns -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: radiology-nginx-config
+  namespace: {{ $ns }}
+  labels:
+    app: care-radiology
+    component: nginx
+data:
+  nginx.conf: |
+    events {
+        worker_connections 2048;
+    }
+
+    http {
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+
+        log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                       '$status $body_bytes_sent "$http_referer" '
+                       '"$http_user_agent" "$http_x_forwarded_for"';
+
+        access_log /var/log/nginx/access.log main;
+        error_log /var/log/nginx/error.log warn;
+
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+        keepalive_timeout 65;
+        types_hash_max_size 2048;
+        client_max_body_size 2G;
+
+        gzip on;
+        gzip_vary on;
+        gzip_proxied any;
+        gzip_comp_level 6;
+        gzip_types text/plain text/css text/xml text/javascript
+                   application/json application/javascript application/xml+rss
+                   application/atom+xml image/svg+xml;
+
+        limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+        limit_req_zone $binary_remote_addr zone=upload:10m rate=5r/s;
+
+        map $http_origin $cors_origin {
+            default "";
+            "~^https://{{ $domain }}$" $http_origin;
+            "~^http://localhost:[0-9]+$" $http_origin;
+        }
+
+        upstream ohif {
+            least_conn;
+            server radiology-ohif:80 max_fails=3 fail_timeout=30s;
+        }
+
+        upstream arc {
+            least_conn;
+            server radiology-dcm4chee:8080 max_fails=3 fail_timeout=30s;
+        }
+
+        server {
+            listen 80;
+            server_name _;
+
+            location /radio-proxy/ {
+                limit_req zone=api burst=100 nodelay;
+
+                add_header Access-Control-Allow-Origin $cors_origin always;
+                add_header Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE" always;
+                add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,Accept" always;
+                add_header Access-Control-Allow-Credentials "true" always;
+
+                if ($request_method = OPTIONS) {
+                    add_header Access-Control-Allow-Origin $cors_origin always;
+                    add_header Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE" always;
+                    add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,Accept" always;
+                    add_header Access-Control-Allow-Credentials "true" always;
+                    add_header Access-Control-Max-Age "3600" always;
+                    add_header Content-Length 0;
+                    add_header Content-Type "text/plain charset=UTF-8";
+                    return 204;
+                }
+
+                rewrite ^/radio-proxy/(.*) /$1 break;
+                proxy_pass http://ohif;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_buffering off;
+            }
+
+            location /radio-proxy/dicomweb/ {
+                limit_req zone=upload burst=10 nodelay;
+
+                proxy_hide_header Access-Control-Allow-Origin;
+                proxy_hide_header Access-Control-Allow-Methods;
+                proxy_hide_header Access-Control-Allow-Headers;
+                proxy_hide_header Access-Control-Allow-Credentials;
+                proxy_hide_header Access-Control-Expose-Headers;
+
+                add_header Access-Control-Allow-Origin $cors_origin always;
+                add_header Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE" always;
+                add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,Accept" always;
+                add_header Access-Control-Allow-Credentials "true" always;
+                add_header Access-Control-Expose-Headers "Content-Length,Content-Range,Content-Type" always;
+
+                if ($request_method = OPTIONS) {
+                    add_header Access-Control-Allow-Origin $cors_origin always;
+                    add_header Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE" always;
+                    add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,Accept" always;
+                    add_header Access-Control-Allow-Credentials "true" always;
+                    add_header Access-Control-Max-Age "3600" always;
+                    add_header Content-Length 0;
+                    add_header Content-Type "text/plain charset=UTF-8";
+                    return 204;
+                }
+
+                proxy_set_header authorization "";
+                proxy_set_header Authorization "";
+
+                rewrite ^/radio-proxy/dicomweb/(.*) /dcm4chee-arc/aets/DCM4CHEE/rs/$1 break;
+                proxy_pass http://arc;
+                proxy_set_header HOST $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header Accept application/json;
+
+                proxy_connect_timeout 600s;
+                proxy_send_timeout 600s;
+                proxy_read_timeout 600s;
+                send_timeout 600s;
+            }
+
+            location = /radio-proxy/authenticate {
+                internal;
+                proxy_pass {{ $careBackend }}/api/care_radiology/v1/dicom/authenticate/;
+                proxy_set_header HOST $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header Accept application/json;
+                proxy_pass_request_body off;
+                proxy_set_header Content-Length "";
+            }
+
+            location /radio-proxy/health {
+                access_log off;
+                return 200 "healthy\n";
+                add_header Content-Type text/plain;
+            }
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radiology-nginx
+  namespace: {{ $ns }}
+  labels:
+    app: care-radiology
+    component: nginx
+spec:
+  replicas: {{ .Values.nginx.replicas | default 2 }}
+  selector:
+    matchLabels:
+      app: care-radiology
+      component: nginx
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      labels:
+        app: care-radiology
+        component: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: {{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}
+          imagePullPolicy: {{ .Values.nginx.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - containerPort: 80
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /radio-proxy/health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /radio-proxy/health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.nginx.resources | nindent 12 }}
+          volumeMounts:
+            - mountPath: /etc/nginx/nginx.conf
+              name: nginx-config
+              subPath: nginx.conf
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: radiology-nginx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: radiology-nginx
+  namespace: {{ $ns }}
+  labels:
+    app: care-radiology
+    component: nginx
+spec:
+  type: ClusterIP
+  selector:
+    app: care-radiology
+    component: nginx
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http

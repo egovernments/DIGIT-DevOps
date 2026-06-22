@@ -1,0 +1,209 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker
+  namespace: {{ .Values.namespace | default "care" }}
+  labels:
+    app: care
+    component: celery
+spec:
+  replicas: {{ .Values.replicas | default 2 }}
+  selector:
+    matchLabels:
+      app: care
+      component: celery
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      labels:
+        app: care
+        component: celery
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h $POSTGRES_HOST -p 5432; do
+                echo "Waiting for postgres..."
+                sleep 2
+              done
+          env:
+            - name: POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: egov-config
+                  key: db-host
+        - name: wait-for-redis
+          image: redis:8-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              until redis-cli -h redis.backbone -p 6379 ping; do
+                echo "Waiting for redis..."
+                sleep 2
+              done
+      containers:
+        - name: celery
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          command:
+            - celery
+            - -A
+            - config.celery_app
+            - worker
+            - -l
+            - INFO
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  key: POSTGRES_USER
+                  name: care-secrets
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: POSTGRES_PASSWORD
+                  name: care-secrets
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  key: DATABASE_URL
+                  name: care-secrets
+            - name: BUCKET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: BUCKET_KEY
+                  name: care-secrets
+            - name: BUCKET_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: BUCKET_SECRET
+                  name: care-secrets
+            - name: SCRIBE_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: SCRIBE_OPENAI_API_KEY
+                  name: care-secrets
+            - name: POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: egov-config
+                  key: db-host
+            - name: POSTGRES_DB
+              value: {{ .Values.postgresDb | default "care" | quote }}
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: DJANGO_SETTINGS_MODULE
+              value: config.settings.production
+            - name: CELERY_BROKER_URL
+              value: {{ .Values.celeryBrokerUrl | default "redis://redis.backbone:6379/0" | quote }}
+            - name: REDIS_URL
+              value: {{ .Values.redisUrl | default "redis://redis.backbone:6379" | quote }}
+            - name: BUCKET_ENDPOINT
+              value: {{ .Values.bucketEndpoint | default "http://minio.backbone:9000" | quote }}
+            - name: BUCKET_EXTERNAL_ENDPOINT
+              value: {{ .Values.bucketExternalEndpoint | default "https://minio-uat.digit.org" | quote }}
+            - name: BUCKET_HAS_FINE_ACL
+              value: "False"
+            - name: BUCKET_REGION
+              value: ap-south-1
+            - name: FACILITY_S3_BUCKET
+              value: facility-bucket
+            - name: FILE_UPLOAD_BUCKET
+              value: patient-bucket
+            - name: CORS_ALLOW_ALL_ORIGINS
+              value: "True"
+            - name: CORS_ALLOW_CREDENTIALS
+              value: "True"
+            - name: CORS_ALLOWED_ORIGINS
+              value: {{ .Values.corsAllowedOrigins | default "[\"https://unified-dev.digit.org\"]" | quote }}
+            - name: CSRF_TRUSTED_ORIGINS
+              value: {{ .Values.csrfTrustedOrigins | default "[\"https://unified-dev.digit.org\"]" | quote }}
+            - name: ABDM_CLIENT_ID
+              value: sbx_hip_1234567890
+            - name: ABDM_CLIENT_SECRET
+              value: sbx_secret_abc123xyz456
+            - name: ABDM_AUTH_URL
+              value: http://care-backend:9000/abdm/auth
+            - name: ABDM_GATEWAY_URL
+              value: https://dev.abdm.gov.in/gateway/v0.5
+            - name: ABDM_ABHA_URL
+              value: https://dev.abdm.gov.in/abha/v3
+            - name: ABDM_FACILITY_URL
+              value: https://dev.abdm.gov.in/facility/v1
+            - name: ABDM_HIP_NAME_PREFIX
+              value: digit
+            - name: ABDM_HIP_NAME_SUFFIX
+              value: care
+            - name: ABDM_USERNAME
+              value: abdm_service_user
+            - name: ABDM_CM_ID
+              value: sbx
+            - name: AUTH_USER_MODEL
+              value: users.User
+            - name: SCRIBE_API_PROVIDER
+              value: openai
+            - name: SCRIBE_AUDIO_MODEL_NAME
+              value: gpt-4o-mini-transcribe
+            - name: SCRIBE_CHAT_MODEL_NAME
+              value: gpt-4o-mini
+            - name: SCRIBE_TNC
+              value: "<p>By using this feature, you consent to audio processing for clinical documentation.</p>"
+            - name: CARE_RADIOLOGY_WEBHOOK_SECRET
+              value: RADOMSECRET
+            - name: CARE_RADIOLOGY_DCM4CHEE_DICOMWEB_BASEURL
+              value: http://radiology-dcm4chee.care:8080/dcm4chee-arc/aets/DCM4CHEE
+            - name: CARE_RADIOLOGY_VIEWER_URL
+              value: https://unified-dev.digit.org/radio-proxy
+            - name: DCM4CHEE_DICOMWEB_BASEURL
+              value: http://radiology-dcm4chee.care:8080/dcm4chee-arc/aets/DCM4CHEE
+            - name: WEBHOOK_SECRET
+              value: RADOMSECRET
+            - name: EAUSHADHI_API_ENDPOINT
+              value: https://aushada.karnataka.gov.in/e-services/api/instinward/eGovuser
+            - name: EAUSHADHI_API_SECRET_KEY
+              value: ZWdvdnVzZXI6ZUBHb3YjMiQz
+            - name: EAUSHADHI_API_RETRY_COUNT
+              value: "5"
+            - name: LOG_LEVEL
+              value: INFO
+            - name: ALLOWED_HOSTS
+              value: "*"
+          livenessProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - |
+                  celery -A config.celery_app inspect ping -d celery@$HOSTNAME
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - |
+                  celery -A config.celery_app inspect ping -d celery@$HOSTNAME
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            {{- .Values.resources | nindent 12 }}

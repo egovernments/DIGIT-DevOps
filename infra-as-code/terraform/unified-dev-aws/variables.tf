@@ -53,17 +53,17 @@ variable "instance_types_map" {
 variable "instance_types" {
   description = "List of instance types to use (optional — overrides architecture defaults)"
   type        = list(string)
-  default     = ["t4g.xlarge", "t4g.2xlarge"]
+  default     = ["t4g.medium"]
 }
 
 variable "min_worker_nodes" {
   description = "eGov recommended below worker node counts as default for min nodes"
-  default = "4" #REPLACE IF NEEDED
+  default = "1" #REPLACE IF NEEDED
 }
 
 variable "desired_worker_nodes" {
   description = "eGov recommended below worker node counts as default for desired nodes"
-  default = "5" #REPLACE IF NEEDED
+  default = "1" #REPLACE IF NEEDED
 }
 
 variable "max_worker_nodes" {
@@ -110,5 +110,38 @@ variable "iam_user_arn" {
 variable "enable_ClusterAutoscaler" {
   description = "Enable the Cluster Autoscaler."
   type        = bool
+  default     = false
+}
+
+variable "enable_karpenter" {
+  description = "Enable Karpenter autoscaler. Set enable_ClusterAutoscaler=false and apply first."
+  type        = bool
   default     = true
+}
+
+variable "ami_id" {
+  description = "Optional AMI ID override for Karpenter EC2NodeClass. Leave empty to use al2023@latest alias (recommended for ARM64)."
+  default = {
+    id   = ""
+    name = ""
+  }
+}
+
+variable "ami_family" {
+  description = "AMI family for Karpenter EC2NodeClass. Must match the cluster architecture."
+  default = {
+    name = "AL2023"
+  }
+}
+
+variable "enable_cloudwatch_alarms" {
+  description = "Enable CloudWatch alarms for Karpenter disruptions and spot interruptions."
+  type        = bool
+  default     = true
+}
+
+variable "alert_email" {
+  description = "Email address to receive CloudWatch alarm notifications. Leave empty to create the SNS topic without a subscription."
+  type        = string
+  default     = "sri.padma@egovernments.org"
 }

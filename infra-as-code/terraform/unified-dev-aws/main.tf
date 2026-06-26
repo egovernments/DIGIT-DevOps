@@ -210,6 +210,13 @@ module "eks_managed_node_group" {
   update_config = {
     "max_unavailable_percentage": 10
   }
+  taints = {
+    dedicated = {
+      key    = "dedicated"
+      value  = "Karpenter"
+      effect = "NO_SCHEDULE"
+    }
+  }
   labels = {
     Environment = var.cluster_name
   }
@@ -286,6 +293,14 @@ resource "aws_eks_addon" "aws_ebs_csi_driver" {
   cluster_name      = var.cluster_name
   addon_name        = "aws-ebs-csi-driver"
   service_account_role_arn = module.ebs_csi_driver_irsa.iam_role_arn
+  resolve_conflicts_on_create = "OVERWRITE"
+}
+
+resource "aws_eks_addon" "eks_pod_identity_agent" {
+  count             = var.enable_karpenter ? 1 : 0
+  depends_on        = [module.eks_managed_node_group]
+  cluster_name      = var.cluster_name
+  addon_name        = "eks-pod-identity-agent"
   resolve_conflicts_on_create = "OVERWRITE"
 }
 

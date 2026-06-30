@@ -1,3 +1,4 @@
+{{- include "care-celery.init" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -81,16 +82,18 @@ spec:
                 secretKeyRef:
                   key: DATABASE_URL
                   name: care-secrets
+            - name: BUCKET_PROVIDER
+              value: {{ .Values.bucketProvider | default "AWS" | quote }}
             - name: BUCKET_KEY
               valueFrom:
                 secretKeyRef:
-                  key: BUCKET_KEY
-                  name: care-secrets
+                  key: awskey
+                  name: egov-filestore
             - name: BUCKET_SECRET
               valueFrom:
                 secretKeyRef:
-                  key: BUCKET_SECRET
-                  name: care-secrets
+                  key: awssecretkey
+                  name: egov-filestore
             - name: SCRIBE_OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -103,6 +106,8 @@ spec:
                   key: db-host
             - name: POSTGRES_DB
               value: {{ .Values.postgresDb | default "care" | quote }}
+            - name: PGDATABASE
+              value: {{ .Values.postgresDb | default "care" | quote }}
             - name: POSTGRES_PORT
               value: "5432"
             - name: DJANGO_SETTINGS_MODULE
@@ -112,17 +117,17 @@ spec:
             - name: REDIS_URL
               value: {{ .Values.redisUrl | default "redis://redis.backbone:6379" | quote }}
             - name: BUCKET_ENDPOINT
-              value: {{ .Values.bucketEndpoint | default "http://minio.backbone:9000" | quote }}
+              value: {{ .Values.bucketEndpoint | default "" | quote }}
             - name: BUCKET_EXTERNAL_ENDPOINT
-              value: {{ .Values.bucketExternalEndpoint | default "https://minio-uat.digit.org" | quote }}
+              value: {{ .Values.bucketExternalEndpoint | default "" | quote }}
             - name: BUCKET_HAS_FINE_ACL
               value: "False"
             - name: BUCKET_REGION
-              value: ap-south-1
+              value: {{ .Values.bucketRegion | default "ap-south-1" | quote }}
             - name: FACILITY_S3_BUCKET
-              value: facility-bucket
+              value: {{ .Values.facilityBucket | default .Values.bucket | default "facility-bucket" | quote }}
             - name: FILE_UPLOAD_BUCKET
-              value: patient-bucket
+              value: {{ .Values.fileUploadBucket | default .Values.bucket | default "patient-bucket" | quote }}
             - name: CORS_ALLOW_ALL_ORIGINS
               value: "True"
             - name: CORS_ALLOW_CREDENTIALS

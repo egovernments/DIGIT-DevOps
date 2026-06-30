@@ -1,0 +1,31 @@
+{{- include "care-radiology.init" . -}}
+{{- if .Values.config.createConfigmap -}}
+{{- $domain := .Values.global.domain | default "unified-dev.digit.org" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: radiology-config
+  namespace: {{ .Values.namespace | default "care" }}
+  labels:
+    app: care-radiology
+data:
+  AE_TITLE: {{ .Values.config.aeTitle | default "DCM4CHEE" | quote }}
+  ARCHIVE_DEVICE_NAME: {{ .Values.config.archiveDeviceName | default "dcm4chee-arc" | quote }}
+  CARE_BACKEND_URL: "http://{{ .Values.config.careBackendServiceName | default "care-backend" }}.{{ .Values.namespace | default "care" }}:9000"
+  DICOM_PORT: {{ .Values.config.dicomPort | default "11112" | quote }}
+  DOMAIN: {{ $domain | quote }}
+  JAVA_OPTS: {{ .Values.config.javaOpts | default "-Xms4g -Xmx6g -XX:MetaspaceSize=512m -XX:MaxMetaspaceSize=1024m" | quote }}
+  LDAP_BASE_DN: dc=dcm4che,dc=org
+  LDAP_DOMAIN: dcm4che.org
+  LDAP_ORGANISATION: dcm4che.org
+  LDAP_URL: ldap://radiology-ldap:389
+  MINIO_BUCKET: {{ .Values.config.minioBucket | default "dicom-bucket" | quote }}
+  MINIO_ENDPOINT: {{ .Values.config.minioEndpoint | default "http://minio.backbone:9000" | quote }}
+  MINIO_SECURE: "false"
+  POSTGRES_DB: {{ .Values.config.postgresDb | default "dicom" | quote }}
+  POSTGRES_EFFECTIVE_CACHE_SIZE: 2GB
+  POSTGRES_MAX_CONNECTIONS: "200"
+  POSTGRES_PORT: "5432"
+  POSTGRES_SHARED_BUFFERS: 512MB
+  WILDFLY_WAIT_FOR: radiology-ldap:389
+{{- end }}

@@ -1,0 +1,70 @@
+{{- include "care-radiology.init" . -}}
+{{- if .Values.ingress.enabled -}}
+{{- $ns := .Values.namespace | default "care" -}}
+{{- $domain := .Values.global.domain | default "unified-dev.digit.org" -}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: radiology-ohif
+  namespace: {{ $ns }}
+  annotations:
+    {{- if .Values.ingress.annotations }}
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    {{- end }}
+  labels:
+    app: care-radiology
+    component: ohif
+spec:
+  rules:
+  - host: {{ $domain }}
+    http:
+      paths:
+      - backend:
+          service:
+            name: radiology-ohif
+            port:
+              number: 80
+        path: {{ .Values.ingress.ohifContext | default "/radiology-ohif" }}
+        pathType: Prefix
+{{- if ne .Values.global.setup "quickstart" }}
+  tls:
+  - hosts:
+    - {{ $domain }}
+    secretName: {{ $domain }}-tls-certs
+{{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: radiology-nginx
+  namespace: {{ $ns }}
+  annotations:
+    {{- if .Values.ingress.annotations }}
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/proxy-body-size: "2048m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+  labels:
+    app: care-radiology
+    component: nginx
+spec:
+  rules:
+  - host: {{ $domain }}
+    http:
+      paths:
+      - backend:
+          service:
+            name: radiology-nginx
+            port:
+              number: 80
+        path: {{ .Values.ingress.nginxContext | default "/radio-proxy" }}
+        pathType: Prefix
+{{- if ne .Values.global.setup "quickstart" }}
+  tls:
+  - hosts:
+    - {{ $domain }}
+    secretName: {{ $domain }}-tls-certs
+{{- end }}
+{{- end }}

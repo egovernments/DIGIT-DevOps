@@ -1,0 +1,59 @@
+labels:
+  app: "care-frontend"
+  group: "care"
+
+namespace: care
+
+ingress:
+  enabled: false
+  # SPA served at the domain root "/" (dedicated care subdomain), so assets at
+  # /assets resolve with no base-path rebuild needed.
+  context: ""
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+
+image:
+  repository: ghcr.io/care-ecosystem/care_fe
+  tag: unified-dev-36-e109483
+  pullPolicy: Always
+
+replicas: 1
+httpPort: 80
+appType: ""
+
+healthChecks:
+  enabled: true
+  livenessProbePath: "/"
+  readinessProbePath: "/"
+  livenessProbe: |
+    httpGet:
+      path: "/"
+      port: 80
+    initialDelaySeconds: 30
+    timeoutSeconds: 3
+    periodSeconds: 10
+    successThreshold: 1
+    failureThreshold: 3
+  readinessProbe: |
+    httpGet:
+      path: "/"
+      port: 80
+    initialDelaySeconds: 10
+    timeoutSeconds: 3
+    periodSeconds: 5
+    successThreshold: 1
+    failureThreshold: 3
+
+resources: |
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "300m"
+    memory: "512Mi"
+
+initContainers:
+  dbMigration:
+    enabled: false
+  gitSync:
+    enabled: false

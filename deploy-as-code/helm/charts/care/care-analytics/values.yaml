@@ -1,0 +1,219 @@
+# Care Analytics (Apache Superset) Helm Chart Values
+# Deploy analytics platform with /analytics context path
+
+# General configuration
+name: care-analytics
+namespace: care
+contextPath: /analytics
+
+# Docker image configuration
+image:
+  repository: ghcr.io/care-ecosystem/superset
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Database configuration
+database:
+  host: postgres-care-rw.care.svc.cluster.local
+  port: 5432
+  name: superset
+  user: superset
+  # Password should be provided in secrets
+
+# Redis configuration
+redis:
+  host: redis.backbone.svc.cluster.local
+  port: 6379
+  celeryDb: "0"
+  resultsDb: "1"
+
+# Cache configuration
+cache:
+  timeout: 300
+  keyPrefix: "superset_"
+
+# Query configuration
+query:
+  maxRows: 100000
+  asyncTimeLimit: 300
+  webserverTimeout: 60
+
+# Session configuration
+session:
+  lifetime: 43200  # 12 hours in seconds
+
+# Feature flags
+features:
+  alertReports: true
+  dashboardRbac: true
+  crossFilters: true
+  templateProcessing: true
+  drillToDetail: true
+  drillBy: true
+
+# Branding
+branding:
+  appName: "CARE Analytics"
+  appIcon: "/static/assets/images/superset-logo.png"
+  iconWidth: 126
+  favicon: "/static/assets/images/favicon.png"
+  primaryColor: "#006064"  # Teal color for CARE
+
+# Secrets configuration
+secrets:
+  create: false  # Set to true to create secret from chart, or use existing secret
+  name: care-analytics-secret  # Name of secret (existing or to be created)
+  data: {}
+    # If create: true, provide base64 encoded values:
+    # SECRET_KEY: "your-secret-key"
+    # ADMIN_PASSWORD: "your-admin-password"
+    # SQLALCHEMY_DATABASE_URI: "postgresql://user:pass@host:5432/dbname"
+    # DB_HOST: "postgres-care-rw.care.svc.cluster.local"
+    # DB_PORT: "5432"
+    # REDIS_HOST: "redis.backbone.svc.cluster.local"
+    # REDIS_PORT: "6379"
+
+# Web deployment configuration
+web:
+  enabled: true
+  replicas: 1
+
+  # Gunicorn configuration
+  gunicorn:
+    workers: 4
+    workerClass: gthread
+    threads: 20
+    timeout: 60
+    keepAlive: 2
+    maxRequests: 1000
+    maxRequestsJitter: 100
+    logLevel: info
+
+  # Health probes
+  probes:
+    startup:
+      initialDelay: 15
+      timeout: 3
+      failureThreshold: 60
+      period: 5
+    liveness:
+      initialDelay: 15
+      timeout: 3
+      failureThreshold: 3
+      period: 30
+    readiness:
+      initialDelay: 15
+      timeout: 3
+      failureThreshold: 3
+      period: 15
+
+  # Resources
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+  # Nginx sidecar configuration
+  nginx:
+    image: nginx:1.27-alpine
+    port: 8080
+    clientMaxBodySize: "100M"
+    proxyTimeout: 300
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"
+
+# Worker deployment configuration
+worker:
+  enabled: true
+  replicas: 1
+  poolType: prefork
+  concurrency: 4
+  logLevel: info
+
+  # Health probes
+  probes:
+    initialDelay: 120
+    timeout: 60
+    failureThreshold: 3
+    period: 60
+
+  # Resources
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+
+# Beat deployment configuration
+beat:
+  enabled: true
+  logLevel: info
+
+  # Resources
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# Init containers configuration
+initContainers:
+  waitImage: busybox:latest
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# Database initialization job
+initJob:
+  enabled: false  # Set to true to run init job
+  ttl: 86400  # 24 hours - time to keep completed job pods
+  adminUsername: admin
+  adminEmail: admin@care.local
+  loadExamples: false  # Set to true to load example dashboards
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8080
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx  # Change to "traefik" if using Traefik
+  hosts:
+    - care.example.com  # Update with your domain
+  tls:
+    enabled: true
+    secretName: care-tls-secret
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    # For Traefik, use these instead:
+    # traefik.ingress.kubernetes.io/redirect-entry-point: https
+    # traefik.ingress.kubernetes.io/router.priority: "1000"

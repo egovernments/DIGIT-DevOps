@@ -1,0 +1,84 @@
+{{- if .Values.initJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.name }}-init-db
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.name }}
+    component: init
+spec:
+  ttlSecondsAfterFinished: {{ .Values.initJob.ttl }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+        component: init
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: install-psycopg2
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Installing psycopg2-binary to shared volume..."
+              pip install --no-cache-dir --target=/python-packages psycopg2-binary
+              echo "psycopg2-binary installed successfully!"
+          volumeMounts:
+            - name: python-packages
+              mountPath: /python-packages
+          resources:
+            {{- toYaml .Values.initContainers.resources | nindent 12 }}
+      containers:
+        - name: init-db
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.name }}
+          volumeMounts:
+            - name: superset-config
+              mountPath: /app/pythonpath
+              readOnly: true
+            - name: python-packages
+              mountPath: /python-packages
+              readOnly: true
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              export PYTHONPATH="/python-packages:/app/pythonpath:$PYTHONPATH"
+
+              echo "Running database migrations..."
+              superset db upgrade
+
+              echo "Initializing Superset..."
+              superset init
+
+              echo "Creating admin user..."
+              superset fab create-admin \
+                --username {{ .Values.initJob.adminUsername }} \
+                --firstname Admin \
+                --lastname User \
+                --email {{ .Values.initJob.adminEmail }} \
+                --password "${ADMIN_PASSWORD}"
+
+              echo "Loading example data (if enabled)..."
+              {{- if .Values.initJob.loadExamples }}
+              superset load-examples
+              {{- end }}
+
+              echo "Database initialization complete!"
+          resources:
+            {{- toYaml .Values.initJob.resources | nindent 12 }}
+      volumes:
+        - name: superset-config
+          configMap:
+            name: {{ .Values.name }}-config
+        - name: python-packages
+          emptyDir: {}
+{{- end }}

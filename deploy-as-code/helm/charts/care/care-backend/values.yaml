@@ -6,20 +6,26 @@ namespace: care
 
 ingress:
   enabled: false
+  # Served at <domain>/api (Django serves its routes under /api, so no rewrite).
   context: "api"
   annotations:
-    nginx.ingress.kubernetes.io/app-root: "/api"
-    nginx.ingress.kubernetes.io/rewrite-target: /$1
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
 
 image:
-  repository: ghcr.io/care-ecosystem/care
-  tag: dev-63-61b6d7d
+  repository: ghcr.io/care-ecosystem/care-backend
+  tag: dev-80-0c34706
   pullPolicy: Always
 
 replicas: 1
 httpPort: 9000
 appType: ""
+
+# care-backend image has no ENTRYPOINT/CMD (Cmd=python3); start the web server
+# explicitly. start.sh runs gunicorn config.wsgi:application --bind 0.0.0.0:9000
+# (also waits for db/redis, collectstatic, compilemessages). WorkingDir=/app.
+args: |
+  - ./start.sh
 
 healthChecks:
   enabled: true
@@ -52,7 +58,7 @@ healthChecks:
 
 resources: |
   requests:
-    cpu: "500m"
+    cpu: "300m"
     memory: "512Mi"
   limits:
     cpu: "1"
@@ -109,22 +115,28 @@ env: |
       secretKeyRef:
         key: DATABASE_URL
         name: care-secrets
+  - name: BUCKET_PROVIDER
+    value: {{ .Values.bucketProvider | default "AWS" | quote }}
   - name: BUCKET_KEY
     valueFrom:
       secretKeyRef:
-        key: BUCKET_KEY
-        name: care-secrets
+        key: awskey
+        name: egov-filestore
   - name: BUCKET_SECRET
     valueFrom:
       secretKeyRef:
-        key: BUCKET_SECRET
-        name: care-secrets
+        key: awssecretkey
+        name: egov-filestore
   - name: POSTGRES_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: db-host
   - name: POSTGRES_DB
+    value: {{ .Values.postgresDb | default "care" | quote }}
+  # wait_for_db.sh connects with no dbname (libpq would default to the username);
+  # PGDATABASE makes the bootstrap connect target the real DB.
+  - name: PGDATABASE
     value: {{ .Values.postgresDb | default "care" | quote }}
   - name: POSTGRES_PORT
     value: "5432"
@@ -149,17 +161,17 @@ env: |
   - name: PYTHONUNBUFFERED
     value: "1"
   - name: BUCKET_ENDPOINT
-    value: {{ .Values.bucketEndpoint | default "http://minio:9000" | quote }}
+    value: {{ .Values.bucketEndpoint | default "" | quote }}
   - name: BUCKET_EXTERNAL_ENDPOINT
-    value: {{ .Values.bucketExternalEndpoint | default "https://unified-dev.digit.org/minio" | quote }}
+    value: {{ .Values.bucketExternalEndpoint | default "" | quote }}
   - name: BUCKET_HAS_FINE_ACL
     value: "False"
   - name: BUCKET_REGION
-    value: ap-south-1
+    value: {{ .Values.bucketRegion | default "ap-south-1" | quote }}
   - name: FACILITY_S3_BUCKET
-    value: facility-bucket
+    value: {{ .Values.facilityBucket | default .Values.bucket | default "facility-bucket" | quote }}
   - name: FILE_UPLOAD_BUCKET
-    value: patient-bucket
+    value: {{ .Values.fileUploadBucket | default .Values.bucket | default "patient-bucket" | quote }}
   - name: CELERY_BROKER_URL
     value: {{ .Values.celeryBrokerUrl | default "redis://redis:6379/0" | quote }}
   - name: REDIS_URL
@@ -213,7 +225,7 @@ env: |
   - name: CARE_RADIOLOGY_DCM4CHEE_DICOMWEB_BASEURL
     value: http://radiology-dcm4chee.care:8080/dcm4chee-arc/aets/DCM4CHEE
   - name: CARE_RADIOLOGY_VIEWER_URL
-    value: https://unified-dev.digit.org/radio-proxy
+    value: https://{{ .Values.global.domain }}/radio-proxy
   - name: DCM4CHEE_DICOMWEB_BASEURL
     value: http://radiology-dcm4chee.care:8080/dcm4chee-arc/aets/DCM4CHEE
   - name: WEBHOOK_SECRET

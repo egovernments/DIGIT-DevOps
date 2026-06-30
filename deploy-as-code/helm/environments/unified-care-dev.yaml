@@ -1,5 +1,5 @@
 global:
-   domain: unified-dev.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
+   domain: care-dev.digit.org ## Dedicated CARE subdomain; care services served at root "/"
    setup: fullsetup
 
 cluster-configs:
@@ -7,8 +7,9 @@ cluster-configs:
     create: false
     values: [ care ]
       
-  root-ingress:
-    cert-issuer: letsencrypt-prod
+  # egov platform owns root-ingress (egov ns, serves unified-dev.digit.org/).
+  # care must NOT manage it — null it out so the chart default doesn't render.
+  root-ingress: null
   configmaps:
     egov-config:
       namespace: [ care ]
@@ -17,8 +18,8 @@ cluster-configs:
         db-name: unifieddevdb ## Add db-name
         db-url: jdbc:postgresql://unified-dev-db-new.czvokiourya9.ap-south-1.rds.amazonaws.com:5432/unifieddevdb ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
         db-url-no-schema: "jdbc:postgresql://unified-dev-db-new.czvokiourya9.ap-south-1.rds.amazonaws.com:5432/unifieddevdb" ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
-        domain: "https://unified-dev.digit.org" ## Add your Domain Name
-        egov-services-fqdn-name: "https://unified-dev.digit.org/" ## Add your Domain Name
+        domain: "https://care-dev.digit.org" ## Add your Domain Name
+        egov-services-fqdn-name: "https://care-dev.digit.org/" ## Add your Domain Name
         logging-level-jdbc: "DEBUG"
         mobile-validation-workaround: "true"
         serializers-timezone-in-ist: "true"
@@ -47,15 +48,17 @@ cluster-configs:
         ARCHIVE_DEVICE_NAME: dcm4chee-arc
         CARE_BACKEND_URL: "http://care-backend.care:9000"
         DICOM_PORT: "11112"
-        DOMAIN: "unified-dev.digit.org"
-        JAVA_OPTS: "-Xms4g -Xmx6g -XX:MetaspaceSize=512m -XX:MaxMetaspaceSize=1024m"
+        DOMAIN: "care-dev.digit.org"
+        JAVA_OPTS: "-Xms2g -Xmx4g -XX:MetaspaceSize=256m -XX:MaxMetaspaceSize=512m"
         LDAP_BASE_DN: dc=dcm4che,dc=org
         LDAP_DOMAIN: dcm4che.org
         LDAP_ORGANISATION: dcm4che.org
         LDAP_URL: ldap://radiology-ldap:389
-        MINIO_BUCKET: dicom-bucket
-        MINIO_ENDPOINT: "http://minio.backbone:9000"
-        MINIO_SECURE: "false"
+        # DICOM archive object storage -> AWS S3 (shared egov bucket). dcm4chee/jclouds
+        # writes under its own key structure within this bucket.
+        MINIO_BUCKET: unified-care-dev
+        MINIO_ENDPOINT: "https://s3.ap-south-1.amazonaws.com"
+        MINIO_SECURE: "true"
         POSTGRES_DB: dicom
         POSTGRES_EFFECTIVE_CACHE_SIZE: 2GB
         POSTGRES_MAX_CONNECTIONS: "200"
@@ -67,63 +70,72 @@ cluster-configs:
     db:
       namespace: [ care ]
       name: db
-    git-sync:
+    care:
       namespace: [ care ]
-      name: git-creds
-    care-secrets:
-      namespace: [ care ]
+      name: care-secrets
+    egov-filestore:
+      namespace: care
+      name: egov-filestore
     care-registry:
       namespace: [ care ]
     radiology-secrets:
       namespace: [ care ]
-  
 
 
 care-backend:
   namespace: care
-  image:
-    tag: dev-63-61b6d7d
-  postgresDb: "care"
+  postgresDb: "caredb"
   redisUrl: "redis://redis.backbone:6379"
   celeryBrokerUrl: "redis://redis.backbone:6379/0"
-  bucketEndpoint: "http://minio.backbone:9000"
-  bucketExternalEndpoint: "https://minio-uat.digit.org"
-  corsAllowedOrigins: '["https://unified-dev.digit.org"]'
-  csrfTrustedOrigins: '["https://unified-dev.digit.org"]'
+  # AWS S3 (native) — empty endpoints so boto3 targets the regional S3 endpoint.
+  bucketProvider: "AWS"
+  bucketEndpoint: ""
+  bucketExternalEndpoint: ""
+  bucketRegion: "ap-south-1"
+  bucket: "unified-care-dev"   # single shared bucket for facility + patient files
+  corsAllowedOrigins: '["https://care-dev.digit.org"]'
+  csrfTrustedOrigins: '["https://care-dev.digit.org"]'
   ingress:
     enabled: true
-    context: "api"
+    context: "api"   # served at https://care-dev.digit.org/api
 
 care-frontend:
   namespace: care
-  image:
-    tag: dev-30-bf1ee72
   ingress:
     enabled: true
-    context: "care"
+    context: ""      # SPA served at root https://care-dev.digit.org/
+    # Main ingress for the domain — cert-manager provisions the TLS cert/secret here
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
 
 care-celery:
   namespace: care
-  image:
-    tag: dev-63-61b6d7d
-  postgresDb: "care"
+  postgresDb: "caredb"
   redisUrl: "redis://redis.backbone:6379"
   celeryBrokerUrl: "redis://redis.backbone:6379/0"
-  bucketEndpoint: "http://minio.backbone:9000"
-  bucketExternalEndpoint: "https://minio-uat.digit.org"
-  corsAllowedOrigins: '["https://unified-dev.digit.org"]'
-  csrfTrustedOrigins: '["https://unified-dev.digit.org"]'
+  # AWS S3 (native) — same shared bucket as care-backend
+  bucketProvider: "AWS"
+  bucketEndpoint: ""
+  bucketExternalEndpoint: ""
+  bucketRegion: "ap-south-1"
+  bucket: "unified-care-dev"
+  corsAllowedOrigins: '["https://care-dev.digit.org"]'
+  csrfTrustedOrigins: '["https://care-dev.digit.org"]'
 
 care-radiology:
   namespace: care
-  storageClassName: gp2  # EKS GP2 storageclass; change to local-path for k3s
+  storageClassName: gp3  # EKS GP3 storageclass (cluster default); change to local-path for k3s
   ingress:
     enabled: true
+    # Radiology routes at root of the care-dev domain
     ohifContext: "/radiology-ohif"
     nginxContext: "/radio-proxy"
   config:
-    minioEndpoint: "http://minio.backbone:9000"
-    minioBucket: dicom-bucket
+    # DICOM object storage -> AWS S3 (shared egov bucket)
+    minioEndpoint: "https://s3.ap-south-1.amazonaws.com"
+    minioBucket: unified-care-dev
+    ohifRouterBasename: /radiology-ohif
+    radioProxyPath: /radio-proxy
     careBackendServiceName: care-backend
 
 

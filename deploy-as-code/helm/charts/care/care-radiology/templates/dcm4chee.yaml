@@ -1,3 +1,4 @@
+{{- include "care-radiology.init" . -}}
 {{- $ns := .Values.namespace | default "care" -}}
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -40,6 +41,8 @@ spec:
         app: care-radiology
         component: dcm4chee
     spec:
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       initContainers:
         - name: wait-for-postgres
           image: postgres:16-alpine
@@ -79,7 +82,8 @@ spec:
             - -c
             - |
               export PGPASSWORD="${POSTGRES_PASSWORD}"
-              psql -h $POSTGRES_HOST -U $POSTGRES_USER -d care -c "CREATE DATABASE dicom;" || echo "Database already exists"
+              # Bootstrap via the existing care DB ("caredb"), then create the dicom DB
+              psql -h $POSTGRES_HOST -U $POSTGRES_USER -d "${BOOTSTRAP_DB:-caredb}" -c "CREATE DATABASE dicom;" || echo "Database already exists"
               psql -h $POSTGRES_HOST -U $POSTGRES_USER -d dicom -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";" || true
           env:
             - name: POSTGRES_HOST
@@ -191,13 +195,13 @@ spec:
             - name: STORAGE_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  key: BUCKET_KEY
-                  name: care-secrets
+                  key: awskey
+                  name: egov-filestore
             - name: STORAGE_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  key: BUCKET_SECRET
-                  name: care-secrets
+                  key: awssecretkey
+                  name: egov-filestore
             - name: STORAGE_ENDPOINT
               valueFrom:
                 configMapKeyRef:

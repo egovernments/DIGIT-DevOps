@@ -6,15 +6,21 @@ name: superset
 namespace: care
 contextPath: /analytics
 
+# labels used by common.* templates (ingress)
+labels:
+  app: "superset"
+  group: "care"
+
 # Docker image configuration
 image:
   repository: ghcr.io/care-ecosystem/superset
   tag: latest
   pullPolicy: IfNotPresent
 
-# Database configuration
+# Database configuration — host is environment-specific, overridden from
+# unified-care-*.yaml (superset.database.host). Real creds/URI come from superset-secret.
 database:
-  host: postgres-care-rw.care.svc.cluster.local
+  host: postgres   # placeholder; set per-env in unified-care-*.yaml
   port: 5432
   name: superset
   user: superset
@@ -181,10 +187,10 @@ initContainers:
 
 # Database initialization job
 initJob:
-  enabled: false  # Set to true to run init job
+  enabled: true  # runs superset db upgrade + fab create-admin (ADMIN_PASSWORD from superset-secret)
   ttl: 86400  # 24 hours - time to keep completed job pods
   adminUsername: admin
-  adminEmail: admin@care.local
+  adminEmail: jagan.kumar@egovernments.org
   loadExamples: false  # Set to true to load example dashboards
   resources:
     requests:
@@ -199,21 +205,17 @@ service:
   type: ClusterIP
   port: 8080
 
-# Ingress configuration
+# Ingress — rendered via the shared common.ingress template.
+# host = global.domain, path = /{{ .Values.ingress.context }}, tls secret = <domain>-tls-certs.
+# enabled is turned on per-environment (unified-care-*.yaml).
 ingress:
-  enabled: true
-  className: nginx  # Change to "traefik" if using Traefik
-  hosts:
-    - care.example.com  # Update with your domain
-  tls:
-    enabled: true
-    secretName: care-tls-secret
+  enabled: false
+  context: analytics          # -> /analytics
+  servicePort: 8080           # superset Service port (nginx sidecar)
+  waf:
+    enabled: false            # analytics UI; no lua WAF
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "100m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
-    # For Traefik, use these instead:
-    # traefik.ingress.kubernetes.io/redirect-entry-point: https
-    # traefik.ingress.kubernetes.io/router.priority: "1000"

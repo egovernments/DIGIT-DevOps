@@ -1,3 +1,4 @@
+{{- include "superset.init" . -}}
 {{- if .Values.web.enabled }}
 apiVersion: apps/v1
 kind: Deployment
@@ -19,6 +20,8 @@ spec:
         app: {{ .Values.name }}
         component: web
     spec:
+      imagePullSecrets:
+        - name: docker-registry-secret
       securityContext:
         fsGroup: 1000
       initContainers:
@@ -30,12 +33,12 @@ spec:
             - |
               set -e
               echo "Waiting for PostgreSQL at ${DB_HOST}:${DB_PORT}..."
-              until nc -z ${DB_HOST} ${DB_PORT}; do
+              until nc -w 2 ${DB_HOST} ${DB_PORT} </dev/null; do
                 sleep 2
               done
               echo "PostgreSQL ready!"
               echo "Waiting for Redis at ${REDIS_HOST}:${REDIS_PORT}..."
-              until nc -z ${REDIS_HOST} ${REDIS_PORT}; do
+              until nc -w 2 ${REDIS_HOST} ${REDIS_PORT} </dev/null; do
                 sleep 2
               done
               echo "Redis ready!"
@@ -45,7 +48,7 @@ spec:
           resources:
             {{- toYaml .Values.initContainers.resources | nindent 12 }}
         - name: install-psycopg2
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
           command:
             - /bin/sh
             - -c
@@ -62,7 +65,7 @@ spec:
       containers:
         # Superset application container
         - name: superset
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           envFrom:
             - secretRef:

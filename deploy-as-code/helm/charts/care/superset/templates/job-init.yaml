@@ -1,3 +1,4 @@
+{{- include "superset.init" . -}}
 {{- if .Values.initJob.enabled }}
 apiVersion: batch/v1
 kind: Job
@@ -15,10 +16,12 @@ spec:
         app: {{ .Values.name }}
         component: init
     spec:
+      imagePullSecrets:
+        - name: docker-registry-secret
       restartPolicy: OnFailure
       initContainers:
         - name: install-psycopg2
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
           command:
             - /bin/sh
             - -c
@@ -34,7 +37,7 @@ spec:
             {{- toYaml .Values.initContainers.resources | nindent 12 }}
       containers:
         - name: init-db
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           envFrom:
             - secretRef:

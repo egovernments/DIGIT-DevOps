@@ -1,3 +1,4 @@
+{{- include "superset.init" . -}}
 {{- if .Values.worker.enabled }}
 apiVersion: apps/v1
 kind: Deployment
@@ -19,9 +20,11 @@ spec:
         app: {{ .Values.name }}
         component: worker
     spec:
+      imagePullSecrets:
+        - name: docker-registry-secret
       initContainers:
         - name: install-psycopg2
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
           command:
             - /bin/sh
             - -c
@@ -37,7 +40,7 @@ spec:
             {{- toYaml .Values.initContainers.resources | nindent 12 }}
       containers:
         - name: worker
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           envFrom:
             - secretRef:

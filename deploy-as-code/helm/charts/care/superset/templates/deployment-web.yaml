@@ -1,0 +1,180 @@
+{{- include "superset.init" . -}}
+{{- if .Values.web.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}-web
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.name }}
+    component: web
+spec:
+  replicas: {{ .Values.web.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+      component: web
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+        component: web
+    spec:
+      imagePullSecrets:
+        - name: docker-registry-secret
+      securityContext:
+        fsGroup: 1000
+      initContainers:
+        - name: wait-for-postgres-redis
+          image: {{ .Values.initContainers.waitImage }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Waiting for PostgreSQL at ${DB_HOST}:${DB_PORT}..."
+              until nc -w 2 ${DB_HOST} ${DB_PORT} </dev/null; do
+                sleep 2
+              done
+              echo "PostgreSQL ready!"
+              echo "Waiting for Redis at ${REDIS_HOST}:${REDIS_PORT}..."
+              until nc -w 2 ${REDIS_HOST} ${REDIS_PORT} </dev/null; do
+                sleep 2
+              done
+              echo "Redis ready!"
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.name }}
+          resources:
+            {{- toYaml .Values.initContainers.resources | nindent 12 }}
+        - name: install-psycopg2
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Installing psycopg2-binary to shared volume..."
+              pip install --no-cache-dir --target=/python-packages psycopg2-binary
+              echo "psycopg2-binary installed successfully!"
+          volumeMounts:
+            - name: python-packages
+              mountPath: /python-packages
+          resources:
+            {{- toYaml .Values.initContainers.resources | nindent 12 }}
+      containers:
+        # Superset application container
+        - name: superset
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.name }}
+          env:
+            - name: SUPERSET_PORT
+              value: "8088"
+            - name: FLASK_APP
+              value: "superset.app:create_app()"
+            - name: SUPERSET_ENV
+              value: "production"
+          volumeMounts:
+            - name: superset-config
+              mountPath: /app/pythonpath
+              readOnly: true
+            - name: python-packages
+              mountPath: /python-packages
+              readOnly: true
+          command:
+            - "/bin/sh"
+            - "-c"
+            - |
+              export PYTHONPATH="/python-packages:/app/pythonpath:$PYTHONPATH"
+              exec gunicorn \
+                --bind 0.0.0.0:8088 \
+                --workers {{ .Values.web.gunicorn.workers }} \
+                --worker-class {{ .Values.web.gunicorn.workerClass }} \
+                --threads {{ .Values.web.gunicorn.threads }} \
+                --timeout {{ .Values.web.gunicorn.timeout }} \
+                --keep-alive {{ .Values.web.gunicorn.keepAlive }} \
+                --max-requests {{ .Values.web.gunicorn.maxRequests }} \
+                --max-requests-jitter {{ .Values.web.gunicorn.maxRequestsJitter }} \
+                --log-level {{ .Values.web.gunicorn.logLevel }} \
+                --access-logfile - \
+                --error-logfile - \
+                "superset.app:create_app()"
+          ports:
+            - name: superset
+              containerPort: 8088
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: {{ .Values.contextPath }}/health
+              port: 8088
+            initialDelaySeconds: {{ .Values.web.probes.startup.initialDelay }}
+            timeoutSeconds: {{ .Values.web.probes.startup.timeout }}
+            failureThreshold: {{ .Values.web.probes.startup.failureThreshold }}
+            periodSeconds: {{ .Values.web.probes.startup.period }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.contextPath }}/health
+              port: 8088
+            initialDelaySeconds: {{ .Values.web.probes.liveness.initialDelay }}
+            timeoutSeconds: {{ .Values.web.probes.liveness.timeout }}
+            failureThreshold: {{ .Values.web.probes.liveness.failureThreshold }}
+            periodSeconds: {{ .Values.web.probes.liveness.period }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.contextPath }}/health
+              port: 8088
+            initialDelaySeconds: {{ .Values.web.probes.readiness.initialDelay }}
+            timeoutSeconds: {{ .Values.web.probes.readiness.timeout }}
+            failureThreshold: {{ .Values.web.probes.readiness.failureThreshold }}
+            periodSeconds: {{ .Values.web.probes.readiness.period }}
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+
+        # Nginx sidecar container
+        - name: nginx
+          image: {{ .Values.web.nginx.image }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.web.nginx.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /var/run
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.web.nginx.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.web.nginx.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.web.nginx.resources | nindent 12 }}
+      volumes:
+        - name: superset-config
+          configMap:
+            name: {{ .Values.name }}-config
+            defaultMode: 0755
+        - name: nginx-config
+          configMap:
+            name: {{ .Values.name }}-nginx-config
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+        - name: python-packages
+          emptyDir: {}
+{{- end }}

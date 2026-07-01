@@ -65,6 +65,9 @@ resources: |
     memory: "1Gi"
 
 initContainers:
+  # common's dbMigration runs the image's default CMD (no command hook) — useless for
+  # care (Cmd=python3) and it also breaks rendering. We run migrations via an explicit
+  # `migrate` init container below instead.
   dbMigration:
     enabled: false
   gitSync:
@@ -98,6 +101,40 @@ initContainers:
             echo "Waiting for redis..."
             sleep 2
           done
+    - name: migrate
+      image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+      imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
+      workingDir: /app
+      command: ["python", "manage.py", "migrate", "--noinput"]
+      env:
+        - name: DJANGO_SETTINGS_MODULE
+          value: config.settings.production
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: DATABASE_URL
+              name: care-secrets
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              key: POSTGRES_USER
+              name: care-secrets
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: POSTGRES_PASSWORD
+              name: care-secrets
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-host
+        - name: POSTGRES_DB
+          value: {{ .Values.postgresDb | default "care" | quote }}
+        - name: PGDATABASE
+          value: {{ .Values.postgresDb | default "care" | quote }}
+        - name: POSTGRES_PORT
+          value: "5432"
 
 env: |
   - name: POSTGRES_USER

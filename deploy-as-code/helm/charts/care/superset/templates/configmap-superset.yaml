@@ -1,0 +1,113 @@
+{{- include "superset.init" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.name }}-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.name }}
+data:
+  superset_config.py: |
+    import os
+    from celery.schedules import crontab
+
+    # Critical for context path deployment
+    APPLICATION_ROOT = "{{ .Values.contextPath }}"
+    STATIC_ASSETS_PREFIX = "{{ .Values.contextPath }}"
+
+    # Enable proxy fix for Traefik/nginx X-Forwarded-* headers
+    ENABLE_PROXY_FIX = True
+    PROXY_FIX_CONFIG = {
+        "x_for": 1,
+        "x_proto": 1,
+        "x_host": 1,
+        "x_port": 1,
+        "x_prefix": 1
+    }
+
+    # Database configuration
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        "SQLALCHEMY_DATABASE_URI",
+        "postgresql://{{ .Values.database.user }}:PASSWORD@{{ .Values.database.host }}:{{ .Values.database.port }}/{{ .Values.database.name }}"
+    )
+
+    # Redis configuration
+    REDIS_HOST = "{{ .Values.redis.host }}"
+    REDIS_PORT = "{{ .Values.redis.port }}"
+    REDIS_CELERY_DB = "{{ .Values.redis.celeryDb }}"
+    REDIS_RESULTS_DB = "{{ .Values.redis.resultsDb }}"
+
+    # Cache configuration
+    CACHE_CONFIG = {
+        'CACHE_TYPE': 'RedisCache',
+        'CACHE_DEFAULT_TIMEOUT': {{ .Values.cache.timeout }},
+        'CACHE_KEY_PREFIX': '{{ .Values.cache.keyPrefix }}',
+        'CACHE_REDIS_HOST': REDIS_HOST,
+        'CACHE_REDIS_PORT': REDIS_PORT,
+        'CACHE_REDIS_DB': REDIS_RESULTS_DB,
+    }
+    DATA_CACHE_CONFIG = CACHE_CONFIG
+    THUMBNAIL_CACHE_CONFIG = CACHE_CONFIG
+
+    # Celery configuration
+    class CeleryConfig:
+        broker_url = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_CELERY_DB}"
+        imports = (
+            "superset.sql_lab",
+            "superset.tasks.scheduler",
+            "superset.tasks.thumbnails",
+            "superset.tasks.cache",
+        )
+        result_backend = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_RESULTS_DB}"
+        worker_prefetch_multiplier = 1
+        task_acks_late = False
+        beat_schedule = {
+            "reports.scheduler": {
+                "task": "reports.scheduler",
+                "schedule": crontab(minute="*", hour="*"),
+            },
+            "reports.prune_log": {
+                "task": "reports.prune_log",
+                "schedule": crontab(minute=10, hour=0),
+            },
+        }
+
+    CELERY_CONFIG = CeleryConfig
+
+    # Feature flags
+    FEATURE_FLAGS = {
+        "ALERT_REPORTS": {{ if .Values.features.alertReports }}True{{ else }}False{{ end }},
+        "DASHBOARD_RBAC": {{ if .Values.features.dashboardRbac }}True{{ else }}False{{ end }},
+        "DASHBOARD_CROSS_FILTERS": {{ if .Values.features.crossFilters }}True{{ else }}False{{ end }},
+        "ENABLE_TEMPLATE_PROCESSING": {{ if .Values.features.templateProcessing }}True{{ else }}False{{ end }},
+        "DRILL_TO_DETAIL": {{ if .Values.features.drillToDetail }}True{{ else }}False{{ end }},
+        "DRILL_BY": {{ if .Values.features.drillBy }}True{{ else }}False{{ end }},
+    }
+
+    # Security settings
+    SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE_ME_IN_PRODUCTION")
+    WTF_CSRF_ENABLED = True
+    WTF_CSRF_TIME_LIMIT = None
+
+    # Branding
+    APP_NAME = "{{ .Values.branding.appName | default "CARE Analytics" }}"
+    APP_ICON = "{{ .Values.branding.appIcon | default "/static/assets/images/superset-logo.png" }}"
+    APP_ICON_WIDTH = {{ .Values.branding.iconWidth | default 126 }}
+    FAVICONS = [{"href": "{{ .Values.branding.favicon | default "/static/assets/images/favicon.png" }}"}]
+
+    # Theme
+    THEME_OVERRIDES = {
+        "colors": {
+            "primary": {
+                "base": "{{ .Values.branding.primaryColor | default "#006064" }}",
+            },
+        },
+    }
+
+    # Session configuration
+    PERMANENT_SESSION_LIFETIME = {{ .Values.session.lifetime | default 43200 }}
+
+    # Query limits
+    SQL_MAX_ROW = {{ .Values.query.maxRows | default 100000 }}
+    SQLLAB_ASYNC_TIME_LIMIT_SEC = {{ .Values.query.asyncTimeLimit | default 300 }}
+    SUPERSET_WEBSERVER_TIMEOUT = {{ .Values.query.webserverTimeout | default 60 }}

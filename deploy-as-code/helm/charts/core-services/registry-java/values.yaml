@@ -1,6 +1,6 @@
 # Common Labels
 labels:
-  app: "registry"
+  app: "registry-java"
   group: "rainmaker"
 
 # Ingress Configs
@@ -16,6 +16,36 @@ initContainers:
     schemaTable: registry_schema
     image:
       repository: "registry-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+                name: db
+                key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+                name: db
+                key: flyway-password
+        - name: JAVA_ENABLE_DEBUG
+          value: "TRUE"
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+                name: egov-config
+                key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
+
 
 # Container Configs
 image:
@@ -84,3 +114,21 @@ env: |
     value: "none"
   - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
     value: "org.postgresql.Driver"
+  - name: SCHEMA_SEPARATION_MODE
+    value: "false"
+  - name: SCHEMA_SEPARATION_TOPIC
+    value: account-migration
+  - name: MIGRATION_FLYWAY_LOCATIONS
+    value: filesystem:/opt/digit/db/migrations
+  - name: MIGRATION_SCRIPT_PATH
+    value: /opt/digit/migrate.sh
+  - name: MIGRATION_FLYWAY_BIN
+    value: /opt/flyway/flyway
+  - name: MIGRATION_SCHEMA_TABLE
+    value: registry_schemaa
+  - name: IDGEN_TABLE_TEMPLATES
+    value: idgen_templates
+  - name: IDGEN_TABLE_SEQUENCE_LOOKUPS
+    value: idgen_sequence_lookup
+  - name: IDGEN_TABLE_SEQUENCE_RESETS
+    value: idgen_sequence_resets

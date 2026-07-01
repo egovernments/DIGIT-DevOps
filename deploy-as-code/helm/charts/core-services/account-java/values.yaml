@@ -1,0 +1,171 @@
+# Common Labels
+labels:
+  app: "account-java"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "account"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "account_schema"
+    image:
+      repository: "account-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: JAVA_ENABLE_DEBUG
+          value: "TRUE"
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
+
+# Container Configs
+image:
+  repository: "account"
+replicas: 1
+appType: "go"
+tracing-enabled: true
+memory_limits: 512Mi
+healthChecks:
+  enabled: false
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+  - name: DB_HOST
+    value: "postgresql-lts.egov"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_SSL_MODE
+    value: "disable"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: CONTEXT_PATH
+    value: "/accounts"
+  - name: KEYCLOAK_BASE_URL
+    value: "https://digit-lts.digit.org/keycloak"
+  - name: KEYCLOAK_ADMIN_USER
+    value: "digit"
+  - name: KEYCLOAK_ADMIN_PASS
+    value: "digit@321"
+  - name: KEYCLOAK_REALM_CONFIG_PATH
+    value: ""
+  - name: GIN_MODE
+    value: "release"
+  - name: CITIZEN_BROKER_CLIENT_ID
+    value: "citizen-broker"
+  - name: CITIZEN_BROKER_CLIENT_SECRET
+    value: "zjlrLxJCFpsRIemN9pJpUC9Wy9gjWS7m"
+  - name: AUTH_SERVER_CLIENT_SECRET
+    value: "changeme"
+  - name: NOTIFICATION_BASE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: notification
+  - name: ACCESSCONTROL_BASE_URL
+    value: "http://accesscontrol:8080/access"
+  - name: ACCESSCONTROL_TIMEOUT_SECONDS
+    value: "30"
+  - name: ACCESSCONTROL_RULES_FILE_PATH
+    value: "internal/keycloak/all_rbac_rules.json"
+  - name: ACCESSCONTROL_SYSTEM_USER_ID
+    value: "account-service"
+  - name: OTP_BASE_URL
+    value: "http://otp:8080/otp"
+  - name: OTP_TIMEOUT_SECONDS
+    value: "10"
+  - name: PUBSUB_ENABLED
+    value: "false"
+  - name: PUBSUB_TYPE
+    value: "redis"
+  - name: KAFKA_BROKERS
+    value: "release-name-kafka-controller-headless.kafka-kraft:9092"
+  - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+    value: "true"
+  - name: KAFKA_PARTITION_COUNT
+    value: "1"
+  - name: KAFKA_REPLICATION_FACTOR
+    value: "1"
+  - name: KAFKA_CONSUMER_GROUP
+    value: "account-service"
+  - name: REDIS_ADDRESS
+    value: "redis.backbone.svc.cluster.local:6379"
+  - name: REDIS_PASSWORD
+    value: ""
+  - name: REDIS_DB
+    value: "0"
+  - name: REDIS_CONSUMER_GROUP
+    value: "account-service"
+  - name: REDIS_CONSUMER_ID
+    value: "account-service-1"
+  - name: REDIS_RETENTION_DAYS
+    value: "7"
+  - name: REDIS_MAX_STREAM_LENGTH
+    value: "1000000"
+  - name: REDIS_CLEANUP_INTERVAL
+    value: "86400"
+  - name: PUBSUB_TOPIC_CREATE_TENANT
+    value: "account-create-tenant"
+  - name: PUBSUB_TOPIC_UPDATE_TENANT
+    value: "account-update-tenant"
+  - name: PUBSUB_TOPIC_DELETE_TENANT
+    value: "account-delete-tenant"
+  - name: PUBSUB_TOPIC_CREATE_TENANT_CONFIG
+    value: "account-create-tenant-config"
+  - name: PUBSUB_TOPIC_UPDATE_TENANT_CONFIG
+    value: "account-update-tenant-config"
+  - name: PUBSUB_TOPIC_MIGRATION
+    value: "account-migration"
+  - name: OTP_PLATFORM_TENANT
+    value: "default"
+  - name: LOG_LEVEL
+    value: "DEBUG"

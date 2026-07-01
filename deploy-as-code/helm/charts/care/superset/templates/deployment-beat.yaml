@@ -1,3 +1,4 @@
+{{- include "superset.init" . -}}
 {{- if .Values.beat.enabled }}
 apiVersion: apps/v1
 kind: Deployment
@@ -19,9 +20,11 @@ spec:
         app: {{ .Values.name }}
         component: beat
     spec:
+      imagePullSecrets:
+        - name: docker-registry-secret
       initContainers:
         - name: install-psycopg2
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
           command:
             - /bin/sh
             - -c
@@ -37,7 +40,7 @@ spec:
             {{- toYaml .Values.initContainers.resources | nindent 12 }}
       containers:
         - name: beat
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           envFrom:
             - secretRef:
@@ -58,7 +61,8 @@ spec:
             - |
               export PYTHONPATH="/python-packages:/app/pythonpath:$PYTHONPATH"
               exec celery --app=superset.tasks.celery_app:app beat \
-                --loglevel={{ .Values.beat.logLevel }}
+                --loglevel={{ .Values.beat.logLevel }} \
+                --schedule /tmp/celerybeat-schedule
           resources:
             {{- toYaml .Values.beat.resources | nindent 12 }}
       volumes:

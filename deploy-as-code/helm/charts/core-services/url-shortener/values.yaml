@@ -16,6 +16,35 @@ initContainers:
     schemaTable: "url_shortener_schema"
     image:
       repository: "url-shortener-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: JAVA_ENABLE_DEBUG
+          value: "TRUE"
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
 
 # Container Configs
 image:
@@ -41,37 +70,52 @@ env: |
   - name: HTTP_PORT
     value: "8080"
   - name: SERVER_CONTEXT_PATH
-    value: "/url-shortener"
+    value: /url-shortener
   - name: DB_HOST
-    value: "postgresql-lts.egov"
+    value: postgresql-lts.egov
   - name: DB_PORT
     value: "5432"
   - name: DB_SSL_MODE
-    value: "disable"
+    value: disable
   - name: DB_NAME
-    value: "postgres"
+    value: postgres
   - name: DB_USER
     valueFrom:
       secretKeyRef:
-        name: db
         key: username
+        name: db
   - name: DB_PASSWORD
     valueFrom:
       secretKeyRef:
-        name: db
         key: password
+        name: db
   - name: CACHE_ENABLED
     value: "false"
   - name: CACHE_TYPE
-    value: "redis"
+    value: redis
   - name: CACHE_TTL
-    value: "24*time.Hour"
+    value: 24*time.Hour
   - name: REDIS_ADDR
-    value: "redis.backbone:6379"
+    value: redis.backbone:6379
   - name: REDIS_DB
     value: "0"
+  - name: OTEL_ENABLED
+    value: "true"
+  - name: OTEL_SERVICE_NAME
+    value: url-shortener
+  - name: OTEL_SERVICE_VERSION
+    value: 1.0.0
+  - name: OTEL_METRICS_ENABLED
+    value: "true"
+  - name: PROMETHEUS_PORT
+    value: "9090"
+  - name: OTEL_TRACES_SAMPLER_ARG
+    value: "1.0"
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
+  - name: REDIS_PASSWORD
   - name: SERVER_HOST_NAME
-    value: "https://digit-lts.digit.org"
+    value: https://digit-lts.digit.org
   - name: PUBSUB_ENABLED
     value: "false"
   - name: PUBSUB_TYPE
@@ -88,8 +132,6 @@ env: |
     value: url-shortener-service
   - name: REDIS_ADDRESS
     value: redis.backbone.svc.cluster.local:6379
-  - name: REDIS_DB
-    value: "0"
   - name: REDIS_CONSUMER_GROUP
     value: url-shortener-service
   - name: REDIS_CONSUMER_ID
@@ -121,8 +163,23 @@ env: |
   - name: MIGRATION_SCHEMA_TABLE
     value: employee_schema
   - name: JAEGER_SAMPLER_PARAM
-    value: "1" 
+    value: "1"
   - name: OTEL_TRACES_EXPORTER
-    value: "none"
+    value: none
   - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
-    value: "org.postgresql.Driver"
+    value: org.postgresql.Driver
+  - name: JAEGER_SERVICE_NAME
+    value: url-shortener
+  - name: JAEGER_SAMPLER_TYPE
+    value: remote
+  - name: JAEGER_AGENT_HOST
+    valueFrom:
+      fieldRef:
+        apiVersion: v1
+        fieldPath: status.hostIP
+  - name: JAEGER_AGENT_PORT
+    value: "6831"
+  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+    value: $(JAEGER_AGENT_HOST):5778
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true"

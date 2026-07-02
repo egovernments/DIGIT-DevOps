@@ -1,0 +1,210 @@
+# Common Labels
+labels:
+  app: "notification-java"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "notification"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "notification_schema"
+    image:
+      repository: "notification-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: JAVA_ENABLE_DEBUG
+          value: "TRUE"
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
+
+# Container Configs
+image:
+  repository: "notification"
+replicas: "1"
+healthChecks:
+  enabled: false
+  livenessProbePath: "/notification/health"
+  readinessProbePath: "/notification/health"
+appType: "go"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+  - name: HTTP_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: /notification
+  - name: DB_HOST
+    value: pgbouncer.egov
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+  - name: DB_NAME
+    value: postgres
+  - name: DB_SSL_MODE
+    value: disable
+  - name: TEMPLATE_CONFIG_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: template-config
+        name: egov-service-host
+  - name: TEMPLATE_CONFIG_PATH
+    value: template-config/v3/render
+  - name: FILESTORE_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: filestore
+        name: egov-service-host
+  - name: FILESTORE_PATH
+    value: filestore/v3/files
+  - name: SMTP_HOST
+    value: smtp.gmail.com
+  - name: SMTP_PORT
+    value: "587"
+  - name: SMTP_USERNAME
+    valueFrom:
+      secretKeyRef:
+        key: mailsenderusername
+        name: egov-notification-mail
+  - name: SMTP_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: mailsenderpassword
+        name: egov-notification-mail
+  - name: SMTP_FROM_ADDRESS
+    valueFrom:
+      secretKeyRef:
+        key: mailsenderusername
+        name: egov-notification-mail
+  - name: SMTP_FROM_NAME
+    value: eGov Foundation
+  - name: SMS_PROVIDER_URL
+    value: http://api.smscountry.com/SMSCwebservice_bulk.aspx
+  - name: SMS_PROVIDER_USERNAME
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: egov-notification-sms
+  - name: SMS_PROVIDER_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: egov-notification-sms
+  - name: SMS_PROVIDER_CONTENT_TYPE
+    value: application/x-www-form-urlencoded
+  - name: MESSAGE_BROKER_ENABLED
+    value: "true"
+  - name: MESSAGE_BROKER_TYPE
+    value: KAFKA
+  - name: PUBSUB_ENABLED
+    value: "true"
+  - name: PUBSUB_TYPE
+    value: kafka
+  - name: KAFKA_BROKERS
+    value: release-name-kafka-controller-headless.kafka-kraft:9092
+  - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+    value: "true"
+  - name: KAFKA_PARTITION_COUNT
+    value: "1"
+  - name: KAFKA_REPLICATION_FACTOR
+    value: "1"
+  - name: KAFKA_CONSUMER_GROUP
+    value: notification-service
+  - name: REDIS_ADDRESS
+    value: redis.backbone.svc.cluster.local:6379
+  - name: REDIS_PASSWORD
+  - name: REDIS_DB
+    value: "0"
+  - name: REDIS_CONSUMER_GROUP
+    value: notification-service
+  - name: REDIS_CONSUMER_ID
+    value: notification-service-1
+  - name: REDIS_RETENTION_DAYS
+    value: "7"
+  - name: REDIS_MAX_STREAM_LENGTH
+    value: "1000000"
+  - name: REDIS_CLEANUP_INTERVAL
+    value: "86400"
+  - name: PUBSUB_TOPIC_CREATE_TEMPLATE
+    value: notification-create-template
+  - name: PUBSUB_TOPIC_UPDATE_TEMPLATE
+    value: notification-update-template
+  - name: PUBSUB_TOPIC_DELETE_TEMPLATE
+    value: notification-delete-template
+  - name: PUBSUB_TOPIC_SEND_EMAIL
+    value: notification-send-email
+  - name: PUBSUB_TOPIC_SEND_SMS
+    value: notification-send-sms
+  - name: EMAIL_TOPIC
+    value: notification-email
+  - name: SMS_TOPIC
+    value: notification-sms
+  - name: OTEL_ENABLED
+    value: "true"
+  - name: OTEL_SERVICE_NAME
+    value: notification
+  - name: OTEL_SERVICE_VERSION
+    value: 1.0.0
+  - name: OTEL_METRICS_ENABLED
+    value: "true"
+  - name: PROMETHEUS_PORT
+    value: "9090"
+  - name: OTEL_TRACES_SAMPLER_ARG
+    value: "1.0"
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
+  - name: SCHEMA_SEPARATION_MODE
+    value: "false"
+  - name: SCHEMA_SEPARATION_TOPIC
+    value: account-migration
+  - name: MIGRATION_FLYWAY_LOCATIONS
+    value: filesystem:/opt/digit/db/migrations
+  - name: MIGRATION_SCRIPT_PATH
+    value: /opt/digit/migrate.sh
+  - name: MIGRATION_FLYWAY_BIN
+    value: /opt/flyway/flyway

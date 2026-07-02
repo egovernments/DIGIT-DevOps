@@ -1,0 +1,234 @@
+# Common Labels
+labels:
+  app: "individual-java"
+  group: "core"
+
+namespace: egov
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "individual"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "individual_schema_v3"
+    image:
+      repository: "individual-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: JAVA_ENABLE_DEBUG
+          value: "TRUE"
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
+
+# Container Configs
+image:
+  repository: "individual"
+replicas: "1"
+healthChecks:
+  enabled: false
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+appType: "go"
+tracing-enabled: true
+state-level-tenant-id: "pg"
+
+resources: |
+  requests:
+    cpu: "200m"
+    memory: "512Mi"
+  limits:
+    cpu: "200m"
+    memory: "512Mi"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: /individuals
+  - name: DB_HOST
+    value: pgbouncer.egov
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: disable
+  - name: DB_NAME
+    value: postgres
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+  - name: MAX_IDLE_CONNS
+    value: "10"
+  - name: MAX_OPEN_CONNS
+    value: "50"
+  - name: CONN_MAX_LIFETIME
+    value: 5m
+  - name: LOG_LEVEL
+    value: DEBUG
+  - name: REDIS_HOST
+    value: redis.backbone
+  - name: REDIS_PORT
+    value: "6379"
+  - name: REDIS_PASSWORD
+  - name: REDIS_DB
+    value: "0"
+  - name: REDIS_POOL_SIZE
+    value: "10"
+  - name: IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: idgen
+        name: egov-service-host
+  - name: IDGEN_PATH
+    value: idgen/v1/generate
+  - name: IDGEN_ENABLED
+    value: "true"
+  - name: IDGEN_INDIVIDUAL_ID_FORMAT
+    value: individual
+  - name: STATE_LEVEL_TENANT_ID
+    value: pg
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: mdms-service-v2
+        name: egov-service-host
+  - name: EGOV_MDMS_SEARCH_ENDPOINT
+    value: /mdms-v2/v1/_search
+  - name: EGOV_ENC_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: egov-enc-service
+        name: egov-service-host
+  - name: LOCALIZATION_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: localization
+        name: egov-service-host
+  - name: LOCALIZATION_SEARCH_PATH
+    value: /localization/messages/v1/_search
+  - name: KEYCLOAK_BASE_URL
+    value: https://digit-lts.digit.org/keycloak
+  - name: KEYCLOAK_ENABLED
+    value: "true"
+  - name: KEYCLOAK_ASSIGNABLE_ROLES
+    value: ASSIGNER,CITIZEN
+  - name: BOUNDARY_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: boundary
+        name: egov-service-host
+  - name: BOUNDARY_SEARCH_PATH
+    value: /boundary/v1
+  - name: BOUNDARY_HIERARCHY
+    value: HCM-Hierarchy
+  - name: VAULT_HOST
+    value: http://vault.vault-new.svc.cluster.local:8200
+  - name: VAULT_ROLE_ID
+    value: fillthis
+  - name: VAULT_SECRET_ID
+    value: fillthis
+  - name: VAULT_TOKEN
+    valueFrom:
+      secretKeyRef:
+        key: token
+        name: vault-root-token
+  - name: VAULT_ENABLED
+    value: "true"
+  - name: PUBSUB_ENABLED
+    value: "true"
+  - name: PUBSUB_TYPE
+    value: redis
+  - name: KAFKA_BROKERS
+    value: release-name-kafka-controller-headless.kafka-kraft:9092
+  - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+    value: "true"
+  - name: KAFKA_PARTITION_COUNT
+    value: "1"
+  - name: KAFKA_REPLICATION_FACTOR
+    value: "1"
+  - name: KAFKA_CONSUMER_GROUP
+    value: individual-service
+  - name: REDIS_ADDRESS
+    value: redis.backbone.svc.cluster.local:6379
+  - name: REDIS_CONSUMER_GROUP
+    value: individual-service
+  - name: REDIS_CONSUMER_ID
+    value: individual-service-1
+  - name: REDIS_RETENTION_DAYS
+    value: "7"
+  - name: REDIS_MAX_STREAM_LENGTH
+    value: "1000000"
+  - name: REDIS_CLEANUP_INTERVAL
+    value: "86400"
+  - name: PUBSUB_TOPIC_CREATE_INDIVIDUAL
+    value: individual-create-individual
+  - name: PUBSUB_TOPIC_UPDATE_INDIVIDUAL
+    value: individual-update-individual
+  - name: PUBSUB_TOPIC_DELETE_INDIVIDUAL
+    value: individual-delete-individual
+  - name: PUBSUB_TOPIC_UPSERT_CONFIG
+    value: individual-upsert-config
+  - name: SCHEMA_SEPARATION_MODE
+    value: "false"
+  - name: SCHEMA_SEPARATION_TOPIC
+    value: account-migration
+  - name: MIGRATION_FLYWAY_LOCATIONS
+    value: filesystem:/opt/digit/db/migrations
+  - name: MIGRATION_SCRIPT_PATH
+    value: /opt/digit/migrate.sh
+  - name: MIGRATION_FLYWAY_BIN
+    value: /opt/flyway/flyway
+  - name: MIGRATION_SCHEMA_TABLE
+    value: individual_schema
+  - name: OTEL_ENABLED
+    value: "false"
+  - name: OTEL_SERVICE_NAME
+    value: individual
+  - name: OTEL_SERVICE_VERSION
+    value: 1.0.0
+  - name: OTEL_METRICS_ENABLED
+    value: "false"
+  - name: PROMETHEUS_PORT
+    value: "9090"
+  - name: OTEL_TRACES_SAMPLER_ARG
+    value: "1.0"
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
+  - name: CONSOLE_LOGS_ENABLED
+    value: "true"

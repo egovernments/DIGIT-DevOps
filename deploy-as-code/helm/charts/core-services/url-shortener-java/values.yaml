@@ -15,7 +15,7 @@ initContainers:
     enabled: true
     schemaTable: "url_shortener_schema"
     image:
-      repository: "url-shortener-db"
+      repository: "url-shortener-java-db"
     env: |
         - name: "DB_URL"
           valueFrom:
@@ -48,10 +48,10 @@ initContainers:
 
 # Container Configs
 image:
-  repository: "url-shortener"
+  repository: "url-shortener-java"
 replicas: 1
-appType: "go"
-tracing-enabled: true # Assuming you want to keep tracing
+appType: "java"
+tracing-enabled: false # Assuming you want to keep tracing
 healthChecks:
   enabled: false # Disabled as requested
   livenessProbePath: "/health"
@@ -59,11 +59,11 @@ healthChecks:
 # Resource configuration for Go service
 resources: |
   requests:
-    cpu: "200m"
-    memory: "512Mi"
+    cpu: "500m"
+    memory: "1Gi"
   limits:
-    cpu: "200m"
-    memory: "512Mi"
+    cpu: "1"
+    memory: "1.5Gi"
 
 # Additional Container Envs
 env: |
@@ -100,7 +100,7 @@ env: |
   - name: REDIS_DB
     value: "0"
   - name: OTEL_ENABLED
-    value: "true"
+    value: "false"
   - name: OTEL_SERVICE_NAME
     value: url-shortener
   - name: OTEL_SERVICE_VERSION
@@ -161,25 +161,5 @@ env: |
   - name: MIGRATION_FLYWAY_BIN
     value: /opt/flyway/flyway
   - name: MIGRATION_SCHEMA_TABLE
-    value: employee_schema
-  - name: JAEGER_SAMPLER_PARAM
-    value: "1"
-  - name: OTEL_TRACES_EXPORTER
-    value: none
-  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
-    value: org.postgresql.Driver
-  - name: JAEGER_SERVICE_NAME
-    value: url-shortener
-  - name: JAEGER_SAMPLER_TYPE
-    value: remote
-  - name: JAEGER_AGENT_HOST
-    valueFrom:
-      fieldRef:
-        apiVersion: v1
-        fieldPath: status.hostIP
-  - name: JAEGER_AGENT_PORT
-    value: "6831"
-  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
-    value: $(JAEGER_AGENT_HOST):5778
-  - name: TRACER_OPENTRACING_ENABLED
-    value: "true"
+    value: url_shortener_schema
+

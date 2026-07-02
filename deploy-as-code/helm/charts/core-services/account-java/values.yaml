@@ -15,7 +15,7 @@ initContainers:
     enabled: true
     schemaTable: "account_schema"
     image:
-      repository: "account-db"
+      repository: "account-java-db"
     env: |
         - name: "DB_URL"
           valueFrom:
@@ -41,18 +41,12 @@ initContainers:
             configMapKeyRef:
               name: egov-config
               key: flyway-locations
-        - name: FLYWAY_SCHEMAS
-          value: public
-        - name: FLYWAY_DEFAULT_SCHEMA
-          value: public
 
 # Container Configs
 image:
-  repository: "account"
+  repository: "account-java"
 replicas: 1
-appType: "go"
-tracing-enabled: true
-memory_limits: 512Mi
+appType: "java"
 healthChecks:
   enabled: false
   livenessProbePath: "/health"
@@ -60,11 +54,11 @@ healthChecks:
 # Resource configuration for Go service
 resources: |
   requests:
-    cpu: "200m"
-    memory: "512Mi"
+    cpu: "500m"
+    memory: "1Gi"
   limits:
-    cpu: "200m"
-    memory: "512Mi"
+    cpu: "1"
+    memory: "1.5Gi"
 
 # Additional Container Envs
 env: |
@@ -95,13 +89,17 @@ env: |
   - name: KEYCLOAK_ADMIN_USER
     value: digit
   - name: KEYCLOAK_ADMIN_PASS
-    value: fillthis
-  - name: GIN_MODE
-    value: release
+    valueFrom:
+      secretKeyRef:
+        name: kc-admin
+        key: password
   - name: CITIZEN_BROKER_CLIENT_ID
     value: citizen-broker
   - name: CITIZEN_BROKER_CLIENT_SECRET
-    value: fillthis
+    valueFrom:
+      secretKeyRef:
+        name: citizen-broker-secret
+        key: citizen-broker-client-secret
   - name: NOTIFICATION_BASE_URL
     valueFrom:
       configMapKeyRef:
@@ -127,16 +125,19 @@ env: |
     value: "false"
   - name: PROMETHEUS_PORT
     value: "9090"
-  - name: OTEL_TRACES_SAMPLER_ARG
-    value: "1.0"
   - name: OTEL_EXPORTER_OTLP_ENDPOINT
     value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
-  - name: PUBSUB_ENABLED
+  - name: CONSOLE_LOGS_ENABLED
     value: "true"
+  - name: PUBSUB_ENABLED
+    value: "false"
   - name: PUBSUB_TYPE
     value: redis
   - name: KAFKA_BROKERS
-    value: release-name-kafka-controller-headless.kafka-kraft:9092
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
   - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
     value: "true"
   - name: KAFKA_PARTITION_COUNT

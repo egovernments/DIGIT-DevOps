@@ -15,7 +15,7 @@ initContainers:
     enabled: true
     schemaTable: "idgen_schema"
     image:
-      repository: "idgen-db"
+      repository: "idgen-java-db"
     env: |
         - name: "DB_URL"
           valueFrom:
@@ -48,9 +48,9 @@ initContainers:
 
 # Container Configs
 image:
-  repository: "idgen"
+  repository: "idgen-java"
 replicas: 1
-appType: "go"
+appType: "java"
 tracing-enabled: true # Assuming you want to keep tracing
 healthChecks:
   enabled: false # Disabled as requested
@@ -59,11 +59,11 @@ healthChecks:
 # Resource configuration for Go service
 resources: |
   requests:
-    cpu: "200m"
-    memory: "512Mi"
+    cpu: "500m"
+    memory: "1Gi"
   limits:
-    cpu: "200m"
-    memory: "512Mi"
+    cpu: "1"
+    memory: "1.5Gi"
 
 # Additional Container Envs
 env: |
@@ -89,27 +89,6 @@ env: |
       secretKeyRef:
         key: password
         name: db
-  - name: JAEGER_SAMPLER_PARAM
-    value: "1"
-  - name: OTEL_TRACES_EXPORTER
-    value: none
-  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
-    value: org.postgresql.Driver
-  - name: JAEGER_SERVICE_NAME
-    value: idgen
-  - name: JAEGER_SAMPLER_TYPE
-    value: remote
-  - name: JAEGER_AGENT_HOST
-    valueFrom:
-      fieldRef:
-        apiVersion: v1
-        fieldPath: status.hostIP
-  - name: JAEGER_AGENT_PORT
-    value: "6831"
-  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
-    value: $(JAEGER_AGENT_HOST):5778
-  - name: TRACER_OPENTRACING_ENABLED
-    value: "true"
   - name: OTEL_ENABLED
     value: "false"
   - name: OTEL_SERVICE_NAME
@@ -128,14 +107,19 @@ env: |
     value: "false"
   - name: PUBSUB_TYPE
     value: redis
-  - name: PUBSUB_TOPICS_CREATE_TEMPLATE
+  - name: PUBSUB_TOPIC_CREATE_TENANT
+    value: account-create-tenant
+  - name: PUBSUB_TOPIC_CREATE_TEMPLATE
     value: idgen-create-template
-  - name: PUBSUB_TOPICS_UPDATE_TEMPLATE
+  - name: PUBSUB_TOPIC_UPDATE_TEMPLATE
     value: idgen-update-template
-  - name: PUBSUB_TOPICS_DELETE_TEMPLATE
+  - name: PUBSUB_TOPIC_DELETE_TEMPLATE
     value: idgen-delete-template
   - name: KAFKA_BROKERS
-    value: release-name-kafka-controller-headless.kafka-kraft:9092
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
   - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
     value: "true"
   - name: KAFKA_PARTITION_COUNT
@@ -170,4 +154,8 @@ env: |
   - name: MIGRATION_FLYWAY_BIN
     value: /opt/flyway/flyway
   - name: MIGRATION_SCHEMA_TABLE
-    value: idgen_schemaa
+    value: idgen_schema
+  - name: LOG_LEVEL
+    value: info
+  - name: CONSOLE_LOGS_ENABLED
+    value: "true"

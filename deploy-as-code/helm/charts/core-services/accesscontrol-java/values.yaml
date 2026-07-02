@@ -15,7 +15,7 @@ initContainers:
     enabled: true
     schemaTable: "accesscontrol_schema_v3"
     image:
-      repository: "accesscontrol-db"
+      repository: "accesscontrol-java-db"
     env: |
         - name: "DB_URL"
           valueFrom:
@@ -48,10 +48,9 @@ initContainers:
 
 # Container Configs
 image:
-  repository: "accesscontrol"
+  repository: "accesscontrol-java"
 replicas: 1
-appType: "go"
-tracing-enabled: true # Assuming you want to keep tracing
+appType: "java"
 healthChecks:
   enabled: false # Disabled as requested
   livenessProbePath: "/health"
@@ -59,41 +58,35 @@ healthChecks:
 # Resource configuration for Go service
 resources: |
   requests:
-    cpu: "200m"
-    memory: "512Mi"
+    cpu: "500m"
+    memory: "1Gi"
   limits:
-    cpu: "200m"
-    memory: "512Mi"
+    cpu: "1"
+    memory: "1.5Gi"
 
 # Additional Container Envs
 env: |
   - name: SERVER_PORT
     value: "8080"
   - name: SERVER_CONTEXT_PATH
-    value: "/access"
+    value: /access
   - name: DB_HOST
-    value: "postgresql-lts.egov"
+    value: postgresql-lts.egov
   - name: DB_PORT
     value: "5432"
   - name: DB_SSL_MODE
-    value: "disable"
+    value: disable
   - name: DB_NAME
-    value: "postgres"
+    value: postgres
   - name: DB_USER
     valueFrom:
       secretKeyRef:
-        name: db
         key: username
+        name: db
   - name: DB_PASSWORD
     valueFrom:
       secretKeyRef:
-        name: db
         key: password
-  - name: DB_MAX_OPEN_CONNS
-    value: "25"
-  - name: DB_MAX_IDLE_CONNS
-    value: "5"
-  - name: DB_CONN_MAX_LIFETIME
-    value: "5m"
+        name: db
   - name: LOG_LEVEL
-    value: "DEBUG"
+    value: DEBUG

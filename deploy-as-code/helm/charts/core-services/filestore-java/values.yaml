@@ -1,0 +1,193 @@
+# Common Labels
+labels:
+  app: "filestore-java"
+  group: "core"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "filestore_schema"
+    image:
+      repository: "filestore-java-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: JAVA_ENABLE_DEBUG
+          value: "TRUE"
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "filestore"
+
+# Container Configs
+image:
+  repository: "filestore-java"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/filestore/health"
+  readinessProbePath: "/filestore/health"
+appType: "java"
+tracing-enabled: true
+is-bucket-fixed: "true"
+fixed-bucketname: "unified-dev-bucket-s3"
+heap: "-Xmx256m -Xms256m"
+file-storage-mount-path: "/filestore"
+is-nfs-enabled: false
+is-s3-enabled: true
+minio-enabled: true
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+  limits:
+    cpu: "1"
+    memory: "1.5Gi"
+
+persistence:
+  enabled: false
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: /filestore
+  - name: DB_HOST
+    value: postgresql-lts.egov
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: disable
+  - name: DB_NAME
+    value: postgres
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+  - name: MINIO_USE_SSL
+    value: "false"
+  - name: S3_BUCKET
+    value: unified-dev-bucket-s3
+  - name: S3_READ_BUCKET
+    value: unified-dev-bucket-s3
+  - name: S3_USE_SSL
+    value: "true"
+  - name: S3_REGION
+    value: ap-south-1
+  - name: S3_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        key: awskey
+        name: egov-filestore
+  - name: S3_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        key: awssecretkey
+        name: egov-filestore
+  - name: S3_SOURCE
+    value: s3
+  - name: S3_ENDPOINT
+    value: s3.ap-south-1.amazonaws.com
+  - name: OTEL_ENABLED
+    value: "true"
+  - name: OTEL_SERVICE_NAME
+    value: filestore
+  - name: OTEL_SERVICE_VERSION
+    value: 1.0.0
+  - name: OTEL_METRICS_ENABLED
+    value: "true"
+  - name: PROMETHEUS_PORT
+    value: "9090"
+  - name: OTEL_TRACES_SAMPLER_ARG
+    value: "1.0"
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
+  - name: PUBSUB_ENABLED
+    value: "true"
+  - name: PUBSUB_TYPE
+    value: redis
+  - name: KAFKA_BROKERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+  - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+    value: "true"
+  - name: KAFKA_PARTITION_COUNT
+    value: "1"
+  - name: KAFKA_REPLICATION_FACTOR
+    value: "1"
+  - name: KAFKA_CONSUMER_GROUP
+    value: filestore-service
+  - name: REDIS_ADDRESS
+    value: redis.backbone.svc.cluster.local:6379
+  - name: REDIS_PASSWORD
+  - name: REDIS_DB
+    value: "0"
+  - name: REDIS_CONSUMER_GROUP
+    value: filestore-service
+  - name: REDIS_CONSUMER_ID
+    value: filestore-service-1
+  - name: REDIS_RETENTION_DAYS
+    value: "7"
+  - name: REDIS_MAX_STREAM_LENGTH
+    value: "1000000"
+  - name: REDIS_CLEANUP_INTERVAL
+    value: "86400"
+  - name: PUBSUB_TOPIC_UPLOAD_FILE
+    value: filestore-upload-file
+  - name: PUBSUB_TOPIC_CREATE_DOC_CATEGORY
+    value: filestore-create-doc-category
+  - name: PUBSUB_TOPIC_UPDATE_DOC_CATEGORY
+    value: filestore-update-doc-category
+  - name: PUBSUB_TOPIC_DELETE_DOC_CATEGORY
+    value: filestore-delete-doc-category
+  - name: SCHEMA_SEPARATION_MODE
+    value: "false"
+  - name: SCHEMA_SEPARATION_TOPIC
+    value: account-migration
+  - name: MIGRATION_FLYWAY_LOCATIONS
+    value: filesystem:/opt/digit/db/migrations
+  - name: MIGRATION_SCRIPT_PATH
+    value: /opt/digit/migrate.sh
+  - name: MIGRATION_FLYWAY_BIN
+    value: /opt/flyway/flyway
+  - name: MIGRATION_SCHEMA_TABLE
+    value: filestore_schema
+  - name: CONSOLE_LOGS_ENABLED
+    value: "true"

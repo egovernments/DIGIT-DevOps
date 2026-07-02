@@ -1,0 +1,203 @@
+# Common Labels
+labels:
+  app: "otp-java"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "otp"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "otp_schema"
+    image:
+      repository: "otp-java-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: JAVA_ENABLE_DEBUG
+          value: "TRUE"
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
+
+# Container Configs
+image:
+  repository: "otp-java"
+replicas: 1
+appType: "java"
+tracing-enabled: true # Assuming you want to keep tracing
+healthChecks:
+  enabled: false # Disabled as requested
+  livenessProbePath: "/otp/health"
+  readinessProbePath: "/otp/health"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+  limits:
+    cpu: "1"
+    memory: "1.5Gi"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: /otp
+  - name: DB_HOST
+    value: postgresql-lts.egov
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: disable
+  - name: DB_NAME
+    value: postgres
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+  - name: OTP_LENGTH
+    value: "6"
+  - name: OTP_CHARSET
+    value: digits
+  - name: OTP_LIFETIME_SECONDS
+    value: "300"
+  - name: RESEND_DELAY_SECONDS
+    value: "30"
+  - name: MAX_RESEND_COUNT
+    value: "300"
+  - name: MAX_VERIFY_ATTEMPTS
+    value: "500"
+  - name: USE_SINGLE_ACTIVE_OTP
+    value: "true"
+  - name: RESEND_SAME_CODE
+    value: "true"
+  - name: MAX_GENERATE_PER_DEST_HOUR
+    value: "200"
+  - name: MAX_GENERATE_PER_IP_HOUR
+    value: "200"
+  - name: ENABLE_RATE_LIMIT
+    value: "true"
+  - name: NOTIFY_BASE_URL
+    valueFrom:
+      configMapKeyRef:
+        key: notification
+        name: egov-service-host
+  - name: NOTIFY_ASYNC
+    value: "false"
+  - name: HMAC_SECRET
+    value: ""
+  - name: REDIS_HOST
+    value: redis.backbone
+  - name: REDIS_PORT
+    value: "6379"
+  - name: REDIS_PASSWORD
+  - name: REDIS_DB
+    value: "0"
+  - name: VAULT_HOST
+    value: http://vault.vault-new.svc.cluster.local:8200
+  - name: VAULT_ROLE_ID
+    value: ""
+  - name: VAULT_SECRET_ID
+    value: ""
+  - name: VAULT_ENABLED
+    value: "true"
+  - name: OTEL_ENABLED
+    value: "false"
+  - name: OTEL_SERVICE_NAME
+    value: otp
+  - name: OTEL_SERVICE_VERSION
+    value: 1.0.0
+  - name: OTEL_METRICS_ENABLED
+    value: "true"
+  - name: PROMETHEUS_PORT
+    value: "9090"
+  - name: OTEL_TRACES_SAMPLER_ARG
+    value: "1.0"
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
+  - name: CONSOLE_LOGS_ENABLED
+    value: "true"
+  - name: PUBSUB_ENABLED
+    value: "false"
+  - name: PUBSUB_TYPE
+    value: kafka
+  - name: PUBSUB_TOPIC_GENERATE_OTP
+    value: otp-generate-otp
+  - name: PUBSUB_TOPIC_RESEND_OTP
+    value: otp-resend-otp
+  - name: PUBSUB_TOPIC_VERIFY_OTP
+    value: otp-verify-otp
+  - name: PUBSUB_TOPIC_INVALIDATE_OTP
+    value: otp-invalidate-otp
+  - name: KAFKA_BROKERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+  - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+    value: "true"
+  - name: KAFKA_PARTITION_COUNT
+    value: "1"
+  - name: KAFKA_REPLICATION_FACTOR
+    value: "1"
+  - name: KAFKA_CONSUMER_GROUP
+    value: otp-service
+  - name: REDIS_ADDRESS
+    value: redis.backbone.svc.cluster.local:6379
+  - name: REDIS_CONSUMER_GROUP
+    value: otp-service
+  - name: REDIS_CONSUMER_ID
+    value: otp-service-1
+  - name: REDIS_RETENTION_DAYS
+    value: "7"
+  - name: REDIS_MAX_STREAM_LENGTH
+    value: "1000000"
+  - name: REDIS_CLEANUP_INTERVAL
+    value: "86400"
+  - name: SCHEMA_SEPARATION_MODE
+    value: "false"
+  - name: SCHEMA_SEPARATION_TOPIC
+    value: account-migration
+  - name: MIGRATION_FLYWAY_LOCATIONS
+    value: filesystem:/opt/digit/db/migrations
+  - name: MIGRATION_SCRIPT_PATH
+    value: /opt/digit/migrate.sh
+  - name: MIGRATION_FLYWAY_BIN
+    value: /opt/flyway/flyway
+  - name: MIGRATION_SCHEMA_TABLE
+    value: otp_schema
+ 

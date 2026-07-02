@@ -16,6 +16,35 @@ initContainers:
     schemaTable: "idgen_schema"
     image:
       repository: "idgen-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: JAVA_ENABLE_DEBUG
+          value: "TRUE"
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
 
 # Container Configs
 image:
@@ -41,28 +70,109 @@ env: |
   - name: HTTP_PORT
     value: "8080"
   - name: SERVER_CONTEXT_PATH
-    value: "/idgen"
+    value: /idgen
   - name: DB_HOST
-    value: "postgresql-lts.egov"
+    value: postgresql-lts.egov
   - name: DB_PORT
     value: "5432"
   - name: DB_SSL_MODE
-    value: "disable"
+    value: disable
   - name: DB_NAME
-    value: "postgres"
+    value: postgres
   - name: DB_USER
     valueFrom:
       secretKeyRef:
-        name: db
         key: username
+        name: db
   - name: DB_PASSWORD
     valueFrom:
       secretKeyRef:
-        name: db
         key: password
+        name: db
   - name: JAEGER_SAMPLER_PARAM
-    value: "1" 
+    value: "1"
   - name: OTEL_TRACES_EXPORTER
-    value: "none"
+    value: none
   - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
-    value: "org.postgresql.Driver"
+    value: org.postgresql.Driver
+  - name: JAEGER_SERVICE_NAME
+    value: idgen
+  - name: JAEGER_SAMPLER_TYPE
+    value: remote
+  - name: JAEGER_AGENT_HOST
+    valueFrom:
+      fieldRef:
+        apiVersion: v1
+        fieldPath: status.hostIP
+  - name: JAEGER_AGENT_PORT
+    value: "6831"
+  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
+    value: $(JAEGER_AGENT_HOST):5778
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true"
+  - name: OTEL_ENABLED
+    value: "false"
+  - name: OTEL_SERVICE_NAME
+    value: idgen
+  - name: OTEL_SERVICE_VERSION
+    value: 1.0.0
+  - name: OTEL_METRICS_ENABLED
+    value: "false"
+  - name: PROMETHEUS_PORT
+    value: "9090"
+  - name: OTEL_TRACES_SAMPLER_ARG
+    value: "1.0"
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
+  - name: PUBSUB_ENABLED
+    value: "false"
+  - name: PUBSUB_TYPE
+    value: redis
+  - name: PUBSUB_TOPIC_CREATE_TENANT
+    value: account-create-tenant
+  - name: PUBSUB_TOPIC_CREATE_TEMPLATE
+    value: idgen-create-template
+  - name: PUBSUB_TOPIC_UPDATE_TEMPLATE
+    value: idgen-update-template
+  - name: PUBSUB_TOPIC_DELETE_TEMPLATE
+    value: idgen-delete-template
+  - name: KAFKA_BROKERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+  - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+    value: "true"
+  - name: KAFKA_PARTITION_COUNT
+    value: "1"
+  - name: KAFKA_REPLICATION_FACTOR
+    value: "1"
+  - name: KAFKA_CONSUMER_GROUP
+    value: idgen-service
+  - name: REDIS_ADDRESS
+    value: redis.backbone.svc.cluster.local:6379
+  - name: REDIS_PASSWORD
+  - name: REDIS_DB
+    value: "0"
+  - name: REDIS_CONSUMER_GROUP
+    value: idgen-service
+  - name: REDIS_CONSUMER_ID
+    value: idgen-service-1
+  - name: REDIS_RETENTION_DAYS
+    value: "7"
+  - name: REDIS_MAX_STREAM_LENGTH
+    value: "1000000"
+  - name: REDIS_CLEANUP_INTERVAL
+    value: "86400"
+  - name: SCHEMA_SEPARATION_MODE
+    value: "false"
+  - name: SCHEMA_SEPARATION_TOPIC
+    value: account-migration
+  - name: MIGRATION_FLYWAY_LOCATIONS
+    value: filesystem:/opt/digit/db/migrations
+  - name: MIGRATION_SCRIPT_PATH
+    value: /opt/digit/migrate.sh
+  - name: MIGRATION_FLYWAY_BIN
+    value: /opt/flyway/flyway
+  - name: MIGRATION_SCHEMA_TABLE
+    value: idgen_schema

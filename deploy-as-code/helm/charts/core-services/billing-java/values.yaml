@@ -1,0 +1,186 @@
+# Common Labels
+labels:
+  app: "billing-java"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "billing"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "billing_schema"
+    image:
+      repository: "billing-java-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: JAVA_ENABLE_DEBUG
+          value: "TRUE"
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
+
+# Container Configs
+image:
+  repository: "billing-java"
+replicas: "1"
+appType: "java"
+healthChecks:
+  enabled: false
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+  limits:
+    cpu: "1"
+    memory: "1.5Gi"
+
+# Additional Container Envs
+env: |
+  - name: HTTP_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: /billing
+  - name: DB_HOST
+    value: postgresql-lts.egov
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: disable
+  - name: DB_NAME
+    value: postgres
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+  - name: PUBSUB_ENABLED
+    value: "false"
+  - name: PUBSUB_TYPE
+    value: kafka
+  - name: KAFKA_BROKERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+  - name: KAFKA_CONSUMER_GROUP
+    value: notification-consumer-group
+  - name: KAFKA_AUTO_CREATE_TOPICS
+    value: "true"
+  - name: KAFKA_PARTITIONS
+    value: "1"
+  - name: KAFKA_REPLICATION_FACTOR
+    value: "1"
+  - name: PUBSUB_REDIS_ADDR
+    value: redis.backbone:6379
+  - name: PUBSUB_REDIS_PASSWORD
+  - name: PUBSUB_REDIS_DB
+    value: "0"
+  - name: REDIS_CONSUMER_GROUP
+    value: billing-service
+  - name: REDIS_CONSUMER_ID
+    value: billing-service-1
+  - name: REDIS_STREAM_RETENTION_DAYS
+    value: "7"
+  - name: REDIS_STREAM_MAX_LEN
+    value: "1000000"
+  - name: REDIS_STREAM_CLEANUP_INTERVAL
+    value: 24h
+  - name: BULK_BILL_CONSUMER_BATCH_SIZE
+    value: "10"
+  - name: BULK_BILL_GENERATION_PUBSUB_TOPIC
+    value: bulk-bill-generator
+  - name: BULK_BILL_GENERATION_DLQ_PUBSUB_TOPIC
+    value: bulk-bill-generator-dlq
+  - name: DEMAND_ENABLE_ARREARS
+    value: "TRUE"
+  - name: IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: idgen
+        name: egov-service-host
+  - name: IDGEN_GENERATE_ID_PATH
+    value: idgen/v3/generate
+  - name: IDGEN_BULK_GENERATE_ID_PATH
+    value: idgen/v3/generate/bulk
+  - name: IDGEN_BILL_NUMBER_TEMPLATE_CODE
+    value: BillNumber
+  - name: IDGEN_RECEIPT_NUMBER_TEMPLATE_CODE
+    value: ReceiptNumber
+  - name: IDGEN_TRANSACTION_NUMBER_TEMPLATE_CODE
+    value: TransactionNumber
+  - name: APPORTION_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: egov-apportion-service
+        name: egov-service-host
+  - name: APPORTION_BILL_PATH
+    value: apportion-service/v2/bill/_apportion
+  - name: HTTP_CLIENT_TIMEOUT_SECONDS
+    value: "5"
+  - name: MAX_INSTRUMENT_DATE_AGE_DAYS
+    value: "90"
+  - name: SCHEMA_SEPARATION_MODE
+    value: "false"
+  - name: SCHEMA_SEPARATION_TOPIC
+    value: account-migration
+  - name: MIGRATION_FLYWAY_LOCATIONS
+    value: filesystem:/opt/digit/db/migrations
+  - name: MIGRATION_SCRIPT_PATH
+    value: /opt/digit/migrate.sh
+  - name: MIGRATION_FLYWAY_BIN
+    value: /opt/flyway/flyway
+  - name: MIGRATION_SCHEMA_TABLE
+    value: billing_schema
+  - name: OTEL_ENABLED
+    value: "false"
+  - name: OTEL_METRICS_ENABLED
+    value: "false"
+  - name: OTEL_SERVICE_NAME
+    value: billing
+  - name: OTEL_SERVICE_VERSION
+    value: 1.0.0
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
+  - name: OTEL_TRACES_SAMPLER_ARG
+    value: "1.0"
+  - name: PROMETHEUS_PORT
+    value: "9090"
+  - name: LOG_LEVEL
+    value: DEBUG
+  - name: CONSOLE_LOGS_ENABLED
+    value: "true"

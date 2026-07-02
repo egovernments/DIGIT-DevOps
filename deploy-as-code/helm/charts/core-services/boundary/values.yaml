@@ -30,20 +30,20 @@ initContainers:
         - name: "FLYWAY_USER"
           valueFrom:
             secretKeyRef:
-                name: db
-                key: flyway-username
+              name: db
+              key: flyway-username
         - name: "FLYWAY_PASSWORD"
           valueFrom:
             secretKeyRef:
-                name: db
-                key: flyway-password
+              name: db
+              key: flyway-password
         - name: JAVA_ENABLE_DEBUG
           value: "TRUE"
         - name: "FLYWAY_LOCATIONS"
           valueFrom:
             configMapKeyRef:
-                name: egov-config
-                key: flyway-locations
+              name: egov-config
+              key: flyway-locations
         - name: FLYWAY_SCHEMAS
           value: public
         - name: FLYWAY_DEFAULT_SCHEMA
@@ -71,64 +71,39 @@ resources: |
 # Additional Container Envs
 env: |
   - name: DB_HOST
-    value: "postgresql-lts.egov"
+    value: pgbouncer.egov
   - name: DB_PORT
     value: "5432"
   - name: DB_USER
     valueFrom:
       secretKeyRef:
-        name: db
         key: username
+        name: db
   - name: DB_PASSWORD
     valueFrom:
       secretKeyRef:
-        name: db
         key: password
+        name: db
   - name: DB_NAME
-    value: "postgres"
+    value: postgres
   - name: DB_SSL_MODE
-    value: "disable"
+    value: disable
   - name: SERVER_PORT
     value: "8080"
   - name: SERVER_CONTEXT_PATH
-    value: "/boundary"
+    value: /boundary
   - name: BOUNDARY_BASEPATH
-    value: "http://boundary:8080/"
+    value: http://boundary:8080/
   - name: FILESTORE_BASEPATH
     valueFrom:
       configMapKeyRef:
-        name: egov-service-host
         key: filestore
+        name: egov-service-host
   - name: FILESTORE_ENDPOINT
-    value: "/filestore/v1/files"
+    value: /filestore/v1/files
   - name: CACHE_TYPE
-    value: "inmemory"
-  # If you want to use Redis, uncomment and set these:
-  # - name: CACHE_TYPE
-  #   value: "redis"
-  # - name: CACHE_REDIS_ADDR
-  #   value: "localhost:6379"
-  # - name: CACHE_REDIS_DB
-  #   value: "0" 
-  - name: OTEL_TRACES_EXPORTER
-    value: "none"
-  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
-    value: "org.postgresql.Driver"
-  - name: JAEGER_SERVICE_NAME
-    value: boundary
-  - name: JAEGER_SAMPLER_TYPE
-    value: remote
-  - name: JAEGER_AGENT_HOST
-    valueFrom:
-      fieldRef:
-        apiVersion: v1
-        fieldPath: status.hostIP
-  - name: JAEGER_AGENT_PORT
-    value: "6831"
-  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
-    value: $(JAEGER_AGENT_HOST):5778
-  - name: TRACER_OPENTRACING_ENABLED
-    value: "true"
+    value: inmemory
+
   - name: OTEL_ENABLED
     value: "true"
   - name: OTEL_SERVICE_NAME
@@ -143,20 +118,7 @@ env: |
     value: "1.0"
   - name: OTEL_EXPORTER_OTLP_ENDPOINT
     value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
-  - name: MIGRATION_ENABLED
-    value: "true"
-  - name: MIGRATION_DB_URL
-    value: "your_database_url_here"
-  - name: MIGRATION_FLYWAY_USER
-    value: postgres
-  - name: MIGRATION_FLYWAY_PASSWORD
-    value: your_flyway_password_here
-  - name: MIGRATION_KAFKA_BROKERS
-    value: release-name-kafka-controller-headless.kafka-kraft:9092
-  - name: MIGRATION_KAFKA_TOPIC
-    value: createSchemaV2
-  - name: MIGRATION_KAFKA_GROUP_ID
-    value: boundary-migration-2
+
   - name: PUBSUB_ENABLED
     value: "true"
   - name: PUBSUB_TYPE

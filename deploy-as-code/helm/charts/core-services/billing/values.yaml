@@ -16,6 +16,35 @@ initContainers:
     schemaTable: "billing_schema"
     image:
       repository: "billing-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: JAVA_ENABLE_DEBUG
+          value: "TRUE"
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
 
 # Container Configs
 image:
@@ -41,71 +70,78 @@ env: |
   - name: HTTP_PORT
     value: "8080"
   - name: SERVER_CONTEXT_PATH
-    value: "/billing"
+    value: /billing
   - name: DB_HOST
-    value: "postgresql-lts.egov"
+    value: postgresql-lts.egov
   - name: DB_PORT
     value: "5432"
   - name: DB_SSL_MODE
-    value: "disable"
+    value: disable
   - name: DB_NAME
-    value: "postgres"
+    value: postgres
   - name: DB_USER
     valueFrom:
       secretKeyRef:
-        name: db
         key: username
+        name: db
   - name: DB_PASSWORD
     valueFrom:
       secretKeyRef:
-        name: db
         key: password
+        name: db
   - name: MESSAGE_BROKER_ENABLED
     value: "false"
   - name: MESSAGE_BROKER_TYPE
-    value: "KAFKA"
+    value: KAFKA
   - name: KAFKA_BROKERS
     valueFrom:
       configMapKeyRef:
-        name: egov-config
         key: kafka-brokers
+        name: egov-config
   - name: KAFKA_CONSUMER_GROUP
-    value: "notification-consumer-group"
+    value: notification-consumer-group
   - name: REDIS_ADDR
-    value: "redis.backbone:6379"
+    value: redis.backbone:6379
   - name: REDIS_PASSWORD
-    value: ""
   - name: REDIS_DB
     value: "0"
   - name: DEMAND_ENABLE_ARREARS
-    value: "TRUE"  
+    value: "TRUE"
   - name: IDGEN_HOST
     valueFrom:
       configMapKeyRef:
-        name: egov-service-host
         key: idgen
-  - name: IDGEN_PATH
-    value: "idgen/v3/generate"
+        name: egov-service-host
+  - name: IDGEN_GENERATE_ID_PATH
+    value: idgen/v3/generate
+  - name: IDGEN_BULK_GENERATE_ID_PATH
+    value: idgen/v3/generate/bulk
   - name: IDGEN_BILL_NUMBER_TEMPLATE_CODE
-    value: "BillNumber"
+    value: BillNumber
   - name: IDGEN_RECEIPT_NUMBER_TEMPLATE_CODE
-    value: "ReceiptNumber"
+    value: ReceiptNumber
   - name: IDGEN_TRANSACTION_NUMBER_TEMPLATE_CODE
-    value: "TransactionNumber"
+    value: TransactionNumber
   - name: APPORTION_HOST
     valueFrom:
       configMapKeyRef:
-        name: egov-service-host
         key: egov-apportion-service
+        name: egov-service-host
   - name: APPORTION_BILL_PATH
-    value: "apportion-service/v2/bill/_apportion"
+    value: apportion-service/v2/bill/_apportion
   - name: HTTP_CLIENT_TIMEOUT_SECONDS
     value: "5"
   - name: MAX_INSTRUMENT_DATE_AGE_DAYS
     value: "90"
-  - name: JAEGER_SAMPLER_PARAM
-    value: "1"
-  - name: OTEL_TRACES_EXPORTER
-    value: "none"
-  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
-    value: "org.postgresql.Driver"
+  - name: SCHEMA_SEPARATION_MODE
+    value: "false"
+  - name: SCHEMA_SEPARATION_TOPIC
+    value: account-migration
+  - name: MIGRATION_FLYWAY_LOCATIONS
+    value: filesystem:/opt/digit/db/migrations
+  - name: MIGRATION_SCRIPT_PATH
+    value: /opt/digit/migrate.sh
+  - name: MIGRATION_FLYWAY_BIN
+    value: /opt/flyway/flyway
+  - name: MIGRATION_SCHEMA_TABLE
+    value: billing_schema

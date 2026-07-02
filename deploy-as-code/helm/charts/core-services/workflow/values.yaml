@@ -16,6 +16,35 @@ initContainers:
     schemaTable: workflow_schema
     image:
       repository: "workflow-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: JAVA_ENABLE_DEBUG
+          value: "TRUE"
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
 
 # Container Configs
 image:
@@ -36,47 +65,121 @@ resources: |
 env: |
   - name: SERVER_PORT
     value: "8080"
+  - name: CONTEXT_PATH
+    value: /workflow
   - name: DB_HOST
-    value: "postgresql-lts.egov"
+    value: postgresql-lts.egov
   - name: DB_PORT
     value: "5432"
   - name: DB_NAME
-    value: "postgres"
+    value: postgres
   - name: DB_USER
     valueFrom:
       secretKeyRef:
-        name: db
         key: username
+        name: db
   - name: DB_PASSWORD
     valueFrom:
       secretKeyRef:
-        name: db
         key: password
+        name: db
   - name: DB_SSL_MODE
-    value: "disable"
-  - name: RUN_MIGRATIONS
-    value: "true"
-  - name: MIGRATION_PATH
-    value: "db/migration"
-  - name: MIGRATION_TIMEOUT
-    value: "300s"
+    value: disable
   - name: LOG_LEVEL
-    value: "info"
+    value: info
   - name: GIN_MODE
-    value: "release"
-  {{- if index .Values "workflow-default-limit" }}
+    value: release
   - name: WORKFLOW_DEFAULT_LIMIT
-    value: {{ index .Values "workflow-default-limit" | quote }}
-  {{- end }}
-  {{- if index .Values "workflow-max-limit" }}
+    value: "100"
   - name: WORKFLOW_MAX_LIMIT
-    value: {{ index .Values "workflow-max-limit" | quote }}
-  {{- end }}
+    value: "1000"
   - name: OTEL_TRACES_EXPORTER
-    value: "none"
-  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
-    value: "org.postgresql.Driver"
+    value: none
+  - name: OTEL_ENABLED
+    value: "false"
+  - name: OTEL_SERVICE_NAME
+    value: workflow
+  - name: OTEL_SERVICE_VERSION
+    value: 1.0.0
+  - name: OTEL_METRICS_ENABLED
+    value: "true"
+  - name: PROMETHEUS_PORT
+    value: "9090"
+  - name: OTEL_TRACES_SAMPLER_ARG
+    value: "1.0"
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
+  - name: PUBSUB_ENABLED
+    value: "false"
+  - name: PUBSUB_TYPE
+    value: redis
+  - name: KAFKA_BROKERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+  - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+    value: "true"
+  - name: KAFKA_PARTITION_COUNT
+    value: "1"
+  - name: KAFKA_REPLICATION_FACTOR
+    value: "1"
+  - name: KAFKA_CONSUMER_GROUP
+    value: workflow-service
+  - name: REDIS_ADDRESS
+    value: redis.backbone.svc.cluster.local:6379
+  - name: REDIS_PASSWORD
+  - name: REDIS_DB
+    value: "0"
+  - name: REDIS_CONSUMER_GROUP
+    value: worflow-service
+  - name: REDIS_CONSUMER_ID
+    value: workflow-service-1
+  - name: REDIS_RETENTION_DAYS
+    value: "7"
+  - name: REDIS_MAX_STREAM_LENGTH
+    value: "1000000"
+  - name: REDIS_CLEANUP_INTERVAL
+    value: "86400"
+  - name: PUBSUB_TOPIC_CREATE_PROCESS
+    value: workflow-create-process
+  - name: PUBSUB_TOPIC_UPDATE_PROCESS
+    value: workflow-update-process
+  - name: PUBSUB_TOPIC_DELETE_PROCESS
+    value: workflow-delete-process
+  - name: PUBSUB_TOPIC_CREATE_STATE
+    value: workflow-create-state
+  - name: PUBSUB_TOPIC_UPDATE_STATE
+    value: workflow-update-state
+  - name: PUBSUB_TOPIC_DELETE_STATE
+    value: workflow-delete-state
+  - name: PUBSUB_TOPIC_CREATE_ACTION
+    value: workflow-create-action
+  - name: PUBSUB_TOPIC_UPDATE_ACTION
+    value: workflow-update-action
+  - name: PUBSUB_TOPIC_DELETE_ACTION
+    value: workflow-delete-action
+  - name: PUBSUB_TOPIC_CREATE_ESCALATION_CONFIG
+    value: workflow-create-escalation-config
+  - name: PUBSUB_TOPIC_UPDATE_ESCALATION_CONFIG
+    value: workflow-update-escalation-config
+  - name: PUBSUB_TOPIC_DELETE_ESCALATION_CONFIG
+    value: workflow-delete-escalation-config
+  - name: PUBSUB_TOPIC_TRANSITION
+    value: workflow-transition
+  - name: SCHEMA_SEPARATION_MODE
+    value: "false"
+  - name: SCHEMA_SEPARATION_TOPIC
+    value: account-migration
+  - name: MIGRATION_FLYWAY_LOCATIONS
+    value: filesystem:/opt/digit/db/migrations
+  - name: MIGRATION_SCRIPT_PATH
+    value: /opt/digit/migrate.sh
+  - name: MIGRATION_FLYWAY_BIN
+    value: /opt/flyway/flyway
+  - name: MIGRATION_SCHEMA_TABLE
+    value: workflow_schema
 
 # Workflow specific configurations
 workflow-default-limit: "100"
-workflow-max-limit: "1000" 
+workflow-max-limit: "1000"

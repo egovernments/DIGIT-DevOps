@@ -119,7 +119,7 @@ env: |
   - name: NOTIFY_ASYNC
     value: "false"
   - name: HMAC_SECRET
-    value: fillthis
+    value: ""
   - name: REDIS_HOST
     value: redis.backbone
   - name: REDIS_PORT
@@ -135,13 +135,11 @@ env: |
         key: token
         name: vault-root-token
   - name: VAULT_ROLE_ID
-    value: fillthis
+    value: ""
   - name: VAULT_SECRET_ID
-    value: fillthis
+    value: ""
   - name: VAULT_ENABLED
     value: "true"
-  - name: OTEL_TRACES_EXPORTER
-    value: none
   - name: OTEL_ENABLED
     value: "true"
   - name: OTEL_SERVICE_NAME
@@ -158,22 +156,52 @@ env: |
     value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
   - name: CONSOLE_LOGS_ENABLED
     value: "true"
-  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
-    value: org.postgresql.Driver
-  - name: JAEGER_SERVICE_NAME
-    value: otp
-  - name: JAEGER_SAMPLER_TYPE
-    value: remote
-  - name: JAEGER_AGENT_HOST
+  - name: PUBSUB_ENABLED
+    value: "false"
+  - name: PUBSUB_TYPE
+    value: kafka
+  - name: PUBSUB_TOPIC_GENERATE_OTP
+    value: otp-generate-otp
+  - name: PUBSUB_TOPIC_RESEND_OTP
+    value: otp-resend-otp
+  - name: PUBSUB_TOPIC_VERIFY_OTP
+    value: otp-verify-otp
+  - name: PUBSUB_TOPIC_INVALIDATE_OTP
+    value: otp-invalidate-otp
+  - name: KAFKA_BROKERS
     valueFrom:
-      fieldRef:
-        apiVersion: v1
-        fieldPath: status.hostIP
-  - name: JAEGER_AGENT_PORT
-    value: "6831"
-  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
-    value: $(JAEGER_AGENT_HOST):5778
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+  - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+    value: "true"
+  - name: KAFKA_PARTITION_COUNT
+    value: "1"
+  - name: KAFKA_REPLICATION_FACTOR
+    value: "1"
+  - name: KAFKA_CONSUMER_GROUP
+    value: otp-service
+  - name: REDIS_ADDRESS
+    value: redis.backbone.svc.cluster.local:6379
+  - name: REDIS_CONSUMER_GROUP
+    value: otp-service
+  - name: REDIS_CONSUMER_ID
+    value: otp-service-1
+  - name: REDIS_RETENTION_DAYS
+    value: "7"
+  - name: REDIS_MAX_STREAM_LENGTH
+    value: "1000000"
+  - name: REDIS_CLEANUP_INTERVAL
+    value: "86400"
   - name: SCHEMA_SEPARATION_MODE
     value: "false"
-  - name: TRACER_OPENTRACING_ENABLED
-    value: "true"
+  - name: SCHEMA_SEPARATION_TOPIC
+    value: account-migration
+  - name: MIGRATION_FLYWAY_LOCATIONS
+    value: filesystem:/opt/digit/db/migrations
+  - name: MIGRATION_SCRIPT_PATH
+    value: /opt/digit/migrate.sh
+  - name: MIGRATION_FLYWAY_BIN
+    value: /opt/flyway/flyway
+  - name: MIGRATION_SCHEMA_TABLE
+    value: otp_schema

@@ -18,7 +18,7 @@ initContainers:
     enabled: true
     schemaTable: "individual_schema_v3"
     image:
-      repository: "individual-db"
+      repository: "individual-java-db"
     env: |
         - name: "DB_URL"
           valueFrom:
@@ -51,23 +51,22 @@ initContainers:
 
 # Container Configs
 image:
-  repository: "individual"
+  repository: "individual-java"
 replicas: "1"
 healthChecks:
   enabled: false
   livenessProbePath: "/health"
   readinessProbePath: "/health"
-appType: "go"
-tracing-enabled: true
-state-level-tenant-id: "pg"
+appType: "java"
+tracing-enabled: false
 
 resources: |
   requests:
-    cpu: "200m"
-    memory: "512Mi"
+    cpu: "500m"
+    memory: "1Gi"
   limits:
-    cpu: "200m"
-    memory: "512Mi"
+    cpu: "1"
+    memory: "1.5Gi"
 
 # Additional Container Envs
 env: |
@@ -93,23 +92,11 @@ env: |
       secretKeyRef:
         key: password
         name: db
-  - name: MAX_IDLE_CONNS
-    value: "10"
-  - name: MAX_OPEN_CONNS
-    value: "50"
-  - name: CONN_MAX_LIFETIME
-    value: 5m
   - name: LOG_LEVEL
     value: DEBUG
-  - name: REDIS_HOST
-    value: redis.backbone
-  - name: REDIS_PORT
-    value: "6379"
   - name: REDIS_PASSWORD
   - name: REDIS_DB
     value: "0"
-  - name: REDIS_POOL_SIZE
-    value: "10"
   - name: IDGEN_HOST
     valueFrom:
       configMapKeyRef:
@@ -121,53 +108,12 @@ env: |
     value: "true"
   - name: IDGEN_INDIVIDUAL_ID_FORMAT
     value: individual
-  - name: STATE_LEVEL_TENANT_ID
-    value: pg
-  - name: EGOV_MDMS_HOST
-    valueFrom:
-      configMapKeyRef:
-        key: mdms-service-v2
-        name: egov-service-host
-  - name: EGOV_MDMS_SEARCH_ENDPOINT
-    value: /mdms-v2/v1/_search
-  - name: EGOV_ENC_HOST
-    valueFrom:
-      configMapKeyRef:
-        key: egov-enc-service
-        name: egov-service-host
-  - name: LOCALIZATION_SERVICE_HOST
-    valueFrom:
-      configMapKeyRef:
-        key: localization
-        name: egov-service-host
-  - name: LOCALIZATION_SEARCH_PATH
-    value: /localization/messages/v1/_search
-  - name: KEYCLOAK_BASE_URL
-    value: https://digit-lts.digit.org/keycloak
-  - name: KEYCLOAK_ENABLED
-    value: "true"
-  - name: KEYCLOAK_ASSIGNABLE_ROLES
-    value: ASSIGNER,CITIZEN
-  - name: BOUNDARY_SERVICE_HOST
-    valueFrom:
-      configMapKeyRef:
-        key: boundary
-        name: egov-service-host
-  - name: BOUNDARY_SEARCH_PATH
-    value: /boundary/v1
-  - name: BOUNDARY_HIERARCHY
-    value: HCM-Hierarchy
   - name: VAULT_HOST
     value: http://vault.vault-new.svc.cluster.local:8200
   - name: VAULT_ROLE_ID
-    value: fillthis
+    value: ""
   - name: VAULT_SECRET_ID
-    value: fillthis
-  - name: VAULT_TOKEN
-    valueFrom:
-      secretKeyRef:
-        key: token
-        name: vault-root-token
+    value: ""
   - name: VAULT_ENABLED
     value: "true"
   - name: PUBSUB_ENABLED
@@ -175,7 +121,10 @@ env: |
   - name: PUBSUB_TYPE
     value: redis
   - name: KAFKA_BROKERS
-    value: release-name-kafka-controller-headless.kafka-kraft:9092
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
   - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
     value: "true"
   - name: KAFKA_PARTITION_COUNT
@@ -226,8 +175,6 @@ env: |
     value: "false"
   - name: PROMETHEUS_PORT
     value: "9090"
-  - name: OTEL_TRACES_SAMPLER_ARG
-    value: "1.0"
   - name: OTEL_EXPORTER_OTLP_ENDPOINT
     value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
   - name: CONSOLE_LOGS_ENABLED

@@ -4,15 +4,27 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
 
 func main() {
-	// Read the YAML file
-	yamlFile, err := ioutil.ReadFile("../aws/input.yaml")
+	// The cloud provider is derived from the directory the command is run in.
+	// Intended usage (run from within a provider directory):
+	//     cd aws   && go run ../scripts/init.go
+	//     cd azure && go run ../scripts/init.go
+	cwd, err := os.Getwd()
 	if err != nil {
-		log.Fatalf("Failed to read YAML file: %v", err)
+		log.Fatalf("Failed to determine current directory: %v", err)
+	}
+	provider := filepath.Base(cwd)
+
+	// Read the input.yaml located in the current directory
+	yamlFile, err := ioutil.ReadFile("input.yaml")
+	if err != nil {
+		log.Fatalf("Failed to read input.yaml in %s: %v", cwd, err)
 	}
 
 	// Parse the YAML content
@@ -21,23 +33,58 @@ func main() {
 		log.Fatalf("Failed to parse YAML: %v", err)
 	}
 
-	validateInputs(data)
+	switch provider {
+	case "aws":
+		// AWS: inputs are validated here in Go before substitution.
+		validateInputs(data)
 
-	// Read the variables.tf file
-	replaceInFile("../aws/variables.tf", data, false)
-	fmt.Println("variables.tf file updated successfully!")
+		replaceInFile("variables.tf", data, false, true)
+		fmt.Println("variables.tf file updated successfully!")
 
-	replaceInFile("../aws/remote-state/variables.tf", data, false)
-	fmt.Println("remote-state/variables.tf file updated successfully!")
+		replaceInFile("remote-state/variables.tf", data, false, true)
+		fmt.Println("remote-state/variables.tf file updated successfully!")
 
-	replaceInFile("../aws/main.tf", data, false)
-	fmt.Println("main.tf file updated successfully!")
+		replaceInFile("main.tf", data, false, true)
+		fmt.Println("main.tf file updated successfully!")
 
-	replaceInFile("../../../deploy-as-code/helm/environments/egov-demo.yaml", data, true)
-	fmt.Println("env yaml file updated successfully!")
+		replaceInFile("../../../deploy-as-code/helm/environments/egov-demo.yaml", data, true, true)
+		fmt.Println("env yaml file updated successfully!")
 
-	replaceInFile("../../../deploy-as-code/helm/environments/egov-demo-secrets.yaml", data, true)
-	fmt.Println("env secrets yaml file updated successfully!")
+		replaceInFile("../../../deploy-as-code/helm/environments/egov-demo-secrets.yaml", data, true, true)
+		fmt.Println("env secrets yaml file updated successfully!")
+
+	case "azure":
+		// Azure: validation is handled by the native `validation {}` blocks in
+		// variables.tf, so we skip the Go-side validation and only substitute
+		// the <placeholder> markers with the values from input.yaml.
+		replaceInFile("variables.tf", data, false, false)
+		fmt.Println("variables.tf file updated successfully!")
+
+		replaceInFile("remote-state/variables.tf", data, false, false)
+		fmt.Println("remote-state/variables.tf file updated successfully!")
+
+		// In main.tf the placeholders are already wrapped in quotes (e.g.
+		// "<subscription_id>", "<cluster_name>-rg"), so strip the quotes from
+		// the substituted value to avoid doubling them.
+		replaceInFile("main.tf", data, false, false)
+		fmt.Println("main.tf file updated successfully!")
+
+	case "gcp":
+		// GCP: no Go-side validation. All placeholders in the GCP .tf files are
+		// wrapped in quotes (e.g. default = "<GCP_PROJECT_ID>"), so strip the
+		// quotes from the substituted value to avoid doubling them.
+		replaceInFile("variables.tf", data, true, false)
+		fmt.Println("variables.tf file updated successfully!")
+
+		replaceInFile("remote-state/variables.tf", data, true, false)
+		fmt.Println("remote-state/variables.tf file updated successfully!")
+
+		replaceInFile("main.tf", data, true, false)
+		fmt.Println("main.tf file updated successfully!")
+
+	default:
+		log.Fatalf("Unsupported provider directory %q. Run this command from within the aws, azure or gcp directory (e.g. `cd gcp && go run ../scripts/init.go`).", provider)
+	}
 }
 
 func validateInputs(data map[string]interface{}) {
@@ -58,20 +105,20 @@ func validateInputs(data map[string]interface{}) {
 
 }
 
-func replaceInFile(filepath string, data map[string]interface{}, stripQuotes bool) {
+func replaceInFile(filepath string, data map[string]interface{}, stripQuotes bool, validate bool) {
 	// Read the file
 	content, err := ioutil.ReadFile(filepath)
 	if err != nil {
-		log.Fatalf("Failed to read file: %v", err)
+		log.Fatalf("Failed to read file %s: %v", filepath, err)
 	}
 
 	// Replace the values in the file
-	newContent := replaceVariableValues(string(content), data, stripQuotes)
+	newContent := replaceVariableValues(string(content), data, stripQuotes, validate)
 
 	// Write the modified content to the file
 	err = ioutil.WriteFile(filepath, []byte(newContent), 0644)
 	if err != nil {
-		log.Fatalf("Failed to write file: %v", err)
+		log.Fatalf("Failed to write file %s: %v", filepath, err)
 	}
 
 }
@@ -108,12 +155,12 @@ func parseYAML(content string) (map[string]interface{}, error) {
 }
 
 // Function to replace the values in the variables.tf file
-func replaceVariableValues(content string, data map[string]interface{}, stripQuotes bool) string {
+func replaceVariableValues(content string, data map[string]interface{}, stripQuotes bool, validate bool) string {
 	for key, value := range data {
 		placeholder := fmt.Sprintf("<%s>", key) // Include angle brackets in the placeholder
 		replacement := fmt.Sprintf("%v", value)
 
-		if placeholder == "<db_name>" || placeholder == "<db_username>" {
+		if validate && (placeholder == "<db_name>" || placeholder == "<db_username>") {
 			isValidDBName(replacement)
 		}
 

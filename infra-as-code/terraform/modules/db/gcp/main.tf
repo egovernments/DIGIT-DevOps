@@ -1,7 +1,7 @@
 resource "google_sql_database_instance" "postgres_instance" {
   name             = var.db_instance_name
   region           = var.region
-  database_version = "POSTGRES_15"
+  database_version = var.db_version
 
   settings {
     tier      = var.db_instance_tier

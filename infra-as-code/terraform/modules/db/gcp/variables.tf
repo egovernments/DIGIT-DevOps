@@ -7,6 +7,7 @@ variable "vpc_id" {}
 variable "db_name" {}
 variable "db_username" {}
 variable "db_password" {}
+variable "db_version" {}
 variable db_charset {
   default = "UTF8"
 }

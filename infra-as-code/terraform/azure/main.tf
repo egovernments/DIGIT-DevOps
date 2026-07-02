@@ -5,16 +5,16 @@ provider "azurerm" {
 
 terraform {
   backend "azurerm" {
-    resource_group_name  = "<cluster_name>-rg"
+    resource_group_name  = "<resource_group>"
     storage_account_name = "<storage_account_name>"
-    container_name       = "<cluster_name>-container"
+    container_name       = "<environment>-container"
     key                  = "terraform.tfstate"
   }
 }
 
 resource "azurerm_virtual_network" "vnet" {
   name                = "${var.resource_group}-virtual-network"
-  address_space       = ["10.0.0.0/16"]
+  address_space       = var.vnet_address_space
   location            = var.location
   resource_group_name = var.resource_group
 }
@@ -23,7 +23,7 @@ resource "azurerm_subnet" "aks" {
   name         = "${var.resource_group}-aks-subnet"
   resource_group_name = var.resource_group
   virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes   = ["10.0.0.0/21"]
+  address_prefixes   = var.aks_address_prefixes
 }
 
 # Give AKS system-assigned identity permission to join the subnet
@@ -37,7 +37,7 @@ resource "azurerm_subnet" "postgres" {
   name         = "${var.resource_group}-postgres-subnet"
   resource_group_name = var.resource_group
   virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes   = ["10.0.8.0/21"]
+  address_prefixes   = var.postgres_address_prefixes
   service_endpoints  = ["Microsoft.Storage"]
 
   delegation {
@@ -97,10 +97,11 @@ module "kubernetes" {
   name                      = var.environment
   location                  = var.location
   resource_group            = var.resource_group
-  vm_size                   = "Standard_E2as_v5"
-  node_count                = 4
+  vm_size                   = var.vm_size
+  node_count                = var.node_count
   vnet_subnet_id            = azurerm_subnet.aks.id
-  os_disk_size_gb           = 64
+  os_disk_size_gb           = var.os_disk_size_gb
+  kubernetes_version        = var.kubernetes_version
 }
 
 module "postgres-db" {
@@ -108,9 +109,9 @@ module "postgres-db" {
   environment               = var.environment
   resource_group            = var.resource_group
   location                  = var.location
-  sku_name                  = "B_Standard_B2ms"
-  storage_mb                = "65536"
-  backup_retention_days     = "7"
+  sku_name                  = var.db_sku_name
+  storage_mb                = var.db_storage_mb
+  backup_retention_days     = var.db_backup_retention_days
   administrator_login       = var.db_user
   administrator_password    = var.db_password
   db_version                = var.db_version

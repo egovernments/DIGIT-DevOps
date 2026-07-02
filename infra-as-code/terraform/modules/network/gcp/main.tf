@@ -9,6 +9,14 @@ resource "google_compute_subnetwork" "public_subnet" {
   region                   = var.region
   network                  = google_compute_network.vpc_network.id
   private_ip_google_access = false
+  dynamic "log_config" {
+    for_each = var.flow_logs ? [1] : []
+    content {
+      aggregation_interval = "INTERVAL_5_SEC"
+      flow_sampling        = var.flow_logs_sampling
+      metadata             = var.flow_logs_metadata
+    }
+  }
 }
 
 resource "google_compute_subnetwork" "private_subnet" {
@@ -17,6 +25,14 @@ resource "google_compute_subnetwork" "private_subnet" {
   region                   = var.region
   network                  = google_compute_network.vpc_network.id
   private_ip_google_access = true
+  dynamic "log_config" {
+    for_each = var.flow_logs ? [1] : []
+    content {
+      aggregation_interval = "INTERVAL_5_SEC"
+      flow_sampling        = var.flow_logs_sampling
+      metadata             = var.flow_logs_metadata
+    }
+  }
 }
 
 resource "google_compute_global_address" "private_service_ip" {

@@ -3,6 +3,7 @@
 variable "environment" {
   description = "The environment tag for Azure resources"
   type        = string
+  default     = "<environment>"
   validation {
     condition = (
       length(var.environment) >= 3 &&
@@ -21,11 +22,14 @@ EOT
   }
 }
 
-variable "location" {}
+variable "location" {
+  default = "<location>"
+}
 
 variable "resource_group" {
   description = "Azure Resource Group name"
   type        = string
+  default     = "<resource_group>"
 
   validation {
     condition = (

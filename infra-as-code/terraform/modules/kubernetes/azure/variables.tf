@@ -6,3 +6,4 @@ variable "location" {}
 variable "environment" {}
 variable "vnet_subnet_id" {}
 variable "os_disk_size_gb" {}
+variable "kubernetes_version" {}

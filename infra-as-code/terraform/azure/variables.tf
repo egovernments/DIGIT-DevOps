@@ -1,6 +1,7 @@
 variable "environment" {
   description = "The environment tag for Azure resources"
   type        = string
+  default     = "<environment>"
   validation {
     condition = (
       length(var.environment) >= 3 &&
@@ -22,6 +23,7 @@ EOT
 variable "resource_group" {
   description = "Azure Resource Group name"
   type        = string
+  default     = "<resource_group>"
 
   validation {
     condition = (
@@ -41,15 +43,25 @@ EOT
   }
 }
 
-variable "location" {}
+variable "location" {
+  description = "Azure region where resources will be deployed"
+  default     = "<location>"
+}
 
 variable "db_version" {
-    default = "15"
+  description = "PostgreSQL Flexible Server engine version"
+  default     = "15"
+}
+
+variable "kubernetes_version"{
+  description = "AKS version"
+  default     = "1.34"
 }
 
 variable "db_user" {
   description = "Azure DB User name"
   type        = string
+  default     = "<db_user>"
 
   validation {
     condition = (
@@ -85,3 +97,51 @@ DB password must:
 EOT
   }
 }
+
+
+variable "vnet_address_space" {
+  description = "CIDR range for the Azure virtual network"
+  default = ["10.0.0.0/16"]
+}
+
+variable "aks_address_prefixes" {
+  description = "CIDR range for the AKS subnet"
+  default = ["10.0.0.0/21"]
+}
+
+variable "postgres_address_prefixes" {
+  description = "CIDR range for the PostgreSQL subnet"
+  default = ["10.0.8.0/21"]
+}
+
+variable "vm_size" {
+  description = "Azure VM size for the AKS default node pool"
+  default = "standard_e2s_v3"  # 2vCPU's, 16GB
+}
+
+variable "node_count" {
+  description = "Number of nodes in the AKS default node pool"
+  default = 3
+}
+
+variable "os_disk_size_gb" {
+  description = "OS disk size in GB for AKS worker nodes"
+  default = 64
+}
+
+variable "db_sku_name" {
+  description = "SKU name for the Azure PostgreSQL Flexible Server"
+  default = "B_Standard_B2ms"
+}
+
+variable "db_storage_mb" {
+  description = "Allocated storage size in MB for the PostgreSQL Flexible Server"
+  default = "65536"
+}
+
+variable "db_backup_retention_days" {
+  description = "Number of days to retain PostgreSQL backups"
+  default = "7"
+}
+
+

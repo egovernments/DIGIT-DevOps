@@ -15,7 +15,7 @@ initContainers:
     enabled: true
     schemaTable: "employee_schema"
     image:
-      repository: "employee-db"
+      repository: "employee-java-db"
     env: |
         - name: "DB_URL"
           valueFrom:
@@ -48,9 +48,9 @@ initContainers:
 
 # Container Configs
 image:
-  repository: "employee"
+  repository: "employee-java"
 replicas: 1
-appType: "go"
+appType: "java"
 tracing-enabled: true # Assuming you want to keep tracing
 healthChecks:
   enabled: false # Disabled as requested
@@ -59,11 +59,11 @@ healthChecks:
 # Resource configuration for Go service
 resources: |
   requests:
-    cpu: "200m"
-    memory: "512Mi"
+    cpu: "500m"
+    memory: "1Gi"
   limits:
-    cpu: "200m"
-    memory: "512Mi"
+    cpu: "1"
+    memory: "1.5Gi"
 
 # Additional Container Envs
 env: |
@@ -116,7 +116,10 @@ env: |
   - name: PUBSUB_TYPE
     value: redis
   - name: KAFKA_BROKERS
-    value: release-name-kafka-controller-headless.kafka-kraft:9092
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
   - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
     value: "true"
   - name: KAFKA_PARTITION_COUNT
@@ -162,21 +165,6 @@ env: |
     value: /opt/flyway/flyway
   - name: MIGRATION_SCHEMA_TABLE
     value: employee_schema
-  - name: JAEGER_SERVICE_NAME
-    value: employee
-  - name: JAEGER_SAMPLER_TYPE
-    value: remote
-  - name: JAEGER_AGENT_HOST
-    valueFrom:
-      fieldRef:
-        apiVersion: v1
-        fieldPath: status.hostIP
-  - name: JAEGER_AGENT_PORT
-    value: "6831"
-  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
-    value: $(JAEGER_AGENT_HOST):5778
-  - name: TRACER_OPENTRACING_ENABLED
-    value: "true"
   - name: OTEL_ENABLED
     value: "false"
   - name: OTEL_SERVICE_NAME

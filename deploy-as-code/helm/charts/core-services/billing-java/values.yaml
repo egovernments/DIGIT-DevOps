@@ -15,7 +15,7 @@ initContainers:
     enabled: true
     schemaTable: "billing_schema"
     image:
-      repository: "billing-db"
+      repository: "billing-java-db"
     env: |
         - name: "DB_URL"
           valueFrom:
@@ -48,10 +48,9 @@ initContainers:
 
 # Container Configs
 image:
-  repository: "billing"
+  repository: "billing-java"
 replicas: "1"
-appType: "go"
-tracing-enabled: true
+appType: "java"
 healthChecks:
   enabled: false
   livenessProbePath: "/health"
@@ -59,11 +58,11 @@ healthChecks:
 # Resource configuration for Go service
 resources: |
   requests:
-    cpu: "200m"
-    memory: "512Mi"
+    cpu: "500m"
+    memory: "1Gi"
   limits:
-    cpu: "200m"
-    memory: "512Mi"
+    cpu: "1"
+    memory: "1.5Gi"
 
 # Additional Container Envs
 env: |
@@ -89,10 +88,10 @@ env: |
       secretKeyRef:
         key: password
         name: db
-  - name: MESSAGE_BROKER_ENABLED
+  - name: PUBSUB_ENABLED
     value: "false"
-  - name: MESSAGE_BROKER_TYPE
-    value: KAFKA
+  - name: PUBSUB_TYPE
+    value: kafka
   - name: KAFKA_BROKERS
     valueFrom:
       configMapKeyRef:
@@ -100,11 +99,33 @@ env: |
         name: egov-config
   - name: KAFKA_CONSUMER_GROUP
     value: notification-consumer-group
-  - name: REDIS_ADDR
+  - name: KAFKA_AUTO_CREATE_TOPICS
+    value: "true"
+  - name: KAFKA_PARTITIONS
+    value: "1"
+  - name: KAFKA_REPLICATION_FACTOR
+    value: "1"
+  - name: PUBSUB_REDIS_ADDR
     value: redis.backbone:6379
-  - name: REDIS_PASSWORD
-  - name: REDIS_DB
+  - name: PUBSUB_REDIS_PASSWORD
+  - name: PUBSUB_REDIS_DB
     value: "0"
+  - name: REDIS_CONSUMER_GROUP
+    value: billing-service
+  - name: REDIS_CONSUMER_ID
+    value: billing-service-1
+  - name: REDIS_STREAM_RETENTION_DAYS
+    value: "7"
+  - name: REDIS_STREAM_MAX_LEN
+    value: "1000000"
+  - name: REDIS_STREAM_CLEANUP_INTERVAL
+    value: 24h
+  - name: BULK_BILL_CONSUMER_BATCH_SIZE
+    value: "10"
+  - name: BULK_BILL_GENERATION_PUBSUB_TOPIC
+    value: bulk-bill-generator
+  - name: BULK_BILL_GENERATION_DLQ_PUBSUB_TOPIC
+    value: bulk-bill-generator-dlq
   - name: DEMAND_ENABLE_ARREARS
     value: "TRUE"
   - name: IDGEN_HOST
@@ -133,27 +154,6 @@ env: |
     value: "5"
   - name: MAX_INSTRUMENT_DATE_AGE_DAYS
     value: "90"
-  - name: JAEGER_SAMPLER_PARAM
-    value: "1"
-  - name: OTEL_TRACES_EXPORTER
-    value: none
-  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
-    value: org.postgresql.Driver
-  - name: JAEGER_SERVICE_NAME
-    value: billing
-  - name: JAEGER_SAMPLER_TYPE
-    value: remote
-  - name: JAEGER_AGENT_HOST
-    valueFrom:
-      fieldRef:
-        apiVersion: v1
-        fieldPath: status.hostIP
-  - name: JAEGER_AGENT_PORT
-    value: "6831"
-  - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
-    value: $(JAEGER_AGENT_HOST):5778
-  - name: TRACER_OPENTRACING_ENABLED
-    value: "true"
   - name: SCHEMA_SEPARATION_MODE
     value: "false"
   - name: SCHEMA_SEPARATION_TOPIC
@@ -166,3 +166,21 @@ env: |
     value: /opt/flyway/flyway
   - name: MIGRATION_SCHEMA_TABLE
     value: billing_schema
+  - name: OTEL_ENABLED
+    value: "false"
+  - name: OTEL_METRICS_ENABLED
+    value: "false"
+  - name: OTEL_SERVICE_NAME
+    value: billing
+  - name: OTEL_SERVICE_VERSION
+    value: 1.0.0
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
+  - name: OTEL_TRACES_SAMPLER_ARG
+    value: "1.0"
+  - name: PROMETHEUS_PORT
+    value: "9090"
+  - name: LOG_LEVEL
+    value: DEBUG
+  - name: CONSOLE_LOGS_ENABLED
+    value: "true"

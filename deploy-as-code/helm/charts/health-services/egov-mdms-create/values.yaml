@@ -1,0 +1,116 @@
+# Common Labels
+labels:
+  app: "egov-mdms-create"
+  group: "core"
+
+namespace: health
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "egov-mdms-create"
+  namespace: egov
+
+# Init Containers Configs
+initContainers:
+  gitSync:
+    enabled: true
+    repo: "git@github.com:egovernments/egov-mdms-data"
+    branch: "master"
+
+# Container Configs
+image:
+  repository: "egov-mdms-create"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/egov-mdms-create/health"
+  readinessProbePath: "/egov-mdms-create/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+java-args: "-Dspring.profiles.active=monitoring"
+mdms-path: "/work-dir/egov-mdms-data/data"
+mdms-git-url: ""
+mdms-folder: "egov-mdms-data"
+masters-config-url: "file:///work-dir/egov-mdms-data/master-config.json"
+git-repo-path: "file:///work-dir/egov-mdms-data/"
+egov-repo-branch: "DEV"
+branch: "UNIFIED-UAT"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_CONTEXT_PATH
+    value: /egov-mdms-create
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: mdms-service-create
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  {{- if index .Values "global" "serializers-timezone-in-ist" }}
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.egov.tracer.kafka.serializer.ISTTimeZoneJsonSerializer
+  {{- end }}
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: EGOV_MDMS_CONF_PATH
+    value: {{ index .Values "mdms-path" | quote }}
+  - name: EGOV_DATA_ROOT_FOLDER
+    value: data
+  - name: EGOV_REPO_OWNER
+    value: egovernments
+  - name: EGOV_REPO
+    value: {{ index .Values "mdms-folder" | quote }}
+  - name: EGOV_REPO_BRANCH
+    value: {{ index .Values "egov-repo-branch" | quote }}
+  - name: EGOV_MDMS_GIT_URL
+    value: {{ index .Values "mdms-git-url" | quote }}
+  - name: EGOV_MDMS_FOLDER
+    value: {{ index .Values "mdms-folder" | quote }}
+  - name: MASTERS_CONFIG_URL
+    value: {{ index .Values "masters-config-url" | quote }}
+  - name: GIT_REPO_PATH
+    value: {{ index .Values "git-repo-path" | quote }}
+  - name: RELOAD_PATH_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service-legacy
+  - name: RELOAD_PATH_ENDPOINT
+    value: /egov-mdms-service-legacy/v1/_reload
+  - name: RELOADOBJ_PATH_ENDPOINT
+    value: /egov-mdms-service-legacy/v1/_reloadobj
+  - name: SEARCH_PATH_ENDPOINT
+    value: /egov-mdms-service-legacy/v1/_search
+  - name: FILEPATH_RELOAD
+    value: "false"
+  - name: RELOAD_ENABLED
+    value: "false"
+  - name: CACHE_FETCH_ENABLED
+    value: "true"
+  - name: EGOV_GITHUB_USER
+    valueFrom:
+      secretKeyRef:
+        name: hcm-moz-impl
+        key: githubusername
+  - name: EGOV_GITHUB_PASS
+    valueFrom:
+      secretKeyRef:
+        name: hcm-moz-impl
+        key: githubpat
+  - name: EGOV_KAFKA_TOPICS_GITPUSHPROCESS
+    value: mdms.create.gitpushprocess
+  - name: EGOV_KAFKA_TOPICS_GITPUSHPROCESS_KEY
+    value: mdms.create.gitpushprocess.key
+  {{- if index .Values "branch" }}
+  - name: BRANCH
+    value: {{ index .Values "branch" | quote }}
+  {{- end }}
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"  
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"

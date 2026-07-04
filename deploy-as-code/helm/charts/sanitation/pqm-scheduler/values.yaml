@@ -1,0 +1,47 @@
+# Common Labels
+labels:
+  app: "pqm-scheduler"
+  group: "rainmaker"
+
+namespace: sanitation
+
+cron:
+  schedule: "*/10 * * * *"
+  
+# Container Configs
+image:
+  repository: "egovio/pqm-scheduler"
+  tag: "latest"
+
+command: 
+  - "python3"
+  - "cronJobAPIConfig.py"
+args: 
+  - "daily"  
+
+
+# Additional Container Envs
+env: |
+  - name: TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id
+  - name: USER_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user-egov
+  - name: PQM_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: pqm-service
+  {{- if index .Values "user-name" }}
+  - name: USER_NAME
+    value: {{ index .Values "user-name" | quote }}
+  {{- end }}
+resources: |
+  requests: {}
+  
+    

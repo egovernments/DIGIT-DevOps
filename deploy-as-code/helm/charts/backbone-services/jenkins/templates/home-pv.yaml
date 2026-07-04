@@ -1,52 +1,70 @@
 {{- if not (contains "jenkins-home" (quote .Values.persistence.volumes)) }}
 {{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) -}}
 {{- if or .Values.persistence.aws .Values.persistence.azure .Values.persistence.iscsi .Values.persistence.openstack -}}
-{{- $idx := 0 -}}
 apiVersion: v1
 kind: PersistentVolume
 metadata:
   name: {{ template "jenkins.fullname" . }}
-  labels:
-{{- include "common.labels" . | nindent 4 }} 
+  labels: {{- include "common.labels" . | nindent 4 }}
 {{- if .Values.persistence.aws }}   
-    failure-domain.beta.kubernetes.io/zone: {{ index .Values "persistence" "aws" $idx "zone" }}
-    topology.kubernetes.io/zone: {{ index .Values "persistence" "aws" $idx "zone" }}
+    failure-domain.beta.kubernetes.io/zone: {{ index .Values "persistence" "aws" "zone" }}
+    topology.kubernetes.io/zone: {{ index .Values "persistence" "aws" "zone" }}
 {{- end }}     
 spec:
- capacity:
+  capacity:
     storage: {{ .Values.persistence.size | quote }}
- accessModes:
-    - ReadWriteOnce
- persistentVolumeReclaimPolicy: Retain
- claimRef:
-    namespace: {{ template "jenkins.namespace" . }} 
+  accessModes:
+    - {{ .Values.persistence.accessMode | quote }}
+  persistentVolumeReclaimPolicy: Retain
+  claimRef:
+    namespace: {{ template "jenkins.namespace" . }}
     name: {{ template "jenkins.fullname" . }}
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
 {{- if .Values.persistence.aws }}
- awsElasticBlockStore:
-    volumeID: {{ index .Values "persistence" "aws" $idx "volumeId" }}
+  awsElasticBlockStore:
+    volumeID: {{ index .Values "persistence" "aws" "volumeId" }}
     fsType: ext4
 {{- end }} 
 {{- if .Values.persistence.azure }}
- azureDisk:
-    cachingMode: ReadWrite
-    diskName: {{ index .Values "persistence" "azure" $idx "diskName" }}
-    diskURI: {{ index .Values "persistence" "azure" $idx "diskUri" }}
-    kind: Managed
-    fsType: ext4 
+  csi:
+    driver: disk.csi.azure.com
+    volumeHandle: {{ index .Values "persistence" "azure" "volumeHandle" }}
+    volumeAttributes:
+       fsType: ext4
 {{- end }}     
 {{- if .Values.persistence.openstack }}
- cinder: 
+  cinder:
     fsType: "ext4" 
-    volumeID: {{ index .Values "persistence" "openstack" $idx }}
+    volumeID: {{ index .Values "persistence" "openstack" }}
 {{- end }}  
 {{- if .Values.persistence.iscsi }}
- iscsi:
-   targetPortal: {{ index .Values "persistence" "iscsi" "targetPortal" }} 
-   iqn: {{ index .Values "persistence" "iscsi" "iqn" $idx }}
-   lun: 0
-   fsType: 'ext4'
-   readOnly: true  
-{{- end }}     
+  iscsi:
+    targetPortal: {{ index .Values "persistence" "iscsi" "targetPortal" }}
+    iqn: {{ index .Values "persistence" "iscsi" "iqn" }}
+    lun: 0
+    fsType: 'ext4'
+    readOnly: true
 {{- end }}
 {{- end }}
+{{- end }}
+{{- end }}
+---
+{{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) -}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: kaniko-cache-volume
+  labels: {{- include "common.labels" . | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.persistence.cache.size | quote }}
+  accessModes:
+    - {{ .Values.persistence.cache.accessMode | quote }}
+  persistentVolumeReclaimPolicy: Retain
+  claimRef:
+    namespace: {{ template "jenkins.namespace" . }}
+    name: {{ .Values.persistence.cache.claimName | quote }}
+  storageClassName: {{ .Values.persistence.cache.storageClass | quote }}
+  hostPath:
+    path: {{ .Values.persistence.cache.hostPath | quote }}
 {{- end }}

@@ -5,7 +5,7 @@ namespace: egov
 
 image:
   repository: "docker.io/postgres"
-  tag: "9.6"
+  tag: "14"
 replicas: "1"
 httpPort: 5432
 
@@ -23,29 +23,21 @@ env: |
         name: db
         key: password
   - name:  POSTGRES_USER
-    valueFrom: 
-      secretKeyRef: 
+    valueFrom:
+      secretKeyRef:
         name: db
         key: username
   - name: POSTGRES_DB
     value: {{ default "" .Values.postgresDatabase | quote }}
-
-postgresDatabase: fsm_uat_db
-
-persistence:
-  enabled: true
-  aws:
-    volumeId: "vol-07f28c02de2af64ef"
-  storageClassName: default
-  accessMode: ReadWriteOnce
-  dataDirSize: 20Gi 
-  volumeMode: Filesystem
-
 extraVolumeMounts: |
-  - mountPath: /var/lib/postgresql/data
-    name: postgres-data
-    subPath: html
+  - name: postgres-volume
+    mountPath: /var/lib/postgresql/data
 extraVolumes: |
-  - name: postgres-data
+  - name: postgres-volume
+  {{- if eq .Values.global.setup "quickstart" }} 
     persistentVolumeClaim:
-      claimName: postgres-data
+      claimName: pvc-postgres
+  {{- end}}    
+
+
+postgresDatabase: egov_ms      

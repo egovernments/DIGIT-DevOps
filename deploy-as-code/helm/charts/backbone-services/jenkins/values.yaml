@@ -21,9 +21,20 @@ oauth:
     user: 
       - egovernments*micro-service-dev
 
+CIOps:
+  repo: "git@github.com:egovernments/CIOps.git"
+  branch: "master"
+
+vcs:
+  provider: github        # github | gitlab | bitbucket | azure-devops | gitea
+  webUrl: ""              # empty = public cloud; set full URL for self-hosted/private endpoint
+  apiUrl: ""              # empty = public cloud; GitHub Enterprise: https://HOST/api/v3; GitLab: https://HOST/api/v4
+  tenantId: ""            # azure-devops only
+
 jobBuilder:
-  repos: >-
-    'git@github.com:egovernments/core-services.git','git@github.com:egovernments/business-services.git'
+  repos:
+    - egovernments/core-services
+    - egovernments/business-services
 
 master:
   httpsKeyStore:
@@ -78,8 +89,8 @@ master:
   # Used for label app.kubernetes.io/component
   componentName: "jenkins-master"
   image:
-    repository: "nithindv/jenkins"
-    tag: 2.242-alpine
+    repository: "jenkins/jenkins"
+    tag: "2.555.1-lts-jdk21"
   imagePullPolicy: "IfNotPresent"
   imagePullSecretName:
   # Optionally configure lifetime for master-container
@@ -97,7 +108,7 @@ master:
   markupFormatter: plainText
   customJenkinsLabels: []
   # configAutoReload requires UseSecurity is set to true:
-  useSecurity: false
+  useSecurity: true
 
   # enables configuration done directly via XML files
   enableXmlConfig: false
@@ -116,7 +127,7 @@ master:
   adminUser: "admin"
   # adminPassword: <defaults to random>
   admin:
-    existingSecret: ""
+    existingSecret: "jenkins-credentials"
     userKey: jenkins-admin-user
     passwordKey: jenkins-admin-password
   # This values should not be changed unless you use your custom image of jenkins or any devired from. If you want to use
@@ -136,8 +147,17 @@ master:
     limits:
       cpu: "1000m"
       memory: "1024Mi"
-  # Set min/max heap here if needed with:
-  javaOpts: "-Xms512M -Xmx512M -Duser.timezone=Asia/Calcutta"
+  # JVM options — heap overridden per environment in ci.yaml
+  javaOpts: >-
+    -Xms512M -Xmx512M
+    -Djava.awt.headless=true
+    -Dfile.encoding=UTF-8
+    -Duser.timezone=Asia/Calcutta
+    -XX:+UseG1GC
+    -XX:+ExplicitGCInvokesConcurrent
+    -XX:+ParallelRefProcEnabled
+    -XX:+DisableExplicitGC
+    -XX:+AlwaysPreTouch
   # jenkinsOpts: ""
   # jenkinsUrl: ""
   # If you set this prefix and use ingress controller then you might want to set the ingress path below
@@ -148,12 +168,12 @@ master:
   #   - name: http_proxy
   #     value: "http://192.168.64.1:3128"
   containerEnv:
-    - name: GITHUB_CLIENT_ID
+    - name: VCS_CLIENT_ID
       valueFrom:
         secretKeyRef:
           name: jenkins-credentials
           key: clientID
-    - name: GITHUB_CLIENT_SECRET
+    - name: VCS_CLIENT_SECRET
       valueFrom:
         secretKeyRef:
           name: jenkins-credentials
@@ -167,12 +187,21 @@ master:
       valueFrom:
         secretKeyRef:
           name: jenkins-credentials
-          key: slackToken   
+          key: slackToken
+    - name: GITHUB_KNOWN_HOSTS
+      valueFrom:
+        secretKeyRef:
+          name: jenkins-credentials
+          key: gitKnownHosts
+    - name: COLLECTING_METRICS_PERIOD_IN_SECONDS
+      value: "120"
   usePodSecurityContext: true
   # Set runAsUser to 1000 to let Jenkins run as non-root user 'jenkins' which exists in 'jenkins/jenkins' docker image.
   # When setting runAsUser to a different value than 0 also set fsGroup to the same value:
   runAsUser: 1000
   fsGroup: 1000
+  # OnRootMismatch skips recursive chown when root dir ownership already matches (avoids slow startup on large volumes)
+  fsGroupChangePolicy: "OnRootMismatch"
   servicePort: 8080
   targetPort: 8080
   # For minikube, set this to NodePort, elsewhere use LoadBalancer
@@ -200,8 +229,18 @@ master:
   healthProbeReadinessPeriodSeconds: 10
   healthProbeLivenessFailureThreshold: 5
   healthProbeReadinessFailureThreshold: 3
+  # Increased for 2.555.1 — startup probe now handles the long initial boot
   healthProbeLivenessInitialDelay: 90
   healthProbeReadinessInitialDelay: 60
+  # Startup probe: allows up to 12×20 = 240 s for initial boot before liveness kicks in
+  startupProbe:
+    enabled: true
+    httpGet:
+      path: "/login"
+      port: http
+    periodSeconds: 20
+    failureThreshold: 12
+    timeoutSeconds: 5
   slaveListenerPort: 50000
   slaveHostPort:
   disabledAgentProtocols:
@@ -254,23 +293,46 @@ master:
   # - name: BuildInfoProxy
   #   port: 9000
 
-  # List of plugins to be install during Jenkins master start
-  # installPlugins:
-  #   - kubernetes:1.25.7
-  #   - workflow-job:2.39
-  #   - workflow-aggregator:2.6
-  #   - credentials-binding:1.23
-  #   - git:4.2.2
-  #   - configuration-as-code:1.41
+  # Plugins installed via jenkins-plugin-cli on every pod start.
+  # No version pins — jenkins-plugin-cli resolves the latest version compatible
+  # with the running Jenkins core (2.555.1 / JDK 21) from the update center.
+  installPlugins:
+    - kubernetes
+    - workflow-aggregator
+    - pipeline-stage-view
+    - git
+    - git-parameter
+    - configuration-as-code
+    - job-dsl
+    - credentials
+    - credentials-binding
+    - ssh-credentials
+    - plain-credentials
+    - cloudbees-folder
+    - slack
+    - mailer
+    - matrix-auth
+    - antisamy-markup-formatter
+    - build-timeout
+    - timestamper
+    - ws-cleanup
+    - ansicolor
+    - parameterized-trigger
+    - prometheus
+    - cloudbees-disk-usage-simple
+    - pipeline-utility-steps
+    - pipeline-graph-view
+    - uno-choice
+    - dashboard-view
 
   # List of plugins to install in addition to those listed in master.installPlugins
   additionalPlugins: []
 
-  # Enable to always override the installed plugins with the values of 'master.installPlugins' on upgrade or redeployment.
-  # overwritePlugins: true
+  # Remove pre-existing plugins on every deploy so plugins.txt is always authoritative.
+  overwritePlugins: true
 
-  # Configures if plugins bundled with `master.image` should be overwritten with the values of 'master.installPlugins' on upgrade or redeployment.
-  master.overwritePluginsFromImage: true
+  # Overwrite plugins pre-bundled in the image with the values of installPlugins.
+  overwritePluginsFromImage: true
 
   # Enable HTML parsing using OWASP Markup Formatter Plugin (antisamy-markup-formatter), useful with ghprb plugin.
   # The plugin is not installed by default, please update master.installPlugins.
@@ -342,47 +404,53 @@ master:
           authorizationStrategy:   
           {{- if .Values.oauth.enabled }}    
             projectMatrix:
-              permissions:
+              entries:
               {{- range $group := .Values.oauth.acl.admin }}
-                - Agent/Build:{{ $group }}
-                - Agent/Configure:{{ $group }}
-                - Agent/Connect:{{ $group }}
-                - Agent/Create:{{ $group }}
-                - Agent/Delete:{{ $group }}
-                - Agent/Disconnect:{{ $group }}
-                - Credentials/Create:{{ $group }}
-                - Credentials/Delete:{{ $group }}
-                - Credentials/ManageDomains:{{ $group }}
-                - Credentials/Update:{{ $group }}
-                - Credentials/View:{{ $group }}
-                - Job/Build:{{ $group }}
-                - Job/Cancel:{{ $group }}
-                - Job/Configure:{{ $group }}
-                - Job/Create:{{ $group }}
-                - Job/Delete:{{ $group }}
-                - Job/Discover:{{ $group }}
-                - Job/Move:{{ $group }}
-                - Job/Read:{{ $group }}
-                - Job/Workspace:{{ $group }}
-                - Overall/Administer:{{ $group }}
-                - Overall/Read:{{ $group }}
-                - Run/Delete:{{ $group }}
-                - Run/Replay:{{ $group }}
-                - Run/Update:{{ $group }}
-                - View/Configure:{{ $group }}
-                - View/Create:{{ $group }}
-                - View/Delete:{{ $group }}
-                - View/Read:{{ $group }} 
+              - group:
+                  name: "{{ $group }}"
+                  permissions:
+                  - "Agent/Build"
+                  - "Agent/Configure"
+                  - "Agent/Connect"
+                  - "Agent/Create"
+                  - "Agent/Delete"
+                  - "Agent/Disconnect"
+                  - "Credentials/Create"
+                  - "Credentials/Delete"
+                  - "Credentials/ManageDomains"
+                  - "Credentials/Update"
+                  - "Credentials/View"
+                  - "Job/Build"
+                  - "Job/Cancel"
+                  - "Job/Configure"
+                  - "Job/Create"
+                  - "Job/Delete"
+                  - "Job/Discover"
+                  - "Job/Move"
+                  - "Job/Read"
+                  - "Job/Workspace"
+                  - "Overall/Administer"
+                  - "Overall/Read"
+                  - "Run/Delete"
+                  - "Run/Replay"
+                  - "Run/Update"
+                  - "View/Configure"
+                  - "View/Create"
+                  - "View/Delete"
+                  - "View/Read"
               {{- end }}
               {{- range $group := .Values.oauth.acl.user }}
-                - Agent/Build:{{ $group }}
-                - Job/Build:{{ $group }}
-                - Job/Cancel:{{ $group }}
-                - Job/Read:{{ $group }}
-                - Job/Workspace:{{ $group }}
-                - Overall/Read:{{ $group }}
-                - Run/Replay:{{ $group }}
-                - View/Read:{{ $group }}    
+              - group:
+                  name: "{{ $group }}"
+                  permissions:
+                  - "Agent/Build"
+                  - "Job/Build"
+                  - "Job/Cancel"
+                  - "Job/Read"
+                  - "Job/Workspace"
+                  - "Overall/Read"
+                  - "Run/Replay"
+                  - "View/Read"
               {{- end }}      
           {{- else -}}                
             loggedInUsersCanDoAnything:
@@ -391,39 +459,68 @@ master:
       security-realm: |-
         jenkins:
           securityRealm:
-        {{- if .Values.oauth.enabled }}          
+        {{- if .Values.oauth.enabled }}
+        {{- if eq .Values.vcs.provider "github" }}
             github:
-              githubWebUri: "https://github.com"
-              githubApiUri: "https://api.github.com"
-              clientID: "${GITHUB_CLIENT_ID}"
-              clientSecret: "${GITHUB_CLIENT_SECRET}"
-              oauthScopes: "read:org,user:email"   
-        {{- else }}                
+              githubWebUri: "{{ default "https://github.com" .Values.vcs.webUrl }}"
+              githubApiUri: "{{ default "https://api.github.com" .Values.vcs.apiUrl }}"
+              clientID: "${VCS_CLIENT_ID}"
+              clientSecret: "${VCS_CLIENT_SECRET}"
+              oauthScopes: "read:org,user:email"
+        {{- else if eq .Values.vcs.provider "gitlab" }}
+            gitLabSecurityRealm:
+              gitLabWebUri: "{{ default "https://gitlab.com" .Values.vcs.webUrl }}"
+              clientID: "${VCS_CLIENT_ID}"
+              clientSecret: "${VCS_CLIENT_SECRET}"
+              oauthScopes: "api read_user"
+        {{- else if eq .Values.vcs.provider "bitbucket" }}
+            bitbucket:
+              clientID: "${VCS_CLIENT_ID}"
+              clientSecret: "${VCS_CLIENT_SECRET}"
+              {{- if .Values.vcs.webUrl }}
+              bitbucketServerWebUri: "{{ .Values.vcs.webUrl }}"
+              {{- end }}
+        {{- else if eq .Values.vcs.provider "azure-devops" }}
+            azureAdSecurityRealm:
+              clientId: "${VCS_CLIENT_ID}"
+              clientSecret: "${VCS_CLIENT_SECRET}"
+              tenantId: "{{ .Values.vcs.tenantId }}"
+        {{- else if eq .Values.vcs.provider "gitea" }}
+            oic:
+              clientId: "${VCS_CLIENT_ID}"
+              clientSecret: "${VCS_CLIENT_SECRET}"
+              wellKnownOpenIDConfigurationUrl: "{{ .Values.vcs.webUrl }}/.well-known/openid-configuration"
+              userNameField: "login"
+              fullNameFieldName: "full_name"
+              emailFieldName: "email"
+              scopes: "openid profile email groups"
+        {{- end }}
+        {{- else }}
             legacy
         {{- end -}}            
       disable-script-security: |
         security:
           globalJobDslSecurityConfiguration:
             useScriptSecurity: false    
-      global-libs: |               
+      global-libs: |
         unclassified:
           globalLibraries:
             libraries:
-            - defaultVersion: "master-naljal"
+            - defaultVersion: "{{ .Values.CIOps.branch }}"
               name: "ci-libs"
               retriever:
                 modernSCM:
                   scm:
-                    git:
+                    gitSource:
                       credentialsId: "git_read"
-                      remote: "git@github.com:egovernments/CIOps.git"
+                      remote: "{{ .Values.CIOps.repo }}"
                       traits:
                       - "gitBranchDiscovery"
       system-message: | 
         jenkins:                                
           systemMessage: "Welcome to EGOV CI CD server.  This Jenkins is configured and managed as code."    
 
-      git-credentials: | 
+      git-credentials: |
         credentials:
           system:
             domainCredentials:
@@ -434,7 +531,19 @@ master:
                       description: "SSH private key file for git checkouts"
                       privateKeySource:
                         directEntry:
-                          privateKey: ${GIT_READ_SSH_PRIVATE_KEY}       
+                          privateKey: ${GIT_READ_SSH_PRIVATE_KEY}
+
+      git-host-key: |
+        security:
+          gitHostKeyVerificationConfiguration:
+            sshHostKeyVerificationStrategy:
+              manuallyProvidedKeyVerificationStrategy:
+                approvedHostKeys: "${GITHUB_KNOWN_HOSTS}"
+
+      prometheus-config: |
+        unclassified:
+          prometheusConfiguration:
+            collectingMetricsPeriodInSeconds: 120
 
       seed-job-builder: |
         jobs:
@@ -446,39 +555,12 @@ master:
                         script("""
                         library 'ci-libs'
 
-                        jobBuilder(urls: [{{ .Values.jobBuilder.repos }}])
+                        jobBuilder(urls: [{{ include "jenkins.repoUrlList" . }}])
                         """)
                       }
                   }
               }  
 
-      seed-deploy-job-builder: |
-        jobs:
-          - script: >
-              folder("self-provision")  
-          - script: >    
-              pipelineJob("self-provision/Self-Provision_Job_Builder") {
-                description()
-                authorization {
-                    blocksInheritance()
-                    {{- range $group := .Values.oauth.acl.admin }}
-                    permission('hudson.model.Item.Build:{{ $group }}')
-                    permission('hudson.model.Item.Cancel:{{ $group }}')
-                    permission('hudson.model.Item.Read:{{ $group }}')
-                    permission('hudson.model.Item.Workspace:{{ $group }}')
-                    {{- end }}
-                }
-                logRotator(-1, 5, -1, -1)
-                definition {
-                      cps {
-                        script("""
-                        library 'ci-libs'
-                        deployjobBuilder(url: {{ .Values.deployjobBuilder.repo }})
-                        """)  
-                      }
-                  }
-              }    
-              
       seed-deployment-jobs: |
         jobs:
           - script: >
@@ -507,427 +589,12 @@ master:
                 definition {
                   cps {
                       script("""library 'ci-libs'
-              {{- if (eq $job.name "ifix-uat") }}           
-              deployer(repo:'git@github.com:egovernments/iFix-DevOps.git', branch: 'ifix', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "ifix-prod") }}            
-              deployer(repo:'git@github.com:misdwss/iFix-DevOps.git', branch: 'ifix', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "dashboard-dev") }}            
-              deployer(repo:'git@github.com:egovernments/iFix-DevOps.git', branch: 'dashboard', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "bihar-mgramseva-uat") }}            
-              deployer(repo:'git@github.com:egovernments/iFix-DevOps.git', branch: 'bihar', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "bihar-mgramseva-prod") }}            
-              deployer(repo:'git@github.com:egovernments/iFix-DevOps.git', branch: 'bihar_upgrade', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "moz-health-prd") }}      
-              deployer(repo:'git@github.com:HCM-MOZ-IMPEL/health-campaign-devops.git', branch: 'main', helmDir: 'config-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-dev") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-studio-dev") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-uat") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-studio-uat") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-works-uat") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-health-uat") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-urban-uat") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "sanitation-uat") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-health-qa") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-mukta-qa") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-moz-qa") }}            
-              deployer(repo:'git@github.com:HCM-MOZ-IMPEL/health-campaign-devops.git', branch: 'unified-moz-qa', helmDir: 'config-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-qa") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "hcm-demo-new") }}            
-              deployer(repo:'git@github.com:egovernments/health-campaign-devops.git', branch: 'hcm-demo-new', helmDir: 'config-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "hcm-demo") }}            
-              deployer(repo:'git@github.com:egovernments/health-campaign-devops.git', branch: 'health-demo-kubernetes-1.27', helmDir: 'config-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "hcm-demo-latest") }}            
-              deployer(repo:'git@github.com:egovernments/health-campaign-devops.git', branch: 'health-demo-kubernetes-1.27', helmDir: 'config-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-pspcl-qa") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'pspcl', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-mgramseva-qa") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'mgramseva', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-ifix-qa") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-ifix-dev") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-urban-qa") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-works-qa") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-fsm-dev") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'fsm', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "moz-health-qa") }}            
-              deployer(repo:'git@github.com:HCM-MOZ-IMPEL/health-campaign-devops.git', branch: 'main', helmDir: 'config-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "moz-health-uat") }}            
-              deployer(repo:'git@github.com:HCM-MOZ-IMPEL/health-campaign-devops.git', branch: 'main', helmDir: 'config-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "mukta-uat") }}            
-              deployer(repo:'git@github.com:odisha-muktasoft/DIGIT-DevOps.git', branch: 'terraform_upgrade', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "mukta-uat-ifix") }}            
-              deployer(repo:'git@github.com:odisha-muktasoft/DIGIT-DevOps.git', branch: 'terraform_upgrade', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "sanitation") }}
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
+              deployer(repo:'{{ include "jenkins.repoUrl" (dict "repo" $job.repo "vcs" $.Values.vcs) }}', branch: '{{ $job.branch }}', helmDir: '{{ default "deploy-as-code/helm" $job.helmDir }}', environment: '{{ $job.name }}')""")
                       sandbox()
                     }
                 }
                 disabled(false)
               }
-              {{- else if (eq $job.name "sanitation-qa") }}
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox()
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "mukta-prod") }}
-              deployer(repo:'git@github.com:odisha-muktasoft/DIGIT-DevOps.git', branch: 'mukta-lts-release', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox()
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "mukta-prod-ifix") }}
-              deployer(repo:'git@github.com:odisha-muktasoft/DIGIT-DevOps.git', branch: 'mukta-lts-release', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox()
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "central-instance") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'central-instance-deployment', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "central-instance-staging") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'central-instance-deployment', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "central-instance-kenya") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'central-instance-deployment', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "central-instance-works") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'central-instance-deployment', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-works-dev") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-health-dev") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-urban-dev") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-env-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "digit-lts") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'digit-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "sandbox-prod") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'sandbox-prod', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "digit-ips") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'digit-ips', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "digit-health-lts") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'digit-lts', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "digit-sandbox") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'digit-sandbox', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "fsm-demo") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'fsm-demo', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "naljal-uat") }}            
-              deployer(repo:'git@github.com:egovernments/Naljal-DevOps.git', branch: 'main', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "assam-prod") }}            
-              deployer(repo:'git@github.com:egovernments/Naljal-DevOps.git', branch: 'main', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "ng-upgrade-uat") }}            
-              deployer(repo:'git@github.com:HCM-KEBBI/kebbi-devops.git', branch: 'central-uat-build', helmDir: 'config-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "sierraleone-central-uat") }}            
-              deployer(repo:'git@github.com:HCM-KEBBI/kebbi-devops.git', branch: 'central-uat-build', helmDir: 'config-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-demo") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-demo', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-demo-staging") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-demo', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-demo-studio") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-demo', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "unified-demo-works") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'unified-demo', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "sandbox-demo") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'sandbox-demo', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else if (eq $job.name "ci") }}            
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'egov-jenkins', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }
-              {{- else }}
-              deployer(repo:'git@github.com:egovernments/DIGIT-DevOps.git', branch: 'master', helmDir: 'deploy-as-code/helm', environment: '{{ $job.name }}')""")
-                      sandbox() 
-                    }
-                }
-                disabled(false)
-              }  
-              {{- end }}
    
           {{- end }}
 
@@ -958,7 +625,7 @@ master:
       # jcasc changes will cause a reboot and will only be applied at the subsequent start-up.  Auto-reload uses the
       # http://<jenkins_url>/reload-configuration-as-code endpoint to reapply config when changes to the configScripts are detected.
       enabled: true
-      image: kiwigrid/k8s-sidecar:0.1.193
+      image: kiwigrid/k8s-sidecar:1.28.0
       imagePullPolicy: IfNotPresent
       resources: {}
         #   limits:
@@ -1119,7 +786,7 @@ master:
 agent:
   enabled: true
   image: "jenkins/inbound-agent"
-  tag: "4.3-4-alpine"
+  tag: "3261.v9c670a_4748a_9-1-alpine"
   workingDir: "/home/jenkins"
   customJenkinsLabels: []
   # name of the secret to be used for image pulling
@@ -1286,6 +953,13 @@ persistence:
   #  - mountPath: /var/nothing
   #    name: nothing
   #    readOnly: true
+  cache:
+    accessMode: "ReadOnlyMany"
+    storageClass: "manual"
+    volumeName: "kaniko-cache-volume"
+    claimName: "kaniko-cache-claim"
+    size: "20Gi"
+    hostPath: "/tmp/kaniko-cache"
 
 networkPolicy:
   # Enable creation of NetworkPolicy resources.

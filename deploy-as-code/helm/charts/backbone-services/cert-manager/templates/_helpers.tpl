@@ -11,6 +11,10 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 */}}
 {{- define "cert-manager.fullname" -}}
+{{- $envOverrides := index .Values (tpl (default .Chart.Name .Values.name) .) -}}
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
@@ -19,6 +23,7 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 {{- .Release.Name | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
 {{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -58,7 +63,7 @@ If release name contains chart name it will be used as a full name.
 {{- end -}}
 
 {{- define "webhook.caRef" -}}
-{{ .Values.namespace }}/{{ template "webhook.fullname" . }}-ca
+{{- template "cert-manager.namespace" }}/{{ template "webhook.fullname" . }}-ca
 {{- end -}}
 
 {{/*
@@ -156,4 +161,33 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 helm.sh/chart: {{ include "chartName" . }}
 {{- end -}}
+{{- if .Values.global.commonLabels}}
+{{ toYaml .Values.global.commonLabels }}
+{{- end }}
 {{- end -}}
+
+{{/*
+Namespace for all resources to be installed into
+If not defined in values file then the helm release namespace is used
+By default this is not set so the helm release namespace will be used
+
+This gets around an problem within helm discussed here
+https://github.com/helm/helm/issues/5358
+*/}}
+{{- define "cert-manager.namespace" -}}
+    {{ .Values.namespace | default .Release.Namespace }}
+{{- end -}}
+
+{{/*
+Util function for generating the image URL based on the provided options.
+IMPORTANT: This function is standarized across all charts in the cert-manager GH organization.
+Any changes to this function should also be made in cert-manager, trust-manager, approver-policy, ...
+See https://github.com/cert-manager/cert-manager/issues/6329 for a list of linked PRs.
+*/}}
+{{- define "image" -}}
+{{- $defaultTag := index . 1 -}}
+{{- with index . 0 -}}
+{{- if .registry -}}{{ printf "%s/%s" .registry .repository }}{{- else -}}{{- .repository -}}{{- end -}}
+{{- if .digest -}}{{ printf "@%s" .digest }}{{- else -}}{{ printf ":%s" (default $defaultTag .tag) }}{{- end -}}
+{{- end }}
+{{- end }}

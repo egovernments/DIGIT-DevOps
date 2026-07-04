@@ -1,0 +1,15 @@
+{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
+{{- $_ := set . "Values" (merge .Values $envOverrides) -}}
+{{- if index .Values "custom-js-injection" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-js-injection
+{{- if .Values.global.namespace }}
+  namespace: {{ .Values.global.namespace }} 
+{{- else }}   
+  namespace: {{ .Values.namespace }}
+{{- end }}  
+data: 
+{{- index .Values "custom-js-injection" | nindent 2 }}
+{{- end -}}

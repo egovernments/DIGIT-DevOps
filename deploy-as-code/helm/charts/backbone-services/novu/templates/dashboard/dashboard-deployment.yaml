@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.dashboard.name }}
+  namespace: {{ include "novu.namespace" . }}
+  labels:
+{{- toYaml .Values.dashboard.labels | nindent 4 }}
+spec:
+  replicas: {{ .Values.dashboard.replicas }}
+  selector:
+    matchLabels:
+{{- toYaml .Values.dashboard.labels | nindent 6 }}
+  template:
+    metadata:
+      labels:
+{{- toYaml .Values.dashboard.labels | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: dashboard
+          image: "{{ .Values.dashboard.image.repository }}:{{ .Values.dashboard.image.tag }}"
+          imagePullPolicy: {{ .Values.dashboard.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.dashboard.port }}
+          {{- if .Values.dashboard.env }}
+          env:
+{{- tpl .Values.dashboard.env $ | nindent 12 }}
+          {{- end }}
+          {{- with .Values.dashboard.resources }}
+          resources:
+{{- toYaml . | nindent 12 }}
+          {{- end }}

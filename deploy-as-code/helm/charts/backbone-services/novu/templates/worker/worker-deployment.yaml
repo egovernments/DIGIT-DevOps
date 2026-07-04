@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.worker.name }}
+  namespace: {{ include "novu.namespace" . }}
+  labels:
+{{- toYaml .Values.worker.labels | nindent 4 }}
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+{{- toYaml .Values.worker.labels | nindent 6 }}
+  template:
+    metadata:
+      labels:
+{{- toYaml .Values.worker.labels | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: worker
+          image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          {{- if .Values.worker.env }}
+          env:
+{{- tpl .Values.worker.env $ | nindent 12 }}
+          {{- end }}
+          {{- with .Values.worker.resources }}
+          resources:
+{{- toYaml . | nindent 12 }}
+          {{- end }}

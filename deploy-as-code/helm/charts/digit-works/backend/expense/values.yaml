@@ -1,0 +1,129 @@
+# Common Labels
+labels:
+  app: "expense"
+  group: "digit-works"
+
+namespace: works
+
+# Ingress Configs
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "expense"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "expense_schema"
+    image:
+      repository: "expense-db"
+
+# Container Configs
+image:
+  repository: "expense"
+replicas: "1"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/expense/health"
+  readinessProbePath: "/expense/health"
+appType: "java-spring"
+tracing-enabled: true
+heap: "-Xmx192m -Xms192m"
+java-args: ""
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  {{- if index .Values "tracing-enabled" }}
+  - name: TRACER_OPENTRACING_ENABLED
+    value: "true" 
+  {{- end }}
+  - name: SERVER_CONTEXT_PATH
+    value: /expense
+  - name: SERVER_SERVLET_CONTEXT-PATH
+    value: /expense
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  {{- if index .Values "java-enable-debug" }}
+  - name: JAVA_ENABLE_DEBUG
+    value: "true"
+  {{- end }}
+  - name: EGOV_IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-idgen
+  - name: EGOV_HRMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-hrms
+  - name: EGOV_LOCALIZATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-localization
+  - name: EGOV_WORKFLOW_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-workflow-v2
+  - name: EGOV_URL_SHORTNER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-url-shortening
+  - name: EGOV_USER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-user
+  - name: WORKS_CONTRACT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: contract-service
+  - name: WORKS_ORGANISATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: organisation
+  - name: WORKS_INDIVIDUAL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: individual
+  - name: BUSINESS_WORKFLOW_STATUS_MAP
+    value: {{ index .Values "business-workflow-status-map" | quote }}
+  - name: EXPENSE_BILLING_BILL_CREATE
+    value: "expense-bill-create"
+  - name: EXPENSE_BILLING_BILL_UPDATE
+    value: "expense-bill-update"
+  - name: EXPENSE_BILLING_PAYMENT_CREATE
+    value: "expense-payment-create"
+  - name: EXPENSE_BILLING_PAYMENT_UPDATE
+    value: "expense-payment-update"
+  - name: KAFKA_TOPICS_NOTIFICATION_SMS
+    value: "egov.core.notification.sms"
+  {{- if index .Values "expense-billing-default-offset" }}
+  - name: EXPENSE_BILLING_DEFAULT_OFFSET
+    value: {{ index .Values "expense-billing-default-offset" | quote }} 
+  {{- end }}
+  {{- if index .Values "expense-billing-default-limit" }}
+  - name: EXPENSE_BILLING_DEFAULT_LIMIT
+    value: {{ index .Values "expense-billing-default-limit" | quote }} 
+  {{- end }}
+  {{- if index .Values "expense-billing-search-max-limit" }}
+  - name: EXPENSE_BILLING_SEARCH_MAX_LIMIT
+    value: {{ index .Values "expense-billing-search-max-limit" | quote }} 
+  {{- end }}

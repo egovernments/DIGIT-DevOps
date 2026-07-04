@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-config
+{{- if .Values.global.namespace }}
+  namespace: {{ .Values.global.namespace }}
+{{- else }}
+  namespace: {{ .Values.namespace }}
+{{- end }}
+data:
+  servers.json: |-
+    {
+      "Servers": {
+        "1": {
+          "Name": "{{ .Values.environment }}_WRITE",
+          "Group": "{{ .Values.environment }}",
+          "Port": {{ .Values.dbPort }},
+          "Username": "{{ index .Values "db-admin-username" }}",
+          "Host": "{{ .Values.dbUrl }}",
+          "SSLMode": "prefer",
+          "MaintenanceDB": "{{ index .Values "maintenance-db-name" }}"
+        },
+        "2": {
+          "Name": "{{ .Values.environment }}_READ",
+          "Group": "{{ .Values.environment }}",
+          "Port": {{ .Values.dbPort }},
+          "Username": "{{ index .Values "db-read-username" }}",
+        {{- if .Values.dbReadUrl }}
+          "Host": "{{ .Values.dbReadUrl }}",
+        {{- else }}
+          "Host": "{{ .Values.dbUrl }}",
+        {{- end }}
+          "SSLMode": "prefer",
+          "MaintenanceDB": "{{ index .Values "maintenance-db-name" }}"
+        }
+      }
+    }
+  config_local.py: |
+    DATA_DIR = {{ index .Values "data-dir" | quote }}
+    LOG_FILE = {{ index .Values "log-file-path" | quote }}
+    SQLITE_PATH = {{ index .Values "sqlite-path" | quote }}
+    SESSION_DB_PATH = {{ index .Values "session-path" | quote }}
+    STORAGE_DIR = {{ index .Values "storage-path" | quote }}
+    SERVER_MODE = True
+    ENHANCED_COOKIE_PROTECTION = {{ index .Values "cookie-protection" }}
+    LANGUAGES = {{ index .Values "ui-languages" }}
+    ALLOW_SAVE_PASSWORD = {{ index .Values "enable-save-password" }}
+    MAX_QUERY_HIST_STORED = {{ index .Values "max-query-history" }}
+    MAX_LOGIN_ATTEMPTS = {{ index .Values "max-login-attempts" }}
+    SHARED_STORAGE = {{ index .Values "shared-storage" }}
+    ENABLE_PSQL = True

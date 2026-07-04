@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.mongodb.name }}
+  namespace: {{ include "novu.namespace" . }}
+  labels:
+{{- toYaml .Values.mongodb.labels | nindent 4 }}
+spec:
+  replicas: {{ .Values.mongodb.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+{{- toYaml .Values.mongodb.labels | nindent 6 }}
+  template:
+    metadata:
+      labels:
+{{- toYaml .Values.mongodb.labels | nindent 8 }}
+    spec:
+      {{- if .Values.mongodb.securityContext }}
+      securityContext:
+{{- toYaml .Values.mongodb.securityContext | nindent 8 }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: mongodb
+          image: "{{ .Values.mongodb.image.repository }}:{{ .Values.mongodb.image.tag }}"
+          imagePullPolicy: {{ .Values.mongodb.image.pullPolicy }}
+          ports:
+            - name: mongodb
+              containerPort: {{ .Values.mongodb.port }}
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              value: {{ .Values.mongodb.auth.username | quote }}
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              value: {{ .Values.mongodb.auth.password | quote }}
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+          {{- if .Values.mongodb.probes.enabled }}
+          livenessProbe:
+            exec:
+              command:
+                - mongosh
+                - --eval
+                - db.adminCommand('ping')
+            initialDelaySeconds: {{ .Values.mongodb.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.mongodb.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.mongodb.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.mongodb.probes.liveness.failureThreshold }}
+          readinessProbe:
+            exec:
+              command:
+                - mongosh
+                - --eval
+                - db.adminCommand('ping')
+            initialDelaySeconds: {{ .Values.mongodb.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.mongodb.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.mongodb.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.mongodb.probes.readiness.failureThreshold }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+          {{- with .Values.mongodb.resources }}
+          resources:
+{{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.mongodb.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.mongodb.name }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

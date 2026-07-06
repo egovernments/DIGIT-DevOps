@@ -19,7 +19,7 @@ terraform {
     }
     helm = {
       source  = "hashicorp/helm"
-      version = ">= 2.10.1, < 3.0.0"
+      version = ">= 3.0.0"
     }
   }
 }
@@ -190,7 +190,7 @@ module "eks" {
   endpoint_public_access  = true
   endpoint_private_access = true
   authentication_mode = "API_AND_CONFIG_MAP"
-  create_cloudwatch_log_group = false
+  create_cloudwatch_log_group = true
   cloudwatch_log_group_retention_in_days = var.cloudwatch_eks_log_group_retention_in_days
   subnet_ids      = concat(module.network.private_subnets, module.network.public_subnets)
   node_security_group_additional_rules = {
@@ -310,11 +310,6 @@ data "aws_eks_cluster_auth" "cluster" {
   name = var.cluster_name
 }
 
-data "aws_iam_openid_connect_provider" "oidc_arn" {
-  depends_on = [module.eks_managed_node_group]
-  url = data.aws_eks_cluster.cluster.identity.0.oidc.0.issuer
-}
-
 resource "aws_eks_addon" "kube_proxy" {
   depends_on = [module.eks_managed_node_group]
   cluster_name      = var.cluster_name
@@ -374,10 +369,10 @@ resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
 }
 
 provider "helm" {
-  kubernetes {
+  kubernetes = {
     host                   = data.aws_eks_cluster.cluster.endpoint
     cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-    exec {
+    exec  = {
       api_version = "client.authentication.k8s.io/v1beta1"
       args        = ["eks", "get-token", "--cluster-name", var.cluster_name]
       command     = "aws"
@@ -436,7 +431,7 @@ resource "aws_iam_role_policy" "karpenter_policy" {
 module "karpenter" {
   count = var.enable_karpenter ? 1 : 0
   source = "terraform-aws-modules/eks/aws//modules/karpenter"
-  version = "21.3.1"
+  version = "21.24.0"
   cluster_name = module.eks.cluster_name
 
   create_node_iam_role = false
@@ -458,7 +453,7 @@ resource "helm_release" "karpenter-crd" {
   name                = "karpenter-crd"
   repository          = "oci://public.ecr.aws/karpenter"
   chart               = "karpenter-crd"
-  version             = "1.8.1"
+  version             = "1.13.0"
   wait                = true
   values = []
 }
@@ -470,7 +465,7 @@ resource "helm_release" "karpenter" {
   name                = "karpenter"
   repository          = "oci://public.ecr.aws/karpenter"
   chart               = "karpenter"
-  version             = "1.8.1"
+  version             = "1.13.0"
   wait                = false
   skip_crds           = true
 
@@ -495,9 +490,9 @@ resource "kubectl_manifest" "karpenter_node_class" {
     metadata:
       name: default
     spec:
-      amiFamily: var.ami_family.name
+      amiFamily: ${var.ami_family.name}
       amiSelectorTerms:
-      - id: var.ami_id.id
+      - alias: al2023@latest
       role: ${module.eks_managed_node_group.iam_role_name}
       subnetSelectorTerms:
         - tags:
@@ -505,17 +500,15 @@ resource "kubectl_manifest" "karpenter_node_class" {
       securityGroupSelectorTerms:
         - tags:
             karpenter.sh/discovery: ${module.eks.cluster_name}
+      blockDeviceMappings:
+      - deviceName: /dev/xvda
+        ebs:
+          volumeSize: 100Gi
+          volumeType: gp3
+          encrypted: true
+          deleteOnTermination: true
       tags:
         karpenter.sh/discovery: ${module.eks.cluster_name}
-    status:
-  amis:
-  - id: var.ami_id.id
-    name: var.ami_id.name
-    requirements:
-    - key: kubernetes.io/arch
-      operator: In
-      values:
-      - amd64
   YAML
 
   depends_on = [
@@ -543,7 +536,7 @@ resource "kubectl_manifest" "karpenter_node_pool" {
               values: ["r", "m"]
             - key: "karpenter.k8s.aws/instance-family"
               operator: In
-              values: ["m5", "r5ad"]
+              values: ["r6g", "r7g", "m6g", "m7g"]
             - key: "node.kubernetes.io/instance-type"
               operator: Exists
               values: ["m5ad.xlarge", "r5ad.xlarge"]
@@ -552,13 +545,13 @@ resource "kubectl_manifest" "karpenter_node_pool" {
               values: ["2", "4"]
             - key: "kubernetes.io/arch"
               operator: In
-              values: ["amd64"]
+              values: ["arm64"]
             - key: "karpenter.sh/capacity-type"
               operator: In
               values: ["spot", "on-demand"]
             - key: "karpenter.k8s.aws/instance-generation"
               operator: Gt
-              values: ["2"]
+              values: ["5"]
       disruption:
         consolidationPolicy: WhenEmptyOrUnderutilized
         consolidateAfter: 1m
@@ -579,10 +572,10 @@ resource "kubectl_manifest" "karpenter_node_pool" {
 module "eks-cluster-autoscaler" {
   count = var.enable_ClusterAutoscaler ? 1 : 0
   source  = "lablabs/eks-cluster-autoscaler/aws"
-  version = "3.1.0"
+  version = "5.0.0"
   cluster_name = var.cluster_name
-  cluster_identity_oidc_issuer = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
-  cluster_identity_oidc_issuer_arn = data.aws_iam_openid_connect_provider.oidc_arn.arn
+  cluster_identity_oidc_issuer = module.eks.cluster_oidc_issuer_url
+  cluster_identity_oidc_issuer_arn = module.eks.oidc_provider_arn
   irsa_role_name = var.cluster_name
   namespace = "autoscaler"
   service_account_name = "cluster-autoscaler"

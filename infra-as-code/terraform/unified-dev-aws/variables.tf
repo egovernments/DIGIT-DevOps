@@ -26,7 +26,7 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.33"
+  default = "1.34"
 }
 
 variable "architecture" {
@@ -53,17 +53,17 @@ variable "instance_types_map" {
 variable "instance_types" {
   description = "List of instance types to use (optional — overrides architecture defaults)"
   type        = list(string)
-  default     = ["t4g.medium"]
+  default     = ["t4g.xlarge"]
 }
 
 variable "min_worker_nodes" {
   description = "eGov recommended below worker node counts as default for min nodes"
-  default = "1" #REPLACE IF NEEDED
+  default = "3" #REPLACE IF NEEDED
 }
 
 variable "desired_worker_nodes" {
   description = "eGov recommended below worker node counts as default for desired nodes"
-  default = "1" #REPLACE IF NEEDED
+  default = "8" #REPLACE IF NEEDED
 }
 
 variable "max_worker_nodes" {
@@ -116,7 +116,7 @@ variable "enable_ClusterAutoscaler" {
 variable "enable_karpenter" {
   description = "Enable Karpenter autoscaler. Set enable_ClusterAutoscaler=false and apply first."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "ami_id" {
@@ -137,11 +137,15 @@ variable "ami_family" {
 variable "enable_cloudwatch_alarms" {
   description = "Enable CloudWatch alarms for Karpenter disruptions and spot interruptions."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "alert_email" {
   description = "Email address to receive CloudWatch alarm notifications. Leave empty to create the SNS topic without a subscription."
   type        = string
-  default     = "sri.padma@egovernments.org"
+  default     = ""
+}
+
+variable cloudwatch_eks_log_group_retention_in_days {
+  default = "7"
 }

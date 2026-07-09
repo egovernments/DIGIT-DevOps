@@ -6,7 +6,6 @@ resource "aws_db_subnet_group" "db_subnet_group" {
     tomap({
       "Name" = "db-subnet-group-${var.environment}",
       "environment" = "${var.environment}"
-      "KubernetesCluster" = "${var.environment}"
     })
   }"
 }
@@ -25,15 +24,15 @@ resource "aws_db_instance" "rds_postgres" {
   vpc_security_group_ids  = "${var.vpc_security_group_ids}"
   backup_retention_period = "${var.backup_retention_days}"
   db_subnet_group_name    = "${aws_db_subnet_group.db_subnet_group.name}"
+  storage_encrypted       = "true"
   copy_tags_to_snapshot   = "true"
   skip_final_snapshot     = "true"
-  deletion_protection     = "true"
 
-  tags = "${
+    tags = "${
     tomap({
-      "KubernetesCluster" = "${var.environment}"
       "Name" =  "${var.environment}-db",
       "environment" = "${var.environment}"
+      "KubernetesCluster" = "${var.environment}"
     })
   }"  
 }

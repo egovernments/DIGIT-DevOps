@@ -1,0 +1,18 @@
+variable "project_id" {}
+variable "cluster_name" {}
+variable "zone" {}
+variable "k8s_version" {}
+variable "node_machine_type" {}
+variable "desired_node_count" {}
+variable "min_node_count" {}
+variable "max_node_count" {}
+variable "node_disk_size_gb" {}
+variable "vpc_id" {}
+variable "subnet_id" {}
+variable "cluster_resource_labels" {}
+variable "node_disk_type" {
+  default = "pd-standard"
+}
+variable "boot_disk_kms_key" {
+  default = null
+}

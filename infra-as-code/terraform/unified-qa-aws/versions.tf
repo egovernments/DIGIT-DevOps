@@ -7,8 +7,12 @@ terraform {
       version = ">= 5.95.0"
     }
     kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = ">= 2.20.0"
+      source = "hashicorp/kubernetes"
+      version = "2.37.1"
+    }
+    kubectl = {
+      source  = "alekc/kubectl"
+      version = ">= 2.0.2"
     }
     tls = {
       source  = "hashicorp/tls"
@@ -30,8 +34,8 @@ terraform {
       source = "hashicorp/http"
     }
     helm = {
-      source = "hashicorp/helm"
-      version = "2.17.0"
+      source  = "hashicorp/helm"
+      version = ">= 3.0.0"
     }
   }
 }

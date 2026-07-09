@@ -26,12 +26,12 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.33"
+  default = "1.34"
 }
 
 variable "instance_types" {
   description = "eGov recommended ARM64 instance types for better cost efficiency"
-  default = ["t4g.xlarge", "t4g.2xlarge"]
+  default = ["t4g.xlarge"]
 }
 
 variable "min_worker_nodes" {
@@ -41,7 +41,7 @@ variable "min_worker_nodes" {
 
 variable "desired_worker_nodes" {
   description = "eGov recommended below worker node counts as default for desired nodes"
-  default = "6" #REPLACE IF NEEDED
+  default = "7" #REPLACE IF NEEDED
 }
 
 variable "max_worker_nodes" {
@@ -78,6 +78,10 @@ variable "public_key" {
 variable "iam_user_arn" {
   description = "Provide the IAM user arn which you are using to create infrastructure"
   default = "arn:aws:iam::349271159511:user/unified-qa"
+}
+
+variable cloudwatch_eks_log_group_retention_in_days {
+  default = "7"
 }
 
 

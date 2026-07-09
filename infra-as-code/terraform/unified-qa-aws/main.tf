@@ -24,7 +24,7 @@ module "db" {
   vpc_security_group_ids        = ["${module.network.rds_db_sg_id}"]
   availability_zone             = "${element(var.availability_zones, 0)}"
   instance_class                = "db.t4g.medium"  ## postgres db instance type
-  engine_version                = "15.12"   ## postgres version
+  engine_version                = "15.18"   ## postgres version
   storage_type                  = "gp3"
   storage_gb                    = "50"   ## postgres disk size
   backup_retention_days         = "7"
@@ -59,59 +59,6 @@ provider "kubernetes" {
   token                  = "${data.aws_eks_cluster_auth.cluster.token}"
 }
 
-##module "eks" {
-  ##source          = "terraform-aws-modules/eks/aws"
-  ##version         = "17.24.0"
-  ##cluster_name    = "${var.cluster_name}"
-  ##vpc_id          = "${module.network.vpc_id}"
-  ##cluster_version = "${var.kubernetes_version}"
-  ##subnets         = "${concat(module.network.private_subnets, module.network.public_subnets)}"
-
-##By default worker groups is Configured with SPOT, As per your requirement you can below values.
-
-  ##worker_groups_launch_template = [
-    ##{
-      ##name                          = "spot"
-      ##ami_id                        = "ami-0e7bdce1244b942e2"   
-      ##subnets                       = "${concat(slice(module.network.private_subnets, 0, length(var.availability_zones)))}"
-      ##instance_type                 = "${var.instance_type}"
-      ##override_instance_types       = "${var.override_instance_types}"
-      ##kubelet_extra_args            = "--node-labels=node.kubernetes.io/lifecycle=spot"
-      ##asg_max_size                  = "${var.number_of_worker_nodes}"
-      ##asg_desired_capacity          = "${var.number_of_worker_nodes}"
-      ##spot_allocation_strategy      = "capacity-optimized"
-      ##spot_instance_pools           = null
-      ##launch_template_name          = "${var.cluster_name}-lt"
-      ##launch_template_version       = "$Latest"
-    ##}
-  ##]
-  ##tags = "${
-    ##tomap({
-      ##"kubernetes.io/cluster/${var.cluster_name}" = "owned",
-      ##"KubernetesCluster" = "${var.cluster_name}"
-    ##})
-  ##}"
-  ##map_roles = [
-    ##{
-      ##groups = ["system:bootstrappers", "system:nodes"]
-      ##rolearn = "arn:aws:iam::349271159511:role/unified-qa20230926140821779000000018"
-      ##username = "system:node:{{EC2PrivateDNSName}}"
-    ##},
-    ##{
-      ##groups = ["system:bootstrappers", "system:nodes"]
-      ##rolearn = "arn:aws:iam::349271159511:role/KarpenterNodeRole-unified-qa"
-      ##username = "system:node:{{EC2PrivateDNSName}}"
-    ##}
-  ##]
-  ##map_users = [
-    ##{
-      ##groups = ["reader"]
-      ##userarn = "arn:aws:iam::349271159511:user/unified-qa-user"
-      ##username = "unified-qa-user"
-    ##}
-  ##]
-##}
-
 module "eks" {
   source          = "terraform-aws-modules/eks/aws"
   version         = "~> 21.0"
@@ -123,6 +70,8 @@ module "eks" {
   endpoint_public_access  = true
   endpoint_private_access = true
   authentication_mode = "API_AND_CONFIG_MAP"
+  create_cloudwatch_log_group = true
+  cloudwatch_log_group_retention_in_days = var.cloudwatch_eks_log_group_retention_in_days
   subnet_ids      = concat(module.network.private_subnets, module.network.public_subnets)
   node_security_group_additional_rules = {
     ingress_self_ephemeral = {
@@ -223,12 +172,6 @@ resource "aws_iam_role_policy_attachment" "cluster_AmazonEC2FullAccess" {
   role       = "${aws_iam_role.eks_iam.name}"
 }
 
-##resource "aws_iam_openid_connect_provider" "eks_oidc_provider" {
-  ##client_id_list = ["sts.amazonaws.com"]
-  ##thumbprint_list = ["${data.tls_certificate.thumb.certificates.0.sha1_fingerprint}"] # This should be empty or provide certificate thumbprints if needed
-  ##url            = "${data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer}" # Replace with the OIDC URL from your EKS cluster details
-##}
-
 resource "aws_security_group_rule" "rds_db_ingress_workers" {
   description              = "Allow worker nodes to communicate with RDS database" 
   from_port                = 5432
@@ -239,13 +182,14 @@ resource "aws_security_group_rule" "rds_db_ingress_workers" {
   type                     = "ingress"
 }
 
-module "ebs_csi_driver_irsa" {
-  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-  version = "~> 5.20"
-  role_name_prefix = "ebs-csi-driver-"
+module "ebs_csi_irsa" {
+  depends_on = [module.eks]
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
+  version = "6.6.1"
+  name = "ebs-csi-driver-${var.cluster_name}"
   attach_ebs_csi_policy = true
   oidc_providers = {
-    main = {
+    this = {
       provider_arn               = module.eks.oidc_provider_arn
       namespace_service_accounts = ["kube-system:ebs-csi-controller-sa"]
     }
@@ -267,10 +211,12 @@ resource "aws_eks_addon" "core_dns" {
   resolve_conflicts_on_create = "OVERWRITE"
 }
 resource "aws_eks_addon" "aws_ebs_csi_driver" {
+  depends_on = [module.eks_managed_node_group]
   cluster_name      = var.cluster_name
   addon_name        = "aws-ebs-csi-driver"
-  service_account_role_arn = module.ebs_csi_driver_irsa.iam_role_arn
+  service_account_role_arn = module.ebs_csi_irsa.arn
   resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 }
 
 resource "kubernetes_annotations" "gp2_default" {
@@ -308,19 +254,23 @@ resource "kubernetes_storage_class" "ebs_csi_encrypted_gp3_storage_class" {
 }
 
 provider "helm" {
-  kubernetes  {
+  kubernetes = {
     host                   = data.aws_eks_cluster.cluster.endpoint
     cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
-    token                  = data.aws_eks_cluster_auth.cluster.token
+    exec  = {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      args        = ["eks", "get-token", "--cluster-name", var.cluster_name]
+      command     = "aws"
+    }
   }
 }
 
 module "eks-cluster-autoscaler" {
   source  = "lablabs/eks-cluster-autoscaler/aws"
-  version = "3.1.0"
+  version = "5.0.0"
   cluster_name = var.cluster_name
-  cluster_identity_oidc_issuer = data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer
-  cluster_identity_oidc_issuer_arn = data.aws_iam_openid_connect_provider.oidc_arn.arn
+  cluster_identity_oidc_issuer = module.eks.cluster_oidc_issuer_url
+  cluster_identity_oidc_issuer_arn = module.eks.oidc_provider_arn
   irsa_role_name = var.cluster_name
   namespace = "autoscaler"
   service_account_name = "cluster-autoscaler"

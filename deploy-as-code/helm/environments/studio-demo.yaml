@@ -1,0 +1,441 @@
+global:
+   domain: studio-demo.digit.org
+   setup: fullsetup
+
+cluster-configs:
+    namespaces:  
+      create: true
+      values: [ backbone, cert-manager, egov, monitoring, playground, studio ]
+      
+    root-ingress:
+      cert-issuer: letsencrypt-prod
+    configmaps:
+        egov-config:
+            namespace: [ egov, studio ]
+            data:
+              db-host: studio-demo-server.postgres.database.azure.com
+              db-name: studio-demo-db
+              db-url: jdbc:postgresql://studio-demo-server.postgres.database.azure.com:5432/studio-demo-db
+              db-url-no-schema: jdbc:postgresql://studio-demo-server.postgres.database.azure.com:5432/studio-demo-db
+              domain: studio-demo.digit.org
+              egov-services-fqdn-name: https://studio-demo.digit.org/
+              egov-state-level-tenant-id: "pg" 
+              s3-assets-bucket: "(pg-egov-assets|egov-playground-assets)"
+              es-host: "elasticsearch-data.backbone"
+              es-indexer-host: "http://elasticsearch-data.backbone:9200/"
+              flyway-locations: "filesystem:/flyway/sql,filesystem:/flyway/seed,filesystem:/flyway/qa"
+              kafka-brokers: "kafka-kraft-controller-headless.backbone:9092"
+              kafka-infra-brokers: kafka-v2-infra.kafka-cluster:9092
+              logging-level-jdbc: "DEBUG"
+              mobile-validation-workaround: "true"
+              serializers-timezone-in-ist: "true"
+              server-tomcat-max-connections: "500"
+              server-tomcat-max-threads: "10"
+              sms-enabled: "true"
+              spring-datasource-tomcat-initialSize: "1"
+              spring-datasource-tomcat-max-active: "2"
+              spring-jpa-show-sql: "true"
+              timezone: Asia/Kolkata
+              tracer-errors-provideexceptionindetails: "true"
+              egov-bnd-freedownload-tenants: "pg.testing"
+              egov-bnd-live-citizen-tenants: "pg.testing"
+              redis-host-worker: "redis.backbone"
+              kafka-tenant-id-pattern: ''
+
+        egov-service-host:
+            namespace: [ egov, studio ]
+            data:
+              billing-service: "http://billing-service.egov:8080/"
+              boundary-service: "http://boundary-service.egov:8080/"
+              egov-accesscontrol: "http://egov-accesscontrol.egov:8080/"
+              egov-enc-service: "http://egov-enc-service.egov:8080/"
+              egov-filestore: "http://egov-filestore.egov:8080/"
+              egov-hrms: "http://egov-hrms.egov:8080/"
+              egov-idgen: "http://egov-idgen.egov:8080/"
+              egov-indexer: "http://egov-indexer.egov:8080/"
+              egov-localization: "http://egov-localization.egov:8080/"
+              egov-mdms-service: "http://mdms-v2.egov:8080/"
+              egov-otp: "http://egov-otp.egov:8080/"
+              egov-url-shortening: "http://eus:8080/"
+              egov-user: "http://egov-user.egov:8080/"
+              egov-user-egov: "http://egov-user.egov:8080/"
+              egov-workflow-v2: "http://egov-workflow-v2.egov:8080/"
+              health-individual: "http://health-individual.health:8080/"
+              health-service-request: "http://health-service-request.health:8080/"
+              pdf-service: "http://pdf-service.egov:8080/"
+              public-service: "http://public-service.studio:8080/"
+              public-service-init: "http://public-service-init.studio:8080/"
+              studio-calculator-service: "http://studio-calculator-service.studio:8080/"
+              user-otp: "http://user-otp.egov:8080/"
+    
+    secrets:
+      db: 
+        namespace: [ egov, studio ]
+        name: db
+      git-sync:
+        namespace: [ egov, studio ]
+        name: git-creds
+      elasticsearch-master-creds:
+        namespace: [ backbone, egov ]
+        name: elasticsearch-master-credentials
+      egov-notification-sms:
+        namespace: [ egov ]
+
+boundary-service:
+  replicas: 2
+  heap: '-Xmx512m -Xms512m'
+  memory_limits: 512Mi
+
+digit-studio:
+  namespace: studio
+  custom-js-injection: |
+    sub_filter.conf: "
+      sub_filter  '<head>' '<head>
+      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/analytics/analytics.js type=text/javascript async></script>
+      <script src=https://egov-uat-assets.s3.ap-south-1.amazonaws.com/globalConfigsStudio.js type=text/javascript></script>';"
+
+egov-accesscontrol:
+  replicas : 1
+  heap: "-Xmx256m -Xms256m"
+
+egov-enc-service:
+  replicas: 1
+  heap: '-Xmx512m -Xms256m'
+  memory_limits: 512Mi
+  cpu_limits: 300m
+
+egov-filestore:
+  volume: /opt/eGov/filestore
+  is-bucket-fixed: "true"
+  replicas : 2
+  minio.url : "http://minio.backbone:9000/"
+  aws.s3.url : "https://s3.amazonaws.com"
+  is-s3-enabled: "false"   ## Azure Blob backend (see egov-filestore chart ISAZURESTORAGEENABLED)
+  minio-enabled: false
+  allowed-file-formats-map: "{jpg:{'image/jpg','image/jpeg'},jpeg:{'image/jpeg','image/jpg'},png:{'image/png'},pdf:{'application/pdf'},odt:{'application/vnd.oasis.opendocument.text'},ods:{'application/vnd.oasis.opendocument.spreadsheet'},docx:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},doc:{'application/x-tika-msoffice','application/x-tika-ooxml','application/vnd.oasis.opendocument.text','application/msword'},dxf:{'text/plain','application/dxf','application/octet-stream','image/vnd.dxf','image/vnd.dxf; format=ascii','image/vnd.dxf; format=binary','image/vnd.dxb'},csv:{'text/plain'},txt:{'text/plain'},xlsx:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/zip'},xls:{'application/x-tika-ooxml','application/x-tika-msoffice','application/vnd.ms-excel','multipart/form-data'},zip:{'application/zip','application/octet-stream'},geojson:{'application/json','text/plain','application/geo+json','multipart/form-data'}}"
+  allowed-file-formats: "jpg,jpeg,png,doc,docx,pdf,odt,ods,text,dxf,xls,xlsx"
+  filestore-url-validity: 3600
+  fixed-bucketname: studio-demo-filestore  ## Add filestore bucket name
+  kafka-malware-scan-enabled: false
+  kafka-topics-malware-scan-request: "egov.malware.file-scan-request"
+
+egov-hrms:
+  java-args: -Dspring.profiles.active=monitoring
+  employee-applink: "https://studio-demo.digit.org/digit-studio/employee"
+  heap: '-Xmx256m -Xms256m'
+
+egov-idgen:
+  replicas : 1
+  idformat-from-mdms: "true"
+  java-args: -Dspring.profiles.active=monitoring
+  autocreate-new-seq: "true"
+  heap: "-Xmx512m -Xms256m"
+  memory_limits: 512Mi
+
+egov-indexer:
+  heap: "-Xmx512m -Xms512m"
+  initContainers:
+    gitSync:
+      repo: "git@github.com:egovernments/configs"        ##### Change repo url with Your fork Repo url
+      branch: "studio-demo"                                      ##### Change repo branch with Your fork Repo branch
+  egov-indexer-yaml-repo-path: "file:///work-dir/configs/health/egov-indexer/error-queue.yml,file:///work-dir/configs/health/egov-indexer/product-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-indexer.yml,file:///work-dir/configs/health/egov-indexer/individual-indexer.yml,file:///work-dir/configs/health/egov-indexer/household-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-task-indexer.yml,file:///work-dir/configs/health/egov-indexer/stock-indexer.yml,file:///work-dir/configs/health/egov-indexer/facility-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-staff-indexer.yml,file:///work-dir/configs/health/egov-indexer/egov-error-queue-indexer.yml,file:///work-dir/configs/health/egov-indexer/pgr-services.yml,file:///work-dir/configs/health/egov-indexer/service-request-indexer.yml,file:///work-dir/configs/sanitation/egov-indexer/pqm-service-indexer.yml,file:///work-dir/configs/sanitation/egov-indexer/egov-pqm-service.yml,file:///work-dir/configs/sanitation/egov-indexer/pqm-anomaly-finder-indexer.yml,file:///work-dir/configs/sanitation/egov-indexer/egov-fsm.yaml,file:///work-dir/configs/sanitation/egov-indexer/egov-vehicle.yaml,file:///work-dir/configs/sanitation/egov-indexer/egov-vendor.yaml,file:///work-dir/configs/sanitation/egov-indexer/fsm-inbox-indexer.yml,file:///work-dir/configs/health/egov-indexer/referral-management-indexer.yml,file:///work-dir/configs/health/egov-indexer/transformer-pgr-services.yml,file:///work-dir/configs/health/egov-indexer/attendance-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/household-member-indexer.yml,file:///work-dir/configs/health/egov-indexer/census-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/plan-service-indexer.yml,file:///work-dir/configs/egov-indexer/public-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/expense-bill-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/muster-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/test-python-kafka.yml,file:///work-dir/configs/health/egov-indexer/transformed-error-tracer.yml,file:///work-dir/configs/health/egov-indexer/user-action-indexer.yml"
+
+egov-localization:
+  replicas: 3
+  heap: '-Xmx6144m -Xms2048m'
+  memory_limits: 7168Mi
+  cpu_limits: 1200m
+  memory_requests: 5120Mi
+  cpu_requests: 500m
+
+egov-notification-sms:
+  sms-provider-url: "http://api.smscountry.com/SMSCwebservice_bulk.aspx"
+  sms.provider.class: "Generic"
+  sms.provider.contentType:  "application/x-www-form-urlencoded"
+  sms-config-map: "{'User':'$username', 'passwd': '$password', 'sid':'$senderid', 'mobilenumber':'$mobileno', 'message':'$message', 'mtype':'LNG', 'DR':'N', 'smsservicetype':'singlemsg'}"
+  sms.senderid: "EGOVFS"
+  sms-gateway-to-use: "SMS_COUNTRY"
+  sms-sender: "SMSCOUNTRY"
+  sms-sender-requesttype: "GET"
+  sms-custom-config: "true"
+  sms-extra-req-params: "mtype=N&DR=Y"
+  sms-sender-req-param-name: "sid"
+  sms-sender-username-req-param-name: "User"
+  sms-sender-password-req-param-name: "passwd"
+  sms-destination-mobile-req-param-name: "mobilenumber"
+  sms-message-req-param-name: "message"
+  sms-error-codes: "401,403,404,405,406,407,408,409,410,411,412,413,414"
+
+egov-otp:
+  central-instance-name: egov
+  central-instance-build: true
+  central-instance-enabled: false
+  db-schema-names: "kano,kebbi"
+  memory_limits: "512Mi"
+  heap: "-Xmx256m -Xms256m"
+
+egov-persister:
+  replicas: 3
+  images:
+    - egovio/egov-persister
+  persist-yml-path: "file:///work-dir/configs/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/health/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/health/egov-persister/product-persister.yml,file:///work-dir/configs/health/egov-persister/project-persister.yml,file:///work-dir/configs/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/household-persister.yml,file:///work-dir/configs/health/egov-persister/project-task-persister.yml,file:///work-dir/configs/health/egov-persister/stock-persister.yml,file:///work-dir/configs/health/egov-persister/facility-persister.yml,file:///work-dir/configs/health/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/health/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/health/egov-persister/mdms-persister.yml,file:///work-dir/configs/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/hcm-moz-impl-persister.yml,file:///work-dir/configs/health/egov-persister/eg-campaign-details-persister.yml,file:///work-dir/configs/sanitation/egov-persister/pqm-anomaly-finder-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/pqm-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/fsm-calculator-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/fsm-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/vehicle-persister.yaml,file:///work-dir/configs/sanitation/egov-persister/vendor-persister.yaml,file:///work-dir/configs/egov-persister/egov-user-event-persister.yml,file:///work-dir/configs/health/egov-persister/service-request-persister.yml,file:///work-dir/configs/health/egov-persister/referral-management-persister.yml,file:///work-dir/configs/health/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/egov-persister/boundary-persister.yml,file:///work-dir/configs/health/egov-persister/project-factory-persister.yml,file:///work-dir/configs/egov-persister/audit-service-persister.yml,file:///work-dir/configs/health/egov-persister/plan-service-persister.yml,file:///work-dir/configs/health/egov-persister/irs-persister.yml,file:///work-dir/configs/health/egov-persister/census-service-persister.yml,file:///work-dir/configs/health/egov-persister/muster-service-persister.yml,file:///work-dir/configs/health/egov-persister/expense-bill-payment-persister.yaml,file:///work-dir/configs/health/egov-persister/id-pool-persister.yml,file:///work-dir/configs/health/egov-persister/id-pool-dispatch-log-persister.yml,file:///work-dir/configs/egov-persister/public-service-persister.yml,file:///work-dir/configs/egov-persister/studio-pdf-helper-persister.yml,file:///work-dir/configs/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/health/egov-persister/boundary-management-persister.yml,file:///work-dir/configs/health/egov-persister/excel-ingestion-persister.yml,file:///work-dir/configs/health/egov-persister/reports-metadata-persister.yml,file:///work-dir/configs/health/egov-persister/egov-notification-push-persister.yml,file:///work-dir/configs/health/egov-persister/health-notification-persister.yml,file:///work-dir/configs/health/egov-persister/expense-billarray-payment-persister.yaml"
+  initContainers:
+    gitSync:
+      repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
+      branch: "studio-demo"                                    ##### Change repo branch with Your fork Repo branch
+
+egov-user:
+  central-instance-name: egov
+  central-instance-build: true
+  central-instance-enabled: false
+  db-schema-names: "kano,kebbi"
+  replicas : 2
+  heap: "-Xmx512m -Xms256m"
+  otp-validation: "true"
+  citizen-otp-enabled: "true"
+  employee-otp-enabled: "false"
+  access-token-validity: 10080
+  refresh-token-validity: 20160
+  default-password-expiry: 90
+  mobile-number-validation: "false"
+  roles-state-level: "true"
+  citizen-registration-withlogin: "true"
+  citizen-otp-fixed: "123456"
+  citizen-otp-fixed-enabled: "true"
+  decryption-abac-enabled: "false"
+  spring-datasource-tomcat-max-active: "10"
+  logging-level-web: DEBUG
+  logging-level-org-egov-user: DEBUG
+  logging-level-org-springframework-web: DEBUG
+  logging-level-org-springframework-security: DEBUG
+  auth-oidc-enabled: "true"
+  auth-oidc-providers-source: mdms
+  mdms-oidcproviders-tenantid: mz
+  java-tool-options: "-Djava.net.preferIPv4Stack=true -Djdk.httpclient.allowRestrictedHeaders=host -Dhttps.protocols=TLSv1.2"
+  egov-hrms-enabled: true
+  egov-hrms-employee-create-url: /egov-hrms/employees/_create
+  egov-boundary-enabled: true
+  egov-boundary-hierarchy-search-url: /boundary-service/boundary-hierarchy-definition/_search
+  egov-boundary-relationships-search-url: /boundary-service/boundary-relationships/_search
+  oidc-google-secret-enabled: true
+  oidc-google-secret-key: graph-client-secret-mz-oidc-google
+
+egov-workflow-v2:
+  central-instance-name: egov
+  central-instance-build: true
+  central-instance-enabled: false
+  db-schema-names: "kano,kebbi"
+  logging-level: "DEBUG"
+  java-args: -Dspring.profiles.active=monitoring
+  workflow-statelevel: "true"
+  host-link: "https://egov-demo.egovernments.org/citizen/"
+  pdf-link: "/download/epass?tenantId={TENANTID}&ids={UUID}"
+
+gateway:
+  replicas: 1
+  custom-filter-property: "false"
+  tracing-enabled: "true"
+  heap: "-Xmx512m -Xms512m"
+  java-debug: "true"
+  server-tomcat-max-threads: "350"
+  server-tomcat-max-connections: "1500"
+  egov-open-endpoints-whitelist: "/user/oauth/token,/user-otp/v1/_send,/otp/v1/_validate,/user/citizen/_create,/localization/messages,/localization/messages/v1/_search,/user/password/nologin/_update,/pgr/servicedefinition/v1/_search,/pgr/servicecategories/v1/_search,/pgr/v1/otp/_send,/pgr-master/receivingmode/v1/_search,/tenant/v1/tenant/_search,/egov-location/boundarys,/egov-location/boundarys/boundariesByBndryTypeNameAndHierarchyTypeName,/pgr-master/service/v1/_search,/egov-location/boundarys/getLocationByLocationName,/pgr-master/OTPConfig/_search,/pgr-master/serviceGroup/v1/_search,/egov-location/boundarys/isshapefileexist,/pgr/services/v1/_search,/hr-masters/hrconfigurations/_search,/collection-services/receipts/_view,/pgr-master/service/v2/_search,/pgr-master/servicedefinition/v1/_search,/citizen-services,/citizen-services/v1/requests/receipt/_create,/citizen-services/v1/pgresponse,/citizen-services/v1/requests/anonymous/_search,/egov-mdms-service/v1/_search,/egov-mdms-service/v1/_get,/egov-mdms-service/v1/_reload,/egov-mdms-service/v1/_reloadobj,/egov-location/boundarys/getshapefile,/egov-indexer/index-operations/_index,/egov-indexer/index-operations/_reload,/egov-mdms-service-test/v1/_search,/egov-mdms-create/v1/_update,/egov-mdms-create/v1/_create,/egov-mdms-service-test/v1/_reload,/filestore/v1/files/url,/eus,/whatsapp-webhook/messages,/edcr/rest/dcr/downloadfile,/dashboard-ingest/ingest/upload,/egov-searcher/water-services/wateropensearch/_get,/egov-searcher/sewerage-services/sewerageopensearch/_get,/xstate-chatbot/status,/xstate-chatbot/reminder,/nlp-engine/fuzzy/city,/nlp-engine/fuzzy/locality,/user/oauth/token,/user-otp/v1/_send,/otp/v1/_validate,/localization/messages,/localization/messages/v1/_search,/user/password/nologin/_update,/tenant/v1/tenant/_search,/egov-location/boundarys,/egov-location/boundarys/boundariesByBndryTypeNameAndHierarchyTypeName,/egov-location/boundarys/getLocationByLocationName,/egov-location/boundarys/isshapefileexist,/hr-masters/hrconfigurations/_search,/egov-mdms-service/v1/_search,/egov-mdms-service/v1/_get,/egov-location/boundarys/getshapefile,/egov-indexer/index-operations/_index,/egov-indexer/index-operations/_reload,/egov-mdms-service-test/v1/_search,/egov-mdms-create/v1/_update,/egov-mdms-create/v1/_create,/egov-mdms-service-test/v1/_reload,/filestore/v1/files/url,/egov-url-shortening,/mdms-v2/schema/v1/_search,/mdms-v2/v1/_search,/mdms-v2/v2/_search,/mukta/digit-exchange/v1/exchange/program,/mukta/digit-exchange/v1/exchange/on-program,/mukta/digit-exchange/v1/exchange/sanction,/mukta/digit-exchange/v1/exchange/on-sanction,/mukta/digit-exchange/v1/exchange/allocation,/mukta/digit-exchange/v1/exchange/on-allocation,/mukta/digit-exchange/v1/exchange/disburse,/mukta/digit-exchange/v1/exchange/on-disburse,/ifms/digit-exchange/v1/exchange/program,/ifms/digit-exchange/v1/exchange/on-program,/ifms/digit-exchange/v1/exchange/sanction,/ifms/digit-exchange/v1/exchange/on-sanction,/ifms/digit-exchange/v1/exchange/allocation,/ifms/digit-exchange/v1/exchange/on-allocation,/ifms/digit-exchange/v1/exchange/disburse,/ifms/digit-exchange/v1/exchange/on-disburse,/filestore/v1/files/id,/filestore/v1/files,/uba-bff-service/benefit/_apply,/uba-bff-service/payment/_export_csv,/health-individual/v1/_register,/fhir-supplychain-transformer/fhir-api/health,/fhir-supplychain-transformer/fhir-api/validate,/fhir-supplychain-transformer/fhir-api/fetchAllFacilities,/fhir-supplychain-transformer/fhir-api/fetchAllProductVariants,/fhir-supplychain-transformer/fhir-api/fetchAllStocks,/fhir-supplychain-transformer/fhir-api/fetchAllStockReconciliation,/fhir-supplychain-transformer/fhir-api/fetchAllBoundaries,/fhir-supplychain-transformer/fhir-api/consumeFHIR,/egov-mdms-service/v2/_search"
+  egov-mixed-mode-endpoints-whitelist: "/pgr/seva/v1/_create,/pgr/seva/v1/_search,/pgr/seva/v1/_count,/workflow/history/v1/_search,/filestore/v1/files/tag,/egov-common-masters/departments/_search,/pt-property/property/propertytypes/_search,/pt-property/properties/_search,/pt-property/property/usages/_search,/egov-idgen/id/_generate,/egf-masters/financialyears/_search,/egov-common-workflows/process/_start,/egov-common-workflows/process/_search,/egov-common-workflows/tasks,/egov-common-workflows/tasks/{id}/_update,/user/_search,/billing-service/demand/_dues,/billing-service/bill/_generate,/billing-service/demand/_create,/wcms/masters/waterchargesconfig/_search,/wcms/masters/usagetypes/_search,/wcms/masters/pipesizes/_search,/wcms-connection/connection/_getbillingtypes,/wcms-connection/connection/_getconnectiontypes,/wcms/masters/sourcetypes/_search,/wcms/masters/supplytypes/_search,/wcms/masters/storagereservoirs/_search,/wcms/masters/treatmentplants/_search,/wcms/masters/documenttypes-applicationtypes/_search,/wcms/masters/donations/_search,/wcms/masters/nonmeterwaterrates/_search,/wcms-connection/connection/_create,/egov-common-masters/genders/_search,/egov-common-workflows/designations/_search,/access/v1/actions/mdms/_get,/tl-services/v1/BPAREG/_create,/tl-services/v1/BPAREG/_update,/tl-calculator/v1/BPAREG/_getbill,/property-services/property/_search,/billing-service/bill/v2/_search,/egov-location/location/v11/boundarys/_search,/pg-service/transaction/v1/_create,/collection-services/payments/_search,/pdf-service/v1/_create,/billing-service/bill/v2/_fetchbill,/pg-service/transaction/v1/_update,/ws-services/wc/_search,/sw-services/swc/_search,/edcr/rest/dcr/scrutinydetails,/edcr/rest/dcr/occomparison,/egov-pdf/download/PAYMENT/consolidatedreceipt,/collection-services/payments/PT/_search,/collection-services/payments/WS/_search,/collection-services/payments/SW/_search,/collection-services/payments/WS.ONE_TIME_FEE/_search,/collection-services/payments/SW.ONE_TIME_FEE/_search,/turn-io-adapter/_transform,/egov-user-event/v1/events/_search,/egov-mdms-service/v2/_search"
+
+mdms-v2:
+  central-instance-name: egov
+  central-instance-build: true
+  central-instance-enabled: false
+  db-schema-names: "kano,kebbi"
+  replicas: 1
+  memory_limits: 2Gi
+  memory_requests: 1Gi
+  heap: '-Xmx1500m -Xms768m'
+  contextPath: "/egov-mdms-service"
+  ingress:
+    context: "egov-mdms-service"
+  healthChecks:
+    livenessProbePath: "/egov-mdms-service/health"
+    readinessProbePath: "/egov-mdms-service/health"
+
+pdf-service:
+  state-level-tenant-id: "mz"
+  initContainers:
+    gitSync:
+      repo: "git@github.com:egovernments/configs"     ##### Change repo url with Your fork Repo url
+      branch: "studio-demo"                                   ##### Change repo branch with Your fork Repo branch
+  data-config-urls: "file:///work-dir/configs/pdf-service/data-config/tradelicense-receipt.json,file:///work-dir/configs/pdf-service/data-config/property-receipt.json,file:///work-dir/configs/pdf-service/data-config/property-bill.json,file:///work-dir/configs/pdf-service/data-config/tradelicense-bill.json,file:///work-dir/configs/pdf-service/data-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/data-config/pt-receipt.json,file:///work-dir/configs/pdf-service/data-config/tl-receipt.json,file:///work-dir/configs/pdf-service/data-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/data-config/consolidatedreceipt.json,file:///work-dir/configs/pdf-service/data-config/tlapplication.json,file:///work-dir/configs/pdf-service/data-config/passvehicle-certificate.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedacknowlegment.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedsewerageconnection.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit.json,file:///work-dir/configs/pdf-service/data-config/ptmutationcertificate.json,file:///work-dir/configs/pdf-service/data-config/tlrenewalcertificate.json,file:///work-dir/configs/pdf-service/data-config/bpa-revocation.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit-low.json,file:///work-dir/configs/pdf-service/data-config/misc-receipt.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationwater.json,file:///work-dir/configs/pdf-service/data-config/ws-sanctionletter.json,file:///work-dir/configs/pdf-service/data-config/ws-estimationnotice.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationsewerage.json,file:///work-dir/configs/pdf-service/data-config/tlcertificate.json,file:///work-dir/configs/pdf-service/data-config/measurement-book.json,file:///work-dir/configs/pdf-service/data-config/property-bill.json,file:///work-dir/configs/pdf-service/data-config/tradelicense-bill.json,file:///work-dir/configs/pdf-service/data-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/data-config/pt-receipt.json,file:///work-dir/configs/pdf-service/data-config/tl-receipt.json,file:///work-dir/configs/pdf-service/data-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/data-config/consolidatedreceipt.json,file:///work-dir/configs/pdf-service/data-config/tlapplication.json,file:///work-dir/configs/pdf-service/data-config/passvehicle-certificate.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedacknowlegment.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedsewerageconnection.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit.json,file:///work-dir/configs/pdf-service/data-config/ptmutationcertificate.json,file:///work-dir/configs/pdf-service/data-config/tlrenewalcertificate.json,file:///work-dir/configs/pdf-service/data-config/bpa-revocation.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit-low.json,file:///work-dir/configs/pdf-service/data-config/misc-receipt.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationwater.json,file:///work-dir/configs/pdf-service/data-config/ws-sanctionletter.json,file:///work-dir/configs/pdf-service/data-config/ws-estimationnotice.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationsewerage.json,file:///work-dir/configs/pdf-service/data-config/tlcertificate.json,file:///work-dir/configs/pdf-service/data-config/detailed-estimate.json,file:///work-dir/configs/pdf-service/data-config/deviation-statement.json,file:///work-dir/configs/pdf-service/data-config/measurement-book.json,file:///work-dir/configs/pdf-service/data-config/fsm-receipt.json,file:///work-dir/configs/pdf-service/data-config/health-bill-payment.json,file:///work-dir/configs/pdf-service/data-config/studio-blank-application.json,file:///work-dir/configs/pdf-service/data-config/studio-application.json"
+  
+  format-config-urls: "file:///work-dir/configs/pdf-service/format-config/tradelicense-receipt.json,file:///work-dir/configs/pdf-service/format-config/property-receipt.json,file:///work-dir/configs/pdf-service/format-config/property-bill.json,file:///work-dir/configs/pdf-service/format-config/tradelicense-bill.json,file:///work-dir/configs/pdf-service/format-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/format-config/pt-receipt.json,file:///work-dir/configs/pdf-service/format-config/tl-receipt.json,file:///work-dir/configs/pdf-service/format-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/format-config/consolidatedreceipt.json,file:///work-dir/configs/pdf-service/format-config/tlapplication.json,file:///work-dir/configs/pdf-service/format-config/passvehicle-certificate.json,file:///work-dir/configs/pdf-service/format-config/ws-consolidatedacknowlegment.json,file:///work-dir/configs/pdf-service/format-config/ws-consolidatedsewerageconnection.json,file:///work-dir/configs/pdf-service/format-config/buildingpermit.json,file:///work-dir/configs/pdf-service/format-config/ptmutationcertificate.json,file:///work-dir/configs/pdf-service/format-config/tlrenewalcertificate.json,file:///work-dir/configs/pdf-service/format-config/bpa-revocation.json,file:///work-dir/configs/pdf-service/format-config/buildingpermit-low.json,file:///work-dir/configs/pdf-service/format-config/misc-receipt.json,file:///work-dir/configs/pdf-service/format-config/ws-applicationwater.json,file:///work-dir/configs/pdf-service/format-config/ws-sanctionletter.json,file:///work-dir/configs/pdf-service/format-config/ws-estimationnotice.json,file:///work-dir/configs/pdf-service/format-config/ws-applicationsewerage.json,file:///work-dir/configs/pdf-service/format-config/tlcertificate.json,file:///work-dir/configs/pdf-service/format-config/measurement-book.json,file:///work-dir/configs/pdf-service/format-config/fsm-receipt.json,file:///work-dir/configs/pdf-service/format-config/health-bill-payment.json,file:///work-dir/configs/pdf-service/format-config/studio-blank-application.json,file:///work-dir/configs/pdf-service/format-config/studio-application.json"
+
+public-service:
+  replicas: 2
+  heap: "-Xmx768m -Xms256m"
+  memory_limits: 1024Mi
+  mdms-search-enpoint: "egov-mdms-service/v1/_search"
+  mdms-search-v2-endpoint: "egov-mdms-service/v2"
+  mdms-v2-search-endpoint: "egov-mdms-service/v2/_search"
+  mdms-v2-create-endpoint: "egov-mdms-service/v2/_create"
+  mdms-service-host: "http://mdms-v2.egov:8080/"
+  mdms-v2-update-endpoint: "egov-mdms-service/v2/_update"
+  namespace: studio
+
+public-service-init:
+  replicas: 1
+  heap: "-Xmx512m -Xms256m"
+  memory_limits: 768Mi
+  mdms-search-enpoint: "egov-mdms-service/v1/_search"
+  mdms-search-v2-endpoint: "egov-mdms-service/v2"
+  mdms-v2-search-endpoint: "egov-mdms-service/v2/_search"
+  mdms-v2-create-endpoint: "egov-mdms-service/v2/_create"
+  mdms-service-host: "http://mdms-v2.egov:8080/"
+  mdms-v2-update-endpoint: "egov-mdms-service/v2/_update"
+  namespace: studio 
+
+studio-calculator-service:
+  replicas: 1
+  namespace: studio
+  memory_limits: 256Mi
+
+studio-pdf:
+  namespace: studio
+
+studio-pdf-helper-service:
+  namespace: studio
+
+user-otp:
+  logging-level: "DEBUG"
+
+### jupyter-hub >>>>>>>>>>>>>>>>>>>>
+jupyterhub:
+  hub:
+    config:
+      Authenticator:
+        admin_users:
+          - studio-demo-admin
+      NativeAuthenticator:
+        minimum_password_length: 8
+        check_common_password: false
+        allowed_failed_logins: 5
+        seconds_before_next_try: 300
+      JupyterHub:
+        admin_access: true
+  ingress:
+    enabled: true
+    hosts:
+      - studio-demo.digit.org
+    tls:
+      - hosts:
+          - studio-demo.digit.org
+        secretName: studio-demo.digit.org-tls-certs
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+kafka-ui:
+  yamlApplicationConfig:
+    kafka:
+      clusters:
+        - name: studio-demo
+          bootstrapServers: kafka-kraft-controller-headless.backbone:9092
+          readonly: true
+
+pgadmin:
+  dbUrl: "studio-demo-server.postgres.database.azure.com"
+  environment: "studio_DEMO"
+  maintenance-db-name: "studio-demo-db"
+  db-admin-username: "studiodemo"
+  db-read-username: "studiodemo_read"
+  max-query-history: "50"
+  max-login-attempts: "10"
+  enable-save-password: "False"
+  persistence:
+    enabled: true
+    dataDirSize: "10Gi"
+
+### Grafana >>>>>>>>>>>>>>>>>>>>
+grafana:
+  github:
+    allowed_organizations: ["egovernments"]
+    role_attribute_path: contains(groups[*], '@egovernments/studio-demo') && 'Viewer'
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+### Prometheus & Alertmanager >>>>>>>>>>>>>>>>>>>>
+prometheus:
+  alertmanager:
+    enabled: true
+  externalLabels:
+    cluster: studio-demo
+  retention: 90d
+  storageSpec:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: default
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 30Gi
+  additionalScrapeConfigs:
+    - job_name: 'ingress-nginx-metrics'
+      static_configs:
+        - targets: [ 'ingress-nginx-controller-metrics.backbone:10254' ]
+    - job_name: 'blackbox'
+      metrics_path: /probe
+      params:
+        module: [ http_2xx ]
+      static_configs:
+        - targets:
+            - https://studio-demo.digit.org/
+            - https://studio-demo.digit.org/jupyter/hub/
+            - https://studio-demo.digit.org/kibana/
+            - https://studio-demo.digit.org/pgadmin/
+      relabel_configs:
+        - source_labels: [ __address__ ]
+          target_label: __param_target
+        - source_labels: [ __param_target ]
+          target_label: instance
+        - target_label: __address__
+          replacement: prometheus-blackbox-exporter:9115
+    - job_name: 'blackbox_exporter'
+      static_configs:
+        - targets: [ 'prometheus-blackbox-exporter:9115' ]
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+### loki-stack >>>>>>>>>>>>>>>>>>>>
+loki:
+  persistence:
+    enabled: true
+    accessModes:
+      - ReadWriteOnce
+    size: 30Gi
+    storageClassName: default
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::349271159511:role/sandbox-prod-loki-stack-role
+  additionalConfigs:
+    schema_config:
+      configs:
+        - from: 2020-10-24
+          store: boltdb-shipper
+          object_store: s3
+          schema: v11
+          index:
+            prefix: index_
+            period: 24h
+    storage_config:
+      boltdb_shipper:
+        active_index_directory: /data/loki/index
+        cache_location: /data/loki/index_cache
+        shared_store: s3
+        cache_ttl: 72h
+      aws:
+        s3: s3://ap-south-1/digit-sandbox-prod-s3
+      filesystem:
+        directory: /data/loki/chunks
+    compactor:
+      working_directory: /data/loki/boltdb-shipper-compactor
+      shared_store: s3
+      retention_enabled: true
+      compaction_interval: 168h
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 720h  # 30 days
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

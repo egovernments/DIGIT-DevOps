@@ -32,7 +32,7 @@ heap: "-Xmx192m -Xms192m"
 file-storage-mount-path: "/filestore"
 is-nfs-enabled: false
 is-s3-enabled: true
-is-aws-bucket: true
+is-aws-bucket: false   ## Azure Blob backend
 spring-servlet-multipart-max-request-size: "30MB"
 persistence:
   enabled: false
@@ -58,6 +58,8 @@ env: |
     value: "/tmp"
   - name: SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE
     value: "30MB"
+  - name: ISAZURESTORAGEENABLED
+    value: "true"
   - name: ISNFSSTORAGEENABLED
     value: {{ index .Values "is-nfs-enabled" | quote }}
   {{- if index .Values "is-nfs-enabled" }}
@@ -73,8 +75,8 @@ env: |
   {{- end }}
   {{- if index .Values "is-s3-enabled" }}
   - name: ISS3ENABLED
-    value: "true"
-  {{- end }}  
+    value: "false"
+  {{- end }}
   {{- if index .Values "minio-enabled" }}
   - name: AWS_KEY
     valueFrom:
@@ -87,17 +89,19 @@ env: |
         key: secretkey
         name: minio
   {{else}}
-  - name: AWS_KEY
+  - name: AZURE_ACCOUNTNAME
     valueFrom:
       secretKeyRef:
         name: egov-filestore
         key: awskey
-  - name: AWS_SECRETKEY
+  - name: AZURE_ACCOUNTKEY
     valueFrom:
       secretKeyRef:
         name: egov-filestore
         key: awssecretkey
   {{- end }}
+  - name: AZURE_DEFAULTENDPOINTSPROTOCOL
+    value: https
   {{- if index .Values "is-bucket-fixed" }}
   - name: IS_BUCKET_FIXED
     value: {{ index .Values "is-bucket-fixed" | quote }}

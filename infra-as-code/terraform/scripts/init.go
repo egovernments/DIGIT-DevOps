@@ -57,29 +57,29 @@ func main() {
 		// Azure: validation is handled by the native `validation {}` blocks in
 		// variables.tf, so we skip the Go-side validation and only substitute
 		// the <placeholder> markers with the values from input.yaml.
-		replaceInFile("variables.tf", data, false, false)
-		fmt.Println("variables.tf file updated successfully!")
-
-		replaceInFile("remote-state/variables.tf", data, false, false)
-		fmt.Println("remote-state/variables.tf file updated successfully!")
-
-		// In main.tf the placeholders are already wrapped in quotes (e.g.
-		// "<subscription_id>", "<cluster_name>-rg"), so strip the quotes from
-		// the substituted value to avoid doubling them.
-		replaceInFile("main.tf", data, false, false)
-		fmt.Println("main.tf file updated successfully!")
-
-	case "gcp":
-		// GCP: no Go-side validation. All placeholders in the GCP .tf files are
-		// wrapped in quotes (e.g. default = "<GCP_PROJECT_ID>"), so strip the
-		// quotes from the substituted value to avoid doubling them.
 		replaceInFile("variables.tf", data, true, false)
 		fmt.Println("variables.tf file updated successfully!")
 
 		replaceInFile("remote-state/variables.tf", data, true, false)
 		fmt.Println("remote-state/variables.tf file updated successfully!")
 
+		// In main.tf the placeholders are already wrapped in quotes (e.g.
+		// "<subscription_id>", "<cluster_name>-rg"), so strip the quotes from
+		// the substituted value to avoid doubling them.
 		replaceInFile("main.tf", data, true, false)
+		fmt.Println("main.tf file updated successfully!")
+
+	case "gcp":
+		// GCP: no Go-side validation. All placeholders in the GCP .tf files are
+		// wrapped in quotes (e.g. default = "<GCP_PROJECT_ID>"), so strip the
+		// quotes from the substituted value to avoid doubling them.
+		replaceInFile("variables.tf", data, false, false)
+		fmt.Println("variables.tf file updated successfully!")
+
+		replaceInFile("remote-state/variables.tf", data, false, false)
+		fmt.Println("remote-state/variables.tf file updated successfully!")
+
+		replaceInFile("main.tf", data, false, false)
 		fmt.Println("main.tf file updated successfully!")
 
 	default:

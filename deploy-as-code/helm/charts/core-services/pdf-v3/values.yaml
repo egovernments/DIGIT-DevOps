@@ -1,0 +1,62 @@
+# Common Labels
+labels:
+  app: "pdf-v3"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "pdf-v3"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "pdf_v3_schema"
+    image:
+      repository: "pdf-v3-db"
+
+# Container Configs
+image:
+  repository: "pdf-v3"
+replicas: "1"
+appType: "java-spring"
+heap: "-Xmx512m -Xms512m"
+memory_limits: 1024Mi
+
+# Additional Container Envs
+env: |
+  - name: SPRING_DATASOURCE_URL
+    value: "jdbc:postgresql://localhost:5433/egov_pdf"
+  - name: SPRING_DATASOURCE_USERNAME
+    value: "pdfuser"
+  - name: SPRING_DATASOURCE_PASSWORD
+    value: "pdfpass"
+  - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+    value: "update"
+  - name: SPRING_FLYWAY_ENABLED
+    value: "true"
+  - name: REDIS_HOST
+    value: "localhost"
+  - name: REDIS_PORT
+    value: "6379"
+  - name: REDIS_PASSWORD
+  - name: REDIS_CACHE_TTL_MINUTES
+    value: "60"
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    value: "localhost:9092"
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: "pdf-service-group"
+  - name: SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET
+    value: "earliest"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: EGOV_FILESTORE_HOST
+    value: "https://digit-lts.digit.org/filestore/v3/files"
+  - name: PLAYWRIGHT_HEADLESS
+    value: "true"
+  - name: PLAYWRIGHT_PAGE_WIDTH
+    value: "8.27in"
+  - name: PLAYWRIGHT_PAGE_HEIGHT
+    value: "11.69in"

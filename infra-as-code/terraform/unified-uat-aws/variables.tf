@@ -26,12 +26,12 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.33"
+  default = "1.34"
 }
 
 variable "instance_types" {
   description = "ARM64-based instance types for better price-performance"
-  default = ["t4g.xlarge", "m6g.xlarge"]
+  default = ["t4g.xlarge"]
 }
 
 variable "min_worker_nodes" {
@@ -41,7 +41,7 @@ variable "min_worker_nodes" {
 
 variable "desired_worker_nodes" {
   description = "eGov recommended below worker node counts as default for desired nodes"
-  default = "5" #REPLACE IF NEEDED
+  default = "7" #REPLACE IF NEEDED
 }
 
 variable "max_worker_nodes" {
@@ -80,5 +80,8 @@ variable "iam_user_arn" {
 
 ## change ssh key_name eg. digit-quickstart_your-name
 
+variable cloudwatch_eks_log_group_retention_in_days {
+  default = "7"
+}
 
 

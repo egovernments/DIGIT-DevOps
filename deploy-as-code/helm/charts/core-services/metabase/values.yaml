@@ -1,0 +1,69 @@
+# Common Labels
+labels:
+  app: "metabase"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "metabase"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: false
+
+# Container Configs
+image:
+  repository: "metabase/metabase"
+  tag: "v0.49.3"
+replicas: "1"
+appType: ""
+memory_limits: 1500Mi
+memory_requests: 768Mi
+cpu_limits: "700m"
+cpu_requests: "350m"
+
+healthChecks:
+  enabled: true
+  livenessProbePath: "/livez"
+  readinessProbePath: "/readyz"
+
+# Resource configuration
+resources: |
+  requests:
+    cpu: "350m"
+    memory: "768Mi"
+  limits:
+    cpu: "700m"
+    memory: "1500Mi"
+
+# Additional Container Envs
+env: |
+  - name: MB_JETTY_PORT
+    value: "8080"
+  - name: MB_DB_TYPE
+    value: "postgres"
+  - name: MB_DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: MB_DB_PORT
+    value: "5432"
+  - name: MB_DB_DBNAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
+  - name: MB_DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: MB_DB_PASS
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password

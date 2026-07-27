@@ -25,7 +25,7 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.33"
+  default = "1.34"
 }
 
 variable "architecture" {
@@ -70,7 +70,7 @@ variable "max_worker_nodes" {
 
 variable "db_version" {
   description = "DB version"
-  default = "15.12"
+  default = "15.18"
 }
 
 variable "db_instance_class" {

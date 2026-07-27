@@ -151,14 +151,14 @@ module "eks_managed_node_group" {
   }
 }
 
-module "ebs_csi_driver_irsa" {
+module "ebs_csi_irsa" {
   depends_on = [module.eks]
-  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-  version = "~> 5.20"
-  role_name_prefix = "ebs-csi-driver-"
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
+  version = "6.6.1"
+  name = "ebs-csi-driver-${var.cluster_name}"
   attach_ebs_csi_policy = true
   oidc_providers = {
-    main = {
+    this = {
       provider_arn               = module.eks.oidc_provider_arn
       namespace_service_accounts = ["kube-system:ebs-csi-controller-sa"]
     }
@@ -211,7 +211,7 @@ resource "aws_eks_addon" "aws_ebs_csi_driver" {
   depends_on = [module.eks_managed_node_group]
   cluster_name      = var.cluster_name
   addon_name        = "aws-ebs-csi-driver"
-  service_account_role_arn = module.ebs_csi_driver_irsa.iam_role_arn
+  service_account_role_arn = module.ebs_csi_irsa.arn
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
 }

@@ -1,0 +1,61 @@
+# Common Labels
+labels:
+  app: "schema-registry"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "schema"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "schema_registry_schema"
+    image:
+      repository: "schema-registry-db"
+
+# Container Configs
+image:
+  repository: "schema-registry"
+replicas: "1"
+appType: "java-spring"
+heap: "-Xmx1012m -Xms512m"
+memory_limits: 1500Mi
+memory_requests: 768Mi
+healthChecks:
+  enabled: true
+  livenessProbePath: "/schema/health"
+  readinessProbePath: "/schema/health"
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+  - name: DB_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        key: db-url
+        name: egov-config
+  - name: REDIS_HOST
+    value: "redis.backbone"
+  - name: REDIS_PORT
+    value: "6379"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}

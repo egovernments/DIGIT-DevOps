@@ -10,6 +10,11 @@ ingress:
   context: "url-shortener"
 
 # Init Containers Configs
+# DB migration runs in an init container (preferred strategy) — same as the Go
+# chart. The migration image ships the Flyway SQL + migrate.sh and runs against
+# the elevated flyway credentials before the app starts; the app itself has
+# in-boot Flyway disabled (SPRING_FLYWAY_ENABLED=false below). History table
+# url_shortener_schema matches migrate.sh's -table setting.
 initContainers:
   dbMigration:
     enabled: true
@@ -17,46 +22,46 @@ initContainers:
     image:
       repository: "url-shortener-java-db"
     env: |
-        - name: "DB_URL"
-          valueFrom:
-            configMapKeyRef:
-              name: egov-config
-              key: db-url
-        - name: "SCHEMA_TABLE"
-          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
-        - name: "FLYWAY_USER"
-          valueFrom:
-            secretKeyRef:
-              name: db
-              key: flyway-username
-        - name: "FLYWAY_PASSWORD"
-          valueFrom:
-            secretKeyRef:
-              name: db
-              key: flyway-password
-        - name: JAVA_ENABLE_DEBUG
-          value: "TRUE"
-        - name: "FLYWAY_LOCATIONS"
-          valueFrom:
-            configMapKeyRef:
-              name: egov-config
-              key: flyway-locations
-        - name: FLYWAY_SCHEMAS
-          value: public
-        - name: FLYWAY_DEFAULT_SCHEMA
-          value: public
+      - name: "DB_URL"
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-url
+      - name: "SCHEMA_TABLE"
+        value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+      - name: "FLYWAY_USER"
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-username
+      - name: "FLYWAY_PASSWORD"
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-password
+      - name: JAVA_ENABLE_DEBUG
+        value: "TRUE"
+      - name: "FLYWAY_LOCATIONS"
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: flyway-locations
+      - name: FLYWAY_SCHEMAS
+        value: public
+      - name: FLYWAY_DEFAULT_SCHEMA
+        value: public
 
 # Container Configs
 image:
   repository: "url-shortener-java"
 replicas: 1
 appType: "java"
-tracing-enabled: false # Assuming you want to keep tracing
+tracing-enabled: false
 healthChecks:
-  enabled: false # Disabled as requested
-  livenessProbePath: "/health"
-  readinessProbePath: "/health"
-# Resource configuration for Go service
+  enabled: false
+  livenessProbePath: "/url-shortener/actuator/health/liveness"
+  readinessProbePath: "/url-shortener/actuator/health/readiness"
+# Resource configuration for Java service
 resources: |
   requests:
     cpu: "150m"
@@ -66,100 +71,83 @@ resources: |
     memory: "1.5Gi"
 
 # Additional Container Envs
+# Spring relaxed binding for env vars: uppercase, every '.' AND '-' becomes '_'
+# (nothing is dropped) — e.g. url-shortener.host-name -> URL_SHORTENER_HOST_NAME.
+# Verified empirically against the built jar's /actuator/env (not assumed) —
+# an earlier draft of this chart used URLSHORTENER_* (hyphen collapsed) and
+# SPRING_KAFKA_BOOTSTRAPSERVERS, neither of which actually bind; both silently
+# fall back to the in-jar default instead of erroring, so the mistake would
+# never have surfaced from a boot log alone.
 env: |
-  - name: HTTP_PORT
+  - name: SERVER_PORT
     value: "8080"
-  - name: SERVER_CONTEXT_PATH
+  - name: SERVER_SERVLET_CONTEXT_PATH
     value: /url-shortener
-  - name: DB_HOST
-    value: postgresql-lts.egov
-  - name: DB_PORT
-    value: "5432"
-  - name: DB_SSL_MODE
-    value: disable
-  - name: DB_NAME
-    value: postgres
-  - name: DB_USER
+  # ── Datasource ──────────────────────────────────────────────────────────
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: SPRING_DATASOURCE_USERNAME
     valueFrom:
       secretKeyRef:
         key: username
         name: db
-  - name: DB_PASSWORD
+  - name: SPRING_DATASOURCE_PASSWORD
     valueFrom:
       secretKeyRef:
         key: password
         name: db
-  - name: CACHE_ENABLED
+  # Migration is handled by the init container above — app-boot Flyway is off
+  - name: SPRING_FLYWAY_ENABLED
     value: "false"
-  - name: CACHE_TYPE
-    value: redis
-  - name: CACHE_TTL
-    value: 24*time.Hour
-  - name: REDIS_ADDR
-    value: redis.backbone:6379
-  - name: REDIS_DB
-    value: "0"
-  - name: OTEL_ENABLED
-    value: "false"
-  - name: OTEL_SERVICE_NAME
-    value: url-shortener
-  - name: OTEL_SERVICE_VERSION
-    value: 1.0.0
-  - name: OTEL_METRICS_ENABLED
-    value: "true"
-  - name: PROMETHEUS_PORT
-    value: "9090"
-  - name: OTEL_TRACES_SAMPLER_ARG
-    value: "1.0"
-  - name: OTEL_EXPORTER_OTLP_ENDPOINT
-    value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
-  - name: REDIS_PASSWORD
-  - name: SERVER_HOST_NAME
+  # ── Service ─────────────────────────────────────────────────────────────
+  - name: URL_SHORTENER_HOST_NAME
     value: https://digit-lts.digit.org
-  - name: PUBSUB_ENABLED
+  - name: URL_SHORTENER_CACHE_ENABLED
     value: "false"
-  - name: PUBSUB_TYPE
+  - name: URL_SHORTENER_CACHE_TYPE
     value: redis
-  - name: KAFKA_BROKERS
-    value: release-name-kafka-controller-headless.kafka-kraft:9092
-  - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
-    value: "true"
-  - name: KAFKA_PARTITION_COUNT
-    value: "1"
-  - name: KAFKA_REPLICATION_FACTOR
-    value: "1"
-  - name: KAFKA_CONSUMER_GROUP
-    value: url-shortener-service
-  - name: REDIS_ADDRESS
-    value: redis.backbone.svc.cluster.local:6379
-  - name: REDIS_CONSUMER_GROUP
-    value: url-shortener-service
-  - name: REDIS_CONSUMER_ID
-    value: url-shortener-service-1
-  - name: REDIS_RETENTION_DAYS
-    value: "7"
-  - name: REDIS_MAX_STREAM_LENGTH
-    value: "1000000"
-  - name: REDIS_CLEANUP_INTERVAL
-    value: "86400"
-  - name: PUBSUB_TOPIC_CREATE_SHORT_URL
-    value: url-shortener-create-short-url
-  - name: PUBSUB_TOPIC_CREATE_URL_CONFIG
-    value: url-shortener-create-url-config
-  - name: PUBSUB_TOPIC_UPDATE_URL_CONFIG
-    value: url-shortener-update-url-config
-  - name: PUBSUB_TOPIC_DELETE_URL_CONFIG
-    value: url-shortener-delete-url-config
-  - name: SCHEMA_SEPARATION_MODE
+  - name: URL_SHORTENER_CACHE_TTL
+    value: 24h
+  - name: SPRING_DATA_REDIS_HOST
+    value: redis.backbone.svc.cluster.local
+  - name: SPRING_DATA_REDIS_PORT
+    value: "6379"
+  - name: SPRING_DATA_REDIS_DATABASE
+    value: "0"
+  - name: SPRING_DATA_REDIS_PASSWORD
+  # Lifecycle events (same posture as the Go chart: disabled, redis backend)
+  - name: URL_SHORTENER_EVENTS_ENABLED
     value: "false"
-  - name: SCHEMA_SEPARATION_TOPIC
-    value: account-migration
-  - name: MIGRATION_FLYWAY_LOCATIONS
-    value: filesystem:/opt/digit/db/migrations
-  - name: MIGRATION_SCRIPT_PATH
-    value: /opt/digit/migrate.sh
-  - name: MIGRATION_FLYWAY_BIN
-    value: /opt/flyway/flyway
-  - name: MIGRATION_SCHEMA_TABLE
-    value: url_shortener_schema
-
+  - name: URL_SHORTENER_EVENTS_TOPICS_CREATE_SHORT_URL
+    value: url-shortener-create-short-url
+  - name: URL_SHORTENER_EVENTS_TOPICS_CREATE_CONFIG
+    value: url-shortener-create-url-config
+  - name: URL_SHORTENER_EVENTS_TOPICS_UPDATE_CONFIG
+    value: url-shortener-update-url-config
+  - name: URL_SHORTENER_EVENTS_TOPICS_DELETE_CONFIG
+    value: url-shortener-delete-url-config
+  - name: TRACER_PUBSUB_TYPE
+    value: redis
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+  - name: SPRING_APPLICATION_NAME
+    value: url-shortener
+  # ── Observability: OTel span export and metrics export both disabled ──────
+  # NB: the span switch is MANAGEMENT_TRACING_EXPORT_ENABLED — MANAGEMENT_TRACING_ENABLED
+  # does not gate Boot's OTLP span exporter.
+  - name: MANAGEMENT_TRACING_EXPORT_ENABLED
+    value: "false"
+  - name: MANAGEMENT_DEFAULTS_METRICS_EXPORT_ENABLED
+    value: "false"
+  - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+    value: health,info
+  - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
+    value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/traces
+  - name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY
+    value: "1.0"

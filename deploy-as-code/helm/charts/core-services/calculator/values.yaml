@@ -1,0 +1,87 @@
+# Common Labels
+labels:
+  app: "calculator"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "calculator"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "calculator_schema"
+    image:
+      repository: "calculator-db"
+
+# Container Configs
+image:
+  repository: "calculator"
+replicas: "1"
+appType: "java-spring"
+heap: "-Xmx1012m -Xms512m"
+memory_limits: 1500Mi
+memory_requests: 768Mi
+healthChecks:
+  enabled: true
+  livenessProbePath: "/calculator/health"
+  readinessProbePath: "/calculator/health"
+  livenessProbe: |
+    httpGet:
+      path: "{{ .Values.healthChecks.livenessProbePath }}"
+      port: {{ .Values.httpPort }}
+      httpHeaders:
+        - name: X-Tenant-ID
+          value: ESMAGICO
+    initialDelaySeconds: 90
+    timeoutSeconds: 5
+    periodSeconds: 30
+    successThreshold: 1
+    failureThreshold: 5
+  readinessProbe: |
+    httpGet:
+      path: "{{ .Values.healthChecks.readinessProbePath }}"
+      port: {{ .Values.httpPort }}
+      httpHeaders:
+        - name: X-Tenant-ID
+          value: ESMAGICO
+    initialDelaySeconds: 90
+    timeoutSeconds: 5
+    periodSeconds: 15
+    successThreshold: 1
+    failureThreshold: 5
+
+# Additional Container Envs
+env: |
+  - name: EGOV_BILLING_HOST
+    value: "https://digit-lts.digit.org"
+  - name: CORS_ALLOWED_ORIGINS
+    value: "https://digit-lts.digit.org/license/citizen, https://digit-lts.digit.org/license/employee, https://digit-lts.digit.org/license/admin"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: DB_PORT
+    value: "5432"
+  - name: SPRING_DATA_REDIS_HOST
+    value: "redis.backbone"
+  - name: SPRING_DATA_REDIS_PORT
+    value: "6379"
+  - name: DB_NAME
+    value: "postgres"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}

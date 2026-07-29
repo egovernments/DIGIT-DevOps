@@ -26,7 +26,7 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.33"
+  default = "1.34"
 }
 
 variable "instance_types" {
@@ -41,12 +41,12 @@ variable "min_worker_nodes" {
 
 variable "desired_worker_nodes" {
   description = "eGov recommended below worker node counts as default for desired nodes"
-  default = "4" #REPLACE IF NEEDED
+  default = "5" #REPLACE IF NEEDED
 }
 
 variable "max_worker_nodes" {
   description = "eGov recommended below worker node counts as default for max nodes"
-  default = "5" #REPLACE IF NEEDED
+  default = "6" #REPLACE IF NEEDED
 }
 
 
@@ -75,6 +75,10 @@ variable "enable_karpenter" {
   description = "Enable the karpenter."
   type        = bool
   default     = false
+}
+
+variable cloudwatch_eks_log_group_retention_in_days {
+  default = "3"
 }
 
 

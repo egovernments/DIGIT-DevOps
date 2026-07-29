@@ -10,6 +10,11 @@ ingress:
   context: "idgen"
 
 # Init Containers Configs
+# DB migration runs in an init container (preferred strategy) — same as the Go
+# chart. The migration image ships the Flyway SQL + migrate.sh and runs against
+# the elevated flyway credentials before the app starts; the app itself has
+# in-boot Flyway disabled (SPRING_FLYWAY_ENABLED=false below). History table
+# idgen_schema matches migrate.sh's -table setting.
 initContainers:
   dbMigration:
     enabled: true
@@ -17,46 +22,46 @@ initContainers:
     image:
       repository: "idgen-java-db"
     env: |
-        - name: "DB_URL"
-          valueFrom:
-            configMapKeyRef:
-              name: egov-config
-              key: db-url
-        - name: "SCHEMA_TABLE"
-          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
-        - name: "FLYWAY_USER"
-          valueFrom:
-            secretKeyRef:
-              name: db
-              key: flyway-username
-        - name: "FLYWAY_PASSWORD"
-          valueFrom:
-            secretKeyRef:
-              name: db
-              key: flyway-password
-        - name: JAVA_ENABLE_DEBUG
-          value: "TRUE"
-        - name: "FLYWAY_LOCATIONS"
-          valueFrom:
-            configMapKeyRef:
-              name: egov-config
-              key: flyway-locations
-        - name: FLYWAY_SCHEMAS
-          value: public
-        - name: FLYWAY_DEFAULT_SCHEMA
-          value: public
+      - name: "DB_URL"
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-url
+      - name: "SCHEMA_TABLE"
+        value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+      - name: "FLYWAY_USER"
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-username
+      - name: "FLYWAY_PASSWORD"
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-password
+      - name: JAVA_ENABLE_DEBUG
+        value: "TRUE"
+      - name: "FLYWAY_LOCATIONS"
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: flyway-locations
+      - name: FLYWAY_SCHEMAS
+        value: public
+      - name: FLYWAY_DEFAULT_SCHEMA
+        value: public
 
 # Container Configs
 image:
   repository: "idgen-java"
 replicas: 1
 appType: "java"
-tracing-enabled: true # Assuming you want to keep tracing
+tracing-enabled: false
 healthChecks:
-  enabled: false # Disabled as requested
-  livenessProbePath: "/health"
-  readinessProbePath: "/health"
-# Resource configuration for Go service
+  enabled: false
+  livenessProbePath: "/idgen/actuator/health/liveness"
+  readinessProbePath: "/idgen/actuator/health/readiness"
+# Resource configuration for the Java service
 resources: |
   requests:
     cpu: "150m"
@@ -66,96 +71,62 @@ resources: |
     memory: "1.5Gi"
 
 # Additional Container Envs
+# The service is configured through Spring properties (relaxed env binding),
+# not the Go service's env var names.
 env: |
-  - name: HTTP_PORT
+  - name: SERVER_PORT
     value: "8080"
-  - name: SERVER_CONTEXT_PATH
-    value: /idgen
-  - name: DB_HOST
-    value: postgresql-lts.egov
-  - name: DB_PORT
-    value: "5432"
-  - name: DB_SSL_MODE
-    value: disable
-  - name: DB_NAME
-    value: postgres
-  - name: DB_USER
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    value: /idgen-java
+  # ── Datasource ──────────────────────────────────────────────────────────
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: SPRING_DATASOURCE_USERNAME
     valueFrom:
       secretKeyRef:
         key: username
         name: db
-  - name: DB_PASSWORD
+  - name: SPRING_DATASOURCE_PASSWORD
     valueFrom:
       secretKeyRef:
         key: password
         name: db
-  - name: OTEL_ENABLED
+  # Migration is handled by the init container above — app-boot Flyway is off
+  - name: SPRING_FLYWAY_ENABLED
     value: "false"
-  - name: OTEL_SERVICE_NAME
-    value: idgen
-  - name: OTEL_SERVICE_VERSION
-    value: 1.0.0
-  - name: OTEL_METRICS_ENABLED
+  # ── Service ─────────────────────────────────────────────────────────────
+  # Zone for {DATE:*} rendering and sequence scope keys
+  - name: IDGEN_TIMEZONE
+    value: UTC
+  # ── Observability: OTel span export and metrics export both disabled ──────
+  # NB: the span switch is MANAGEMENT_TRACING_EXPORT_ENABLED — MANAGEMENT_TRACING_ENABLED
+  # does not gate Boot's OTLP span exporter.
+  - name: MANAGEMENT_TRACING_EXPORT_ENABLED
     value: "false"
-  - name: PROMETHEUS_PORT
-    value: "9090"
-  - name: OTEL_TRACES_SAMPLER_ARG
-    value: "1.0"
-  - name: OTEL_EXPORTER_OTLP_ENDPOINT
-    value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
-  - name: PUBSUB_ENABLED
+  - name: MANAGEMENT_DEFAULTS_METRICS_EXPORT_ENABLED
     value: "false"
-  - name: PUBSUB_TYPE
-    value: redis
-  - name: PUBSUB_TOPIC_CREATE_TENANT
-    value: account-create-tenant
-  - name: PUBSUB_TOPIC_CREATE_TEMPLATE
+  - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+    value: health,info
+  # ── Template lifecycle events (same posture as the Go chart: disabled, redis backend) ──
+  - name: IDGEN_EVENTS_ENABLED
+    value: "false"
+  - name: IDGEN_EVENTS_TOPICS_CREATE
     value: idgen-create-template
-  - name: PUBSUB_TOPIC_UPDATE_TEMPLATE
+  - name: IDGEN_EVENTS_TOPICS_UPDATE
     value: idgen-update-template
-  - name: PUBSUB_TOPIC_DELETE_TEMPLATE
+  - name: IDGEN_EVENTS_TOPICS_DELETE
     value: idgen-delete-template
-  - name: KAFKA_BROKERS
+  - name: TRACER_PUBSUB_TYPE
+    value: redis
+  - name: SPRING_DATA_REDIS_HOST
+    value: redis.backbone.svc.cluster.local
+  - name: SPRING_DATA_REDIS_PORT
+    value: "6379"
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
     valueFrom:
       configMapKeyRef:
         key: kafka-brokers
         name: egov-config
-  - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
-    value: "true"
-  - name: KAFKA_PARTITION_COUNT
-    value: "1"
-  - name: KAFKA_REPLICATION_FACTOR
-    value: "1"
-  - name: KAFKA_CONSUMER_GROUP
-    value: idgen-service
-  - name: REDIS_ADDRESS
-    value: redis.backbone.svc.cluster.local:6379
-  - name: REDIS_PASSWORD
-  - name: REDIS_DB
-    value: "0"
-  - name: REDIS_CONSUMER_GROUP
-    value: idgen-service
-  - name: REDIS_CONSUMER_ID
-    value: idgen-service-1
-  - name: REDIS_RETENTION_DAYS
-    value: "7"
-  - name: REDIS_MAX_STREAM_LENGTH
-    value: "1000000"
-  - name: REDIS_CLEANUP_INTERVAL
-    value: "86400"
-  - name: SCHEMA_SEPARATION_MODE
-    value: "false"
-  - name: SCHEMA_SEPARATION_TOPIC
-    value: account-migration
-  - name: MIGRATION_FLYWAY_LOCATIONS
-    value: filesystem:/opt/digit/db/migrations
-  - name: MIGRATION_SCRIPT_PATH
-    value: /opt/digit/migrate.sh
-  - name: MIGRATION_FLYWAY_BIN
-    value: /opt/flyway/flyway
-  - name: MIGRATION_SCHEMA_TABLE
-    value: idgen_schema
-  - name: LOG_LEVEL
-    value: info
-  - name: CONSOLE_LOGS_ENABLED
-    value: "true"

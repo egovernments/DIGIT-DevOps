@@ -1,25 +1,25 @@
 # Common Labels
 labels:
-  app: "pdf-v3"
+  app: "calculator"
   group: "rainmaker"
 
 # Ingress Configs
 ingress:
   enabled: true
   zuul: true
-  context: "pdf-v3"
+  context: "calculator"
 
 # Init Containers Configs
 initContainers:
   dbMigration:
     enabled: true
-    schemaTable: "pdf_v3_schema"
+    schemaTable: "calculator_schema"
     image:
-      repository: "pdf-v3-db"
+      repository: "calculator-db"
 
 # Container Configs
 image:
-  repository: "pdf-v3"
+  repository: "calculator"
 replicas: "1"
 appType: "java-spring"
 heap: "-Xmx1012m -Xms512m"
@@ -27,8 +27,8 @@ memory_limits: 1500Mi
 memory_requests: 768Mi
 healthChecks:
   enabled: true
-  livenessProbePath: "/pdf-v3/health"
-  readinessProbePath: "/pdf-v3/health"
+  livenessProbePath: "/calculator/health"
+  readinessProbePath: "/calculator/health"
   livenessProbe: |
     httpGet:
       path: "{{ .Values.healthChecks.livenessProbePath }}"
@@ -56,30 +56,32 @@ healthChecks:
 
 # Additional Container Envs
 env: |
-  - name: SPRING_JPA_HIBERNATE_DDL_AUTO
-    value: "update"
-  - name: SPRING_FLYWAY_ENABLED
-    value: "true"
-  - name: REDIS_HOST
+  - name: EGOV_BILLING_HOST
+    value: "https://digit-lts.digit.org"
+  - name: CORS_ALLOWED_ORIGINS
+    value: "https://digit-lts.digit.org/license/citizen, https://digit-lts.digit.org/license/employee, https://digit-lts.digit.org/license/admin"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: DB_PORT
+    value: "5432"
+  - name: SPRING_DATA_REDIS_HOST
     value: "redis.backbone"
-  - name: REDIS_PORT
+  - name: SPRING_DATA_REDIS_PORT
     value: "6379"
-  - name: REDIS_CACHE_TTL_MINUTES
-    value: "60"
-  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: "pdf-service-group"
-  - name: SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET
-    value: "earliest"
-  - name: SERVER_PORT
-    value: "8080"
-  - name: EGOV_FILESTORE_HOST
-    value: "https://digit-lts.digit.org/filestore/v3/files"
-  - name: PLAYWRIGHT_HEADLESS
-    value: "true"
-  - name: PLAYWRIGHT_PAGE_WIDTH
-    value: "8.27in"
-  - name: PLAYWRIGHT_PAGE_HEIGHT
-    value: "11.69in"
+  - name: DB_NAME
+    value: "postgres"
   - name: JAVA_OPTS
     value: {{ index .Values "heap" | quote }}
-  

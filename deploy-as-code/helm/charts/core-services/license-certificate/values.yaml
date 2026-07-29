@@ -1,0 +1,81 @@
+# Common Labels
+labels:
+  app: "license-certificate"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "license"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "license_certificate_schema"
+    image:
+      repository: "license-certificate-db"
+
+# Container Configs
+image:
+  repository: "license-certificate"
+replicas: "1"
+appType: "java-spring"
+heap: "-Xmx1012m -Xms512m"
+memory_limits: 1500Mi
+memory_requests: 768Mi
+healthChecks:
+  enabled: true
+  livenessProbePath: "/license/health"
+  readinessProbePath: "/license/health"
+
+# Additional Container Envs
+env: |
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        key: db-url
+        name: egov-config
+  - name: SPRING_DATA_REDIS_HOST
+    value: "redis.backbone"
+  - name: SPRING_DATA_REDIS_PORT
+    value: "6379"
+  - name: EGOV_IDGEN_HOST
+    value: "https://digit-lts.digit.org"
+  - name: EGOV_WORKFLOW_HOST
+    value: "https://digit-lts.digit.org"
+  - name: EGOV_CALCULATOR_HOST
+    value: "https://digit-lts.digit.org"
+  - name: EGOV_SCHEMA_REGISTRY_HOST
+    value: "https://digit-lts.digit.org"
+  - name: EGOV_FILESTORE_HOST
+    value: "https://digit-lts.digit.org"
+  - name: EGOV_MDMS_HOST
+    value: "https://digit-lts.digit.org"
+  - name: EGOV_BILLING_HOST
+    value: "https://digit-lts.digit.org"
+  - name: EGOV_BOUNDARY_HOST
+    value: "https://digit-lts.digit.org"
+  - name: EGOV_INDIVIDUAL_HOST
+    value: "https://digit-lts.digit.org"
+  - name: EGOV_NOTIFICATION_HOST
+    value: "https://digit-lts.digit.org"
+  - name: EGOV_REGISTRY_HOST
+    value: "https://digit-lts.digit.org"
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}

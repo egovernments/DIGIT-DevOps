@@ -1,0 +1,137 @@
+# Common Labels
+labels:
+  app: "template-config-java"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "template-config"
+
+# Init Containers Configs
+# DB migration runs in an init container (preferred strategy) — same as the Go
+# chart. The migration image ships the Flyway SQL + migrate.sh and runs against
+# the elevated flyway credentials before the app starts; the app itself has
+# in-boot Flyway disabled (SPRING_FLYWAY_ENABLED=false below). History table
+# template_config_schema matches migrate.sh's -table setting.
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "template_config_schema"
+    image:
+      repository: "template-config-java-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: JAVA_ENABLE_DEBUG
+          value: "TRUE"
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
+
+# Container Configs
+image:
+  repository: "template-config-java"
+replicas: 1
+appType: "java"
+tracing-enabled: false
+healthChecks:
+  enabled: false
+  livenessProbePath: "/template-config/actuator/health/liveness"
+  readinessProbePath: "/template-config/actuator/health/readiness"
+# Resource configuration for the Java service
+resources: |
+  requests:
+    cpu: "150m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "1.5Gi"
+
+# Additional Container Envs
+# The service is configured through Spring properties (relaxed env binding),
+# not the Go service's env var names. Dropped Go-only knobs (see
+# template-config/VERIFICATION.md): KAFKA_AUTO_CREATE_TOPICS_ENABLE/PARTITION_COUNT/
+# REPLICATION_FACTOR/CONSUMER_GROUP and REDIS_CONSUMER_*/RETENTION_DAYS/
+# MAX_STREAM_LENGTH/CLEANUP_INTERVAL (broker/consumer posture is the tracer
+# library's, not app config — this service has no consumer), PROMETHEUS_PORT
+# (actuator serves /template-config/actuator/prometheus on the app port),
+# SCHEMA_SEPARATION_*/MIGRATION_* (tenant-migration integration deferred).
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    value: /template-config
+  # ── Datasource ──────────────────────────────────────────────────────────
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+  # Migration is handled by the init container above — app-boot Flyway is off
+  - name: SPRING_FLYWAY_ENABLED
+    value: "false"
+  # ── Lifecycle events (fire-and-forget; same posture as the Go chart: disabled) ──
+  - name: TEMPLATE_CONFIG_EVENTS_ENABLED
+    value: "false"
+  # ── Event topics (Go default topic names, unchanged) ─────────────────────
+  - name: TEMPLATE_CONFIG_TOPICS_CREATE
+    value: template-config-create-template-config
+  - name: TEMPLATE_CONFIG_TOPICS_UPDATE
+    value: template-config-update-template-config
+  - name: TEMPLATE_CONFIG_TOPICS_DELETE
+    value: template-config-delete-template-config
+  # ── Messaging (tracer PubSubClient; Go's own PUBSUB_TYPE default is kafka) ──
+  - name: TRACER_PUBSUB_TYPE
+    value: kafka
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+  # redis backend instead: TRACER_PUBSUB_TYPE=redis + SPRING_DATA_REDIS_HOST/PORT
+  # ── Observability: OTel span export and metrics export both disabled ──────
+  # NB: the span switch is MANAGEMENT_TRACING_EXPORT_ENABLED — MANAGEMENT_TRACING_ENABLED
+  # does not gate Boot's OTLP span exporter.
+  - name: MANAGEMENT_TRACING_EXPORT_ENABLED
+    value: "false"
+  - name: MANAGEMENT_DEFAULTS_METRICS_EXPORT_ENABLED
+    value: "false"
+  - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+    value: health,info
+  - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
+    value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/traces
+  - name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY
+    value: "1.0"

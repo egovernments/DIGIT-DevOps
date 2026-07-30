@@ -1,0 +1,94 @@
+# Common Labels
+labels:
+  app: "vc"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "credential"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "vc_schema"
+    image:
+      repository: "vc-db"
+
+# Container Configs
+image:
+  repository: "vc"
+replicas: "1"
+appType: "java-spring"
+heap: "-Xmx1012m -Xms512m"
+memory_limits: 1500Mi
+memory_requests: 768Mi
+healthChecks:
+  enabled: true
+  livenessProbePath: "/credential/health"
+  readinessProbePath: "/credential/health"
+  livenessProbe: |
+    httpGet:
+      path: "{{ .Values.healthChecks.livenessProbePath }}"
+      port: {{ .Values.httpPort }}
+      httpHeaders:
+        - name: X-Tenant-ID
+          value: ESMAGICO
+    initialDelaySeconds: 90
+    timeoutSeconds: 5
+    periodSeconds: 30
+    successThreshold: 1
+    failureThreshold: 5
+  readinessProbe: |
+    httpGet:
+      path: "{{ .Values.healthChecks.readinessProbePath }}"
+      port: {{ .Values.httpPort }}
+      httpHeaders:
+        - name: X-Tenant-ID
+          value: ESMAGICO
+    initialDelaySeconds: 90
+    timeoutSeconds: 5
+    periodSeconds: 15
+    successThreshold: 1
+    failureThreshold: 5
+
+# Additional Container Envs
+env: |
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: WALTID_ISSUER_URL
+    value: "http://walt.egov:8080/"
+  - name: VAULT_TRANSIT_SERVER
+    value: "http://vault.vault-new.svc.cluster.local:8200"
+  - name: VAULT_AUTH_ROLE_ID
+    valueFrom:
+      secretKeyRef:
+        name: vault-root-token
+        key: roleid
+  - name: VAULT_AUTH_SECRET_ID
+    valueFrom:
+      secretKeyRef:
+        name: vault-root-token
+        key: secretid
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}

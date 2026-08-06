@@ -83,7 +83,7 @@ env: |
   - name: SERVER_PORT
     value: "8080"
   - name: SERVER_SERVLET_CONTEXT_PATH
-    value: /template-config
+    value: /template-config-java
   # ── Datasource ──────────────────────────────────────────────────────────
   - name: SPRING_DATASOURCE_URL
     valueFrom:
@@ -121,7 +121,19 @@ env: |
       configMapKeyRef:
         key: kafka-brokers
         name: egov-config
-  # redis backend instead: TRACER_PUBSUB_TYPE=redis + SPRING_DATA_REDIS_HOST/PORT
+  # NB: account publishes account-migration to kafka, so tenant-migration below
+  # requires this backend. A redis switch here would silently stop schema
+  # provisioning — the subscribe succeeds against an empty broker.
+  # ── Per-tenant schemas (com.digit:tenant-migration) ──────────────────────
+  # SCHEMA_TABLE must equal initContainers.dbMigration.schemaTable above.
+  # Set once at initial deployment; not flipped on a running deployment (that
+  # would need a data backfill out of public, which is not built).
+  - name: TENANT_MIGRATION_ENABLED
+    value: "false"
+  - name: TENANT_MIGRATION_SCHEMA_TABLE
+    value: template_config_schema
+  - name: TENANT_MIGRATION_CONSUMER_GROUP
+    value: template-config
   # ── Observability: OTel span export and metrics export both disabled ──────
   # NB: the span switch is MANAGEMENT_TRACING_EXPORT_ENABLED — MANAGEMENT_TRACING_ENABLED
   # does not gate Boot's OTLP span exporter.

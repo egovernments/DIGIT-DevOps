@@ -57,6 +57,7 @@ image:
 replicas: 1
 appType: "java"
 tracing-enabled: false
+heap: "-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=75.0"
 healthChecks:
   enabled: false
   livenessProbePath: "/idgen/actuator/health/liveness"
@@ -74,6 +75,8 @@ resources: |
 # The service is configured through Spring properties (relaxed env binding),
 # not the Go service's env var names.
 env: |
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
   - name: SERVER_PORT
     value: "8080"
   - name: SERVER_SERVLET_CONTEXT_PATH
@@ -119,8 +122,11 @@ env: |
     value: idgen-update-template
   - name: IDGEN_EVENTS_TOPICS_DELETE
     value: idgen-delete-template
+  # kafka, not redis: account publishes account-migration to kafka, and
+  # tenant-migration below subscribes through this same backend. The redis entries
+  # stay only as a quick switch back; this service has no redis cache.
   - name: TRACER_PUBSUB_TYPE
-    value: redis
+    value: kafka
   - name: SPRING_DATA_REDIS_HOST
     value: redis.backbone.svc.cluster.local
   - name: SPRING_DATA_REDIS_PORT
@@ -130,3 +136,12 @@ env: |
       configMapKeyRef:
         key: kafka-brokers
         name: egov-config
+  # ── Per-tenant schemas (com.digit:tenant-migration) ──────────────────────
+  # SCHEMA_TABLE must equal initContainers.dbMigration.schemaTable above.
+  # Set once at initial deployment; not flipped on a running deployment.
+  - name: TENANT_MIGRATION_ENABLED
+    value: "false"
+  - name: TENANT_MIGRATION_SCHEMA_TABLE
+    value: idgen_schema
+  - name: TENANT_MIGRATION_CONSUMER_GROUP
+    value: idgen

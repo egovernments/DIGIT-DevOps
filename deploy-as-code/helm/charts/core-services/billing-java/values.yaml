@@ -76,10 +76,12 @@ resources: |
 # application.properties are only overridden where the deployment differs.
 # Dropped Go knobs (see billing/VERIFICATION.md §4): PUBSUB_ENABLED (pub/sub is
 # always wired), KAFKA_AUTO_CREATE/PARTITIONS/REPLICATION (broker posture),
-# KAFKA_CONSUMER_GROUP / REDIS_CONSUMER_* (group is the service constant
-# "billing-service"), PROMETHEUS_PORT (actuator serves /billing/actuator/
-# prometheus on the app port), SCHEMA_SEPARATION_* / MIGRATION_*
-# (tenant-migration integration deferred).
+# KAFKA_CONSUMER_GROUP / REDIS_CONSUMER_* (the bulk-bill group is the service
+# constant "billing-service"; the tenant-migration group is separate and IS
+# configurable — TENANT_MIGRATION_CONSUMER_GROUP below), PROMETHEUS_PORT
+# (actuator serves /billing/actuator/prometheus on the app port).
+# The Go SCHEMA_SEPARATION_* / MIGRATION_* group is replaced by
+# TENANT_MIGRATION_* below, now that com.digit:tenant-migration is integrated.
 env: |
   - name: SERVER_PORT
     value: "8080"
@@ -146,9 +148,17 @@ env: |
       configMapKeyRef:
         key: kafka-brokers
         name: egov-config
-  # redis backend instead: TRACER_PUBSUB_TYPE=redis + SPRING_DATA_REDIS_HOST/
-  # PORT + MANAGEMENT_HEALTH_REDIS_ENABLED=true (note: an unreachable redis
-  # fails startup by design — no silent loss of bulk-bill jobs)
+  # NB: kafka is required, not a preference — account publishes account-migration
+  # to kafka only, so a redis switch here would silently stop schema provisioning.
+  # ── Per-tenant schemas (com.digit:tenant-migration) ──────────────────────
+  # SCHEMA_TABLE must equal initContainers.dbMigration.schemaTable above.
+  # Set once at initial deployment; not flipped on a running deployment.
+  - name: TENANT_MIGRATION_ENABLED
+    value: "false"
+  - name: TENANT_MIGRATION_SCHEMA_TABLE
+    value: billing_schema
+  - name: TENANT_MIGRATION_CONSUMER_GROUP
+    value: billing
   # ── Observability: OTel span export and metrics export both disabled ──────
   # NB: the span switch is MANAGEMENT_TRACING_EXPORT_ENABLED — MANAGEMENT_TRACING_ENABLED
   # does not gate Boot's OTLP span exporter.

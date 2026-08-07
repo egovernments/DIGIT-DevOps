@@ -13,53 +13,6 @@ ingress:
 initContainers:
   dbMigration:
     enabled: false
-  extraInitContainers: |
-    - name: init-metabase-db
-      image: "postgres:15-alpine"
-      env:
-        - name: DB_HOST
-          value: "postgresql-lts.egov"
-        - name: DB_PORT
-          value: "5432"
-        - name: DB_NAME
-          valueFrom:
-            configMapKeyRef:
-              name: egov-config
-              key: db-name
-        - name: DB_USER
-          valueFrom:
-            secretKeyRef:
-              name: db
-              key: username
-        - name: PGPASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: db
-              key: password
-      command:
-        - sh
-        - -c
-        - |
-          psql -h $(DB_HOST) -p $(DB_PORT) -U $(DB_USER) -d $(DB_NAME) -c "
-          CREATE SCHEMA IF NOT EXISTS metabase_app;
-          CREATE TABLE IF NOT EXISTS metabase_app.databasechangelog (
-              id VARCHAR(255) NOT NULL,
-              author VARCHAR(255) NOT NULL,
-              filename VARCHAR(255) NOT NULL,
-              dateexecuted TIMESTAMP NOT NULL,
-              orderexecuted INT NOT NULL,
-              exectype VARCHAR(10) NOT NULL,
-              md5sum VARCHAR(35),
-              description VARCHAR(255),
-              comments VARCHAR(255),
-              tag VARCHAR(255),
-              liquibase VARCHAR(20),
-              contexts VARCHAR(255),
-              labels VARCHAR(255),
-              deployment_id VARCHAR(10)
-          );
-          ALTER TABLE metabase_app.databasechangelog REPLICA IDENTITY FULL;
-          "
 
 # Container Configs
 image:
@@ -104,12 +57,12 @@ env: |
   - name: DB_USER
     valueFrom:
       secretKeyRef:
-        name: db
+        name: metabase
         key: username
   - name: DB_PASS
     valueFrom:
       secretKeyRef:
-        name: db
+        name: metabase
         key: password
   - name: MB_DB_CONNECTION_URI
-    value: "jdbc:postgresql://$(DB_HOST):$(DB_PORT)/$(DB_NAME)?user=$(DB_USER)&password=$(DB_PASS)&currentSchema=metabase_app"
+    value: "jdbc:postgresql://$(DB_HOST):$(DB_PORT)/$(DB_NAME)?user=$(DB_USER)&password=$(DB_PASS)"

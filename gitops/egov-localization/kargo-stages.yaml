@@ -1,0 +1,82 @@
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: dev
+  namespace: egov-localization
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: egov-localization
+      sources:
+        direct: true
+  promotionTemplate:
+    spec:
+      steps:
+        - uses: argocd-update
+          config:
+            apps:
+              - name: egov-localization-dev
+                namespace: argocd
+                sources:
+                  - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+                    helm:
+                      images:
+                        - key: image.tag
+                          value: ${{ imageFrom("egovio/egov-localization").Tag }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: qa
+  namespace: egov-localization
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: egov-localization
+      sources:
+        stages:
+          - dev
+  promotionTemplate:
+    spec:
+      steps:
+        - uses: argocd-update
+          config:
+            apps:
+              - name: egov-localization-qa
+                namespace: argocd
+                sources:
+                  - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+                    helm:
+                      images:
+                        - key: image.tag
+                          value: ${{ imageFrom("egovio/egov-localization").Tag }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: uat
+  namespace: egov-localization
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: egov-localization
+      sources:
+        stages:
+          - qa
+  promotionTemplate:
+    spec:
+      steps:
+        - uses: argocd-update
+          config:
+            apps:
+              - name: egov-localization-uat
+                namespace: argocd
+                sources:
+                  - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+                    helm:
+                      images:
+                        - key: image.tag
+                          value: ${{ imageFrom("egovio/egov-localization").Tag }}

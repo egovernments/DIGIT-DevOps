@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: egov-localization-uat
+  namespace: argocd
+  annotations:
+    kargo.akuity.io/authorized-stage: "egov-localization:uat"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: sample-app-argocd-kargo
+      path: deploy-as-code/helm/charts/core-services/egov-localization
+      helm:
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/common/values.yaml
+          - $values/deploy-as-code/helm/charts/core-services/egov-localization/values.yaml
+          - $values/gitops/egov-localization/values-uat.yaml
+        parameters:
+          - name: image.tag
+            value: "redis-localization-key-5c0a4c4"
+          - name: disableAnnotationTimestamp
+            value: "true"
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: sample-app-argocd-kargo
+      ref: values
+  destination:
+    name: unified-uat
+    namespace: egov
+  syncPolicy: {}

@@ -1,0 +1,82 @@
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: dev
+  namespace: sample-app
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: playground
+      sources:
+        direct: true
+  promotionTemplate:
+    spec:
+      steps:
+        - uses: argocd-update
+          config:
+            apps:
+              - name: playground-dev
+                namespace: argocd
+                sources:
+                  - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+                    helm:
+                      images:
+                        - key: image.tag
+                          value: ${{ imageFrom("egovio/playground").Tag }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: qa
+  namespace: sample-app
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: playground
+      sources:
+        stages:
+          - dev
+  promotionTemplate:
+    spec:
+      steps:
+        - uses: argocd-update
+          config:
+            apps:
+              - name: playground-qa
+                namespace: argocd
+                sources:
+                  - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+                    helm:
+                      images:
+                        - key: image.tag
+                          value: ${{ imageFrom("egovio/playground").Tag }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: uat
+  namespace: sample-app
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: playground
+      sources:
+        stages:
+          - qa
+  promotionTemplate:
+    spec:
+      steps:
+        - uses: argocd-update
+          config:
+            apps:
+              - name: playground-uat
+                namespace: argocd
+                sources:
+                  - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+                    helm:
+                      images:
+                        - key: image.tag
+                          value: ${{ imageFrom("egovio/playground").Tag }}

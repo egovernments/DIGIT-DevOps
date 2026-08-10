@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: playground-qa
+  namespace: argocd
+  annotations:
+    kargo.akuity.io/authorized-stage: "sample-app:qa"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: sample-app-argocd-kargo
+      path: deploy-as-code/helm/charts/backbone-services/playground
+      helm:
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/common/values.yaml
+          - $values/deploy-as-code/helm/charts/backbone-services/playground/values.yaml
+        parameters:
+          - name: image.tag
+            value: "2.0"
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: sample-app-argocd-kargo
+      ref: values
+  destination:
+    name: unified-qa
+    namespace: playground
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

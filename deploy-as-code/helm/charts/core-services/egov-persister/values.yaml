@@ -48,5 +48,12 @@ env: |
     value: "true"
   - name: PERSISTER_BULK_ENABLED
     value: "true"
+  # Topics consolidated across messages into one batched insert. Only pays off under burst/campaign
+  # sync; a topic not present in the loaded persister config is silently ignored, so names must match
+  # the fromTopic values this environment loads (these are the configs/health/egov-persister names).
+  # save-household-member-health-topic is deliberately EXCLUDED: AckMode.BATCH redelivers a whole poll,
+  # and household_member is the only one of these targets without UNIQUE (clientReferenceId), so a
+  # redelivery would insert duplicate rows rather than failing benignly. Add it once the
+  # household_member partial unique index (V20260728093000) has shipped to this environment.
   - name: PERSISTER_BATCH_TOPICS
-    value: "boundary-relationship-bulk-create-job,save-household-health-topic,save-household-member-health-topic,save-individual-health-topic,save-project-task-health-topic,save-project-beneficiary-health-topic"
+    value: "boundary-relationship-bulk-create-job,save-household-health-topic,save-individual-health-topic,save-project-task-health-topic,save-project-beneficiary-health-topic"

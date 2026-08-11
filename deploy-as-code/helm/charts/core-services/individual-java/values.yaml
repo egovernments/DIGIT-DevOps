@@ -10,7 +10,7 @@ ingress:
   namespace: egov
   enabled: true
   zuul: true
-  context: "individual"
+  context: "individuals-java"
 
 # Init Containers Configs
 initContainers:
@@ -20,6 +20,8 @@ initContainers:
     image:
       repository: "individual-java-db"
     env: |
+        - name: JAVA_OPTS
+          value: {{ index .Values "heap" | quote }}
         - name: "DB_URL"
           valueFrom:
             configMapKeyRef:
@@ -52,13 +54,14 @@ initContainers:
 # Container Configs
 image:
   repository: "individual-java"
-replicas: "1"
-healthChecks:
-  enabled: false
-  livenessProbePath: "/health"
-  readinessProbePath: "/health"
+replicas: 1
 appType: "java"
 tracing-enabled: false
+heap: "-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=75.0"
+healthChecks:
+  enabled: false
+  livenessProbePath: "/individuals-java/actuator/health/liveness"
+  readinessProbePath: "/individuals-java/actuator/health/readiness"
 
 resources: |
   requests:
@@ -73,9 +76,10 @@ env: |
   - name: SERVER_PORT
     value: "8080"
   - name: SERVER_CONTEXT_PATH
-    value: /individuals
+    value: /individuals-java
+    
   - name: DB_HOST
-    value: pgbouncer.egov
+    value: postgres.egov
   - name: DB_PORT
     value: "5432"
   - name: DB_SSL_MODE
@@ -94,30 +98,40 @@ env: |
         name: db
   - name: LOG_LEVEL
     value: DEBUG
-  - name: REDIS_PASSWORD
-  - name: REDIS_DB
-    value: "0"
+
   - name: IDGEN_HOST
     valueFrom:
       configMapKeyRef:
         key: idgen
         name: egov-service-host
   - name: IDGEN_PATH
-    value: idgen/v1/generate
+    value: idgen/v3/generate
   - name: IDGEN_ENABLED
     value: "true"
   - name: IDGEN_INDIVIDUAL_ID_FORMAT
     value: individual
+
+  
   - name: VAULT_HOST
-    value: http://vault.vault-new.svc.cluster.local:8200
+    valueFrom:
+      configMapKeyRef:
+        key: vault
+        name: egov-service-host
   - name: VAULT_ROLE_ID
-    value: ""
+    valueFrom:
+      secretKeyRef:
+        name: vault-approle
+        key: role-id
   - name: VAULT_SECRET_ID
-    value: ""
+    valueFrom:
+      secretKeyRef:
+        name: vault-approle
+        key: secret-id
   - name: VAULT_ENABLED
     value: "true"
+
   - name: PUBSUB_ENABLED
-    value: "true"
+    value: "false"
   - name: PUBSUB_TYPE
     value: redis
   - name: KAFKA_BROKERS
@@ -125,26 +139,17 @@ env: |
       configMapKeyRef:
         key: kafka-brokers
         name: egov-config
-  - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
-    value: "true"
-  - name: KAFKA_PARTITION_COUNT
-    value: "1"
-  - name: KAFKA_REPLICATION_FACTOR
-    value: "1"
-  - name: KAFKA_CONSUMER_GROUP
-    value: individual-service
-  - name: REDIS_ADDRESS
-    value: redis.backbone.svc.cluster.local:6379
-  - name: REDIS_CONSUMER_GROUP
-    value: individual-service
-  - name: REDIS_CONSUMER_ID
-    value: individual-service-1
-  - name: REDIS_RETENTION_DAYS
-    value: "7"
-  - name: REDIS_MAX_STREAM_LENGTH
-    value: "1000000"
-  - name: REDIS_CLEANUP_INTERVAL
-    value: "86400"
+
+
+  - name: REDIS_HOST
+    value: redis.backbone.svc.cluster.local
+  - name: REDIS_PORT
+    value: "6379"
+  - name: REDIS_PASSWORD
+  - name: REDIS_DB
+    value: "0"
+
+
   - name: PUBSUB_TOPIC_CREATE_INDIVIDUAL
     value: individual-create-individual
   - name: PUBSUB_TOPIC_UPDATE_INDIVIDUAL
@@ -153,18 +158,14 @@ env: |
     value: individual-delete-individual
   - name: PUBSUB_TOPIC_UPSERT_CONFIG
     value: individual-upsert-config
-  - name: SCHEMA_SEPARATION_MODE
+
+  - name: TENANT_MIGRATION_ENABLED
     value: "false"
-  - name: SCHEMA_SEPARATION_TOPIC
-    value: account-migration
-  - name: MIGRATION_FLYWAY_LOCATIONS
-    value: filesystem:/opt/digit/db/migrations
-  - name: MIGRATION_SCRIPT_PATH
-    value: /opt/digit/migrate.sh
-  - name: MIGRATION_FLYWAY_BIN
-    value: /opt/flyway/flyway
-  - name: MIGRATION_SCHEMA_TABLE
+  - name: TENANT_MIGRATION_SCHEMA_TABLE
     value: individual_schema
+  - name: TENANT_MIGRATION_CONSUMER_GROUP
+    value: individual-service
+
   - name: OTEL_ENABLED
     value: "false"
   - name: OTEL_SERVICE_NAME

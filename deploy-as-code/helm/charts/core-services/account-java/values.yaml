@@ -7,7 +7,7 @@ labels:
 ingress:
   enabled: true
   zuul: true
-  context: "account"
+  context: "account-java"
 
 # Init Containers Configs
 initContainers:
@@ -51,11 +51,13 @@ image:
   repository: "account-java"
 replicas: 1
 appType: "java"
+tracing-enabled: false
+heap: "-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=75.0"
 healthChecks:
   enabled: false
-  livenessProbePath: "/health"
-  readinessProbePath: "/health"
-# Resource configuration for Go service
+  livenessProbePath: "/account-java/actuator/health/liveness"
+  readinessProbePath: "/account-java/actuator/health/readiness"
+# Resource configuration for the Java service
 resources: |
   requests:
     cpu: "150m"
@@ -66,8 +68,13 @@ resources: |
 
 # Additional Container Envs
 env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: CONTEXT_PATH
+    value: /account-java
+    
   - name: DB_HOST
-    value: postgresql-lts.egov
+    value: postgres.egov
   - name: DB_PORT
     value: "5432"
   - name: DB_USER
@@ -84,10 +91,7 @@ env: |
     value: postgres
   - name: DB_SSL_MODE
     value: disable
-  - name: SERVER_PORT
-    value: "8080"
-  - name: CONTEXT_PATH
-    value: /account-java
+
   - name: KEYCLOAK_BASE_URL
     value: http://keycloak.keycloak.svc.cluster.local:8080/keycloak
   - name: KEYCLOAK_ADMIN_USER
@@ -104,20 +108,34 @@ env: |
       secretKeyRef:
         name: citizen-broker-secret
         key: citizen-broker-client-secret
+
   - name:EMPLOYEE_IAM_CLIENT_SECRET
     valueFrom:
       secretKeyRef:
         name: employee-iam-secret
         key: employee-iam-client-secret
+
   - name: NOTIFICATION_BASE_URL
     valueFrom:
       configMapKeyRef:
         key: notification
         name: egov-service-host
+
+
   - name: OTP_BASE_URL
-    value: http://otp:8080/otp
+    valueFrom:
+      configMapKeyRef:
+        key: otp-java
+        name: egov-service-host
+  - name: OTP_GENERATE_PATH
+    value: otp-java/v3/generate
+  - name: OTP_VERIFY_PATH
+    value: otp-java/v3/verify
+  - name: OTP_RESEND_PATH
+    value: otp-java/v3/resend
   - name: OTP_TIMEOUT_SECONDS
     value: "10"
+
   - name: OTEL_ENABLED
     value: "false"
   - name: OTEL_SERVICE_NAME
@@ -132,8 +150,9 @@ env: |
     value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
   - name: CONSOLE_LOGS_ENABLED
     value: "true"
+
   - name: PUBSUB_ENABLED
-    value: "true"
+    value: "false"
   - name: PUBSUB_TYPE
     value: redis
   - name: KAFKA_BROKERS
@@ -141,12 +160,14 @@ env: |
       configMapKeyRef:
         key: kafka-brokers
         name: egov-config
+
   - name: REDIS_ADDRESS
     value: redis.backbone.svc.cluster.local:6379
   - name: REDIS_HOST
     value: redis.backbone.svc.cluster.local
   - name: REDIS_PORT
     value: "6379"
+
   - name: PUBSUB_TOPIC_CREATE_TENANT
     value: account-create-tenant
   - name: PUBSUB_TOPIC_UPDATE_TENANT

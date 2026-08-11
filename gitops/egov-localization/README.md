@@ -19,15 +19,30 @@ Reuses the existing `egov` namespace/release and the existing `git-creds`
 Secret (used by other charts' `gitSync` init container — not needed by this
 chart, but confirms the namespace's secrets are already in place).
 
-## Deliberately out of scope
+## Note on the db-migration init container
 
-- `initContainers.dbMigration.image.tag` (the `egov-localization-db` init
-  container) is **not** managed here — it stays on the chart/common default
-  (`latest`), matching current production behavior. The CI pipeline *does*
-  build a matching `egovio/egov-localization-db:<tag>` per commit (there's a
-  `db/migration` folder in the source repo), so pinning it to the same freight
-  tag as the app is possible later, but that would be a behavior change from
-  today's "migration container always floats on latest" — not made here.
+`initContainers.dbMigration.image.tag` (the `egov-localization-db` init
+container) is pinned to the **same freight tag as the main app image**, both
+in the Applications' initial parameters and in each Stage's `argocd-update`
+step. This matches real production behavior: the existing Jenkins/deployer
+pipeline sets `image.tag` and `initContainers.dbMigration.image.tag` together
+on every deploy — the chart/common default (`latest`) is never actually used,
+and `egovio/egov-localization-db:latest` doesn't even exist on Docker Hub.
+Forgetting this the first time caused a stuck rollout (`Init:ImagePullBackOff`)
+on `dev` — don't drop this parameter when editing the Stage promotion steps.
+
+## Registry credentials for Kargo image discovery
+
+Kargo's image discovery was failing with Docker Hub's anonymous rate limit
+(`TOOMANYREQUESTS`) on every attempt — `egov-localization` has hundreds of
+historical tags, and checking "newest build" without auth exhausts the
+100-pulls/6hr anonymous limit almost immediately. Fixed by adding a
+`kargo.akuity.io/cred-type: image` Secret (`dockerhub-creds`) in this
+Project's namespace, reusing the same Docker Hub credentials already present
+in the `docker-registry-secret` used for `imagePullSecrets` elsewhere in the
+cluster. If image discovery ever silently stops working again, check
+`kubectl logs -n kargo deploy/kargo-controller` for `TOOMANYREQUESTS` before
+assuming it's a config problem.
 
 ## CI
 
@@ -56,7 +71,7 @@ kubectl get freight -n egov-localization
 
 # promote (requires Kargo login, its admission webhook rejects raw kubectl)
 kargo login https://localhost:8081/kargo --admin --password admin123 --insecure-skip-tls-verify
-kargo promote --project egov-localization --stage dev --freight-latest-available -f
-kargo promote --project egov-localization --stage qa  --freight-latest-available -f
-kargo promote --project egov-localization --stage uat --freight-latest-available -f
+kargo promote --project egov-localization --warehouse egov-localization --stage dev --wait
+kargo promote --project egov-localization --warehouse egov-localization --stage qa  --wait
+kargo promote --project egov-localization --warehouse egov-localization --stage uat --wait
 ```

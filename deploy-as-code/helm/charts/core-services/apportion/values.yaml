@@ -1,0 +1,152 @@
+# Common Labels
+labels:
+  app: "apportion"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "apportion"
+
+# Init Containers Configs
+# DB migration runs in an init container (preferred strategy, same shape as the
+# idgen/billing java charts — apportion never had a helm chart of its own in
+# this repo). The migration image ships the Flyway SQL + migrate.sh and runs
+# against the elevated flyway credentials before the app starts; the app itself
+# has in-boot Flyway disabled (SPRING_FLYWAY_ENABLED=false below).
+# History table apportion_schema is a CHOSEN sibling-naming convention
+# ({svc}_schema), NOT a value recovered from a prior deployment — if a real
+# deployment migrated these tables under a different history-table name,
+# override schemaTable to that name.
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "apportion_schema"
+    image:
+      repository: "apportion-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
+        - name: JAVA_ENABLE_DEBUG
+          value: "TRUE"
+
+# Container Configs
+image:
+  repository: "apportion"
+replicas: 1
+appType: "java"
+tracing-enabled: false
+heap: "-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=75.0"
+healthChecks:
+  enabled: false
+  livenessProbePath: "/apportion/actuator/health/liveness"
+  readinessProbePath: "/apportion/actuator/health/readiness"
+# Resource configuration for the Java service
+resources: |
+  requests:
+    cpu: "150m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "1.5Gi"
+
+# Additional Container Envs
+# The service is configured through Spring properties (relaxed env binding).
+# Kafka is required by the tenant-migration consumer (account-migration topic);
+# the service itself publishes nothing.
+env: |
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  # Contract with billing's billing.apportion.bill-path (/apportion/v3/bills)
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    value: /apportion
+  # ── Datasource ──────────────────────────────────────────────────────────
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+  # Migration is handled by the init container above — app-boot Flyway is off
+  - name: SPRING_FLYWAY_ENABLED
+    value: "false"
+  # ── tenant-migration ─────────────────────────────────────────────────────
+  # The filter runs even when disabled (X-Tenant-ID required, one transaction
+  # per request). schema-table must equal the init container's SCHEMA_TABLE.
+  - name: TENANT_MIGRATION_ENABLED
+    value: "false"
+  - name: TENANT_MIGRATION_SCHEMA_TABLE
+    value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+  - name: TENANT_MIGRATION_CONSUMER_GROUP
+    value: apportion
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  # ── Service ─────────────────────────────────────────────────────────────
+  # false (default): validate tax-head order, sort buckets by amount only.
+  # true: skip that validation, use order as an equal-amount tie-break.
+  - name: APPORTION_VALUE_ORDER
+    value: "true"
+  # Advance/overpayment: keep OFF until billing's payment module can absorb the
+  # advance row (its OVER_COLLECTION_* guards reject one today).
+  - name: APPORTION_ENABLE_ADVANCE
+    value: "false"
+  # ── Internal service clients (hosts end with "/", paths are relative) ───
+  - name: APPORTION_BILLING_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: billing
+        name: egov-service-host
+  - name: APPORTION_BILLING_TAX_HEADS_PATH
+    value: billing/v3/tax-heads
+  # ── Observability: OTel span export and metrics export both disabled ─────
+  # NB: the span switch is MANAGEMENT_TRACING_EXPORT_ENABLED — MANAGEMENT_TRACING_ENABLED
+  # does not gate Boot's OTLP span exporter.
+  - name: MANAGEMENT_TRACING_EXPORT_ENABLED
+    value: "false"
+  - name: MANAGEMENT_DEFAULTS_METRICS_EXPORT_ENABLED
+    value: "false"
+  - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+    value: health,info
+  - name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY
+    value: "1.0"
+  - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
+    value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/traces

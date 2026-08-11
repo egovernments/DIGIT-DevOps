@@ -15,14 +15,20 @@ ingress:
 # this repo). The migration image ships the Flyway SQL + migrate.sh and runs
 # against the elevated flyway credentials before the app starts; the app itself
 # has in-boot Flyway disabled (SPRING_FLYWAY_ENABLED=false below).
-# History table apportion_schema is a CHOSEN sibling-naming convention
-# ({svc}_schema), NOT a value recovered from a prior deployment — if a real
-# deployment migrated these tables under a different history-table name,
-# override schemaTable to that name.
+# The history table is the LEGACY service's (egov_apportion_service_schema):
+# this service carries the same eg_appr_* migrations byte-for-byte, so in
+# environments the legacy service already migrated, Flyway validates against
+# the existing history and no-ops. Consequence of sharing the history: this
+# service must NOT ship new migrations while egov-apportion-service is still
+# deployed — legacy's validation would fail on an applied-but-unknown version.
+# DECISION (2026-08-11): keep this legacy name everywhere (public + tenant
+# schemas) for simplicity; revisit at legacy retirement — rename the history
+# table back to apportion_schema in public and every tenant schema, plus this
+# value, in one coordinated deploy.
 initContainers:
   dbMigration:
     enabled: true
-    schemaTable: "apportion_schema"
+    schemaTable: "egov_apportion_service_schema"
     image:
       repository: "apportion-db"
     env: |
@@ -121,8 +127,9 @@ env: |
         name: egov-config
         key: kafka-brokers
   # ── Service ─────────────────────────────────────────────────────────────
-  # false (default): validate tax-head order, sort buckets by amount only.
-  # true: skip that validation, use order as an equal-amount tie-break.
+  # true (the default, matching the legacy service): skip the tax-head order
+  # validation and use order as an equal-amount tie-break. false: validate the
+  # ordering (no positive head before a negative one) and sort by amount only.
   - name: APPORTION_VALUE_ORDER
     value: "true"
   # Advance/overpayment: keep OFF until billing's payment module can absorb the

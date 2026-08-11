@@ -7,7 +7,7 @@ labels:
 ingress:
   enabled: true
   zuul: true
-  context: "employee"
+  context: "employee-java"
 
 # Init Containers Configs
 initContainers:
@@ -17,6 +17,8 @@ initContainers:
     image:
       repository: "employee-java-db"
     env: |
+        - name: JAVA_OPTS
+          value: {{ index .Values "heap" | quote }}
         - name: "DB_URL"
           valueFrom:
             configMapKeyRef:
@@ -51,11 +53,12 @@ image:
   repository: "employee-java"
 replicas: 1
 appType: "java"
-tracing-enabled: true # Assuming you want to keep tracing
+tracing-enabled: false
+heap: "-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=75.0"
 healthChecks:
-  enabled: false # Disabled as requested
-  livenessProbePath: "/health"
-  readinessProbePath: "/health"
+  enabled: false
+  livenessProbePath: "/employee/actuator/health/liveness"
+  readinessProbePath: "/employee/actuator/health/readiness"
 # Resource configuration for Go service
 resources: |
   requests:
@@ -70,9 +73,10 @@ env: |
   - name: SERVER_PORT
     value: "8080"
   - name: SERVER_CONTEXT_PATH
-    value: /employee
+    value: /employee-java
+
   - name: DB_HOST
-    value: postgresql-lts.egov
+    value: postgres.egov
   - name: DB_PORT
     value: "5432"
   - name: DB_SSL_MODE
@@ -89,28 +93,52 @@ env: |
       secretKeyRef:
         key: password
         name: db
+
   - name: IDGEN_HOST
     valueFrom:
       configMapKeyRef:
-        key: idgen
+        key: idgen-java
         name: egov-service-host
   - name: IDGEN_PATH
-    value: /idgen/v3/generate
+    value: idgen-java/v3/generate
   - name: IDGEN_NAME
     value: EmployeeCode
+  - name: IDGEN_ENABLED
+    value: "true"
+
   - name: BOUNDARY_HOST
     valueFrom:
       configMapKeyRef:
-        key: boundary
+        key: boundary-java
         name: egov-service-host
   - name: BOUNDARY_PATH
-    value: /boundary/v3/relationship
+    value: boundary-java/v3/relationship
+  - name: BOUNDARY_ENABLED
+    value: "true"
+
   - name: INDIVIDUAL_HOST
-    value: http://individual:8080/
+    valueFrom:
+      configMapKeyRef:
+        key: individual-java
+        name: egov-service-host
   - name: INDIVIDUAL_PATH
-    value: /individuals/v3/individuals
+    value: individuals-java/v3/individuals
+  - name: INDIVIDUAL_ENABLED
+    value: "true"
+
+
   - name: KEYCLOAK_BASE_URL
     value: https://digit-lts.digit.org/keycloak
+  - name: KEYCLOAK_ENABLED
+    value: "true"
+  - name: KEYCLOAK_EMPLOYEE_IAM_CLIENT_ID
+    value: employee-iam-client
+  - name: KEYCLOAK_EMPLOYEE_IAM_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: employee-iam-secret
+        key: employee-iam-client-secret
+
   - name: PUBSUB_ENABLED
     value: "false"
   - name: PUBSUB_TYPE
@@ -120,29 +148,15 @@ env: |
       configMapKeyRef:
         key: kafka-brokers
         name: egov-config
-  - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
-    value: "true"
-  - name: KAFKA_PARTITION_COUNT
-    value: "1"
-  - name: KAFKA_REPLICATION_FACTOR
-    value: "1"
-  - name: KAFKA_CONSUMER_GROUP
-    value: employee-service
-  - name: REDIS_ADDRESS
-    value: redis.backbone.svc.cluster.local:6379
+
+  - name: REDIS_HOST
+    value: redis.backbone.svc.cluster.local
+  - name: REDIS_PORT
+    value: "6379"
   - name: REDIS_PASSWORD
   - name: REDIS_DB
     value: "0"
-  - name: REDIS_CONSUMER_GROUP
-    value: employee-service
-  - name: REDIS_CONSUMER_ID
-    value: employee-service-1
-  - name: REDIS_RETENTION_DAYS
-    value: "7"
-  - name: REDIS_MAX_STREAM_LENGTH
-    value: "1000000"
-  - name: REDIS_CLEANUP_INTERVAL
-    value: "86400"
+
   - name: PUBSUB_TOPIC_CREATE_EMPLOYEE
     value: employee-create-employee
   - name: PUBSUB_TOPIC_UPDATE_EMPLOYEE
@@ -153,18 +167,15 @@ env: |
     value: employee-create-jurisdiction
   - name: PUBSUB_TOPIC_UPDATE_JURISDICTION
     value: employee-update-jurisdiction
-  - name: SCHEMA_SEPARATION_MODE
+
+  - name: TENANT_MIGRATION_ENABLED
     value: "false"
-  - name: SCHEMA_SEPARATION_TOPIC
-    value: account-migration
-  - name: MIGRATION_FLYWAY_LOCATIONS
-    value: filesystem:/opt/digit/db/migrations
-  - name: MIGRATION_SCRIPT_PATH
-    value: /opt/digit/migrate.sh
-  - name: MIGRATION_FLYWAY_BIN
-    value: /opt/flyway/flyway
-  - name: MIGRATION_SCHEMA_TABLE
+  - name: TENANT_MIGRATION_SCHEMA_TABLE
     value: employee_schema
+  - name: TENANT_MIGRATION_CONSUMER_GROUP
+    value: employee-service
+
+
   - name: OTEL_ENABLED
     value: "false"
   - name: OTEL_SERVICE_NAME

@@ -44,4 +44,44 @@ env: |
   - name: JAEGER_SAMPLER_PARAM
     value: "1"
   - name: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE
-    value: "3"
+    value: {{ .Values.hikariMaximumPoolSize | default "3" | quote }}
+  - name: LOCALIZATION_UPSERT_ASYNC_ENABLED
+    value: {{ .Values.localizationUpsertAsyncEnabled | default "false" | quote }}
+  - name: LOCALIZATION_UPSERT_TOPIC
+    value: {{ .Values.localizationUpsertTopic | default "save-localization-messages" | quote }}
+  - name: LOCALIZATION_UPSERT_REPLY_TOPIC
+    value: {{ .Values.localizationUpsertReplyTopic | default "localization-upsert-reply" | quote }}
+  - name: LOCALIZATION_UPSERT_TOPIC_PARTITIONS
+    value: {{ .Values.localizationUpsertTopicPartitions | default "3" | quote }}
+  - name: LOCALIZATION_UPSERT_TOPIC_REPLICATION_FACTOR
+    value: {{ .Values.localizationUpsertTopicReplicationFactor | default "1" | quote }}
+  - name: LOCALIZATION_UPSERT_CONSUMER_BATCH_SIZE
+    value: {{ .Values.localizationUpsertConsumerBatchSize | default "10" | quote }}
+  - name: LOCALIZATION_UPSERT_CONSUMER_GROUP
+    value: {{ .Values.localizationUpsertConsumerGroup | default "egov-localization-upsert" | quote }}
+  - name: LOCALIZATION_UPSERT_REPLY_TIMEOUT_MS
+    value: {{ .Values.localizationUpsertReplyTimeoutMs | default "60000" | quote }}
+
+  # ---------------------------------------------------------------------------
+  # Guards against the unbounded module-absent read - THE OOM FIX.
+  #
+  # unified-uat 2026-08-12: ONE _search without a `module`, out of 22,425 queries the
+  # pod served, ran SELECT ... WHERE tenantid=? AND locale=? over fr_IN/mz (132 MB
+  # serialised), hung 57 s, threw OutOfMemoryError twice and the pod was OOMKilled/137
+  # on a 6 GB heap. No heap size fixes an unbounded read, so it is bounded here.
+  #
+  # BOTH VALUES MUST BE SET PER ENVIRONMENT from real tenant sizes: above every
+  # legitimate module-absent caller, below the pathological datasets. The defaults are
+  # a starting point, not measured values. Check with:
+  #   SELECT locale, count(*) FROM message WHERE tenantid='<t>' GROUP BY locale;
+  #
+  # moduleAbsentMaxMessages: refuse the DB read above this row count (0 disables).
+  # cacheMaxEntryBytes: refuse to READ or WRITE a cache entry above this size; an
+  #   oversized entry found on read is EVICTED, so the fix is self-healing and needs
+  #   no manual Redis flush (TTL is -1 on these hashes - nothing prunes them).
+  #   Module-scoped entries are 2-7 MB; the pathological ones were 122-132 MB.
+  # ---------------------------------------------------------------------------
+  - name: LOCALIZATION_SEARCH_MODULE_ABSENT_MAX_MESSAGES
+    value: {{ .Values.moduleAbsentMaxMessages | default "200000" | quote }}
+  - name: LOCALIZATION_CACHE_MAX_ENTRY_BYTES
+    value: {{ .Values.cacheMaxEntryBytes | default "10485760" | quote }}

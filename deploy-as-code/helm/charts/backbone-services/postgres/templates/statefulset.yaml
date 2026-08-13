@@ -1,0 +1,130 @@
+# statefulset.yaml
+# Hand-written StatefulSet: the `common` library only provides a Deployment template,
+# but PostgreSQL needs stable storage/identity, so it is defined here directly while
+# still reusing the common naming/label helpers for consistency with the rest of the repo.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "common.name" . }}
+  {{- if .Values.global.namespace }}
+  namespace: {{ .Values.global.namespace }}
+  {{- else }}
+  namespace: {{ .Values.namespace }}
+  {{- end }}
+  labels:
+{{- include "common.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ template "common.name" . }}-hl
+  replicas: {{ .Values.replicas }}
+  podManagementPolicy: {{ .Values.podManagementPolicy | default "OrderedReady" }}
+  updateStrategy:
+    type: RollingUpdate
+  {{- with .Values.persistence.retentionPolicy }}
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: {{ .whenDeleted | default "Retain" }}
+    whenScaled: {{ .whenScaled | default "Retain" }}
+  {{- end }}
+  selector:
+    matchLabels:
+{{- include "common.labels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+{{- include "common.labels" . | nindent 8 }}
+    spec:
+      {{- if .Values.securityContext }}
+      securityContext:
+{{ toYaml .Values.securityContext | indent 8 }}
+      {{- end }}
+      {{- if .Values.affinity.podAntiAffinity }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            podAffinityTerm:
+              topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+{{- include "common.labels" . | nindent 18 }}
+      {{- end }}
+      {{- if .Values.serviceAccount }}
+      serviceAccountName: {{ .Values.serviceAccount }}
+      {{- end }}
+      containers:
+        - name: {{ template "common.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - postgres
+            {{- range $key, $val := .Values.postgresql.parameters }}
+            - -c
+            - {{ printf "%s=%s" $key (toString $val) | quote }}
+            {{- end }}
+          ports:
+            - name: tcp-postgresql
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.existingSecret }}
+                  key: {{ .Values.auth.secretKey }}
+            {{- if .Values.auth.username }}
+            - name: POSTGRES_USER
+              value: {{ .Values.auth.username | quote }}
+            {{- end }}
+            {{- if .Values.auth.database }}
+            - name: POSTGRES_DB
+              value: {{ .Values.auth.database | quote }}
+            {{- end }}
+            - name: PGDATA
+              value: {{ .Values.persistence.pgData | quote }}
+            {{- with .Values.extraEnv }}
+{{ tpl . $ | indent 12 }}
+            {{- end }}
+          {{- if .Values.healthChecks.enabled }}
+          livenessProbe:
+{{ tpl .Values.healthChecks.livenessProbe . | indent 12 }}
+          readinessProbe:
+{{ tpl .Values.healthChecks.readinessProbe . | indent 12 }}
+          {{- end }}
+          {{- if .Values.resources }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+            - name: {{ .Values.persistence.volumeName }}
+              mountPath: {{ .Values.persistence.mountPath }}
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            {{- if .Values.shmSizeLimit }}
+            sizeLimit: {{ .Values.shmSizeLimit }}
+            {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: {{ .Values.persistence.volumeName }}
+      spec:
+        accessModes:
+{{ toYaml .Values.persistence.accessModes | indent 10 }}
+        {{- if eq .Values.global.setup "quickstart" }}
+        storageClassName: manual
+        resources:
+          requests:
+            storage: 1Gi
+        {{- else }}
+        {{- if .Values.persistence.storageClass }}
+        {{- if (eq "-" .Values.persistence.storageClass) }}
+        storageClassName: ""
+        {{- else }}
+        storageClassName: {{ .Values.persistence.storageClass | quote }}
+        {{- end }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size | quote }}
+        {{- end }}

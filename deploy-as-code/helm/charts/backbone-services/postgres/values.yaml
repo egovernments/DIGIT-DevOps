@@ -1,43 +1,120 @@
+# Common Labels
 labels:
   app: "postgres"
   group: "db"
-namespace: monitoring
 
+# Resource name. Defaults to the chart name ("postgres") if unset.
+# Set to match the in-cluster StatefulSet/Services the DIGIT services connect to.
+name: postgresql-lts
+
+namespace: egov
+
+# Official PostgreSQL image.
+# NOTE: the Bitnami legacy image (docker.io/bitnamilegacy/postgresql) is deprecated
+# and has been replaced with the official PostgreSQL 15 image.
 image:
   repository: "docker.io/postgres"
-  tag: "14"
-replicas: "1"
-httpPort: 5432
+  tag: "15"
+  pullPolicy: IfNotPresent
 
-resources: |
+replicas: 1
+
+service:
+  type: ClusterIP
+  port: 5432
+
+# PostgreSQL server parameters, passed to the server as `postgres -c <key>=<value>`.
+# These mirror the tuned settings from the in-cluster deployment.
+# (pgaudit / shared_preload_libraries dropped: the extension is not bundled in the
+#  official image and in-cluster it was loaded but inactive -> pgaudit.log=none.)
+postgresql:
+  parameters:
+    max_connections: "500"
+    wal_level: "logical"
+    client_min_messages: "error"
+
+# Superuser credentials. The password is read from an existing secret so the same
+# secret already present in the cluster (postgresql-lts / postgres-password) is reused.
+auth:
+  username: "postgres"
+  # Optional application database created on first init. Empty = none (matches cluster).
+  database: ""
+  existingSecret: "db"
+  secretKey: "password"
+
+# Requests == limits, same as the in-cluster deployment.
+resources:
   requests:
-    cpu: 100m
-    memory: 256Mi
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 500m
+    memory: 1Gi
 
-tracing-enabled: false
+# Official postgres image runs as uid/gid 999 (the "postgres" user).
+securityContext:
+  fsGroup: 999
+  runAsUser: 999
+  runAsGroup: 999
 
-env: |
-  - name: POSTGRES_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: password
-  - name:  POSTGRES_USER
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: username
-  - name: POSTGRES_DB
-    value: {{ default "" .Values.postgresDatabase | quote }}
-extraVolumeMounts: |
-  - name: postgres-volume
-    mountPath: /var/lib/postgresql/data
-extraVolumes: |
-  - name: postgres-volume
-  {{- if eq .Values.global.setup "quickstart" }} 
-    persistentVolumeClaim:
-      claimName: pvc-postgres
-  {{- end}}    
+podManagementPolicy: OrderedReady
 
+# Prefer to not co-locate replicas on the same node (matches cluster podAntiAffinity).
+affinity:
+  podAntiAffinity: true
 
-postgresDatabase: egov_ms      
+# Shared memory volume mounted at /dev/shm (Postgres uses it for parallel workers).
+shmSizeLimit: 1Gi
+
+persistence:
+  volumeName: data
+  mountPath: /var/lib/postgresql/data
+  # PGDATA must be a subdirectory of the mount for the official image + fsGroup.
+  pgData: /var/lib/postgresql/data/pgdata
+  # StorageClass used to dynamically provision the volume.
+  # Empty ("") -> use the cluster's DEFAULT StorageClass, which every managed
+  # Kubernetes offering ships with a dynamic provisioner, so the volume is created
+  # automatically on any cloud (AWS/Azure/GCP). Leave empty for portability.
+  #   NOTE: an empty value makes the template OMIT storageClassName (uses default).
+  #   Setting it to "-" would disable dynamic provisioning entirely.
+  # To pin a specific class instead of the default, set one of:
+  #   AWS (EKS):   gp3   (or gp2)
+  #   Azure (AKS): managed-csi   (or default / managed-premium)
+  #   GCP (GKE):   standard-rwo  (or premium-rwo)
+  storageClass: ""
+  size: 100Gi
+  accessModes:
+    - ReadWriteOnce
+  retentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+
+serviceAccount: ""
+
+# Extra environment variables (tpl-rendered). Leave empty by default.
+extraEnv: ""
+
+healthChecks:
+  enabled: true
+  livenessProbe: |
+    exec:
+      command:
+        - /bin/sh
+        - -c
+        - exec pg_isready -U "{{ .Values.auth.username | default "postgres" }}" -h 127.0.0.1 -p {{ .Values.service.port }}
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 6
+  readinessProbe: |
+    exec:
+      command:
+        - /bin/sh
+        - -c
+        - exec pg_isready -U "{{ .Values.auth.username | default "postgres" }}" -h 127.0.0.1 -p {{ .Values.service.port }}
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 6

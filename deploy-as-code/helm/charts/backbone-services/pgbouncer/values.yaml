@@ -1,0 +1,106 @@
+# pgbouncer chart values — reflects the in-cluster 'pgbouncer' release
+# (chart pgbouncer-2.5.0, appVersion 1.24.0) in namespace egov.
+# Credentials are not defined here: the chart references the 'pgbouncer-secret'
+# created by the cluster-configs chart (values in environments/digit-lts-secrets.yaml)
+# via config.existingAdminSecret / config.existingUserlistSecret.
+affinity: {}
+args: []
+command: []
+# Target namespace for all chart resources. Consumed by the "pgbouncer.namespace"
+# helper; falls back to the release namespace if unset.
+namespace: egov
+config:
+  # Credentials are NOT stored here. They come from the 'pgbouncer-secret' created by
+  # the cluster-configs chart (values in environments/digit-lts-secrets.yaml).
+  # existingAdminSecret  -> adminUser/adminPassword keys (env vars)
+  # existingUserlistSecret -> userlist.txt key (mounted auth file)
+  existingAdminSecret: pgbouncer-secret
+  existingUserlistSecret: pgbouncer-secret
+  adminUserKey: adminUser
+  adminPasswordKey: adminPassword
+  authUser: postgres
+  databases:
+    postgres:
+      host: postgres.egov
+      port: 5432
+  pgbouncer:
+    auth_type: md5
+    # 80 matches the live pgbouncer-configmap (drifted from the release's original 20).
+    default_pool_size: 80
+    ignore_startup_parameters: extra_float_digits
+    max_client_conn: 1024
+    pool_mode: transaction
+  userlist: {}
+extraContainers: []
+extraEnvs: []
+extraInitContainers: []
+extraVolumeMounts: []
+extraVolumes: []
+fullnameOverride: 'pgbouncer'
+image:
+  pullPolicy: IfNotPresent
+  registry: ''
+  repository: ghcr.io/icoretech/pgbouncer-docker
+  tag: 1.24.0
+imagePullSecrets: []
+lifecycle: {}
+minReadySeconds: 0
+nameOverride: ''
+nodeSelector: {}
+pgbouncerExporter:
+  enabled: false
+  image:
+    pullPolicy: IfNotPresent
+    registry: ''
+    repository: prometheuscommunity/pgbouncer-exporter
+    tag: v0.10.2
+  log:
+    format: logfmt
+    level: info
+  podMonitor: false
+  port: 9127
+  resources:
+    limits:
+      cpu: 250m
+      memory: 150Mi
+    requests:
+      cpu: 30m
+      memory: 40Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    readOnlyRootFilesystem: true
+    runAsGroup: 65534
+    runAsNonRoot: true
+    runAsUser: 65534
+podAnnotations: {}
+podDisruptionBudget:
+  enabled: false
+  maxUnavailable: null
+  minAvailable: null
+podLabels: {}
+priorityClassName: ''
+replicaCount: 1
+resources: {}
+revisionHistoryLimit: 10
+runtimeClassName: ''
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsGroup: 70
+  runAsNonRoot: true
+  runAsUser: 70
+service:
+  port: 5432
+  type: ClusterIP
+serviceAccount:
+  annotations: {}
+  name: ''
+terminationGracePeriodSeconds: 30
+tolerations: []
+updateStrategy: {}

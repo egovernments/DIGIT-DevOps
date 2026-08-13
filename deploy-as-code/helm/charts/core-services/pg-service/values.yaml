@@ -10,24 +10,83 @@ ingress:
   context: "pg-service"
 
 # Init Containers Configs
+# DB migration runs in an init container (preferred strategy) — same as the
+# reference chart. The migration image ships the Flyway SQL + migrate.sh and runs
+# against the elevated flyway credentials before the app starts; the app itself has
+# in-boot Flyway disabled (SPRING_FLYWAY_ENABLED=false below). History table
+# pg_service_schema matches migrate.sh's -table setting and spring.flyway.table.
+#
+# The image lays the scripts out as /flyway/sql/migration + /flyway/sql/quartz and
+# relies on Flyway scanning FLYWAY_LOCATIONS recursively, so the shared
+# egov-config/flyway-locations value must resolve to the /flyway/sql root. Quartz
+# stays a separate folder so the app-side tenant migration
+# (digit.tenant-migration.flyway-locations=classpath:/db/migration) can never pick
+# up the framework tables — those belong in public only.
 initContainers:
   dbMigration:
     enabled: true
     schemaTable: "pg_service_schema"
     image:
       repository: "pg-service-db"
+    env: |
+      - name: "DB_URL"
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-url
+      - name: "SCHEMA_TABLE"
+        value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+      - name: "FLYWAY_USER"
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-username
+      - name: "FLYWAY_PASSWORD"
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-password
+      - name: JAVA_ENABLE_DEBUG
+        value: "TRUE"
+      - name: "FLYWAY_LOCATIONS"
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: flyway-locations
+      - name: FLYWAY_SCHEMAS
+        value: public
+      - name: FLYWAY_DEFAULT_SCHEMA
+        value: public
 
 # Container Configs
 image:
   repository: "pg-service"
 replicas: "1"
+appType: "java"
+tracing-enabled: false
+heap: "-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=75.0"
 healthChecks:
-  enabled: true
-  livenessProbePath: "/pg-service/health"
-  readinessProbePath: "/pg-service/health"
-appType: "java-spring"
-tracing-enabled: true
-axis: true
+  enabled: false
+  livenessProbePath: "/pg-service-java/actuator/health/liveness"
+  readinessProbePath: "/pg-service-java/actuator/health/readiness"
+# Resource configuration for the Java service
+resources: |
+  requests:
+    cpu: "150m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "1.5Gi"
+
+# Gateway toggles — a gateway is only advertised by /gateway/v3/_search when its
+# <gateway>.active is true AND its credentials resolve. Set the matching secret
+# keys in egov-pg-service before flipping one on.
+axis: false
+payu: false
+paytm: false
+phonepe: false
+ccavenue: false
+stripe: true
 payu-url: ""
 payu-url-status: ""
 ccavenue-status-access-code: ""
@@ -36,103 +95,153 @@ ccavenue-url: ""
 ccavenue-url-status: ""
 ccavenue-url-redirect: ""
 ccavenue-url-cancel: ""
-memory_limits: "512Mi"
-heap: "-Xmx256m -Xms256m"
 java-args: "-Dspring.profiles.active=monitoring"
 java-debug: "true"
 
 # Additional Container Envs
+# The service is configured through Spring properties (relaxed env binding), not
+# the reference's env var names. Defaults baked into the image's
+# application.properties are only overridden where the deployment differs.
+#
+# Two naming traps carried over from the reference chart, both fixed here:
+#   - the topic properties are messaging.broker.topic.* (MESSAGING_…), not
+#     message.broker.topic.* — the reference chart set the latter, which this
+#     service never reads;
+#   - SECURITY_BASIC_ENABLED / MANAGEMENT_SECURITY_ENABLED / SPRING_KAFKA_CONSUMER_*
+#     / MANAGEMENT_HEALTH_REDIS_ENABLED are Boot 1.x-era knobs with no binding in
+#     Boot 4 and are dropped rather than carried forward dead.
+# Dropped with the code that never ran: INDIVIDUAL_* and PG_IS_USER_CREATE_ENABLED
+# (the reference's user-creation path is gone), CCAVENUE_* (no gateway
+# implementation in this port).
 env: |
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
   - name: SERVER_PORT
     value: "8080"
-  - name: SECURITY_BASIC_ENABLED
-    value: "false"  
-  - name: MANAGEMENT_SECURITY_ENABLED
-    value: "false" 
-  {{- if index .Values "tracing-enabled" }}
-  - name: TRACER_OPENTRACING_ENABLED
-    value: "true" 
-  {{- end }}
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    value: /pg-service
+  # ── Datasource ──────────────────────────────────────────────────────────
   - name: SPRING_DATASOURCE_URL
     valueFrom:
       configMapKeyRef:
         name: egov-config
         key: db-url
-  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
-    value: "org.postgresql.Driver"
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+  # Migration is handled by the init container above — app-boot Flyway is off
+  - name: SPRING_FLYWAY_ENABLED
+    value: "false"
+  # ── Canonical (header-free) API ─────────────────────────────────────────
+  # Path segment of the canonical twins: /transaction/v3/{segment}/_create, etc.
+  # Moving it moves all four canonical routes together.
+  - name: PG_SERVICE_CANONICAL_PATH
+    value: canonical
+  # ── Reconciliation (Quartz jobs; tables live in public with the eg_pg_qrtz_ prefix) ──
+  - name: PG_EARLYRECONCILEJOBRUNINTERVAL_MINS
+    value: "15"
+  - name: PG_RECONCILIATION_SYSTEM_USER_UUID
+    value: "b405e4d0-99ec-41b1-92e7-2ebda0321e0d"
+  # ── Transaction events (published via the tracer PubSubClient when enabled) ──
   - name: MESSAGE_BROKER_ENABLED
     value: "false"
-  - name: MESSAGE_BROKER_TYPE
-    value: "KAFKA" 
-  - name: MESSAGE_BROKER_TOPIC_CREATE_TXN
-    value: "create-pg-txn"
-  - name: MESSAGE_BROKER_TOPIC_UPDATE_TXN
-    value: "update-pg-txn" 
-  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
-    value: pg-service
-  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
-    value: org.apache.kafka.common.serialization.StringSerializer
-  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
-    value: org.springframework.kafka.support.serializer.JsonSerializer
-  - name: MANAGEMENT_HEALTH_REDIS_ENABLED
-    value: "false"
+  - name: MESSAGING_BROKER_TOPIC_CREATE_TXN
+    value: create-pg-txn
+  - name: MESSAGING_BROKER_TOPIC_UPDATE_TXN
+    value: update-pg-txn
+  # ── Messaging backend (tracer PubSubClient + tenant-migration consumer) ──
+  - name: TRACER_PUBSUB_TYPE
+    value: kafka
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+  # NB: kafka is required, not a preference — account publishes account-migration
+  # to kafka only, so a redis switch here would silently stop schema provisioning.
+  # ── Internal service clients (hosts end with "/", paths are relative) ───
   - name: IDGEN_HOST
     valueFrom:
       configMapKeyRef:
-        name: egov-service-host
         key: idgen
+        name: egov-service-host
   - name: IDGEN_GENERATE_ID_PATH
-    value: "idgen/v3/generate"
+    value: idgen/v3/generate
   - name: IDGEN_TXN_ID_TEMPLATE_CODE
-    value: "TxnID" 
+    value: TxnID
   - name: BILLING_HOST
     valueFrom:
       configMapKeyRef:
-        name: egov-service-host
         key: billing
+        name: egov-service-host
   - name: BILLING_PAYMENTS_CREATE_PATH
-    value: "billing/v3/payments"
+    value: billing/v3/payments
   - name: BILLING_PAYMENTS_VALIDATE_PATH
-    value: "billing/v3/payments/validate" 
+    value: billing/v3/payments/validate
+  # registry is read only by the AXIS bank-account lookup
   - name: REGISTRY_HOST
     valueFrom:
       configMapKeyRef:
-        name: egov-service-host
         key: registry
+        name: egov-service-host
   - name: REGISTRY_DATA_SEARCH_PATH
-    value: "registry/v3/{schemaCode}/data/_search"
+    value: registry/v3/{schemaCode}/data/_search
   - name: REGISTRY_BANK_ACCOUNT_SCHEMA
-    value: "bank-account"  
+    value: bank-account
   - name: INDIVIDUAL_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: individual
   - name: INDIVIDUAL_CREATE_PATH
-    value: "individuals/v3/individuals"
+    value: individuals/v3/individuals
   - name: INDIVIDUAL_SEARCH_PATH
-    value: "individuals/v3/individuals"
+    value: individuals/v3/individuals
   - name: PG_IS_USER_CREATE_ENABLED
-    value: "true"
+    value: "false"
+  # ── Per-tenant schemas (com.digit:tenant-migration) ──────────────────────
+  # SCHEMA_TABLE must equal initContainers.dbMigration.schemaTable above.
+  # Set once at initial deployment; not flipped on a running deployment.
+  - name: TENANT_MIGRATION_ENABLED
+    value: "false"
+  - name: TENANT_MIGRATION_SCHEMA_TABLE
+    value: pg_service_schema
+  - name: TENANT_MIGRATION_CONSUMER_GROUP
+    value: pg-service
+  # ── Payment gateways ────────────────────────────────────────────────────
+  # Secrets come from the existing egov-pg-service secret; the reference chart's
+  # key names are reused so no new secret has to be created.
+  {{- if .Values.stripe }}
   - name: STRIPE_ACTIVE
     value: "true"
   - name: STRIPE_CURRENCY
     value: "inr"
   - name: STRIPE_SECRET_KEY
     value: ""
+  {{- else }}
+  - name: STRIPE_ACTIVE
+    value: "false"
+  {{- end }}
   {{- if .Values.axis }}
   - name: AXIS_ACTIVE
     value: "true"
   - name: AXIS_CURRENCY
     value: "INR"
-  - name: AXIS_MERCHANT_VPC_VERSION    
+  - name: AXIS_LOCALE
+    value: "en_IN"
+  - name: AXIS_MERCHANT_VPC_VERSION
     value: "1"
   - name: AXIS_MERCHANT_VPC_COMMAND_PAY
     value: "pay"
   - name: AXIS_MERCHANT_VPC_COMMAND_STATUS
     value: "queryDR"
-  - name: AXIS_LOCALE
-    value: "en_IN"
   - name: AXIS_URL_DEBIT
     value: "https://migs.mastercard.co.in/vpcpay"
   - name: AXIS_URL_STATUS
@@ -162,10 +271,13 @@ env: |
       secretKeyRef:
         name: egov-pg-service
         key: axismerchantaccesscode
+  {{- else }}
+  - name: AXIS_ACTIVE
+    value: "false"
   {{- end }}
-  {{- if index .Values "payu-url" }}
+  {{- if .Values.payu }}
   - name: PAYU_ACTIVE
-    value: "true"    
+    value: "true"
   - name: PAYU_URL
     value: {{ index .Values "payu-url" | quote }}
   - name: PAYU_URL_STATUS
@@ -179,7 +291,49 @@ env: |
     valueFrom:
       secretKeyRef:
         name: egov-pg-service
-        key: payumerchantsalt 
+        key: payumerchantsalt
+  {{- else }}
+  - name: PAYU_ACTIVE
+    value: "false"
+  {{- end }}
+  {{- if .Values.paytm }}
+  - name: PAYTM_ACTIVE
+    value: "true"
+  - name: PAYTM_MERCHANT_ID
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: paytmmerchantid
+  - name: PAYTM_MERCHANT_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: paytmmerchantsecret
+  {{- else }}
+  - name: PAYTM_ACTIVE
+    value: "false"
+  {{- end }}
+  {{- if .Values.phonepe }}
+  - name: PHONEPE_ACTIVE
+    value: "true"
+  - name: PHONEPE_MERCHANT_ID
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: phonepemerchantid
+  - name: PHONEPE_MERCHANT_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: phonepemerchantsecret
+  - name: PHONEPE_MERCHANT_SECRET_INDEX
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: phonepemerchantsecretindex
+  {{- else }}
+  - name: PHONEPE_ACTIVE
+    value: "false"
   {{- end }}
   {{- if .Values.ccavenue }}
   - name: CCAVENUE_ACTIVE
@@ -211,12 +365,27 @@ env: |
     value: {{ index .Values "ccavenue-url-redirect" | quote }}
   - name: CCAVENUE_CANCEL_URL
     value: {{ index .Values "ccavenue-url-cancel" | quote }}
+  {{- else }}
+  - name: CCAVENUE_ACTIVE
+    value: "false"
   {{- end }}
-  - name: JAVA_OPTS
-    value: {{ index .Values "heap" | quote }}
+  # ── Observability: OTel span export and metrics export both disabled ──────
+  # NB: the span switch is MANAGEMENT_TRACING_EXPORT_ENABLED — MANAGEMENT_TRACING_ENABLED
+  # does not gate Boot's OTLP span exporter.
+  - name: MANAGEMENT_TRACING_EXPORT_ENABLED
+    value: "false"
+  - name: MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED
+    value: "false"
+  - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+    value: health,info
+  - name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY
+    value: "1.0"
+  - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
+    value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/traces
+  # ── Logging ─────────────────────────────────────────────────────────────
+  - name: LOGGING_LEVEL_ORG_EGOV_PG
+    value: DEBUG  
   - name: JAVA_ARGS
     value: {{ index .Values "java-args" | quote }}
   - name: JAVA_ENABLE_DEBUG
     value: {{ index .Values "java-debug" | quote }}
-  - name: OTEL_TRACES_EXPORTER
-    value: "none"

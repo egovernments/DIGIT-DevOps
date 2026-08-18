@@ -49,8 +49,18 @@ manager:
     repository: ghcr.io/clickhouse/clickhouse-operator
     ## Digest of the image to use. Tag is used if unset.
     ##
-    ## digest: sha256:abc123
-    ## Image tag (defaults to Chart.appVersion if not set)
+    ## Pinned deliberately. This was previously unset, so the image resolved to
+    ## Chart.appVersion ("latest"). On 2026-08-18 a node loss rescheduled the
+    ## operator, which re-pulled "latest" and picked up a build that added the
+    ## "clickhouse.com/ReplicaInitialized" readiness gate to the ClickHouse pod
+    ## template. The gate needs pods/status RBAC the chart did not grant, so the
+    ## pod stayed NotReady, the headless Service dropped all endpoints, and its
+    ## DNS name stopped resolving cluster-wide. Keep this pinned so operator
+    ## upgrades are an explicit, reviewed change rather than a side effect of
+    ## pod rescheduling.
+    ##
+    digest: sha256:3c9f67115e75531c8f17ef6e3cbddfef1ac2d6ed6cf4b1a67fd03a5e5d014853
+    ## Image tag (ignored while digest is set; otherwise defaults to Chart.appVersion)
     ##
     tag: ""
     pullPolicy: IfNotPresent

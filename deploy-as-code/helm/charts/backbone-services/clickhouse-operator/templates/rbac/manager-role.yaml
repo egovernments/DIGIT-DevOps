@@ -23,8 +23,21 @@ rules:
   - delete
   - get
   - list
+  - patch
   - update
   - watch
+# Required so the operator can set the "clickhouse.com/ReplicaInitialized"
+# readiness gate condition on ClickHouse pods. Without it the gate is never
+# satisfied, the pod stays NotReady, and the headless Service publishes no
+# endpoints - which makes its cluster DNS name fail to resolve entirely.
+- apiGroups:
+  - ""
+  resources:
+  - pods/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - apps
   resources:

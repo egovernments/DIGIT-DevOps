@@ -1,0 +1,29 @@
+## Deploys the cluster-configs Helm chart onto the digit-lts AKS cluster.
+##
+## The third valueFiles entry uses the secrets:// scheme, which requires
+## argocd-repo-server to decrypt via SOPS/AWS KMS -- that wiring lives in
+## deploy-as-code/helm/charts/backbone-services/argo-cd/values-azure-aks.yaml
+##
+## valueFiles paths resolve relative to spec.sources[].path, i.e.
+##   ../../environments/digit-lts.yaml
+##     -> deploy-as-code/helm/environments/digit-lts.yaml          (plain values)
+##   secrets://../../environments/digit-lts-secrets.yaml
+##     -> deploy-as-code/helm/environments/digit-lts-secrets.yaml  (SOPS-encrypted)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: digit-lts-cluster-configs
+  namespace: argocd
+spec:
+  project: cluster-configs-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      path: "deploy-as-code/helm/charts/cluster-configs"
+      helm:
+        valueFiles:
+          - values.yaml
+          - ../../environments/digit-lts.yaml
+          - secrets://../../environments/digit-lts-secrets.yaml
+  destination:
+    server: https://kubernetes.default.svc

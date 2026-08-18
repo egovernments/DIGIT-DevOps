@@ -1,0 +1,47 @@
+## AppProject for digit-lts-cluster-configs.
+##
+## NOTE: the source doc references cluster-configs-app-project.yaml but does not
+## include its contents, so this is a minimal project scoped to what the
+## cluster-configs chart actually renders. Tighten as needed.
+##
+## cluster-configs creates cluster-scoped objects (Namespace via
+## templates/0-namespaces, ClusterRole and ClusterRoleBinding via templates/rbac)
+## alongside namespaced objects (ConfigMap, Secret, Service, Endpoints, Ingress,
+## RoleBinding), so both clusterResourceWhitelist and namespaceResourceWhitelist
+## are declared explicitly.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: cluster-configs-project
+  namespace: argocd
+spec:
+  description: Cluster-level configuration (namespaces, configmaps, secrets, RBAC, root ingress) for the digit-lts AKS cluster
+  sourceRepos:
+    - https://github.com/egovernments/DIGIT-DevOps.git
+  ## The chart creates its own namespaces, so it must be allowed to target any
+  ## namespace on the cluster ArgoCD itself runs in.
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: Secret
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: Endpoints
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: rbac.authorization.k8s.io
+      kind: Role
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding

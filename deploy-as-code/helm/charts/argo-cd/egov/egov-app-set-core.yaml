@@ -1,0 +1,93 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-dev-egov-appset-core
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: audit-service
+          - name: billing
+          - name: boundary
+          - name: boundary-service
+          - name: egov-accesscontrol
+          - name: egov-document-uploader
+          - name: egov-enc-service
+          - name: egov-filestore
+          - name: egov-idgen
+          - name: egov-indexer
+          - name: egov-localization
+          - name: egov-location
+          - name: egov-malware-detection
+          - name: egov-mdms-service
+          - name: egov-notification-mail
+          - name: egov-notification-sms
+          - name: egov-otp
+          - name: egov-pdf
+          - name: egov-persister
+          - name: egov-pg-service
+          - name: egov-searcher
+          - name: egov-url-shortening
+          - name: egov-user-chatbot
+          - name: egov-user-event
+          - name: egov-workflow-v2
+          - name: filestore
+          - name: gateway
+          - name: idgen
+          - name: inbox
+          - name: localization
+          - name: mdms-v2
+          - name: national-dashboard-ingest
+          - name: national-dashboard-kafka-pipeline
+          - name: nlp-engine
+          - name: notification
+          - name: pdf-service
+          - name: registry
+          - name: report
+          - name: service-request
+          - name: tenant-management
+          - name: url-shortener
+          - name: user-otp
+          - name: workflow
+          - name: xstate-chatbot
+
+  template:
+    metadata:
+      name: 'egov-{{name}}'
+
+    spec:
+      project: egov-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: unified-env-lts
+        path: deploy-as-code/helm/charts/core-services/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/unified-dev.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'egov'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

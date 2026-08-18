@@ -1,0 +1,67 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-dev-egov-appset-frontend
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: citizen
+          - name: common-ui
+          - name: console
+          - name: core-ui
+          - name: digit-ui-flutter
+          - name: egov-bff
+          - name: employee
+          - name: hrms-ui
+          - name: microplan-ui
+          - name: pgr-ui
+          - name: program-ui
+          - name: sample-ui
+          - name: sandbox-ui
+          - name: story-book-flutter
+          - name: storybook
+          - name: storybook-svg
+          - name: wavemaker-ui
+          - name: workbench-ui
+
+  template:
+    metadata:
+      name: 'egov-{{name}}'
+
+    spec:
+      project: egov-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: unified-env-lts
+        path: deploy-as-code/helm/charts/frontend/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/unified-dev.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'egov'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

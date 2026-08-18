@@ -1,0 +1,83 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-dev-health-appset-health
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: airflow-trigger-service
+          - name: auth-proxy
+          - name: beneficiary-idgen
+          - name: boundary-management
+          - name: census-service
+          - name: egov-notification-push
+          - name: egov-user-sso
+          - name: excel-ingestion
+          - name: facility
+          - name: fhir-supplychain-transformer
+          - name: fhiradapter
+          - name: geopode-adapter
+          - name: hcm-abha
+          - name: health-attendance
+          - name: health-expense
+          - name: health-expense-calculator
+          - name: health-hrms
+          - name: health-individual
+          - name: health-muster-roll
+          - name: health-notification-service
+          - name: health-pgr-services
+          - name: health-project
+          - name: health-service-request
+          - name: health-ui
+          - name: household
+          - name: metabase
+          - name: plan-service
+          - name: product
+          - name: project-factory
+          - name: referralmanagement
+          - name: resource-generator
+          - name: stock
+          - name: transformer
+          - name: worker-registry
+
+  template:
+    metadata:
+      name: 'health-{{name}}'
+
+    spec:
+      project: health-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: unified-env-lts
+        path: deploy-as-code/helm/charts/health-services/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/unified-health-dev.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'health'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

@@ -47,7 +47,10 @@ crds:
 global:
   # -- Default domain used by all components
   ## Used for ingresses, certificates, SSO, notifications, etc.
-  domain: test-lts.digit.org
+  ## Azure AKS `unified-dev`. NOTE: unified-dev.digit.org currently still resolves
+  ## to the EKS ELB -- repoint DNS at the AKS ingress LoadBalancer, or the UI and
+  ## every ingress on this host will answer from the old cluster.
+  domain: unified-dev.digit.org
 
   # -- Runtime class name for all components
   runtimeClassName: ""
@@ -2892,17 +2895,22 @@ repoServer:
     ## against the projected token mounted at /var/run/secrets/aws), so no
     ## long-lived AWS access keys are stored in the cluster.
     ##
-    ## Prerequisites in AWS -- NOT created by this chart:
-    ##   1. AKS cluster has an OIDC issuer enabled:
-    ##        az aks show -g <rg> -n <aks-cluster> --query oidcIssuerProfile.issuerURL -o tsv
-    ##   2. That issuer URL registered in the AWS account as an IAM OIDC provider.
-    ##   3. The role below, trusting that provider with conditions
-    ##        aud = sts.amazonaws.com
-    ##        sub = system:serviceaccount:argocd:argocd-repo-server
-    ##   4. kms:Decrypt on the key that encrypted the secrets file, and a key
-    ##      policy on that key permitting the role.
+    ## Already provisioned for this cluster (account 218381940040):
+    ##   IAM OIDC provider ... /593ce202-.../66618056-d706-4e51-9a6f-dacdcd563292/
+    ##     (the `unified-dev` AKS OIDC issuer -- distinct from digit-lts, hence its
+    ##      own provider and role; client-id sts.amazonaws.com)
+    ##   Role  argocd-rs-unified-dev-sops-web-identity
+    ##     trust: sts:AssumeRoleWithWebIdentity on that provider, conditioned on
+    ##            <issuer>:aud = sts.amazonaws.com
+    ##            <issuer>:sub = system:serviceaccount:argocd:argocd-repo-server
+    ##     inline policy sops-kms-decrypt: kms:Decrypt on
+    ##            arn:aws:kms:ap-south-1:218381940040:key/9a3b0835-7713-4925-8b3d-da7e421d28d2
+    ##     (that key's policy already delegates to IAM, so no key-policy edit)
+    ##
+    ## The service account name below must stay `argocd-repo-server` -- it is the
+    ## `sub` the trust policy pins.
     - name: AWS_ROLE_ARN
-      value: "arn:aws:iam::218381940040:role/argocd-rs-digit-lts-sops-web-identity"
+      value: "arn:aws:iam::218381940040:role/argocd-rs-unified-dev-sops-web-identity"
     - name: AWS_WEB_IDENTITY_TOKEN_FILE
       value: /var/run/secrets/aws/token
     - name: AWS_REGION
@@ -3078,20 +3086,18 @@ repoServer:
   podLabels: {}
 
   # -- Resource limits and requests for the repo server pods
-  ## Memory raised 128Mi -> 1Gi per the source doc, to accommodate running
-  ## sops/helm-secrets in this pod.
-  ## NOTE: the doc also mentions bumping CPU but does not state a value, so the
-  ## cpu limit below is left as-is. 50m (0.05 core) is very likely too low once
-  ## helm template shells out to the helm-secrets wrapper and sops on every
-  ## manifest generation -- expect throttling and slow/timing-out syncs. Raise it
-  ## (500m is the upstream chart's own suggestion) if you see that.
+  ## Memory raised 128Mi -> 1Gi to accommodate running sops/helm-secrets in this
+  ## pod. CPU raised 50m -> 500m as well: this environment drives ~175 Applications
+  ## through ApplicationSets, and every manifest generation shells out to the
+  ## helm-secrets wrapper. At 50m (0.05 core) the repo-server throttles hard and
+  ## syncs start timing out.
   resources:
    limits:
-     cpu: 50m
+     cpu: 500m
      memory: 1Gi
    requests:
-     cpu: 10m
-     memory: 64Mi
+     cpu: 100m
+     memory: 256Mi
 
   # Repo server container ports
   containerPorts:

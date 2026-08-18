@@ -1,0 +1,189 @@
+## One cluster-configs Application per product env file -- these are the only
+## Applications that use the secrets:// scheme.
+##
+## valueFiles resolve relative to spec.sources[].path (charts/cluster-configs),
+## i.e. ../../environments/<env>.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-configs-unified-dev
+  namespace: argocd
+spec:
+  project: cluster-configs-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      path: "deploy-as-code/helm/charts/cluster-configs"
+      helm:
+        valueFiles:
+          - values.yaml
+          - ../../environments/unified-dev.yaml
+          ## secrets:// is decrypted by argocd-repo-server via SOPS + AWS KMS.
+          ## Key mapping: deploy-as-code/helm/.sops.yaml
+          - secrets://../../environments/unified-dev-secrets.yaml
+  destination:
+    server: https://kubernetes.default.svc
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-configs-unified-urban-dev
+  namespace: argocd
+spec:
+  project: cluster-configs-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      path: "deploy-as-code/helm/charts/cluster-configs"
+      helm:
+        valueFiles:
+          - values.yaml
+          - ../../environments/unified-urban-dev.yaml
+          ## secrets:// is decrypted by argocd-repo-server via SOPS + AWS KMS.
+          ## Key mapping: deploy-as-code/helm/.sops.yaml
+          - secrets://../../environments/unified-urban-dev-secrets.yaml
+        parameters:
+          ## unified-dev's cluster-configs already creates every namespace; keep a
+          ## single owner for the Namespace objects.
+          - name: cluster-configs.namespaces.create
+            value: "false"
+  destination:
+    server: https://kubernetes.default.svc
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-configs-unified-health-dev
+  namespace: argocd
+spec:
+  project: cluster-configs-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      path: "deploy-as-code/helm/charts/cluster-configs"
+      helm:
+        valueFiles:
+          - values.yaml
+          - ../../environments/unified-health-dev.yaml
+          ## secrets:// is decrypted by argocd-repo-server via SOPS + AWS KMS.
+          ## Key mapping: deploy-as-code/helm/.sops.yaml
+          - secrets://../../environments/unified-health-dev-secrets.yaml
+        parameters:
+          ## unified-dev's cluster-configs already creates every namespace; keep a
+          ## single owner for the Namespace objects.
+          - name: cluster-configs.namespaces.create
+            value: "false"
+  destination:
+    server: https://kubernetes.default.svc
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-configs-unified-studio-dev
+  namespace: argocd
+spec:
+  project: cluster-configs-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      path: "deploy-as-code/helm/charts/cluster-configs"
+      helm:
+        valueFiles:
+          - values.yaml
+          - ../../environments/unified-studio-dev.yaml
+          ## secrets:// is decrypted by argocd-repo-server via SOPS + AWS KMS.
+          ## Key mapping: deploy-as-code/helm/.sops.yaml
+          - secrets://../../environments/unified-studio-dev-secrets.yaml
+  destination:
+    server: https://kubernetes.default.svc
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-configs-unified-care-dev
+  namespace: argocd
+spec:
+  project: cluster-configs-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      path: "deploy-as-code/helm/charts/cluster-configs"
+      helm:
+        valueFiles:
+          - values.yaml
+          - ../../environments/unified-care-dev.yaml
+          ## secrets:// is decrypted by argocd-repo-server via SOPS + AWS KMS.
+          ## Key mapping: deploy-as-code/helm/.sops.yaml
+          - secrets://../../environments/unified-care-dev-secrets.yaml
+  destination:
+    server: https://kubernetes.default.svc
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s

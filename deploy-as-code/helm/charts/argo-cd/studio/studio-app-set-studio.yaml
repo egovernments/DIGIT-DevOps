@@ -1,0 +1,57 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-dev-studio-appset-studio
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: digit-studio
+          - name: public-service
+          - name: public-service-init
+          - name: studio-calculator-service
+          - name: studio-individual
+          - name: studio-pdf
+          - name: studio-pdf-helper-service
+          - name: studio-service-request
+
+  template:
+    metadata:
+      name: 'studio-{{name}}'
+
+    spec:
+      project: studio-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: unified-env-lts
+        path: deploy-as-code/helm/charts/studio-services/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/unified-studio-dev.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'studio'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

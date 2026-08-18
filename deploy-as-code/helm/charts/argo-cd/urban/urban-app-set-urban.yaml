@@ -1,0 +1,77 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-dev-urban-appset-urban
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: birth-death-services
+          - name: bpa-calculator
+          - name: bpa-services
+          - name: default-data-handler
+          - name: digit-ui
+          - name: echallan-calculator
+          - name: echallan-services
+          - name: egov-bndry-mgmnt
+          - name: egov-edcr
+          - name: egov-finance
+          - name: egov-searcher
+          - name: egov-survey-services
+          - name: firenoc-calculator
+          - name: firenoc-services
+          - name: land-services
+          - name: noc-services
+          - name: pgr-services
+          - name: property-services
+          - name: pt-calculator-v2
+          - name: pt-services-v2
+          - name: rainmaker-pgr
+          - name: report
+          - name: sw-calculator
+          - name: sw-services
+          - name: tl-calculator
+          - name: tl-services
+          - name: ws-calculator
+          - name: ws-services
+
+  template:
+    metadata:
+      name: 'urban-{{name}}'
+
+    spec:
+      project: urban-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: unified-env-lts
+        path: deploy-as-code/helm/charts/urban/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/unified-urban-dev.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'urban'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

@@ -5,7 +5,11 @@ global:
 cluster-configs:
   namespaces:  
     create: true
-    values: [ backbone, cert-manager, egov, es-cluster, kafka-cluster, logging, monitoring, playground, temporal ]
+    ## care, health, studio and urban added for the Azure AKS unified-dev
+    ## environment: workloads run in those namespaces on EKS unified-dev, and the
+    ## per-namespace ApplicationSets in charts/argo-cd/unified-dev/ target them
+    ## with CreateNamespace=false, so cluster-configs must create them.
+    values: [ backbone, care, cert-manager, egov, es-cluster, health, kafka-cluster, logging, monitoring, playground, studio, temporal, urban ]
       
   root-ingress:
     cert-issuer: letsencrypt-prod
@@ -201,6 +205,8 @@ cluster-configs:
       namespace: [ egov ]
   
 employee:
+  image:
+    tag: "multiarch"
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
   custom-js-injection: |
     sub_filter.conf: "
@@ -215,6 +221,8 @@ digit-ui:
       <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
       ';"
 workbench-ui:
+  image:
+    tag: "master-37deada"
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>        
@@ -222,18 +230,24 @@ workbench-ui:
       ';"     
 
 wavemaker-ui:
+  image:
+    tag: "10.0"
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsWorkbenchHCMMZ.js type=text/javascript></script>';" 
 
 core-ui:
+  image:
+    tag: "multiarch-console-stable-arm-fcf1fa94-1062"
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigsCore.js type=text/javascript></script>';"     
 
 program-ui:
+  image:
+    tag: "frontend-5bee258-7"
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
@@ -241,12 +255,16 @@ program-ui:
 
 
 sandbox-ui:
+  image:
+    tag: "multiarch"
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsSandbox.js type=text/javascript></script>';"     
 
 storybook:
+  image:
+    tag: "develop-d44ae84"
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
@@ -255,6 +273,8 @@ storybook:
       <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsStorybook.js type=text/javascript></script>';"  
 
 story-book-flutter:
+  image:
+    tag: "develop-d87b1a1"
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
@@ -263,6 +283,8 @@ story-book-flutter:
       <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigsWorkbench.js type=text/javascript></script>';"  
 
 route-map:
+  image:
+    tag: "HLM-5602-vehicle-tracking-web-copy-386d22bb8e-4"
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
@@ -272,6 +294,8 @@ route-map:
 
 
 storybook-svg:
+  image:
+    tag: "digit-ui-core-v2-06064c17aa-2"
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
@@ -295,6 +319,8 @@ dss-ui:
 
 
 hrms-ui:
+  image:
+    tag: "mfe-css-8197fcab-194"
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
@@ -318,6 +344,8 @@ workbench-web:
 
 
 pgr-ui:
+  image:
+    tag: "mfe-css-6bbcd400-143"
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
@@ -360,6 +388,8 @@ tqm-ui:
       ';"
       
 digit-studio:
+  image:
+    tag: "studio-dev-ui-rc19-3-c3e3c69-1149"
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
@@ -377,6 +407,8 @@ fsm-ui:
 
 
 common-ui:
+  image:
+    tag: "develop-mfe-campaign-microplan-9e8ad321-124"
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
@@ -385,6 +417,8 @@ common-ui:
 
 
 citizen:
+  image:
+    tag: "multiarch"
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
@@ -392,6 +426,12 @@ citizen:
       <script src=https://s3.ap-south-1.amazonaws.com/egov-uat-assets/globalConfigs.js type=text/javascript></script>
       ';"
 egov-filestore:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "security-patch-b62174b"
+  image:
+    tag: "security-patch-b62174b"
   volume: /opt/eGov/filestore
   is-bucket-fixed: "true"
   minio.url : "http://minio.backbone:9000/"
@@ -408,6 +448,12 @@ egov-filestore:
   heap: "-Xmx256m -Xms256m"
 
 egov-malware-detection:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "2.9.4-malware-detection-master-d07ae66"
+  image:
+    tag: "2.9.4-malware-detection-master-d07ae66"
   # ClamAV Configuration
   clamav-host: "clamav.security"
   clamav-port: "3310"
@@ -440,6 +486,12 @@ egov-malware-detection:
   memory_limits: "768Mi"
 
 egov-url-shortening:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "security-patch-1bb57e6"
+  image:
+    tag: "security-patch-1bb57e6"
   heap: "-Xmx256m -Xms256m"
   memory_limits: 512Mi
   egov-url-shortner-endpoint: "/eus/shortener"
@@ -447,6 +499,8 @@ egov-url-shortening:
   hashids-min-length: "2"
 
 inbox:
+  image:
+    tag: "inbox-parallel-workflow-b5cd4a6"
   namespace: egov
   memory_limits: 768Mi
   heap: "-Xmx512m -Xms256m"
@@ -458,6 +512,12 @@ inbox:
   mdmsV1SearchEndpoint: "/egov-mdms-service/v2/_search"
 
 egov-idgen:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "2.9-LTS-IDgen-mdmsDatacache-ec7d017"
+  image:
+    tag: "2.9-LTS-IDgen-mdmsDatacache-ec7d017"
   idformat-from-mdms: "true"
   java-args: -Dspring.profiles.active=monitoring
   heap: '-Xmx1024m -Xms1024m'
@@ -466,6 +526,12 @@ egov-idgen:
   mdms-cache-max-size: "1000"
 
 mdms-v2:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "base-docker-upgrade-ce613c1"
+  image:
+    tag: "base-docker-upgrade-ce613c1"
   central-instance-name: egov
   central-instance-build: true
   central-instance-enabled: false
@@ -482,6 +548,12 @@ mdms-v2:
     readinessProbePath: "/egov-mdms-service/health"
 
 boundary-service:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "master-persister-changes-2.0-0aeb68a"
+  image:
+    tag: "master-persister-changes-2.0-0aeb68a"
   replicas: 1
   heap: '-Xmx512m -Xms512m'
   memory_limits: 1024Mi
@@ -494,6 +566,12 @@ health-hrms:
   memory_limits: 512Mi
 
 public-service:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "develop-4351bc1"
+  image:
+    tag: "develop-4351bc1"
   replicas: 1
   heap: '-Xmx256m -Xms256m'
   memory_limits: 512Mi
@@ -505,6 +583,12 @@ public-service:
   mdms-v2-update-endpoint: "egov-mdms-service/v2/_update"
 
 public-service-init:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "develop-cd9f31a"
+  image:
+    tag: "develop-cd9f31a"
   replicas: 1
   heap: '-Xmx256m -Xms256m'
   memory_limits: 512Mi
@@ -521,6 +605,8 @@ facility:
   memory_limits: 512Mi
 
 egov-notification-sms:
+  image:
+    tag: "master-e22c7c5"
   sms-provider-url: "sms provider url" ## Add sms provider url
   sms.provider.class: "Console"
   sms.provider.contentType:  "application/x-www-form-urlencoded"
@@ -540,6 +626,12 @@ egov-notification-sms:
   sms.mobile.validation.error.message: "Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9."
 
 egov-otp:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "base-docker-upgrade-ce613c1"
+  image:
+    tag: "base-docker-upgrade-ce613c1"
   central-instance-name: egov
   central-instance-build: true
   central-instance-enabled: false
@@ -548,6 +640,12 @@ egov-otp:
   heap: "-Xmx256m -Xms256m"
 
 egov-user:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "user-bulk-upgrade-960226f"
+  image:
+    tag: "user-bulk-upgrade-960226f"
   central-instance-name: egov
   central-instance-build: true
   central-instance-enabled: false
@@ -592,6 +690,12 @@ chatbot:
   user-service-chatbot-citizen-passwrord: "123456"
 
 xstate-chatbot:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "DIGIT-2.9-LTS-44558a0602-3"
+  image:
+    tag: "DIGIT-2.9-LTS-44558a0602-3"
   replicas: 1
   whatsapp-provider: "console"
   contact-card-whatsapp-number: "+918744060444"
@@ -610,6 +714,12 @@ xstate-chatbot:
   pgr-update-topic: "update-pgr-request"
 
 ws-services:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "central-instance-WnS-with_master-c44b49f489-4"
+  image:
+    tag: "central-instance-WnS-with_master-c44b49f489-4"
   wcid-format: "WS/[CITY.CODE]/[fy:yyyy-yy]/[SEQ_EGOV_COMMON]"
   is-external-workflow-enabled: "true"
 
@@ -631,6 +741,12 @@ sw-services:
   is-external-workflow-enabled: "true" 
 
 egov-pg-service:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "base-docker-upgrade-ddfcec3"
+  image:
+    tag: "base-docker-upgrade-ddfcec3"
   axis: true  
   egov-pg-reconciliation-system-user-uuid: "db4fe8ed-c0e0-4c2a-829b-72296d8d156f"
   heap: "-Xmx256m -Xms256m"
@@ -639,14 +755,21 @@ egov-pg-service:
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 egov-indexer:
+  image:
+    tag: "base-docker-upgrade-ce613c1"
   heap: "-Xmx512m -Xms512m"
   initContainers:
+    dbMigration:
+      image:
+        tag: "base-docker-upgrade-ce613c1"
     gitSync:
       repo: "git@github.com:egovernments/configs"        ##### Change repo url with Your fork Repo url
       branch: "UNIFIED-DEV"                                      ##### Change repo branch with Your fork Repo branch
   egov-indexer-yaml-repo-path: "file:///work-dir/configs/fsm/egov-indexer/egov-vehicle.yaml,file:///work-dir/configs/fsm/egov-indexer/egov-vendor.yaml,file:///work-dir/configs/fsm/egov-indexer/egov-fsm.yml,file:///work-dir/configs/egov-indexer/privacy-audit.yaml,file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml,file:///work-dir/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/configs/egov-indexer/error-queue.yml,file:///work-dir/configs/egov-indexer/finance-rolloutadotpion-indexer.yml,file:///work-dir/configs/egov-indexer/payment-indexer.yml,file:///work-dir/configs/egov-indexer/pgr-services.yml,file:///work-dir/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-tl-indexer.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry.yaml,file:///work-dir/configs/egov-indexer/water-service.yml,file:///work-dir/configs/egov-indexer/water-services-meter.yml,file:///work-dir/configs/egov-indexer/sewerage-service.yml,file:///work-dir/configs/egov-indexer/property-services.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry-v2.yaml,file:///work-dir/configs/egov-indexer/egov-vehicle.yaml,file:///work-dir/configs/egov-indexer/egov-vendor.yaml,file:///work-dir/configs/egov-indexer/egov-url-shortening-indexer.yaml,file:///work-dir/configs/egov-indexer/fire-noc-service.yml,file:///work-dir/configs/egov-indexer/egov-echallan.yml,file:///work-dir/configs/egov-indexer/egov-bpa-indexer.yml,file:///work-dir/configs/egov-indexer/edcr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-birth-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-death-indexer.yml,file:///work-dir/configs/egov-indexer/ws-event-indexer.yml,file:///work-dir/configs/egov-indexer/egov-error-queue-indexer.yml,file:///work-dir/configs/egov-indexer/citizen-feedback-indexer.yml,file:///work-dir/configs/egov-indexer/egov-fsm.yml,file:///work-dir/configs/egov-indexer/fsm-inbox-indexer.yml,file:///work-dir/configs/works/egov-indexer/contractservices-indexer.yml,file:///work-dir/configs/works/egov-indexer/estimateservices-indexer.yml,file:///work-dir/configs/works/egov-indexer/expensebill-indexer.yml,file:///work-dir/configs/works/egov-indexer/individual-indexer.yml,file:///work-dir/configs/works/egov-indexer/musterservices-indexer.yml,file:///work-dir/configs/works/egov-indexer/organisationservices-indexer.yml,file:///work-dir/configs/works/egov-indexer/project-indexer.yml,file:///work-dir/configs/egov-indexer/product-indexer.yml,file:///work-dir/configs/egov-indexer/individual-indexer.yml,file:///work-dir/configs/egov-indexer/household-indexer.yml,file:///work-dir/configs/egov-indexer/project-task-indexer.yml,file:///work-dir/configs/egov-indexer/stock-indexer.yml,file:///work-dir/configs/egov-indexer/facility-indexer.yml,file:///work-dir/configs/egov-indexer/project-staff-indexer.yml,file:///work-dir/configs/egov-indexer/service-request-indexer.yml,file:///work-dir/configs/works/egov-indexer/measurement-indexer.yml,file:///work-dir/configs/works/egov-indexer/ifms-pi-indexer.yml,file:///work-dir/configs/works/egov-indexer/expensepayment-indexer.yml,file:///work-dir/configs/egov-indexer/egov-pqm-service.yml,file:///work-dir/configs/egov-indexer/pqm-service-indexer.yml,file:///work-dir/configs/egov-indexer/pqm-anomaly-finder-indexer.yml,file:///work-dir/configs/ifix/egov-indexer/digit-exchange-indexer.yml, file:///work-dir/configs/works/egov-indexer/mukta-pi-indexer.yml,file:///work-dir/configs/health/egov-indexer/census-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/plan-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/household-indexer.yml,file:///work-dir/configs/health/egov-indexer/facility-indexer.yml,file:///work-dir/configs/health/egov-indexer/individual-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-staff-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-task-indexer.yml,file:///work-dir/configs/health/egov-indexer/referral-management-indexer.yml,file:///work-dir/configs/health/egov-indexer/stock-indexer.yml,file:///work-dir/configs/health/egov-indexer/transformer-pgr-services.yml,file:///work-dir/configs/health/egov-indexer/attendance-service-indexer.yml,file:///work-dir/configs/egov-indexer/public-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/pgr-services.yml,file:///work-dir/configs/health/egov-indexer/transformer-pgr-services.yml,file:///work-dir/configs/egov-indexer/pgr-inbox-indexer.yml,file:///work-dir/configs/health/egov-indexer/health-notification-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-beneficiary-indexer.yml"
 
 egov-persister:
+  image:
+    tag: "master-perf-fe334d2"
   replicas: 2
   heap: "-Xmx1536m -Xms1536m"
   memory_limits: 2Gi
@@ -658,13 +781,24 @@ egov-persister:
       repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
       branch: "UNIFIED-DEV"                                    ##### Change repo branch with Your fork Repo branch
 audit-service:
+  image:
+    tag: "base-docker-upgrade-44e5f63"
   persist-yml-path: "https://raw.githubusercontent.com/egovernments/configs/UNIFIED-DEV/works/egov-persister/attendance-service-persister.yml,https://raw.githubusercontent.com/egovernments/configs/UNIFIED-DEV/works/egov-persister/muster-service-persister.yml,https://raw.githubusercontent.com/egovernments/configs/UNIFIED-DEV/works/egov-persister/estimate-service.yml,https://raw.githubusercontent.com/egovernments/configs/UNIFIED-DEV/works/egov-persister/contract-service-persister.yml,https://raw.githubusercontent.com/egovernments/configs/UNIFIED-DEV/works/egov-persister/bankaccounts-persister.yml,https://raw.githubusercontent.com/egovernments/configs/UNIFIED-DEV/works/egov-persister/expense-bill-payment-persister.yaml,https://raw.githubusercontent.com/egovernments/configs/UNIFIED-DEV/egov-persister/mdms-persister.yml,https://raw.githubusercontent.com/egovernments/configs/UNIFIED-DEV/health/egov-persister/project-factory-persister.yml"
   initContainers:
+    dbMigration:
+      image:
+        tag: "base-docker-upgrade-44e5f63"
     gitSync:
       repo: "git@github.com:egovernments/configs"
       branch: "UNIFIED-DEV"
 
 egov-localization:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "redis-localization-key-localization-consumer-5f65e53"
+  image:
+    tag: "redis-localization-key-localization-consumer-5f65e53"
   replicas: 2
   heap: "-Xmx3072m -Xms1024m"
   memory_limits: 4500Mi
@@ -682,6 +816,12 @@ project-factory:
   mdmsV1SearchEndpoint: 'mdms-v2/v1/_search'
 
 project:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "hcmpre-3840-11d4425"
+  image:
+    tag: "hcmpre-3840-11d4425"
   heap: "-Xmx256m -Xms256m"
   memory_limits: 512Mi
   tracing-enabled: true
@@ -693,6 +833,12 @@ project:
   kafka-mdc-enabled: "true"
 
 individual:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "individualSVC-a6614a2"
+  image:
+    tag: "individualSVC-a6614a2"
   heap: "-Xmx256m -Xms256m"
   memory_limits: 512Mi
   tracing-enabled: true
@@ -728,6 +874,8 @@ egov-data-uploader:
       branch: "UNIFIED-DEV"                                    ##### Change repo branch with Your fork Repo branch
 
 egov-searcher:
+  image:
+    tag: "v1.1.5-72f8a8f87b-16"
   search-yaml-path: "file:///work-dir/configs/egov-searcher/rainmaker-pgr-v2.yml,file:///work-dir/configs/egov-searcher/weekly-impact-emailer-searcher.yml,file:///work-dir/configs/egov-searcher/PTDemandBasedSearcher.yml,file:///work-dir/configs/egov-searcher/bill-genie.yml,file:///work-dir/configs/egov-searcher/rainmaker-tl.yml,file:///work-dir/configs/egov-searcher/localitySearcher.yml"
   initContainers:
     gitSync:
@@ -735,6 +883,8 @@ egov-searcher:
       branch: "UNIFIED-DEV"                                   ##### Change repo branch with Your fork Repo branch
 
 dashboard-analytics:
+  image:
+    tag: "analytics-raw-response-transform-mdmsMapping-8cad3be"
   config-schema-paths: "file:///work-dir/configs/egov-dss-dashboards/dashboard-analytics/*.json"
   initContainers:
     gitSync:
@@ -743,6 +893,8 @@ dashboard-analytics:
   cache-expiry-time-in-minutes: 0
 
 dashboard-ingest:
+  image:
+    tag: "develop-9ca69e70c4-4"
   config-schema-paths: "file:///work-dir/configs/egov-dss-dashboards/dashboard-ingest/*.json"
   initContainers:
     gitSync:
@@ -752,6 +904,12 @@ dashboard-ingest:
 # reportinfra >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 national-dashboard-ingest:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "develop-eda088cde1-2"
+  image:
+    tag: "develop-eda088cde1-2"
   heap: "-Xmx750m -Xms750m"
   replicas: 1
   server-tomcat-max-threads: 25
@@ -762,6 +920,8 @@ national-dashboard-ingest:
   module-allowed-groupby-fields-mapping: '{"PT":{"financialYear","usageCategory"},"WS":{"connectionType","channelType","usageType","paymentChannelType","taxHeads","meterType","duration"},"FIRENOC":{"applicationType","department","paymentMode","type","usageType"},"OBPS":{"paymentMode","riskType","occupancyType","subOccupancyType"},"PGR":{"status","channel","department","category"},"TL":{"tradeType","status"},"MCOLLECT":{"paymentMode","status","category","challanStatus"},"COMMON":{"serviceModuleCode"},"BIRTH":{"channel","gender","boundary"},"DEATH":{"channel","gender","boundary","age"}}'
 
 report:
+  image:
+    tag: "v1.3.5-6cfa52c1f9-1"
   heap: "-Xmx512m -Xms512m"
   tracing-enabled: "true"
   spring-datasource-tomcat-max-active: 5
@@ -772,7 +932,12 @@ report:
   report-locationsfile-path: "file:///work-dir/configs/reports/reportFileLocationsv1.txt"
 
 pdf-service:
+  image:
+    tag: "pdf-service-security-fixes-1eacb70"
   initContainers:
+    dbMigration:
+      image:
+        tag: "v4.4.0"
     gitSync:
       repo: "git@github.com:egovernments/configs"     ##### Change repo url with Your fork Repo url
       branch: "UNIFIED-DEV"                                   ##### Change repo branch with Your fork Repo branch
@@ -784,6 +949,12 @@ pdf-service:
 # financials >>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 egf-master:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "v1.1.3-72f8a8f87b-15"
+  image:
+    tag: "v1.1.3-72f8a8f87b-15"
   memory_limits: 512Mi
   heap: "-Xmx128m -Xms128m"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -791,6 +962,12 @@ egov-custom-consumer:
   erp-host: "https://mohali-qa.egovernments.org/"
 
 egov-apportion-service:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "hrms-boundary-0a4e737"
+  image:
+    tag: "hrms-boundary-0a4e737"
   memory_limits: 256Mi
   heap: -Xmx128m -Xms128m
 
@@ -833,6 +1010,8 @@ cert-manager:
 prometheus-blackbox-exporter:
   namespace: monitoring
 gateway:
+  image:
+    tag: "HCMPRE-2023-corrfix-tenantId-11a40a1"
   replicas: 1
   custom-filter-property: "false"
   tracing-enabled: "true"
@@ -847,6 +1026,12 @@ gateway:
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 collection-services:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "hrms-boundary-0a4e737"
+  image:
+    tag: "hrms-boundary-0a4e737"
   receiptnumber-servicebased: "true"
   receipt-search-paginate: "true"
   receipt-search-defaultsize: 30
@@ -863,6 +1048,12 @@ collection-receipt-voucher-consumer:
   zirakpur-erp-host: "https://zirakpur-qa.egovernments.org/"
 
 finance-collections-voucher-consumer:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "v1.1.6-96b24b0d72-18"
+  image:
+    tag: "v1.1.6-96b24b0d72-18"
   erp-env-name: "qa"
   erp-domain-name: "egovernments.org"
   heap: "-Xmx256m -Xms256m"
@@ -870,6 +1061,12 @@ finance-collections-voucher-consumer:
 
 # rainmaker-pgr >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 rainmaker-pgr:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "v1.1.4-48a03ad7bb-4"
+  image:
+    tag: "v1.1.4-48a03ad7bb-4"
   notification-sms-enabled: "true"
   notification-email-enabled: "false"
   new-complaint-enabled: "true"
@@ -879,6 +1076,12 @@ rainmaker-pgr:
   notification-allowed-status: "open,assigned,rejected,resolved"
 
 property-services:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "v1.2.1-8d02c19352-39"
+  image:
+    tag: "v1.2.1-8d02c19352-39"
   replicas: 1
   heap: "-Xmx256m -Xms256m"
   memory_limits: 512Mi
@@ -893,6 +1096,12 @@ pt-services-v2:
   pt-userevents-pay-link: "/citizen/otpLogin?mobileNo=$mobile&redirectTo=egov-common/pay?consumerCode=$consumerCode&tenantId=$tenantId"
 
 pt-calculator-v2:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "develop-d20577934f-5"
+  image:
+    tag: "develop-d20577934f-5"
   logging-level: "DEBUG"
 
 tl-services:
@@ -911,6 +1120,12 @@ tl-services:
   egov-location-endpoint: "_search"
 
 egov-workflow-v2:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "wkf-autoescalation-fix-4f3f1b5"
+  image:
+    tag: "wkf-autoescalation-fix-4f3f1b5"
   central-instance-name: egov
   central-instance-build: true
   central-instance-enabled: false
@@ -925,6 +1140,12 @@ egov-workflow-v2:
   mdms-search-endpoint: "/egov-mdms-service/v1/_search"
 
 egov-hrms:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "hrms-boundary-0a4e737"
+  image:
+    tag: "hrms-boundary-0a4e737"
   java-args: -Dspring.profiles.active=monitoring
   employee-applink: "https://egov-demo.egovernments.org/employee/user/login"
   heap: "-Xmx256m -Xms256m"
@@ -1015,6 +1236,8 @@ jaeger:
 
 # redis >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 redis:
+  image:
+    tag: "8.8.1-chainguard"
   replicas: 1
   images:
     - egovio/redis:7.2.4
@@ -1034,6 +1257,12 @@ fluent-bit:
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 egov-enc-service:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "base-docker-upgrade-ce613c1"
+  image:
+    tag: "base-docker-upgrade-ce613c1"
   heap: "-Xmx256m -Xms256m"
 # kafka-v2 AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 kafka-v2:
@@ -1170,6 +1399,12 @@ es-curator:
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 sunbirdrc-credential-service:
+  initContainers:
+    dbMigration:
+      image:
+        tag: "sunbirdrc-mithun-028afe44b4-100"
+  image:
+    tag: "sunbirdrc-mithun-028afe44b4-100"
   memory_limits: 512Mi
 
 
@@ -1319,6 +1554,8 @@ pgr-services:
 
 # User Preferences Service (Go)
 digit-user-preferences-service:
+  image:
+    tag: "whatsapp_design_final-1a8e552"
   replicas: 1
   db-name: "unifieddevdb"
   db-ssl-mode: "require"
@@ -1356,3 +1593,227 @@ jupyterhub:
         admin_access: true
 
 
+
+## ---- Image tags for services deployed via Argo CD on Azure AKS unified-dev.
+## Added because the charts ship image.repository but no tag; under GitOps the
+## tag has to live in git rather than being injected by the deployer.
+
+billing:
+  image:
+    tag: "billing-conformance-changes-9e397a9"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "billing-conformance-changes-9e397a9"
+
+billing-service:
+  image:
+    tag: "hrms-boundary-0a4e737"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "hrms-boundary-0a4e737"
+
+boundary:
+  image:
+    tag: "boundary-caching-issue-ec65e76"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "boundary-caching-issue-ec65e76"
+
+boundary-bulk-bff:
+  image:
+    tag: "boundary-bulk-bff-b1a02d94-43"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "boundary-bulk-bff-b1a02d94-43"
+
+console:
+  image:
+    tag: "console-upgrade-d2e5f00"
+
+digit-ui-flutter:
+  image:
+    tag: "DPG-2263-timeline-steps-b63c9c960b-101"
+
+egf-instrument:
+  image:
+    tag: "v1.1.4-72f8a8f87b-4"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "v1.1.4-72f8a8f87b-4"
+
+egov-accesscontrol:
+  image:
+    tag: "base-docker-upgrade-0aec2ff"
+
+egov-bff:
+  image:
+    tag: "user-analytics-bef79d01fd-126"
+
+egov-document-uploader:
+  image:
+    tag: "v1.1.0-75d461a4d2-4"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "v1.1.0-75d461a4d2-4"
+
+egov-location:
+  image:
+    tag: "base-docker-upgrade-ce613c1"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "base-docker-upgrade-ce613c1"
+
+egov-mdms-service:
+  image:
+    tag: "base-docker-upgrade-ce613c1"
+
+egov-notification-mail:
+  image:
+    tag: "base-docker-upgrade-ce613c1"
+
+egov-pdf:
+  image:
+    tag: "v1.2.1-cb236eaf66-8"
+
+egov-user-chatbot:
+  image:
+    tag: "v1.2.6-96b24b0d72-4"
+
+egov-user-event:
+  image:
+    tag: "master-0f67ed9"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "master-0f67ed9"
+
+filestore:
+  image:
+    tag: "develop-eae753d"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "develop-eae753d"
+
+health-ui:
+  image:
+    tag: "health-dev-4789311325-559"
+
+idgen:
+  image:
+    tag: "develop-90ee41f"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "develop-90ee41f"
+
+localization:
+  image:
+    tag: "localization-optimization-9675408"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "localization-optimization-9675408"
+
+microplan-ui:
+  image:
+    tag: "mp-de1253c58c-5"
+
+national-dashboard-kafka-pipeline:
+  image:
+    tag: "develop-8a48565d2e-1"
+
+nlp-engine:
+  image:
+    tag: "v1.0.0-fbea6fba-21"
+
+notification:
+  image:
+    tag: "develop-notification-version-update-6b58bcb"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "develop-notification-version-update-6b58bcb"
+
+oauth2-proxy:
+  image:
+    tag: "v5.1.0"
+
+registry:
+  image:
+    tag: "registry-service-de36392"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "registry-service-de36392"
+
+sample-ui:
+  image:
+    tag: "sandbox-exploration-ae4813c3-18"
+
+semantic-indexer:
+  image:
+    tag: "latest-debug"
+
+service-request:
+  image:
+    tag: "base-docker-upgrade-0aec2ff"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "base-docker-upgrade-0aec2ff"
+
+studio-pdf:
+  image:
+    tag: "develop-16d12f1"
+
+studio-pdf-helper-service:
+  image:
+    tag: "public-service-7524b89"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "public-service-7524b89"
+
+tenant-management:
+  image:
+    tag: "sandbox-69a29dc"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "sandbox-69a29dc"
+
+url-shortener:
+  image:
+    tag: "develop-eae753d"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "develop-eae753d"
+
+user-otp:
+  image:
+    tag: "master-e22c7c5"
+
+workflow:
+  image:
+    tag: "workflow-optimization-3a503c3"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "workflow-optimization-3a503c3"
+
+ws-calculator:
+  image:
+    tag: "central-instance-WnS-with_master-085ee5b812-2"
+  initContainers:
+    dbMigration:
+      image:
+        tag: "central-instance-WnS-with_master-085ee5b812-2"

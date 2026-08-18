@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-dev-care-appset-care
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: care-backend
+          - name: care-frontend
+
+  template:
+    metadata:
+      name: 'care-{{name}}'
+
+    spec:
+      project: care-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: unified-env-lts
+        path: deploy-as-code/helm/charts/care/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/unified-care-dev.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'care'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

@@ -1,23 +1,59 @@
+# S3 API service
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ template "name" . }}
-  namespace: {{ .Values.namespace }}
-  labels: 
-    app: {{ template "name" . }}
+  name: {{ include "minio.fullname" . }}
+  namespace: {{ include "minio.namespace" . }}
+  labels:
+    {{- include "minio.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.service.type }}
-  {{- if and (eq .Values.service.type "LoadBalancer") (not (empty .Values.service.loadBalancerIP)) }}
-  loadBalancerIP: {{ .Values.service.loadBalancerIP }}
-  {{- end }}
+  type: ClusterIP
   ports:
-    - name: minio
-      port: {{ .Values.service.port }}
-      targetPort: minio
-      {{- if and (or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) (not (empty .Values.service.nodePort)) }}
-      nodePort: {{ .Values.service.nodePort }}
-      {{- else if eq .Values.service.type "ClusterIP" }}
-      nodePort: null
-      {{- end }}
-  selector: 
-    app: {{ template "name" . }}
+    - name: http
+      port: {{ .Values.ports.api }}
+      targetPort: {{ .Values.ports.api }}
+      protocol: TCP
+  selector:
+    {{- include "minio.labels" . | nindent 4 }}
+---
+# Console service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "minio.fullname" . }}-console
+  namespace: {{ include "minio.namespace" . }}
+  labels:
+    {{- include "minio.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.ports.console }}
+      targetPort: {{ .Values.ports.console }}
+      protocol: TCP
+  selector:
+    {{- include "minio.labels" . | nindent 4 }}
+---
+# Headless service (stable per-pod DNS for the StatefulSet)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "minio.headless" . }}
+  namespace: {{ include "minio.namespace" . }}
+  labels:
+    {{- include "minio.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: http
+      port: {{ .Values.ports.api }}
+      targetPort: {{ .Values.ports.api }}
+      protocol: TCP
+    - name: console
+      port: {{ .Values.ports.console }}
+      targetPort: {{ .Values.ports.console }}
+      protocol: TCP
+  selector:
+    {{- include "minio.labels" . | nindent 4 }}

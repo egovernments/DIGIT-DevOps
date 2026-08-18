@@ -1,0 +1,16 @@
+{{- if .Values.provisioning.enabled }}
+# Provisioning scripts (verbatim from the in-cluster `minio` configmap) — consumed
+# by the official MinIO post-install hook Job to create users/policies/buckets.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "minio.fullname" . }}
+  namespace: {{ include "minio.namespace" . }}
+  labels:
+    {{- include "minio.labels" . | nindent 4 }}
+data:
+{{- range $path, $_ := .Files.Glob "files/*" }}
+  {{ base $path }}: |-
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}
+{{- end }}

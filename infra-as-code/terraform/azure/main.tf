@@ -20,31 +20,33 @@ resource "azurerm_virtual_network" "vnet" {
 }
 
 resource "azurerm_subnet" "aks" {
-  name         = "${var.resource_group}-aks-subnet"
-  resource_group_name = var.resource_group
+  name                 = "${var.resource_group}-aks-subnet"
+  resource_group_name  = var.resource_group
   virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes   = var.aks_address_prefixes
+  address_prefixes     = var.aks_address_prefixes
 }
 
 # Give AKS system-assigned identity permission to join the subnet
 resource "azurerm_role_assignment" "aks_subnet_network_contributor" {
-  principal_id     = module.kubernetes.aks_principal_id
+  principal_id         = module.kubernetes.aks_principal_id
   role_definition_name = "Network Contributor"
-  scope        = azurerm_subnet.aks.id
+  scope                = azurerm_subnet.aks.id
 }
 
 resource "azurerm_subnet" "postgres" {
-  name         = "${var.resource_group}-postgres-subnet"
-  resource_group_name = var.resource_group
+  name                 = "${var.resource_group}-postgres-subnet"
+  resource_group_name  = var.resource_group
   virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes   = var.postgres_address_prefixes
-  service_endpoints  = ["Microsoft.Storage"]
+  address_prefixes     = var.postgres_address_prefixes
+  service_endpoint {
+    service = "Microsoft.Storage"
+  }
 
   delegation {
     name = "fs"
 
     service_delegation {
-      name = "Microsoft.DBforPostgreSQL/flexibleServers"
+      name    = "Microsoft.DBforPostgreSQL/flexibleServers"
       actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
     }
   }
@@ -80,9 +82,8 @@ resource "azurerm_subnet_nat_gateway_association" "nat_private" {
 
 resource "azurerm_private_dns_zone_virtual_network_link" "db_net_link" {
   name                  = "${var.environment}VnetZone.com"
-  private_dns_zone_name = azurerm_private_dns_zone.db.name
+  private_dns_zone_id   = azurerm_private_dns_zone.db.id
   virtual_network_id    = azurerm_virtual_network.vnet.id
-  resource_group_name   = var.resource_group
 }
 
 resource "azurerm_private_dns_zone" "db" {
@@ -91,30 +92,61 @@ resource "azurerm_private_dns_zone" "db" {
 }
 
 module "kubernetes" {
-  depends_on = [azurerm_nat_gateway_public_ip_association.nat_assoc]
-  source                    = "../modules/kubernetes/azure"
-  environment               = var.environment
-  name                      = var.environment
-  location                  = var.location
-  resource_group            = var.resource_group
-  vm_size                   = var.vm_size
-  node_count                = var.node_count
-  vnet_subnet_id            = azurerm_subnet.aks.id
-  os_disk_size_gb           = var.os_disk_size_gb
-  kubernetes_version        = var.kubernetes_version
+  depends_on         = [azurerm_nat_gateway_public_ip_association.nat_assoc]
+  source             = "../modules/kubernetes/azure"
+  environment        = var.environment
+  name               = var.environment
+  location           = var.location
+  resource_group     = var.resource_group
+  vnet_subnet_id     = azurerm_subnet.aks.id
+  os_disk_size_gb    = var.os_disk_size_gb
+  kubernetes_version = var.kubernetes_version
+
+  # Small always-on System pool (default_node_pool)
+  system_vm_size    = var.system_vm_size
+  system_node_count = var.system_node_count
+
+  # Main User pool that runs workloads and is scaled by the schedule
+  main_vm_size    = var.main_vm_size
+  main_node_count = var.node_count
+}
+
+# Optional: Azure Automation + runbook + schedules to scale the main node pool
+# down to 0 at night and back up to the desired count in the morning.
+# Created only when var.scheduling = true.
+module "scheduling" {
+  count  = var.scheduling ? 1 : 0
+  source = "../modules/scheduling/azure"
+
+  environment     = var.environment
+  resource_group  = var.resource_group
+  location        = var.location
+  subscription_id = var.subscription_id
+
+  aks_cluster_id   = module.kubernetes.aks_cluster_id
+  aks_cluster_name = module.kubernetes.aks_cluster_name
+  node_pool_name   = module.kubernetes.main_node_pool_name
+  aks_subnet_id    = azurerm_subnet.aks.id
+
+  desired_count       = var.node_count
+  scale_up_time       = var.scale_up_time
+  scale_down_time     = var.scale_down_time
+  schedule_timezone   = var.schedule_timezone
+  schedule_utc_offset = var.schedule_utc_offset
+  schedule_week_days  = var.schedule_week_days
 }
 
 module "postgres-db" {
-  source                    = "../modules/db/azure"
-  environment               = var.environment
-  resource_group            = var.resource_group
-  location                  = var.location
-  sku_name                  = var.db_sku_name
-  storage_mb                = var.db_storage_mb
-  backup_retention_days     = var.db_backup_retention_days
-  administrator_login       = var.db_user
-  administrator_password    = var.db_password
-  db_version                = var.db_version
-  delegated_subnet_id       = azurerm_subnet.postgres.id
-  private_dns_zone_id       = azurerm_private_dns_zone.db.id
+  source                 = "../modules/db/azure"
+  environment            = var.environment
+  resource_group         = var.resource_group
+  location               = var.location
+  sku_name               = var.db_sku_name
+  storage_mb             = var.db_storage_mb
+  backup_retention_days  = var.db_backup_retention_days
+  administrator_login    = var.db_user
+  administrator_password = var.db_password
+  db_version             = var.db_version
+  delegated_subnet_id    = azurerm_subnet.postgres.id
+  private_dns_zone_id    = azurerm_private_dns_zone.db.id
 }

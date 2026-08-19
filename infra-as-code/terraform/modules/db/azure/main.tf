@@ -21,6 +21,12 @@ resource "azurerm_postgresql_flexible_server" "postgresql_server" {
     environment = "${var.environment}"
   }
 
+  # Azure auto-assigns an availability zone at creation and won't allow it to be
+  # changed in place (only swapped with an HA standby zone). Ignore drift on zone
+  # so Terraform doesn't try to modify it on subsequent applies.
+  lifecycle {
+    ignore_changes = [zone]
+  }
 }
 
 resource "azurerm_postgresql_flexible_server_database" "db" {

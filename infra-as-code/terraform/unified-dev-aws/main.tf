@@ -37,7 +37,7 @@ locals {
 }
 
 module "network" {
-  source             = "../modules/kubernetes/aws/network"
+  source             = "../modules/network/aws"
   vpc_cidr_block     = "${var.vpc_cidr_block}"
   cluster_name       = "${var.cluster_name}"
   availability_zones = "${var.network_availability_zones}"

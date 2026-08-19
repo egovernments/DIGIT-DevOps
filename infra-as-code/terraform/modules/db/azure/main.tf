@@ -1,34 +1,40 @@
-resource "azurerm_postgresql_server" "postgresql_server" {
-  name                = "${var.server_name}"
+resource "azurerm_postgresql_flexible_server" "postgresql_server" {
+  name                = "${var.environment}-server"
   location             = "${var.location}"
   resource_group_name  = "${var.resource_group}"
 
-  
-
   administrator_login              = "${var.administrator_login}"
-  administrator_login_password     = "${var.administrator_login_password}"
+  administrator_password     = "${var.administrator_password}"
 
-  sku_name                         = "${var.sku_tier}"
+  sku_name                         = "${var.sku_name}"
   version                          = "${var.db_version}"
   storage_mb                       = "${var.storage_mb}"
 
   backup_retention_days            = "${var.backup_retention_days}"
   geo_redundant_backup_enabled     = false
+  public_network_access_enabled    = false
 
-  ssl_enforcement_enabled          = "${var.ssl_enforce}"
-  ssl_minimal_tls_version_enforced = "TLSEnforcementDisabled"
-
+  delegated_subnet_id       = "${var.delegated_subnet_id}"
+  private_dns_zone_id       = "${var.private_dns_zone_id}"
 
   tags = {
     environment = "${var.environment}"
   }
 
+  # Azure auto-assigns an availability zone at creation and won't allow it to be
+  # changed in place (only swapped with an HA standby zone). Ignore drift on zone
+  # so Terraform doesn't try to modify it on subsequent applies.
+  lifecycle {
+    ignore_changes = [zone]
+  }
 }
 
-resource "azurerm_postgresql_database" "db" {
-  name                = "${var.db_name}"
-  resource_group_name = "${var.resource_group}"
-  server_name         = "${azurerm_postgresql_server.postgresql_server.name}"
+resource "azurerm_postgresql_flexible_server_database" "db" {
+  name                = "${var.environment}-db"
+  server_id           = azurerm_postgresql_flexible_server.postgresql_server.id
   charset             = "UTF8"
-  collation           = "English_United States.1252"
+  collation           = "en_US.utf8"
+  lifecycle {
+    prevent_destroy = false
+  }
 }

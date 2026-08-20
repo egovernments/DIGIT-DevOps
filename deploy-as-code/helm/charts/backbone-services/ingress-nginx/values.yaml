@@ -53,7 +53,13 @@ controller:
     https: 443
   # -- Global configuration passed to the ConfigMap consumed by the controller. Values may contain Helm templates.
   # Ref.: https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/
-  config: {}
+  ## annotations-risk-level MUST be Critical for configuration-snippet to be
+  ## accepted. Since ingress-nginx 1.9 every annotation carries a risk level and
+  ## snippets are classed Critical, while the controller default only permits up to
+  ## High -- so allowSnippetAnnotations: true alone still leaves the admission
+  ## webhook rejecting the Ingress with "annotation ... cannot be used".
+  config:
+    annotations-risk-level: Critical
   # -- Annotations to be added to the controller config configuration configmap.
   configAnnotations: {}
   # -- Will add custom headers before sending traffic to backends according to https://github.com/kubernetes/ingress-nginx/tree/main/docs/examples/customization/custom-headers
@@ -116,7 +122,17 @@ controller:
   # their own *-snippet annotations, otherwise this is forbidden / dropped
   # when users add those annotations.
   # Global snippets in ConfigMap are still respected
-  allowSnippetAnnotations: false
+  ## Enabled so ingresses may use nginx.ingress.kubernetes.io/configuration-snippet.
+  ## pgadmin needs it to inject `proxy_set_header X-Script-Name /pgadmin`, which is
+  ## what actually makes pgadmin work under a sub-path (its SCRIPT_NAME config
+  ## setting is read but has no effect in the egovio/pgadmin image).
+  ##
+  ## SECURITY NOTE: this is cluster-wide. Any principal who can create/edit an
+  ## Ingress in ANY namespace can now inject arbitrary nginx directives into the
+  ## shared controller config (CVE-2021-25742 class). Keep Ingress write access
+  ## restricted, and prefer a dedicated hostname over a sub-path for new services
+  ## so this does not have to stay on.
+  allowSnippetAnnotations: true
   # -- Required for use with CNI based kubernetes installations (such as ones set up by kubeadm),
   # since CNI and hostport don't mix yet. Can be deprecated once https://github.com/kubernetes/kubernetes/issues/23920
   # is merged

@@ -42,11 +42,14 @@ data:
     SESSION_DB_PATH = {{ index .Values "session-path" | quote }}
     STORAGE_DIR = {{ index .Values "storage-path" | quote }}
     SERVER_MODE = True
+    {{- /*
+      Sub-path handling is done via the X-Script-Name header injected by the
+      ingress configuration-snippet, NOT via a SCRIPT_NAME setting here: the
+      egovio/pgadmin image reads SCRIPT_NAME from config_local.py but ignores it
+      (verified: /pgadmin/login 404s with SCRIPT_NAME set, 200 with the header).
+      Kept as an opt-in for images that do honour it.
+    */ -}}
     {{- if index .Values "script-name" }}
-    ## Tells pgadmin it is served under a sub-path, so it generates correct URLs for
-    ## its static assets and redirects. Previously done with an X-Script-Name proxy
-    ## header injected by a configuration-snippet ingress annotation, which the
-    ## ingress-nginx admission webhook rejects when snippets are disabled.
     SCRIPT_NAME = {{ index .Values "script-name" | quote }}
     {{- end }}
     ENHANCED_COOKIE_PROTECTION = {{ index .Values "cookie-protection" }}

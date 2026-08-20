@@ -8,20 +8,19 @@ namespace: playground
 ingress:
   enabled: true
   context: "pgadmin"
-  ## NOTE: the `nginx.ingress.kubernetes.io/configuration-snippet` annotation that
-  ## used to live here (setting `proxy_set_header X-Script-Name /pgadmin`) has been
-  ## removed. The ingress-nginx controller runs with
-  ## `controller.allowSnippetAnnotations: false` (hardened default since
-  ## CVE-2021-25742), so its admission webhook rejects the whole Ingress:
+  ## X-Script-Name tells pgadmin which sub-path it is served under, so it strips the
+  ## prefix from incoming requests and generates matching asset/redirect URLs.
+  ## Verified in-cluster: GET /pgadmin/login returns 404 without this header and 200
+  ## with it. pgadmin's own SCRIPT_NAME config setting is read but has NO effect in
+  ## the egovio/pgadmin image, so the header is the only thing that works.
   ##
-  ##   admission webhook "validate.nginx.ingress.kubernetes.io" denied the request:
-  ##   nginx.ingress.kubernetes.io/configuration-snippet annotation cannot be used.
-  ##   Snippet directives are disabled by the Ingress administrator.
-  ##
-  ## pgadmin is told about its sub-path via the SCRIPT_NAME setting in
-  ## config_local.py instead (see `script-name` below), which needs no snippet and
-  ## keeps snippets disabled cluster-wide.
+  ## Requires BOTH of these on the ingress-nginx controller (see its values.yaml):
+  ##   controller.allowSnippetAnnotations: true
+  ##   controller.config.annotations-risk-level: Critical
+  ## Without them the admission webhook rejects the whole Ingress.
   additionalAnnotations: |
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header X-Script-Name /pgadmin;
     {{- if index .Values "whitelist-ips" }}
     nginx.ingress.kubernetes.io/whitelist-source-range: {{ index .Values "whitelist-ips" | quote }}
     {{- end }}
@@ -51,11 +50,10 @@ log-file-path: "/var/lib/pgadmin/pgadmin4.log"
 sqlite-path: "/var/lib/pgadmin/pgadmin4.db"
 session-path: "/var/lib/pgadmin/sessions"
 storage-path: "/var/lib/pgadmin/storage"
-## Sub-path pgadmin is served under, written to config_local.py as SCRIPT_NAME.
-## Replaces the old X-Script-Name proxy header set via a configuration-snippet
-## annotation, which the ingress-nginx admission webhook now rejects. Must match
-## ingress.context above (served at https://<domain>/pgadmin).
-script-name: "/pgadmin"
+## NOTE: deliberately NOT setting `script-name` here. pgadmin's SCRIPT_NAME config
+## option is honoured by newer upstream builds but not by the egovio/pgadmin image
+## in use -- with it set, /pgadmin/login still 404'd. The sub-path is handled by the
+## X-Script-Name header from the ingress configuration-snippet above instead.
 cookie-protection: "True"
 ui-languages: "{'en': 'English'}"
 enable-save-password: "False"

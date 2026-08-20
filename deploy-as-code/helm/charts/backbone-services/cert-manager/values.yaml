@@ -36,7 +36,13 @@ global:
 
   leaderElection:
     # Override the namespace used for the leader election lease
-    namespace: "kube-system"
+    ## Was "kube-system", which made the chart render a Role/RoleBinding pair for
+    ## both cert-manager and cainjector into kube-system. Argo CD deploys this
+    ## chart with destination namespace `backbone`, and backbone-project only
+    ## permits that namespace, so those four objects were rejected on sync.
+    ## Keeping the lease in `backbone` keeps every namespaced object inside the
+    ## app's own namespace -- no kube-system write access needed.
+    namespace: "backbone"
 
     # The duration that non-leader candidates will wait after observing a
     # leadership renewal until attempting to acquire leadership of a led but
@@ -115,7 +121,7 @@ clusterResourceNamespace: ""
 # This namespace allows you to define where the services will be installed into
 # if not set then they will use the namespace of the release
 # This is helpful when installing cert manager as a chart dependency (sub chart)
-namespace: "egov"
+namespace: "backbone"
 
 serviceAccount:
   name: cert-manager

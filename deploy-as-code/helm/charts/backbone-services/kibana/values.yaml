@@ -5,7 +5,15 @@ elasticsearchCertificateAuthoritiesFile: ca.crt
 elasticsearchCredentialSecret: elasticsearch-master-credentials
 
 replicas: 1
-namespace: es-upgrade
+## Argo CD deploys this chart with destination namespace `backbone`, and
+## backbone-project permits only that namespace -- `es-upgrade` was rejected on
+## sync, and that namespace does not exist on the AKS cluster at all (cluster-configs
+## creates `es-cluster`, not `es-upgrade`).
+##
+## `backbone` is also where elasticsearch-master/-data are deployed by this same
+## app-set, so the bare service names above (`elasticsearch-master:9200`) and the
+## cert/credential secrets now resolve in-namespace, which they did not before.
+namespace: backbone
 
 # Extra environment variables to append to this nodeGroup
 # This will be appended to the current 'env:' key. You can use any of the kubernetes env

@@ -20,6 +20,51 @@ initContainers:
     schemaTable: "egov_hrms_schema"
     image:
       repository: "studio-hrms-db"
+    # Overrides initContainers.dbMigration.env from charts/common/values.yaml.
+    #
+    # The shared default routes every `db-schema: studio` service to
+    # egov-config.studio-db-url, which already ends in "?currentSchema=studio".
+    # The studio-hrms-db image entrypoint appends "?currentSchema=$SCHEMA_NAME"
+    # itself, yielding:
+    #     ...unifieddevdb?currentSchema=studio?currentSchema=studio
+    # JDBC separates query params with "&", not "?", so currentSchema resolves to
+    # the literal string "studio?currentSchema=studio" -- a schema that does not
+    # exist. Flyway then aborts the first DDL with SQLSTATE 3F000 "no schema has
+    # been selected to create in", and the pod sits in Init:CrashLoopBackOff with
+    # no studio.eg_hrms_* tables ever created.
+    #
+    # Pointing DB_URL at studio-db-url-no-schema lets the entrypoint append the
+    # parameter exactly once.
+    #
+    # Deliberately scoped to studio-hrms: studio-individual and
+    # studio-service-request run *-db:develop-c3efc3b, whose entrypoint does NOT
+    # append currentSchema, so they still require the schema-bearing URL. Drop
+    # this override once studio-hrms-db is rebuilt to match that behaviour.
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: studio-db-url-no-schema
+        - name: "SCHEMA_NAME"
+          value: "studio"
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+                name: db
+                key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+                name: db
+                key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+                name: egov-config
+                key: flyway-locations
 
 resources: |
   limits:

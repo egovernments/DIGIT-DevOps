@@ -8,9 +8,20 @@ namespace: playground
 ingress:
   enabled: true
   context: "pgadmin"
+  ## NOTE: the `nginx.ingress.kubernetes.io/configuration-snippet` annotation that
+  ## used to live here (setting `proxy_set_header X-Script-Name /pgadmin`) has been
+  ## removed. The ingress-nginx controller runs with
+  ## `controller.allowSnippetAnnotations: false` (hardened default since
+  ## CVE-2021-25742), so its admission webhook rejects the whole Ingress:
+  ##
+  ##   admission webhook "validate.nginx.ingress.kubernetes.io" denied the request:
+  ##   nginx.ingress.kubernetes.io/configuration-snippet annotation cannot be used.
+  ##   Snippet directives are disabled by the Ingress administrator.
+  ##
+  ## pgadmin is told about its sub-path via the SCRIPT_NAME setting in
+  ## config_local.py instead (see `script-name` below), which needs no snippet and
+  ## keeps snippets disabled cluster-wide.
   additionalAnnotations: |
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      proxy_set_header X-Script-Name /pgadmin;
     {{- if index .Values "whitelist-ips" }}
     nginx.ingress.kubernetes.io/whitelist-source-range: {{ index .Values "whitelist-ips" | quote }}
     {{- end }}
@@ -40,6 +51,11 @@ log-file-path: "/var/lib/pgadmin/pgadmin4.log"
 sqlite-path: "/var/lib/pgadmin/pgadmin4.db"
 session-path: "/var/lib/pgadmin/sessions"
 storage-path: "/var/lib/pgadmin/storage"
+## Sub-path pgadmin is served under, written to config_local.py as SCRIPT_NAME.
+## Replaces the old X-Script-Name proxy header set via a configuration-snippet
+## annotation, which the ingress-nginx admission webhook now rejects. Must match
+## ingress.context above (served at https://<domain>/pgadmin).
+script-name: "/pgadmin"
 cookie-protection: "True"
 ui-languages: "{'en': 'English'}"
 enable-save-password: "False"
@@ -52,7 +68,22 @@ persistence:
   storageClassName: default
   accessMode: ReadWriteOnce
   volumeMode: Filesystem
-#  dataDirSize: 1Gi
+  ## Must be set whenever persistence.enabled is true -- an empty
+  ## resources.requests.storage makes the PVC invalid and fails the sync.
+  dataDirSize: 1Gi
+  ## Reclaim policy for the statically provisioned PV only (see pv.yaml).
+  reclaimPolicy: Retain
+  ##
+  ## Leave the backends below unset to use DYNAMIC provisioning: only the PVC is
+  ## created and storageClassName's provisioner supplies the volume. This is the
+  ## path used on AKS (`default` -> disk.csi.azure.com).
+  ##
+  ## Set exactly one of these for STATIC provisioning against a pre-created disk.
+  ## On AKS use azureCsi -- the in-tree `azure` source below was removed in
+  ## Kubernetes 1.31 and will not bind on a current AKS cluster.
+#  azureCsi:
+#    diskUri: /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/disks/pgadmin-data
+#    fsType: ext4
 #  aws:
 #    volumeId: "value"
 #    zone: ap-south-1a

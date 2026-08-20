@@ -1,0 +1,30 @@
+## pgadmin is deployed into `playground`, not `egov`:
+##   - the pgadmin chart's own values set namespace: playground
+##   - the `pgadmin` Secret it reads (admin-email / admin-password, created by
+##     cluster-configs) already exists in playground on this cluster
+##   - `playground` is one of the namespaces cluster-configs creates for digit-lts
+## egov-project only permits the `egov` namespace, hence a separate project.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: playground-project
+  namespace: argocd
+spec:
+  description: playground namespace services for the digit-lts Azure AKS environment
+  ## Must match the Application's repoURL exactly, or the sync is rejected with
+  ## "application repo ... is not permitted in project". HTTPS because argocd has
+  ## no SSH credentials on this cluster.
+  sourceRepos:
+    - https://github.com/egovernments/DIGIT-DevOps.git
+
+  destinations:
+    - namespace: 'playground'
+      server: https://kubernetes.default.svc
+
+  ## pgadmin renders only namespaced objects (ConfigMap, Service, Deployment,
+  ## Ingress, PersistentVolumeClaim). No clusterResourceWhitelist is needed --
+  ## and note that if a static PV is ever configured via persistence.azureCsi,
+  ## PersistentVolume IS cluster-scoped and would have to be whitelisted here.
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

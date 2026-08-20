@@ -2,7 +2,25 @@
   {{- $baseValues := .Values | deepCopy -}}
   {{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
   {{- with mustMergeOverwrite . $values -}}
-  {{- if .Values.persistence.enabled }}
+  {{- /*
+    A PersistentVolume must declare exactly one volume source. This template used
+    to render whenever persistence.enabled was true, so with no cloud backend
+    configured it emitted a PV carrying only capacity/accessModes -- which the API
+    server rejects, failing the whole Argo CD sync.
+
+    It now renders ONLY for statically provisioned storage, i.e. when one of
+    persistence.{aws,azure,azureCsi,openstack,iscsi} is set. Leave them all unset to
+    use dynamic provisioning: the PVC alone is created and the storageClassName's
+    provisioner makes the volume (on AKS, `default`/`managed-csi` ->
+    disk.csi.azure.com). That is the recommended path on AKS.
+
+    NOTE: all sub-keys are read via .Values (not $.Values). Inside this `with`
+    block `.` is the env-merged context while `$` is still the un-merged root, so
+    `$.Values.persistence.azure` silently ignored any per-environment override.
+  */ -}}
+  {{- $p := .Values.persistence -}}
+  {{- $static := or $p.aws $p.azure $p.azureCsi $p.openstack $p.iscsi -}}
+  {{- if and $p.enabled $static }}
 apiVersion: v1
 kind: "PersistentVolume"
 metadata:
@@ -10,16 +28,20 @@ metadata:
   labels:
     app: {{ .Values.labels.app }}
     group: {{ .Values.labels.group }}
-  {{- if $.Values.persistence.aws }}
-    failure-domain.beta.kubernetes.io/zone: {{ $.Values.persistence.aws.zone }}
-    topology.kubernetes.io/zone: {{ $.Values.persistence.aws.zone }}
+  {{- if $p.aws }}
+    failure-domain.beta.kubernetes.io/zone: {{ $p.aws.zone }}
+    topology.kubernetes.io/zone: {{ $p.aws.zone }}
   {{- end }}
 spec:
   capacity:
-    storage: {{ .Values.persistence.dataDirSize | quote }}
+    storage: {{ $p.dataDirSize | quote }}
   accessModes:
-    - {{ .Values.persistence.accessMode | quote }}
-  persistentVolumeReclaimPolicy: Recycle
+    - {{ $p.accessMode | quote }}
+  ## `Recycle` was removed from Kubernetes and is not supported by any CSI driver;
+  ## Retain is the safe choice for a hand-provisioned disk.
+  persistentVolumeReclaimPolicy: {{ $p.reclaimPolicy | default "Retain" }}
+  ## Must match the PVC below, otherwise the claim binds to some other volume.
+  storageClassName: {{ $p.storageClassName | quote }}
   claimRef:
   {{- if .Values.global.namespace }}
     namespace: {{ .Values.global.namespace }}
@@ -27,28 +49,40 @@ spec:
     namespace: {{ .Values.namespace }}
   {{- end }}
     name: {{ .Chart.Name }}-data
-  {{- if .Values.persistence.aws }}
+  {{- if $p.aws }}
   awsElasticBlockStore:
-    volumeID: {{ $.Values.persistence.aws.volumeId }}
+    volumeID: {{ $p.aws.volumeId }}
     fsType: ext4
   {{- end }}
-  {{- if $.Values.persistence.azure }}
+  {{- if $p.azureCsi }}
+  ## Azure managed disk via CSI. Use this on AKS: the in-tree `azureDisk` source
+  ## below was removed in Kubernetes 1.31, so it does not work on current AKS
+  ## clusters (digit-lts runs 1.34). volumeHandle is the full ARM resource ID:
+  ##   /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/disks/<name>
+  csi:
+    driver: disk.csi.azure.com
+    volumeHandle: {{ $p.azureCsi.diskUri }}
+    fsType: {{ $p.azureCsi.fsType | default "ext4" }}
+    readOnly: false
+  {{- end }}
+  {{- if $p.azure }}
+  ## DEPRECATED: in-tree azureDisk, removed in Kubernetes 1.31. Use azureCsi.
   azureDisk:
     cachingMode: ReadWrite
-    diskName: {{ $.Values.persistence.azure.diskName }}
-    diskURI: {{ $.Values.persistence.azure.diskUri }}
+    diskName: {{ $p.azure.diskName }}
+    diskURI: {{ $p.azure.diskUri }}
     kind: Managed
     fsType: ext4
   {{- end }}
-  {{- if $.Values.persistence.openstack }}
+  {{- if $p.openstack }}
   cinder:
     fsType: "ext4"
-    volumeID: {{ $.Values.persistence.openstack }}
+    volumeID: {{ $p.openstack }}
   {{- end }}
-  {{- if $.Values.persistence.iscsi }}
+  {{- if $p.iscsi }}
   iscsi:
-    targetPortal: {{ $.Values.persistence.iscsi.targetPortal }}
-    iqn: {{ $.Values.persistence.iscsi.iqn }}
+    targetPortal: {{ $p.iscsi.targetPortal }}
+    iqn: {{ $p.iscsi.iqn }}
     lun: 0
     fsType: 'ext4'
     readOnly: true

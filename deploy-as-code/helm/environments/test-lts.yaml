@@ -910,3 +910,40 @@ loki:
   compactor:
     compaction_interval: 10m  # MODIFY: how often compaction runs; increase for low-traffic envs (e.g. 1h)
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+### pgadmin >>>>>>>>>>>>>>>>>>>>
+## Deployed by Argo CD via charts/argo-cd/playground/playground-app-set-backbone.yaml
+## into the `playground` namespace, which is where the `pgadmin` Secret
+## (admin-email / admin-password, created by cluster-configs) already lives.
+pgadmin:
+  ## Dynamic provisioning: no persistence.azureCsi/aws/... backend is set, so only a
+  ## PVC is rendered and the AKS `default` StorageClass (disk.csi.azure.com) creates
+  ## the managed disk. pgadmin keeps its SQLite config db under /var/lib/pgadmin, so
+  ## this must be a real volume -- the Deployment mounts pgadmin-data
+  ## unconditionally, and with persistence disabled the pod stays Pending.
+  persistence:
+    enabled: true
+    storageClassName: default
+    dataDirSize: 2Gi
+    accessMode: ReadWriteOnce
+    volumeMode: Filesystem
+  ## Connection details that pgadmin pre-registers in servers.json. The chart
+  ## defaults are AWS/eGov-specific and wrong for this cluster:
+  ##   dbUrl  default egov-dev-db.<...>.ap-south-1.rds.amazonaws.com -> does not exist here
+  ##   db-admin-username default "egov" -> the in-cluster Postgres runs as "postgres"
+  ##     (statefulset/postgres in egov has POSTGRES_USER=postgres)
+  ##
+  ## Matches cluster-configs egov-config: db-host postgres.egov:5432, db-name postgres.
+  dbUrl: "postgres.egov"
+  dbPort: "5432"
+  ## Shown as the server group / entry names in the pgadmin UI ("<env>_WRITE" and
+  ## "<env>_READ"); the chart default is the generic "DEV".
+  environment: "TEST-LTS"
+  db-admin-username: "postgres"
+  ## No separate read-only role exists in the in-cluster Postgres, so the READ
+  ## entry points at the same user. Change this if a readonly role is created.
+  db-read-username: "postgres"
+  ## dbReadUrl is intentionally unset -- there is no read replica, so the READ
+  ## entry falls back to dbUrl.
+  maintenance-db-name: "postgres"
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<

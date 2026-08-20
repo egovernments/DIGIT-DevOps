@@ -1,4 +1,10 @@
-{{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
+{{- $envOverrides := index .Values (tpl (default .Chart.Name .Values.name) .) -}}
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
+{{- $p := .Values.persistence -}}
+{{- $static := or $p.aws $p.azure $p.azureCsi $p.openstack $p.iscsi -}}
+{{- if and $p.enabled (not $p.existingClaim) }}
 apiVersion: "v1"
 kind: PersistentVolumeClaim
 metadata:
@@ -13,11 +19,17 @@ metadata:
     group: {{ .Values.labels.group }}
 spec:
   accessModes:
-    - {{ .Values.persistence.accessMode | quote }}
+    - {{ $p.accessMode | quote }}
   resources:
     requests:
-      storage: {{ .Values.persistence.dataDirSize | quote }}
-  storageClassName: {{ .Values.persistence.storageClassName | quote }}
-  volumeMode: {{ .Values.persistence.volumeMode | quote }}
+      storage: {{ $p.dataDirSize | quote }}
+  storageClassName: {{ $p.storageClassName | quote }}
+  volumeMode: {{ $p.volumeMode | quote }}
+  {{- if $static }}
+  ## Pin the claim to the statically provisioned PV from pv.yaml. Only set for
+  ## static provisioning -- with dynamic provisioning a volumeName that no PV
+  ## matches leaves the claim Pending forever, and the pod never starts.
   volumeName: {{ .Chart.Name }}-data
   {{- end }}
+{{- end }}
+{{- end }}

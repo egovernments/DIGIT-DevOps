@@ -1,0 +1,96 @@
+name: Auto-merge build tag bumps (unified-env-lts)
+
+# Fast-lane for build-tag bumps: this repo's branch protection on
+# unified-env-lts requires an approving review from a CODEOWNERS entry.
+# For the narrow case of "bump image.tag/image.repository in one of the
+# allowlisted env files, nothing else," this workflow validates the diff
+# is exactly that and, if so, approves (using a code owner's token) and
+# merges automatically. Any PR that touches anything else -- a different
+# file, a *-secrets.yaml file, a new/removed key, non-tag config -- is
+# left untouched for normal human review.
+
+on:
+  pull_request:
+    branches: [unified-env-lts]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "deploy-as-code/helm/environments/unified-dev.yaml"
+      - "deploy-as-code/helm/environments/unified-qa.yaml"
+      - "deploy-as-code/helm/environments/unified-uat.yaml"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  validate-and-merge:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Fetch base ref
+        run: git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1
+
+      - name: Reject if any non-allowlisted file changed
+        id: files
+        run: |
+          ALLOWED_FILES="deploy-as-code/helm/environments/unified-dev.yaml
+          deploy-as-code/helm/environments/unified-qa.yaml
+          deploy-as-code/helm/environments/unified-uat.yaml"
+          CHANGED=$(git diff --name-only "origin/${{ github.event.pull_request.base.ref }}" HEAD)
+          echo "Changed files:"
+          echo "$CHANGED"
+          safe=true
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            if ! grep -qxF "$f" <<< "$ALLOWED_FILES"; then
+              echo "Disallowed file changed: $f"
+              safe=false
+            fi
+          done <<< "$CHANGED"
+          echo "safe=$safe" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        if: steps.files.outputs.safe == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install pyyaml
+        if: steps.files.outputs.safe == 'true'
+        run: pip install pyyaml
+
+      - name: Validate diff is tag/repository-only
+        if: steps.files.outputs.safe == 'true'
+        id: diffcheck
+        run: |
+          python3 .github/scripts/validate_tag_bump.py \
+            --base "origin/${{ github.event.pull_request.base.ref }}" \
+            --files \
+              deploy-as-code/helm/environments/unified-dev.yaml \
+              deploy-as-code/helm/environments/unified-qa.yaml \
+              deploy-as-code/helm/environments/unified-uat.yaml
+
+      - name: Approve PR
+        if: steps.diffcheck.outputs.safe == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.CODEOWNER_APPROVAL_TOKEN }}
+        run: |
+          gh pr review "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --approve \
+            --body "Auto-approved: PR contains only image.tag/image.repository changes in an allowlisted env file. See .github/workflows/auto-merge-tag-bumps.yml."
+
+      - name: Merge PR
+        if: steps.diffcheck.outputs.safe == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.CODEOWNER_APPROVAL_TOKEN }}
+        run: |
+          gh pr merge "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --squash

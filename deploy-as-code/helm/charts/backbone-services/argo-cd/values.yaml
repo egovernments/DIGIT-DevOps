@@ -3080,17 +3080,16 @@ repoServer:
   # -- Resource limits and requests for the repo server pods
   ## Memory raised 128Mi -> 1Gi per the source doc, to accommodate running
   ## sops/helm-secrets in this pod.
-  ## NOTE: the doc also mentions bumping CPU but does not state a value, so the
-  ## cpu limit below is left as-is. 50m (0.05 core) is very likely too low once
-  ## helm template shells out to the helm-secrets wrapper and sops on every
-  ## manifest generation -- expect throttling and slow/timing-out syncs. Raise it
-  ## (500m is the upstream chart's own suggestion) if you see that.
+  ## CPU raised 50m -> 500m (the upstream chart's own suggestion): the 50m
+  ## limit was throttling manifest generation badly enough that the repo
+  ## server missed its liveness probe and crash-looped continuously,
+  ## blocking ArgoCD syncs cluster-wide.
   resources:
    limits:
-     cpu: 50m
+     cpu: 500m
      memory: 1Gi
    requests:
-     cpu: 10m
+     cpu: 50m
      memory: 64Mi
 
   # Repo server container ports

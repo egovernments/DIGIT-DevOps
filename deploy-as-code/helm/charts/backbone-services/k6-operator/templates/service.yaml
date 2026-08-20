@@ -1,0 +1,28 @@
+{{- if .Values.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "k6-operator.fullname" (dict "context" $ "suffix" "-controller-manager-metrics-service") }}
+  namespace: {{- include "k6-operator.namespace" . }}
+  labels:
+    control-plane: "controller-manager"
+    app.kubernetes.io/component: controller
+    {{- include "k6-operator.labels" . | nindent 4 }}
+    {{- include "k6-operator.customLabels" . | default "" | nindent 4 }}
+    {{- with .Values.service.labels }}
+    {{ toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    {{- include "k6-operator.customAnnotations" . | default "" | nindent 4 }}
+    {{- with .Values.service.annotations }}
+    {{ toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ports:
+  - name: {{ .Values.service.portName }}
+    port: 8443
+    protocol: TCP
+    targetPort: {{ .Values.service.portName }}
+  selector:
+    control-plane: "controller-manager"
+{{- end }}

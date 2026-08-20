@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k6-operator.fullname" (dict "context" $ "suffix" "-controller-manager") }}
+  namespace: {{- include "k6-operator.namespace" . }}
+  labels:
+    control-plane: "controller-manager"
+    app.kubernetes.io/component: controller
+    {{- include "k6-operator.labels" . | nindent 4 }}
+    {{- include "k6-operator.customLabels" . | default "" | nindent 4 }}
+  annotations:
+    {{- include "k6-operator.customAnnotations" . | default "" | nindent 4 }}
+spec:
+  replicas: {{ .Values.manager.replicas }}
+  selector:
+    matchLabels:
+      {{- include "k6-operator.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        control-plane: "controller-manager"
+        {{- include "k6-operator.selectorLabels" . | nindent 8 }}
+        {{- include "k6-operator.podLabels" . | nindent 8 }}
+      {{- if .Values.podAnnotations }}
+      annotations:
+        {{- include "k6-operator.podAnnotations" . | default "" | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- if .Values.manager.podSecurityContext }}
+      securityContext:
+        {{- toYaml .Values.manager.podSecurityContext | nindent 8 }}
+      {{- end }}
+      {{- if .Values.manager.dnsConfig }}
+      dnsConfig:
+        {{- toYaml .Values.manager.dnsConfig | nindent 8 }}
+      {{- end }}
+      {{- if .Values.manager.dnsPolicy }}
+      dnsPolicy: {{ .Values.manager.dnsPolicy | quote }}
+      {{- end }}
+      containers:
+        - name: manager
+          image: "{{ .Values.global.image.registry | default .Values.manager.image.registry }}/{{ .Values.manager.image.repository }}:{{ .Values.manager.image.tag }}"
+          imagePullPolicy: {{ .Values.manager.image.pullPolicy }}
+          livenessProbe:
+            {{- toYaml .Values.manager.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.manager.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.manager.resources | nindent 12 }}
+          {{- include "k6-operator.manager.env" . }}
+          {{- if .Values.manager.envFrom }}
+          envFrom:
+            {{- with .Values.manager.envFrom }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.manager.containerSecurityContext }}
+          securityContext:
+            {{- toYaml .Values.manager.containerSecurityContext | nindent 12 }}
+          {{- end }}
+          command:
+            - /manager
+          args:
+            - --health-probe-bind-address=:8081
+            {{- if gt (int .Values.manager.replicas) 1 }}
+            - --leader-elect
+            {{- end }}
+            - --metrics-bind-address=:8443
+            - --zap-devel={{- include "k6-operator.manager.zap-devel" . }}
+          ports:
+            - containerPort: 8443
+              name: {{ .Values.service.portName }}
+      serviceAccountName: {{ include "k6-operator.serviceAccountName" . }}
+      {{- if .Values.global.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.global.image.pullSecrets | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 10

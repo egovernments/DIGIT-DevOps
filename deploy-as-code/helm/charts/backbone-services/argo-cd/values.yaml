@@ -30,11 +30,30 @@ openshift:
 ## Custom resource configuration
 crds:
   # -- Install and upgrade CRDs
-  # Disabled: the applicationset CRD is ~1.3 MB and the deploy tool uses client-side
-  # `kubectl apply`, which fails ("metadata.annotations: Too long") because it stores the
-  # object in the last-applied-configuration annotation (256 KB cap). CRDs are installed
-  # out-of-band with server-side apply instead (see runbook). Re-apply CRDs server-side on
-  # Argo CD version bumps: helm template ... -s templates/crds/*.yaml | kubectl apply --server-side.
+  #
+  # MUST stay false when deploying through deploy-as-code/deployer.
+  #
+  # The deployer renders with `helm template --output-dir` and then applies with
+  # plain `kubectl apply --recursive -f .` (pkg/cmd/deployer/deployer.go:87), i.e.
+  # CLIENT-side apply. Client-side apply stores a full copy of the object in the
+  # kubectl.kubernetes.io/last-applied-configuration annotation, which is capped at
+  # 262144 bytes. The applicationsets CRD alone is ~1.3 MB, so setting this to true
+  # makes the deploy fail with:
+  #
+  #   The CustomResourceDefinition "applicationsets.argoproj.io" is invalid:
+  #   metadata.annotations: Too long: may not be more than 262144 bytes
+  #
+  # Install the CRDs out-of-band with SERVER-side apply instead (no annotation is
+  # written, so no size limit), from this chart directory:
+  #
+  #   helm template argocd . -n argocd --set crds.install=true \
+  #     -s 'templates/crds/*.yaml' | kubectl apply --server-side -f -
+  #
+  # That creates applications.argoproj.io, applicationsets.argoproj.io and
+  # appprojects.argoproj.io (~1.8 MB total). Re-run it on Argo CD version bumps.
+  # Without them argocd-server dies with "could not find the requested resource
+  # (post appprojects.argoproj.io)" and the applicationset controller with
+  # "no matches for argoproj.io/v1alpha1".
   install: false
   # -- Keep CRDs on chart uninstall
   keep: true

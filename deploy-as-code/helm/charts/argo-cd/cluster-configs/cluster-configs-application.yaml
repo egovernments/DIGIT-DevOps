@@ -56,11 +56,18 @@ spec:
           ## secrets:// is decrypted by argocd-repo-server via SOPS + AWS KMS.
           ## Key mapping: deploy-as-code/helm/.sops.yaml
           - secrets://../../environments/unified-urban-dev-secrets.yaml
-        parameters:
-          ## unified-dev's cluster-configs already creates every namespace; keep a
-          ## single owner for the Namespace objects.
-          - name: cluster-configs.namespaces.create
-            value: "false"
+        ## NOTE: no namespaces.create=false override here.
+        ##
+        ## It used to be set on the assumption that cluster-configs-unified-dev
+        ## creates every namespace, but that env only creates
+        ## [backbone, egov, monitoring, playground, temporal]. With creation
+        ## disabled here nothing ever created `urban`, and the sync failed with
+        ##   namespaces "urban" not found
+        ##   error running kubectl auth reconcile: error getting namespace urban
+        ## Each product env owns its own namespaces (urban here, health+sso,
+        ## studio, care) and the lists do not overlap, so there is no contention --
+        ## studio and care synced cleanly precisely because they were never
+        ## overridden.
   destination:
     server: https://kubernetes.default.svc
 
@@ -96,11 +103,10 @@ spec:
           ## secrets:// is decrypted by argocd-repo-server via SOPS + AWS KMS.
           ## Key mapping: deploy-as-code/helm/.sops.yaml
           - secrets://../../environments/unified-health-dev-secrets.yaml
-        parameters:
-          ## unified-dev's cluster-configs already creates every namespace; keep a
-          ## single owner for the Namespace objects.
-          - name: cluster-configs.namespaces.create
-            value: "false"
+        ## NOTE: no namespaces.create=false override here -- see the urban
+        ## Application above. This env creates `health` and `sso`, and with creation
+        ## disabled the sync failed with `namespaces "health" not found` /
+        ## `namespaces "sso" not found`.
   destination:
     server: https://kubernetes.default.svc
 

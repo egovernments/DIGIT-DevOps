@@ -1,4 +1,19 @@
-{{- if index .Values "cluster-configs" "cluster-roles" "enabled" }}
+{{- /*
+  Gated on `rbac` alone, NOT on `cluster-roles.enabled`.
+
+  RoleBindings here are namespaced and per-product, while the ClusterRoles in
+  clusterroles.yaml are cluster-wide singletons. Coupling them to one flag meant a
+  product Application could not stop rendering the shared ClusterRoles without
+  also losing its own namespace RoleBindings.
+
+  That mattered because cluster-roles.enabled defaults to true, so
+  cluster-configs-unified-{dev,health-dev,urban-dev,studio-dev} each rendered the
+  same digit-admin / digit-user ClusterRoles and digit-user-read / global-readonly
+  ClusterRoleBindings. Whichever synced last took ownership via the
+  argocd.argoproj.io/tracking-id annotation and the rest were stuck permanently
+  OutOfSync with SharedResourceWarning. unified-dev now owns those, and the product
+  Applications set cluster-roles.enabled=false while keeping their RoleBindings.
+*/ -}}
 {{- with index .Values "cluster-configs" "rbac" }}
 {{- range $idx, $v := . }}
 {{- range $nsidx, $nsval := .namespaces }}
@@ -16,7 +31,6 @@ subjects:
   kind: Group
   name: digit-user        
 ---
-{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

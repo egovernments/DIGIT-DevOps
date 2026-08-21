@@ -6,7 +6,26 @@ metadata:
   namespace: {{ .Values.namespace }}
   labels: {{ include "kibana.labels" . | nindent 4 }}
   annotations:
-    "helm.sh/hook": pre-install,pre-upgrade,post-delete
+    ## `post-delete` removed from the hook list.
+    ##
+    ## Argo CD maps Helm hooks onto its own phases (pre-install/pre-upgrade ->
+    ## PreSync, post-install/post-upgrade -> PostSync) and has no equivalent for
+    ## post-delete. A resource whose hook list contains an unsupported type is
+    ## skipped entirely, so this ConfigMap was never created on the cluster --
+    ## while the sibling hooks (ServiceAccount, Role, RoleBinding and the
+    ## pre-install Job), which only declare pre-install,pre-upgrade, all were.
+    ##
+    ## The Job mounts this ConfigMap as the `kibana-helm-scripts` volume, so its
+    ## pod sat in ContainerCreating indefinitely with
+    ##   MountVolume.SetUp failed ... configmap "…-kibana-helm-scripts" not found
+    ## and the PreSync phase never completed:
+    ##   waiting for completion of hook batch/Job/pre-install-…-kibana
+    ## which left the whole Application stuck at HEALTH=Missing.
+    ##
+    ## Under Helm this only cost the post-delete cleanup pass, which Argo CD does
+    ## not run anyway; hook-delete-policy still removes the ConfigMap once the
+    ## hook succeeds.
+    "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
     {{- if .Values.annotations }}
     {{- range $key, $value := .Values.annotations }}

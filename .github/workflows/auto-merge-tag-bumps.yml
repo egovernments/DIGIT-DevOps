@@ -3,20 +3,25 @@ name: Auto-merge build tag bumps (unified-env-lts)
 # Fast-lane for build-tag bumps: this repo's branch protection on
 # unified-env-lts requires an approving review from a CODEOWNERS entry.
 # For the narrow case of "bump image.tag/image.repository in one of the
-# allowlisted env files, nothing else," this workflow validates the diff
-# is exactly that and, if so, approves (using a code owner's token) and
-# merges automatically. Any PR that touches anything else -- a different
-# file, a *-secrets.yaml file, a new/removed key, non-tag config -- is
-# left untouched for normal human review.
+# product-line env files below, nothing else," this workflow validates
+# the diff is exactly that and, if so, approves (using a code owner's
+# token) and merges automatically. Any PR that touches anything else --
+# a different file, a *-secrets.yaml file, a new/removed key, non-tag
+# config -- is left untouched for normal human review.
+#
+# In scope: deploy-as-code/helm/environments/unified-<product>-{dev,qa,uat}.yaml
+#   (e.g. unified-health-dev.yaml, unified-urban-qa.yaml, unified-works-uat.yaml)
+# Explicitly NOT in scope: unified-dev.yaml / unified-qa.yaml / unified-uat.yaml
+#   (the base, non-product-scoped env files) and any *-secrets.yaml file.
 
 on:
   pull_request:
     branches: [unified-env-lts]
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
-      - "deploy-as-code/helm/environments/unified-dev.yaml"
-      - "deploy-as-code/helm/environments/unified-qa.yaml"
-      - "deploy-as-code/helm/environments/unified-uat.yaml"
+      - "deploy-as-code/helm/environments/unified-*-dev.yaml"
+      - "deploy-as-code/helm/environments/unified-*-qa.yaml"
+      - "deploy-as-code/helm/environments/unified-*-uat.yaml"
 
 permissions:
   contents: read
@@ -39,21 +44,40 @@ jobs:
       - name: Reject if any non-allowlisted file changed
         id: files
         run: |
-          ALLOWED_FILES="deploy-as-code/helm/environments/unified-dev.yaml
-          deploy-as-code/helm/environments/unified-qa.yaml
-          deploy-as-code/helm/environments/unified-uat.yaml"
           CHANGED=$(git diff --name-only "origin/${{ github.event.pull_request.base.ref }}" HEAD)
           echo "Changed files:"
           echo "$CHANGED"
+
           safe=true
+          allowed=()
           while IFS= read -r f; do
             [ -z "$f" ] && continue
-            if ! grep -qxF "$f" <<< "$ALLOWED_FILES"; then
-              echo "Disallowed file changed: $f"
-              safe=false
-            fi
+            case "$f" in
+              # Explicitly excluded: the base, non-product-scoped env files.
+              "deploy-as-code/helm/environments/unified-dev.yaml"|\
+              "deploy-as-code/helm/environments/unified-qa.yaml"|\
+              "deploy-as-code/helm/environments/unified-uat.yaml")
+                echo "Disallowed file changed (base env file, not product-scoped): $f"
+                safe=false
+                ;;
+              # Allowed: unified-<product>-dev.yaml / -qa.yaml / -uat.yaml,
+              # but never a *-secrets.yaml file.
+              deploy-as-code/helm/environments/unified-*-dev.yaml|\
+              deploy-as-code/helm/environments/unified-*-qa.yaml|\
+              deploy-as-code/helm/environments/unified-*-uat.yaml)
+                allowed+=("$f")
+                ;;
+              *)
+                echo "Disallowed file changed: $f"
+                safe=false
+                ;;
+            esac
           done <<< "$CHANGED"
+
           echo "safe=$safe" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "${allowed[@]}" > /tmp/allowed_files.txt
+          echo "Allowed files in this PR:"
+          cat /tmp/allowed_files.txt
 
       - name: Set up Python
         if: steps.files.outputs.safe == 'true'
@@ -69,12 +93,10 @@ jobs:
         if: steps.files.outputs.safe == 'true'
         id: diffcheck
         run: |
+          mapfile -t FILES < /tmp/allowed_files.txt
           python3 .github/scripts/validate_tag_bump.py \
             --base "origin/${{ github.event.pull_request.base.ref }}" \
-            --files \
-              deploy-as-code/helm/environments/unified-dev.yaml \
-              deploy-as-code/helm/environments/unified-qa.yaml \
-              deploy-as-code/helm/environments/unified-uat.yaml
+            --files "${FILES[@]}"
 
       - name: Approve PR
         if: steps.diffcheck.outputs.safe == 'true'
@@ -84,7 +106,7 @@ jobs:
           gh pr review "${{ github.event.pull_request.number }}" \
             --repo "${{ github.repository }}" \
             --approve \
-            --body "Auto-approved: PR contains only image.tag/image.repository changes in an allowlisted env file. See .github/workflows/auto-merge-tag-bumps.yml."
+            --body "Auto-approved: PR contains only image.tag/image.repository changes in an allowlisted product-env file. See .github/workflows/auto-merge-tag-bumps.yml."
 
       - name: Merge PR
         if: steps.diffcheck.outputs.safe == 'true'

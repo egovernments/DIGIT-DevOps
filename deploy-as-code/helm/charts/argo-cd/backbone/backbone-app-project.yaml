@@ -11,3 +11,53 @@ spec:
   destinations:
     - namespace: 'backbone'
       server: https://kubernetes.default.svc
+
+  ## Two charts in backbone-app-set-backbone.yaml render cluster-scoped objects.
+  ## An AppProject with no clusterResourceWhitelist permits NONE of them, so those
+  ## Applications fail with "one or more synchronization tasks are not valid" and
+  ## never deploy (seen as SYNC=OutOfSync / HEALTH=Missing).
+  ##
+  ##   ingress-nginx  2 ClusterRole, 2 ClusterRoleBinding, 1 IngressClass,
+  ##                  1 ValidatingWebhookConfiguration
+  ##   cert-manager  13 ClusterRole, 10 ClusterRoleBinding,
+  ##                  1 MutatingWebhookConfiguration, 1 ValidatingWebhookConfiguration,
+  ##                  6 CustomResourceDefinition (chart crds/ dir; Argo CD renders
+  ##                  with --include-crds) and 2 ClusterIssuer
+  ##
+  ## This also unblocks cluster-configs. The ingress-nginx-admission
+  ## ValidatingWebhookConfiguration is already present on the cluster with
+  ## failurePolicy: Fail, pointing at service backbone/ingress-nginx-controller-admission
+  ## which does not exist while the controller is undeployed. Every Ingress apply
+  ## cluster-wide therefore fails, including cluster-configs' root-ingress:
+  ##
+  ##   Internal error occurred: failed calling webhook
+  ##   "validate.nginx.ingress.kubernetes.io": ... service ... not found
+  ##
+  ## Letting ingress-nginx sync gives that webhook a live backend again.
+  ##
+  ## elasticsearch-master, elasticsearch-data, kafka-kraft, redis and kibana render
+  ## nothing cluster-scoped.
+  clusterResourceWhitelist:
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+    - group: networking.k8s.io
+      kind: IngressClass
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+    - group: cert-manager.io
+      kind: ClusterIssuer
+
+  ## Left as "*": these charts render a wide spread of namespaced kinds
+  ## (StatefulSet, Deployment, DaemonSet, Service, ConfigMap, Secret, Job,
+  ## ServiceAccount, Role, RoleBinding, PodDisruptionBudget,
+  ## HorizontalPodAutoscaler, NetworkPolicy, Ingress), and enumerating them invites
+  ## a sync failure the first time an upstream chart bump adds one.
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

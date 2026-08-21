@@ -196,7 +196,18 @@ cluster-configs:
       namespace: [ egov ]
       name: git-creds
     elasticsearch-master-creds:
-      namespace: [ egov, es-upgrade, temporal ]
+      ## `es-upgrade` replaced with `backbone`.
+      ##
+      ## es-upgrade is an EKS-only namespace: it is not in cluster-configs'
+      ## namespaces.values above, so nothing creates it on AKS and the whole
+      ## cluster-configs sync failed with `namespaces "es-upgrade" not found`
+      ## (one bad target aborts the Application, not just that Secret).
+      ##
+      ## backbone is where elasticsearch-master/-data and kibana are deployed on
+      ## this cluster by unified-dev-backbone-appset-backbone, and those charts
+      ## reference this exact Secret (elasticsearch-master-credentials) without
+      ## creating it -- so this also gives them the credentials they were missing.
+      namespace: [ egov, backbone, temporal ]
       name: elasticsearch-master-credentials
     egov-notification-sms:
       name: egov-notification-sms

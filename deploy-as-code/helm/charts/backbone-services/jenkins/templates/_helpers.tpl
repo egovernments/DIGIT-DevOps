@@ -445,7 +445,34 @@ Usage: include "jenkins.repoUrlList" .
 {{- define "jenkins.repoUrlList" -}}
 {{- $urls := list -}}
 {{- range .Values.jobBuilder.repos -}}
-{{- $urls = append $urls (include "jenkins.repoUrl" (dict "repo" . "vcs" $.Values.vcs)) -}}
+{{- $repo := . -}}
+{{- if kindIs "map" . -}}{{- $repo = .name -}}{{- end -}}
+{{- $urls = append $urls (include "jenkins.repoUrl" (dict "repo" $repo "vcs" $.Values.vcs)) -}}
 {{- end -}}
 {{- join "','" $urls | printf "'%s'" -}}
+{{- end -}}
+
+{{/*
+Renders jobBuilder.repos as Groovy map literals for jobBuilder(repos: [...]).
+Each entry of jobBuilder.repos may be either:
+  - egovernments/core-services              # string -> branch resolved by the library
+  - name: digitnxt/license-certificate      # map    -> explicit branch
+    branch: main
+Emits: [url:'git@github.com:org/repo.git', branch:'main'],[url:'...', branch:'']
+An empty branch tells jobBuilder to try 'master' then fall back to the remote
+default branch, so plain-string entries keep their existing behaviour.
+Usage: include "jenkins.repoSpecList" .
+*/}}
+{{- define "jenkins.repoSpecList" -}}
+{{- $specs := list -}}
+{{- range .Values.jobBuilder.repos -}}
+{{- if kindIs "map" . -}}
+{{- $url := include "jenkins.repoUrl" (dict "repo" .name "vcs" $.Values.vcs) -}}
+{{- $specs = append $specs (printf "[url:'%s', branch:'%s']" $url (.branch | default "")) -}}
+{{- else -}}
+{{- $url := include "jenkins.repoUrl" (dict "repo" . "vcs" $.Values.vcs) -}}
+{{- $specs = append $specs (printf "[url:'%s', branch:'']" $url) -}}
+{{- end -}}
+{{- end -}}
+{{- join "," $specs -}}
 {{- end -}}

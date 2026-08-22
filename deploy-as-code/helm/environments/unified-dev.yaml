@@ -218,7 +218,19 @@ cluster-configs:
     egov-notification-sms:
       name: egov-notification-sms
       namespace: [ egov ]
-  
+    oauth2-proxy:
+      ## Overrides the chart default of `egov` (charts/cluster-configs/values.yaml).
+      ##
+      ## oauth2-proxy is deployed into `backbone` on this cluster by
+      ## unified-dev-backbone-appset-backbone, but this Secret was still being
+      ## created in egov, so the pod could never start:
+      ##   Error: secret "oauth2-proxy" not found
+      ## Secrets are namespace-scoped, so it has to exist alongside the Deployment.
+      ##
+      ## The credential values (clientID / clientSecret / cookieSecret) come from
+      ## the SOPS-encrypted unified-dev-secrets.yaml; only the placement is set here.
+      namespace: backbone
+
 employee:
   image:
     tag: "multiarch"

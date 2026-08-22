@@ -151,18 +151,33 @@ spec:
         {{- end }}          
         {{- end }}     
       {{- if or .Values.env (eq .Values.appType "java-spring") (index .Values "global" "tracing-enabled") }}
-          env:
+        {{- /* dedupe env by name (keep last) -- Server-Side Apply rejects duplicate keys */ -}}
+        {{- $envList := list }}
         {{- if .Values.env }}
-          {{- tpl (printf "\n%s" .Values.env) . | nindent 12 }}
+          {{- $envList = concat $envList (tpl (printf "\n%s" .Values.env) . | fromYamlArray) }}
         {{- end }}
         {{- if eq .Values.appType "java-spring" }}
-          {{- tpl (printf "\n%s" .Values.extraEnv.java) . | nindent 12 }}
+          {{- $envList = concat $envList (tpl (printf "\n%s" .Values.extraEnv.java) . | fromYamlArray) }}
         {{- end }}
         {{- if or (index .Values "global" "tracing-enabled") (index .Values "tracing-enabled") }}
-          {{- tpl (printf "\n%s" .Values.extraEnv.jaeger) . | nindent 12 }}
+          {{- $envList = concat $envList (tpl (printf "\n%s" .Values.extraEnv.jaeger) . | fromYamlArray) }}
         {{- end }}
         {{- if .Values.extraEnv.app }}
-          {{- tpl (printf "\n%s" .Values.extraEnv.app) . | nindent 12 }}
+          {{- $envList = concat $envList (tpl (printf "\n%s" .Values.extraEnv.app) . | fromYamlArray) }}
+        {{- end }}
+        {{- $seen := dict }}
+        {{- $envOut := list }}
+        {{- range $e := reverse $envList }}
+          {{- if kindIs "map" $e }}
+            {{- if and $e.name (not (hasKey $seen $e.name)) }}
+              {{- $_ := set $seen $e.name true }}
+              {{- $envOut = prepend $envOut $e }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+        {{- if $envOut }}
+          env:
+            {{- toYaml $envOut | nindent 12 }}
         {{- end }}
       {{- end }}
       {{- if .Values.resources }}

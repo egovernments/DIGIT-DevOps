@@ -60,7 +60,31 @@ spec:
       - {{ tpl .name $ }}
         {{- end }}
       {{- end }}
-      secretName: argocd-server-tls
+      {{- /*
+        Derived from the environment's domain instead of the hardcoded
+        "argocd-server-tls".
+
+        This repo issues one wildcard-per-env cert named <domain>-tls-certs -- the
+        same convention cluster-configs' root-ingress and the common chart use
+        (secretName: {{ $.Values.global.domain }}-tls-certs). Hardcoding
+        argocd-server-tls pointed the Ingress at a Secret that nothing in this
+        chart creates: server.certificate.enabled and server.certificateSecret.enabled
+        are both false, so no Certificate or Secret is rendered, and nginx fell back
+        to its default self-signed cert for the Argo CD host.
+
+        Mirrors the host expression used for the rule above, so an explicit
+        server.ingress.hostname wins over global.domain.
+
+        Overrides, in order:
+          1. server.ingress.tlsSecretName -- explicit name, if set
+          2. argocd-server-tls            -- when the chart produces the cert itself
+                                            (certificate.enabled / certificateSecret.enabled),
+                                            since those templates create that name
+          3. <host>-tls-certs            -- the repo-wide convention
+      */ -}}
+      {{- $tlsHost := tpl (.Values.server.ingress.hostname) $ | default .Values.global.domain }}
+      {{- $chartOwnsCert := or .Values.server.certificate.enabled .Values.server.certificateSecret.enabled }}
+      secretName: {{ .Values.server.ingress.tlsSecretName | default (ternary "argocd-server-tls" (printf "%s-tls-certs" $tlsHost) $chartOwnsCert) }}
     {{- end }}
     {{- with .Values.server.ingress.extraTls }}
       {{- tpl (toYaml .) $ | nindent 4 }}

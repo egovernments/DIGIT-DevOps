@@ -2512,6 +2512,24 @@ server:
     # @default -- `""` (defaults to global.domain)
     hostname: ""
 
+    # -- Name of the TLS Secret backing the ingress
+    # @default -- `""` (`<hostname|global.domain>-tls-certs`)
+    #
+    # Left empty the template derives `<host>-tls-certs`, matching the per-env
+    # wildcard cert convention used by cluster-configs' root-ingress and the common
+    # chart. It previously hardcoded `argocd-server-tls`, which nothing in this
+    # chart creates while server.certificate.enabled and
+    # server.certificateSecret.enabled are false -- so nginx served its default
+    # self-signed cert for the Argo CD host.
+    #
+    # If either of those is enabled the template keeps `argocd-server-tls`, because
+    # those templates create a Secret by that name. Set this only to point at some
+    # other pre-existing Secret.
+    #
+    # NOTE: TLS Secrets are namespace-scoped, so the cert must exist in the
+    # namespace this Ingress lives in (argocd), not just in egov/backbone.
+    tlsSecretName: ""
+
     # -- The path to Argo CD server
     path: /argocd
 

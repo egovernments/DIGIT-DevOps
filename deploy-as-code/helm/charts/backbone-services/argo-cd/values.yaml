@@ -2497,11 +2497,21 @@ server:
       # rewrite/regex is needed.
       nginx.ingress.kubernetes.io/backend-protocol: HTTP
       # Gate the UI behind oauth2-proxy — only GitHub org "egovernments" / team
-      # "digit-lts" (per the oauth2-proxy config) can reach it. auth-url uses the
-      # INTERNAL oauth2-proxy service (avoids hairpinning the public LB); auth-signin is the
-      # public login redirect. Requires a REAL GitHub OAuth App client-id/secret in the
-      # oauth2-proxy secret (callback https://test-lts.digit.org/oauth2/callback).
-      nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.egov.svc.cluster.local:4180/oauth2/auth"
+      # "unified-dev-deploy" (per the oauth2-proxy config in environments/unified-dev.yaml)
+      # can reach it. auth-url uses the INTERNAL oauth2-proxy Service (avoids hairpinning
+      # the public LB); auth-signin is the public login redirect, served by
+      # oauth2-proxy's own ingress at https://unified-dev.digit.org/oauth2.
+      # Requires a REAL GitHub OAuth App client-id/secret in the oauth2-proxy secret
+      # (callback https://unified-dev.digit.org/oauth2/callback).
+      #
+      # NAMESPACE: `backbone`, not `egov`. oauth2-proxy is deployed into backbone on
+      # this cluster by unified-dev-backbone-appset-backbone; there is no
+      # oauth2-proxy Service in egov. nginx runs auth-url as an auth_request
+      # subrequest BEFORE proxying, and when that upstream cannot be resolved it
+      # answers 500 Internal Server Error for every request to /argocd -- even
+      # though argocd-server itself is healthy. Keep this in step with wherever
+      # oauth2-proxy is actually deployed.
+      nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.backbone.svc.cluster.local:4180/oauth2/auth"
       nginx.ingress.kubernetes.io/auth-signin: "https://$host/oauth2/start?rd=$escaped_request_uri"
       cert-manager.io/cluster-issuer: letsencrypt-prod
 

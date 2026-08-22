@@ -35,7 +35,27 @@ metadata:
 data:
   manage-es-token.js: |
     const https = require('https');
+    // `http` added alongside `https`.
+    //
+    // The script used https.request() for BOTH the Kubernetes API and
+    // Elasticsearch. The Kubernetes API is always TLS, but this Elasticsearch has
+    // xpack.security.enabled=true with only *transport* TLS -- the REST layer is
+    // plain HTTP with basic auth (verified in-cluster: http://…:9200 -> 401,
+    // https://…:9200 -> connection failure). Sending a TLS handshake to a
+    // plaintext port made every ES call die with
+    //   write EPROTO ... ssl3_get_record:wrong version number
+    // so the token was never created, the pre-install hook Job failed on repeat,
+    // and the Application stayed at HEALTH=Missing.
+    //
+    // clientFor() picks the module from the URL scheme, so an https:// ES host
+    // keeps working exactly as before.
+    const http = require('http');
+    const { URL } = require('url');
     const fs = require('fs');
+
+    function clientFor(url) {
+      return new URL(url).protocol === 'http:' ? http : https;
+    }
 
     // Read environment variables
     function getEnvVar(name) {
@@ -51,8 +71,15 @@ data:
     const esUsername = getEnvVar('ELASTICSEARCH_USERNAME');
     const esPassword = getEnvVar('ELASTICSEARCH_PASSWORD');
     const esAuth = esUsername + ':' + esPassword;
-    const esCaFile = getEnvVar('ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES');
-    const esCa = fs.readFileSync(esCaFile);
+    // Only load a CA when Elasticsearch is actually reached over TLS. With a
+    // plain-HTTP host there is no cert to verify, and elasticsearchCertificateAuthoritiesFile
+    // may be unset -- which makes the env var a bare directory path and
+    // readFileSync throw EISDIR before any request is attempted.
+    const esIsTls = new URL(esUrl).protocol === 'https:';
+    const esCaFile = esIsTls ? getEnvVar('ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES') : null;
+    const esCa = esCaFile && fs.existsSync(esCaFile) && fs.statSync(esCaFile).isFile()
+      ? fs.readFileSync(esCaFile)
+      : undefined;
 
     // Kubernetes API
     const k8sHostname = getEnvVar('KUBERNETES_SERVICE_HOST');
@@ -97,7 +124,8 @@ data:
     // With thanks to https://stackoverflow.com/questions/57332374/how-to-chain-http-request
     function requestPromise(url, httpsOptions, extraOptions = {}) {
       return new Promise((resolve, reject) => {
-        const request = https.request(url, httpsOptions, response => {
+        // Was https.request(...) unconditionally -- see clientFor() above.
+        const request = clientFor(url).request(url, httpsOptions, response => {
 
           console.log('statusCode:', response.statusCode);
 

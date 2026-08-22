@@ -1,5 +1,21 @@
 ---
-elasticsearchHosts: "https://elasticsearch-master:9200"
+## http, not https.
+##
+## The elasticsearch-master StatefulSet in this environment runs with
+## xpack.security.enabled=true but only *transport* TLS
+## (xpack.security.transport.ssl.*). There is no xpack.security.http.ssl.*, so the
+## REST layer is plain HTTP guarded by basic auth. Verified from inside the
+## cluster:  http://…:9200 -> 401,  https://…:9200 -> connection failure.
+##
+## With https here the pre-install hook died on every attempt with
+##   write EPROTO ... ssl3_get_record:wrong version number
+## so the Kibana service-account token was never minted and the Application sat
+## at HEALTH=Missing.
+##
+## Note this chart reads .Values.elasticsearchHosts directly (it does not use the
+## per-chart env-override pattern), so a `kibana:` block in an environment file
+## would be ignored -- the value has to live here.
+elasticsearchHosts: "http://elasticsearch-master:9200"
 elasticsearchCertificateSecret: elasticsearch-master-certs
 elasticsearchCertificateAuthoritiesFile: ca.crt
 elasticsearchCredentialSecret: elasticsearch-master-credentials

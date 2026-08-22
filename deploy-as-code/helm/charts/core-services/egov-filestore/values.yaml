@@ -32,7 +32,8 @@ heap: "-Xmx192m -Xms192m"
 file-storage-mount-path: "/filestore"
 is-nfs-enabled: false
 is-s3-enabled: true
-is-aws-bucket: true
+is-aws-bucket: false   ## Azure Blob backend
+is-azure-enabled: true
 spring-servlet-multipart-max-request-size: "30MB"
 persistence:
   enabled: false
@@ -58,8 +59,6 @@ env: |
     value: "/tmp"
   - name: SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE
     value: "30MB"
-  - name: ISNFSSTORAGEENABLED
-    value: {{ index .Values "is-nfs-enabled" | quote }}
   {{- if index .Values "is-nfs-enabled" }}
   - name: ISNFSSTORAGEENABLED
     value: "true"
@@ -73,8 +72,8 @@ env: |
   {{- end }}
   {{- if index .Values "is-s3-enabled" }}
   - name: ISS3ENABLED
-    value: "true"
-  {{- end }}  
+    value: "false"
+  {{- end }}
   {{- if index .Values "minio-enabled" }}
   - name: AWS_KEY
     valueFrom:
@@ -86,17 +85,25 @@ env: |
       secretKeyRef:
         key: secretkey
         name: minio
-  {{else}}
-  - name: AWS_KEY
+  {{- if index .Values "is-azure-enabled" }}
+  - name: ISAZURESTORAGEENABLED
+    value: {{ index .Values "is-azure-enabled" | quote }}
+  - name: AZURE_ACCOUNTNAME
     valueFrom:
       secretKeyRef:
         name: egov-filestore
-        key: awskey
-  - name: AWS_SECRETKEY
+        key: account-name
+  - name: AZURE_ACCOUNTKEY
     valueFrom:
       secretKeyRef:
         name: egov-filestore
-        key: awssecretkey
+        key: account-key
+  {{- if index .Values "fixed-bucketname" }}
+  - name: FIXED_CONTAINER_NAME
+    value: {{ index .Values "fixed-bucketname" | quote }}
+  {{- end }}
+  - name: AZURE_DEFAULTENDPOINTSPROTOCOL
+    value: https
   {{- end }}
   {{- if index .Values "is-bucket-fixed" }}
   - name: IS_BUCKET_FIXED
@@ -125,4 +132,3 @@ env: |
     value: {{ index .Values "kafka-malware-scan-enabled" | quote }}
   - name: KAFKA_TOPICS_MALWARE_SCAN_REQUEST
     value: {{ index .Values "kafka-topics-malware-scan-request" | quote }}  
-

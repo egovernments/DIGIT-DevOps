@@ -1,0 +1,408 @@
+# Default values for ClamAV.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  # Debian variant and pinned tag, matching the EKS (unified-dev) release.
+  repository: clamav/clamav-debian
+  tag: "1.4.3"
+  pullPolicy: IfNotPresent
+
+priorityClassName: ""
+
+## Optionally specify an array of imagePullSecrets.
+## Secrets must be manually created in the namespace.
+## ref: https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
+##
+imagePullSecrets: []
+
+nameOverride: ""
+# Pinned so the Service is `clamav`, not `backbone-clamav`. Argo CD names the
+# Helm release after the Application (backbone-clamav), which would otherwise
+# rename the Service and break `clamav-host: "clamav.security"` in the
+# environments files, which egov-filestore malware detection reads.
+fullnameOverride: "clamav"
+
+kind: StatefulSet
+updateStrategy: null
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 100
+  runAsGroup: 101
+  fsGroup: 101
+
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  privileged: false
+  capabilities:
+    drop:
+      - ALL
+
+serviceAccount:
+  create: true
+  name: ""
+  automountServiceAccountToken: false
+  annotations: {}
+
+service:
+  type: ClusterIP
+  port: 3310
+  # nodePort: 30100
+  annotations: {}
+
+## Extra arguments to be set on the clamav container
+## e.g:
+## extraArgs:
+##   - --debug
+extraArgs: []
+
+## Extra environment variables to be set on the container
+## e.g:
+## extraEnvVars:
+##   - name: FOO
+##     value: "bar"
+extraEnvVars: []
+extraEnvVarsCM: ""
+extraEnvVarsSecret: ""
+
+ingress:
+  enabled: false
+# ingressClassName: ""
+  annotations: {}
+  # kubernetes.io/ingress.class: nginx
+  # kubernetes.io/tls-acme: "true"
+  path: /
+  hosts:
+    - chart-example.local
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+## Ref: https://linux.die.net/man/5/clamd.conf
+## Note: will completely override default clamd.conf file at https://github.com/Cisco-Talos/clamav/blob/main/etc/clamd.conf.sample
+clamdConfigDict:
+  ###############
+  # General
+  ###############
+  DatabaseDirectory: /data
+  TemporaryDirectory: /tmp
+  LogTime: "yes"
+  # CUSTOM: Use pid file in tmp
+  PidFile: /tmp/clamd.pid
+  LocalSocket: /tmp/clamd.sock
+  TCPSocket: 3310
+  Foreground: "yes"
+
+  ###############
+  # Results
+  ###############
+  DetectPUA: "yes"
+  ExcludePUA:
+    - NetTool
+    - PWTool
+  HeuristicAlerts: "yes"
+  Bytecode: "yes"
+
+  ###############
+  # Scan
+  ###############
+  ScanPE: "yes"
+  DisableCertCheck: "yes"
+  ScanELF: "yes"
+  AlertBrokenExecutables: "yes"
+  ScanOLE2: "yes"
+  ScanPDF: "yes"
+  ScanSWF: "yes"
+  ScanMail: "yes"
+  PhishingSignatures: "yes"
+  PhishingScanURLs: "yes"
+  ScanHTML: "yes"
+  ScanArchive: "yes"
+
+  MaxScanSize: 150M
+  MaxFileSize: 30M
+  MaxRecursion: 10
+  MaxFiles: 15000
+  MaxEmbeddedPE: 10M
+  MaxHTMLNormalize: 10M
+  MaxHTMLNoTags: 2M
+  MaxScriptNormalize: 5M
+  MaxZipTypeRcg: 1M
+  MaxPartitions: 128
+  MaxIconsPE: 200
+  PCREMatchLimit: 10000
+  PCRERecMatchLimit: 10000
+
+## Ref: https://linux.die.net/man/5/freshclam.conf
+## Note: will completely override default clamd.conf file at https://github.com/Cisco-Talos/clamav/blob/main/etc/freshclam.conf.sample
+freshclamConfigDict:
+  ###############
+  # General
+  ###############
+  DatabaseDirectory: /data
+  LogTime: "yes"
+  # CUSTOM: Use pid file in tmp
+  PidFile: /tmp/freshclam.pid
+  # CUSTOM: Set defined user
+  DatabaseOwner: "2000"
+
+  ###############
+  # Updates
+  ###############
+
+  DatabaseMirror: database.clamav.net
+  ScriptedUpdates: "yes"
+  NotifyClamd: /etc/clamav/clamd.conf
+  Bytecode: "yes"
+
+# Use freshclamConfig to define the content of /etc/clamav/freshclam.conf. Example:
+# freshclamConfig: |
+#   HTTPProxyServer your-proxy.example.com
+#   HTTPProxyPort 8080
+#   DatabaseDirectory /data
+#   LogSyslog yes
+#   LogTime yes
+#   PidFile /run/clamav/freshclam.pid
+#   DatabaseOwner root
+#   DatabaseMirror database.clamav.net
+#   ScriptedUpdates yes
+#   NotifyClamd /etc/clamav/clamd.conf
+#   SafeBrowsing yes
+#   Bytecode yes
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #  cpu: 100m
+  #  memory: 128Mi
+  # requests:
+  #  cpu: 100m
+  #  memory: 128Mi
+
+# Additional pod labels
+podLabels: {}
+podAnnotations: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+## Topology spread constraints for pod distribution
+## Ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+topologySpreadConstraints: []
+  # - maxSkew: 1
+  #   topologyKey: topology.kubernetes.io/zone
+  #   whenUnsatisfiable: ScheduleAnyway
+  #   labelSelector:
+  #     matchLabels:
+  #       app.kubernetes.io/name: clamav
+  #       app.kubernetes.io/instance: RELEASE-NAME
+  # - maxSkew: 1
+  #   topologyKey: kubernetes.io/hostname
+  #   whenUnsatisfiable: DoNotSchedule
+  #   labelSelector:
+  #     matchLabels:
+  #       app.kubernetes.io/name: clamav
+  #       app.kubernetes.io/instance: RELEASE-NAME
+
+startupProbe:
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  failureThreshold: 3
+  timeoutSeconds: 1
+
+livenessProbe:
+  initialDelaySeconds: 300
+  periodSeconds: 10
+  failureThreshold: 3
+  timeoutSeconds: 1
+
+readinessProbe:
+  initialDelaySeconds: 90
+  periodSeconds: 10
+  failureThreshold: 3
+  timeoutSeconds: 1
+
+hpa:
+  enabled: true
+  maxReplicas: 5
+  # average CPU usage utilization percentage per pod (1-100)
+  cpu: 80
+  # average Memory usage utilization percentage per pod (1-100)
+  memory: 80
+  # average http_requests utilization per pod (value as a string)
+  # Deliberately left unset, unlike the EKS release which sets `requests: 1k`.
+  # That renders a Pods metric served by custom.metrics.k8s.io, and neither
+  # cluster runs prometheus-adapter to provide it. An unfetchable metric makes
+  # the HPA report ScalingActive=False and stop scaling on cpu/memory as well,
+  # so carrying it over would leave the autoscaler worse off than omitting it.
+  # requests: 1k
+
+podDisruptionBudget:
+  enabled: false
+  # minAvailable: 1
+  # maxUnavailable: 1
+
+## extraVolumes Optionally specify extra list of additional volumes for the Clam Pod(s)
+##
+extraVolumes: []
+## extraVolumeMounts Optionally specify extra list of additional volumeMounts for the Clam container(s)
+##
+extraVolumeMounts: []
+
+## Metrics configuration for ClamAV exporter
+metrics:
+  ## Enable metrics collection
+  enabled: false
+
+  ## ClamAV exporter image configuration
+  image:
+    repository: sergeymakinen/clamav_exporter
+    tag: "v2.1.2"
+    pullPolicy: IfNotPresent
+
+  ## Port for metrics endpoint
+  port: 9906
+
+  ## Path for metrics endpoint
+  path: /metrics
+
+  ## Extra arguments for the exporter
+  extraArgs: []
+    # - --log.level=debug
+    # - --log.format=json
+    # - --clamav.timeout=10s
+    # - --clamav.retries=3
+
+  ## Extra environment variables for the exporter
+  extraEnvVars: []
+    # - name: LOG_LEVEL
+    #   value: "info"
+
+  ## Resource limits and requests for the exporter
+  resources: {}
+    # limits:
+    #   cpu: 100m
+    #   memory: 64Mi
+    # requests:
+    #   cpu: 50m
+    #   memory: 32Mi
+
+  ## Security context for the exporter container
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    privileged: false
+    capabilities:
+      drop:
+        - ALL
+
+  ## Liveness probe configuration for the exporter
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  ## Readiness probe configuration for the exporter
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  ## ServiceMonitor configuration for Prometheus monitoring
+  serviceMonitor:
+    ## Enable ServiceMonitor creation
+    enabled: false
+
+    ## Namespace where ServiceMonitor should be created
+    ## If not set, uses the same namespace as the chart
+    namespace: ""
+
+    ## Additional labels for ServiceMonitor
+    additionalLabels: {}
+      # prometheus: kube-prometheus
+      # release: prometheus
+
+    ## ServiceMonitor annotations
+    annotations: {}
+
+    ## Scrape interval for Prometheus
+    interval: 30s
+
+    ## Scrape timeout for Prometheus
+    scrapeTimeout: 10s
+
+    ## Path to scrape metrics from
+    path: /metrics
+
+    ## Port name to scrape metrics from
+    portName: http-metrics
+
+    ## Metric relabeling configurations
+    metricRelabelings: []
+      # - sourceLabels: [__name__]
+      #   regex: 'clamav_.*'
+      #   action: keep
+
+    ## Relabeling configurations
+    relabelings: []
+      # - sourceLabels: [__meta_kubernetes_pod_name]
+      #   separator: ;
+      #   regex: ^(.*)$
+      #   targetLabel: instance
+      #   replacement: $1
+      #   action: replace
+
+    ## HonorLabels chooses the metric's labels on collisions with target labels
+    honorLabels: false
+
+    ## HonorTimestamps controls whether Prometheus respects the timestamps present in scraped data
+    honorTimestamps: true
+
+## Clamav data dir persistence
+persistentVolume:
+  ## If true, a Persistent Volume Claim is created, otherwise it uses an emptyDir
+  ## Enabled to match EKS: keeps the freshclam signature database across restarts.
+  ##
+  enabled: true
+
+  ## Persistent Volume Claim annotations
+  ##
+  annotations: {}
+
+  ## Persistent Volume access modes
+  ## Must match those of existing PV or dynamic provisioner
+  ## Ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+  accessModes:
+  - ReadWriteOnce
+
+  ## Persistent Volume Size
+  ##
+  size: 1024Mi
+
+  ## Persistent Volume Storage Class
+  ## If defined, storageClassName: <storageClass>
+  ## If set to "-", storageClassName: "", which disables dynamic provisioning
+  ## If undefined (the default) or set to null, no storageClassName spec is
+  ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+  ##   GKE, AWS & OpenStack)
+  ##
+  # storageClass: "-"

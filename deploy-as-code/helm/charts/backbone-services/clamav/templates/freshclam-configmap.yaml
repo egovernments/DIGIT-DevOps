@@ -1,0 +1,18 @@
+{{- if or .Values.freshclamConfig .Values.clamdConfigDict -}}
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ include "clamav.fullname" . }}-freshclam
+  labels:
+    app: {{ template "clamav.name" . }}
+    chart: {{ template "clamav.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  freshclam.conf: |
+    {{- if .Values.freshclamConfig }}
+    {{- .Values.freshclamConfig | nindent 4 }}
+    {{- else }}
+    {{- include "clamav.dictToConfig" .Values.freshclamConfigDict | nindent 4 }}
+    {{- end }}
+{{- end }}

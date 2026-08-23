@@ -1,0 +1,18 @@
+{{- if or .Values.clamdConfig .Values.clamdConfigDict -}}
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ include "clamav.fullname" . }}-clamd
+  labels:
+    app: {{ template "clamav.name" . }}
+    chart: {{ template "clamav.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  clamd.conf: |
+    {{- if .Values.clamdConfig }}
+    {{- .Values.clamdConfig | nindent 4 }}
+    {{- else }}
+    {{- include "clamav.dictToConfig" .Values.clamdConfigDict | nindent 4 }}
+    {{- end }}
+{{- end }}

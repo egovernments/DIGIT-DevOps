@@ -1,0 +1,27 @@
+{{- /* clients that hardcode the pre-v2 hostname (e.g. nlp-engine) resolve through this alias */ -}}
+{{- $envOverrides := index .Values (tpl (default .Chart.Name .Values.name) .) -}}
+{{- $baseValues := .Values | deepCopy -}}
+{{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
+{{- with mustMergeOverwrite . $values -}}
+{{- if .Values.legacyService.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.legacyService.name }}
+{{- if .Values.global.namespace }}
+  namespace: {{ .Values.global.namespace }}
+{{- else }}
+  namespace: {{ .Values.namespace }}
+{{- end }}
+  labels:
+{{- include "common.labels" . | nindent 4 }}
+spec:
+  selector:
+{{- include "common.labels" . | nindent 4 }}
+  ports:
+  - name: http
+    port: {{ .Values.httpPort }}
+    targetPort: {{ .Values.httpPort }}
+{{- end }}
+{{- end -}}

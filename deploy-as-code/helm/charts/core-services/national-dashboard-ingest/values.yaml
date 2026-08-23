@@ -21,16 +21,38 @@ initContainers:
 image:
   repository: "national-dashboard-ingest"
 replicas: "1"
+# spring boot 3 on this image needs ~2 min to serve /health; the default 30s
+# liveness delay restarts it mid-boot
 healthChecks:
   enabled: true
   livenessProbePath: "/national-dashboard/health"
   readinessProbePath: "/national-dashboard/health"
+  livenessProbe: |
+    httpGet:
+        path: "{{ .Values.healthChecks.livenessProbePath }}"
+        port: {{ default .Values.httpPort .Values.healthPort }}
+    initialDelaySeconds: 240
+    timeoutSeconds: 3
+    periodSeconds: 60
+    successThreshold: 1
+    failureThreshold: 5
+  readinessProbe: |
+    httpGet:
+        path: "{{ .Values.healthChecks.readinessProbePath }}"
+        port: {{ default .Values.httpPort .Values.healthPort }}
+    initialDelaySeconds: 120
+    timeoutSeconds: 3
+    periodSeconds: 30
+    successThreshold: 1
+    failureThreshold: 10
 appType: "java-spring"
 tracing-enabled: true
 heap: "-Xmx64m -Xms64m"
 java-args: "-Dspring.profiles.active=monitoring"
-memory_limits: "512Mi"
-cpu_limits: "100m"
+memory_requests: "512Mi"
+memory_limits: "1Gi"
+cpu_requests: "200m"
+cpu_limits: "500m"
 
 # Additional Container Envs
 env: |

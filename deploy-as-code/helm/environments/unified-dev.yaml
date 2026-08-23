@@ -480,6 +480,10 @@ egov-filestore:
   heap: "-Xmx256m -Xms256m"
 
 egov-malware-detection:
+  # egov-filestore runs in Azure Blob mode here (is-azure-enabled: true), so the
+  # egov-filestore secret holds account-name/account-key, not awskey/awssecretkey.
+  # Keep this false so no AWS credential refs are rendered.
+  is-s3-enabled: false
   initContainers:
     dbMigration:
       image:
@@ -537,11 +541,40 @@ inbox:
   memory_limits: 768Mi
   heap: "-Xmx512m -Xms256m"
   java-debug: true
-  tracing-enabled: "true"  
+  tracing-enabled: "true"
   service-map : '{}'
   bs-service-map : '{}'
   show-closed-applications: "true"
   mdmsV1SearchEndpoint: "/egov-mdms-service/v1/_search"
+  # Startup here takes ~120s (Spring context alone ~60s, then the
+  # elasticSearchService bean init). The chart default liveness probe starts at
+  # 30s and killed the container at ~126s with SIGTERM (exit 143) before startup
+  # finished, giving 21 restarts. The chart has no startupProbe, so widen the
+  # liveness window instead: first check at 180s, and 5 failures x 30s after that
+  # before a restart. Readiness is left probing early so the pod stays out of the
+  # Service endpoints until it genuinely answers /inbox/health.
+  healthChecks:
+    enabled: true
+    livenessProbePath: "/inbox/health"
+    readinessProbePath: "/inbox/health"
+    livenessProbe: |
+        httpGet:
+            path: "{{ .Values.healthChecks.livenessProbePath }}"
+            port: {{ default .Values.httpPort .Values.healthPort }}
+        initialDelaySeconds: 180
+        timeoutSeconds: 5
+        periodSeconds: 30
+        successThreshold: 1
+        failureThreshold: 10
+    readinessProbe: |
+        httpGet:
+            path: "{{ .Values.healthChecks.readinessProbePath }}"
+            port: {{ default .Values.httpPort .Values.healthPort }}
+        initialDelaySeconds: 30
+        timeoutSeconds: 5
+        periodSeconds: 15
+        successThreshold: 1
+        failureThreshold: 20
 
 egov-idgen:
   initContainers:
@@ -867,6 +900,7 @@ project:
   kafka-mdc-enabled: "true"
 
 individual:
+  replicas: 0
   initContainers:
     dbMigration:
       image:

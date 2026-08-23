@@ -70,10 +70,13 @@ env: |
   - name: SOURCE_DISK
     value: "diskStorage"
   {{- end }}
-  {{- if index .Values "is-s3-enabled" }}
+  # Always emit ISS3ENABLED. If the variable is absent the app activates both
+  # azureBlobStorageImpl and minioRepository and fails to start with
+  # "Field cloudFilesManager required a single bean, but 2 were found".
+  # Previously this was gated on is-s3-enabled while hardcoding "false", so
+  # setting is-s3-enabled=false removed the variable instead of setting it false.
   - name: ISS3ENABLED
-    value: "false"
-  {{- end }}
+    value: {{ index .Values "is-s3-enabled" | default false | quote }}
   {{- if index .Values "minio-enabled" }}
   - name: AWS_KEY
     valueFrom:

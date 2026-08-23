@@ -207,12 +207,42 @@ service:
 ## Configure Ingress based on the documentation here: https://kubernetes.io/docs/concepts/services-networking/ingress/
 ##
 
+## Dedicated host for the S3 API endpoint.
+##
+## The S3 API gets its own hostname rather than a path under the shared domain.
+## S3 clients (boto3, which is what care-backend uses) build request URLs as
+## <endpoint>/<bucket>/<key> and sign them against the endpoint's host; a path
+## prefix such as /static-assets is not carried into the signed URL, so
+## presigned upload/download links would 404. A dedicated host keeps the paths
+## that clients generate identical to the paths nginx receives.
+##
+## DNS: this needs an A record -> the ingress-nginx load balancer
+## (135.13.178.110 on unified-dev). Until that record exists the ingress will
+## be admitted by the controller but the name will not resolve.
+s3Domain: "minio-dev.digit.org"
+
 ingress:
   enabled: true
   ingressClassName: ~
   labels: {}
     # node-role.kubernetes.io/ingress: platform
-  annotations: {}
+  annotations:
+    # Enable once minio-dev.digit.org has an A record pointing at the
+    # ingress-nginx load balancer. cert-manager solves letsencrypt-prod over
+    # HTTP-01, which requires the hostname to already resolve to this cluster;
+    # turning it on beforehand just spawns cm-acme-http-solver pods that retry
+    # and fail indefinitely. The ingress is admitted and Healthy without it --
+    # nginx serves its default certificate until the real one is issued.
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # Required. The `nginx` IngressClass in this cluster is NOT marked as the
+    # default (no ingressclass.kubernetes.io/is-default-class), so an Ingress
+    # with neither ingressClassName nor this annotation is ignored by the
+    # controller: it never gets a load-balancer address and Argo sits on
+    # "waiting for healthy state of networking.k8s.io/Ingress/minio" forever.
+    # consoleIngress below already sets it, which is why only this one stalled.
+    kubernetes.io/ingress.class: nginx
+    # S3 clients send large PUTs; the controller default is 1m.
+    nginx.ingress.kubernetes.io/proxy-body-size: 100m
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
     # kubernetes.io/ingress.allow-http: "false"
@@ -220,13 +250,14 @@ ingress:
     # nginx.ingress.kubernetes.io/secure-backends: "true"
     # nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
     # nginx.ingress.kubernetes.io/whitelist-source-range: 0.0.0.0/0
-  path: /static-assets
+  # Root path on the dedicated host: boto3 appends /<bucket>/<key> itself.
+  path: /
   hosts:
-    - "{{ .Values.global.domain }}"
+    - "{{ .Values.s3Domain }}"
   tls:
-    - secretName: "{{ .Values.global.domain }}-tls-certs"
+    - secretName: "{{ .Values.s3Domain }}-tls-certs"
       hosts:
-        - "{{ .Values.global.domain }}"
+        - "{{ .Values.s3Domain }}"
 
 consoleService:
   type: ClusterIP

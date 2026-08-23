@@ -1304,7 +1304,12 @@ createUserJob:
   priorityClassName: ~
   # In case you need to disable the helm hooks that create the jobs after install.
   # Disable this if you are using ArgoCD for example
-  useHelmHooks: true
+  # Argo CD maps helm.sh/hook: post-install to a PostSync hook, which only runs
+  # once every resource is Healthy -- but api-server/scheduler/dag-processor/
+  # triggerer all block in their `wait-for-airflow-migrations` init container
+  # until this job has run. That deadlocks the first sync, so the jobs are
+  # rendered as ordinary Sync-phase resources instead.
+  useHelmHooks: false
   applyCustomEnv: true
 
   env: []
@@ -1407,7 +1412,9 @@ migrateDatabaseJob:
   priorityClassName: ~
   # In case you need to disable the helm hooks that create the jobs after install.
   # Disable this if you are using ArgoCD for example
-  useHelmHooks: true
+  # See the note on createUserJob.useHelmHooks above -- the PostSync mapping
+  # deadlocks against the wait-for-airflow-migrations init container.
+  useHelmHooks: false
   applyCustomEnv: true
   env: []
 

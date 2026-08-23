@@ -68,10 +68,19 @@ containerLifecycleHooks: {}
 airflowHome: /opt/airflow
 
 # Default airflow repository -- overridden by all the specific images below
-defaultAirflowRepository: apache/airflow
+# eGov's custom build of Airflow 3.0.2. It carries the extra Python
+# dependencies the HCM DAGs import; on stock apache/airflow:3.0.2 three of the
+# four DAGs fail to parse with import errors.
+#
+# On EKS this image was patched straight onto the Deployments and was never
+# recorded in the Helm release (`helm get manifest` there still says
+# apache/airflow:3.0.2). That cannot work here -- Argo CD has selfHeal enabled
+# and would revert any out-of-band kubectl patch -- so it is pinned in git.
+# The repository is public, so no imagePullSecret is required.
+defaultAirflowRepository: egovio/airflow
 
 # Default airflow tag to deploy
-defaultAirflowTag: "3.0.2"
+defaultAirflowTag: "3.0.2-custom2"
 
 # Default airflow digest. If specified, it takes precedence over tag
 defaultAirflowDigest: ~

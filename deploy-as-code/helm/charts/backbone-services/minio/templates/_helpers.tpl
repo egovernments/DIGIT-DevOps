@@ -149,8 +149,22 @@ imagePullSecrets:
 {{- end -}}
 {{- end -}}
 
+{{/*
+FQDN the post-job's `mc` client dials to reach the MinIO API.
+
+Mode matters: the headless "<fullname>-svc" Service is declared inside
+statefulset.yaml, which only renders when mode == "distributed". In standalone
+mode that Service does not exist, so pointing at it makes the post-job fail with
+"lookup minio-svc.<ns>.svc.cluster.local: no such host" and retry forever --
+which in turn hangs the Argo sync on "waiting for completion of hook
+batch/Job/minio-post-job". Standalone must use the regular Service instead.
+*/}}
 {{- define "minio.svcFQDN" -}}
-{{ include "minio.fullname" . }}-svc.{{ .Values.namespace }}.svc.cluster.local
+{{- if eq .Values.mode "distributed" -}}
+{{ include "minio.fullname" . }}-svc.{{ .Values.namespace }}.svc.{{ .Values.clusterDomain }}
+{{- else -}}
+{{ include "minio.fullname" . }}.{{ .Values.namespace }}.svc.{{ .Values.clusterDomain }}
+{{- end -}}
 {{- end -}}
 
 {{/*

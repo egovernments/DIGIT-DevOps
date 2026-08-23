@@ -1532,9 +1532,11 @@ apiServer:
       ports:
         - port: "{{ .Values.ports.apiServer }}"
 
+  # Raised above the 1 CPU the other components get: worker boot is CPU-bound
+  # and throttling here shows up as a failing startup probe, not as slowness.
   resources:
     limits:
-      cpu: "1"
+      cpu: "2"
       memory: 2Gi
     requests:
       cpu: "0.5"
@@ -2933,6 +2935,10 @@ config:
   api:
     base_url: /airflow
     enable_proxy_fix: 'True'
+    # Default is 4. Four uvicorn workers booting at once saturate the
+    # api-server's CPU limit, the startup probe never gets a response, and the
+    # container is killed and restarted before any worker finishes booting.
+    workers: 2
   metrics:
     statsd_on: '{{ ternary "True" "False" .Values.statsd.enabled }}'
     statsd_port: 9125

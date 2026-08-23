@@ -14,8 +14,14 @@ spec:
     # backbone-app-set-playground.yaml (playground, pgadmin) targets this namespace
     - namespace: 'playground'
       server: https://kubernetes.default.svc
+    # backbone-app-set-backbone.yaml keeps clickhouse-operator + clickhouse and
+    # airflow in their own namespaces, mirroring the EKS (unified-dev) layout.
+    - namespace: 'clickhouse'
+      server: https://kubernetes.default.svc
+    - namespace: 'airflow'
+      server: https://kubernetes.default.svc
 
-  ## Two charts in backbone-app-set-backbone.yaml render cluster-scoped objects.
+  ## Three charts in backbone-app-set-backbone.yaml render cluster-scoped objects.
   ## An AppProject with no clusterResourceWhitelist permits NONE of them, so those
   ## Applications fail with "one or more synchronization tasks are not valid" and
   ## never deploy (seen as SYNC=OutOfSync / HEALTH=Missing).
@@ -26,6 +32,10 @@ spec:
   ##                  1 MutatingWebhookConfiguration, 1 ValidatingWebhookConfiguration,
   ##                  6 CustomResourceDefinition (chart crds/ dir; Argo CD renders
   ##                  with --include-crds) and 2 ClusterIssuer
+  ##   clickhouse-operator
+  ##                  3 ClusterRole, 2 ClusterRoleBinding,
+  ##                  1 MutatingWebhookConfiguration, 1 ValidatingWebhookConfiguration,
+  ##                  2 CustomResourceDefinition (clickhouseclusters, keeperclusters)
   ##
   ## This also unblocks cluster-configs. The ingress-nginx-admission
   ## ValidatingWebhookConfiguration is already present on the cluster with
@@ -38,8 +48,9 @@ spec:
   ##
   ## Letting ingress-nginx sync gives that webhook a live backend again.
   ##
-  ## elasticsearch-master, elasticsearch-data, kafka-kraft, redis and kibana render
-  ## nothing cluster-scoped.
+  ## elasticsearch-master, elasticsearch-data, kafka-kraft, redis, kibana, airflow
+  ## and clickhouse render nothing cluster-scoped (airflow stays on Role/RoleBinding;
+  ## clickhouse renders only the two operator CRs).
   clusterResourceWhitelist:
     - group: rbac.authorization.k8s.io
       kind: ClusterRole

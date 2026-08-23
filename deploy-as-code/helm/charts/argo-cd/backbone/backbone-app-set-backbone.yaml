@@ -6,15 +6,39 @@ metadata:
 spec:
   generators:
     - list:
+        # `namespace` is substituted into the template below. This generator is
+        # not goTemplate-enabled, so every element must set it explicitly --
+        # an element missing the key would render the literal `{{namespace}}`.
         elements:
           - name: ingress-nginx
+            namespace: backbone
           - name: redis
+            namespace: backbone
           - name: elasticsearch-master
+            namespace: backbone
           - name: elasticsearch-data
+            namespace: backbone
           - name: kafka-kraft
+            namespace: backbone
           - name: cert-manager
+            namespace: backbone
           - name: kibana
+            namespace: backbone
           - name: oauth2-proxy
+            namespace: backbone
+          # The ClickHouse operator owns the ClickHouseCluster/KeeperCluster
+          # CRDs that the `clickhouse` chart's CRs depend on. Both land in the
+          # `clickhouse` namespace, matching the EKS (unified-dev) layout.
+          # On a first sync `clickhouse` may fail until the operator has
+          # registered its CRDs; the retry policy below recovers it.
+          - name: clickhouse-operator
+            namespace: clickhouse
+          - name: clickhouse
+            namespace: clickhouse
+          - name: airflow
+            namespace: airflow
+          - name: minio
+            namespace: backbone
   template:
     metadata:
       name: 'backbone-{{name}}'
@@ -33,7 +57,7 @@ spec:
 
       destination:
         server: https://kubernetes.default.svc
-        namespace: 'backbone'
+        namespace: '{{namespace}}'
 
       syncPolicy:
         automated:
@@ -42,6 +66,11 @@ spec:
         syncOptions:
           - ApplyOutOfSyncOnly=true
           - ServerSideApply=true
+          # `clickhouse` and `airflow` target namespaces that do not exist yet.
+          - CreateNamespace=true
+          # Lets the `clickhouse` CRs pass dry-run before the operator has
+          # registered their CRDs.
+          - SkipDryRunOnMissingResource=true
         retry:
           limit: 10
           backoff:

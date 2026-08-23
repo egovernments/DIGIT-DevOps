@@ -30,7 +30,10 @@ mcImage:
   pullPolicy: IfNotPresent
 
 ## minio mode, i.e. standalone or distributed
-mode: distributed ## other supported values are "standalone"
+## standalone: distributed erasure coding needs a minimum of 4 drives, and this
+## deployment is replicas(2) x drivesPerNode(1) = 2, which MinIO rejects at
+## startup. Single-node/single-drive is the supported shape at this size.
+mode: standalone ## other supported values are "distributed"
 
 ## Additional labels to include with deployment or statefulset
 additionalLabels: {}
@@ -160,7 +163,13 @@ persistence:
   ##
   ## Storage class of PV to bind. By default it looks for standard storage class.
   ## If the PV uses a different storage class, specify that here.
-  storageClass: "gp2"
+  ##
+  ## Azure-backed: "managed-csi" is disk.csi.azure.com (Azure Managed Disk,
+  ## block storage). This must NOT be an azurefile* class -- those are SMB/NFS
+  ## shares and MinIO does not support network filesystems for its backend
+  ## drive; it requires POSIX block storage. "gp2" here was an AWS EBS class
+  ## left over from EKS and does not exist on AKS, so the PVC would stay Pending.
+  storageClass: "managed-csi"
   volumeName: ""
   accessMode: ReadWriteOnce
   size: 50Gi
@@ -372,9 +381,23 @@ users:
   ## Add new policies as explained here https://min.io/docs/minio/kubernetes/upstream/administration/identity-access-management.html#access-management
   ## NOTE: this will fail if LDAP is enabled in your MinIO deployment
   ## make sure to disable this if you are using LDAP.
-  - accessKey: console
-    secretKey: console123
-    policy: consoleAdmin
+  ## Application user for the DIGIT/CARE services. Deliberately NOT the root
+  ## account: root (rootUser/rootPassword in the `minio` secret) is the MinIO
+  ## Console UI login and holds full admin rights, whereas this user only needs
+  ## object access to the buckets above.
+  ##
+  ## accessKey is an identifier rather than a credential, so it is held here in
+  ## plaintext; the secret half is read from the `minio` secret. It MUST match
+  ## cluster-configs.secrets.minio.accesskey, because care-backend and
+  ## egov-malware-detection read that key from the same secret and authenticate
+  ## as this user.
+  - accessKey: digit-app
+    existingSecret: minio
+    existingSecretKey: secretkey
+    policy: readwrite
+  ## The upstream default was accessKey: console / secretKey: console123 with
+  ## consoleAdmin. Removed: a hardcoded admin credential in git, and it would
+  ## have granted UI admin separately from the root account.
   # Or you can refer to specific secret
   #- accessKey: externalSecret
   #  existingSecret: my-secret
@@ -434,7 +457,13 @@ makeServiceAccountJob:
 
 ## List of buckets to be created after minio install
 ##
-buckets: []
+buckets:
+  # Consumed by care-backend (FACILITY_S3_BUCKET / FILE_UPLOAD_BUCKET, both
+  # default to .Values.bucket = "unified-care-dev"). Objects are served to the
+  # browser via presigned URLs, so the bucket itself stays private.
+  - name: unified-care-dev
+    policy: none
+    purge: false
   #   # Name of the bucket
   # - name: bucket1
   #   # Policy to be set on the

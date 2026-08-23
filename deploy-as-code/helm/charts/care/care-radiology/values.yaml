@@ -49,6 +49,15 @@ ohif:
     repository: ghcr.io/care-ecosystem/radiology-ohif
     tag: master-4-94b52e6
     pullPolicy: Always
+  # The image runs as a non-root user but its bundled nginx listens on :80.
+  # Unprivileged processes cannot bind ports <1024, so nginx died with
+  # "bind() to 0.0.0.0:80 failed (13: Permission denied)" and crash-looped.
+  # Adding CAP_NET_BIND_SERVICE would not help: Kubernetes cannot grant
+  # *ambient* capabilities, so a non-root process loses it on exec. Run the
+  # nginx master as root instead; it drops its workers to an unprivileged user.
+  # Set to {} once the image is rebuilt to listen on a port >1024.
+  securityContext:
+    runAsUser: 0
   replicas: 1
   resources:
     requests:

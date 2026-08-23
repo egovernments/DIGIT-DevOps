@@ -2,6 +2,16 @@ global:
    domain: care-dev.digit.org ## Dedicated CARE subdomain; care services served at root "/"
    setup: fullsetup
 
+# care-backend uses AWS S3 for its object storage (bucketProvider: AWS,
+# bucketRegion: ap-south-1) and reads BUCKET_KEY/BUCKET_SECRET from the
+# egov-filestore secret. cluster-configs only renders that secret when this
+# top-level flag is set, and it was missing here -- so the secret was never
+# created in the care namespace and every care-backend pod failed to start with
+# 'Error: secret "egov-filestore" not found'. The aws-key / aws-secret-key
+# values already exist (SOPS-encrypted) in unified-care-dev-secrets.yaml.
+egov-filestore:
+  is-s3-enabled: true
+
 cluster-configs:
   namespaces:  
     create: true

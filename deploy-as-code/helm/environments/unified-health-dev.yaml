@@ -1499,6 +1499,25 @@ es-curator:
 airflow-trigger-service:
   image:
     tag: "HCMPRE-4161-airflowTrigger-f38a7d8"
+  ## The chart's values.yaml hardcodes AIRFLOW_BASE_URL to
+  ## airflow-api-server.airflow.svc.cluster.local, which is the EKS service
+  ## name. On AKS the Argo CD Application is `backbone-airflow`, so Helm names
+  ## the api-server service backbone-airflow-api-server and the old name does
+  ## not resolve at all.
+  ##
+  ## The /airflow suffix is required, not cosmetic: the release sets
+  ## [api] base_url = /airflow, so the api-server mounts its routes under that
+  ## prefix on the ClusterIP too, not just behind the ingress. /airflow/auth/token
+  ## returns a JWT while /auth/token is a 404, so without the prefix the trigger
+  ## service cannot authenticate.
+  ##
+  ## common.deployment concatenates extraEnv.app after .Values.env and then
+  ## dedupes by name keeping the last entry, so this overrides AIRFLOW_BASE_URL
+  ## on its own -- no need to restate the whole env block.
+  extraEnv:
+    app: |
+      - name: AIRFLOW_BASE_URL
+        value: "http://backbone-airflow-api-server.airflow.svc.cluster.local:8080/airflow"
 
 census-service:
   image:

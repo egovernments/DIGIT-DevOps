@@ -86,6 +86,14 @@ cluster-configs:
     egov-filestore:
       namespace: care
       name: egov-filestore
+    # care-backend reads BUCKET_KEY/BUCKET_SECRET from this secret. Secrets are
+    # namespace-scoped, so the copy in backbone (where the MinIO server runs) is
+    # not readable from here -- care needs its own. The accesskey/secretkey
+    # values must match the ones in unified-dev-secrets.yaml, since they are the
+    # same MinIO user (users[0] in the minio chart).
+    minio:
+      namespace: [ care ]
+      name: minio
     care-registry:
       namespace: [ care ]
     radiology-secrets:
@@ -102,12 +110,36 @@ care-backend:
   postgresDb: "caredb"
   redisUrl: "redis://redis.backbone:6379"
   celeryBrokerUrl: "redis://redis.backbone:6379/0"
-  # AWS S3 (native) — empty endpoints so boto3 targets the regional S3 endpoint.
-  bucketProvider: "AWS"
-  bucketEndpoint: ""
-  bucketExternalEndpoint: ""
+  # MinIO (S3-compatible) running in the backbone namespace, backed by an Azure
+  # managed disk. CARE only speaks S3 -- its CSProvider enum is
+  # AWS/AWS_ROLE_BASED/GCP/DIGITAL_OCEAN/MINIO/DOCKER/LOCAL, all via boto3 -- and
+  # Azure Blob has no S3-compatible API, so MinIO is what keeps the data in Azure
+  # without forking the app.
+  bucketProvider: "MINIO"
+  # In-cluster endpoint for server-side calls (uploads, deletes, listing).
+  bucketEndpoint: "http://minio.backbone:9000"
+  # Browser-facing endpoint. CARE hands out presigned URLs, so this must be
+  # reachable from the client and must match the host the URL is signed against.
+  bucketExternalEndpoint: "https://minio-dev.digit.org"
   bucketRegion: "ap-south-1"
   bucket: "unified-care-dev"   # single shared bucket for facility + patient files
+
+  # The chart hardcodes BUCKET_KEY/BUCKET_SECRET against the egov-filestore
+  # secret (AWS keys). Repoint them at the minio secret from here rather than
+  # editing the chart: common.deployment concatenates extraEnv.app last and
+  # dedupes env by name keeping the last occurrence, so these win.
+  extraEnv:
+    app: |
+      - name: BUCKET_KEY
+        valueFrom:
+          secretKeyRef:
+            name: minio
+            key: accesskey
+      - name: BUCKET_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: minio
+            key: secretkey
   corsAllowedOrigins: '["https://care-dev.digit.org"]'
   csrfTrustedOrigins: '["https://care-dev.digit.org"]'
   ingress:

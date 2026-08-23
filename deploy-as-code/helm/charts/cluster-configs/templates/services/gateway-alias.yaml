@@ -1,0 +1,20 @@
+{{- with index .Values "cluster-configs" "gateway-alias" }}
+{{- if .enabled }}
+---
+{{- range $ns := .namespace }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ index $.Values "cluster-configs" "gateway-alias" "name" }}
+  namespace: {{ $ns }}
+spec:
+  type: ExternalName
+  externalName: {{ printf "%s.%s.svc.%s" (index $.Values "cluster-configs" "gateway-alias" "targetService") (index $.Values "cluster-configs" "gateway-alias" "targetNamespace") (index $.Values "cluster-configs" "gateway-alias" "clusterDomain") }}
+  ports:
+  - name: {{ index $.Values "cluster-configs" "gateway-alias" "portName" }}
+    port: {{ index $.Values "cluster-configs" "gateway-alias" "servicePort" }}
+    targetPort: {{ index $.Values "cluster-configs" "gateway-alias" "servicePort" }}
+---
+{{- end }}
+{{- end }}
+{{- end }}

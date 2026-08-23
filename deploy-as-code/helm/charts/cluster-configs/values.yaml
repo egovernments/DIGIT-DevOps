@@ -22,6 +22,25 @@ cluster-configs:
     serviceName: nginx-errors
     servicePort: 80
 
+  # ExternalName alias of the gateway service, created once per namespace.
+  # An Ingress can only reference a Service in its own namespace, so services
+  # with ingress.zuul=true had their Ingress pinned into egov (where gateway
+  # lives) via ingress.namespace. With this alias present, each namespace has a
+  # local `gateway` Service resolving to gateway.egov, so those Ingresses can be
+  # created in the service's own namespace instead.
+  # Pair with global.localGateway=true, which is what flips the Ingress
+  # namespace in charts/common/templates/_ingress.yaml. Enabling this alone
+  # creates unused Services and changes nothing.
+  gateway-alias:
+    enabled: false
+    name: gateway
+    targetService: gateway
+    targetNamespace: egov
+    clusterDomain: cluster.local
+    servicePort: 8080
+    portName: http
+    namespace: []
+
   configmaps:
     egov-config:
       namespace: [ egov ]

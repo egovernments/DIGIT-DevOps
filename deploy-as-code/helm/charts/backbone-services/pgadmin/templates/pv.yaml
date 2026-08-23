@@ -2,7 +2,9 @@
   {{- $baseValues := .Values | deepCopy -}}
   {{- $values := dict "Values" (mustMergeOverwrite $baseValues $envOverrides) -}}
   {{- with mustMergeOverwrite . $values -}}
-  {{- if .Values.persistence.enabled }}
+  {{- $p := .Values.persistence -}}
+  {{- /* only for statically provisioned storage; a PV with no volume source is invalid */ -}}
+  {{- if and $p.enabled (or $p.aws $p.azure $p.openstack $p.iscsi) }}
 apiVersion: v1
 kind: "PersistentVolume"
 metadata:

@@ -7,10 +7,32 @@ labels:
 image:
   repository: "egov-user-chatbot"
 replicas: "1"
+# boot takes >5 min at the default 300m cpu cap, so the liveness probe kills it
+# mid-startup (exit 0 at exactly initialDelay + failureThreshold*period)
 healthChecks:
   enabled: true
   livenessProbePath: "/user/health"
   readinessProbePath: "/user/health"
+  livenessProbe: |
+    httpGet:
+        path: "{{ .Values.healthChecks.livenessProbePath }}"
+        port: {{ default .Values.httpPort .Values.healthPort }}
+    initialDelaySeconds: 240
+    timeoutSeconds: 3
+    periodSeconds: 60
+    successThreshold: 1
+    failureThreshold: 5
+  readinessProbe: |
+    httpGet:
+        path: "{{ .Values.healthChecks.readinessProbePath }}"
+        port: {{ default .Values.httpPort .Values.healthPort }}
+    initialDelaySeconds: 120
+    timeoutSeconds: 3
+    periodSeconds: 30
+    successThreshold: 1
+    failureThreshold: 10
+cpu_limits: "1000m"
+cpu_requests: "200m"
 appType: "java-spring"
 tracing-enabled: true
 egov-state-level-tenant-id: "pb"

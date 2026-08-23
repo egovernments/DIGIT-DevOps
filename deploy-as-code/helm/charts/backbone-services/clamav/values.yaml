@@ -175,13 +175,17 @@ freshclamConfigDict:
 #   SafeBrowsing yes
 #   Bytecode yes
 
+# Deliberately larger than the EKS (unified-dev) release, which sets 100m/128Mi.
+# clamd loads the whole signature set into memory -- ~112MB of compressed .cvd
+# expands to well over 1GiB resident -- so 128Mi is OOMKilled (exit 137) during
+# startup, every time. That is why the EKS StatefulSet sits at 0/2.
 resources:
   limits:
-    cpu: 100m
-    memory: 128Mi
+    cpu: "1"
+    memory: 3Gi
   requests:
-    cpu: 100m
-    memory: 128Mi
+    cpu: 250m
+    memory: 2Gi
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
   # resources, such as Minikube. If you do want to specify resources, uncomment the following
@@ -221,10 +225,14 @@ topologySpreadConstraints: []
   #       app.kubernetes.io/name: clamav
   #       app.kubernetes.io/instance: RELEASE-NAME
 
+# failureThreshold raised from the upstream/EKS value of 3. clamd only opens
+# port 3310 once the full signature set is parsed, which takes minutes on first
+# boot; 60s + 3*30s = 150s expires first and the kubelet restarts the container
+# mid-load, so it can never finish. This allows 60s + 20*30s = 11m.
 startupProbe:
   initialDelaySeconds: 60
   periodSeconds: 30
-  failureThreshold: 3
+  failureThreshold: 20
   timeoutSeconds: 1
 
 livenessProbe:
@@ -378,6 +386,12 @@ metrics:
     honorTimestamps: true
 
 ## Clamav data dir persistence
+# Local addition (not upstream): seed the signature database into the data
+# volume from the ones baked into the image, so clamd has something to load on
+# a fresh PVC without depending on the rate-limited ClamAV CDN.
+databaseSeed:
+  enabled: true
+
 persistentVolume:
   ## If true, a Persistent Volume Claim is created, otherwise it uses an emptyDir
   ## Enabled to match EKS: keeps the freshclam signature database across restarts.

@@ -54,6 +54,37 @@ spec:
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.databaseSeed.enabled }}
+      ## Local addition (not upstream).
+      ## clamd refuses to start when DatabaseDirectory is empty
+      ## ("cli_loaddbdir: No supported database files found in /data"), and on a
+      ## fresh PVC it always is. freshclam would fetch the set, but the ClamAV
+      ## CDN rate-limits (HTTP 429) and answers a restart loop with a 24h
+      ## cool-down, so the pod can never converge on its own.
+      ## The image already ships main/daily/bytecode .cvd under /var/lib/clamav,
+      ## so seed the volume from it and let freshclam apply deltas afterwards.
+      initContainers:
+        - name: seed-database
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "%s_base" .Chart.AppVersion) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              if ls /data/main.c[vl]d >/dev/null 2>&1; then
+                echo "Signature database already present in /data; skipping seed."
+              else
+                echo "Seeding signature database from image into /data ..."
+                cp /var/lib/clamav/*.cvd /data/
+                echo "Seeded:"; ls -la /data
+              fi
+          volumeMounts:
+            - name: clamav-data
+              mountPath: /data
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "%s_base" .Chart.AppVersion) }}

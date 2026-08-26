@@ -1,0 +1,33 @@
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  path: /monitoring
+  pathType: Prefix
+  hosts:
+    - test-lts.digit.org
+  tls:
+    - secretName: test-lts.digit.org-tls-certs
+      hosts:
+        - test-lts.digit.org
+
+persistence:
+  enabled: true
+  type: pvc
+  size: 8Gi
+  storageClassName: default
+  accessModes: ["ReadWriteOnce"]
+
+# GF_AUTH_GITHUB_CLIENT_ID / _SECRET come from the SOPS-backed secret that
+# cluster-configs renders into this namespace
+envFromSecret: grafana-oauth
+
+grafana.ini:
+  server:
+    domain: test-lts.digit.org
+    root_url: https://test-lts.digit.org/monitoring
+    serve_from_sub_path: true
+  auth.github:
+    enabled: true
+    allowed_organizations:
+      - egovernments
+    role_attribute_path: "contains(groups[*], '@egovernments/micro-service-uat') && 'Viewer'"

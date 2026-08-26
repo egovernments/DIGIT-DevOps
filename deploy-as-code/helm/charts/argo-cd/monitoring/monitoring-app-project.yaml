@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: monitoring-project
+  namespace: argocd
+spec:
+  description: monitoring stack for the digit-lts Azure AKS environment
+
+  sourceRepos:
+    - https://github.com/egovernments/DIGIT-DevOps.git
+    - https://prometheus-community.github.io/helm-charts
+    - https://grafana.github.io/helm-charts
+    - https://jaegertracing.github.io/helm-charts
+    - https://open-telemetry.github.io/opentelemetry-helm-charts
+
+  destinations:
+    - namespace: monitoring
+      server: https://kubernetes.default.svc
+
+  ## kube-prometheus-stack ships the Prometheus Operator, which renders
+  ## cluster-scoped RBAC, its CRDs and the admission webhooks. An AppProject with
+  ## no clusterResourceWhitelist permits none of them and every sync fails with
+  ## "one or more synchronization tasks are not valid".
+  clusterResourceWhitelist:
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

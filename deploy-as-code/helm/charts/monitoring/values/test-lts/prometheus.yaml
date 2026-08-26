@@ -1,0 +1,62 @@
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    configSecret: alertmanager-main
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: default
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+prometheus:
+  prometheusSpec:
+    externalLabels:
+      cluster: digit-lts
+    retention: 15d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: default
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+    additionalScrapeConfigs:
+      - job_name: nginx-ingress-metrics
+        static_configs:
+          - targets:
+              - ingress-nginx-controller-metrics.egov:10254
+      - job_name: blackbox
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - replacement: prometheus-blackbox-exporter:9115
+            target_label: __address__
+        static_configs:
+          - targets:
+              - https://test-lts.digit.org
+      - job_name: blackbox_exporter
+        static_configs:
+          - targets:
+              - prometheus-blackbox-exporter:9115
+      - job_name: digit-services-otel
+        metrics_path: /metrics
+        scrape_interval: 5s
+        static_configs:
+          - targets:
+              - open-telemetry-opentelemetry-collector:8889
+
+grafana:
+  enabled: false
+
+prometheus-node-exporter:
+  hostRootFsMount:
+    enabled: false

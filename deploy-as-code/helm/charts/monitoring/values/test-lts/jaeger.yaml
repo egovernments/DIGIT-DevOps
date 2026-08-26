@@ -1,0 +1,40 @@
+# ES lives in the backbone namespace on this cluster, not es-cluster, and the
+# password is injected from a secret rather than committed in the base values
+storage:
+  type: elasticsearch
+  elasticsearch:
+    url: http://elasticsearch-data.backbone:9200
+
+jaeger:
+  extraEnv:
+    - name: ES_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: elasticsearch-master-creds
+          key: username
+    - name: ES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: elasticsearch-master-creds
+          key: password
+
+userconfig:
+  extensions:
+    jaeger_storage:
+      backends:
+        primary_store_elasticsearch:
+          elasticsearch:
+            server_urls:
+              - http://elasticsearch-data.backbone:9200
+            auth:
+              basic:
+                username: ${env:ES_USERNAME}
+                password: ${env:ES_PASSWORD}
+        archive_store_elasticsearch:
+          elasticsearch:
+            server_urls:
+              - http://elasticsearch-data.backbone:9200
+            auth:
+              basic:
+                username: ${env:ES_USERNAME}
+                password: ${env:ES_PASSWORD}

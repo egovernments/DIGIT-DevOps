@@ -253,11 +253,19 @@ extraEnv:
       - name: JAEGER_SAMPLER_TYPE
         value: remote
       - name: JAEGER_AGENT_HOST
+      {{- if and (index .Values "jaeger") (index .Values "jaeger" "host") }}
+        value: {{ index .Values "jaeger" "host" | quote }}
+      {{- else }}
         valueFrom:
           fieldRef:
             fieldPath: status.hostIP
+      {{- end }}
       - name: JAEGER_AGENT_PORT
+      {{- if and (index .Values "jaeger") (index .Values "jaeger" "port") }}
+        value: {{ index .Values "jaeger" "port" | quote }}
+      {{- else }}
         value: "6831"
+      {{- end }}
       - name: JAEGER_SAMPLER_MANAGER_HOST_PORT
         value: "$(JAEGER_AGENT_HOST):5778"
       - name: TRACER_OPENTRACING_ENABLED

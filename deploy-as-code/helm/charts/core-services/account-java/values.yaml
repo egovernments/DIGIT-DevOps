@@ -17,34 +17,34 @@ initContainers:
     image:
       repository: "account-java-db"
     env: |
-        - name: "DB_URL"
-          valueFrom:
-            configMapKeyRef:
-              name: egov-config
-              key: db-url
-        - name: "SCHEMA_TABLE"
-          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
-        - name: "FLYWAY_USER"
-          valueFrom:
-            secretKeyRef:
-              name: db
-              key: flyway-username
-        - name: "FLYWAY_PASSWORD"
-          valueFrom:
-            secretKeyRef:
-              name: db
-              key: flyway-password
-        - name: JAVA_ENABLE_DEBUG
-          value: "TRUE"
-        - name: "FLYWAY_LOCATIONS"
-          valueFrom:
-            configMapKeyRef:
-              name: egov-config
-              key: flyway-locations
-        - name: FLYWAY_SCHEMAS
-          value: public
-        - name: FLYWAY_DEFAULT_SCHEMA
-          value: public
+      - name: "DB_URL"
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-url
+      - name: "SCHEMA_TABLE"
+        value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+      - name: "FLYWAY_USER"
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-username
+      - name: "FLYWAY_PASSWORD"
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-password
+      - name: JAVA_ENABLE_DEBUG
+        value: "TRUE"
+      - name: "FLYWAY_LOCATIONS"
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: flyway-locations
+      - name: FLYWAY_SCHEMAS
+        value: public
+      - name: FLYWAY_DEFAULT_SCHEMA
+        value: public
 
 # Container Configs
 image:
@@ -77,7 +77,7 @@ env: |
 
   - name: CANONICAL_API_PREFIX
     value: canonical
-    
+  
   - name: DB_HOST
     value: postgres.egov
   - name: DB_PORT
@@ -99,6 +99,8 @@ env: |
 
   - name: KEYCLOAK_BASE_URL
     value: http://keycloak.keycloak.svc.cluster.local:8080/keycloak
+  - name: KEYCLOAK_PUBLIC_BASE_URL
+    value: https://test-lts.digit.org/keycloak
   - name: KEYCLOAK_ADMIN_USER
     value: digit
   - name: KEYCLOAK_ADMIN_PASS
@@ -114,7 +116,7 @@ env: |
         name: citizen-broker-secret
         key: citizen-broker-client-secret
 
-  - name:EMPLOYEE_IAM_CLIENT_SECRET
+  - name: EMPLOYEE_IAM_CLIENT_SECRET
     valueFrom:
       secretKeyRef:
         name: employee-iam-secret
@@ -123,8 +125,18 @@ env: |
   - name: NOTIFICATION_BASE_URL
     valueFrom:
       configMapKeyRef:
-        key: notification
+        key: notification-java
         name: egov-service-host
+  - name: NOTIFICATION_EMAIL_SEND_PATH
+    value: notification/v3/email/send
+  - name: NOTIFICATION_PLATFORM_TENANT
+    value: default
+  - name: NOTIFICATION_TEMP_PASSWORD_TEMPLATE_ID
+    value: account-tenant-temp-password
+  - name: NOTIFICATION_TIMEOUT_SECONDS
+    value: "5"
+  - name: NOTIFICATION_ENABLED
+    value: "true"
 
 
   - name: OTP_BASE_URL

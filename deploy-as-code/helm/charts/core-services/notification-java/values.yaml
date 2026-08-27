@@ -55,6 +55,9 @@ healthChecks:
   livenessProbePath: "/notification/health"
   readinessProbePath: "/notification/health"
 appType: "java"
+# OTel span export switch (MANAGEMENT_TRACING_EXPORT_ENABLED) — override per
+# environment via the notification-java block in environments/<env>.yaml
+tracing-export-enabled: "false"
 # Resource configuration for Go service
 resources: |
   requests:
@@ -214,6 +217,6 @@ env: |
   # NB: the span switch is MANAGEMENT_TRACING_EXPORT_ENABLED — MANAGEMENT_TRACING_ENABLED
   # does not gate Boot's OTLP span exporter.
   - name: MANAGEMENT_TRACING_EXPORT_ENABLED
-    value: "false"
+    value: {{ index .Values "tracing-export-enabled" | quote }}
   - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
     value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/traces

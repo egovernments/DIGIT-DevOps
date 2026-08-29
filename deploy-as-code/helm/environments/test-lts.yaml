@@ -632,7 +632,19 @@ license-admin:
 
 license-citizen:
   image:
-    tag: dev-9dcff8a
+    # Repository contains "/" so common.image uses it verbatim (skips global.containerRegistry)
+    repository: "talele08/license-citizen"
+    tag: runtime-keycloak-url-b0e020d
+  # env is a string block that replaces the chart default wholesale, so
+  # API_PROXY_TARGET must be repeated here (internal Kong, same as license-employee —
+  # the chart default points at the digit-lts public host).
+  env: |
+    - name: API_PROXY_TARGET
+      value: "http://kong-kong-proxy.egov"
+    # Keycloak host the browser is redirected to for login; read at container
+    # start by nginx (env-config.js) — see license-certificate-ui feat/runtime-keycloak-url.
+    - name: KEYCLOAK_URL
+      value: "https://test-lts.digit.org/keycloak"
 
 license-employee:
   image:

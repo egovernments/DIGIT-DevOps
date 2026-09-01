@@ -34,16 +34,10 @@ java-args: "-Dspring.profiles.active=monitoring"
 
 # This service bundles OpenTelemetry's JDBC driver as a hard dependency, which
 # only accepts jdbc:otel:-prefixed URLs -- the common chart's default
-# SPRING_DATASOURCE_URL (db-url) causes HikariCP to fail with "Driver ...
-# OpenTelemetryDriver claims to not accept jdbcUrl". Override with the
-# otel-wrapped URL that's already provisioned in egov-config for this purpose.
-extraEnv:
-  app: |
-    - name: SPRING_DATASOURCE_URL
-      valueFrom:
-        configMapKeyRef:
-          name: egov-config
-          key: db-otel-url
+# SPRING_DATASOURCE_URL (db-url, plain jdbc:postgresql://) causes HikariCP to
+# fail immediately with "Driver ... OpenTelemetryDriver claims to not accept
+# jdbcUrl", keeping the pod permanently NotReady.
+otel_jdbc_url: true
 
 # Additional Container Envs
 env: |

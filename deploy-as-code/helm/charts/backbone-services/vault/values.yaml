@@ -364,6 +364,20 @@ server:
   # See vault.mode in _helpers.tpl for implementation details.
   enabled: "-"
 
+  # One-time post-`vault operator init` bootstrap (enables the kubernetes auth
+  # method, writes its config/policy/role). Disabled by default: it needs the
+  # real root token from init, which must never be hardcoded into a values
+  # file (encrypted or not). To use it, create a Secret in the same namespace
+  # as the vault server with the root token, point rootTokenSecret at it, set
+  # enabled: true, and remove/disable it again once bootstrap has run --
+  # otherwise this sidecar keeps sleeping forever with no further effect,
+  # but the token stays live in that Secret.
+  k8sAuthBootstrap:
+    enabled: false
+    rootTokenSecret:
+      name: vault-root-token-bootstrap
+      key: token
+
   # [Enterprise Only] This value refers to a Kubernetes secret that you have
   # created that contains your enterprise license. If you are not using an
   # enterprise image or if you plan to introduce the license key via another

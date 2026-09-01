@@ -73,6 +73,7 @@ spec:
         {{ toYaml .Values.server.extraInitContainers | nindent 8}}
       {{- end }}
       containers:
+      {{- if .Values.server.k8sAuthBootstrap.enabled }}
         - name: vault-k8s-auth-config
           image: {{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default "latest" }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
@@ -87,7 +88,7 @@ spec:
               done
 
               echo "Vault is ready, logging in..."
-              vault login <root token>
+              vault login "$VAULT_ROOT_TOKEN"
 
               echo "Writing Kubernetes auth config..."
               vault write auth/kubernetes/config \
@@ -113,9 +114,15 @@ spec:
           env:
             - name: VAULT_ADDR
               value: "http://127.0.0.1:8200"
+            - name: VAULT_ROOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.server.k8sAuthBootstrap.rootTokenSecret.name }}
+                  key: {{ .Values.server.k8sAuthBootstrap.rootTokenSecret.key }}
           volumeMounts:
             - name: home
               mountPath: /home/vault
+      {{- end }}
         - name: vault
           {{ template "vault.resources" . }}
           image: {{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default "latest" }}

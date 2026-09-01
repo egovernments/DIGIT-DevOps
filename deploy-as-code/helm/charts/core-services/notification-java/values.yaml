@@ -149,7 +149,15 @@ env: |
   - name: PUBSUB_TYPE
     value: kafka
   - name: KAFKA_BROKERS
-    value: release-name-kafka-controller-headless.kafka-kraft:9092
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
   - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
     value: "true"
   - name: KAFKA_PARTITION_COUNT
@@ -206,13 +214,15 @@ env: |
   - name: SCHEMA_SEPARATION_TOPIC
     value: account-migration
   - name: MIGRATION_FLYWAY_LOCATIONS
-    value: filesystem:/opt/digit/db/migrations
+    value: classpath:db/migration
   - name: MIGRATION_SCRIPT_PATH
     value: /opt/digit/migrate.sh
   - name: MIGRATION_FLYWAY_BIN
     value: /opt/flyway/flyway
   - name: MIGRATION_SCHEMA_TABLE
     value: notification_schema
+  - name: TRACER_PUBSUB_TYPE
+    value: kafka
   # ── Observability: OTel span export disabled ──────────────────────────────
   # NB: the span switch is MANAGEMENT_TRACING_EXPORT_ENABLED — MANAGEMENT_TRACING_ENABLED
   # does not gate Boot's OTLP span exporter.

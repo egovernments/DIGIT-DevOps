@@ -1,0 +1,58 @@
+server:
+  ingress:
+    hosts:
+      - host: uat-saas.digit.org
+        paths: [/ui]
+    tls:
+      - secretName: uat-saas.digit.org-tls-certs
+        hosts:
+          - uat-saas.digit.org
+  dataStorage:
+    storageClass: null
+  ha:
+    raft:
+      config: |
+        ui = true
+
+        listener "tcp" {
+          tls_disable = true
+          address     = "0.0.0.0:8200"
+          cluster_address = "0.0.0.0:8201"
+        }
+
+        storage "raft" {
+          path = "/vault/data"
+        }
+        # digit-lts uses AWS KMS auto-unseal (account-specific, unreachable from this
+        # Azure cluster). uat-saas uses Azure Key Vault instead, via the same Workload
+        # Identity pattern as argocd-repo-server's SOPS integration -- the Azure SDK's
+        # default credential chain picks up the AZURE_CLIENT_ID/AZURE_TENANT_ID/
+        # AZURE_FEDERATED_TOKEN_FILE env vars the AKS webhook injects once the pod is
+        # labeled and its service account annotated (managed identity "vault-unseal",
+        # federated to system:serviceaccount:vault-new:vault, granted Key Vault Crypto
+        # User on uat-saas-sops-kv). This makes Vault auto-unseal on every restart --
+        # `vault operator init` is still a one-time manual step (it produces recovery
+        # keys + a root token, which is a real key-custody decision, not something to
+        # automate), but no `vault operator unseal` is needed afterward.
+        seal "azurekeyvault" {
+          tenant_id  = "593ce202-d1a9-4760-ba26-ae35417c00cb"
+          vault_name = "uat-saas-sops-kv"
+          key_name   = "vault-unseal-key"
+        }
+        service_registration "kubernetes" {}
+
+        # Policy name: k8s-auth-config-policy
+        path "auth/kubernetes/config" {
+          capabilities = ["create", "update"]
+        }
+
+        path "auth/kubernetes/role/*" {
+          capabilities = ["create", "update", "read", "delete", "list"]
+        }
+  # Required for the AKS Workload Identity mutating webhook to act on this pod.
+  extraLabels:
+    azure.workload.identity/use: "true"
+  serviceAccount:
+    annotations:
+      azure.workload.identity/client-id: "7e8f5834-81a5-4db1-9e8a-2e92571a3ec8"
+      azure.workload.identity/tenant-id: "593ce202-d1a9-4760-ba26-ae35417c00cb"

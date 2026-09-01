@@ -29,11 +29,26 @@ spec:
         server: https://kubernetes.default.svc
         namespace: 'egov'
 
-      # Manual sync deliberately -- uat-saas.yaml is still being back-filled with
-      # values reverse-engineered from live cluster state. Review each diff before
-      # syncing until the env file coverage is confirmed complete for a service.
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
       ignoreDifferences:
         - group: apps
           kind: Deployment
           jsonPointers:
             - /spec/replicas
+            # common/_deployment.yaml stamps this from .Release.Time, so it changes
+            # on every render -- without this it would show permanent drift and
+            # (if selfHeal were ever enabled) force a rollout on every sync cycle.
+            - /spec/template/metadata/annotations/deployment-timestamp

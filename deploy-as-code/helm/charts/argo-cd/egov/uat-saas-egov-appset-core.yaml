@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: uat-saas-egov-appset-core
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: account
+
+  template:
+    metadata:
+      name: 'egov-{{name}}'
+
+    spec:
+      project: egov-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: uat-saas
+        path: deploy-as-code/helm/charts/core-services/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/uat-saas.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'egov'
+
+      # Manual sync deliberately -- uat-saas.yaml is still being back-filled with
+      # values reverse-engineered from live cluster state. Review each diff before
+      # syncing until the env file coverage is confirmed complete for a service.
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

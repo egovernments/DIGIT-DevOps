@@ -16,6 +16,33 @@ initContainers:
     schemaTable: "template_config_schema"
     image:
       repository: "template-config-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: "FLYWAY_SCHEMAS"
+          value: "public"
+        - name: "FLYWAY_DEFAULT_SCHEMA"
+          value: "public"
 
 # Container Configs
 image:
@@ -42,7 +69,7 @@ env: |
   - name: SERVER_CONTEXT_PATH
     value: "/template-config"
   - name: DB_HOST
-    value: "postgresql-lts.egov"
+    value: "postgres.egov"
   - name: DB_PORT
     value: "5432"
   - name: DB_USER

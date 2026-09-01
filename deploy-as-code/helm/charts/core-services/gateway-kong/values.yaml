@@ -13,7 +13,7 @@
 # Deployment parameters
 # -----------------------------------------------------------------------------
 
-fullnameOverride: "gateway-kong"
+fullnameOverride: "kong-kong"
 namespace: "egov"
 
 global:
@@ -95,10 +95,7 @@ initContainers:
             name: egov-config
             key: db-name
       - name: KONG_PG_HOST
-        valueFrom:
-          configMapKeyRef:
-            name: egov-config
-            key: db-host
+        value: postgres.egov
       - name: KONG_PG_PORT
         value: "5432"
       - name: KONG_PG_USER
@@ -149,7 +146,7 @@ env:
   admin_error_log: /dev/stderr
   admin_gui_error_log: /dev/stderr
   portal_api_error_log: /dev/stderr
-  prefix: /kong/
+  prefix: /kong_prefix/
   real_ip_header: X-Real-IP
   real_ip_recursive: "on"
   trusted_ips: 0.0.0.0/0
@@ -207,7 +204,9 @@ admin:
   http:
     # Enable plaintext HTTP listen for the admin API
     # Disabling this and using a TLS listen only is recommended for most configuration
-    enabled: false
+    # Enabled to match digit-lts: the ingress-controller sidecar talks to the admin
+    # API over plain HTTP on localhost:8001.
+    enabled: true
     servicePort: 8001
     containerPort: 8001
     # Set a nodePort which is available if service type is NodePort

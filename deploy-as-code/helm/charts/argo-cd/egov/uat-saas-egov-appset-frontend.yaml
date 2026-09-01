@@ -1,0 +1,54 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: uat-saas-egov-appset-frontend
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: workbench-ui
+
+  template:
+    metadata:
+      name: 'egov-{{name}}'
+
+    spec:
+      project: egov-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: uat-saas
+        path: deploy-as-code/helm/charts/frontend/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/uat-saas.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'egov'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+            # common/_deployment.yaml stamps this from .Release.Time, so it changes
+            # on every render -- without this it would show permanent drift and
+            # (if selfHeal were ever enabled) force a rollout on every sync cycle.
+            - /spec/template/metadata/annotations/deployment-timestamp

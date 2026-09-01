@@ -1,0 +1,104 @@
+# uat-saas overlay: swaps the AWS KMS + manual OIDC federation wiring in
+# values.yaml's repoServer section for native Azure AD Workload Identity
+# against Azure Key Vault. This is simpler than the AWS-on-AKS hack digit-lts
+# needs: the AKS Workload Identity webhook auto-injects AZURE_CLIENT_ID /
+# AZURE_TENANT_ID / AZURE_FEDERATED_TOKEN_FILE and mounts the token volume
+# itself once the pod is labeled and the service account is annotated -- no
+# manual projected-volume or AWS_ROLE_ARN-equivalent env vars needed.
+#
+# Prerequisites (already created, not by this chart):
+#   1. AKS cluster has Workload Identity enabled:
+#        az aks show -g uat-saas -n uat-saas --query securityProfile.workloadIdentity
+#   2. Managed identity "argocd-repo-server-sops" (clientId
+#      81c5f5c8-6e8f-4758-ab53-e07d3b66f191), federated to
+#      system:serviceaccount:argocd:argocd-repo-server via the AKS OIDC issuer.
+#   3. That identity has "Key Vault Crypto User" on uat-saas-sops-kv.
+#   4. .sops.yaml has a creation_rule for environments/uat-saas-secrets.yaml
+#      pointing at https://uat-saas-sops-kv.vault.azure.net/keys/sops-key/...
+
+repoServer:
+  # -- Environment variables to pass to repo server
+  ## helm-secrets/sops wiring: the plugin and sops binary are installed into the
+  ## shared gitops-tools emptyDir by the download-tools initContainer below.
+  ## No AWS_ROLE_ARN / AWS_WEB_IDENTITY_TOKEN_FILE here -- SOPS's Azure Key
+  ## Vault backend uses the Azure SDK default credential chain, which picks up
+  ## the AZURE_* env vars the Workload Identity webhook injects automatically.
+  env:
+    - name: HELM_PLUGINS
+      value: /gitops-tools/helm-plugins/
+    - name: HELM_SECRETS_SOPS_PATH
+      value: /gitops-tools/sops
+    - name: HELM_SECRETS_BACKEND
+      value: sops
+    - name: HELM_SECRETS_VALUES_ALLOW_SYMLINKS
+      value: "false"
+    - name: HELM_SECRETS_VALUES_ALLOW_ABSOLUTE_PATH
+      value: "true"
+    - name: HELM_SECRETS_VALUES_ALLOW_PATH_TRAVERSAL
+      value: "true"
+    - name: HELM_SECRETS_WRAPPER_ENABLED
+      value: "true"
+    - name: HELM_SECRETS_DECRYPT_SECRETS_IN_TMP_DIR
+      value: "true"
+    - name: HELM_SECRETS_HELM_PATH
+      value: /usr/local/bin/helm
+
+  # -- Init containers to add to the repo server pods
+  ## Same sops + helm-secrets download as the AWS overlay.
+  initContainers:
+    - name: download-tools
+      image: alpine:latest
+      imagePullPolicy: IfNotPresent
+      command: [sh, -euc]
+      env:
+        - name: HELM_SECRETS_VERSION
+          value: "4.7.7"
+        - name: SOPS_VERSION
+          value: "3.9.3"
+        - name: HELM_PLUGINS
+          value: /gitops-tools/helm-plugins/
+        - name: HELM_SECRETS_SOPS_PATH
+          value: /gitops-tools/sops
+      args:
+        - |
+          mkdir -p "${HELM_PLUGINS}"
+          export GO_ARCH=$(uname -m | sed -e 's/x86_64/amd64/' -e 's/\(arm\)\(64\)?\.\*/\1\2/' -e 's/aarch64$/arm64/')
+          wget -qO "${HELM_SECRETS_SOPS_PATH}" https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.${GO_ARCH}
+          wget -qO- https://github.com/jkroepke/helm-secrets/releases/download/v${HELM_SECRETS_VERSION}/helm-secrets.tar.gz | tar -C "${HELM_PLUGINS}" -xzf-
+          chmod +x "${HELM_SECRETS_SOPS_PATH}"
+          cp "${HELM_PLUGINS}/helm-secrets/scripts/wrapper/helm.sh" /gitops-tools/helm
+      volumeMounts:
+        - mountPath: /gitops-tools
+          name: gitops-tools
+
+  # -- Additional volumeMounts to the repo server main container
+  ## No AWS token mount here -- the Workload Identity webhook injects its own
+  ## token volume automatically based on the pod label below.
+  volumeMounts:
+    - mountPath: /gitops-tools
+      name: gitops-tools
+    - mountPath: /usr/local/sbin/helm
+      subPath: helm
+      name: gitops-tools
+
+  # -- Additional volumes to the repo server pod
+  volumes:
+    - name: gitops-tools
+      emptyDir: {}
+
+  # -- Labels to be added to repo server pods
+  ## Required for the AKS Workload Identity mutating webhook to act on this pod.
+  podLabels:
+    azure.workload.identity/use: "true"
+
+  ## Repo server service account
+  serviceAccount:
+    create: true
+    ## Pinned so it matches the federated credential's subject:
+    ## system:serviceaccount:argocd:argocd-repo-server
+    name: "argocd-repo-server"
+    ## Tells the Workload Identity webhook which managed identity to federate
+    ## tokens for.
+    annotations:
+      azure.workload.identity/client-id: "81c5f5c8-6e8f-4758-ab53-e07d3b66f191"
+      azure.workload.identity/tenant-id: "593ce202-d1a9-4760-ba26-ae35417c00cb"

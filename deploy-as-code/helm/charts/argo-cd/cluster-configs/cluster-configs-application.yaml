@@ -1,29 +1,30 @@
-## Deploys the cluster-configs Helm chart onto the digit-lts AKS cluster.
+## Deploys the cluster-configs Helm chart onto the uat-saas AKS cluster.
 ##
 ## The third valueFiles entry uses the secrets:// scheme, which requires
-## argocd-repo-server to decrypt via SOPS/AWS KMS -- that wiring lives in
-## deploy-as-code/helm/charts/backbone-services/argo-cd/values-azure-aks.yaml
+## argocd-repo-server to decrypt via SOPS/Azure Key Vault -- that wiring lives
+## in deploy-as-code/helm/charts/backbone-services/argo-cd/values-azure-keyvault-sops.yaml
+## (Azure AD Workload Identity, not the AWS KMS wiring digit-lts/test-lts use).
 ##
 ## valueFiles paths resolve relative to spec.sources[].path, i.e.
-##   ../../environments/digit-lts.yaml
-##     -> deploy-as-code/helm/environments/digit-lts.yaml          (plain values)
-##   secrets://../../environments/digit-lts-secrets.yaml
-##     -> deploy-as-code/helm/environments/digit-lts-secrets.yaml  (SOPS-encrypted)
+##   ../../environments/uat-saas.yaml
+##     -> deploy-as-code/helm/environments/uat-saas.yaml          (plain values)
+##   secrets://../../environments/uat-saas-secrets.yaml
+##     -> deploy-as-code/helm/environments/uat-saas-secrets.yaml  (SOPS-encrypted)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: digit-lts-cluster-configs
+  name: uat-saas-cluster-configs
   namespace: argocd
 spec:
   project: cluster-configs-project
   sources:
     - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
-      targetRevision: digit-lts
+      targetRevision: uat-saas
       path: "deploy-as-code/helm/charts/cluster-configs"
       helm:
         valueFiles:
           - values.yaml
-          - ../../environments/test-lts.yaml
-          - secrets://../../environments/test-lts-secrets.yaml
+          - ../../environments/uat-saas.yaml
+          - secrets://../../environments/uat-saas-secrets.yaml
   destination:
     server: https://kubernetes.default.svc

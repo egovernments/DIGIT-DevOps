@@ -13,14 +13,34 @@
 # Deployment parameters
 # -----------------------------------------------------------------------------
 
-# Must stay "kong-kong": this is the name the rest of the platform routes to.
+# The rest of the platform routes to kong-kong-proxy, NOT gateway-kong-proxy:
 # charts/common/templates/_ingress.yaml uses kong-kong-proxy as the ingress
 # backend for every chart, and license-validator, license-employee and the
-# test-lts environment all point at http://kong-kong-proxy.egov. This chart's
-# _helpers.tpl builds the name from `default (printf "%s" $name) fullnameOverride`
-# -- only the chart name, not Release.Name-chartName like upstream Kong -- so
-# dropping this override would yield "kong-proxy", not "kong-kong-proxy".
-fullnameOverride: "kong-kong"
+# test-lts environment all point at http://kong-kong-proxy.egov. So this name
+# is wrong, but it CANNOT simply be changed to "kong-kong" yet -- two blockers:
+#
+#   1. egov already runs a kong-kong Deployment from an older manual Helm
+#      install (instance=release-name, chart kong-3.0.1). Its spec.selector
+#      carries app.kubernetes.io/instance: release-name, and spec.selector is
+#      IMMUTABLE. Rendering this chart as kong-kong makes Argo try to patch
+#      that Deployment with instance: egov-gateway-kong, which the API server
+#      rejects ("field is immutable"), leaving the app permanently Degraded
+#      and retrying. Adopting it requires deleting the old Deployment first.
+#   2. This chart's image, egovio/kong:3.5, does not exist -- Docker Hub has
+#      3.6 but no 3.5 -- so gateway-kong pods sit in Init:ImagePullBackOff.
+#      The working gateway runs egovio/kong:master-9b942c2 plus
+#      mithunhegdeegov/gateway-kong:multiarch2/multiarch3.
+#
+# Because of (2) the old manual kong-kong is the ONLY working gateway, so do
+# not delete it to force adoption -- that would take the gateway down with no
+# runnable replacement. Fix the image first, then rename and adopt in one
+# planned step (delete old Deployment -> let Argo recreate as kong-kong).
+#
+# Note this chart's _helpers.tpl builds the name from
+# `default (printf "%s" $name) .Values.fullnameOverride` -- only the chart
+# name, not Release.Name-chartName like upstream Kong -- so removing this
+# override entirely would yield "kong-proxy", not "kong-kong-proxy".
+fullnameOverride: "gateway-kong"
 namespace: "egov"
 
 global:

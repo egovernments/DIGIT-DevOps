@@ -1,0 +1,94 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  # Owns the backbone-* Applications. This manifest previously existed only in
+  # the cluster -- it was never committed on the digit-lts branch, so when the
+  # ApplicationSet was deleted there was nothing to reapply from and it had to
+  # be reconstructed from a surviving Application's ownerReferences. Keep it
+  # here so a delete is recoverable with `kubectl apply -f`.
+  name: digit-lts-backbone-appset-backbone
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        # Each element carries its own namespace because the template uses
+        # {{namespace}} -- backbone services are not all in the backbone ns in
+        # every environment. Every namespace listed here must also appear in
+        # backbone-project's destinations, or the Application is rejected with
+        # "application destination is not permitted in project".
+        #
+        # kafka is deliberately ABSENT. This cluster already runs a Kafka from
+        # an older manual Helm install whose StatefulSet is
+        # release-name-kafka-controller (48d, healthy). Adding a kafka-kraft
+        # element here renders a SECOND, differently-named StatefulSet
+        # (backbone-kafka-kraft-controller) with its own fresh PVCs, so the
+        # cluster ends up with two Kafka clusters and services pointing at the
+        # wrong one. Adopting the existing release would need its Deployment/
+        # StatefulSet recreated, since spec.selector is immutable.
+        elements:
+          - name: elasticsearch-master
+            namespace: backbone
+          - name: elasticsearch-data
+            namespace: backbone
+          - name: kibana
+            namespace: backbone
+          - name: minio
+            namespace: backbone
+
+  template:
+    metadata:
+      name: 'backbone-{{name}}'
+
+    spec:
+      project: backbone-project
+
+      source:
+        # HTTPS, not git@ SSH: backbone-project's sourceRepos must list whatever
+        # is used here. The sibling egov backbone appset shipped the SSH form and
+        # every app it generated failed with "InvalidSpecError: application repo
+        # ... is not permitted in project 'egov-project'".
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: digit-lts
+        path: deploy-as-code/helm/charts/backbone-services/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/digit-lts.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+
+      syncPolicy:
+        automated:
+          # prune:false so a rendering mistake cannot delete backbone state.
+          # Note this does NOT protect against deleting the ApplicationSet or an
+          # Application: the Applications carry
+          # resources-finalizer.argocd.argoproj.io, so removing an element (or
+          # the appset) cascade-deletes that Application's workloads. That is
+          # how the elasticsearch StatefulSets were lost; only the PVCs survived,
+          # via the StatefulSets' own Retain retention policy.
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+          - CreateNamespace=true
+          - SkipDryRunOnMissingResource=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        # replicas is owned by the HPA / by manual scaling, not by git.
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+        - group: apps
+          kind: StatefulSet
+          jsonPointers:
+            - /spec/replicas

@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  # Exported from the live cluster. This AppProject was never committed on the
+  # digit-lts branch -- the same gap that made the ApplicationSet deletion
+  # unrecoverable. If this project is deleted, every backbone-* Application
+  # immediately fails with "application destination is not permitted in
+  # project", even though the workloads themselves are untouched.
+  #
+  # NOTE this deliberately matches the LIVE digit-lts project, which is narrower
+  # than the unified-env-lts variant of this file: that one also permits the
+  # playground, clickhouse, airflow and security namespaces and carries a
+  # clusterResourceWhitelist. Those namespaces do not exist in this cluster, so
+  # they are not listed here. Add a destination BEFORE adding an element to
+  # backbone-app-set-backbone.yaml that targets a new namespace, or the
+  # generated Application is rejected.
+  name: backbone-project
+  namespace: argocd
+spec:
+  description: Backbone services for the Azure AKS digit-lts environment
+
+  sourceRepos:
+    # Both forms are permitted because appsets in this repo have historically
+    # shipped either. Whatever an ApplicationSet template puts in source.repoURL
+    # must appear here verbatim -- Argo matches the string, so the https and
+    # git@ forms of the same repo are two different entries.
+    - https://github.com/egovernments/DIGIT-DevOps.git
+    - git@github.com:egovernments/DIGIT-DevOps.git
+
+  destinations:
+    - namespace: backbone
+      server: https://kubernetes.default.svc

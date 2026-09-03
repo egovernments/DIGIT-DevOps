@@ -88,7 +88,13 @@ env: |
   - name: SERVER_PORT
     value: "8080"
   - name: SERVER_SERVLET_CONTEXT_PATH
-    value: /url-shortener-java
+    # Must match ingress.context (/url-shortener) -- they were out of step.
+    # The ingress/kong route advertises /url-shortener, and in-cluster callers use
+    # /url-shortener/... too, but the app served /url-shortener-java, so every request 404'd with a
+    # bare Tomcat error page. For idgen this broke bill generation: billing
+    # POSTs /url-shortener/... and got 404, which calculator surfaced to the
+    # UI as 502 Bad Gateway on /calculator/calculation/v3/*/confirm.
+    value: /url-shortener
   # ── Datasource ──────────────────────────────────────────────────────────
   - name: SPRING_DATASOURCE_URL
     valueFrom:

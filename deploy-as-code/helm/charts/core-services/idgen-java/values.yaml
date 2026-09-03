@@ -83,7 +83,13 @@ env: |
   - name: SERVER_PORT
     value: "8080"
   - name: SERVER_SERVLET_CONTEXT_PATH
-    value: /idgen-java
+    # Must match ingress.context (/idgen) -- they were out of step.
+    # The ingress/kong route advertises /idgen, and in-cluster callers use
+    # /idgen/... too, but the app served /idgen-java, so every request 404'd with a
+    # bare Tomcat error page. For idgen this broke bill generation: billing
+    # POSTs /idgen/v3/generate and got 404, which calculator surfaced to the
+    # UI as 502 Bad Gateway on /calculator/calculation/v3/*/confirm.
+    value: /idgen
   # ── Datasource ──────────────────────────────────────────────────────────
   - name: SPRING_DATASOURCE_URL
     valueFrom:

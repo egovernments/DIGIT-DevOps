@@ -167,10 +167,12 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: egov-state-level-tenant-id
-  {{- if index .Values "tracing-enabled" }}
-  - name: TRACER_OPENTRACING_ENABLED
-    value: "true" 
-  {{- end }}
+  # TRACER_OPENTRACING_ENABLED intentionally NOT set here: common's
+  # extraEnv.jaeger already emits it under the same `tracing-enabled`
+  # condition. Declaring it in both places produced a duplicate env key,
+  # which ServerSideApply cannot build a typed value from, so Argo failed
+  # with "error calculating structured merge diff: duplicate entries for
+  # key [name=\"TRACER_OPENTRACING_ENABLED\"]" and the app never synced.
   {{- if index .Values "time-before-closing-complaint" }}
   - name: PGR_COMPLAIN_IDLE_TIME
     value: {{ index .Values "time-before-closing-complaint" | quote }} 
@@ -184,8 +186,12 @@ env: |
     value: "true"    
   - name: PGR_USER_INTEGRATION_ENABLED
     value: "false" 
-  - name: SPRING_DATASOURCE_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-otel-url
+  # SPRING_DATASOURCE_URL intentionally NOT set here. common's extraEnv.java
+  # emits it (key: db-url) AFTER this block, and Kubernetes takes the LAST
+  # duplicate -- so this db-otel-url entry never took effect, it only created a
+  # duplicate env key that ServerSideApply rejects ("duplicate entries for key").
+  # Removing it is behaviour-preserving: the pod already resolved db-url.
+  # NOTE: that means OpenTelemetry JDBC instrumentation is NOT active for this
+  # service even though the chart looks like it enables it. egov-config does
+  # define db-otel-url, so enabling it is a deliberate change: override
+  # extraEnv.java, or set the value after common's block rather than before.

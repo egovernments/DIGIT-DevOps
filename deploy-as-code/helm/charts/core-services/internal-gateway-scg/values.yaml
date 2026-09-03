@@ -47,10 +47,12 @@ env: |
     value: "20000"
   - name: ZUUL_HOST_SOCKET_TIMEOUT_MILLIS
     value: "60000"
-  {{- if index .Values "tracing-enabled" }}
-  - name: TRACER_OPENTRACING_ENABLED
-    value: "true"
-  {{- end }}
+  # TRACER_OPENTRACING_ENABLED intentionally NOT set here: common's
+  # extraEnv.jaeger already emits it under the same `tracing-enabled`
+  # condition. Declaring it in both places produced a duplicate env key,
+  # which ServerSideApply cannot build a typed value from, so Argo failed
+  # with "error calculating structured merge diff: duplicate entries for
+  # key [name=\"TRACER_OPENTRACING_ENABLED\"]" and the app never synced.
   - name: SECURITY_BASIC_ENABLED
     value: "false"
   - name: MANAGEMENT_SECURITY_ENABLED

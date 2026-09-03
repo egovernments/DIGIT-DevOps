@@ -159,10 +159,12 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: egov-state-level-tenant-id
-  {{- if index .Values "tracing-enabled" }}
-  - name: TRACER_OPENTRACING_ENABLED
-    value: "true" 
-  {{- end }}
+  # TRACER_OPENTRACING_ENABLED intentionally NOT set here: common's
+  # extraEnv.jaeger already emits it under the same `tracing-enabled`
+  # condition. Declaring it in both places produced a duplicate env key,
+  # which ServerSideApply cannot build a typed value from, so Argo failed
+  # with "error calculating structured merge diff: duplicate entries for
+  # key [name=\"TRACER_OPENTRACING_ENABLED\"]" and the app never synced.
   {{- if index .Values "time-before-closing-complaint" }}
   - name: PGR_COMPLAIN_IDLE_TIME
     value: {{ index .Values "time-before-closing-complaint" | quote }} 

@@ -4,11 +4,31 @@ metadata:
   name: digit-lts-egov-appset-backbone
   namespace: argocd
 spec:
+  # Without this, removing an element below (or deleting this ApplicationSet)
+  # deletes the generated Application, and because each Application carries
+  # resources-finalizer.argocd.argoproj.io that cascade-deletes everything it
+  # manages. That is how the elasticsearch StatefulSets were lost earlier.
+  # preserveResourcesOnDeletion leaves the live objects in place and only
+  # removes the Application, i.e. Argo stops managing them.
+  syncPolicy:
+    preserveResourcesOnDeletion: true
+
   generators:
     - list:
+        # cert-manager and ingress-nginx are deliberately NOT managed here.
+        # Both were originally installed manually, so their Deployments carry
+        # spec.selector app.kubernetes.io/instance=release-name while this chart
+        # renders instance=egov-<name>. spec.selector is immutable, so Argo can
+        # never reconcile them -- it only managed to update the Services, which
+        # left the Service selectors pointing at labels no pod had, taking the
+        # endpoints to 0. For ingress-nginx that means every ingress stops
+        # routing and the UI goes down.
+        #
+        # They are left as unmanaged (orphaned) live resources. To bring either
+        # back under Argo, its Deployment must be deleted and recreated so the
+        # new selector can be applied -- schedule that deliberately, because for
+        # ingress-nginx it is a brief full outage of all ingress traffic.
         elements:
-          - name: cert-manager
-          - name: ingress-nginx
           - name: oauth2-proxy
           - name: pgbouncer
           - name: postgres

@@ -72,7 +72,7 @@ resource "azurerm_automation_runbook" "scaler" {
   log_verbose             = true
   log_progress            = true
   runbook_type            = "PowerShell"
-  description             = "Scale the AKS main node pool to a target count (0 at night / desired in the morning)."
+  description             = "Stop the AKS cluster at night and start it in the morning. Cluster stop/start is used instead of draining the node pool to 0, because draining cannot satisfy the Elasticsearch PDBs."
 
   content = file("${path.module}/runbook.ps1")
 
@@ -89,7 +89,7 @@ resource "azurerm_automation_schedule" "scale_up" {
   week_days               = var.schedule_week_days
   timezone                = var.schedule_timezone
   start_time              = local.scale_up_start
-  description             = "Scale main node pool up to desired count (weekdays only)"
+  description             = "Start the AKS cluster (weekday mornings). Node pools return to their previous counts."
 
   # start_time is recomputed each plan (uses timestamp()); only the time-of-day
   # matters after creation, so ignore drift to avoid perpetual diffs / recreation.
@@ -105,12 +105,15 @@ resource "azurerm_automation_job_schedule" "scale_up" {
   schedule_name           = azurerm_automation_schedule.scale_up.name
 
   # NOTE: Automation lowercases parameter names, so the keys here are lowercase.
+  # nodepoolname/nodecount are deliberately gone: the runbook now stops and starts
+  # the whole cluster rather than draining the node pool to 0, because draining can
+  # never satisfy the Elasticsearch PDBs. Start-AzAksCluster restores each pool at
+  # its previous node count, so no target count needs to be passed in.
   parameters = {
     subscriptionid = var.subscription_id
     resourcegroup  = var.resource_group
     clustername    = var.aks_cluster_name
-    nodepoolname   = var.node_pool_name
-    nodecount      = tostring(var.desired_count)
+    action         = "Start"
   }
 }
 
@@ -124,7 +127,7 @@ resource "azurerm_automation_schedule" "scale_down" {
   week_days               = var.schedule_week_days
   timezone                = var.schedule_timezone
   start_time              = local.scale_down_start
-  description             = "Scale main node pool down to 0 (weekday evenings; stays down over the weekend)"
+  description             = "Stop the AKS cluster (weekday evenings; stays stopped over the weekend)."
 
   lifecycle {
     ignore_changes = [start_time]
@@ -141,7 +144,6 @@ resource "azurerm_automation_job_schedule" "scale_down" {
     subscriptionid = var.subscription_id
     resourcegroup  = var.resource_group
     clustername    = var.aks_cluster_name
-    nodepoolname   = var.node_pool_name
-    nodecount      = "0"
+    action         = "Stop"
   }
 }

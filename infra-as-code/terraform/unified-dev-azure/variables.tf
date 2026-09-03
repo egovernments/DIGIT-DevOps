@@ -131,8 +131,8 @@ variable "main_vm_size" {
 }
 
 variable "node_count" {
-  description = "Desired number of nodes in the main User node pool (morning scale-up target)"
-  default     = 6
+  description = "Desired number of nodes in the main User node pool"
+  default     = 8
 }
 
 variable "os_disk_size_gb" {
@@ -155,9 +155,9 @@ variable "db_backup_retention_days" {
   default     = "7"
 }
 
-# ---- Scheduling (night scale-to-0 / morning scale-up of the main node pool) ----
+# ---- Scheduling (stop the cluster at night / start it in the morning) ----
 variable "scheduling" {
-  description = "When true, create Azure Automation + runbook + schedules to scale the main node pool to 0 at night and up to node_count in the morning"
+  description = "When true, create Azure Automation + runbook + schedules to stop the AKS cluster at night and start it in the morning. Cluster stop/start is used rather than draining the node pool to 0, because draining cannot satisfy the Elasticsearch PDBs."
   type        = bool
   default     = true
 }
@@ -169,13 +169,13 @@ variable "subscription_id" {
 }
 
 variable "scale_up_time" {
-  description = "Local wall-clock time (HH:MM) to scale the main node pool UP to node_count"
+  description = "Local wall-clock time (HH:MM) to start the cluster"
   type        = string
   default     = "08:30"
 }
 
 variable "scale_down_time" {
-  description = "Local wall-clock time (HH:MM) to scale the main node pool DOWN to 0"
+  description = "Local wall-clock time (HH:MM) to stop the cluster"
   type        = string
   default     = "21:00"
 }
@@ -193,7 +193,7 @@ variable "schedule_utc_offset" {
 }
 
 variable "schedule_week_days" {
-  description = "Days the scale up/down schedules run on. Defaults to weekdays so nodes stay down all weekend"
+  description = "Days the start/stop schedules run on. Defaults to weekdays so the cluster stays stopped all weekend"
   type        = list(string)
   default     = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 }

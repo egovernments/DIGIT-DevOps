@@ -111,8 +111,11 @@ module "kubernetes" {
   main_node_count = var.node_count
 }
 
-# Optional: Azure Automation + runbook + schedules to scale the main node pool
-# down to 0 at night and back up to the desired count in the morning.
+# Optional: Azure Automation + runbook + schedules to stop the AKS cluster at
+# night and start it again in the morning. Cluster stop/start is used rather
+# than draining the main node pool to 0: draining evicts pods, and eviction can
+# never satisfy the Elasticsearch PDBs (3 masters, maxUnavailable 1), which is
+# what broke the nightly job on 2026-08-21.
 # Created only when var.scheduling = true.
 module "scheduling" {
   count  = var.scheduling ? 1 : 0

@@ -47,6 +47,10 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 app.kubernetes.io/name: {{ template "kong.name" . }}
 helm.sh/chart: {{ template "kong.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- /* kong.selectorLabels matches on app.kubernetes.io/instance, so the pod
+       template must carry it or the Deployment is rejected with
+       "selector does not match template labels". Present upstream, dropped here. */}}
+app.kubernetes.io/instance: "{{ .Release.Name }}"
 {{- range $key, $value := .Values.extraLabels }}
 {{ $key }}: {{ include "kong.renderTpl" (dict "value" $value "context" $) | quote }}
 {{- end }}

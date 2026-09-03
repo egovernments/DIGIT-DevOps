@@ -10,3 +10,21 @@ spec:
   destinations:
     - namespace: 'egov'
       server: https://kubernetes.default.svc
+
+  ## Two charts render cluster-scoped objects. With no clusterResourceWhitelist an
+  ## AppProject permits none of them, and the whole sync fails with
+  ## "one or more synchronization tasks are not valid".
+  ##
+  ##   gateway       ClusterRole, ClusterRoleBinding (kubernetes service discovery)
+  ##   gateway-kong  9 CustomResourceDefinition (configuration.konghq.com)
+  clusterResourceWhitelist:
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

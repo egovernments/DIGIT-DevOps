@@ -29,13 +29,28 @@ spec:
   replicas: {{ .Values.replicas }}
   template:
     metadata:  
+      {{- /*
+        The deployment-timestamp annotation was removed. It rendered
+            deployment-timestamp: "{{ date "20060102150405" .Release.Time }}"
+        which evaluates to the time of the render, so every render produced a
+        different pod template. Under Argo CD that means the app is permanently
+        OutOfSync and selfHeal rolls every pod on each sync, even when nothing
+        about the service changed. Verified by rendering the same chart twice 3s
+        apart: 20260903144432 then 20260903144435.
+
+        It only made sense under `helm upgrade`, where a changing annotation is
+        how you force a restart on an otherwise-identical chart. With GitOps the
+        opposite is wanted: the manifest must be a pure function of the commit.
+        To force a restart now, use `kubectl rollout restart` or bump something
+        real (an image tag or a config checksum).
+
+        annotations: is emitted only when additionalAnnotations is set, so we do
+        not leave an empty `annotations:` key rendering as null.
+      */}}
+      {{- if .Values.additionalAnnotations }}
       annotations:
-      {{- if not .Values.disableAnnotationTimestamp }}      
-        deployment-timestamp: "{{ date "20060102150405" .Release.Time }}"    
-      {{- end }}          
-      {{- if .Values.additionalAnnotations }}                                   
         {{- tpl  .Values.additionalAnnotations . | nindent 8 }}
-      {{- end }}        
+      {{- end }}
       labels:
       {{- include "common.labels" . | nindent 8 }}            
     spec:

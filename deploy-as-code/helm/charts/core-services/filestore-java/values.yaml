@@ -84,8 +84,11 @@ env: |
     value: "8080"
   - name: SERVER_CONTEXT_PATH
     value: /filestore
+  # DB fix: must match the instance the db-migration init container migrates
+  # (egov-config db-url -> postgres.egov), same as boundary-java and the rest
+  # of the stack. Was postgresql-lts.egov, which has no tables.
   - name: DB_HOST
-    value: postgresql-lts.egov
+    value: postgres.egov
   - name: DB_PORT
     value: "5432"
   - name: DB_SSL_MODE
@@ -102,30 +105,32 @@ env: |
       secretKeyRef:
         key: password
         name: db
+  # Storage fix: Azure env — use MinIO, not AWS S3. S3_SOURCE stays "s3"
+  # (that value selects the S3-compatible MinIO client; anything else falls
+  # back to local disk). No S3_REGION for MinIO. Credentials come from the
+  # "minio" secret (accesskey/secretkey).
   - name: MINIO_USE_SSL
-    value: "false"
+    value: "true"
   - name: S3_BUCKET
     value: unified-dev-bucket-s3
   - name: S3_READ_BUCKET
     value: unified-dev-bucket-s3
   - name: S3_USE_SSL
     value: "true"
-  - name: S3_REGION
-    value: ap-south-1
   - name: S3_ACCESS_KEY
     valueFrom:
       secretKeyRef:
-        key: awskey
-        name: egov-filestore
+        name: minio
+        key: accesskey
   - name: S3_SECRET_KEY
     valueFrom:
       secretKeyRef:
-        key: awssecretkey
-        name: egov-filestore
+        name: minio
+        key: secretkey
   - name: S3_SOURCE
     value: s3
   - name: S3_ENDPOINT
-    value: s3.ap-south-1.amazonaws.com
+    value: minio-api.test-lts.digit.org
   - name: OTEL_ENABLED
     value: "true"
   - name: OTEL_SERVICE_NAME

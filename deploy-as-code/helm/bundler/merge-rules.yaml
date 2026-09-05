@@ -1,0 +1,152 @@
+# Merge policy for generate_bundle_chart.py.
+#
+# The generator merges the rendered env of every member service chart into one
+# bundle chart. This file says which env vars are dropped (with the reason kept
+# in the generation report) and how same-name-different-value conflicts are
+# resolved. A `helm:` section in the bundle manifest (dev-bundle.package.yaml)
+# can extend/override everything here — this file is only the DevOps-side
+# default policy.
+
+# Env vars removed from every member chart before merging.
+drop:
+  # ── One JVM = one server: port/context-path plumbing is per-service noise.
+  # The bundle app mounts each service under its manifest prefix internally.
+  - name: SERVER_PORT
+    reason: bundle sets its own single SERVER_PORT from manifest bundle.port
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    reason: context paths are handled by the bundle's path-prefix mapping
+  - name: SERVER_CONTEXT_PATH
+    reason: context paths are handled by the bundle's path-prefix mapping
+  - name: CONTEXT_PATH
+    reason: context paths are handled by the bundle's path-prefix mapping
+  - name: HTTP_PORT
+    reason: bundle sets its own single SERVER_PORT
+  - name: PORT
+    reason: bundle sets its own single SERVER_PORT
+  # ── One JVM = one heap.
+  - name: JAVA_OPTS
+    reason: bundle renders JAVA_OPTS from its own .Values.heap
+  - name: JAVA_ENABLE_DEBUG
+    reason: per-service debug flag; enable on the bundle explicitly if needed
+  # ── tenant-migration: the bundle library runs one registration per service
+  # (schema tables baked into the bundle jar's properties); only the global
+  # enabled switch survives, as a contract env below.
+  - name: TENANT_MIGRATION_ENABLED
+    reason: replaced by the single bundle-level contract env
+  - name: TENANT_MIGRATION_SCHEMA_TABLE
+    reason: per-service schema tables are baked into the bundle jar
+  - name: TENANT_MIGRATION_CONSUMER_GROUP
+    reason: one consumer group per bundle JVM
+  - pattern: '^SCHEMA_SEPARATION_'
+    reason: Go-dialect tenant-migration env; bundle uses the Java library keys
+  - pattern: '^MIGRATION_'
+    reason: Go-dialect runtime-migration env; superseded by tenant-migration lib
+  # ── Datasource: the bundle's contract is the discrete DB_* vars that its
+  # application-bundle.properties composes into one spring.datasource.url.
+  # SPRING_DATASOURCE_* env would silently override that property for the
+  # whole JVM, so the Spring-dialect charts' entries are dropped and DB_*
+  # contract envs are added instead.
+  - name: SPRING_DATASOURCE_URL
+    reason: bundle datasource is composed from the DB_* contract envs
+  - name: SPRING_DATASOURCE_USERNAME
+    reason: bundle datasource is composed from the DB_* contract envs
+  - name: SPRING_DATASOURCE_PASSWORD
+    reason: bundle datasource is composed from the DB_* contract envs
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    reason: bundle property spring.kafka.bootstrap-servers reads ${KAFKA_BROKERS}
+  - name: SPRING_DATA_REDIS_HOST
+    reason: bundle property spring.data.redis.host reads ${REDIS_HOST}
+  - name: SPRING_DATA_REDIS_PORT
+    reason: bundle property spring.data.redis.port reads ${REDIS_PORT}
+  - name: SPRING_FLYWAY_ENABLED
+    reason: uniform false in every service's own defaults; init containers migrate public
+  # ── Observability: one JVM = one posture, driven by the bundle's
+  # OTEL_ENABLED / OTEL_METRICS_ENABLED contract envs. Per-service Boot
+  # management switches would apply context-wide and fight each other.
+  - pattern: '^MANAGEMENT_'
+    reason: one observability posture per JVM via OTEL_* contract envs
+  - name: OTEL_ENABLED
+    reason: replaced by the bundle-level contract env
+  - name: OTEL_METRICS_ENABLED
+    reason: replaced by the bundle-level contract env
+  - name: PROMETHEUS_PORT
+    reason: metrics are served from the single actuator endpoint
+  - name: TRACER_PUBSUB_TYPE
+    reason: bundle property tracer.pubsub.type reads ${PUBSUB_TYPE}
+  - name: PUBSUB_ENABLED
+    reason: one pub/sub client per JVM; gate publishing per service via properties
+  - pattern: '^JAEGER_'
+    reason: legacy Jaeger env; digit3 tracer exports OTLP via the OTEL_* contract envs
+  - name: OTEL_SERVICE_NAME
+    reason: one JVM = one tracer service name (defaults to the bundle)
+  - name: JAVA_ARGS
+    reason: one JVM = one arg line (NB pg-service standalone activated a `monitoring` profile here)
+  # Per-service identity vars: every service's own value ships inside the bundle
+  # jar's <service>-defaults.properties; a single env var would collapse them all
+  # to one value across the JVM.
+  - name: KAFKA_CONSUMER_GROUP
+    reason: per-service consumer groups come from the bundle jar's per-service defaults
+  - name: REDIS_CONSUMER_GROUP
+    reason: per-service consumer groups come from the bundle jar's per-service defaults
+  - name: REDIS_CONSUMER_ID
+    reason: per-service consumer ids come from the bundle jar's per-service defaults
+  - name: MESSAGE_BROKER_ENABLED
+    reason: per-service publish gates live in the bundle jar's per-service defaults
+
+# Same-name-different-value conflicts: the resolution the bundle chart ships.
+# Anything not listed here that conflicts is reported and first-in-manifest-order
+# wins (loudly).
+resolve:
+  # account says redis, everything else kafka; account-migration must reach the
+  # in-JVM tenant-migration consumer, which follows tracer.pubsub.type.
+  PUBSUB_TYPE:
+    value: "kafka"
+  # employee pointed at the public digit-lts URL, account at the in-cluster
+  # service — in-cluster wins (account's realm-per-tenant provisioning is the
+  # heavyweight consumer).
+  KEYCLOAK_BASE_URL:
+    value: "http://keycloak.keycloak.svc.cluster.local:8080/keycloak"
+  # workflow said info, account said DEBUG; one JVM = one root level.
+  LOG_LEVEL:
+    value: "info"
+  # otp hardcoded the vault-new namespace URL, individual read the service-host
+  # configmap — the configmap is the single source of truth.
+  VAULT_HOST:
+    valueFrom:
+      configMapKeyRef: {name: egov-service-host, key: vault-host}
+
+# Env the bundle adds regardless of what members declared (its documented env
+# contract from application-bundle.properties). All overridable per environment
+# via the bundle's block in environments/<env>.yaml.
+contractEnv:
+  DB_HOST:
+    valueFrom:
+      configMapKeyRef: {name: egov-config, key: db-host}
+  DB_PORT:
+    value: "5432"
+  DB_NAME:
+    valueFrom:
+      configMapKeyRef: {name: egov-config, key: db-name}
+  DB_USER:
+    valueFrom:
+      secretKeyRef: {name: db, key: username}
+  DB_PASSWORD:
+    valueFrom:
+      secretKeyRef: {name: db, key: password}
+  DB_SSL_MODE:
+    value: "disable"
+  KAFKA_BROKERS:
+    valueFrom:
+      configMapKeyRef: {name: egov-config, key: kafka-brokers}
+  REDIS_HOST:
+    value: "redis.backbone.svc.cluster.local"
+  REDIS_PORT:
+    value: "6379"
+  PUBSUB_TYPE:
+    value: "kafka"
+  TENANT_MIGRATION_ENABLED:
+    value: "false"
+  OTEL_ENABLED:
+    value: "false"
+  OTEL_METRICS_ENABLED:
+    value: "false"

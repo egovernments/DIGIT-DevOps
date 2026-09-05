@@ -193,21 +193,21 @@ cluster-configs:
                 license-validator: "http://license-validator.egov:8080/"
                 calculator: "http://calculator.egov:8080/"
                 vc: "http://vc.egov:8080/"
-                idgen-java: "http://idgen-java:8080/"
-                template-config-java: "http://template-config-java:8080/"
-                individual-java: "http://individual-java:8080/"
-                boundary-java: "http://boundary-java:8080/"
-                otp-java: "http://otp-java:8080/"
+                idgen-java: "http://dev-bundle.egov.svc.cluster.local:8085/" # modulith bundle
+                template-config-java: "http://dev-bundle.egov.svc.cluster.local:8085/" # modulith bundle
+                individual-java: "http://dev-bundle.egov.svc.cluster.local:8085/" # modulith bundle
+                boundary-java: "http://dev-bundle.egov.svc.cluster.local:8085/" # modulith bundle
+                otp-java: "http://dev-bundle.egov.svc.cluster.local:8085/" # modulith bundle
                 vault: "http://vault.vault-new.svc.cluster.local:8200"
                 keycloak-host: "http://keycloak.keycloak.svc.cluster.local:8080/keycloak"
-                billing-java: "http://billing-java:8080/"
-                registry-java: "http://registry-java:8080/"
-                employee-java: "http://employee-java:8080/"
-                apportion: "http://apportion:8080/"
-                workflow-java: "http://workflow-java:8080/"
-                localization-java: "http://localization-java:8080/"
-                filestore-java: "http://filestore-java:8080/"
-                notification-java: "http://notification-java:8080/"
+                billing-java: "http://dev-bundle.egov.svc.cluster.local:8085/" # modulith bundle
+                registry-java: "http://dev-bundle.egov.svc.cluster.local:8085/" # modulith bundle
+                employee-java: "http://dev-bundle.egov.svc.cluster.local:8085/" # modulith bundle
+                apportion: "http://dev-bundle.egov.svc.cluster.local:8085/" # modulith bundle
+                workflow-java: "http://dev-bundle.egov.svc.cluster.local:8085/" # modulith bundle
+                localization-java: "http://dev-bundle.egov.svc.cluster.local:8085/" # modulith bundle
+                filestore-java: "http://dev-bundle.egov.svc.cluster.local:8085/" # modulith bundle
+                notification-java: "http://dev-bundle.egov.svc.cluster.local:8085/" # modulith bundle
 employee:
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
   custom-js-injection: |
@@ -1326,3 +1326,71 @@ template-config-java:
       image:
         repository: "template-config-db"
         tag: "master-8ce9994"
+
+# ── Modulith bundle ─────────────────────────────────────────────────────────
+# One JVM serving the 16 bundled services (chart: charts/bundles/dev-bundle,
+# generated from the digit3 repo's dev-bundle.package.yaml). Images are built
+# locally from the digit3 modulith branch and imported straight into the k3s
+# node's containerd (no registry push) — hence pullPolicy IfNotPresent.
+dev-bundle:
+  namespace: egov
+  image:
+    repository: "dev-bundle"
+    tag: "modulith-5dc9cd66"
+    pullPolicy: IfNotPresent
+  env:
+    # egov-config's db-name is `postgres` (the per-service DB); the bundle
+    # owns its own database so all 16 schema sets live apart from it.
+    DB_NAME:
+      value: "bundle_db"
+    TENANT_MIGRATION_ENABLED:
+      value: "true"
+    KEYCLOAK_PUBLIC_BASE_URL:
+      value: "https://modulith.digit.org/keycloak"
+    # No Vault on this cluster (same override the standalone otp-java and
+    # individual-java values carried): otp's VaultAuth logs in eagerly at
+    # boot and crash-loops the whole bundle JVM otherwise.
+    VAULT_ENABLED:
+      value: "false"
+    # Filestore: chart defaults point at AWS S3 + the egov-filestore secret
+    # (not present here); this env uses in-cluster minio, same as the old
+    # standalone filestore-java values.
+    S3_ACCESS_KEY:
+      valueFrom:
+        secretKeyRef:
+          name: minio
+          key: accesskey
+    S3_SECRET_KEY:
+      valueFrom:
+        secretKeyRef:
+          name: minio
+          key: secretkey
+    S3_ENDPOINT:
+      value: "minio.backbone.svc.cluster.local:9000"
+    S3_USE_SSL:
+      value: "false"
+  # Combined init container (recommended in digit3 src/bundles/README.md):
+  # one dev-bundle-db image runs Flyway once per service against its own
+  # history table, replacing the 16 per-service *-db init images.
+  dbMigrationOrder:
+    - combined
+  dbMigrations:
+    combined:
+      enabled: true
+      image:
+        repository: "dev-bundle-db"
+        tag: "modulith-5dc9cd66"
+        pullPolicy: IfNotPresent
+      env:
+        DB_URL:
+          value: "jdbc:postgresql://postgresql-lts.egov:5432/bundle_db"
+        FLYWAY_USER:
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        FLYWAY_PASSWORD:
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password

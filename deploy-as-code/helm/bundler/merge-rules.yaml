@@ -52,6 +52,19 @@ drop:
     reason: bundle datasource is composed from the DB_* contract envs
   - name: SPRING_DATASOURCE_PASSWORD
     reason: bundle datasource is composed from the DB_* contract envs
+  # ── Connection-pool sizing is a bundle-level decision (ONE shared Hikari
+  # pool for the whole JVM, sized by the DB_MAX_OPEN_CONNS/DB_MIN_IDLE_CONNS
+  # contract envs with bundle defaults). Harvested per-service values must not
+  # leak in: individual's Go chart ships DB_CONN_MAX_LIFETIME as a Go duration
+  # ("15m") while the Java property appends "000" expecting seconds
+  # (-> "15m000", NumberFormatException at boot), and one member's pool size
+  # (e.g. 100) must not silently size the shared pool.
+  - name: DB_CONN_MAX_LIFETIME
+    reason: Go-duration dialect breaks the seconds-based bundle property; set per environment if needed
+  - name: DB_MAX_OPEN_CONNS
+    reason: shared-pool size is a bundle-level contract env, not one member chart's value
+  - name: DB_MAX_IDLE_CONNS
+    reason: Go-dialect idle knob; bundle minimum-idle reads DB_MIN_IDLE_CONNS
   - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
     reason: bundle property spring.kafka.bootstrap-servers reads ${KAFKA_BROKERS}
   - name: SPRING_DATA_REDIS_HOST

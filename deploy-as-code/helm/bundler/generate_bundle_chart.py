@@ -327,7 +327,7 @@ spec:
 # One Ingress, one path per bundled service prefix. With ingress.zuul=true the
 # backend stays kong-kong-proxy (same as every per-service chart today); Kong's
 # own routes must point the corresponding prefixes at this chart's Service.
-INGRESS_TEMPLATE = """{{- if .Values.ingress.enabled -}}
+INGRESS_TEMPLATE = """{{- if .Values.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

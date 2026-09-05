@@ -13,34 +13,18 @@
 # Deployment parameters
 # -----------------------------------------------------------------------------
 
-# The rest of the platform routes to kong-kong-proxy, NOT gateway-kong-proxy:
+# The rest of the platform routes to kong-kong-proxy:
 # charts/common/templates/_ingress.yaml uses kong-kong-proxy as the ingress
-# backend for every chart, and license-validator, license-employee and the
-# test-lts environment all point at http://kong-kong-proxy.egov. So this name
-# is wrong, but it CANNOT simply be changed to "kong-kong" yet -- two blockers:
-#
-#   1. egov already runs a kong-kong Deployment from an older manual Helm
-#      install (instance=release-name, chart kong-3.0.1). Its spec.selector
-#      carries app.kubernetes.io/instance: release-name, and spec.selector is
-#      IMMUTABLE. Rendering this chart as kong-kong makes Argo try to patch
-#      that Deployment with instance: egov-gateway-kong, which the API server
-#      rejects ("field is immutable"), leaving the app permanently Degraded
-#      and retrying. Adopting it requires deleting the old Deployment first.
-#   2. This chart's image, egovio/kong:3.5, does not exist -- Docker Hub has
-#      3.6 but no 3.5 -- so gateway-kong pods sit in Init:ImagePullBackOff.
-#      The working gateway runs egovio/kong:master-9b942c2 plus
-#      mithunhegdeegov/gateway-kong:multiarch2/multiarch3.
-#
-# Because of (2) the old manual kong-kong is the ONLY working gateway, so do
-# not delete it to force adoption -- that would take the gateway down with no
-# runnable replacement. Fix the image first, then rename and adopt in one
-# planned step (delete old Deployment -> let Argo recreate as kong-kong).
+# backend for every chart, and the environment files point at
+# http://kong-kong-proxy.egov. On a FRESH cluster (no legacy kong-kong
+# Deployment to adopt, unlike test-lts) this chart can and must render as
+# kong-kong so the proxy Service is named kong-kong-proxy.
 #
 # Note this chart's _helpers.tpl builds the name from
 # `default (printf "%s" $name) .Values.fullnameOverride` -- only the chart
 # name, not Release.Name-chartName like upstream Kong -- so removing this
 # override entirely would yield "kong-proxy", not "kong-kong-proxy".
-fullnameOverride: "gateway-kong"
+fullnameOverride: "kong-kong"
 namespace: "egov"
 
 global:
@@ -161,7 +145,32 @@ initContainers:
 # e.g. setting pg_user here will override the value normally set when postgresql.enabled
 # is set below. In general, you should not set values here if they are set elsewhere.
 env:
-  database: "off"
+  # The egovio kong image bakes KONG_PREFIX=/kong, which a non-root container
+  # cannot create; point it at the writable emptyDir the chart mounts.
+  # DB mode, matching the working kong-kong on test-lts (KONG_DATABASE=postgres).
+  # The kong-migration initContainer above bootstraps the same database.
+  database: "postgres"
+  pg_host:
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  pg_port: "5432"
+  pg_user:
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  pg_password:
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  pg_database:
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
   # the chart uses the traditional router (for Kong 3.x+) because the ingress
   # controller generates traditional routes. if you do not use the controller,
   # you may set this to "traditional_compatible" or "expressions" to use the new
@@ -176,7 +185,9 @@ env:
   admin_error_log: /dev/stderr
   admin_gui_error_log: /dev/stderr
   portal_api_error_log: /dev/stderr
-  prefix: /kong/
+  # /kong (the image default) is not writable for the non-root kong user;
+  # use the emptyDir the chart mounts.
+  prefix: /kong_prefix
   real_ip_header: X-Real-IP
   real_ip_recursive: "on"
   trusted_ips: 0.0.0.0/0
@@ -201,8 +212,10 @@ extraLabels: {}
 
 # Specify Kong's Docker image and repository details here
 image:
-  repository: kong
-  tag: "3.5"
+  # DIGIT's kong build, validated for 3.0.1 (release notes: egovio/kong:master-9b942c2).
+  # Plain kong:3.5 lacks the DIGIT gateway customizations, and egovio/kong:3.5 does not exist.
+  repository: egovio/kong
+  tag: "master-9b942c2"
   # Kong Enterprise
   # repository: kong/kong-gateway
   # tag: "3.5"
@@ -369,7 +382,10 @@ proxy:
   http:
     # Enable plaintext HTTP listen for the proxy
     enabled: true
-    servicePort: 80
+    # charts/common/templates/_ingress.yaml routes every service ingress to
+    # kong-kong-proxy:8000, so the Service must expose 8000 (not the upstream
+    # default 80).
+    servicePort: 8000
     containerPort: 8000
     # Set a nodePort which is available if service type is NodePort
     # nodePort: 32080
@@ -1045,7 +1061,9 @@ securityContext: {}
 
 # securityContext for containers.
 containerSecurityContext:
-  readOnlyRootFilesystem: true
+  # egovio/kong:master-9b942c2 writes to /kong at startup, which a read-only
+  # root filesystem blocks (mkdir failed for '/kong': Read-only file system).
+  readOnlyRootFilesystem: false
   allowPrivilegeEscalation: false
   runAsUser: 1000
   runAsNonRoot: true

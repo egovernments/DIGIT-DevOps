@@ -1,15 +1,28 @@
 values:
-  - ../../environments/egov-demo-secrets.yaml
-  - ../../environments/egov-demo.yaml
+  - ../../environments/azure-k3s-secrets.dec.yaml
+  - ../../environments/azure-k3s.yaml
 
 releases:
-  # cert-manager must come first; ingress-nginx depends on it for TLS.
+  # cluster-configs must run first: it creates the namespaces, the egov-config /
+  # egov-service-host ConfigMaps, and the secrets (db, minio, kc-db, kc-admin, ...)
+  # that every other release depends on.
+  - name: cluster-configs
+    chart: ./cluster-configs
+    namespace: egov
+    installed: true
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+
+  # cert-manager must come before ingress-nginx, which depends on it for TLS.
   # disableValidation skips CRD schema validation which fails before CRDs are installed.
   - name: cert-manager
     chart: ./cert-manager
     namespace: cert-manager
     installed: true
     disableValidation: true
+    needs:
+      - egov/cluster-configs
     values:
       - ./cert-manager/values.yaml
 
@@ -18,6 +31,8 @@ releases:
     chart: ./postgres
     namespace: egov
     installed: true
+    needs:
+      - egov/cluster-configs
     values:
       - ./postgres/values.yaml
 
@@ -25,18 +40,34 @@ releases:
     chart: ./redis
     namespace: backbone
     installed: true
+    needs:
+      - egov/cluster-configs
     values:
       - ./redis/values.yaml
 
-  # minio disabled for dev/test — filestore uses local disk storage instead.
-  # installed: false makes helmfile uninstall any existing minio release.
+  # Kafka (Bitnami KRaft, single controller). Release name MUST be
+  # "release-name": egov-config kafka-brokers points at
+  # release-name-kafka-controller-headless.backbone:9092, matching test-lts.
+  - name: release-name
+    chart: ./kafka-kraft
+    namespace: backbone
+    installed: true
+    needs:
+      - egov/cluster-configs
+    values:
+      - ./kafka-kraft/values.yaml
+
+  # Single-replica (SNSD) minio — filestore-java stores files here via the S3 API
+  # (S3_ENDPOINT minio.backbone:9000, credentials from the cluster-configs `minio` secret).
   - name: minio
     chart: ./minio
     namespace: backbone
-    installed: false
+    installed: true
+    needs:
+      - egov/cluster-configs
     values:
-      - ../../environments/egov-demo-secrets.yaml
-      - ../../environments/egov-demo.yaml
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
       - ./minio/values.yaml
 
   - name: ingress-nginx
@@ -46,6 +77,6 @@ releases:
     needs:
       - cert-manager/cert-manager
     values:
-      - ../../environments/egov-demo-secrets.yaml
-      - ../../environments/egov-demo.yaml
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
       - ./ingress-nginx/values.yaml

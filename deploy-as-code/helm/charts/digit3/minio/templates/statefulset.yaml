@@ -30,7 +30,11 @@ spec:
             - -ce
             - >-
               /usr/bin/docker-entrypoint.sh minio server
+              {{- if gt (int .Values.replicas) 1 }}
               http://{{ include "minio.fullname" . }}-{0...{{ sub (int .Values.replicas) 1 }}}.{{ include "minio.headless" . }}.{{ include "minio.namespace" . }}.svc{{ .Values.mountPath }}
+              {{- else }}
+              {{ .Values.mountPath }}
+              {{- end }}
               -S {{ .Values.certsPath }}
               --address :{{ .Values.ports.api }}
               --console-address :{{ .Values.ports.console }}

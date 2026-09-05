@@ -1,0 +1,117 @@
+# Values reconstructed from the live MinIO in EKS digit-lts (namespace: default).
+# Distributed (erasure-coded) MinIO: `minio server http://minio-{0...N-1}.minio-svc.<ns>.svc/export`
+
+# Namespace used in the distributed server URL (must match where this is deployed).
+namespace: backbone
+# Resource names are fixed to match the live deployment (minio / minio-console / minio-svc).
+fullnameOverride: minio
+
+image:
+  repository: quay.io/minio/minio
+  tag: "RELEASE.2024-12-18T13-15-44Z"
+  pullPolicy: IfNotPresent
+
+# Number of distributed nodes (StatefulSet replicas). Live = 2.
+replicas: 2
+
+# Where each node stores data (the volumeClaimTemplate is mounted here).
+mountPath: /export
+certsPath: /etc/minio/certs/
+
+ports:
+  api: 9000
+  console: 9001
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    cpu: 200m
+    memory: 512Mi
+
+persistence:
+  size: 100Gi
+  # Empty -> use the cluster's DEFAULT StorageClass (dynamic provisioning on any cloud:
+  # EKS gp2/gp3, AKS default/managed-csi, GKE standard-rwo). The template omits
+  # storageClassName when this is empty. Pin a class only if you need a specific one.
+  storageClass: ""
+  accessMode: ReadWriteOnce
+
+# Matches the live pod securityContext (MinIO runs as uid/gid 1000).
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+
+# Root credentials come from the `minio` secret created by the cluster-configs chart
+# (values in environments/digit-lts-secrets.yaml). This chart does NOT create its own
+# secret; it references the existing one (keys: rootUser/rootPassword).
+auth:
+  existingSecret: minio
+  rootUser: digit
+  rootPassword: "CHANGEME"
+
+# Extra server env (verbatim from the live StatefulSet).
+extraEnv:
+  MINIO_PROMETHEUS_AUTH_TYPE: "public"
+  # Console base URL = the external /minio subpath. This makes the console emit
+  # `<base href="/minio/">`, so the browser requests assets at /minio/static/*; the ingress
+  # strip-rewrite below maps those back to the console's root /static/*. Must match ingress.path.
+  MINIO_BROWSER_REDIRECT_URL: "https://test-lts.digit.org/minio"
+
+# External exposure: a single nginx ingress that serves the MinIO CONSOLE at <host>/minio.
+# The console is subpath-aware via MINIO_BROWSER_REDIRECT_URL (base href /minio/), and the
+# strip-rewrite ($2) forwards /minio/<x> to the console as /<x> so its root-served /static/*
+# assets resolve. (The S3 API is intentionally not exposed — it can't be browsed under a
+# path prefix, since it reads the first path segment as a bucket name.)
+ingress:
+  enabled: true
+  className: nginx
+  host: test-lts.digit.org
+  proxyBodySize: "8m"
+  tls:
+    enabled: true
+    secretName: test-lts.digit.org-tls-certs
+  # Console path requires the trailing slash (/minio/...) so it doesn't also match bare
+  # /minio; $1 = everything after /minio/. Bare /minio is handled by the redirect below.
+  path: /minio/(.*)
+  pathType: ImplementationSpecific
+  rewriteTarget: /$1
+  service: minio-console
+  servicePort: 9001
+  # Redirect bare /minio -> /minio/ (the console SPA router needs the trailing slash, else
+  # it renders blank). Anchored path /minio$ is disjoint from the console's /minio/(.*).
+  redirect:
+    enabled: true
+    path: /minio$
+    to: https://test-lts.digit.org/minio/
+
+# Dedicated host-based ingress for the S3 API (NOT a path). filestore-java signs presigned
+# URLs against this host; external clients use them directly. A plain host route with NO
+# rewrite / NO path prefix / NO Host override is required so the exact path + Host the client
+# signed reach MinIO and AWS V4 signatures stay valid. TLS is terminated here (cert-manager
+# issues a real cert via the cluster-issuer). The host must also resolve in-cluster (CoreDNS
+# custom rewrite -> ingress ClusterIP) so pods can use the same endpoint — that DNS config is
+# cluster infra, managed outside this chart.
+apiIngress:
+  enabled: true
+  className: nginx
+  host: minio-api.test-lts.digit.org
+  service: minio          # S3 API service
+  servicePort: 9000
+  # cert-manager cluster-issuer that auto-issues the TLS cert for the host above.
+  clusterIssuer: letsencrypt-prod
+  tls:
+    enabled: true
+    secretName: minio-api-tls
+  annotations:
+    # Allow arbitrarily large object uploads and stream them (no body-size cap, no buffering).
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+
+# Provisioning scripts (add-user/add-policy/etc.) found in the live `minio` configmap.
+# Rendered into a ConfigMap for the official MinIO post-install hook Job to consume.
+provisioning:
+  enabled: true

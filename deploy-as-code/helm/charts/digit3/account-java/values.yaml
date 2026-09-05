@@ -1,0 +1,253 @@
+# Common Labels
+labels:
+  app: "account-java"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "accounts"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "account_schema"
+    image:
+      repository: "account-java-db"
+    env: |
+      - name: "DB_URL"
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-url
+      - name: "SCHEMA_TABLE"
+        value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+      - name: "FLYWAY_USER"
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-username
+      - name: "FLYWAY_PASSWORD"
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-password
+      - name: JAVA_ENABLE_DEBUG
+        value: "TRUE"
+      - name: "FLYWAY_LOCATIONS"
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: flyway-locations
+      - name: FLYWAY_SCHEMAS
+        value: public
+      - name: FLYWAY_DEFAULT_SCHEMA
+        value: public
+
+# Container Configs
+image:
+  repository: "account-java"
+replicas: 1
+appType: "java"
+# OTel span export switch (MANAGEMENT_TRACING_EXPORT_ENABLED) — override per
+# environment via the account-java block in environments/<env>.yaml
+tracing-export-enabled: "false"
+tracing-enabled: false
+heap: "-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=75.0"
+healthChecks:
+  enabled: false
+  livenessProbePath: "/accounts/actuator/health/liveness"
+  readinessProbePath: "/accounts/actuator/health/readiness"
+# Resource configuration for the Java service
+resources: |
+  requests:
+    cpu: "150m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "1.5Gi"
+
+# Additional Container Envs
+env: |
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: CONTEXT_PATH
+    value: /accounts
+
+  - name: CANONICAL_API_PREFIX
+    value: canonical
+  
+  - name: DB_HOST
+    value: postgres.egov
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+  - name: DB_NAME
+    value: postgres
+  - name: DB_SSL_MODE
+    value: disable
+
+  - name: KEYCLOAK_BASE_URL
+    value: http://keycloak.keycloak.svc.cluster.local:8080/keycloak
+  - name: KEYCLOAK_PUBLIC_BASE_URL
+    value: https://test-lts.digit.org/keycloak
+  - name: KEYCLOAK_ADMIN_USER
+    value: digit
+  - name: KEYCLOAK_ADMIN_PASS
+    valueFrom:
+      secretKeyRef:
+        name: kc-admin
+        key: password
+  - name: CITIZEN_BROKER_CLIENT_ID
+    value: citizen-broker
+  - name: CITIZEN_BROKER_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: citizen-broker-secret
+        key: citizen-broker-client-secret
+
+  - name: EMPLOYEE_IAM_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: employee-iam-secret
+        key: employee-iam-client-secret
+  
+  - name: CLIENT_REDIRECT_URL
+    value: https://test-lts.digit.org/*
+  - name: FIRST_LOGIN_URLS
+    value: admin=https://test-lts.digit.org/license/admin/{realm},employee=https://test-lts.digit.org/license/employee/{realm},citizen=https://test-lts.digit.org/license/citizen/{realm}
+  - name: SMTP_HOST
+    value: smtp.gmail.com
+  - name: SMTP_PORT
+    value: "587"
+  - name: SMTP_STARTTLS
+    value: "true"
+  - name: SMTP_SSL
+    value: "false"
+  - name: SMTP_AUTH
+    value: "true"
+  - name: SMTP_FROM_NAME
+    value: eGov Foundation
+  - name: SMTP_FROM_ADDRESS
+    valueFrom:
+      secretKeyRef:
+        name: egov-notification-mail
+        key: mailsenderusername
+  - name: SMTP_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: egov-notification-mail
+        key: mailsenderusername
+  - name: SMTP_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: egov-notification-mail
+        key: mailsenderpassword
+
+  - name: ACCESS_TOKEN_LIFESPAN
+    value: "14400"
+  - name: SSO_SESSION_IDLE_TIMEOUT
+    value: "28800"
+  - name: SSO_SESSION_MAX_LIFESPAN
+    value: "36000"
+
+  - name: NOTIFICATION_BASE_URL
+    valueFrom:
+      configMapKeyRef:
+        key: notification-java
+        name: egov-service-host
+  - name: NOTIFICATION_EMAIL_SEND_PATH
+    value: notification/v3/email/send
+  - name: NOTIFICATION_PLATFORM_TENANT
+    value: default
+  - name: NOTIFICATION_TEMP_PASSWORD_TEMPLATE_ID
+    value: account-tenant-temp-password
+  - name: NOTIFICATION_TIMEOUT_SECONDS
+    value: "5"
+  - name: NOTIFICATION_ENABLED
+    value: "true"
+
+  - name: PLATFORM_AUTH_ENABLED
+    value: "false"
+  - name: PLATFORM_AUTH_REALM
+    value: master
+  - name: PLATFORM_AUTH_REQUIRED_ROLE
+    value: SUPERADMIN
+  - name: SIGNUP_ENABLED
+    value: "true"
+
+
+  - name: OTP_BASE_URL
+    valueFrom:
+      configMapKeyRef:
+        key: otp-java
+        name: egov-service-host
+  - name: OTP_GENERATE_PATH
+    value: otp/v3/generate
+  - name: OTP_VERIFY_PATH
+    value: otp/v3/verify
+  - name: OTP_RESEND_PATH
+    value: otp/v3/resend
+  - name: OTP_CONFIG_PATH
+    value: otp/v3/config
+  - name: OTP_BOOTSTRAP_PURPOSES
+    value: login,registration
+  - name: OTP_TIMEOUT_SECONDS
+    value: "10"
+
+
+  - name: PUBSUB_ENABLED
+    value: "false"
+  - name: PUBSUB_TYPE
+    value: redis
+  - name: KAFKA_BROKERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+
+  - name: REDIS_ADDRESS
+    value: redis.backbone.svc.cluster.local:6379
+  - name: REDIS_HOST
+    value: redis.backbone.svc.cluster.local
+  - name: REDIS_PORT
+    value: "6379"
+
+  - name: PUBSUB_TOPIC_CREATE_TENANT
+    value: account-create-tenant
+  - name: PUBSUB_TOPIC_UPDATE_TENANT
+    value: account-update-tenant
+  - name: PUBSUB_TOPIC_DELETE_TENANT
+    value: account-delete-tenant
+  - name: PUBSUB_TOPIC_CREATE_TENANT_CONFIG
+    value: account-create-tenant-config
+  - name: PUBSUB_TOPIC_UPDATE_TENANT_CONFIG
+    value: account-update-tenant-config
+  - name: PUBSUB_TOPIC_MIGRATION
+    value: account-migration
+  - name: OTP_PLATFORM_TENANT
+    value: default
+  
+  - name: LOG_LEVEL
+    value: DEBUG
+
+  # ── Observability: OTel span export disabled ──────────────────────────────
+  # NB: the span switch is MANAGEMENT_TRACING_EXPORT_ENABLED — MANAGEMENT_TRACING_ENABLED
+  # does not gate Boot's OTLP span exporter.
+  - name: MANAGEMENT_TRACING_EXPORT_ENABLED
+    value: {{ index .Values "tracing-export-enabled" | quote }}
+  - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
+    value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/traces

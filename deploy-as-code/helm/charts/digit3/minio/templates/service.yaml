@@ -1,0 +1,59 @@
+# S3 API service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "minio.fullname" . }}
+  namespace: {{ include "minio.namespace" . }}
+  labels:
+    {{- include "minio.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.ports.api }}
+      targetPort: {{ .Values.ports.api }}
+      protocol: TCP
+  selector:
+    {{- include "minio.selectorLabels" . | nindent 4 }}
+---
+# Console service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "minio.fullname" . }}-console
+  namespace: {{ include "minio.namespace" . }}
+  labels:
+    {{- include "minio.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.ports.console }}
+      targetPort: {{ .Values.ports.console }}
+      protocol: TCP
+  selector:
+    {{- include "minio.selectorLabels" . | nindent 4 }}
+---
+# Headless service (stable per-pod DNS for the StatefulSet)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "minio.headless" . }}
+  namespace: {{ include "minio.namespace" . }}
+  labels:
+    {{- include "minio.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: http
+      port: {{ .Values.ports.api }}
+      targetPort: {{ .Values.ports.api }}
+      protocol: TCP
+    - name: console
+      port: {{ .Values.ports.console }}
+      targetPort: {{ .Values.ports.console }}
+      protocol: TCP
+  selector:
+    {{- include "minio.selectorLabels" . | nindent 4 }}

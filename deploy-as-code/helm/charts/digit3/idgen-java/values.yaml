@@ -1,0 +1,158 @@
+# Common Labels
+labels:
+  app: "idgen-java"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "idgen"
+
+# Init Containers Configs
+# DB migration runs in an init container (preferred strategy) — same as the Go
+# chart. The migration image ships the Flyway SQL + migrate.sh and runs against
+# the elevated flyway credentials before the app starts; the app itself has
+# in-boot Flyway disabled (SPRING_FLYWAY_ENABLED=false below). History table
+# idgen_schema matches migrate.sh's -table setting.
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "idgen_schema"
+    image:
+      repository: "idgen-java-db"
+    env: |
+      - name: "DB_URL"
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-url
+      - name: "SCHEMA_TABLE"
+        value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+      - name: "FLYWAY_USER"
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-username
+      - name: "FLYWAY_PASSWORD"
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-password
+      - name: JAVA_ENABLE_DEBUG
+        value: "TRUE"
+      - name: "FLYWAY_LOCATIONS"
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: flyway-locations
+      - name: FLYWAY_SCHEMAS
+        value: public
+      - name: FLYWAY_DEFAULT_SCHEMA
+        value: public
+
+# Container Configs
+image:
+  repository: "idgen-java"
+replicas: 1
+appType: "java"
+# OTel span export switch (MANAGEMENT_TRACING_EXPORT_ENABLED) — override per
+# environment via the idgen-java block in environments/<env>.yaml
+tracing-export-enabled: "false"
+tracing-enabled: false
+heap: "-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=75.0"
+healthChecks:
+  enabled: false
+  livenessProbePath: "/idgen/actuator/health/liveness"
+  readinessProbePath: "/idgen/actuator/health/readiness"
+# Resource configuration for the Java service
+resources: |
+  requests:
+    cpu: "150m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "1.5Gi"
+
+# Additional Container Envs
+# The service is configured through Spring properties (relaxed env binding),
+# not the Go service's env var names.
+env: |
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    # Must match ingress.context (/idgen) -- they were out of step.
+    # The ingress/kong route advertises /idgen, and in-cluster callers use
+    # /idgen/... too, but the app served /idgen-java, so every request 404'd with a
+    # bare Tomcat error page. For idgen this broke bill generation: billing
+    # POSTs /idgen/v3/generate and got 404, which calculator surfaced to the
+    # UI as 502 Bad Gateway on /calculator/calculation/v3/*/confirm.
+    value: /idgen
+  # ── Datasource ──────────────────────────────────────────────────────────
+  - name: SPRING_DATASOURCE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+  # Migration is handled by the init container above — app-boot Flyway is off
+  - name: SPRING_FLYWAY_ENABLED
+    value: "false"
+  # ── Service ─────────────────────────────────────────────────────────────
+  # Zone for {DATE:*} rendering and sequence scope keys
+  - name: IDGEN_TIMEZONE
+    value: UTC
+  # ── Observability: OTel span export and metrics export both disabled ──────
+  # NB: the span switch is MANAGEMENT_TRACING_EXPORT_ENABLED — MANAGEMENT_TRACING_ENABLED
+  # does not gate Boot's OTLP span exporter.
+  - name: MANAGEMENT_TRACING_EXPORT_ENABLED
+    value: {{ index .Values "tracing-export-enabled" | quote }}
+  - name: MANAGEMENT_DEFAULTS_METRICS_EXPORT_ENABLED
+    value: "false"
+  - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+    value: health,info
+  - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
+    value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/traces
+  # ── Template lifecycle events (same posture as the Go chart: disabled, redis backend) ──
+  - name: IDGEN_EVENTS_ENABLED
+    value: "false"
+  - name: IDGEN_EVENTS_TOPICS_CREATE
+    value: idgen-create-template
+  - name: IDGEN_EVENTS_TOPICS_UPDATE
+    value: idgen-update-template
+  - name: IDGEN_EVENTS_TOPICS_DELETE
+    value: idgen-delete-template
+  # kafka, not redis: account publishes account-migration to kafka, and
+  # tenant-migration below subscribes through this same backend. The redis entries
+  # stay only as a quick switch back; this service has no redis cache.
+  - name: TRACER_PUBSUB_TYPE
+    value: kafka
+  - name: SPRING_DATA_REDIS_HOST
+    value: redis.backbone.svc.cluster.local
+  - name: SPRING_DATA_REDIS_PORT
+    value: "6379"
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+  # ── Per-tenant schemas (com.digit:tenant-migration) ──────────────────────
+  # SCHEMA_TABLE must equal initContainers.dbMigration.schemaTable above.
+  # Set once at initial deployment; not flipped on a running deployment.
+  - name: TENANT_MIGRATION_ENABLED
+    value: "false"
+  - name: TENANT_MIGRATION_SCHEMA_TABLE
+    value: idgen_schema
+  - name: TENANT_MIGRATION_CONSUMER_GROUP
+    value: idgen

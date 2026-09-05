@@ -1,0 +1,191 @@
+# Common Labels
+labels:
+  app: "employee-java"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "employee-java"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "employee_schema"
+    image:
+      repository: "employee-java-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: JAVA_ENABLE_DEBUG
+          value: "TRUE"
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
+
+# Container Configs
+image:
+  repository: "employee-java"
+replicas: 1
+appType: "java"
+# OTel span export switch (MANAGEMENT_TRACING_EXPORT_ENABLED) — override per
+# environment via the employee-java block in environments/<env>.yaml
+tracing-export-enabled: "false"
+tracing-enabled: false
+heap: "-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=75.0"
+healthChecks:
+  enabled: false
+  livenessProbePath: "/employee/actuator/health/liveness"
+  readinessProbePath: "/employee/actuator/health/readiness"
+# Resource configuration for Go service
+resources: |
+  requests:
+    cpu: "150m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "1.5Gi"
+
+# Additional Container Envs
+env: |
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: /employee
+
+  - name: CANONICAL_API_PREFIX
+    value: canonical
+
+  - name: DB_HOST
+    value: postgres.egov
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: disable
+  - name: DB_NAME
+    value: postgres
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+
+  - name: IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: idgen-java
+        name: egov-service-host
+  - name: IDGEN_PATH
+    value: idgen-java/v3/generate
+  - name: IDGEN_NAME
+    value: EmployeeCode
+  - name: IDGEN_ENABLED
+    value: "true"
+
+  - name: BOUNDARY_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: boundary-java
+        name: egov-service-host
+  - name: BOUNDARY_PATH
+    value: boundary-java/v3/relationship
+  - name: BOUNDARY_ENABLED
+    value: "true"
+
+  - name: INDIVIDUAL_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: individual-java
+        name: egov-service-host
+  - name: INDIVIDUAL_PATH
+    value: individuals-java/v3/individuals
+  - name: INDIVIDUAL_ENABLED
+    value: "true"
+
+
+  - name: KEYCLOAK_BASE_URL
+    value: https://digit-lts.digit.org/keycloak
+  - name: KEYCLOAK_ENABLED
+    value: "true"
+  - name: KEYCLOAK_EMPLOYEE_IAM_CLIENT_ID
+    value: employee-iam-client
+  - name: KEYCLOAK_EMPLOYEE_IAM_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: employee-iam-secret
+        key: employee-iam-client-secret
+
+  - name: PUBSUB_ENABLED
+    value: "false"
+  - name: PUBSUB_TYPE
+    value: redis
+  - name: KAFKA_BROKERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+
+  - name: REDIS_HOST
+    value: redis.backbone.svc.cluster.local
+  - name: REDIS_PORT
+    value: "6379"
+  - name: REDIS_PASSWORD
+  - name: REDIS_DB
+    value: "0"
+
+  - name: PUBSUB_TOPIC_CREATE_EMPLOYEE
+    value: employee-create-employee
+  - name: PUBSUB_TOPIC_UPDATE_EMPLOYEE
+    value: employee-update-employee
+  - name: PUBSUB_TOPIC_DELETE_EMPLOYEE
+    value: employee-delete-employee
+  - name: PUBSUB_TOPIC_CREATE_JURISDICTION
+    value: employee-create-jurisdiction
+  - name: PUBSUB_TOPIC_UPDATE_JURISDICTION
+    value: employee-update-jurisdiction
+
+  - name: TENANT_MIGRATION_ENABLED
+    value: "false"
+  - name: TENANT_MIGRATION_SCHEMA_TABLE
+    value: employee_schema
+  - name: TENANT_MIGRATION_CONSUMER_GROUP
+    value: employee-service
+
+
+  # ── Observability: OTel span export disabled ──────────────────────────────
+  # NB: the span switch is MANAGEMENT_TRACING_EXPORT_ENABLED — MANAGEMENT_TRACING_ENABLED
+  # does not gate Boot's OTLP span exporter.
+  - name: MANAGEMENT_TRACING_EXPORT_ENABLED
+    value: {{ index .Values "tracing-export-enabled" | quote }}
+  - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
+    value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/traces

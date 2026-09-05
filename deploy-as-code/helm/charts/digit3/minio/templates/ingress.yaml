@@ -1,0 +1,108 @@
+{{- if .Values.ingress.enabled }}
+# Single ingress: serves the MinIO console at <host>/minio (see values.yaml for the
+# base-href / strip-rewrite mechanism). Named after the release so a redeploy updates
+# the same object rather than creating a conflicting second ingress.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "minio.fullname" . }}
+  namespace: {{ include "minio.namespace" . }}
+  labels:
+    {{- include "minio.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: {{ .Values.ingress.proxyBodySize | quote }}
+    {{- if .Values.ingress.rewriteTarget }}
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: {{ .Values.ingress.rewriteTarget | quote }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.ingress.path | quote }}
+            pathType: {{ .Values.ingress.pathType }}
+            backend:
+              service:
+                name: {{ .Values.ingress.service }}
+                port:
+                  number: {{ .Values.ingress.servicePort }}
+{{- if .Values.ingress.redirect.enabled }}
+---
+# Redirect bare /minio -> /minio/ so the console SPA router matches (else blank page).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "minio.fullname" . }}-redirect
+  namespace: {{ include "minio.namespace" . }}
+  labels:
+    {{- include "minio.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/permanent-redirect: {{ .Values.ingress.redirect.to | quote }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.ingress.redirect.path | quote }}
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ .Values.ingress.service }}
+                port:
+                  number: {{ .Values.ingress.servicePort }}
+{{- end }}
+{{- end }}
+{{- if .Values.apiIngress.enabled }}
+---
+# Host-based S3 API ingress (minio-api.<domain>). Plain route: NO rewrite, NO path prefix,
+# NO Host override -> AWS V4 presigned signatures stay valid. See values.yaml apiIngress.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "minio.fullname" . }}-api
+  namespace: {{ include "minio.namespace" . }}
+  labels:
+    {{- include "minio.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.apiIngress.clusterIssuer }}
+    cert-manager.io/cluster-issuer: {{ . | quote }}
+    {{- end }}
+    {{- with .Values.apiIngress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.apiIngress.className }}
+  {{- if .Values.apiIngress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.apiIngress.host | quote }}
+      secretName: {{ .Values.apiIngress.tls.secretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.apiIngress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.apiIngress.service }}
+                port:
+                  number: {{ .Values.apiIngress.servicePort }}
+{{- end }}

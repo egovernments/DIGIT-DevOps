@@ -188,6 +188,9 @@ env:
   # /kong (the image default) is not writable for the non-root kong user;
   # use the emptyDir the chart mounts.
   prefix: /kong_prefix
+  # Custom DIGIT plugins baked into egovio/kong (see digit3 src/services/kong).
+  # Must be enabled here because chart-provided KONG_* env overrides kong.conf.
+  plugins: "bundled,dynamic-jwt,keycloak-rbac,header-enrichment,metadata-enrichment,token-revocation"
   real_ip_header: X-Real-IP
   real_ip_recursive: "on"
   trusted_ips: 0.0.0.0/0
@@ -246,8 +249,10 @@ admin:
 
   http:
     # Enable plaintext HTTP listen for the admin API
-    # Disabling this and using a TLS listen only is recommended for most configuration
-    enabled: false
+    # Enabled (ClusterIP only, not exposed externally) so the DIGIT kong
+    # bootstrap script (digit3 src/services/kong/setup.py) can program
+    # services/routes/plugins via http://kong-kong-admin:8001.
+    enabled: true
     servicePort: 8001
     containerPort: 8001
     # Set a nodePort which is available if service type is NodePort

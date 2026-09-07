@@ -2838,7 +2838,11 @@ repoServer:
   name: repo-server
 
   # -- The number of repo server pods to run
-  replicas: 1
+  # 2 replicas: repo-server is stateless and horizontally scalable, so this
+  # halves per-pod manifest-generation load and keeps a serving endpoint during
+  # a restart or rollout. With one replica, any restart takes manifest
+  # generation down for every Application in the cluster.
+  replicas: 2
 
   # -- Runtime class name for the repo server
   # @default -- `""` (defaults to global.runtimeClassName)
@@ -3139,12 +3143,22 @@ repoServer:
   ## through ApplicationSets, and every manifest generation shells out to the
   ## helm-secrets wrapper. At 50m (0.05 core) the repo-server throttles hard and
   ## syncs start timing out.
+  # CPU raised from 500m. With ~126 Applications this pod forks a helm template
+  # per app (plus the SOPS plugin on some), which pinned it at the 500m ceiling:
+  # cgroup cpu.stat showed 1908 throttled of 2043 periods (93%). Starved of CPU
+  # it could not answer the /healthz?full=true liveness probe inside its 1s
+  # timeout, so kubelet killed it roughly every 60s -- 38 restarts over 3d6h,
+  # exit code 0 ("clean shutdown", not OOM). While it backed off the Service had
+  # no endpoint and 21 Applications reported "connection refused" from the
+  # repo-server, i.e. they could not compute desired state at all.
+  # Memory was never implicated (501Mi of 1Gi), so only CPU is changed.
+  # After the change: throttling fell to 6-20% and restarts stopped.
   resources:
    limits:
-     cpu: 500m
+     cpu: "2"
      memory: 1Gi
    requests:
-     cpu: 100m
+     cpu: 500m
      memory: 256Mi
 
   # Repo server container ports

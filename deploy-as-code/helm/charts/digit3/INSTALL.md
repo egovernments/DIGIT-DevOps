@@ -352,7 +352,122 @@ publicly.
 
 ---
 
-## 5. Gotchas index (hard-won, all encountered on this install)
+## 5. Peeling one service out of the bundle (worked example: billing)
+
+Sometimes one service needs to scale, fail, or release independently while the
+rest stay bundled. The design makes the *jar* side trivial ("remove the
+manifest entry and regenerate"), but a full deployment peel touches five
+layers. This section is the generic procedure; the executed billing peel
+lives on branch **`modulith-separate-billing`** in both repos (DIGIT-DevOps
+`05e09c83d`, digit3 `52a570c0`) — every referenced change can be read there
+verbatim.
+
+### 5.1 digit3: manifest + overrides + tests
+
+- Delete the service's entry from `dev-bundle.package.yaml` `services:`.
+- Prune `overrides:`: the service's own loopback hosts go away, and — the
+  subtle one — overrides that pointed **other services at it** over loopback
+  must become network-reachable. Check the callers' own defaults first: if
+  they are literal (`billing.host=http://localhost:8080/`, no `${…}`), the
+  bundle must re-declare them env-overridable, e.g.
+  `billing.host: "${BILLING_HOST:http://localhost:8080}/"`.
+- Regenerate (`generate_bundle.py`) — expect "no unresolved property
+  conflicts".
+- **Update the hand-written tests** (`src/test/` survives regeneration and
+  will fail compilation if it references the peeled service's classes). Flip
+  its assertions to *absence pins*: its route prefix must NOT be mounted, its
+  beans and Jackson customizers must be gone — so an accidental re-inclusion
+  fails the build loudly (billing's mapper modules changed every service's
+  BigDecimal wire format; silence would be dangerous).
+- `mvn clean test && mvn package`.
+
+### 5.2 Images — same source tree for everything (important)
+
+Build and import (§2.2 mechanics) with a new tag: the **bundle pair** AND the
+**peeled service's app + db images**, all from the same digit3 checkout:
+
+```bash
+# app: runtime-only image from the service's *-exec.jar
+# db:  from src/services/<svc>/src/main/resources/db (its own Dockerfile)
+```
+
+Do NOT reuse an externally-pinned per-service db image: the billing peel
+failed exactly there — the old image carried a different copy of one
+migration, and Flyway rejected it against the history the bundle had already
+applied to `bundle_db` ("Migration checksum mismatch"). Same source tree →
+identical files → validation passes.
+
+### 5.3 DIGIT-DevOps: chart, values, env, helmfile
+
+- Rerun `generate_bundle_chart.py` — the peeled service's ingress context and
+  `dbMigrations` entry disappear, and the *callers'* harvested env pointing
+  at it (`APPORTION_BILLING_HOST`, `BILLING_HOST` ← `egov-service-host` key
+  `billing-java`) automatically **survives** the merge now (loopback
+  detection only drops env for bundled services). No manual env plumbing.
+- Peeled service's chart values: point its datasource AND its db-migration
+  init `DB_URL` at **`bundle_db`** — its public tables, Flyway history and
+  tenant schemas were created there while bundled; `egov-config`'s `db-url`
+  is the wrong (per-service) database.
+- `environments/<env>.yaml`: bump the `dev-bundle:` tags; point the peeled
+  service's image + init image at the source-built tags
+  (`pullPolicy: IfNotPresent` for containerd-imported images); revert its
+  `egov-service-host` key from `dev-bundle…:8085` to its own Service.
+- Helmfile: re-add the service's release entry (its env block was kept).
+
+### 5.4 Deploy — order matters
+
+```bash
+./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync   # service-host key
+./deploy.sh -f digit3services-helmfile.yaml -l name=dev-bundle sync          # FIRST: frees /billing
+./deploy.sh -f digit3services-helmfile.yaml -l name=billing-java sync        # THEN the peeled service
+kubectl rollout restart deploy/dev-bundle -n egov                            # see below
+```
+
+Two traps encoded in that order:
+
+1. The nginx admission webhook rejects the peeled service's Ingress while the
+   OLD bundle Ingress still owns its path ("path /billing is already defined
+   in ingress egov/dev-bundle") — and helmfile syncs releases concurrently,
+   so a plain full sync can race into exactly that. Use `-l` selectors.
+2. `configMapKeyRef` env is resolved at **pod start**: if the bundle pod
+   started before the `egov-service-host` key changed, its `BILLING_HOST`
+   still points at itself. One rollout restart after the cluster-configs
+   sync fixes it.
+
+### 5.5 Kong
+
+```bash
+KONG_ADMIN_URL=… KONG_ROUTE_HOSTS=<domain> \
+  KONG_BUNDLE_UPSTREAM=http://dev-bundle.egov.svc.cluster.local:8085 \
+  KONG_BUNDLE_EXCLUDE=billing python3 setup.py
+```
+
+`KONG_BUNDLE_EXCLUDE` (comma-separated) keeps peeled services on their
+per-service upstreams while the rest stay on the bundle. Route paths never
+change, so clients notice nothing.
+
+### 5.6 Verify + aftermath
+
+- Bundle: peeled prefix NOT served (expect the 400-coded
+  `NoResourceFoundException` envelope — the platform renders 404s that way);
+  all other prefixes intact.
+- Peeled pod: init container validates cleanly against `bundle_db`; a
+  tenant-headered read returns real data (billing: `GET
+  /billing/v3/business-services` → 200; demo-tenant tables intact).
+- Kong: peeled route → its Service, others → bundle; 401s everywhere, and a
+  cross-boundary call works in both directions (bundle→peeled via
+  `*_HOST` env, peeled→bundle via the repointed `egov-service-host` keys).
+- Going forward: `POST /internal/migrate` on the bundle no longer covers the
+  peeled service — it consumes the same tenant-create events itself, but it
+  is now a second thing to check when provisioning tenants.
+
+Re-absorbing the service later is the exact mirror: restore the manifest
+entry + overrides, regenerate both generators, uninstall its release,
+sync the bundle, rerun setup.py without the exclude.
+
+---
+
+## 6. Gotchas index (hard-won, all encountered on this install)
 
 | Symptom | Cause / fix |
 |---|---|
@@ -371,3 +486,6 @@ publicly.
 | Tenant code rejected with 400 ValidationFailed | account service requires UPPERCASE tenant codes |
 | `kubectl port-forward` hangs/000 over the SSH tunnel | curl ClusterIPs from the VM over SSH instead |
 | `bind :16443: Address already in use` on tunnel setup | old tunnel still bound; test kubectl first, else `pkill -f "16443:127.0.0.1:6443"` and reconnect |
+| Ingress webhook: "path /X is already defined in ingress egov/dev-bundle" | both shapes publish the same path; sync dev-bundle BEFORE the peeled service (helmfile syncs concurrently — use `-l` selectors) |
+| Peeled service init: "Migration checksum mismatch" | externally-built db image ≠ the copies the bundle applied; build the service's db image from the same source tree |
+| Pod calls old upstream after `egov-service-host` change | `configMapKeyRef` env resolves at pod start → rollout-restart consumers after cluster-configs sync |

@@ -366,6 +366,6 @@ one jar, one migration image, one chart.
 |---|---|
 | Service code changed | `mvn install` the service → regenerate → rebuild bundle |
 | Add a service | manifest entry → regenerate → resolve any new conflict warnings → rebuild |
-| Remove a service | delete its manifest entry → regenerate (that *is* the peel-apart) |
+| Remove a service | delete its manifest entry → regenerate (that *is* the peel-apart, jar-side; the full deployment procedure — overrides, tests, images, chart, kong — is INSTALL.md §5, executed for billing on branch `modulith-separate-billing`) |
 | New bundle flavor | copy the manifest (new `outputDir` + port) → generate a second module |
 | Anything under `dev-bundle/` except `src/test/` | never edit by hand — it's generator-owned |

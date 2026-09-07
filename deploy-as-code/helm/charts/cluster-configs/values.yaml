@@ -201,7 +201,12 @@ cluster-configs:
     # Secret's name and namespace live here in plaintext.
     grafana:
       namespace: monitoring
-      name: grafana
+      # NOT "grafana": the grafana Helm chart already creates a Secret named
+      # after its release (grafana), so using that name makes two Argo
+      # Applications own the same object — cluster-configs-unified-dev and
+      # monitoring-grafana — which shows up as a SharedResourceWarning and
+      # leaves cluster-configs permanently OutOfSync.
+      name: grafana-oauth
 
     jenkins:
       namespace: jenkins
@@ -224,11 +229,7 @@ cluster-configs:
       name: program-service
 
     elasticsearch-master-creds:
-      # monitoring added so Jaeger can authenticate to the in-cluster
-      # Elasticsearch (xpack.security.enabled=true, so the REST port
-      # returns 401 without credentials). Secrets are namespace-scoped, so
-      # jaeger running in monitoring cannot read the copy in backbone.
-      namespace: ['es-upgrade', 'egov', 'works', 'health', 'urban', 'monitoring']
+      namespace: ['es-upgrade', 'egov', 'works', 'health', 'urban']
       name: elasticsearch-master-credentials
 
     matomo:

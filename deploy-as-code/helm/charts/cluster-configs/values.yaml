@@ -196,6 +196,18 @@ cluster-configs:
       namespace: monitoring
       name: alertmanager      
 
+    # GitHub OAuth for Grafana. clientID / clientSecret come from the
+    # SOPS-encrypted environments/<env>-secrets.yaml; only the target
+    # Secret's name and namespace live here in plaintext.
+    grafana:
+      namespace: monitoring
+      # NOT "grafana": the grafana Helm chart already creates a Secret named
+      # after its release (grafana), so using that name makes two Argo
+      # Applications own the same object — cluster-configs-unified-dev and
+      # monitoring-grafana — which shows up as a SharedResourceWarning and
+      # leaves cluster-configs permanently OutOfSync.
+      name: grafana-oauth
+
     jenkins:
       namespace: jenkins
       name: jenkins 
@@ -217,7 +229,7 @@ cluster-configs:
       name: program-service
 
     elasticsearch-master-creds:
-      namespace: [ es-upgrade, egov, works, health, urban ]
+      namespace: ['es-upgrade', 'egov', 'works', 'health', 'urban']
       name: elasticsearch-master-credentials
 
     matomo:

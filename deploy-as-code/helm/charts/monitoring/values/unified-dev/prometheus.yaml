@@ -1,0 +1,73 @@
+# kube-prometheus-stack — unified-dev (Azure AKS) overlay
+#
+# Everything here was previously injected by monitoring-helmfile.yaml at render
+# time from environments/unified-dev.yaml. Argo CD multi-source Applications
+# cannot template from an env file, so those values are materialised here.
+# Source of every value is noted inline; keep them in step with the env file.
+
+alertmanager:
+  # env: prometheus.alertmanager.enabled
+  enabled: true
+  alertmanagerSpec:
+    # The helmfile inlined cluster-configs.secrets.alertmanager.config (SOPS) as
+    # plaintext into alertmanager.config. That is not reproducible in Argo and
+    # should not be committed. cluster-configs already renders the Secret
+    # "alertmanager" in this namespace with key alertmanager.yaml, which is
+    # exactly the shape configSecret expects — so reference it instead.
+    configSecret: alertmanager
+
+prometheus:
+  prometheusSpec:
+    # env: prometheus.retention
+    retention: 7d
+
+    # env: prometheus.externalLabels — identifies this cluster in federated views
+    externalLabels:
+      cluster: unified-dev
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          # WAS gp3 in environments/unified-dev.yaml — that is an AWS EBS class
+          # and does not exist on AKS, so the PVC would stay Pending forever.
+          # managed-csi is the AKS equivalent (disk.csi.azure.com).
+          storageClassName: managed-csi
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 15Gi
+
+    # env: prometheus.additionalScrapeConfigs
+    additionalScrapeConfigs:
+    - job_name: nginx-ingress-metrics
+      static_configs:
+      - targets:
+        - ingress-nginx-controller-metrics.backbone:10254
+    - job_name: redis-exporter
+      static_configs:
+      - targets:
+        - prometheus-redis-exporter.backbone:9121
+    - job_name: blackbox
+      metrics_path: /probe
+      params:
+        module:
+        - http_2xx
+      static_configs:
+      - targets:
+        - https://unified-dev.digit.org/monitoring/
+        - https://unified-dev.digit.org/pgadmin/login?next=%2Fpgadmin%2F
+        - https://unified-dev.digit.org/kibana/
+      relabel_configs:
+      - source_labels:
+        - __address__
+        target_label: __param_target
+      - source_labels:
+        - __param_target
+        target_label: instance
+      - target_label: __address__
+        replacement: prometheus-blackbox-exporter:9115
+    - job_name: blackbox_exporter
+      static_configs:
+      - targets:
+        - prometheus-blackbox-exporter:9115

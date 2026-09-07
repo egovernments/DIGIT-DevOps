@@ -1,0 +1,99 @@
+# opentelemetry-collector — base values (environment-agnostic)
+#
+# Chart: open-telemetry/opentelemetry-collector 0.147.0, as pinned in
+# charts/argo-cd/monitoring/monitoring-applications.yaml.
+#
+# This file is new: the collector has no entry in monitoring-helmfile.yaml, so
+# there was no prior configuration to carry over. It is written to be safe on
+# its own — it accepts OTLP and writes to the debug exporter, with NO dependency
+# on any other release. Per-environment overlays point it at real backends.
+#
+# Service name applications must send to (release `open-telemetry` + chart name):
+#     open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local
+#         :4317  OTLP/gRPC
+#         :4318  OTLP/HTTP   (append /v1/traces or /v1/metrics)
+
+# Required — the chart has no default and fails to render without it.
+# `deployment` = one central gateway collector, which is what a push-based
+# OTLP topology needs. Use `daemonset` only for node-local collection
+# (host metrics, log tailing), which promtail already handles here.
+mode: deployment
+
+image:
+  # Required — the chart ships no default repository. contrib (not core) because
+  # the prometheus exporter and k8sattributes processor live in contrib only.
+  repository: otel/opentelemetry-collector-contrib
+
+replicaCount: 1
+
+ports:
+  # Only OTLP is accepted. The chart enables the legacy jaeger and zipkin
+  # receiver ports by default; nothing here speaks those protocols, so they are
+  # switched off rather than left listening.
+  jaeger-compact:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  zipkin:
+    enabled: false
+  # 8888 is the collector's own internal telemetry (already configured by the
+  # chart under config.service.telemetry). Exposed so a ServiceMonitor can
+  # scrape the collector itself — without this you have no visibility into
+  # dropped spans or refused batches.
+  metrics:
+    enabled: true
+
+config:
+  receivers:
+    # Drop the receivers whose ports were disabled above, plus the prometheus
+    # scrape receiver — Prometheus scrapes targets itself in this stack, the
+    # collector does not need to duplicate it.
+    jaeger: null
+    zipkin: null
+    prometheus: null
+
+  processors:
+    # memory_limiter MUST be first in every pipeline. It refuses new batches
+    # when the collector nears its memory limit, which turns an OOMKill into
+    # backpressure the sender can retry.
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    batch:
+      timeout: 10s
+      send_batch_size: 8192
+
+  exporters:
+    # Safe default so this chart is deployable with nothing else present.
+    # Overlays replace this in the pipelines below.
+    debug:
+      verbosity: basic
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [debug]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [debug]
+      # NO logs pipeline, deliberately. loki-stack 2.10.1 is Loki v2.9.3, which
+      # has no OTLP ingest endpoint (that arrived in Loki 3.0), and promtail
+      # already ships container logs. Adding a logs pipeline here would need the
+      # deprecated loki exporter and would duplicate promtail.
+      logs: null
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    # Keep limits and memory_limiter's limit_percentage in step: 80% of 512Mi
+    # is the point at which the collector starts refusing batches.
+    cpu: 500m
+    memory: 512Mi

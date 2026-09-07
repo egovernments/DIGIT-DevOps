@@ -7,7 +7,7 @@ labels:
 ingress:
   enabled: true
   zuul: true
-  context: "boundary-go"
+  context: "boundary"
 
 
 # Container Configs
@@ -18,7 +18,7 @@ initContainers:
     enabled: true
     schemaTable: "boundary_schema"
     image:
-      repository: "boundary-db"
+      repository: "boundary-java-db"
     env: |
         - name: "DB_URL"
           valueFrom:
@@ -51,9 +51,12 @@ initContainers:
 
 # Container Configs
 image:
-  repository: "boundary"
+  repository: "boundary-java"
 replicas: 1
-appType: "go"
+appType: "java"
+# OTel span export switch (MANAGEMENT_TRACING_EXPORT_ENABLED) — override per
+# environment via the boundary block in environments/<env>.yaml
+tracing-export-enabled: "false"
 tracing-enabled: true # Assuming you want to keep tracing
 healthChecks:
   enabled: false # Disabled as requested
@@ -62,11 +65,11 @@ healthChecks:
 # Resource configuration for Go service
 resources: |
   requests:
-    cpu: "200m"
+    cpu: "150m"
     memory: "512Mi"
   limits:
-    cpu: "200m"
-    memory: "512Mi"
+    cpu: "1"
+    memory: "1.5Gi"
 
 # Additional Container Envs
 env: |
@@ -103,7 +106,6 @@ env: |
     value: /filestore/v1/files
   - name: CACHE_TYPE
     value: inmemory
-
   - name: OTEL_ENABLED
     value: "true"
   - name: OTEL_SERVICE_NAME
@@ -118,13 +120,15 @@ env: |
     value: "1.0"
   - name: OTEL_EXPORTER_OTLP_ENDPOINT
     value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
-
   - name: PUBSUB_ENABLED
     value: "true"
   - name: PUBSUB_TYPE
-    value: redis
+    value: kafka
   - name: KAFKA_BROKERS
-    value: release-name-kafka-controller-headless.kafka-kraft:9092
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
   - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
     value: "true"
   - name: KAFKA_PARTITION_COUNT
@@ -132,7 +136,7 @@ env: |
   - name: KAFKA_REPLICATION_FACTOR
     value: "1"
   - name: KAFKA_CONSUMER_GROUP
-    value: boundary-service
+    value: boundary
   - name: REDIS_ADDRESS
     value: redis.backbone.svc.cluster.local:6379
   - name: REDIS_PASSWORD
@@ -167,7 +171,7 @@ env: |
   - name: PUBSUB_TOPIC_DELETE_BOUNDARY_RELATIONSHIP
     value: boundary-delete-boundary-relationship
   - name: SCHEMA_SEPARATION_MODE
-    value: "false"
+    value: "true"
   - name: SCHEMA_SEPARATION_TOPIC
     value: account-migration
   - name: MIGRATION_FLYWAY_LOCATIONS
@@ -178,3 +182,20 @@ env: |
     value: /opt/flyway/flyway
   - name: MIGRATION_SCHEMA_TABLE
     value: boundary_schema
+  # ── Per-tenant schemas (com.digit:tenant-migration) ──────────────────────
+  # Mirrors the SCHEMA_SEPARATION_MODE above; matches what's actually running.
+  - name: TRACER_PUBSUB_TYPE
+    value: kafka
+  - name: TENANT_MIGRATION_ENABLED
+    value: "true"
+  - name: TENANT_MIGRATION_SCHEMA_TABLE
+    value: boundary_schema
+  - name: TENANT_MIGRATION_CONSUMER_GROUP
+    value: boundary
+  # ── Observability: OTel span export disabled ──────────────────────────────
+  # NB: the span switch is MANAGEMENT_TRACING_EXPORT_ENABLED — MANAGEMENT_TRACING_ENABLED
+  # does not gate Boot's OTLP span exporter.
+  - name: MANAGEMENT_TRACING_EXPORT_ENABLED
+    value: {{ index .Values "tracing-export-enabled" | quote }}
+  - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
+    value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/traces

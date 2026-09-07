@@ -22,11 +22,11 @@ initContainers:
     image:
       repository: "billing-java-db"
     env: |
+      # billing was peeled out of the dev-bundle but keeps its data in bundle_db
+      # (its public tables + Flyway history + tenant schemas were created there
+      # while it was bundled) — NOT egov-config's db-url, which is the postgres DB.
       - name: "DB_URL"
-        valueFrom:
-          configMapKeyRef:
-            name: egov-config
-            key: db-url
+        value: "jdbc:postgresql://postgresql-lts.egov:5432/bundle_db"
       - name: "SCHEMA_TABLE"
         value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
       - name: "FLYWAY_USER"
@@ -94,11 +94,9 @@ env: |
   - name: SERVER_SERVLET_CONTEXT_PATH
     value: /billing
   # ── Datasource ──────────────────────────────────────────────────────────
+  # bundle_db, not egov-config's db-url: see the dbMigration init env comment.
   - name: SPRING_DATASOURCE_URL
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-url
+    value: "jdbc:postgresql://postgresql-lts.egov:5432/bundle_db"
   - name: SPRING_DATASOURCE_USERNAME
     valueFrom:
       secretKeyRef:

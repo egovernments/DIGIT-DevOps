@@ -408,6 +408,12 @@ identical files → validation passes.
   init `DB_URL` at **`bundle_db`** — its public tables, Flyway history and
   tenant schemas were created there while bundled; `egov-config`'s `db-url`
   is the wrong (per-service) database.
+- Peeled service's chart values: set **`TENANT_MIGRATION_ENABLED: "true"`** —
+  the per-service charts ship it `false` (inside the bundle the bundle-level
+  env owns the switch), and a standalone service with it off silently ignores
+  tenant-create events. Found live: creating tenant TEST produced 53/72
+  tables, all 19 missing ones billing's; enabling the flag made the consumer
+  replay the event at startup and complete the schema.
 - `environments/<env>.yaml`: bump the `dev-bundle:` tags; point the peeled
   service's image + init image at the source-built tags
   (`pullPolicy: IfNotPresent` for containerd-imported images); revert its

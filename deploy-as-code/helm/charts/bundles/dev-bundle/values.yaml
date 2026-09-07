@@ -27,6 +27,7 @@ ingress:
   contexts:
   - idgen
   - template-config
+  - billing
   - apportion
   - url-shortener
   - pg-service
@@ -59,15 +60,34 @@ env:
     value: template-config-update-template-config
   TEMPLATE_CONFIG_TOPICS_DELETE:
     value: template-config-delete-template-config
+  BILLING_DEMAND_ENABLE_ARREARS:
+    value: 'true'
+  BILLING_MAX_INSTRUMENT_DATE_AGE_DAYS:
+    value: '90'
+  BILLING_BULK_BILL_CONSUMER_BATCH_SIZE:
+    value: '10'
+  BILLING_TOPICS_BULK_BILL_GENERATION:
+    value: bulk-bill-generator
+  BILLING_TOPICS_BULK_BILL_GENERATION_DLQ:
+    value: bulk-bill-generator-dlq
+  BILLING_IDGEN_GENERATE_PATH:
+    value: idgen/v3/generate
+  BILLING_IDGEN_BULK_GENERATE_PATH:
+    value: idgen/v3/generate/bulk
+  BILLING_IDGEN_BILL_NUMBER_TEMPLATE:
+    value: BillNumber
+  BILLING_IDGEN_RECEIPT_NUMBER_TEMPLATE:
+    value: ReceiptNumber
+  BILLING_IDGEN_TRANSACTION_NUMBER_TEMPLATE:
+    value: TransactionNumber
+  BILLING_APPORTION_BILL_PATH:
+    value: apportion/v3/bills
+  LOGGING_LEVEL_ORG_DIGIT:
+    value: DEBUG
   APPORTION_VALUE_ORDER:
     value: 'true'
   APPORTION_ENABLE_ADVANCE:
     value: 'false'
-  APPORTION_BILLING_HOST:
-    valueFrom:
-      configMapKeyRef:
-        key: billing-java
-        name: egov-service-host
   APPORTION_BILLING_TAX_HEADS_PATH:
     value: billing/v3/tax-heads
   URL_SHORTENER_HOST_NAME:
@@ -107,11 +127,6 @@ env:
     value: idgen/v3/generate
   IDGEN_TXN_ID_TEMPLATE_CODE:
     value: TxnID
-  BILLING_HOST:
-    valueFrom:
-      configMapKeyRef:
-        key: billing-java
-        name: egov-service-host
   BILLING_PAYMENTS_CREATE_PATH:
     value: billing/v3/payments
   BILLING_PAYMENTS_VALIDATE_PATH:
@@ -730,6 +745,7 @@ env:
 dbMigrationOrder:
 - idgen
 - template-config
+- billing
 - apportion
 - url-shortener
 - pg-service
@@ -791,6 +807,40 @@ dbMigrations:
             key: db-url
       SCHEMA_TABLE:
         value: template_config_schema
+      FLYWAY_USER:
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-username
+      FLYWAY_PASSWORD:
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: flyway-password
+      JAVA_ENABLE_DEBUG:
+        value: 'TRUE'
+      FLYWAY_LOCATIONS:
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: flyway-locations
+      FLYWAY_SCHEMAS:
+        value: public
+      FLYWAY_DEFAULT_SCHEMA:
+        value: public
+  billing:
+    enabled: true
+    image:
+      repository: billing-java-db
+      tag: ''
+    env:
+      DB_URL:
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-url
+      SCHEMA_TABLE:
+        value: billing_schema
       FLYWAY_USER:
         valueFrom:
           secretKeyRef:

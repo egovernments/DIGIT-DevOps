@@ -7,7 +7,7 @@ labels:
 ingress:
   enabled: true
   zuul: true
-  context: "localization-go"
+  context: "localization"
 
 # Init Containers Configs
 initContainers:
@@ -15,7 +15,7 @@ initContainers:
     enabled: true
     schemaTable: "localization_schema"
     image:
-      repository: "localization-db"
+      repository: "localization-java-db"
     env: |
         - name: "DB_URL"
           valueFrom:
@@ -48,9 +48,12 @@ initContainers:
 
 # Container Configs
 image:
-  repository: "localization"
+  repository: "localization-java"
 replicas: 1
-appType: "go"
+appType: "java"
+# OTel span export switch (MANAGEMENT_TRACING_EXPORT_ENABLED) — override per
+# environment via the localization block in environments/<env>.yaml
+tracing-export-enabled: "false"
 tracing-enabled: false # Assuming you want to keep tracing
 healthChecks:
   enabled: false # Disabled as requested
@@ -59,18 +62,16 @@ healthChecks:
 # Resource configuration for Go service
 resources: |
   requests:
-    cpu: "200m"
+    cpu: "150m"
     memory: "512Mi"
   limits:
-    cpu: "200m"
-    memory: "512Mi"
-
+    cpu: "1"
+    memory: "1.5Gi"
+      
 # Additional Container Envs
 env: |
-  - name: REST_PORT
+  - name: HTTP_PORT
     value: "8080"
-  - name: GRPC_PORT
-    value: "8089"
   - name: DB_MAX_OPEN_CONNS
     value: "100"
   - name: DB_MAX_IDLE_CONNS
@@ -95,17 +96,11 @@ env: |
       secretKeyRef:
         key: password
         name: db
-  - name: REDIS_HOST
-    value: redis.backbone
-  - name: REDIS_PORT
-    value: "6379"
   - name: REDIS_ADDRESS
     value: redis.backbone.svc.cluster.local:6379
   - name: REDIS_PASSWORD
   - name: REDIS_DB
     value: "0"
-  - name: OTEL_ENABLED
-    value: "true"
   - name: OTEL_ENABLED
     value: "false"
   - name: OTEL_SERVICE_NAME
@@ -120,20 +115,22 @@ env: |
     value: "1.0"
   - name: OTEL_EXPORTER_OTLP_ENDPOINT
     value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
-  - name: GRPC_REFLECTION_ENABLED
-    value: "true"
   - name: SCHEMA_SEPARATION_MODE
-    value: "false"
+    value: "true"
   - name: SCHEMA_SEPARATION_TOPIC
     value: account-migration
   - name: MIGRATION_FLYWAY_LOCATIONS
-    value: filesystem:/opt/digit/db/migrations
-  - name: MIGRATION_SCRIPT_PATH
-    value: /opt/digit/migrate.sh
-  - name: MIGRATION_FLYWAY_BIN
-    value: /opt/flyway/flyway
+    value: classpath:db/migration
   - name: MIGRATION_SCHEMA_TABLE
     value: localization_schema
+  - name: TRACER_PUBSUB_TYPE
+    value: kafka
+  - name: TENANT_MIGRATION_ENABLED
+    value: "true"
+  - name: TENANT_MIGRATION_SCHEMA_TABLE
+    value: localization_schema
+  - name: TENANT_MIGRATION_CONSUMER_GROUP
+    value: localization-service
   - name: PUBSUB_ENABLED
     value: "false"
   - name: PUBSUB_TYPE
@@ -147,6 +144,11 @@ env: |
   - name: PUBSUB_TOPIC_DELETE_MESSAGE
     value: localization-delete-message
   - name: KAFKA_BROKERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
     valueFrom:
       configMapKeyRef:
         key: kafka-brokers
@@ -169,3 +171,10 @@ env: |
     value: "1000000"
   - name: REDIS_CLEANUP_INTERVAL
     value: "86400"
+  # ── Observability: OTel span export disabled ──────────────────────────────
+  # NB: the span switch is MANAGEMENT_TRACING_EXPORT_ENABLED — MANAGEMENT_TRACING_ENABLED
+  # does not gate Boot's OTLP span exporter.
+  - name: MANAGEMENT_TRACING_EXPORT_ENABLED
+    value: {{ index .Values "tracing-export-enabled" | quote }}
+  - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
+    value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/traces

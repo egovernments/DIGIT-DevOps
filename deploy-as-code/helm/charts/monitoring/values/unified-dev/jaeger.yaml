@@ -1,0 +1,47 @@
+# jaeger — unified-dev (Azure AKS) overlay
+#
+# IMPORTANT: written against chart 4.4.7, the version pinned in
+# monitoring-applications.yaml. That chart is Jaeger **v2** (appVersion 2.14.1)
+# and its values schema is unrelated to values/jaeger.yaml, which was written
+# for chart 0.35.0 (Jaeger v1). In 4.4.7 there are no agent / collector / query
+# components — it renders a single Deployment — and storage.elasticsearch
+# accepts only `tls` and `url`.
+#
+# Consequence: almost everything in the base values/jaeger.yaml is silently
+# IGNORED by this chart (Helm does not error on unknown keys), including
+# agent/collector/query settings, storage.elasticsearch.host/port/user and
+# collector.samplingConfig. Do not assume those are in effect.
+#
+# Two open decisions, called out because neither is fixable here:
+#   1. monitoring-helmfile.yaml has this release `installed: false` (namespace
+#      es-cluster). Jaeger was deliberately off in this environment — confirm
+#      it is wanted before syncing.
+#   2. Either keep 4.4.7 and retire values/jaeger.yaml (it no longer applies),
+#      or pin the Application back to a 0.x chart that matches those values.
+#      Mixing the two gives a Jaeger that starts with defaults and looks fine.
+
+storage:
+  type: elasticsearch
+  elasticsearch:
+    # Internal cluster ES. Cross-namespace, so the .backbone suffix is required.
+    # Verified reachable from the monitoring namespace (HTTP 401 = up, auth on).
+    url: http://elasticsearch-master.backbone:9200
+
+jaeger:
+  extraEnv:
+    # ES has xpack.security.enabled=true, and this chart exposes no user/password
+    # fields — so credentials are injected as environment variables instead of
+    # being embedded in the URL, which would put the password in git.
+    # elasticsearch-master-credentials is rendered into the monitoring namespace
+    # by cluster-configs (cluster-configs.secrets.elasticsearch-master-creds).
+    - name: ES_USERNAME
+      value: elastic
+    - name: ES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: elasticsearch-master-credentials
+          key: password
+  ingress:
+    enabled: true
+    hosts:
+      - unified-dev.digit.org

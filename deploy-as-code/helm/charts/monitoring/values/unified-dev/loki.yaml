@@ -1,0 +1,87 @@
+# loki-stack — unified-dev (Azure AKS) overlay
+#
+# Materialises what monitoring-helmfile.yaml injected from
+# environments/unified-dev.yaml. NOTE this targets chart grafana/loki-stack
+# 2.10.1 (the version in the helmfile), not grafana/loki 6.x — the config below
+# is Loki 2.x schema (boltdb-shipper, shared_store, table_manager), which the
+# 6.x chart does not accept. loki-stack also bundles promtail, which plain loki
+# does not; without it nothing ships logs.
+
+loki:
+  # env: loki.persistence (30Gi, up from the base file's 10Gi)
+  persistence:
+    enabled: true
+    accessModes:
+    - ReadWriteOnce
+    size: 30Gi
+    # AKS: the cluster default StorageClass is disk.csi.azure.com. Naming it
+    # explicitly avoids inheriting whatever default a future cluster sets.
+    # Note the AKS built-in classes use reclaimPolicy: Delete — if these logs
+    # matter beyond the retention window, switch to a Retain-based class.
+    storageClassName: managed-csi
+
+  # env: loki.securityContext — OnRootMismatch avoids re-chowning the whole
+  # volume on every restart, which gets slow once the PVC has many chunks.
+  securityContext:
+    fsGroupChangePolicy: OnRootMismatch
+
+  # env: loki.livenessProbe — 300s initial delay because Loki replays its WAL
+  # before serving /ready, and a shorter delay restart-loops on a full volume.
+  livenessProbe:
+    httpGet:
+      path: /ready
+      port: http-metrics
+    initialDelaySeconds: 300
+    periodSeconds: 30
+    failureThreshold: 5
+
+  # env: loki.serviceAccount
+  serviceAccount:
+    annotations: {}
+
+  # DELIBERATELY OMITTED — env: loki.nodeSelector {workload-type: stateful}
+  # and its matching toleration. That pair targets a dedicated stateful
+  # nodegroup that exists on EKS but NOT on this AKS cluster: none of the 9
+  # unified-dev nodes carries a workload-type label. Copying it over would
+  # leave the Loki pod permanently Pending with no schedulable node. Re-add
+  # both together if a labelled/tainted nodepool is created here.
+
+  # env: loki.additionalConfigs — the helmfile mapped these into loki.config.*
+  config:
+    schema_config:
+      configs:
+      - from: 2020-10-24
+        store: boltdb-shipper
+        object_store: filesystem
+        schema: v11
+        index:
+          prefix: index_
+          period: 24h
+    storage_config:
+      boltdb_shipper:
+        active_index_directory: /data/loki/index
+        cache_location: /data/loki/index_cache
+        shared_store: filesystem
+        cache_ttl: 72h
+      filesystem:
+        directory: /data/loki/chunks
+    compactor:
+      working_directory: /data/loki/boltdb-shipper-compactor
+      shared_store: filesystem
+      retention_enabled: true
+      retention_delete_delay: 2h
+      compaction_interval: 10m
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 720h
+    limits_config:
+      retention_period: 720h
+      max_query_lookback: 720h
+    chunk_store_config:
+      max_look_back_period: 720h
+
+promtail:
+  # env: promtail.tolerations — operator: Exists so the log agent runs on every
+  # node including tainted ones, which is the point of a DaemonSet collector.
+  tolerations:
+    - operator: Exists

@@ -196,6 +196,13 @@ cluster-configs:
       namespace: monitoring
       name: alertmanager      
 
+    # GitHub OAuth for Grafana. clientID / clientSecret come from the
+    # SOPS-encrypted environments/<env>-secrets.yaml; only the target
+    # Secret's name and namespace live here in plaintext.
+    grafana:
+      namespace: monitoring
+      name: grafana
+
     jenkins:
       namespace: jenkins
       name: jenkins 
@@ -217,7 +224,11 @@ cluster-configs:
       name: program-service
 
     elasticsearch-master-creds:
-      namespace: [ es-upgrade, egov, works, health, urban ]
+      # monitoring added so Jaeger can authenticate to the in-cluster
+      # Elasticsearch (xpack.security.enabled=true, so the REST port
+      # returns 401 without credentials). Secrets are namespace-scoped, so
+      # jaeger running in monitoring cannot read the copy in backbone.
+      namespace: ['es-upgrade', 'egov', 'works', 'health', 'urban', 'monitoring']
       name: elasticsearch-master-credentials
 
     matomo:

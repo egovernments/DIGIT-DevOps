@@ -1,0 +1,41 @@
+# grafana — unified-dev (Azure AKS) overlay
+#
+# Values the helmfile previously supplied via `set:` and templated blocks.
+# Argo CD multi-source Applications cannot template from the env file, so they
+# are materialised here.
+
+ingress:
+  # The base values/grafana.yaml hardcodes hosts: ["mukta.odisha.gov.in"] and
+  # tls.hosts: [""] — placeholders from another environment. They MUST be
+  # overridden or the ingress is issued for the wrong hostname. The helmfile did
+  # this with `set: ingress.hosts[0]` from global.domain; same value below.
+  # grafana.ini server.root_url templates off (ingress.hosts | first) + path,
+  # so fixing hosts here also fixes the generated root_url and OAuth callback.
+  hosts:
+    - unified-dev.digit.org
+  tls:
+    - secretName: unified-dev.digit.org-tls-certs
+      hosts:
+        - unified-dev.digit.org
+
+# GitHub OAuth credentials.
+#
+# The helmfile rendered cluster-configs.secrets.grafana.clientID/clientSecret
+# (SOPS) straight into `envRenderSecret`, i.e. plaintext in the rendered
+# manifest. That is not reproducible under Argo and must not be committed here.
+# Instead reference a Secret, mirroring how alertmanager already works:
+# cluster-configs renders it from the same SOPS values and Grafana loads it as
+# environment variables. The Secret must contain exactly these two keys:
+#     GF_AUTH_GITHUB_CLIENT_ID
+#     GF_AUTH_GITHUB_CLIENT_SECRET
+# See charts/cluster-configs/templates/secrets/grafana-secret.yaml.
+envFromSecret: grafana
+
+grafana.ini:
+  auth.github:
+    # env: grafana.github.allowed_organizations
+    allowed_organizations: [egovernments]
+    # env: grafana.github.role_attribute_path — grants Admin to egov-devops and
+    # Viewer to micro-service-qa; everyone else is refused by
+    # role_attribute_strict (set true in the base values).
+    role_attribute_path: "contains(groups[*], '@egovernments/egov-devops') && 'Admin' || contains(groups[*], '@egovernments/micro-service-qa') && 'Viewer'"

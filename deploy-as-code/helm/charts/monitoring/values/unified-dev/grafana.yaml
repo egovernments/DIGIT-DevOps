@@ -41,3 +41,20 @@ grafana.ini:
     # Viewer to micro-service-qa; everyone else is refused by
     # role_attribute_strict (set true in the base values).
     role_attribute_path: "contains(groups[*], '@egovernments/egov-devops') && 'Admin' || contains(groups[*], '@egovernments/micro-service-qa') && 'Viewer'"
+
+# Built-in admin login.
+#
+# Without this the chart renders its own Secret/grafana, whose password comes
+# from `randAlphaNum 40` on every render: grafana.password only reuses an
+# existing password via `lookup`, and lookup is empty during `helm template` —
+# which is how Argo's repo-server generates manifests. The result was
+# Secret/grafana and Deployment/grafana permanently OutOfSync, with selfHeal
+# free to rotate the admin password on any sync.
+#
+# Pointing at an existing Secret makes grafana.secretsData skip its own Secret
+# entirely, so the credential is stable and lives encrypted in SOPS.
+# Rendered by charts/cluster-configs/templates/secrets/grafana-admin-secret.yaml.
+admin:
+  existingSecret: grafana-admin
+  userKey: admin-user
+  passwordKey: admin-password

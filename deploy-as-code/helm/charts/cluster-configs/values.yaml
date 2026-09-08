@@ -68,6 +68,18 @@ cluster-configs:
       namespace: [ egov, works, health, urban, sanitation, pms ]
       name: db
 
+    # Dedicated Postgres login for Debezium CDC, consumed by
+    # backbone-services/debezium-postgres-connect (dbSecretName: debezium-db).
+    # Deliberately separate from the `db` secret above: logical decoding needs
+    # the REPLICATION attribute, and putting that on unifieddev would let every
+    # service holding those credentials stream the whole cluster and create
+    # replication slots -- an unconsumed slot pins WAL until the server's disk
+    # fills. This role has LOGIN REPLICATION but is granted USAGE + SELECT on
+    # the `health` schema only, and is a member of no other role.
+    debezium-db:
+      namespace: [ backbone ]
+      name: debezium-db
+
     keycloak: 
       namespace: [ egov, health ]
       name: keycloak

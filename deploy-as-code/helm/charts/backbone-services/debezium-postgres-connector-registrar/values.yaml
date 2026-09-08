@@ -42,6 +42,16 @@ args:
     # endpoint errors ("Cannot deserialize ... from Object value") if the
     # body is wrapped in {"name":..., "config": {...}}.
     #
+    # publication.autocreate.mode is `disabled`, not `filtered`: only a table's
+    # OWNER may add it to a publication, and the `debezium` role is deliberately
+    # not a member of unifieddev (that would hand it every schema, defeating the
+    # health-only scoping). So the publication is pre-created once by unifieddev:
+    #   CREATE PUBLICATION debezium_unified_dev_publication
+    #     FOR TABLES IN SCHEMA health;
+    # `FOR TABLES IN SCHEMA` keeps new health tables included automatically. If
+    # the capture set ever widens beyond `health`, the publication must be
+    # altered by hand -- the connector can no longer do it for itself.
+    #
     # database.user/database.password are `${file:...}` references into the
     # properties file the sibling `debezium-postgres-connect` chart's init
     # container renders from the `db` Secret, resolved by Kafka Connect's
@@ -63,7 +73,7 @@ args:
       "plugin.name": "pgoutput",
       "slot.name": "$SLOT_NAME",
       "publication.name": "$PUBLICATION_NAME",
-      "publication.autocreate.mode": "filtered",
+      "publication.autocreate.mode": "disabled",
       "schema.include.list": "$SCHEMA_INCLUDE_LIST",
       "key.converter": "org.apache.kafka.connect.json.JsonConverter",
       "value.converter": "org.apache.kafka.connect.json.JsonConverter",

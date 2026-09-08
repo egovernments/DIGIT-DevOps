@@ -32,7 +32,17 @@ config-storage-replication-factor: "1"
 offset-storage-replication-factor: "1"
 status-storage-replication-factor: "1"
 
-# The `db` Secret's username/password are rendered into a Properties file by
+# Credentials for the CDC connection. This is deliberately NOT the `db` Secret
+# (unifieddev): logical decoding needs the REPLICATION attribute, and putting
+# that on the application role would give every service holding those
+# credentials the ability to stream the whole cluster and to create replication
+# slots -- an unconsumed slot pins WAL and will eventually fill the server's
+# disk. Instead a dedicated `debezium` role holds LOGIN REPLICATION and is
+# granted USAGE + SELECT on the `health` schema only, so its reach is limited to
+# the tables actually captured. unifieddev itself is unmodified.
+dbSecretName: debezium-db
+
+# The Secret's username/password are rendered into a Properties file by
 # the init container below and read at runtime via Kafka Connect's built-in
 # FileConfigProvider -- so the connector-registrar can reference
 # `${file:...}` placeholders in the connector config instead of the literal
@@ -63,7 +73,7 @@ initContainers:
 extraVolumes: |
   - name: db-secret
     secret:
-      secretName: db
+      secretName: {{ .Values.dbSecretName }}
   - name: config-providers
     emptyDir: {}
 

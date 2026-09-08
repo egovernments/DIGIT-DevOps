@@ -89,9 +89,15 @@ healthChecks:
     periodSeconds: 20
     failureThreshold: 6
 
-# Kafka Connect worker envs. The official Debezium image reads these bare
-# names (BOOTSTRAP_SERVERS/GROUP_ID/...), unlike the Confluent-based sibling
-# `kafka-connect` chart, which needs the CONNECT_* prefixed names.
+# Kafka Connect worker envs. `docker-entrypoint.sh` in the official Debezium
+# image special-cases a fixed set of bare names (BOOTSTRAP_SERVERS/GROUP_ID/
+# KEY_CONVERTER/VALUE_CONVERTER/*_STORAGE_TOPIC/HEAP_OPTS) -- anything else
+# needs the `CONNECT_` prefix (like the Confluent-based sibling
+# `kafka-connect` chart) to be picked up by its generic "strip CONNECT_,
+# lowercase, underscore->dot" pass into connect-distributed.properties. A
+# bare `CONFIG_PROVIDERS` is silently dropped -- confirmed live by exec'ing
+# into the pod and finding no `config.providers` line in the rendered
+# properties file.
 env: |
   - name: BOOTSTRAP_SERVERS
     value: "{{ index $.Values "cluster-configs" "configmaps" "egov-config" "data" "kafka-brokers" }}"
@@ -117,9 +123,9 @@ env: |
     value: "false"
   - name: CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE
     value: "false"
-  - name: CONFIG_PROVIDERS
+  - name: CONNECT_CONFIG_PROVIDERS
     value: "file"
-  - name: CONFIG_PROVIDERS_FILE_CLASS
+  - name: CONNECT_CONFIG_PROVIDERS_FILE_CLASS
     value: "org.apache.kafka.common.config.provider.FileConfigProvider"
   - name: CONNECT_REST_ADVERTISED_HOST_NAME
     valueFrom:

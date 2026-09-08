@@ -41,13 +41,23 @@ args:
     # body (the name comes from the URL) -- unlike POST /connectors, this
     # endpoint errors ("Cannot deserialize ... from Object value") if the
     # body is wrapped in {"name":..., "config": {...}}.
+    #
+    # database.user/database.password are `${file:...}` references into the
+    # properties file the sibling `debezium-postgres-connect` chart's init
+    # container renders from the `db` Secret, resolved by Kafka Connect's
+    # FileConfigProvider only in-memory inside the task. Kafka Connect's
+    # REST API echoes a connector's stored config back verbatim on GET (this
+    # Debezium version doesn't mark database.password as sensitive for that
+    # endpoint) -- a literal credential here would be readable by anything
+    # in-cluster that can reach :8083. The `\$` escapes keep the shell from
+    # trying (and failing) to expand `${file:...}` itself.
     cat <<JSON > /tmp/connector.json
     {
       "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
       "database.hostname": "$DB_HOST",
       "database.port": "$DB_PORT",
-      "database.user": "$DB_USER",
-      "database.password": "$DB_PASSWORD",
+      "database.user": "\${file:/config-providers/db.properties:username}",
+      "database.password": "\${file:/config-providers/db.properties:password}",
       "database.dbname": "$DB_NAME",
       "topic.prefix": "$TOPIC_PREFIX",
       "plugin.name": "pgoutput",
@@ -66,6 +76,7 @@ args:
     echo "Registering $CONNECTOR_NAME against $CONNECT_REST_URL"
     curl -sf -X PUT -H "Content-Type: application/json" \
       --data @/tmp/connector.json \
+      -o /dev/null -w 'HTTP %{http_code}\n' \
       "$CONNECT_REST_URL/connectors/$CONNECTOR_NAME/config"
 
 env: |
@@ -98,13 +109,3 @@ env: |
       configMapKeyRef:
         name: egov-config
         key: db-name
-  - name: DB_USER
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: username
-  - name: DB_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: db
-        key: password

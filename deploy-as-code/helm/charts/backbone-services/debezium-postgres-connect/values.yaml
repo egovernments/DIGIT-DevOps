@@ -32,6 +32,46 @@ config-storage-replication-factor: "1"
 offset-storage-replication-factor: "1"
 status-storage-replication-factor: "1"
 
+# The `db` Secret's username/password are rendered into a Properties file by
+# the init container below and read at runtime via Kafka Connect's built-in
+# FileConfigProvider -- so the connector-registrar can reference
+# `${file:...}` placeholders in the connector config instead of the literal
+# credential. This matters because Kafka Connect's REST API echoes a
+# connector's stored config back verbatim on GET (Debezium's ConfigDef
+# doesn't mark `database.password` as PASSWORD-typed for this endpoint), so
+# a literal password in the config is readable by anything in-cluster that
+# can reach :8083. A `${file:...}` placeholder is only resolved in-memory
+# inside the task and is what the REST API stores/serves instead.
+initContainers:
+  extraInitContainers: |
+    - name: render-db-config-provider
+      image: busybox:1.36
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -e
+          printf 'username=%s\n' "$(cat /var/run/secrets/db/username)" > /config-providers/db.properties
+          printf 'password=%s\n' "$(cat /var/run/secrets/db/password)" >> /config-providers/db.properties
+          chmod 644 /config-providers/db.properties
+      volumeMounts:
+        - name: db-secret
+          mountPath: /var/run/secrets/db
+          readOnly: true
+        - name: config-providers
+          mountPath: /config-providers
+
+extraVolumes: |
+  - name: db-secret
+    secret:
+      secretName: db
+  - name: config-providers
+    emptyDir: {}
+
+extraVolumeMounts: |
+  - name: config-providers
+    mountPath: /config-providers
+    readOnly: true
+
 healthChecks:
   enabled: true
   readinessProbe: |
@@ -77,6 +117,10 @@ env: |
     value: "false"
   - name: CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE
     value: "false"
+  - name: CONFIG_PROVIDERS
+    value: "file"
+  - name: CONFIG_PROVIDERS_FILE_CLASS
+    value: "org.apache.kafka.common.config.provider.FileConfigProvider"
   - name: CONNECT_REST_ADVERTISED_HOST_NAME
     valueFrom:
       fieldRef:

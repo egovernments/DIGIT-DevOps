@@ -1,0 +1,85 @@
+# Common Labels
+name: debezium-postgres-connect
+namespace: backbone
+labels:
+  app: "debezium-postgres-connect"
+  group: "infra"
+
+# Container Configs
+# Official Debezium Kafka Connect image -- bundles a Kafka Connect distributed
+# worker plus every Debezium connector (including postgres), so there is no
+# confluent-hub plugin-install step like the sibling `kafka-connect` chart
+# needs. Bump this tag against the versions published at
+# https://quay.io/repository/debezium/connect?tab=tags before rollout.
+image:
+  repository: quay.io/debezium/connect
+  tag: 2.7.3.Final
+
+replicas: "1"
+httpPort: 8083
+heap: "-Xms512M -Xmx512M"
+memory_limits: 1Gi
+resources: |
+  requests:
+    memory: {{ .Values.memory_limits | quote }}
+    cpu: 250m
+  limits:
+    memory: {{ .Values.memory_limits | quote }}
+
+# Single-node worker against a single-broker-class KRaft cluster; internal
+# topics can't have a replication factor higher than the number of brokers.
+config-storage-replication-factor: "1"
+offset-storage-replication-factor: "1"
+status-storage-replication-factor: "1"
+
+healthChecks:
+  enabled: true
+  readinessProbe: |
+    httpGet:
+      path: /
+      port: {{ .Values.httpPort }}
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    failureThreshold: 6
+  livenessProbe: |
+    httpGet:
+      path: /
+      port: {{ .Values.httpPort }}
+    initialDelaySeconds: 60
+    periodSeconds: 20
+    failureThreshold: 6
+
+# Kafka Connect worker envs. The official Debezium image reads these bare
+# names (BOOTSTRAP_SERVERS/GROUP_ID/...), unlike the Confluent-based sibling
+# `kafka-connect` chart, which needs the CONNECT_* prefixed names.
+env: |
+  - name: BOOTSTRAP_SERVERS
+    value: "{{ index $.Values "cluster-configs" "configmaps" "egov-config" "data" "kafka-brokers" }}"
+  - name: GROUP_ID
+    value: {{ .Values.name }}
+  - name: CONFIG_STORAGE_TOPIC
+    value: {{ .Values.name }}-config
+  - name: OFFSET_STORAGE_TOPIC
+    value: {{ .Values.name }}-offset
+  - name: STATUS_STORAGE_TOPIC
+    value: {{ .Values.name }}-status
+  - name: CONFIG_STORAGE_REPLICATION_FACTOR
+    value: {{ index .Values "config-storage-replication-factor" | quote }}
+  - name: OFFSET_STORAGE_REPLICATION_FACTOR
+    value: {{ index .Values "offset-storage-replication-factor" | quote }}
+  - name: STATUS_STORAGE_REPLICATION_FACTOR
+    value: {{ index .Values "status-storage-replication-factor" | quote }}
+  - name: KEY_CONVERTER
+    value: "org.apache.kafka.connect.json.JsonConverter"
+  - name: VALUE_CONVERTER
+    value: "org.apache.kafka.connect.json.JsonConverter"
+  - name: CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE
+    value: "false"
+  - name: CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE
+    value: "false"
+  - name: CONNECT_REST_ADVERTISED_HOST_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
+  - name: KAFKA_HEAP_OPTS
+    value: {{ .Values.heap | quote }}

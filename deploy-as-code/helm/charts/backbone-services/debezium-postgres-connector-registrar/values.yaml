@@ -1,0 +1,111 @@
+# Common Labels
+name: debezium-postgres-connector-registrar
+namespace: backbone
+labels:
+  app: "debezium-postgres-connector-registrar"
+  group: "infra"
+
+# Container Configs
+# Kafka Connect has no CRD-based connector object without the Strimzi
+# operator (which this cluster does not run). Debezium's own docs register
+# connectors by PUTting the config JSON straight at the REST API, so this
+# CronJob does that with a plain curl image instead of a one-off Job --
+# common/ only ships a CronJob template, and re-running the (idempotent) PUT
+# on a schedule also means a Connect pod restart or a config change gets
+# picked up without a manual step.
+image:
+  repository: curlimages/curl
+  tag: "8.12.1"
+
+memory_limits: 64Mi
+resources: |
+  requests:
+    memory: {{ .Values.memory_limits | quote }}
+    cpu: 50m
+  limits:
+    memory: {{ .Values.memory_limits | quote }}
+
+cron:
+  schedule: "*/5 * * * *"
+
+# common.cronjob renders `command`/`args` with `toYaml` (no `tpl`), so these
+# must be plain values -- everything dynamic is passed in via `env` below
+# (which *is* `tpl`'d) and read back here as plain shell variables.
+command:
+  - "/bin/sh"
+  - "-c"
+args:
+  - |
+    set -eu
+    # PUT .../connectors/{name}/config takes the *flat* config map as the
+    # body (the name comes from the URL) -- unlike POST /connectors, this
+    # endpoint errors ("Cannot deserialize ... from Object value") if the
+    # body is wrapped in {"name":..., "config": {...}}.
+    #
+    # database.user/database.password are `${file:...}` references into the
+    # properties file the sibling `debezium-postgres-connect` chart's init
+    # container renders from the `db` Secret, resolved by Kafka Connect's
+    # FileConfigProvider only in-memory inside the task. Kafka Connect's
+    # REST API echoes a connector's stored config back verbatim on GET (this
+    # Debezium version doesn't mark database.password as sensitive for that
+    # endpoint) -- a literal credential here would be readable by anything
+    # in-cluster that can reach :8083. The `\$` escapes keep the shell from
+    # trying (and failing) to expand `${file:...}` itself.
+    cat <<JSON > /tmp/connector.json
+    {
+      "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+      "database.hostname": "$DB_HOST",
+      "database.port": "$DB_PORT",
+      "database.user": "\${file:/config-providers/db.properties:username}",
+      "database.password": "\${file:/config-providers/db.properties:password}",
+      "database.dbname": "$DB_NAME",
+      "topic.prefix": "$TOPIC_PREFIX",
+      "plugin.name": "pgoutput",
+      "slot.name": "$SLOT_NAME",
+      "publication.name": "$PUBLICATION_NAME",
+      "publication.autocreate.mode": "filtered",
+      "schema.include.list": "$SCHEMA_INCLUDE_LIST",
+      "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+      "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+      "key.converter.schemas.enable": "false",
+      "value.converter.schemas.enable": "false",
+      "decimal.handling.mode": "string",
+      "tombstones.on.delete": "true"
+    }
+    JSON
+    echo "Registering $CONNECTOR_NAME against $CONNECT_REST_URL"
+    curl -sf -X PUT -H "Content-Type: application/json" \
+      --data @/tmp/connector.json \
+      -o /dev/null -w 'HTTP %{http_code}\n' \
+      "$CONNECT_REST_URL/connectors/$CONNECTOR_NAME/config"
+
+env: |
+  # REST API of the worker deployed by the sibling `debezium-postgres-connect` chart.
+  - name: CONNECT_REST_URL
+    value: "http://debezium-postgres-connect.backbone:8083"
+  - name: CONNECTOR_NAME
+    value: "unified-dev-postgres-cdc"
+  - name: TOPIC_PREFIX
+    value: "unified-dev"
+  - name: SLOT_NAME
+    value: "debezium_unified_dev"
+  - name: PUBLICATION_NAME
+    value: "debezium_unified_dev_publication"
+  # Every service's tables live in this schema in the shared `unified-dev-db`
+  # database -- see `db-schema-names`/flyway's `SCHEMA_NAME` default for this
+  # environment. Narrow this down to a `table.include.list` once specific
+  # tables to capture are known.
+  - name: SCHEMA_INCLUDE_LIST
+    value: "public"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name

@@ -208,6 +208,19 @@ cluster-configs:
       # leaves cluster-configs permanently OutOfSync.
       name: grafana-oauth
 
+    # Grafana's built-in admin login. Kept OUT of chart values because the
+    # grafana chart's own Secret is non-deterministic under Argo: its
+    # grafana.password helper does `lookup` to reuse an existing password, but
+    # lookup returns nothing during `helm template` (which is how the
+    # repo-server renders), so it falls through to randAlphaNum 40 on EVERY
+    # generation. That leaves Secret/grafana and Deployment/grafana
+    # permanently OutOfSync and lets selfHeal rotate the admin password.
+    # Supplying it via admin.existingSecret stops the chart rendering its own
+    # Secret at all (see grafana.secretsData's guard).
+    grafana-admin:
+      namespace: monitoring
+      name: grafana-admin
+
     jenkins:
       namespace: jenkins
       name: jenkins 

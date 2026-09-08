@@ -1,0 +1,135 @@
+# Common Labels
+name: debezium-postgres-connect
+namespace: backbone
+labels:
+  app: "debezium-postgres-connect"
+  group: "infra"
+
+# Container Configs
+# Official Debezium Kafka Connect image -- bundles a Kafka Connect distributed
+# worker plus every Debezium connector (including postgres), so there is no
+# confluent-hub plugin-install step like the sibling `kafka-connect` chart
+# needs. Bump this tag against the versions published at
+# https://quay.io/repository/debezium/connect?tab=tags before rollout.
+image:
+  repository: quay.io/debezium/connect
+  tag: 2.7.3.Final
+
+replicas: "1"
+httpPort: 8083
+heap: "-Xms512M -Xmx512M"
+memory_limits: 1Gi
+resources: |
+  requests:
+    memory: {{ .Values.memory_limits | quote }}
+    cpu: 250m
+  limits:
+    memory: {{ .Values.memory_limits | quote }}
+
+# Single-node worker against a single-broker-class KRaft cluster; internal
+# topics can't have a replication factor higher than the number of brokers.
+config-storage-replication-factor: "1"
+offset-storage-replication-factor: "1"
+status-storage-replication-factor: "1"
+
+# The `db` Secret's username/password are rendered into a Properties file by
+# the init container below and read at runtime via Kafka Connect's built-in
+# FileConfigProvider -- so the connector-registrar can reference
+# `${file:...}` placeholders in the connector config instead of the literal
+# credential. This matters because Kafka Connect's REST API echoes a
+# connector's stored config back verbatim on GET (Debezium's ConfigDef
+# doesn't mark `database.password` as PASSWORD-typed for this endpoint), so
+# a literal password in the config is readable by anything in-cluster that
+# can reach :8083. A `${file:...}` placeholder is only resolved in-memory
+# inside the task and is what the REST API stores/serves instead.
+initContainers:
+  extraInitContainers: |
+    - name: render-db-config-provider
+      image: busybox:1.36
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -e
+          printf 'username=%s\n' "$(cat /var/run/secrets/db/username)" > /config-providers/db.properties
+          printf 'password=%s\n' "$(cat /var/run/secrets/db/password)" >> /config-providers/db.properties
+          chmod 644 /config-providers/db.properties
+      volumeMounts:
+        - name: db-secret
+          mountPath: /var/run/secrets/db
+          readOnly: true
+        - name: config-providers
+          mountPath: /config-providers
+
+extraVolumes: |
+  - name: db-secret
+    secret:
+      secretName: db
+  - name: config-providers
+    emptyDir: {}
+
+extraVolumeMounts: |
+  - name: config-providers
+    mountPath: /config-providers
+    readOnly: true
+
+healthChecks:
+  enabled: true
+  readinessProbe: |
+    httpGet:
+      path: /
+      port: {{ .Values.httpPort }}
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    failureThreshold: 6
+  livenessProbe: |
+    httpGet:
+      path: /
+      port: {{ .Values.httpPort }}
+    initialDelaySeconds: 60
+    periodSeconds: 20
+    failureThreshold: 6
+
+# Kafka Connect worker envs. `docker-entrypoint.sh` in the official Debezium
+# image special-cases a fixed set of bare names (BOOTSTRAP_SERVERS/GROUP_ID/
+# KEY_CONVERTER/VALUE_CONVERTER/*_STORAGE_TOPIC/HEAP_OPTS) -- anything else
+# needs the `CONNECT_` prefix (like the Confluent-based sibling
+# `kafka-connect` chart) to be picked up by its generic "strip CONNECT_,
+# lowercase, underscore->dot" pass into connect-distributed.properties. A
+# bare `CONFIG_PROVIDERS` is silently dropped -- confirmed live by exec'ing
+# into the pod and finding no `config.providers` line in the rendered
+# properties file.
+env: |
+  - name: BOOTSTRAP_SERVERS
+    value: "{{ index $.Values "cluster-configs" "configmaps" "egov-config" "data" "kafka-brokers" }}"
+  - name: GROUP_ID
+    value: {{ .Values.name }}
+  - name: CONFIG_STORAGE_TOPIC
+    value: {{ .Values.name }}-config
+  - name: OFFSET_STORAGE_TOPIC
+    value: {{ .Values.name }}-offset
+  - name: STATUS_STORAGE_TOPIC
+    value: {{ .Values.name }}-status
+  - name: CONFIG_STORAGE_REPLICATION_FACTOR
+    value: {{ index .Values "config-storage-replication-factor" | quote }}
+  - name: OFFSET_STORAGE_REPLICATION_FACTOR
+    value: {{ index .Values "offset-storage-replication-factor" | quote }}
+  - name: STATUS_STORAGE_REPLICATION_FACTOR
+    value: {{ index .Values "status-storage-replication-factor" | quote }}
+  - name: KEY_CONVERTER
+    value: "org.apache.kafka.connect.json.JsonConverter"
+  - name: VALUE_CONVERTER
+    value: "org.apache.kafka.connect.json.JsonConverter"
+  - name: CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE
+    value: "false"
+  - name: CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE
+    value: "false"
+  - name: CONNECT_CONFIG_PROVIDERS
+    value: "file"
+  - name: CONNECT_CONFIG_PROVIDERS_FILE_CLASS
+    value: "org.apache.kafka.common.config.provider.FileConfigProvider"
+  - name: CONNECT_REST_ADVERTISED_HOST_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
+  - name: KAFKA_HEAP_OPTS
+    value: {{ .Values.heap | quote }}

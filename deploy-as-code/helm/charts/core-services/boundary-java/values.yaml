@@ -112,14 +112,21 @@ env: |
     value: boundary
   - name: OTEL_SERVICE_VERSION
     value: 1.0.0
+  # Metrics leave via the OTel collector scraping /boundary/actuator/prometheus (the static
+  # `boundary` job in monitoring/values/<env>/open-telemetry.yaml), which — unlike OTLP push —
+  # preserves exemplars. The push stays off so series don't arrive twice.
   - name: OTEL_METRICS_ENABLED
+    value: "false"
+  - name: MANAGEMENT_PROMETHEUS_METRICS_EXPORT_ENABLED
     value: "true"
+  - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+    value: health,info,prometheus
   - name: PROMETHEUS_PORT
     value: "9090"
   - name: OTEL_TRACES_SAMPLER_ARG
     value: "1.0"
   - name: OTEL_EXPORTER_OTLP_ENDPOINT
-    value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
+    value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
   - name: PUBSUB_ENABLED
     value: "true"
   - name: PUBSUB_TYPE

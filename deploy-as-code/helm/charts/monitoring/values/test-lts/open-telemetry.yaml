@@ -12,3 +12,29 @@ presets:
   logsCollection:
     enabled: true
     includeCollectorLogs: true
+
+config:
+  receivers:
+    prometheus:
+      config:
+        # NB: helm merges maps but REPLACES lists, so this list must restate the
+        # base values' collector self-scrape job alongside the new ones.
+        scrape_configs:
+          - job_name: opentelemetry-collector
+            scrape_interval: 10s
+            static_configs:
+              - targets:
+                  - ${env:MY_POD_IP}:8888
+          # One job per DIGIT service (each serves metrics under its own context path).
+          # Scraping — unlike OTLP push — preserves exemplars; they flow on through the
+          # :8889 exporter (enable_open_metrics) to Prometheus. The receiver maps
+          # job → service.name, and resource_to_telemetry_conversion turns that into the
+          # service_name label dashboards already filter on. Static Service-DNS targets
+          # are correct at replicas: 1; if a service scales out, scrapes round-robin
+          # across pods and the series become garbage — switch that job to
+          # kubernetes_sd_configs (pod role, needs a read-only clusterRole) at that point.
+          - job_name: boundary
+            scrape_interval: 15s
+            metrics_path: /boundary/actuator/prometheus
+            static_configs:
+              - targets: ["boundary-java.egov:8080"]

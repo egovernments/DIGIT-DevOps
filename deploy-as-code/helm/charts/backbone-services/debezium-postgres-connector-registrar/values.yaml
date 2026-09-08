@@ -37,29 +37,30 @@ command:
 args:
   - |
     set -eu
+    # PUT .../connectors/{name}/config takes the *flat* config map as the
+    # body (the name comes from the URL) -- unlike POST /connectors, this
+    # endpoint errors ("Cannot deserialize ... from Object value") if the
+    # body is wrapped in {"name":..., "config": {...}}.
     cat <<JSON > /tmp/connector.json
     {
-      "name": "$CONNECTOR_NAME",
-      "config": {
-        "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
-        "database.hostname": "$DB_HOST",
-        "database.port": "$DB_PORT",
-        "database.user": "$DB_USER",
-        "database.password": "$DB_PASSWORD",
-        "database.dbname": "$DB_NAME",
-        "topic.prefix": "$TOPIC_PREFIX",
-        "plugin.name": "pgoutput",
-        "slot.name": "$SLOT_NAME",
-        "publication.name": "$PUBLICATION_NAME",
-        "publication.autocreate.mode": "filtered",
-        "schema.include.list": "$SCHEMA_INCLUDE_LIST",
-        "key.converter": "org.apache.kafka.connect.json.JsonConverter",
-        "value.converter": "org.apache.kafka.connect.json.JsonConverter",
-        "key.converter.schemas.enable": "false",
-        "value.converter.schemas.enable": "false",
-        "decimal.handling.mode": "string",
-        "tombstones.on.delete": "true"
-      }
+      "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+      "database.hostname": "$DB_HOST",
+      "database.port": "$DB_PORT",
+      "database.user": "$DB_USER",
+      "database.password": "$DB_PASSWORD",
+      "database.dbname": "$DB_NAME",
+      "topic.prefix": "$TOPIC_PREFIX",
+      "plugin.name": "pgoutput",
+      "slot.name": "$SLOT_NAME",
+      "publication.name": "$PUBLICATION_NAME",
+      "publication.autocreate.mode": "filtered",
+      "schema.include.list": "$SCHEMA_INCLUDE_LIST",
+      "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+      "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+      "key.converter.schemas.enable": "false",
+      "value.converter.schemas.enable": "false",
+      "decimal.handling.mode": "string",
+      "tombstones.on.delete": "true"
     }
     JSON
     echo "Registering $CONNECTOR_NAME against $CONNECT_REST_URL"

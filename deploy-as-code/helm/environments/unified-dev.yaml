@@ -21,7 +21,9 @@ cluster-configs:
     cert-issuer: letsencrypt-prod
   configmaps:
     egov-config:
-      namespace: [ egov, temporal ]
+      ## `backbone` added so the `debezium-postgres-connector-registrar`
+      ## CronJob can read db-host/db-name via configMapKeyRef in that namespace.
+      namespace: [ egov, temporal, backbone ]
       data:
         db-host: unified-dev-server.postgres.database.azure.com ## Add db-host name eg: egov-demo.database.azure.com
         db-name: unified-dev-db ## Add db-name
@@ -190,7 +192,9 @@ cluster-configs:
 
   secrets:
     db:
-      namespace: [ egov, temporal ]
+      ## `backbone` added so the `debezium-postgres-connector-registrar`
+      ## CronJob can read DB credentials via secretKeyRef in that namespace.
+      namespace: [ egov, temporal, backbone ]
       name: db
     keycloak:
       namespace: [ egov ]
@@ -868,10 +872,10 @@ egov-localization:
   image:
     tag: "redis-localization-key-localization-consumer-5f65e53"
   replicas: 2
-  heap: "-Xmx3072m -Xms1024m"
-  memory_limits: 4500Mi
+  heap: "-Xmx6144m -Xms2048m"
+  memory_limits: 8Gi
   cpu_limits: 1200m
-  memory_requests: 2000Mi
+  memory_requests: 6Gi
 
 
 project-factory:

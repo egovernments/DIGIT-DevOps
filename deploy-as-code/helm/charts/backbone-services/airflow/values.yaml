@@ -613,7 +613,16 @@ apiSecretKeySecretName: ~
 jwtSecret: ~
 # Add custom annotations to the JWT secret
 jwtSecretAnnotations: {}
-jwtSecretName: ~
+# Pinned, exactly like fernetKeySecretName above. Left as `~`, the chart's
+# templates/secrets/jwt-secret.yaml mints `randAlphaNum 32` on EVERY render --
+# there is no `lookup` guard on it at all -- so Argo CD rewrites the Secret on
+# every sync. Because secretKeyRef env is resolved only at pod creation, the
+# api-server, scheduler and freshly-spawned worker pods end up holding
+# different keys, and every task fails with
+#   ServerResponseError: Invalid auth token: Signature verification failed
+# Setting this makes the chart skip its own Secret; cluster-configs supplies a
+# stable one from SOPS (templates/secrets/airflow-jwt-secret.yaml).
+jwtSecretName: backbone-airflow-jwt-secret
 
 # Flask secret key for Airflow <3 Webserver: `[webserver] secret_key` in airflow.cfg
 webserverSecretKey: ~

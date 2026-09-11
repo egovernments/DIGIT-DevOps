@@ -52,6 +52,14 @@ args:
     # the capture set ever widens beyond `health`, the publication must be
     # altered by hand -- the connector can no longer do it for itself.
     #
+    # That publication is wider than table.include.list below, so PostgreSQL
+    # still exposes every health table to logical replication and will reject
+    # UPDATEs on any of them lacking a replica identity. Narrowing it to the
+    # same 38 tables closes that, and must be done as unifieddev:
+    #   DROP PUBLICATION debezium_unified_dev_publication;
+    #   CREATE PUBLICATION debezium_unified_dev_publication
+    #     FOR TABLE health.household, health.household_member, ... ;
+    #
     # database.user/database.password are `${file:...}` references into the
     # properties file the sibling `debezium-postgres-connect` chart's init
     # container renders from the `db` Secret, resolved by Kafka Connect's
@@ -74,7 +82,7 @@ args:
       "slot.name": "$SLOT_NAME",
       "publication.name": "$PUBLICATION_NAME",
       "publication.autocreate.mode": "disabled",
-      "schema.include.list": "$SCHEMA_INCLUDE_LIST",
+      "table.include.list": "$TABLE_INCLUDE_LIST",
       "key.converter": "org.apache.kafka.connect.json.JsonConverter",
       "value.converter": "org.apache.kafka.connect.json.JsonConverter",
       "key.converter.schemas.enable": "false",
@@ -101,12 +109,21 @@ env: |
     value: "debezium_unified_dev"
   - name: PUBLICATION_NAME
     value: "debezium_unified_dev_publication"
-  # Every service's tables live in this schema in the shared `unified-dev-db`
-  # database -- see `db-schema-names`/flyway's `SCHEMA_NAME` default for this
-  # environment. Narrow this down to a `table.include.list` once specific
-  # tables to capture are known.
-  - name: SCHEMA_INCLUDE_LIST
-    value: "health"
+  # The 38 tables the Bronze layer consumes, schema-qualified. Narrowed from
+  # `schema.include.list: health`, which captured all 152 tables in the schema
+  # and OOM-killed the snapshot on eg_cm_campaign_data (1.08M rows) at a 512M
+  # heap.
+  #
+  # This filters what Debezium READS. It does not change the publication, which
+  # is still `FOR TABLES IN SCHEMA health` and so still exposes every table to
+  # logical replication -- any of those without a replica identity will have
+  # its UPDATEs rejected by PostgreSQL. Narrowing the publication to match is a
+  # separate change, made as unifieddev.
+  #
+  # Kept in step with raw_event_bronze_config.py in the analytics repo: a table
+  # added there needs adding here, and to the publication.
+  - name: TABLE_INCLUDE_LIST
+    value: "health.address,health.eg_expense_bill,health.eg_expense_billdetail,health.eg_expense_lineitem,health.eg_expense_party,health.eg_pgr_address_v2,health.eg_pgr_service_v2,health.eg_push_device_tokens,health.eg_service,health.eg_service_attribute_value,health.eg_service_definition,health.eg_wms_attendance_attendee,health.eg_wms_attendance_log,health.eg_wms_attendance_register,health.eg_wms_attendance_staff,health.eg_wms_attendance_summary,health.eg_wms_muster_roll,health.facility,health.hf_referral,health.household,health.household_member,health.individual,health.individual_address,health.product,health.product_variant,health.project,health.project_address,health.project_beneficiary,health.project_facility,health.project_staff,health.project_target,health.project_task,health.referral,health.side_effect,health.stock,health.stock_reconciliation_log,health.task_resource,health.user_action"
   - name: DB_PORT
     value: "5432"
   - name: DB_HOST

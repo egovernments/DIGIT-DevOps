@@ -4,6 +4,21 @@
 
 # -- Provide a name in place of `argocd`
 nameOverride: argocd
+
+# Key under which this chart reads per-environment overrides out of
+# environments/<env>.yaml, matching how the application services work via the
+# `common` library chart. Defaults to the chart name, "argo-cd":
+#
+#   environments/unified-dev.yaml
+#     argo-cd:
+#       global:
+#         domain: unified-dev.digit.org
+#         sopsRoleArn: arn:aws:iam::...:role/argocd-rs-unified-dev-sops-web-identity
+#
+# Anything omitted there keeps the default from this file. Do not confuse this
+# with nameOverride above, which controls resource naming, not values scoping.
+# Implementation: templates/_env-overrides.tpl
+envOverrideKey: argo-cd
 # -- String to fully override `"argo-cd.fullname"`
 fullnameOverride: "argocd"
 # -- Override the namespace
@@ -70,6 +85,19 @@ global:
   ## to the EKS ELB -- repoint DNS at the AKS ingress LoadBalancer, or the UI and
   ## every ingress on this host will answer from the old cluster.
   domain: unified-dev.digit.org
+
+  # -- IAM role the repo-server assumes to decrypt the SOPS-encrypted
+  # cluster-configs secrets (kms:Decrypt on the egov KMS key).
+  ## Set per environment alongside `domain` in environments/<env>.yaml, e.g.
+  ##   global:
+  ##     domain: unified-qa.digit.org
+  ##     sopsRoleArn: arn:aws:iam::218381940040:role/argocd-rs-unified-qa-sops-web-identity
+  ## Rendered into AWS_ROLE_ARN on the repo-server by
+  ## templates/argocd-repo-server/deployment.yaml. Each environment needs its own
+  ## role: the trust policy pins the specific AKS OIDC issuer, so one cluster's
+  ## role cannot be assumed from another. The value below is the default and is
+  ## only correct for unified-dev -- any new environment MUST override it.
+  sopsRoleArn: arn:aws:iam::218381940040:role/argocd-rs-unified-dev-sops-web-identity
 
   # -- Runtime class name for all components
   runtimeClassName: ""
@@ -2961,8 +2989,12 @@ repoServer:
     ##
     ## The service account name below must stay `argocd-repo-server` -- it is the
     ## `sub` the trust policy pins.
-    - name: AWS_ROLE_ARN
-      value: "arn:aws:iam::218381940040:role/argocd-rs-unified-dev-sops-web-identity"
+    ##
+    ## AWS_ROLE_ARN is NOT listed here: it is per-environment and is emitted by
+    ## templates/argocd-repo-server/deployment.yaml from `global.sopsRoleArn`,
+    ## so it can be set next to `domain` in environments/<env>.yaml. Hardcoding
+    ## it here would pin every environment to the unified-dev role, whose trust
+    ## policy only accepts the unified-dev AKS OIDC issuer.
     - name: AWS_WEB_IDENTITY_TOKEN_FILE
       value: /var/run/secrets/aws/token
     - name: AWS_REGION

@@ -88,6 +88,15 @@ spec:
           {{- with (concat .Values.global.env .Values.repoServer.env) }}
             {{- toYaml . | nindent 10 }}
           {{- end }}
+          {{- /* Per-environment IAM role for sops/KMS decryption, set as
+                 global.sopsRoleArn in environments/<env>.yaml next to `domain`.
+                 Emitted here rather than in repoServer.env because Helm does not
+                 template values files, and because overriding a list value would
+                 mean restating every other entry. */ -}}
+          {{- with .Values.global.sopsRoleArn }}
+          - name: AWS_ROLE_ARN
+            value: {{ . | quote }}
+          {{- end }}
           {{- if .Values.openshift.enabled }}
           - name: USER_NAME
             value: argocd

@@ -850,65 +850,6 @@ fluent-bit:
   egov-infra-log-topic: "egov-infra-logs"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-# kafka-v2 AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-kafka-v2:
-  image:
-    tag: "5.4.1"
-  persistence:
-    enabled: true
-    aws:
-      - volumeId: "vol-048713dc21b8e4f6e" ## REPLACE: add volume id
-        zone: ap-south-1b     ## REPLACE: add respective zone. 
-      - volumeId: "vol-07f64ad8ca99f8daf" ## REPLACE: add volume id
-        zone: ap-south-1b ## REPLACE: add zone
-      - volumeId: "vol-04a5306e32b2ecfec"  ## REPLACE: add volume id
-        zone: ap-south-1b ## REPLACE: add zone
-  zookeeperHosts: "zookeeper-v2.zookeeper-cluster:2181/kafka-v2"
-
-  heapOptions: "-Xms704M -Xmx704M"
-  resources:
-    limits:
-      cpu: 500m
-      memory: 1408Mi
-    requests:
-      cpu: 2000m
-      memory: 1408Mi
-  lingerMs: "250"
-  numberPartitions: "3"
-  replicationFactor: "2"
-  minInsyncReplicas: "1"
-  offsetsReplicationFactor: "3"
-
-### Kafka Connect <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-kafka-connect:
-  image:
-    tag: "5.4.1"  
-
-
-# zookeeper-v2 AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-zookeeper-v2:
-  image:
-    tag: "5.4.1"
-  persistence:
-    enabled: true
-    aws:
-      - volumeId: "vol-0465e07d1c0f5b15a" ## REPLACE: add volume id
-        zone: ap-south-1b ## REPLACE: add zone
-      - volumeId: "vol-00a73b33ef5efe981" ## REPLACE: add volume id
-        zone: ap-south-1b ## REPLACE: add zone
-      - volumeId: "vol-0606452427a946dac" ## REPLACE: add volume id
-        zone: ap-south-1b ## REPLACE: add zone
-
-  ## Zookeeper JVM Heap Option
-  heapOptions: "-Xms256M -Xmx256M"
-  resources:
-    limits:
-      cpu: 300m
-      memory: 384Mi
-    requests:
-      cpu: 300m
-      memory: 384Mi
-
 es-curator:
   schedule: "45 18 * * *"
   images:
@@ -948,6 +889,17 @@ jupyterhub:
       - hosts:
           - unified-qa.digit.org
         secretName: unified-qa.digit.org-tls-certs 
+
+argo-cd:
+  global:
+    # IAM role the repo-server assumes (AKS OIDC -> AWS web identity) to decrypt
+    # the SOPS-encrypted cluster-configs secrets. Overrides global.sopsRoleArn in
+    # charts/backbone-services/argo-cd/values.yaml, which defaults to the
+    # unified-dev role. Per environment: the trust policy pins THIS cluster's AKS
+    # OIDC issuer plus subject system:serviceaccount:argocd:argocd-repo-server, so
+    # one environment's role cannot be assumed from another.
+    sopsRoleArn: arn:aws:iam::218381940040:role/argocd-rs-unified-qa-sops-web-identity
+    domain: unified-qa.digit.org
 
 ### Grafana >>>>>>>>>>>>>>>>>>>>
 grafana:

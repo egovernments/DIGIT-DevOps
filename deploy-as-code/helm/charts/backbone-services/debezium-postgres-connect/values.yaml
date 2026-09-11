@@ -17,8 +17,15 @@ image:
 
 replicas: "1"
 httpPort: 8083
-heap: "-Xms512M -Xmx512M"
-memory_limits: 1Gi
+# 512M OOM-killed the initial snapshot. Headroom for a snapshot that batches
+# whole tables into the producer before flushing.
+#
+# Keep the heap well under memory_limits: metaspace, thread stacks and the
+# producer's direct buffers all live outside -Xmx, so a heap sized at the
+# container limit gets the pod OOM-killed by the kernel before the JVM can
+# throw.
+heap: "-Xms1G -Xmx2G"
+memory_limits: 3Gi
 resources: |
   requests:
     memory: {{ .Values.memory_limits | quote }}

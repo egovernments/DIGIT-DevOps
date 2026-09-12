@@ -227,6 +227,31 @@ controller:
   maxmindLicenseKey: ""
   # -- Additional command line arguments to pass to Ingress-Nginx Controller
   # E.g. to specify the default SSL certificate you can use
+  # -- Certificate served for any host whose Ingress does not have a usable TLS
+  # secret in its OWN namespace.
+  #
+  # WHY THIS IS NEEDED: an Ingress can only reference a Secret in its own
+  # namespace -- Kubernetes has no cross-namespace secretRef. cert-manager is
+  # driven by the root-ingress in `egov`, so the real certificate only ever
+  # exists as egov/<domain>-tls-certs. Every other service ingress (kibana in
+  # `backbone`, and so on) renders `secretName: <domain>-tls-certs` inside its
+  # own namespace, where no such Secret exists -- so nginx falls back to its
+  # built-in self-signed "Kubernetes Ingress Controller Fake Certificate".
+  #
+  # Pointing --default-ssl-certificate at the egov secret replaces that fake
+  # certificate with the real one, so every host is served correctly regardless
+  # of which namespace its Ingress lives in. The controller can read it because
+  # controller.scope.enabled is false and the ClusterRole grants list/watch on
+  # secrets cluster-wide; setting scope.enabled=true would break this.
+  defaultSSLCertificate:
+    enabled: true
+    # Namespace holding the cert-manager-issued certificate (where root-ingress lives).
+    namespace: egov
+    # Defaults to "<global.domain>-tls-certs", matching what the root-ingress
+    # template and common.ingress both generate. Override only for a wildcard
+    # or externally-managed certificate with a different Secret name.
+    secretName: ""
+
   extraArgs: {}
   ## extraArgs:
   ##   default-ssl-certificate: "<namespace>/<secret_name>"

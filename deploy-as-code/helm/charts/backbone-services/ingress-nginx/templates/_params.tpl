@@ -66,6 +66,15 @@
 {{- if .Values.controller.electionTTL }}
 - --election-ttl={{ .Values.controller.electionTTL }}
 {{- end }}
+{{- /* Real certificate for hosts whose Ingress has no usable TLS secret in its
+       own namespace. See controller.defaultSSLCertificate in values.yaml.
+       Emitted before extraArgs so an explicit extraArgs entry still wins --
+       nginx-ingress-controller takes the LAST occurrence of a repeated flag. */}}
+{{- with .Values.controller.defaultSSLCertificate }}
+{{- if .enabled }}
+- --default-ssl-certificate={{ .namespace }}/{{ .secretName | default (printf "%s-tls-certs" $.Values.global.domain) }}
+{{- end }}
+{{- end }}
 {{- range $key, $value := .Values.controller.extraArgs }}
 {{- /* Accept keys without values or with false as value */}}
 {{- if eq ($value | quote | len) 2 }}

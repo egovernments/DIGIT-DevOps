@@ -45,6 +45,15 @@ env: |
     value: "8080"
   - name: KC_PROXY
     value: "edge"
+  # Pin the issuer to the public URL so tokens minted through the gateway
+  # validate on in-cluster calls too (kong's keycloak-rbac UMA checks, the
+  # account service's admin API) — without this, bearer-token validation
+  # compares the token's iss against the per-request host and rejects it.
+  # Backchannel stays dynamic so in-cluster URLs keep working.
+  - name: KC_HOSTNAME
+    value: "https://{{ .Values.global.domain }}/keycloak"
+  - name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
+    value: "true"
   - name: KC_HTTP_RELATIVE_PATH
     value: "/keycloak"
   - name: KC_DB_URL

@@ -71,6 +71,14 @@ resources: |
 
 # Additional Container Envs
 env: |
+  # Per-tenant schema separation: consume the account-migration event and run
+  # this service's migrations into the tenant's schema (schema-table and
+  # consumer group are baked into the service defaults).
+  - name: TENANT_MIGRATION_ENABLED
+    value: "true"
+  # some services spell the same switch SCHEMA_SEPARATION_MODE
+  - name: SCHEMA_SEPARATION_MODE
+    value: "true"
   - name: JAVA_OPTS
     value: {{ index .Values "heap" | quote }}
   - name: SERVER_PORT
@@ -104,8 +112,14 @@ env: |
     value: http://keycloak.keycloak.svc.cluster.local:8080/keycloak
   - name: KEYCLOAK_PUBLIC_BASE_URL
     value: https://modulith.digit.org/keycloak
+  # Both halves come from the same kc-admin secret the keycloak chart bootstraps
+  # its admin from — a hardcoded username here breaks on any cluster whose secret
+  # names the admin differently.
   - name: KEYCLOAK_ADMIN_USER
-    value: digit
+    valueFrom:
+      secretKeyRef:
+        name: kc-admin
+        key: username
   - name: KEYCLOAK_ADMIN_PASS
     valueFrom:
       secretKeyRef:
@@ -210,9 +224,9 @@ env: |
 
 
   - name: PUBSUB_ENABLED
-    value: "false"
+    value: "true"
   - name: PUBSUB_TYPE
-    value: redis
+    value: "kafka"
   - name: KAFKA_BROKERS
     valueFrom:
       configMapKeyRef:

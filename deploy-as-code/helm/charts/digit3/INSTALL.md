@@ -158,7 +158,7 @@ done
 (cd src/utilities/template-config && mvn install -DskipTests)
 
 # generate + build the bundle — generator must print "no unresolved property conflicts"
-python3 src/bundles/generate_bundle.py src/bundles/dev-bundle.package.yaml
+python3 src/bundles/generate_bundle.py src/bundles/bundles.package.yaml
 (cd src/bundles/dev-bundle && mvn clean package -DskipTests)
 ```
 
@@ -175,7 +175,7 @@ cat > /tmp/bundle-image/Dockerfile <<'EOF'
 FROM amazoncorretto:25
 WORKDIR /opt/egov
 COPY app.jar /opt/egov/app.jar
-EXPOSE 8085
+EXPOSE 8080
 CMD ["sh", "-c", "exec java $JAVA_OPTS -jar /opt/egov/app.jar"]
 EOF
 TAG=modulith-$(git -C digit3 rev-parse --short HEAD)
@@ -193,28 +193,35 @@ docker save egovio/dev-bundle-db:$TAG | ssh -i <key> azureuser@<domain> 'sudo k3
 ```bash
 # regenerate the bundle chart if the manifest changed (committed output: charts/bundles/dev-bundle)
 cd DIGIT-DevOps/deploy-as-code/helm/bundler
-python3 generate_bundle_chart.py --manifest <digit3>/src/bundles/dev-bundle.package.yaml
-
-# the bundle owns its own database
-kubectl exec -n egov postgresql-lts-0 -- psql -U postgres -c "CREATE DATABASE bundle_db"
+python3 generate_bundle_chart.py --manifest <digit3>/src/bundles/bundles.package.yaml
 ```
+
+No database prep: the bundle uses the cluster's **default `postgres`
+database** (same as the per-service shape) — tenant data separates by
+schema, not by database.
 
 `environments/azure-k3s.yaml` needs (already present on this branch — update
 the two `tag:` values to your `$TAG`):
 
 - a **`dev-bundle:` block**: image `dev-bundle:<TAG>` +
-  `pullPolicy: IfNotPresent`; env overrides `DB_NAME: bundle_db`
-  (egov-config's db-name is the per-service DB),
+  `pullPolicy: IfNotPresent`; env overrides
   `TENANT_MIGRATION_ENABLED: "true"`, `VAULT_ENABLED: "false"` (no Vault
   here — otp's client crash-loops the JVM otherwise),
-  `KEYCLOAK_PUBLIC_BASE_URL`, and minio-backed S3
+  `KEYCLOAK_PUBLIC_BASE_URL`, `URL_SHORTENER_HOST_NAME` (the generated
+  chart bakes the harvest-time host), and minio-backed S3
   (`S3_ACCESS_KEY`/`S3_SECRET_KEY` from the `minio` secret,
   `S3_ENDPOINT: minio.backbone.svc.cluster.local:9000`,
   `S3_USE_SSL: "false"`); `dbMigrationOrder: [combined]` with one
   `dbMigrations.combined` entry using `dev-bundle-db:<TAG>` and `DB_URL`
-  pointing at `bundle_db`.
+  pointing at the default `postgres` database.
 - **`egov-service-host`** keys of the 13 merged services →
-  `http://dev-bundle.egov.svc.cluster.local:8085/`.
+  `http://dev-bundle.egov.svc.cluster.local:8080/`.
+
+Both of the above (domain + service-host keys) can be switched between the
+three deployment shapes with one command:
+`python3 environments/set-shape.py services|dev-bundle|domain-split`
+(follow with the cluster-configs sync below and a rollout restart of
+consumers).
 
 ### 2.4 Deploy
 
@@ -230,28 +237,36 @@ kubectl get pods -n egov -l app=dev-bundle   # init container migrates public sc
 ```bash
 kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 &
 cd digit3/src/services/kong
-KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS=<domain> \
-  KONG_BUNDLE_UPSTREAM=http://dev-bundle.egov.svc.cluster.local:8085 python3 setup.py
+KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS=<domain> python3 setup.py
 ```
 
-`KONG_BUNDLE_UPSTREAM` repoints every bundled service's kong upstream at the
-single bundle Service; keycloak keeps its own. Routes/plugins are unchanged
-(strip_path=false + each service's context path inside the bundle).
+By default `setup.py` reads the repo's `bundles.package.yaml` and repoints
+every bundled service's kong upstream at its bundle's Service
+(`http://<bundle>.<ns>:<port>`, overridable per bundle with
+`KONG_BUNDLE_UPSTREAM_<NAME>`); keycloak keeps its own. Set
+`KONG_BUNDLE_MANIFESTS=none` for per-service upstreams, or point it at
+another manifest (the domain-split branch's manifest yields four bundle
+upstreams). Routes/plugins are unchanged (strip_path=false + each service's
+context path inside the bundle).
 
 ### 2.6 Tenant + verify
 
 ```bash
-# tenant migration (endpoint deliberately NOT routed through kong; run in-cluster)
+# normal path: onboard a tenant through the account API (unprotected bootstrap
+# route) — creates the tenant, its Keycloak realm, AND publishes the migration
+# event every consumer turns into the tenant's schema:
+#   POST /accounts/v3/tenants  {name, email, password, phone(E.164), address, …}
+# manual alternative (endpoint deliberately NOT routed through kong; in-cluster):
 BIP=$(kubectl get svc dev-bundle -n egov -o jsonpath='{.spec.clusterIP}')
 ssh -i <key> azureuser@<domain> \
-  "curl -s -w '%{http_code}' -X POST http://$BIP:8085/internal/migrate -H 'X-Tenant-ID: DEMO'"
+  "curl -s -w '%{http_code}' -X POST http://$BIP:8080/internal/migrate -H 'X-Tenant-ID: DEMO'"
 # tenant codes are validated UPPERCASE by the account service
 
 KIP=$(kubectl get svc kong-kong-proxy -n egov -o jsonpath='{.spec.clusterIP}')
 ssh -i <key> azureuser@<domain> \
   "curl -s -o /dev/null -w '%{http_code}' -H 'Host: <domain>' http://$KIP:8000/idgen/"
 # every bundled prefix → 401 (JWT), /keycloak → 303
-kubectl top pod -n egov -l app=dev-bundle    # ~430Mi for all 16 services
+kubectl top pod -n egov -l app=dev-bundle    # ~600Mi for all 16 services
 ```
 
 ---
@@ -279,9 +294,11 @@ entries; each is the same 8-line pattern):
 
 The per-service env blocks (image tags, init-container tags) are **still
 present** in `azure-k3s.yaml` — they were kept for exactly this purpose.
-Also revert the 13 `egov-service-host` keys from
-`dev-bundle.egov…:8085` back to the per-service hosts
-(`http://idgen-java:8080/`, …).
+Also revert the 13 `egov-service-host` keys from the bundle back to the
+per-service hosts — `python3 environments/set-shape.py services` does the
+domain and all 13 keys in one step. The per-service image pins for this
+shape live in `environments/modulith-images.yaml` (the charts default to
+unpublished `egovio/<name>-java` repos); pass it as an extra values file.
 
 ### 3.1 Deploy
 
@@ -323,9 +340,9 @@ ssh -i <key> azureuser@<domain> \
 ## 4. Switching between the two shapes
 
 The shapes are mutually exclusive (same ingress paths, same kong prefixes).
-Data note: the bundle uses its own `bundle_db`; the per-service shape uses
-the `postgres` DB — the two datasets are independent, so switching does not
-migrate data.
+Data note: both shapes use the default `postgres` database and the same
+per-tenant schemas, so the data carries across a shape switch. (Historic
+deployments gave the bundle its own `bundle_db`; that override is gone.)
 
 **B → A (services → bundle)** — the order matters, remove services first:
 
@@ -364,7 +381,8 @@ verbatim.
 
 ### 5.1 digit3: manifest + overrides + tests
 
-- Delete the service's entry from `dev-bundle.package.yaml` `services:`.
+- Delete the service's name from its bundle's `include:` list in
+  `bundles.package.yaml` (the catalog entry stays).
 - Prune `overrides:`: the service's own loopback hosts go away, and — the
   subtle one — overrides that pointed **other services at it** over loopback
   must become network-reachable. Check the callers' own defaults first: if
@@ -394,7 +412,7 @@ Build and import (§2.2 mechanics) with a new tag: the **bundle pair** AND the
 Do NOT reuse an externally-pinned per-service db image: the billing peel
 failed exactly there — the old image carried a different copy of one
 migration, and Flyway rejected it against the history the bundle had already
-applied to `bundle_db` ("Migration checksum mismatch"). Same source tree →
+applied to the bundle's database ("Migration checksum mismatch"). Same source tree →
 identical files → validation passes.
 
 ### 5.3 DIGIT-DevOps: chart, values, env, helmfile
@@ -404,20 +422,21 @@ identical files → validation passes.
   at it (`APPORTION_BILLING_HOST`, `BILLING_HOST` ← `egov-service-host` key
   `billing-java`) automatically **survives** the merge now (loopback
   detection only drops env for bundled services). No manual env plumbing.
-- Peeled service's chart values: point its datasource AND its db-migration
-  init `DB_URL` at **`bundle_db`** — its public tables, Flyway history and
-  tenant schemas were created there while bundled; `egov-config`'s `db-url`
-  is the wrong (per-service) database.
-- Peeled service's chart values: set **`TENANT_MIGRATION_ENABLED: "true"`** —
-  the per-service charts ship it `false` (inside the bundle the bundle-level
-  env owns the switch), and a standalone service with it off silently ignores
-  tenant-create events. Found live: creating tenant TEST produced 53/72
-  tables, all 19 missing ones billing's; enabling the flag made the consumer
-  replay the event at startup and complete the schema.
+- Peeled service's chart values: keep its datasource and db-migration init
+  `DB_URL` on the **same database the bundle used** — its public tables,
+  Flyway history and tenant schemas live there. With today's default
+  (`postgres` for every shape) nothing needs changing; the executed billing
+  peel predates that and had to pin `bundle_db` explicitly.
+- Tenant migration: the per-service charts now ship
+  `TENANT_MIGRATION_ENABLED`/`SCHEMA_SEPARATION_MODE` **true**, so a peeled
+  service consumes tenant events out of the box. (The original peel found
+  this the hard way: charts then shipped `false`, and creating tenant TEST
+  produced 53/72 tables — all 19 missing ones billing's — until the flag was
+  set and the consumer replayed the event.)
 - `environments/<env>.yaml`: bump the `dev-bundle:` tags; point the peeled
   service's image + init image at the source-built tags
   (`pullPolicy: IfNotPresent` for containerd-imported images); revert its
-  `egov-service-host` key from `dev-bundle…:8085` to its own Service.
+  `egov-service-host` key from the bundle back to its own Service.
 - Helmfile: re-add the service's release entry (its env block was kept).
 
 ### 5.4 Deploy — order matters
@@ -443,21 +462,20 @@ Two traps encoded in that order:
 ### 5.5 Kong
 
 ```bash
-KONG_ADMIN_URL=… KONG_ROUTE_HOSTS=<domain> \
-  KONG_BUNDLE_UPSTREAM=http://dev-bundle.egov.svc.cluster.local:8085 \
-  KONG_BUNDLE_EXCLUDE=billing python3 setup.py
+KONG_ADMIN_URL=… KONG_ROUTE_HOSTS=<domain> python3 setup.py
 ```
 
-`KONG_BUNDLE_EXCLUDE` (comma-separated) keeps peeled services on their
-per-service upstreams while the rest stay on the bundle. Route paths never
-change, so clients notice nothing.
+No extra flags: the peel already removed the service from the manifest's
+`include:` list, and `setup.py` derives upstreams from that manifest —
+services in no bundle keep (or revert to) their per-service upstreams on
+the next run. Route paths never change, so clients notice nothing.
 
 ### 5.6 Verify + aftermath
 
 - Bundle: peeled prefix NOT served (expect the 400-coded
   `NoResourceFoundException` envelope — the platform renders 404s that way);
   all other prefixes intact.
-- Peeled pod: init container validates cleanly against `bundle_db`; a
+- Peeled pod: init container validates cleanly against the shared database; a
   tenant-headered read returns real data (billing: `GET
   /billing/v3/business-services` → 200; demo-tenant tables intact).
 - Kong: peeled route → its Service, others → bundle; 401s everywhere, and a

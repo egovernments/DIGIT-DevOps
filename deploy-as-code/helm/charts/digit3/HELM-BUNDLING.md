@@ -24,15 +24,19 @@ too — but those charts are not trivial to merge by hand:
 - and hand-merging would rot the moment the bundle's composition changes.
 
 So the chart merge is generated, from the **same manifest** that generates
-the application bundle (`dev-bundle.package.yaml` in the digit3 repo). One
-manifest edit → regenerate jar, migration image, *and* chart. Nothing merged
-by hand, nothing to keep in lockstep.
+the application bundles (`bundles.package.yaml` in the digit3 repo — a
+catalog of services plus one or more compositions). One manifest edit →
+regenerate jar, migration image, *and* chart. Nothing merged by hand,
+nothing to keep in lockstep. One run emits a chart per composition — the
+modulith branch's manifest yields `dev-bundle`; the domain-split branch's
+yields `identity-bundle`, `notification-bundle`, `billing-bundle` and
+`admin-bundle`.
 
 ```bash
 cd deploy-as-code/helm/bundler
-python3 generate_bundle_chart.py --manifest <digit3>/src/bundles/dev-bundle.package.yaml
-# optional: --charts-root, --rules merge-rules.yaml, --output
-# output default: charts/bundles/<bundle.name>
+python3 generate_bundle_chart.py --manifest <digit3>/src/bundles/bundles.package.yaml
+# optional: --charts-root, --rules merge-rules.yaml, --output (single-bundle manifests only)
+# output default: charts/bundles/<bundle.name>, one per composition
 ```
 
 Inputs: the manifest (service list + optional `helm:` policy extension),
@@ -47,10 +51,14 @@ the rules and re-run.
 
 ### 2.1 Resolve each service to a chart
 
-For every manifest service, the generator searches all chart groups
-(`charts/core-services`, `charts/digit3`, …) for `<name>-java` first, then
-`<name>` (so `idgen` → `idgen-java`, `apportion` → `apportion`). Missing
-chart = hard error before any work happens.
+For every manifest service, the generator searches the chart groups for
+`<name>-java` first, then `<name>` (so `idgen` → `idgen-java`,
+`apportion` → `apportion`) — with `charts/digit3` searched before every
+other group. That ordering is load-bearing: legacy groups
+(`core-services`, `accelerators`, …) carry same-named charts from older
+stacks with reference-cluster values baked in, and plain alphabetical
+order used to harvest those. Missing chart = hard error before any work
+happens.
 
 ### 2.2 Render each member chart for real (`helm template`)
 
@@ -169,7 +177,7 @@ variable — or delete one by setting it to `null`:
 # environments/azure-k3s.yaml
 dev-bundle:
   env:
-    DB_NAME: {value: bundle_db}          # override one var
+    LOG_LEVEL: {value: debug}            # override one var
     VAULT_ENABLED: {value: "false"}      # override another
     SOME_VAR: null                       # remove entirely
 ```
@@ -211,7 +219,7 @@ dev-bundle:
       enabled: true
       image: {repository: dev-bundle-db, tag: modulith-<sha>}
       env:
-        DB_URL: {value: "jdbc:postgresql://postgresql-lts.egov:5432/bundle_db"}
+        DB_URL: {value: "jdbc:postgresql://postgresql-lts.egov:5432/postgres"}
         FLYWAY_USER: {valueFrom: {secretKeyRef: {name: db, key: flyway-username}}}
         FLYWAY_PASSWORD: {valueFrom: {secretKeyRef: {name: db, key: flyway-password}}}
 ```
@@ -269,7 +277,7 @@ The generator ends with a report; it is the merge's audit trail:
   rather than trusting ordering;
 - **reminders** — the three integration points outside the chart: Argo CD
   application list, `egov-service-host` keys for merged services →
-  `http://dev-bundle.egov.svc.cluster.local:8085/`, and kong routes → the
+  `http://dev-bundle.egov.svc.cluster.local:8080/`, and kong routes → the
   bundle Service.
 
 Current dev-bundle run: 66 dropped vars, 7 rule-resolved conflicts, 0

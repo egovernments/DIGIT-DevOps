@@ -20,7 +20,7 @@ Three principles drive the design:
 1. **Services are sealed inputs.** No service source changes to join a
    bundle. The bundler owns every composition concern (paths, properties,
    migrations, conflicts).
-2. **Composition is declarative.** One manifest (`dev-bundle.package.yaml`)
+2. **Composition is declarative.** One manifest (`bundles.package.yaml`)
    is the single source of truth. `generate_bundle.py` regenerates the whole
    bundle module from it; nothing in the generated module is hand-edited
    (except `src/test/`, which survives regeneration).
@@ -38,7 +38,7 @@ it's a generated aggregate module that depends on the services' plain jars.
 
 ---
 
-## 2. The manifest (`src/bundles/dev-bundle.package.yaml`)
+## 2. The manifest (`src/bundles/bundles.package.yaml`)
 
 Three sections:
 
@@ -51,7 +51,7 @@ bundle:                    # coordinates of the generated module
   javaVersion: 25
   mainPackage: org.digit.bundles.dev
   mainClass: DevBundleApplication
-  port: 8085               # the ONE server port
+  port: 8080               # the ONE server port
   outputDir: dev-bundle    # module dir, relative to the manifest
 
 services:                  # one entry per bundled service
@@ -69,7 +69,7 @@ services:                  # one entry per bundled service
     #           inProcessFlywayLocationsKey (services with their own boot-time Flyway bean)
 
 overrides:                 # raw properties appended to application-bundle.properties
-  billing.idgen.host: "http://localhost:${SERVER_PORT:8085}"   # loopback rewiring
+  billing.idgen.host: "http://localhost:${SERVER_PORT:8080}"   # loopback rewiring
   spring.datasource.url: "jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:bundle_db}?sslmode=${DB_SSL_MODE:disable}"
   spring.datasource.hikari.maximum-pool-size: "${DB_MAX_OPEN_CONNS:40}"      # ONE shared pool
   spring.kafka.bootstrap-servers: "${KAFKA_BROKERS:localhost:9092}"
@@ -88,7 +88,7 @@ bundle.
 
 ## 3. What `generate_bundle.py` emits, piece by piece
 
-Run: `python3 src/bundles/generate_bundle.py src/bundles/dev-bundle.package.yaml`
+Run: `python3 src/bundles/generate_bundle.py src/bundles/bundles.package.yaml`
 (~340 lines of Python; regenerates everything under `src/bundles/dev-bundle/`
 except `src/test/`). Six artifacts:
 
@@ -176,7 +176,7 @@ spring.profiles.active=bundle
 Precedence (low → high): imported service defaults → `application-bundle.properties`
 (the active-profile document always beats imports). The profile file contains:
 
-1. the auto section — `spring.application.name`, `server.port=${SERVER_PORT:8085}`,
+1. the auto section — `spring.application.name`, `server.port=${SERVER_PORT:8080}`,
    blank context-path, all the `basePathKey` assignments;
 2. tenant-migration multi-registration (one entry per service, see 3.6);
 3. rewired in-process Flyway locations (see 3.6);
@@ -196,7 +196,7 @@ zero warnings.)
 Each service's defaults contain host+path pairs for its dependencies
 (`billing.idgen.host` + a path that already includes the callee's prefix,
 e.g. `idgen/v3/…`). The overrides move only the **hosts** to
-`http://localhost:${SERVER_PORT:8085}`; the paths already match the callee's
+`http://localhost:${SERVER_PORT:8080}`; the paths already match the callee's
 mount prefix. So billing → idgen becomes an HTTP call to the bundle's own
 port: same wire protocol, same serialization, zero network hop. This keeps
 services unmodified (no in-process dispatch abstraction) and preserves the
@@ -266,13 +266,13 @@ never run in a tenant schema.
 
 ```
                  ┌──────────────────────────────────────────────┐
- kong (routes,   │            dev-bundle JVM  :8085             │
+ kong (routes,   │            dev-bundle JVM  :8080             │
  strip_path=off) │  /idgen/**        → org.digit.idgen.*        │
  ───────────────▶│  /billing/**      → org.digit.billing.*      │
                  │  /employee-java/**→ org.digit.employee.*     │
                  │  …16 prefixes (BundlePathConfig)             │
                  │                                              │
-                 │  billing ──HTTP──▶ localhost:8085/idgen/…    │
+                 │  billing ──HTTP──▶ localhost:8080/idgen/…    │
                  │  ONE Hikari pool → bundle_db (schemas/tenant)│
                  │  ONE Kafka client set, ONE Redis client      │
                  └──────────────────────────────────────────────┘
@@ -315,7 +315,7 @@ Two ways to containerize it:
   FROM amazoncorretto:25
   WORKDIR /opt/egov
   COPY app.jar /opt/egov/app.jar
-  EXPOSE 8085
+  EXPOSE 8080
   CMD ["sh", "-c", "exec java $JAVA_OPTS -jar /opt/egov/app.jar"]
   ```
 
@@ -326,7 +326,7 @@ Two ways to containerize it:
   `pullPolicy: IfNotPresent`.
 
   `JAVA_OPTS` and `SERVER_PORT` come from the chart (heap percentages, port
-  8085), which is why the CMD goes through `sh -c`.
+  8080), which is why the CMD goes through `sh -c`.
 
 ### 5.2 DB init image (`egovio/dev-bundle-db:<tag>`)
 

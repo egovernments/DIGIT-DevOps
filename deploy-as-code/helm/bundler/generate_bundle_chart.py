@@ -62,7 +62,13 @@ def load_yaml(path):
 
 def resolve_chart(charts_root, service_name):
     """Find the chart directory for a manifest service name."""
-    for group in sorted(p for p in charts_root.iterdir() if p.is_dir()):
+    # digit3 is the source of truth for digit3 bundles; older chart groups
+    # (core-services, accelerators, …) carry same-named charts from previous
+    # stacks with reference-cluster values baked in, and alphabetical order
+    # would resolve to those first.
+    groups = sorted(p for p in charts_root.iterdir() if p.is_dir())
+    groups.sort(key=lambda p: p.name != "digit3")
+    for group in groups:
         for cand in CHART_NAME_CANDIDATES:
             chart_dir = group / cand.format(name=service_name)
             if (chart_dir / "Chart.yaml").exists():
@@ -505,20 +511,7 @@ def print_report(report, services, missing_migrations, context_mismatches):
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--manifest", required=True, type=Path,
-                    help="path to the digit3 bundle manifest (e.g. dev-bundle.package.yaml)")
-    ap.add_argument("--charts-root", type=Path, default=DEFAULT_CHARTS_ROOT)
-    ap.add_argument("--rules", type=Path, default=HERE / "merge-rules.yaml")
-    ap.add_argument("--output", type=Path, default=None,
-                    help="output chart dir (default charts/bundles/<bundle.name>)")
-    args = ap.parse_args()
-
-    manifest = load_yaml(args.manifest)
-    bundle = manifest["bundle"]
-    services = manifest["services"]
-    policy = MergePolicy(load_yaml(args.rules), manifest.get("helm"))
+def generate(args, policy, manifest_path, bundle, services):
     out_dir = args.output or (args.charts_root / "bundles" / bundle["name"])
     common_dir = args.charts_root / "common"
     if not (common_dir / "Chart.yaml").exists():
@@ -571,11 +564,39 @@ def main():
     merged_env = merge_envs(per_service_envs, policy, bundled_chart_names, report)
     contexts = [svc.get("prefix", "/" + svc["name"]).strip("/") for svc in services]
 
-    emit_chart(out_dir, args.manifest, bundle, services, merged_env,
+    emit_chart(out_dir, manifest_path, bundle, services, merged_env,
                db_migrations, contexts)
     emit_env_sample(out_dir, bundle, db_migrations)
     print(f"wrote {out_dir}")
     print_report(report, services, missing_migrations, context_mismatches)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--manifest", required=True, type=Path,
+                    help="path to the digit3 bundle manifest (e.g. bundles.package.yaml)")
+    ap.add_argument("--charts-root", type=Path, default=DEFAULT_CHARTS_ROOT)
+    ap.add_argument("--rules", type=Path, default=HERE / "merge-rules.yaml")
+    ap.add_argument("--output", type=Path, default=None,
+                    help="output chart dir (default charts/bundles/<bundle.name>)")
+    args = ap.parse_args()
+
+    manifest = load_yaml(args.manifest)
+    policy = MergePolicy(load_yaml(args.rules), manifest.get("helm"))
+    if "bundle" in manifest:
+        # legacy single-bundle schema: `bundle:` + `services:` as a list
+        jobs = [(manifest["bundle"], manifest["services"])]
+    else:
+        # catalog + compositions schema (the digit3 bundles.package.yaml that
+        # also generates the bundle jars): `services:` is a map keyed by name,
+        # each `bundles:` entry composes catalog services via `include:`.
+        catalog = manifest["services"]
+        jobs = [(b, [dict(catalog[n], name=n) for n in b["include"]])
+                for b in manifest["bundles"]]
+    if args.output and len(jobs) > 1:
+        die("--output is only valid for a single-bundle manifest")
+    for bundle, services in jobs:
+        generate(args, policy, args.manifest, bundle, services)
 
 
 if __name__ == "__main__":

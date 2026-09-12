@@ -1,0 +1,42 @@
+## AppProject for the cluster-configs Applications on Azure AKS unified-dev.
+##
+## cluster-configs creates cluster-scoped objects (Namespace, ClusterRole,
+## ClusterRoleBinding) as well as namespaced ones, and writes ConfigMaps/Secrets
+## into several namespaces, so destinations are left open.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: cluster-configs-project
+  namespace: argocd
+spec:
+  description: Cluster-level configuration for the Azure AKS unified-dev cluster
+  sourceRepos:
+    - https://github.com/egovernments/DIGIT-DevOps.git
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: Secret
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: Endpoints
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: rbac.authorization.k8s.io
+      kind: Role
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding

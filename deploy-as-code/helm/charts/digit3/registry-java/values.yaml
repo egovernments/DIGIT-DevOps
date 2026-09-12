@@ -67,6 +67,11 @@ resources: |
 
 # Additional Container Envs
 env: |
+  # Per-tenant schema separation: consume the account-migration event and run
+  # this service's migrations into the tenant's schema (schema-table and
+  # consumer group are baked into the service defaults).
+  - name: TENANT_MIGRATION_ENABLED
+    value: "true"
   - name: PORT
     value: "8080"
   - name: DB_HOST
@@ -88,9 +93,9 @@ env: |
   - name: DB_SSL_MODE
     value: disable
   - name: PUBSUB_ENABLED
-    value: "false"
+    value: "true"
   - name: PUBSUB_TYPE
-    value: kafka
+    value: "kafka"
   - name: KAFKA_BROKERS
     valueFrom:
       configMapKeyRef:
@@ -152,11 +157,11 @@ env: |
   - name: IDGEN_HTTP_TIMEOUT
     value: 5s
   - name: SCHEMA_SEPARATION_MODE
-    value: "false"
+    value: "true"
   - name: SCHEMA_SEPARATION_TOPIC
     value: account-migration
   - name: MIGRATION_FLYWAY_LOCATIONS
-    value: filesystem:/opt/digit/db/migrations
+    value: classpath:db/migration  # jar-embedded migrations; the filesystem path only ever existed in the Go-era init containers
   - name: MIGRATION_SCRIPT_PATH
     value: /opt/digit/migrate.sh
   - name: MIGRATION_FLYWAY_BIN

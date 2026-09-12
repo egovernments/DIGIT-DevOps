@@ -70,6 +70,19 @@ resources: |
       
 # Additional Container Envs
 env: |
+  # Per-tenant schema separation: consume the account-migration event and run
+  # this service's migrations into the tenant's schema (schema-table and
+  # consumer group are baked into the service defaults).
+  - name: TENANT_MIGRATION_ENABLED
+    value: "true"
+  # tracer's KafkaPubSubClient reads spring.kafka.bootstrap-servers, which this
+  # service's properties do not map from KAFKA_BROKERS — without it the
+  # tenant-migration consumer silently bootstraps against localhost:9092.
+  - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
   - name: HTTP_PORT
     value: "8080"
   - name: DB_MAX_OPEN_CONNS
@@ -116,11 +129,11 @@ env: |
   - name: OTEL_EXPORTER_OTLP_ENDPOINT
     value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
   - name: SCHEMA_SEPARATION_MODE
-    value: "false"
+    value: "true"
   - name: SCHEMA_SEPARATION_TOPIC
     value: account-migration
   - name: MIGRATION_FLYWAY_LOCATIONS
-    value: filesystem:/opt/digit/db/migrations
+    value: classpath:db/migration  # jar-embedded migrations; the filesystem path only ever existed in the Go-era init containers
   - name: MIGRATION_SCRIPT_PATH
     value: /opt/digit/migrate.sh
   - name: MIGRATION_FLYWAY_BIN
@@ -128,9 +141,9 @@ env: |
   - name: MIGRATION_SCHEMA_TABLE
     value: localization_schema
   - name: PUBSUB_ENABLED
-    value: "false"
+    value: "true"
   - name: PUBSUB_TYPE
-    value: kafka
+    value: "kafka"
   - name: PUBSUB_TOPIC_CREATE_MESSAGE
     value: localization-create-message
   - name: PUBSUB_TOPIC_UPDATE_MESSAGE

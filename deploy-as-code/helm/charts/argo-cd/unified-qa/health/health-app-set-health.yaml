@@ -1,0 +1,71 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-qa-health-appset-health
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: beneficiary-idgen
+          - name: boundary-management
+          - name: census-service
+          - name: excel-ingestion
+          - name: facility
+          - name: health-attendance
+          - name: health-expense
+          - name: health-expense-calculator
+          - name: health-hrms
+          - name: health-individual
+          - name: health-muster-roll
+          - name: health-pgr-services
+          - name: health-project
+          - name: health-service-request
+          - name: household
+          - name: plan-service
+          - name: product
+          - name: project-factory
+          - name: referralmanagement
+          - name: resource-generator
+          - name: stock
+          - name: transformer
+
+  template:
+    metadata:
+      name: 'health-{{name}}'
+
+    spec:
+      project: health-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: unified-env-lts
+        path: deploy-as-code/helm/charts/health-services/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/unified-health-qa.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'health'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

@@ -1,0 +1,85 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-uat-egov-appset-core
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: audit-service
+          - name: billing
+          - name: boundary
+          - name: boundary-service
+          - name: egov-accesscontrol
+          - name: egov-enc-service
+          - name: egov-filestore
+          - name: egov-idgen
+          - name: egov-indexer
+          - name: egov-localization
+          - name: egov-location
+          - name: egov-malware-detection
+          - name: egov-notification-mail
+          - name: egov-notification-sms
+          - name: egov-otp
+          - name: egov-persister
+          - name: egov-pg-service
+          - name: egov-url-shortening
+          - name: egov-user-event
+          - name: egov-workflow-v2
+          - name: filestore
+          - name: gateway
+          - name: inbox
+          - name: mdms-v2
+          - name: notification
+          - name: pdf-service
+          - name: service-request
+          - name: tenant-management
+          - name: url-shortener
+          - name: user-otp
+          - name: workflow
+
+  template:
+    metadata:
+      name: 'egov-{{name}}'
+
+    spec:
+      project: egov-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: unified-env-lts
+        path: deploy-as-code/helm/charts/core-services/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/unified-uat.yaml
+          # keep rendered manifests in the destination namespace regardless of the
+          # chart default (e.g. xstate-chatbot ships namespace: urban)
+          parameters:
+            - name: namespace
+              value: egov
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'egov'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

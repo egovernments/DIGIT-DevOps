@@ -19,7 +19,7 @@ cluster-configs:
             data:
               db-host: unified-uat-server.postgres.database.azure.com ## Add db-host name eg: egov-demo.database.azure.com
               db-name: unifieduatdb ## Add db-name
-              db-url: jdbc:postgresql://unified-uat-server.postgres.database.azure.com:5432/unifieduatdb ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
+              db-url: jdbc:postgresql://unified-uat-server.postgres.database.azure.com:5432/unifieduatdb?sslmode=require ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
               db-url-no-schema: jdbc:postgresql://unified-uat-server.postgres.database.azure.com:5432/unifieduatdb ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
               domain: unified-uat.digit.org ## Add your Domain Name
               egov-services-fqdn-name: https://unified-uat.digit.org/ ## Add your Domain Name
@@ -295,7 +295,7 @@ egov-malware-detection:
   clamav-timeout: "60000"
   clamav-chunk-size: "2048"
   # S3 Configuration (uses same AWS credentials from egov-filestore secret)
-  is-s3-enabled: true
+  is-s3-enabled: false
   minio-enabled: false
   fixed-bucketname: "unified-uat-filestore"
   fixed-bucket-region: "ap-south-1"
@@ -327,6 +327,7 @@ egov-malware-detection:
       image:
         tag: 2.9.4-malware-detection-master-d07ae66
 inbox:
+  mdmsV1SearchEndpoint: "/egov-mdms-service/v1/_search"
   namespace: egov
   memory_limits: 512Mi
   heap: "-Xmx512m -Xms256m"
@@ -577,6 +578,7 @@ egov-persister:
   image:
     tag: master-perf-ad568fb
 pgr-services:
+  egov.mdms.search.endpoint: "/egov-mdms-service/v1/_search"
   memory_limits: 512Mi
   java-enable-debug: "true"
 
@@ -651,7 +653,12 @@ egov-localization:
   heap: '-Xmx8192m -Xms2048m'
   memory_limits: 12Gi
   cpu_limits: 1200m
-  memory_requests: 9Gi
+  # Scheduling request only -- the limit below still allows bursting to 12Gi.
+  # 9Gi x 3 replicas = 27Gi could not be scheduled on this cluster's 13.5Gi nodes
+  # (all 3 pods sat Pending with "Insufficient memory"). Observed steady-state usage
+  # on the pre-migration AWS UAT cluster is ~900Mi per pod, so 9Gi was never real;
+  # it only fit there because those nodes were larger.
+  memory_requests: 2Gi
   cpu_requests: 500m
 
   image:
@@ -847,6 +854,7 @@ pt-calculator-v2:
   logging-level: "DEBUG"
 
 tl-services:
+  mdms-search-enpoint: "/egov-mdms-service/v1/_search"
   heap: "-Xmx128m -Xms64m"
   memory_limits: 384Mi
   java-args: -Dspring.profiles.active=monitoring
@@ -859,6 +867,7 @@ tl-services:
   tl-search-default-limit: "100"
 
 egov-workflow-v2:
+  mdms-search-endpoint: "/egov-mdms-service/v1/_search"
   central-instance-name: egov
   central-instance-build: true
   central-instance-enabled: false

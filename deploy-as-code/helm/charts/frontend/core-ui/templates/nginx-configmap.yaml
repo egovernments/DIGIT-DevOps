@@ -1,0 +1,27 @@
+{{- $envOverrides := index .Values (tpl .Chart.Name .) -}}
+{{- $_ := set . "Values" (merge .Values $envOverrides) -}}
+{{- if .Values.nginxConfig -}}
+{{/*
+  The core-ui image ships a default.conf with an SSL server block that loads
+  /etc/nginx/ssl/cert.pem. That file is not in the image, so nginx aborts at
+  startup with "cannot load certificate ... no such file" unless default.conf
+  is replaced. TLS is terminated at the ingress, so the replacement below
+  listens on plain HTTP only and no certificate is needed.
+
+  On the pre-migration AWS clusters this ConfigMap was created out-of-band
+  (it is not Argo-tracked there); templating it here is what makes core-ui
+  reproducible on the Azure clusters.
+
+  Rendered with `indent`, not `tpl`: the config contains nginx runtime
+  variables ($binary_remote_addr, $uri) that Helm would otherwise try to
+  interpret as template syntax.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-nginx-config
+  namespace: {{ .Values.namespace }}
+data:
+  default.conf: |
+{{ .Values.nginxConfig | indent 4 }}
+{{- end -}}

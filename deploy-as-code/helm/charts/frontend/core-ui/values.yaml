@@ -23,12 +23,50 @@ healthChecks:
   livenessProbePath: "/core-ui/"
   readinessProbePath: "/core-ui/"
 
+# Replaces the image's own default.conf, whose SSL server block points at
+# /etc/nginx/ssl/cert.pem -- a file the image does not contain. TLS is
+# terminated at the ingress, so this listens on plain HTTP only.
+nginxConfig: |
+  # Rate limiting zone
+  limit_req_zone $binary_remote_addr zone=one:10m rate=10r/s;
+
+  server {
+      listen 80;
+      server_name _;
+      root /usr/share/nginx/html;
+      index index.html index.htm;
+
+      # Apply rate limiting
+      limit_req zone=one burst=20 nodelay;
+
+      location / {
+          try_files $uri $uri/ /index.html;
+      }
+
+      # Health check
+      location /core-ui/ {
+          try_files $uri $uri/ /index.html;
+      }
+
+      # Static assets
+      location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+          expires 1y;
+          add_header Cache-Control "public, immutable";
+      }
+  }
+
 extraVolumes: |
   - name: js-injection
     configMap:
       name: core-ui-js-injection
+  - name: nginx-config
+    configMap:
+      name: core-ui-nginx-config
 
 extraVolumeMounts: |
   - mountPath: /etc/nginx/conf.d/sub_filter.conf
     name: js-injection
     subPath: sub_filter.conf
+  - mountPath: /etc/nginx/conf.d/default.conf
+    name: nginx-config
+    subPath: default.conf

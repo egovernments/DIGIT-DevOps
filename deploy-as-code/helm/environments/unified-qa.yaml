@@ -854,12 +854,26 @@ mdms-v2:
   replicas: 1
   memory_limits: 768Mi
   heap: '-Xmx768m -Xms512m'
-  contextPath: "/mdms-v2"
+  # Must be /egov-mdms-service, NOT /mdms-v2.
+  #
+  # egov-service-host maps the key `egov-mdms-service` to http://mdms-v2.egov:8080/,
+  # and every client built on the egov encryption/tracer libraries appends the
+  # legacy path, e.g. /egov-mdms-service/v1/_search. With contextPath /mdms-v2 the
+  # pod only answers on /mdms-v2/*, so those calls 404 and the caller dies at
+  # startup -- egov-user fails to build `encryptionPolicyConfiguration`
+  # ("Error occurred while fetching MDMS Configs"), which then takes down inbox,
+  # individual and anything else that resolves a user. unified-dev and
+  # unified-uat both already use /egov-mdms-service; only qa diverged.
+  contextPath: "/egov-mdms-service"
+  # Creates the extra `egov-mdms-service` Service that unified-dev has, so callers
+  # addressing that name (rather than mdms-v2) also resolve.
+  legacyService:
+    enabled: true
   ingress:
-    context: "mdms-v2"
+    context: "egov-mdms-service"
   healthChecks:
-    livenessProbePath: "/mdms-v2/health"
-    readinessProbePath: "/mdms-v2/health"
+    livenessProbePath: "/egov-mdms-service/health"
+    readinessProbePath: "/egov-mdms-service/health"
 
 
   image:

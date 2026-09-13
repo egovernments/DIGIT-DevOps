@@ -1,8 +1,21 @@
 global:
+   # Render each service's Ingress in its OWN namespace instead of egov.
+   # The charts set ingress.namespace: egov, but health-project only permits the
+   # `health` namespace, so Argo rejected the entire sync with
+   #   "namespace egov is not permitted in project 'health-project'"
+   # and NOTHING deployed. With localGateway the Ingress targets the local
+   # `gateway` ExternalName Service configured below.
+   localGateway: true
    domain: unified-uat.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
    setup: fullsetup
 
 cluster-configs:
+    # ExternalName Service `gateway` -> gateway.egov.svc.cluster.local, so the
+    # locally-rendered Ingresses (global.localGateway) still reach the shared
+    # gateway that lives in egov.
+    gateway-alias:
+      enabled: true
+      namespace: [ health, sso ]
     namespaces:  
       create: true
       values: [ health ]

@@ -1,0 +1,71 @@
+# kube-prometheus-stack — unified-uat (Azure AKS) overlay
+#
+# PROVENANCE: unlike unified-dev and unified-qa, environments/unified-uat.yaml
+# contains NO `prometheus:` block — monitoring was never configured for this
+# environment under the helmfile. So nothing here is a migration of existing
+# values: this file is seeded from the unified-dev overlay, with the hostnames
+# and cluster label changed for unified-uat. There is no env-file counterpart
+# to keep it in step with; this file is the source of truth.
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    # cluster-configs renders Secret "alertmanager" into this namespace with key
+    # alertmanager.yaml, which is exactly the shape configSecret expects.
+    # Referencing it keeps the routing config (SOPS-encrypted) out of git in
+    # plaintext. Present in environments/unified-uat-secrets.yaml.
+    configSecret: alertmanager
+
+prometheus:
+  prometheusSpec:
+    retention: 7d
+
+    # Identifies this cluster in federated views.
+    externalLabels:
+      cluster: unified-uat
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          # managed-csi is the AKS equivalent of the gp3 class the AWS
+          # environments used (disk.csi.azure.com). An AWS class name here
+          # would leave the PVC Pending forever.
+          storageClassName: managed-csi
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 15Gi
+
+    additionalScrapeConfigs:
+    - job_name: nginx-ingress-metrics
+      static_configs:
+      - targets:
+        - ingress-nginx-controller-metrics.backbone:10254
+    - job_name: redis-exporter
+      static_configs:
+      - targets:
+        - prometheus-redis-exporter.backbone:9121
+    - job_name: blackbox
+      metrics_path: /probe
+      params:
+        module:
+        - http_2xx
+      static_configs:
+      - targets:
+        - https://unified-uat.digit.org/monitoring/
+        - https://unified-uat.digit.org/pgadmin/login?next=%2Fpgadmin%2F
+        - https://unified-uat.digit.org/kibana/
+      relabel_configs:
+      - source_labels:
+        - __address__
+        target_label: __param_target
+      - source_labels:
+        - __param_target
+        target_label: instance
+      - target_label: __address__
+        replacement: prometheus-blackbox-exporter:9115
+    - job_name: blackbox_exporter
+      static_configs:
+      - targets:
+        - prometheus-blackbox-exporter:9115

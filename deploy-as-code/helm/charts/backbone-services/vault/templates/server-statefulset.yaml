@@ -86,12 +86,15 @@ spec:
                 sleep 2
               done
 
-              echo "Vault is ready, logging in..."
-              vault login <root token>
+              echo "Vault is ready; authenticating via VAULT_TOKEN env (from vault-root-token secret)."
+
+              echo "Enabling Kubernetes auth (idempotent)..."
+              vault auth enable kubernetes 2>/dev/null || true
 
               echo "Writing Kubernetes auth config..."
+              # In-cluster API server (portable across EKS/AKS/GKE), not a hardcoded endpoint.
               vault write auth/kubernetes/config \
-                kubernetes_host="https://27E3835F3695F60D7CF3489826C45F09.gr7.ap-south-1.eks.amazonaws.com" \
+                kubernetes_host="https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT" \
                 token_reviewer_jwt="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
                 kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 
@@ -104,7 +107,7 @@ spec:
               echo "Creating Kubernetes role..."
               vault write auth/kubernetes/role/vault-role \
                 bound_service_account_names=vault \
-                bound_service_account_namespaces=vault \
+                bound_service_account_namespaces={{ include "vault.namespace" . }} \
                 policies=vault-policy \
                 ttl=24h
 
@@ -113,6 +116,13 @@ spec:
           env:
             - name: VAULT_ADDR
               value: "http://127.0.0.1:8200"
+            # Root token for the one-time k8s-auth bootstrap, from the vault-root-token
+            # secret (not hardcoded). Managed via cluster-configs / secrets manager.
+            - name: VAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vault-root-token
+                  key: token
           volumeMounts:
             - name: home
               mountPath: /home/vault

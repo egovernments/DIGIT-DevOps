@@ -661,7 +661,10 @@ server:
 
   # Extra labels to attach to the server pods
   # This should be a YAML map of the labels to apply to the server pods
-  extraLabels: {}
+  # azure.workload.identity/use enables the AKS workload-identity webhook to inject
+  # the federated token so Vault can reach Azure Key Vault for auto-unseal.
+  extraLabels:
+    azure.workload.identity/use: "true"
 
   # Extra annotations to attach to the server pods
   # This can either be YAML or a YAML-formatted multi-line templated string map
@@ -760,6 +763,34 @@ server:
     # to the service.
     annotations: {}
 
+  # Auto-unseal seal configuration (cloud-agnostic).
+  # type: "" or "shamir" -> no seal stanza is rendered; Vault uses the built-in
+  #   Shamir seal, which works on ANY cloud (requires manual/automated unseal).
+  # type: awskms | azurekeyvault | gcpckms -> renders the matching seal stanza
+  #   into server.ha.raft.config. Enable per environment where that cloud's KMS
+  #   and workload identity exist.
+  # AKS uses Azure Key Vault auto-unseal (type: azurekeyvault) via workload identity.
+  # For EKS auto-unseal, set type: awskms AND add the IRSA role to
+  # server.serviceAccount.annotations. Set type "" for portable Shamir (manual unseal).
+  seal:
+    type: azurekeyvault
+    # AWS KMS (EKS). Values below are the live digit-lts EKS settings, kept for reuse.
+    awskms:
+      region: "ap-south-1"
+      kmsKeyId: "50739bde-27ec-403b-99c3-66b22eb77e75"
+    # Azure Key Vault (AKS). Auth via workload identity (SA annotation + extraLabels
+    # below). Resources provisioned in RG digit-lts.
+    azurekeyvault:
+      tenantId: "593ce202-d1a9-4760-ba26-ae35417c00cb"
+      vaultName: "digit-lts-vault-unseal"
+      keyName: "vault-unseal-key"
+    # GCP Cloud KMS (GKE). Fill in and set type: gcpckms to enable on GCP.
+    gcpckms:
+      project: ""
+      region: ""
+      keyRing: ""
+      cryptoKey: ""
+
   # This configures the Vault Statefulset to create a PVC for data
   # storage when using the file or raft backend storage engines.
   # See https://developer.hashicorp.com/vault/docs/configuration/storage to know more
@@ -771,7 +802,10 @@ server:
     mountPath: "/vault/data"
     # Name of the storage class to use.  If null it will use the
     # configured default Storage Class.
-    storageClass: gp2
+    # Left null for cloud portability: uses the cluster's default StorageClass,
+    # which every managed offering provides (EKS gp2/gp3, AKS default/managed-csi,
+    # GKE standard-rwo). Set explicitly only to pin a specific class.
+    storageClass: null
     # Access Mode of the storage device being used for the PVC
     accessMode: ReadWriteOnce
     # Annotations to apply to the PVC
@@ -903,38 +937,48 @@ server:
       # or through a Kube secret.  For more information see:
       # https://developer.hashicorp.com/vault/docs/platform/k8s/helm/run#protecting-sensitive-vault-configurations
       # Supported formats are HCL and JSON.
+      # Cloud-agnostic base config. The seal stanza is emitted conditionally from
+      # .Values.server.seal (see the `seal:` block below). With seal.type empty,
+      # no seal stanza is rendered and Vault uses the built-in Shamir seal, which
+      # works on any cloud (manual/automated unseal). Set seal.type to awskms /
+      # azurekeyvault / gcpckms per environment to enable cloud auto-unseal.
+      # This string is tpl-rendered by the chart, so the conditionals below work.
       config: |
         ui = true
 
         listener "tcp" {
           tls_disable = true
-          address     = "0.0.0.0:8200"
+          address = "0.0.0.0:8200"
           cluster_address = "0.0.0.0:8201"
-
-          # Enable unauthenticated metrics access (necessary for Prometheus Operator)
-          #telemetry {
-          #  unauthenticated_metrics_access = "true"
-          #}
         }
 
         storage "raft" {
           path = "/vault/data"
         }
-        seal "awskms" {
-        region     = "ap-south-1"
-        kms_key_id = "arn:aws:kms:ap-south-1:680148267093:key/7930550f-de1d-4d49-bfc2-03343720491e"
-        }
+
         service_registration "kubernetes" {}
+        {{- if eq .Values.server.seal.type "awskms" }}
 
-        # Policy name: k8s-auth-config-policy
-        path "auth/kubernetes/config" {
-          capabilities = ["create", "update"]
+        seal "awskms" {
+          region = "{{ .Values.server.seal.awskms.region }}"
+          kms_key_id = "{{ .Values.server.seal.awskms.kmsKeyId }}"
         }
+        {{- else if eq .Values.server.seal.type "azurekeyvault" }}
 
-        path "auth/kubernetes/role/*" {
-          capabilities = ["create", "update", "read", "delete", "list"]
+        seal "azurekeyvault" {
+          tenant_id  = "{{ .Values.server.seal.azurekeyvault.tenantId }}"
+          vault_name = "{{ .Values.server.seal.azurekeyvault.vaultName }}"
+          key_name   = "{{ .Values.server.seal.azurekeyvault.keyName }}"
         }
+        {{- else if eq .Values.server.seal.type "gcpckms" }}
 
+        seal "gcpckms" {
+          project    = "{{ .Values.server.seal.gcpckms.project }}"
+          region     = "{{ .Values.server.seal.gcpckms.region }}"
+          key_ring   = "{{ .Values.server.seal.gcpckms.keyRing }}"
+          crypto_key = "{{ .Values.server.seal.gcpckms.cryptoKey }}"
+        }
+        {{- end }}
 
     # config is a raw string of default configuration when using a Stateful
     # deployment. Default is to use a Consul for its HA storage backend.
@@ -1010,7 +1054,11 @@ server:
     # Extra annotations for the serviceAccount definition. This can either be
     # YAML or a YAML-formatted multi-line templated string map of the
     # annotations to apply to the serviceAccount.
-    annotations: {}
+    # AKS: client-id of the 'vault-kms-unseal-mi' managed identity (federated to this
+    # SA), which has get/wrap/unwrap on the Azure Key Vault key used for auto-unseal.
+    # For EKS AWS KMS instead, replace with: eks.amazonaws.com/role-arn: <role-arn>
+    annotations:
+      azure.workload.identity/client-id: "42dc1920-4625-4a95-81d6-1c271b92950c"
     # Extra labels to attach to the serviceAccount
     # This should be a YAML map of the labels to apply to the serviceAccount
     extraLabels: {}

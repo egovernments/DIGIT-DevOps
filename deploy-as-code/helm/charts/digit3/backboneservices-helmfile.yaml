@@ -70,6 +70,24 @@ releases:
       - ../../environments/azure-k3s.yaml
       - ./minio/values.yaml
 
+  # HashiCorp Vault (official chart 0.29.1), standalone file-storage mode on the
+  # default StorageClass. Release name MUST be `vault` and namespace `vault` so
+  # egov-config's vault-host (vault-0.vault-internal.vault.svc:8200) and
+  # egov-service-host's vault key resolve. After install (and after every pod
+  # restart) Vault must be unsealed: keys live in the sops secrets file under
+  # `vault:` (operator init was run with -key-shares=1 -key-threshold=1).
+  - name: vault
+    chart: ./vault
+    namespace: vault
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - egov/cluster-configs
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ./vault/values.yaml
+
   - name: ingress-nginx
     chart: ./ingress-nginx
     namespace: backbone

@@ -582,10 +582,6 @@ def main():
     args = ap.parse_args()
 
     manifest = load_yaml(args.manifest)
-    # The service catalog may live in its own file (`catalog: <path>`, relative to the
-    # manifest) shared by several composition manifests — or inline as `services:`.
-    if "catalog" in manifest:
-        manifest["services"] = load_yaml((args.manifest.parent / manifest["catalog"]).resolve())["services"]
     policy = MergePolicy(load_yaml(args.rules), manifest.get("helm"))
     if "bundle" in manifest:
         # legacy single-bundle schema: `bundle:` + `services:` as a list

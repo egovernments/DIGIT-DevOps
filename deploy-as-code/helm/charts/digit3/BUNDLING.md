@@ -38,14 +38,13 @@ it's a generated aggregate module that depends on the services' plain jars.
 
 ---
 
-## 2. The manifests (`src/bundles/catalog.yaml` + one composition file per shape)
+## 2. The manifests (one composition file per shape, catalog inline)
 
-A shared service CATALOG (`catalog.yaml`) referenced by each composition manifest
-(`dev-bundle.package.yaml`, `domain-split.package.yaml` — both shapes coexist on one branch;
-which one is DEPLOYED is a helmfile + kong-setup choice):
+Each composition manifest (`dev-bundle.package.yaml`, `domain-split.package.yaml`) carries
+the service CATALOG inline — identical across siblings, and the generator warns on drift.
+Both shapes coexist on one branch; which one is DEPLOYED is a helmfile + kong-setup choice:
 
 ```yaml
-# catalog.yaml
 services:                  # the CATALOG: composition-invariant facts, once per service
   idgen:
     module: services/idgen           # repo path — pom (GAV derived), defaults, db/ SQL
@@ -58,9 +57,7 @@ services:                  # the CATALOG: composition-invariant facts, once per 
     # Mode knobs: publicSchemaTable (public-only service, e.g. account),
     #             publicMigrationDirs (default [migration]; pg-service adds quartz)
 
-# dev-bundle.package.yaml (domain-split.package.yaml has the same shape, four bundles)
-catalog: catalog.yaml
-bundles:                   # the COMPOSITIONS: each generates one module
+bundles:                   # (domain-split.package.yaml: same layout, four bundles)                   # the COMPOSITIONS: each generates one module
   - name: dev-bundle
     groupId: org.digit.bundles
     artifactId: dev-bundle

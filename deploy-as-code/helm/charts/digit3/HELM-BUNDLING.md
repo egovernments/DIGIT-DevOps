@@ -24,9 +24,9 @@ too — but those charts are not trivial to merge by hand:
 - and hand-merging would rot the moment the bundle's composition changes.
 
 So the chart merge is generated, from the **same manifest** that generates
-the application bundles (digit3's shared `catalog.yaml` of service facts
-plus one composition manifest per shape: `dev-bundle.package.yaml`,
-`domain-split.package.yaml`). One manifest edit →
+the application bundles (digit3's composition manifests, one per shape:
+`dev-bundle.package.yaml`, `domain-split.package.yaml` — each carries the
+services catalog inline; the digit3 generator warns on sibling drift). One manifest edit →
 regenerate jar, migration image, *and* chart. Nothing merged by hand,
 nothing to keep in lockstep. One run emits a chart per composition — the
 modulith branch's manifest yields `dev-bundle`; the domain-split branch's

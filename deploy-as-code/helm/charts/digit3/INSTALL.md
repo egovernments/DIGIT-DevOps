@@ -1,33 +1,47 @@
-# DIGIT 3 on single-node k3s — full replication guide
+# DIGIT 3 on single-node k3s — installation guide
 
-Two ways to run DIGIT 3 on one k3s node, exactly as deployed on
-`modulith.digit.org` (Azure VM, 8 vCPU / 32 GB / 100 GB, Ubuntu 22.04):
+DIGIT 3 has no fixed deployment shape: **which services share a JVM is
+declared in one manifest** (`src/bundles/bundles.package.yaml` in the digit3
+repo), and every layer — the bundle jars, their Docker images, the helm
+charts, and kong's routing — is derived from it. Any grouping of the 16 core
+services is a valid deployment. Out of the box, three configurations are
+provided:
 
-- **Option A — Modulith bundle**: the 16 core services compiled into ONE
-  Spring Boot JVM (`dev-bundle`, ~430 Mi). One app pod, one db-migration
-  init image. See [BUNDLING.md](./BUNDLING.md) for how it works internally.
-- **Option B — Per-service (microservice shape)**: every service as its own
-  helm release / pod (~16 JVMs, ~5 GB).
+| # | Configuration | Containers (core services) | Manifest | Bundler needed? |
+|---|---|---|---|---|
+| 1 | **Per-service** — every service its own pod | 16 | none | **No** |
+| 2 | **Single modulith** — everything in one JVM (`dev-bundle`) | 1 | [`modulith` branch](https://github.com/digitnxt/digit3/blob/modulith/src/bundles/bundles.package.yaml) | Yes |
+| 3 | **Domain bundles** — four JVMs along building-block lines | 4 | [`feat/modulith-domain-split` branch](https://github.com/digitnxt/digit3/blob/feat/modulith-domain-split/src/bundles/bundles.package.yaml) | Yes |
 
-Both options sit on the **same foundation** (Section 1): k3s, secrets,
-backbone infra, keycloak, kong. **Deploy exactly one option at a time** —
-they publish the same ingress context paths and kong prefixes, so running
-both clashes. Switching between them is covered in Section 4.
+Configuration 3's grouping:
 
-Repos used (both on the `modulith` branch):
-
-| Repo | Role |
+| Bundle | Services |
 |---|---|
-| `DIGIT-DevOps` | helm charts (`charts/digit3`, `charts/bundles/dev-bundle`), environments, bundler chart generator |
-| `digit3` | service source, bundle generator (`src/bundles/`), kong bootstrap (`src/services/kong/setup.py`) |
+| `identity-bundle` | otp, individual, employee, account |
+| `notification-bundle` | template-config, notification, url-shortener |
+| `billing-bundle` | billing, apportion, pg-service |
+| `admin-bundle` | idgen, localization, workflow, registry, filestore, boundary |
+
+All three run on the **same foundation** (Section 1): k3s, secrets, backbone
+infra, keycloak, kong. External behavior is identical in every shape — each
+service keeps its standalone URL (`/billing/v3/…`), kong keeps the same
+routes/plugins, and only the upstreams differ. Deploy exactly one shape at a
+time (they publish the same ingress paths). Measured trade-off: 16 JVMs ≈
+5 GB vs the single modulith ≈ 0.5 GB; grouped bundles sit in between and buy
+independent scaling/releases per group.
+
+Reference deployment: `modulith.digit.org` (Azure VM, 8 vCPU / 32 GB / 100 GB,
+Ubuntu 22.04). Repos: `DIGIT-DevOps` (this repo — charts, environments,
+chart bundler) and `digit3` (service source, bundle generator, kong
+bootstrap), branches per the table above.
 
 Workstation prerequisites: `kubectl`, `helm` (v4 tested), `helmfile` (v1.7+),
-`sops` + `age`, `docker` (with buildx), JDK 25 (Temurin), Maven 3.9+,
-`python3` with `pyyaml` and `requests`.
+`sops` + `age`, `docker` (buildx), JDK 25 (Temurin), Maven 3.9+, `python3`
+with `pyyaml` and `requests`.
 
 ---
 
-## 1. Common foundation (required for BOTH options)
+## 1. Common foundation (required for EVERY configuration)
 
 ### 1.1 Provision the VM and DNS
 
@@ -46,8 +60,7 @@ sudo k3s kubectl get nodes    # wait for Ready
 ```
 
 k3s ships `local-path` as the default StorageClass and klipper ServiceLB,
-which later gives the ingress-nginx LoadBalancer service the node's IP on
-80/443. No extra storage or LB setup needed.
+which later gives the ingress-nginx LoadBalancer the node's IP on 80/443.
 
 ### 1.3 kubeconfig over an SSH tunnel
 
@@ -68,8 +81,8 @@ kubectl get nodes
 Keep this kubeconfig in its **own file** (not merged into `~/.kube/config`)
 so mutating commands can never accidentally target another cluster.
 
-> `kubectl port-forward` through this tunnel is unreliable for data
-> transfer. For in-cluster calls, prefer `ssh <vm> 'curl http://<ClusterIP>:…'`.
+> `kubectl port-forward` through this tunnel is unreliable for data transfer.
+> For in-cluster calls, prefer `ssh <vm> 'curl http://<ClusterIP>:…'`.
 
 ### 1.4 Secrets: fresh credentials, encrypted with age
 
@@ -107,8 +120,8 @@ decrypts to `environments/azure-k3s-secrets.dec.yaml` (git-ignored — ensure
   **host only** — kong reads it as `KONG_PG_HOST`; `db-url` the full JDBC
   URL; `kafka-brokers: release-name-kafka-controller-headless.backbone:9092`),
   `egov-service-host` map, root-ingress → `kong-kong-proxy:8000`.
-- One block per service/release pinning **image tags** (mandatory — chart
-  defaults resolve to `:latest` which do not exist).
+- One block per release pinning **image tags** (mandatory — chart defaults
+  resolve to `:latest` which do not exist).
 
 ### 1.6 Deploy the backbone
 
@@ -133,137 +146,111 @@ kubectl exec -n egov postgresql-lts-0 -- psql -U postgres -c "CREATE DATABASE ne
 # plus a `keycloak` role with the password from the kc-db secret
 ```
 
-(Keycloak itself is installed by the services helmfile in both options.)
+(Keycloak itself is installed by the services helmfile in every shape.)
 
----
+### 1.8 Optional: HashiCorp Vault (PII encryption at rest)
 
-## 2. Option A — Deploy the modulith bundle
+Services with PII (individual, otp) can encrypt fields via Vault's **Transit**
+engine — stored as `vault:v1:…` ciphertext with a keyed HMAC blind index for
+search, one transit key **per tenant** (auto-created on first encrypt).
+Everything runs with `VAULT_ENABLED=false` until you do this.
 
-The `modulith` branch helmfile is already in this shape:
-`digit3services-helmfile.yaml` contains keycloak, **dev-bundle**,
-accesscontrol-java (not part of the bundle) and gateway-kong.
-
-### 2.1 Build the bundle jar (workstation)
+**Deploy** (chart: `charts/digit3/vault`, official HashiCorp 0.29.1 adapted
+from the test-lts copy — de-AWS'd: no `gp2` storageClass, no `awskms`
+auto-unseal, no hardcoded auth-config sidecar, no public `/ui`+`/v1` ingress,
+namespace `vault` not `vault-new`):
 
 ```bash
-cd digit3 && export JAVA_HOME=<jdk25>
-
-# publish the platform libraries + every bundled service's PLAIN jar to ~/.m2
-(cd src/libraries/tracer && mvn install)
-(cd src/libraries/tenant-migration && mvn install)
-for s in idgen billing apportion url-shortener pg-service otp notification employee \
-         individual workflow registry filestore localization account boundary; do
-  (cd src/services/$s && mvn install -DskipTests)
-done
-(cd src/utilities/template-config && mvn install -DskipTests)
-
-# generate + build the bundle — generator must print "no unresolved property conflicts"
-python3 src/bundles/generate_bundle.py src/bundles/dev-bundle.package.yaml
-(cd src/bundles/dev-bundle && mvn clean package -DskipTests)
+# env: `vault` in the cluster-configs namespace list; egov-config vault-host +
+# egov-service-host vault keys point at ...vault.svc.cluster.local:8200
+./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync
+./deploy.sh -f backboneservices-helmfile.yaml -l name=vault sync
 ```
 
-*(Optional but recommended once per code change: verify locally against a
-local Postgres+Redis — `mvn clean test`, run the jar, smoke with
-`X-Tenant-ID`/`X-User-ID` headers. Full local recipe:
-`digit3/src/bundles/README.md`.)*
-
-### 2.2 Build linux/amd64 images and load them into k3s (no registry)
+**Init + unseal** (Shamir seal — repeat the unseal after EVERY pod restart):
 
 ```bash
-mkdir /tmp/bundle-image && cp src/bundles/dev-bundle/target/dev-bundle-*.jar /tmp/bundle-image/app.jar
-cat > /tmp/bundle-image/Dockerfile <<'EOF'
-FROM amazoncorretto:25
-WORKDIR /opt/egov
-COPY app.jar /opt/egov/app.jar
-EXPOSE 8085
-CMD ["sh", "-c", "exec java $JAVA_OPTS -jar /opt/egov/app.jar"]
+kubectl exec vault-0 -n vault -- vault operator init -key-shares=1 -key-threshold=1 -format=json \
+  > init.json   # store unseal key + root token in the sops file (vault-operator:), then delete
+kubectl exec -i vault-0 -n vault -- sh -c 'read -r K; vault operator unseal "$K"'  # key via stdin
+```
+
+**Enable transit + AppRole** (as root, inside the pod):
+
+```bash
+vault secrets enable transit
+vault auth enable approle
+vault policy write digit-transit - <<'EOF'
+path "transit/encrypt/*" { capabilities = ["create","update"] }   # create => per-tenant keys auto-create
+path "transit/decrypt/*" { capabilities = ["update"] }
 EOF
-TAG=modulith-$(git -C digit3 rev-parse --short HEAD)
-docker buildx build --platform linux/amd64 --load -t egovio/dev-bundle:$TAG /tmp/bundle-image
-docker buildx build --platform linux/amd64 --load -t egovio/dev-bundle-db:$TAG \
-  digit3/src/bundles/dev-bundle/src/main/resources/db
-
-# straight into the node's containerd (single-node k3s; pullPolicy IfNotPresent)
-docker save egovio/dev-bundle:$TAG    | ssh -i <key> azureuser@<domain> 'sudo k3s ctr images import -'
-docker save egovio/dev-bundle-db:$TAG | ssh -i <key> azureuser@<domain> 'sudo k3s ctr images import -'
+vault write auth/approle/role/individual token_policies=digit-transit token_ttl=1h token_max_ttl=4h
+vault read -field=role_id  auth/approle/role/individual/role-id      # -> sops: cluster-configs.secrets.vault-approle.role-id
+vault write -f -field=secret_id auth/approle/role/individual/secret-id  # -> ...vault-approle.secret-id
 ```
 
-### 2.3 Bundle chart + database + environment
+**Wire the services**: put the real role/secret ids into the sops file's
+`vault-approle` section and re-sync cluster-configs (the `vault-approle`
+secret feeds `VAULT_ROLE_ID`/`VAULT_SECRET_ID`, `VAULT_HOST` comes from
+`egov-service-host.vault`), then flip `VAULT_ENABLED: "true"` in the
+service's env and roll it. `HMAC_SECRET` must be non-empty — the service
+fails closed at boot otherwise (the mobile-number blind index must be keyed).
 
-```bash
-# regenerate the bundle chart if the manifest changed (committed output: charts/bundles/dev-bundle)
-cd DIGIT-DevOps/deploy-as-code/helm/bundler
-python3 generate_bundle_chart.py --manifest <digit3>/src/bundles/dev-bundle.package.yaml
-
-# the bundle owns its own database
-kubectl exec -n egov postgresql-lts-0 -- psql -U postgres -c "CREATE DATABASE bundle_db"
-```
-
-`environments/azure-k3s.yaml` needs (already present on this branch — update
-the two `tag:` values to your `$TAG`):
-
-- a **`dev-bundle:` block**: image `dev-bundle:<TAG>` +
-  `pullPolicy: IfNotPresent`; env overrides `DB_NAME: bundle_db`
-  (egov-config's db-name is the per-service DB),
-  `TENANT_MIGRATION_ENABLED: "true"`, `VAULT_ENABLED: "false"` (no Vault
-  here — otp's client crash-loops the JVM otherwise),
-  `KEYCLOAK_PUBLIC_BASE_URL`, and minio-backed S3
-  (`S3_ACCESS_KEY`/`S3_SECRET_KEY` from the `minio` secret,
-  `S3_ENDPOINT: minio.backbone.svc.cluster.local:9000`,
-  `S3_USE_SSL: "false"`); `dbMigrationOrder: [combined]` with one
-  `dbMigrations.combined` entry using `dev-bundle-db:<TAG>` and `DB_URL`
-  pointing at `bundle_db`.
-- **`egov-service-host`** keys of the 13 merged services →
-  `http://dev-bundle.egov.svc.cluster.local:8085/`.
-
-### 2.4 Deploy
-
-```bash
-cd deploy-as-code/helm/charts/digit3
-./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync  # service-host update
-./deploy.sh -f digit3services-helmfile.yaml sync                            # keycloak, dev-bundle, accesscontrol, kong
-kubectl get pods -n egov -l app=dev-bundle   # init container migrates public schema, then 1/1 Running
-```
-
-### 2.5 Program kong (bundle upstream)
-
-```bash
-kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 &
-cd digit3/src/services/kong
-KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS=<domain> \
-  KONG_BUNDLE_UPSTREAM=http://dev-bundle.egov.svc.cluster.local:8085 python3 setup.py
-```
-
-`KONG_BUNDLE_UPSTREAM` repoints every bundled service's kong upstream at the
-single bundle Service; keycloak keeps its own. Routes/plugins are unchanged
-(strip_path=false + each service's context path inside the bundle).
-
-### 2.6 Tenant + verify
-
-```bash
-# tenant migration (endpoint deliberately NOT routed through kong; run in-cluster)
-BIP=$(kubectl get svc dev-bundle -n egov -o jsonpath='{.spec.clusterIP}')
-ssh -i <key> azureuser@<domain> \
-  "curl -s -w '%{http_code}' -X POST http://$BIP:8085/internal/migrate -H 'X-Tenant-ID: DEMO'"
-# tenant codes are validated UPPERCASE by the account service
-
-KIP=$(kubectl get svc kong-kong-proxy -n egov -o jsonpath='{.spec.clusterIP}')
-ssh -i <key> azureuser@<domain> \
-  "curl -s -o /dev/null -w '%{http_code}' -H 'Host: <domain>' http://$KIP:8000/idgen/"
-# every bundled prefix → 401 (JWT), /keycloak → 303
-kubectl top pod -n egov -l app=dev-bundle    # ~430Mi for all 16 services
-```
+**Verify**: create an individual with a mobile number; the API returns
+plaintext, while the DB column holds `vault:v1:…` and
+`vault list transit/keys` shows a key named after the tenant.
 
 ---
 
-## 3. Option B — Deploy each service separately (microservice shape)
+## 2. The manifest: how a deployment shape is declared
 
-This is the pre-bundle shape of `digit3services-helmfile.yaml`: one release
-per service (idgen-java, billing-java, …, 16 in all) plus keycloak,
-accesscontrol-java and gateway-kong. On the `modulith` branch those 16
-entries were replaced by `dev-bundle` — to deploy per-service, check out the
-helmfile from the commit before the bundle cutover (or re-add the release
-entries; each is the same 8-line pattern):
+Skip this section for configuration 1 (per-service needs no bundler). For
+everything else, `digit3/src/bundles/bundles.package.yaml` is the single
+source of truth, with two sections:
+
+- **`services:` — the catalog.** A map keyed by service name holding each
+  service's composition-invariant facts (module path, GAV, `packageRoot`,
+  `prefix` = its standalone context path, `basePathKey`, `schemaTable`,
+  optional knobs). Declared exactly once; bundles reference names, never
+  restate facts.
+- **`bundles:` — the compositions.** A list; each entry is one JVM with its
+  own identity/port/`outputDir`, an **ordered** `include:` list of catalog
+  names (order = tenant-migration order; keep `boundary` last — PostGIS
+  fail-fast), and its own `overrides:` (loopback hosts for co-bundled
+  callers, conflict resolutions, shared-infra properties).
+
+From one manifest, `generate_bundle.py` regenerates **every** listed bundle:
+pom (plain-jar deps), main class, path-prefix config, property chain, the
+private db-migration tree + combined init image, and a **self-contained app
+Dockerfile** (build context = repo root; compiles the whole dependency
+closure from the checkout — no Nexus for in-repo jars, version-locked by
+construction). Catalog services in no bundle are reported as "run standalone"
+— that's a designed mode, not an error.
+
+Cross-bundle calls (a service calling one in *another* bundle) are
+env-parameterized in the caller bundle's `overrides:` —
+`${<OTHER>_BUNDLE_HOST:http://<other-bundle>.egov.svc.cluster.local:8080}` —
+defaulting to cluster DNS, same convention as the services' own hosts.
+Note all current bundles use **port 8080** (ports are namespace-scoped in
+k8s; earlier dev-bundle builds used 8085).
+
+**Kong follows the manifest too**: `setup.py` reads it by default and derives
+each included service's upstream as
+`http://<bundle.name>.egov.svc.cluster.local:<bundle.port>`, ensures each
+`prefix` is among the route paths, and leaves any service in no bundle on its
+per-service DNS. Routes and plugins never change between shapes — no kong
+image rebuild, ever.
+
+---
+
+## 3. Configuration 1 — every service separately (no bundler)
+
+One helm release per service, each a thin values-wrapper over the `common`
+library chart. The bundler and manifest play **no part** in this shape.
+
+The services helmfile in this shape lists one release per service (idgen-java,
+billing-java, … 16 in all) plus keycloak, accesscontrol-java and gateway-kong
+— each release is the same 8-line pattern:
 
 ```yaml
   - name: idgen-java
@@ -277,203 +264,180 @@ entries; each is the same 8-line pattern):
       - ./idgen-java/values.yaml
 ```
 
-The per-service env blocks (image tags, init-container tags) are **still
-present** in `azure-k3s.yaml` — they were kept for exactly this purpose.
-Also revert the 13 `egov-service-host` keys from
-`dev-bundle.egov…:8085` back to the per-service hosts
-(`http://idgen-java:8080/`, …).
+Deploy and program kong (note `KONG_BUNDLE_MANIFESTS=none` — otherwise
+setup.py defaults to the repo's manifest and repoints upstreams at bundles):
 
-### 3.1 Deploy
+```bash
+./deploy.sh -f digit3services-helmfile.yaml sync
+kubectl get pods -n egov     # ~16 service pods + keycloak + kong, all Running
+
+kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 &
+cd digit3/src/services/kong
+KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS=<domain> \
+  KONG_BUNDLE_MANIFESTS=none python3 setup.py
+```
+
+Ordering baked into the helmfile: keycloak first, `account-java`
+`needs: [keycloak/keycloak]`; chart paths are explicit (`chart: ./idgen-java`)
+because helmfile v1 only templates `*.gotmpl` files.
+
+---
+
+## 4. Configuration 2 — single modulith (`dev-bundle`)
+
+Everything in one JVM (~0.5 GB instead of ~5 GB). Manifest: the `modulith`
+branch [`bundles.package.yaml`](https://github.com/digitnxt/digit3/blob/modulith/src/bundles/bundles.package.yaml)
+— one `dev-bundle` entry including all 16 catalog services.
+
+### 4.1 Generate and build (workstation)
+
+```bash
+cd digit3
+python3 src/bundles/generate_bundle.py src/bundles/bundles.package.yaml
+# must print "no unresolved property conflicts" — never ignore that warning
+
+# app + db images, the official way (generated Dockerfile, repo root context):
+TAG=modulith-$(git rev-parse --short HEAD)
+docker buildx build --platform linux/amd64 --load -t egovio/dev-bundle:$TAG \
+  -f src/bundles/dev-bundle/Dockerfile .
+docker buildx build --platform linux/amd64 --load -t egovio/dev-bundle-db:$TAG \
+  src/bundles/dev-bundle/src/main/resources/db
+```
+
+(CI equivalent: dev-bundle is registered in `build/build-config.yml` and the
+GitHub Actions dropdown — it builds the same pair.)
+
+Load into single-node k3s without a registry (`pullPolicy: IfNotPresent`):
+
+```bash
+docker save egovio/dev-bundle:$TAG    | ssh -i <key> azureuser@<domain> 'sudo k3s ctr images import -'
+docker save egovio/dev-bundle-db:$TAG | ssh -i <key> azureuser@<domain> 'sudo k3s ctr images import -'
+```
+
+### 4.2 Chart + database + environment
+
+```bash
+# bundle chart (in this repo): merges the member charts' env/init containers
+cd DIGIT-DevOps/deploy-as-code/helm/bundler
+python3 generate_bundle_chart.py --manifest <digit3>/src/bundles/bundles.package.yaml
+# → charts/bundles/dev-bundle ; read the generation report (dropped/resolved/UNRESOLVED)
+
+# the bundle owns its own database
+kubectl exec -n egov postgresql-lts-0 -- psql -U postgres -c "CREATE DATABASE bundle_db"
+```
+
+`environments/azure-k3s.yaml` needs a `dev-bundle:` block: image tags +
+`pullPolicy: IfNotPresent`; env overrides `DB_NAME: bundle_db` (egov-config's
+db-name is the per-service DB), `TENANT_MIGRATION_ENABLED: "true"`,
+`VAULT_ENABLED: "false"` (no Vault here — otp's client crash-loops the JVM
+otherwise), `KEYCLOAK_PUBLIC_BASE_URL`, minio-backed S3
+(`S3_ACCESS_KEY`/`S3_SECRET_KEY` from the `minio` secret,
+`S3_ENDPOINT: minio.backbone.svc.cluster.local:9000`, `S3_USE_SSL: "false"`);
+`dbMigrationOrder: [combined]` with one `dbMigrations.combined` entry using
+`dev-bundle-db:<TAG>` and `DB_URL` pointing at `bundle_db`. Also repoint the
+bundled services' `egov-service-host` keys at
+`http://dev-bundle.egov.svc.cluster.local:8080/`.
+
+The services helmfile carries one `dev-bundle` release (plus keycloak,
+accesscontrol-java — not part of the bundle — and gateway-kong).
+
+### 4.3 Deploy, program kong, migrate a tenant
 
 ```bash
 cd deploy-as-code/helm/charts/digit3
-./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync  # if service-host changed
+./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync  # service-host update
 ./deploy.sh -f digit3services-helmfile.yaml sync
-kubectl get pods -n egov     # expect ~16 service pods + keycloak + kong, all Running
-```
+kubectl get pods -n egov -l app=dev-bundle    # init container migrates, then 1/1 Running
 
-Notes baked into the helmfile: keycloak first; `account-java` has
-`needs: [keycloak/keycloak]`; chart paths are explicit
-(`chart: ./idgen-java`) because helmfile v1 only templates `*.gotmpl` files.
-
-### 3.2 Program kong (per-service upstreams)
-
-Same script, just **without** `KONG_BUNDLE_UPSTREAM` — upstreams then point
-at the per-service k8s Services (`http://idgen-java.egov.svc.cluster.local:8080`, …):
-
-```bash
+# kong: NO flags — the manifest is the default input
 kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 &
 cd digit3/src/services/kong
 KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS=<domain> python3 setup.py
-```
 
-### 3.3 Verify
-
-```bash
-kubectl get pods -A          # everything Running
-KIP=$(kubectl get svc kong-kong-proxy -n egov -o jsonpath='{.spec.clusterIP}')
+# tenant migration (endpoint deliberately NOT routed through kong; run in-cluster)
+BIP=$(kubectl get svc dev-bundle -n egov -o jsonpath='{.spec.clusterIP}')
 ssh -i <key> azureuser@<domain> \
-  "curl -s -o /dev/null -w '%{http_code}' -H 'Host: <domain>' http://$KIP:8000/idgen/"  # 401
-ssh -i <key> azureuser@<domain> \
-  "curl -s -o /dev/null -w '%{http_code}' -H 'Host: <domain>' http://$KIP:8000/keycloak" # 303
+  "curl -s -w '%{http_code}' -X POST http://$BIP:8080/internal/migrate -H 'X-Tenant-ID: DEMO'"
+# tenant codes are validated UPPERCASE by the account service
 ```
+
+Verify: every prefix through kong returns 401 (JWT rejecting anonymous),
+`/keycloak` 303; `kubectl top pod` shows the whole platform in one ~450 Mi pod.
 
 ---
 
-## 4. Switching between the two shapes
+## 5. Configuration 3 — domain bundles (4 containers)
 
-The shapes are mutually exclusive (same ingress paths, same kong prefixes).
-Data note: the bundle uses its own `bundle_db`; the per-service shape uses
-the `postgres` DB — the two datasets are independent, so switching does not
-migrate data.
+Same mechanics as configuration 2, N times. Manifest: the
+`feat/modulith-domain-split` branch
+[`bundles.package.yaml`](https://github.com/digitnxt/digit3/blob/feat/modulith-domain-split/src/bundles/bundles.package.yaml)
+— four `bundles:` entries (identity, notification, billing, admin) covering
+the whole catalog, each service in exactly one. All on port 8080 (a bundle is
+just a bigger pod; ports are namespace-scoped).
 
-**B → A (services → bundle)** — the order matters, remove services first:
+What changes versus the single modulith:
 
-```bash
-for r in account-java apportion billing-java boundary-java employee-java filestore-java \
-         idgen-java individual-java localization-java notification-java otp-java pg-service \
-         registry-java template-config-java url-shortener-java workflow-java; do
-  helm uninstall "$r" -n egov
-done
-# then follow Option A from 2.3 (env/service-host) → 2.4 sync → 2.5 kong repoint
-```
-
-**A → B (bundle → services)**:
-
-```bash
-helm uninstall dev-bundle -n egov
-# restore the 16 release entries in the helmfile + per-service egov-service-host keys,
-# then Option B 3.1 sync → 3.2 setup.py WITHOUT KONG_BUNDLE_UPSTREAM
-```
-
-Finally (either shape): open NSG 80/443 → the `cm-acme-http-solver` pods
-complete, certificates issue, and `https://<domain>/<service>` works
-publicly.
-
----
-
-## 5. Peeling one service out of the bundle (worked example: billing)
-
-Sometimes one service needs to scale, fail, or release independently while the
-rest stay bundled. The design makes the *jar* side trivial ("remove the
-manifest entry and regenerate"), but a full deployment peel touches five
-layers. This section is the generic procedure; the executed billing peel
-lives on branch **`modulith-separate-billing`** in both repos (DIGIT-DevOps
-`05e09c83d`, digit3 `52a570c0`) — every referenced change can be read there
-verbatim.
-
-### 5.1 digit3: manifest + overrides + tests
-
-- Delete the service's entry from `dev-bundle.package.yaml` `services:`.
-- Prune `overrides:`: the service's own loopback hosts go away, and — the
-  subtle one — overrides that pointed **other services at it** over loopback
-  must become network-reachable. Check the callers' own defaults first: if
-  they are literal (`billing.host=http://localhost:8080/`, no `${…}`), the
-  bundle must re-declare them env-overridable, e.g.
-  `billing.host: "${BILLING_HOST:http://localhost:8080}/"`.
-- Regenerate (`generate_bundle.py`) — expect "no unresolved property
-  conflicts".
-- **Update the hand-written tests** (`src/test/` survives regeneration and
-  will fail compilation if it references the peeled service's classes). Flip
-  its assertions to *absence pins*: its route prefix must NOT be mounted, its
-  beans and Jackson customizers must be gone — so an accidental re-inclusion
-  fails the build loudly (billing's mapper modules changed every service's
-  BigDecimal wire format; silence would be dangerous).
-- `mvn clean test && mvn package`.
-
-### 5.2 Images — same source tree for everything (important)
-
-Build and import (§2.2 mechanics) with a new tag: the **bundle pair** AND the
-**peeled service's app + db images**, all from the same digit3 checkout:
-
-```bash
-# app: runtime-only image from the service's *-exec.jar
-# db:  from src/services/<svc>/src/main/resources/db (its own Dockerfile)
-```
-
-Do NOT reuse an externally-pinned per-service db image: the billing peel
-failed exactly there — the old image carried a different copy of one
-migration, and Flyway rejected it against the history the bundle had already
-applied to `bundle_db` ("Migration checksum mismatch"). Same source tree →
-identical files → validation passes.
-
-### 5.3 DIGIT-DevOps: chart, values, env, helmfile
-
-- Rerun `generate_bundle_chart.py` — the peeled service's ingress context and
-  `dbMigrations` entry disappear, and the *callers'* harvested env pointing
-  at it (`APPORTION_BILLING_HOST`, `BILLING_HOST` ← `egov-service-host` key
-  `billing-java`) automatically **survives** the merge now (loopback
-  detection only drops env for bundled services). No manual env plumbing.
-- Peeled service's chart values: point its datasource AND its db-migration
-  init `DB_URL` at **`bundle_db`** — its public tables, Flyway history and
-  tenant schemas were created there while bundled; `egov-config`'s `db-url`
-  is the wrong (per-service) database.
-- Peeled service's chart values: set **`TENANT_MIGRATION_ENABLED: "true"`** —
-  the per-service charts ship it `false` (inside the bundle the bundle-level
-  env owns the switch), and a standalone service with it off silently ignores
-  tenant-create events. Found live: creating tenant TEST produced 53/72
-  tables, all 19 missing ones billing's; enabling the flag made the consumer
-  replay the event at startup and complete the schema.
-- `environments/<env>.yaml`: bump the `dev-bundle:` tags; point the peeled
-  service's image + init image at the source-built tags
-  (`pullPolicy: IfNotPresent` for containerd-imported images); revert its
-  `egov-service-host` key from `dev-bundle…:8085` to its own Service.
-- Helmfile: re-add the service's release entry (its env block was kept).
-
-### 5.4 Deploy — order matters
-
-```bash
-./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync   # service-host key
-./deploy.sh -f digit3services-helmfile.yaml -l name=dev-bundle sync          # FIRST: frees /billing
-./deploy.sh -f digit3services-helmfile.yaml -l name=billing-java sync        # THEN the peeled service
-kubectl rollout restart deploy/dev-bundle -n egov                            # see below
-```
-
-Two traps encoded in that order:
-
-1. The nginx admission webhook rejects the peeled service's Ingress while the
-   OLD bundle Ingress still owns its path ("path /billing is already defined
-   in ingress egov/dev-bundle") — and helmfile syncs releases concurrently,
-   so a plain full sync can race into exactly that. Use `-l` selectors.
-2. `configMapKeyRef` env is resolved at **pod start**: if the bundle pod
-   started before the `egov-service-host` key changed, its `BILLING_HOST`
-   still points at itself. One rollout restart after the cluster-configs
-   sync fixes it.
-
-### 5.5 Kong
-
-```bash
-KONG_ADMIN_URL=… KONG_ROUTE_HOSTS=<domain> \
-  KONG_BUNDLE_UPSTREAM=http://dev-bundle.egov.svc.cluster.local:8085 \
-  KONG_BUNDLE_EXCLUDE=billing python3 setup.py
-```
-
-`KONG_BUNDLE_EXCLUDE` (comma-separated) keeps peeled services on their
-per-service upstreams while the rest stay on the bundle. Route paths never
-change, so clients notice nothing.
-
-### 5.6 Verify + aftermath
-
-- Bundle: peeled prefix NOT served (expect the 400-coded
-  `NoResourceFoundException` envelope — the platform renders 404s that way);
-  all other prefixes intact.
-- Peeled pod: init container validates cleanly against `bundle_db`; a
-  tenant-headered read returns real data (billing: `GET
-  /billing/v3/business-services` → 200; demo-tenant tables intact).
-- Kong: peeled route → its Service, others → bundle; 401s everywhere, and a
-  cross-boundary call works in both directions (bundle→peeled via
-  `*_HOST` env, peeled→bundle via the repointed `egov-service-host` keys).
-- Going forward: `POST /internal/migrate` on the bundle no longer covers the
-  peeled service — it consumes the same tenant-create events itself, but it
-  is now a second thing to check when provisioning tenants.
-
-Re-absorbing the service later is the exact mirror: restore the manifest
-entry + overrides, regenerate both generators, uninstall its release,
-sync the bundle, rerun setup.py without the exclude.
+- **Generate once, get four modules** — `generate_bundle.py` on that manifest
+  emits all four bundle modules, each with its own jar, Dockerfile, and
+  combined db-init image. Build/import four image pairs.
+- **Cross-bundle calls** are pre-wired in each bundle's `overrides:` as
+  `${<OTHER>_BUNDLE_HOST:…}` envs defaulting to the other bundles' cluster
+  DNS — in-cluster they work with **no extra env**; override only for
+  unusual layouts.
+- **Charts**: run `generate_bundle_chart.py` per bundle → four charts under
+  `charts/bundles/`; four release entries in the helmfile; four env blocks in
+  `azure-k3s.yaml` (each with its own image tags and combined-init
+  `dbMigrations` entry — they can share `bundle_db`).
+- **Every bundle needs `TENANT_MIGRATION_ENABLED: "true"`** — each consumes
+  tenant-create events and migrates only its own services' tables (a tenant
+  is complete only when all four have consumed it).
+- **Kong**: nothing new — the same `python3 setup.py` reads the same manifest
+  and derives four upstreams, one per bundle, from `bundle.name` +
+  `bundle.port`.
 
 ---
 
-## 6. Gotchas index (hard-won, all encountered on this install)
+## 6. Custom combinations, peeling, re-absorbing
+
+The three stock configurations are just points on a spectrum — the manifest
+accepts any partition of the catalog:
+
+- **Move a service between bundles / regroup**: edit the `include:` lists,
+  regenerate, rebuild the affected bundles' images + charts, sync, rerun
+  setup.py. The generator refuses nothing except a service in two bundles.
+- **Peel one service out to run standalone** (executed for billing; full
+  war story on branch `modulith-separate-billing`): remove its name from
+  `include:`; if co-bundled callers reached it over loopback, re-declare
+  those hosts env-overridable in `overrides:` (callers' own defaults are
+  often literal `localhost`); regenerate; update the bundle's hand-written
+  tests to *pin the absence*. Then on the deploy side:
+  - build the standalone service's app **and db images from the same source
+    tree** — an externally-pinned db image will fail Flyway checksum
+    validation against the history the bundle already applied;
+  - its chart values: datasource + init `DB_URL` → **`bundle_db`** (its data
+    lives there), and **`TENANT_MIGRATION_ENABLED: "true"`** (per-service
+    charts ship it false; standalone it must consume tenant events itself);
+  - re-add its helmfile release; revert its `egov-service-host` key;
+  - **sync the bundle BEFORE the standalone service** (the ingress admission
+    webhook rejects a duplicate path while the old bundle Ingress still owns
+    it; helmfile syncs concurrently — use `-l` selectors), and rollout-restart
+    consumers of changed `egov-service-host` keys (configMapKeyRef env
+    resolves at pod start);
+  - rerun `setup.py` — the service is in no bundle now, so its upstream
+    reverts to per-service DNS automatically.
+- **Re-absorb**: the exact mirror — add the name back to `include:`,
+  regenerate, uninstall the standalone release, sync the bundle, rerun
+  setup.py.
+
+Switching whole shapes is uninstall + sync (the shapes clash on ingress
+paths, so remove the old one's releases first) + rerun setup.py with the
+matching manifest (or `none`). Data note: bundles use `bundle_db`; the
+per-service shape uses the `postgres` DB — independent datasets, so switching
+does not migrate data.
+
+---
+
+## 7. Gotchas index (hard-won, all encountered on this install)
 
 | Symptom | Cause / fix |
 |---|---|
@@ -483,15 +447,21 @@ sync the bundle, rerun setup.py without the exclude.
 | Kafka clients: broker DNS never resolves | Kafka release name must be `release-name` (matches egov-config `kafka-brokers`) |
 | kong-migration: "failed to parse host name host:5432" | `db-host` in egov-config must be host-only |
 | kong: `mkdir /kong: read-only` / permission denied | `readOnlyRootFilesystem: false` + `env.prefix: /kong_prefix` (key appears twice in values — the later one wins) |
-| "Tag is mandatory" / `-db:latest` pull errors | every service block in the env file must pin image + init tags |
+| "Tag is mandatory" / `-db:latest` pull errors | every release block in the env file must pin image + init tags |
 | Bundle pod `CreateContainerConfigError: secret "egov-filestore" not found` | chart default is AWS S3 → override S3 env to the minio secret |
 | Bundle boot: `NumberFormatException: "15m000"` | Go-duration `DB_CONN_MAX_LIFETIME=15m` harvested into env; dropped via bundler merge-rules |
 | Bundle crash-loop in `VaultAuth` | `VAULT_ENABLED=true` harvested; override to `false` (no Vault deployed) |
 | Rendered Ingress "apiVersion not set" | generator template `{{- if … -}}` swallowed the line — fixed in `generate_bundle_chart.py` |
 | 400 `MISSING_HEADER` on every request | DIGIT 3.x requires `X-Tenant-ID` (+ `X-User-ID` for writes); kong injects them from the JWT in production |
 | Tenant code rejected with 400 ValidationFailed | account service requires UPPERCASE tenant codes |
+| Tenant schema missing one service's tables | that service's JVM has `TENANT_MIGRATION_ENABLED=false` — every bundle AND every standalone service must consume tenant-create events |
+| Standalone service init: "Migration checksum mismatch" | externally-built db image ≠ the copies the bundle applied; build from the same source tree |
+| Ingress webhook: "path /X is already defined in ingress …" | two shapes publishing one path; sync the bundle before the standalone service, use `-l` selectors |
+| Pod calls old upstream after `egov-service-host` change | `configMapKeyRef` env resolves at pod start → rollout-restart consumers |
 | `kubectl port-forward` hangs/000 over the SSH tunnel | curl ClusterIPs from the VM over SSH instead |
 | `bind :16443: Address already in use` on tunnel setup | old tunnel still bound; test kubectl first, else `pkill -f "16443:127.0.0.1:6443"` and reconnect |
-| Ingress webhook: "path /X is already defined in ingress egov/dev-bundle" | both shapes publish the same path; sync dev-bundle BEFORE the peeled service (helmfile syncs concurrently — use `-l` selectors) |
-| Peeled service init: "Migration checksum mismatch" | externally-built db image ≠ the copies the bundle applied; build the service's db image from the same source tree |
-| Pod calls old upstream after `egov-service-host` change | `configMapKeyRef` env resolves at pod start → rollout-restart consumers after cluster-configs sync |
+| Vault pod Pending, PVC stuck | test-lts chart copy pinned `storageClass: gp2` (AWS) → null it for the default SC; volumeClaimTemplates are immutable — uninstall + delete PVC before re-sync |
+| Vault: "error fetching AWS KMS wrapping key" | `seal "awskms"` stanza in the copied server config → remove it (Shamir seal; manual unseal after every restart) |
+| Vault statefulset change not rolling out | chart uses `OnDelete` update strategy → delete the pod to pick up spec changes |
+| Service crash-loops in `VaultAuth` at boot | `VAULT_ENABLED=true` with unreachable Vault or empty role/secret ids — the client logs in eagerly |
+| New pods fail DB auth after a cluster-configs sync | the repo's sops secrets diverged from what the cluster was deployed with — cluster-configs re-rendered secrets over live ones; reconcile the sops file with the cluster before syncing |

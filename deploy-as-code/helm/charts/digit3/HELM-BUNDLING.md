@@ -75,10 +75,10 @@ text. From the rendered Deployment it extracts:
   `DB_URL`, `SCHEMA_TABLE`, `FLYWAY_*`, …), skipped with a report note if
   the chart doesn't enable one.
 
-It also compares each chart's `ingress.context` against the manifest
-`prefix` and reports **EXTERNAL PATH CHANGES** when they differ (e.g. a
-chart that served `/individuals` while the bundle serves
-`/individuals-java`) — those are the cases where kong routes/clients must
+It also compares each chart's `ingress.context` against the manifest's
+`contextPath` and reports **EXTERNAL PATH CHANGES** when they differ (e.g. a
+chart that served a different context than the manifest's
+`contextPath`) — those are the cases where kong routes/clients must
 move.
 
 ### 2.3 Merge the envs under policy

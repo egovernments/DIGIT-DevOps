@@ -40,35 +40,34 @@ it's a generated aggregate module that depends on the services' plain jars.
 
 ## 2. The manifest (`src/bundles/bundles.package.yaml`)
 
-Three sections:
+Two sections — a service CATALOG and a list of COMPOSITIONS:
 
 ```yaml
-bundle:                    # coordinates of the generated module
-  name: dev-bundle
-  groupId: org.digit.bundles
-  artifactId: dev-bundle
-  bootVersion: 4.0.7       # parent spring-boot-starter-parent version
-  javaVersion: 25
-  mainPackage: org.digit.bundles.dev
-  mainClass: DevBundleApplication
-  port: 8080               # the ONE server port
-  outputDir: dev-bundle    # module dir, relative to the manifest
-
-services:                  # one entry per bundled service
-  - name: idgen
-    module: services/idgen           # repo path — source of defaults + db/ SQL
-    groupId: org.digit               # GAV of the service's PLAIN jar in ~/.m2
-    artifactId: idgen
-    version: 3.0.0-SNAPSHOT
+services:                  # the CATALOG: composition-invariant facts, once per service
+  idgen:
+    module: services/idgen           # repo path — pom (GAV derived), defaults, db/ SQL
     packageRoot: org.digit.idgen     # component-scan root + path-prefix predicate
-    prefix: /idgen                   # = the service's standalone context-path
-    basePathKey: idgen.base-path     # property feeding its literal filter patterns
-    schemaTable: idgen_schema        # tenant-migration history table
-    # optional: publicSchemaTable (services without tenant-migration, e.g. account),
-    #           publicMigrationDirs (default [migration]; pg-service adds quartz),
-    #           inProcessFlywayLocationsKey (services with their own boot-time Flyway bean)
+    # everything else is convention (state only a deviation):
+    #   contextPath  -> /<name>          (the standalone context path = public path)
+    #   basePathKey  -> <name>.base-path (property feeding literal filter patterns)
+    #   schemaTable  -> <name>_schema    ('-' becomes '_'; tenant-migration history)
+    # Maven coordinates are ALWAYS derived from the module's pom — stating them errors.
+    # Mode knobs: publicSchemaTable (public-only service, e.g. account),
+    #             publicMigrationDirs (default [migration]; pg-service adds quartz)
 
-overrides:                 # raw properties appended to application-bundle.properties
+bundles:                   # the COMPOSITIONS: each generates one module
+  - name: dev-bundle
+    groupId: org.digit.bundles
+    artifactId: dev-bundle
+    version: 1.0.0-SNAPSHOT
+    bootVersion: 4.0.7     # parent spring-boot-starter-parent version
+    javaVersion: 25
+    mainPackage: org.digit.bundles.dev
+    mainClass: DevBundleApplication
+    port: 8080             # the ONE server port
+    outputDir: dev-bundle  # module dir, relative to the manifest
+    include: [idgen, template-config, billing, ...]   # ORDERED catalog names
+    overrides:                 # raw properties appended to application-bundle.properties
   billing.idgen.host: "http://localhost:${SERVER_PORT:8080}"   # loopback rewiring
   spring.datasource.url: "jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:bundle_db}?sslmode=${DB_SSL_MODE:disable}"
   spring.datasource.hikari.maximum-pool-size: "${DB_MAX_OPEN_CONNS:40}"      # ONE shared pool
@@ -143,7 +142,7 @@ Every clause solves a specific collision:
 
 Standalone, each service serves under `server.servlet.context-path`
 (`/idgen`, `/billing`, `/employee-java`…). One servlet context has exactly
-one context-path, so the bundle **blanks it** and re-creates each prefix at
+one context-path, so the bundle **blanks it** and re-creates each service's contextPath at
 the handler-mapping layer:
 
 ```java
@@ -231,11 +230,10 @@ That single tree serves **both** migration consumers:
   `digit.tenant-migration.services.<name>.schema-table=<svc>_schema` and
   `…flyway-locations=classpath:db/sql/<name>/migration` — so
   `POST /internal/migrate` with `X-Tenant-ID` runs one Flyway per service
-  per tenant, each against its own history table. Services that also run
-  their own public-schema Flyway bean at boot
-  (notification/workflow/localization) have that bean's locations key
-  (`inProcessFlywayLocationsKey`) rewired to the same private namespace —
-  otherwise it would scan the *merged* `classpath:db/migration`.
+  per tenant, each against its own history table. (No service migrates at
+  boot: the in-process Flyway beans some services once carried were removed —
+  public schema belongs to the init container, tenant schemas to the
+  tenant-migration consumer.)
 - **As the init-container build context** (public schema, before the app
   starts): `db/Dockerfile` is `FROM egovio/flyway:10.7.1`, copies `sql/` in,
   and runs `migrate-all.sh` — which invokes Flyway once per service, in

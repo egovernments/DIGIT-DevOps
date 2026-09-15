@@ -540,7 +540,7 @@ def generate(args, policy, manifest_path, bundle, services):
             per_service_envs.append(
                 (svc["name"], env_list_to_specs(extract_main_env(deployment, chart_dir.name))))
 
-            prefix = svc.get("prefix", "/" + svc["name"])
+            prefix = svc.get("contextPath", "/" + svc["name"])
             chart_ctx = ((chart_values.get("ingress") or {}).get("context") or "").strip("/")
             if chart_ctx and "/" + chart_ctx != prefix:
                 context_mismatches.append((svc["name"], chart_ctx, prefix))
@@ -562,7 +562,7 @@ def generate(args, policy, manifest_path, bundle, services):
             }))
 
     merged_env = merge_envs(per_service_envs, policy, bundled_chart_names, report)
-    contexts = [svc.get("prefix", "/" + svc["name"]).strip("/") for svc in services]
+    contexts = [svc.get("contextPath", "/" + svc["name"]).strip("/") for svc in services]
 
     emit_chart(out_dir, manifest_path, bundle, services, merged_env,
                db_migrations, contexts)

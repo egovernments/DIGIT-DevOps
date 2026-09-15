@@ -158,7 +158,7 @@ done
 (cd src/utilities/template-config && mvn install -DskipTests)
 
 # generate + build the bundle — generator must print "no unresolved property conflicts"
-python3 src/bundles/generate_bundle.py src/bundles/bundles.package.yaml
+python3 src/bundles/generate_bundle.py src/bundles/dev-bundle.package.yaml
 (cd src/bundles/dev-bundle && mvn clean package -DskipTests)
 ```
 
@@ -193,7 +193,7 @@ docker save egovio/dev-bundle-db:$TAG | ssh -i <key> azureuser@<domain> 'sudo k3
 ```bash
 # regenerate the bundle chart if the manifest changed (committed output: charts/bundles/dev-bundle)
 cd DIGIT-DevOps/deploy-as-code/helm/bundler
-python3 generate_bundle_chart.py --manifest <digit3>/src/bundles/bundles.package.yaml
+python3 generate_bundle_chart.py --manifest <digit3>/src/bundles/dev-bundle.package.yaml
 ```
 
 No database prep: the bundle uses the cluster's **default `postgres`
@@ -240,7 +240,7 @@ cd digit3/src/services/kong
 KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS=<domain> python3 setup.py
 ```
 
-By default `setup.py` reads the repo's `bundles.package.yaml` and repoints
+By default `setup.py` reads the repo's `dev-bundle.package.yaml` and repoints
 every bundled service's kong upstream at its bundle's Service
 (`http://<bundle>.<ns>:<port>`, overridable per bundle with
 `KONG_BUNDLE_UPSTREAM_<NAME>`); keycloak keeps its own. Set
@@ -382,7 +382,7 @@ verbatim.
 ### 5.1 digit3: manifest + overrides + tests
 
 - Delete the service's name from its bundle's `include:` list in
-  `bundles.package.yaml` (the catalog entry stays).
+  its composition manifest (the catalog entry stays).
 - Prune `overrides:`: the service's own loopback hosts go away, and — the
   subtle one — overrides that pointed **other services at it** over loopback
   must become network-reachable. Check the callers' own defaults first: if

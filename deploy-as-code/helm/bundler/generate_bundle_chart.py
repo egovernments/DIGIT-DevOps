@@ -6,7 +6,7 @@ composes the application jar) drives this generator on the DevOps side: the
 manifest's service list says which per-service Helm charts get merged into one
 bundle chart.
 
-    python3 generate_bundle_chart.py --manifest /path/to/dev-bundle.package.yaml
+    python3 generate_bundle_chart.py --manifest <digit3>/src/bundles/<shape>.package.yaml
 
 For each service the generator resolves the chart directory (<name>-java, then
 <name>, across every charts/* group), renders it with `helm template` so all
@@ -574,7 +574,7 @@ def generate(args, policy, manifest_path, bundle, services):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--manifest", required=True, type=Path,
-                    help="path to the digit3 bundle manifest (e.g. bundles.package.yaml)")
+                    help="path to a digit3 composition manifest (e.g. dev-bundle.package.yaml)")
     ap.add_argument("--charts-root", type=Path, default=DEFAULT_CHARTS_ROOT)
     ap.add_argument("--rules", type=Path, default=HERE / "merge-rules.yaml")
     ap.add_argument("--output", type=Path, default=None,
@@ -582,12 +582,16 @@ def main():
     args = ap.parse_args()
 
     manifest = load_yaml(args.manifest)
+    # The service catalog may live in its own file (`catalog: <path>`, relative to the
+    # manifest) shared by several composition manifests — or inline as `services:`.
+    if "catalog" in manifest:
+        manifest["services"] = load_yaml((args.manifest.parent / manifest["catalog"]).resolve())["services"]
     policy = MergePolicy(load_yaml(args.rules), manifest.get("helm"))
     if "bundle" in manifest:
         # legacy single-bundle schema: `bundle:` + `services:` as a list
         jobs = [(manifest["bundle"], manifest["services"])]
     else:
-        # catalog + compositions schema (the digit3 bundles.package.yaml that
+        # catalog + compositions schema (the digit3 composition manifests that
         # also generates the bundle jars): `services:` is a map keyed by name,
         # each `bundles:` entry composes catalog services via `include:`.
         catalog = manifest["services"]

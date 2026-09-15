@@ -20,7 +20,7 @@ Three principles drive the design:
 1. **Services are sealed inputs.** No service source changes to join a
    bundle. The bundler owns every composition concern (paths, properties,
    migrations, conflicts).
-2. **Composition is declarative.** One manifest (`bundles.package.yaml`)
+2. **Composition is declarative.** A catalog plus one composition manifest per shape
    is the single source of truth. `generate_bundle.py` regenerates the whole
    bundle module from it; nothing in the generated module is hand-edited
    (except `src/test/`, which survives regeneration).
@@ -38,11 +38,14 @@ it's a generated aggregate module that depends on the services' plain jars.
 
 ---
 
-## 2. The manifest (`src/bundles/bundles.package.yaml`)
+## 2. The manifests (`src/bundles/catalog.yaml` + one composition file per shape)
 
-Two sections — a service CATALOG and a list of COMPOSITIONS:
+A shared service CATALOG (`catalog.yaml`) referenced by each composition manifest
+(`dev-bundle.package.yaml`, `domain-split.package.yaml` — both shapes coexist on one branch;
+which one is DEPLOYED is a helmfile + kong-setup choice):
 
 ```yaml
+# catalog.yaml
 services:                  # the CATALOG: composition-invariant facts, once per service
   idgen:
     module: services/idgen           # repo path — pom (GAV derived), defaults, db/ SQL
@@ -55,6 +58,8 @@ services:                  # the CATALOG: composition-invariant facts, once per 
     # Mode knobs: publicSchemaTable (public-only service, e.g. account),
     #             publicMigrationDirs (default [migration]; pg-service adds quartz)
 
+# dev-bundle.package.yaml (domain-split.package.yaml has the same shape, four bundles)
+catalog: catalog.yaml
 bundles:                   # the COMPOSITIONS: each generates one module
   - name: dev-bundle
     groupId: org.digit.bundles
@@ -87,7 +92,7 @@ bundle.
 
 ## 3. What `generate_bundle.py` emits, piece by piece
 
-Run: `python3 src/bundles/generate_bundle.py src/bundles/bundles.package.yaml`
+Run: `python3 src/bundles/generate_bundle.py src/bundles/<shape>.package.yaml`
 (~340 lines of Python; regenerates everything under `src/bundles/dev-bundle/`
 except `src/test/`). Six artifacts:
 

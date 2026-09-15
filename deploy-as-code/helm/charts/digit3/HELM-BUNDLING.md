@@ -24,8 +24,9 @@ too — but those charts are not trivial to merge by hand:
 - and hand-merging would rot the moment the bundle's composition changes.
 
 So the chart merge is generated, from the **same manifest** that generates
-the application bundles (`bundles.package.yaml` in the digit3 repo — a
-catalog of services plus one or more compositions). One manifest edit →
+the application bundles (digit3's shared `catalog.yaml` of service facts
+plus one composition manifest per shape: `dev-bundle.package.yaml`,
+`domain-split.package.yaml`). One manifest edit →
 regenerate jar, migration image, *and* chart. Nothing merged by hand,
 nothing to keep in lockstep. One run emits a chart per composition — the
 modulith branch's manifest yields `dev-bundle`; the domain-split branch's
@@ -34,7 +35,8 @@ yields `identity-bundle`, `notification-bundle`, `billing-bundle` and
 
 ```bash
 cd deploy-as-code/helm/bundler
-python3 generate_bundle_chart.py --manifest <digit3>/src/bundles/bundles.package.yaml
+python3 generate_bundle_chart.py --manifest <digit3>/src/bundles/dev-bundle.package.yaml
+python3 generate_bundle_chart.py --manifest <digit3>/src/bundles/domain-split.package.yaml
 # optional: --charts-root, --rules merge-rules.yaml, --output (single-bundle manifests only)
 # output default: charts/bundles/<bundle.name>, one per composition
 ```

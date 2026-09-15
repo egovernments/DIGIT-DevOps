@@ -1396,3 +1396,183 @@ dev-bundle:
             secretKeyRef:
               name: db
               key: flyway-password
+
+# ── 4-bundle domain split (feat/modulith-domain-split builds) ──────────────────────
+# One block per bundle JVM, same shape as the dev-bundle block above. All
+# four share the cluster's default postgres database (no DB_NAME override) —
+# separation in this shape is per-tenant schema, not per-bundle database.
+# Each bundle's combined <bundle>-db init image runs Flyway once per member
+# service, same contract as dev-bundle-db.
+identity-bundle:
+  namespace: egov
+  image:
+    repository: "identity-bundle"
+    tag: "modulith-domain-split-e794a35"
+    pullPolicy: IfNotPresent
+  env:
+    TENANT_MIGRATION_ENABLED:
+      value: "true"
+    KEYCLOAK_PUBLIC_BASE_URL:
+      value: "https://modulith-test.digit.org/keycloak"
+    # generated bundle charts bake the harvest-time host into this env;
+    # pin it to the environment domain (participates in the set-shape swap)
+    URL_SHORTENER_HOST_NAME:
+      value: "https://modulith-test.digit.org"
+    # otp/individual (bundle members): VaultAuth logs in eagerly at boot and
+    # crash-loops the JVM without a Vault (see dev-bundle note).
+    VAULT_ENABLED:
+      value: "false"
+  dbMigrationOrder:
+    - combined
+  dbMigrations:
+    combined:
+      enabled: true
+      image:
+        repository: "identity-bundle-db"
+        tag: "modulith-domain-split-e794a35"
+        pullPolicy: IfNotPresent
+      env:
+        DB_URL:
+          value: "jdbc:postgresql://postgresql-lts.egov:5432/postgres"
+        FLYWAY_USER:
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        FLYWAY_PASSWORD:
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+
+notification-bundle:
+  namespace: egov
+  image:
+    repository: "notification-bundle"
+    tag: "modulith-domain-split-e794a35"
+    pullPolicy: IfNotPresent
+  env:
+    TENANT_MIGRATION_ENABLED:
+      value: "true"
+    KEYCLOAK_PUBLIC_BASE_URL:
+      value: "https://modulith-test.digit.org/keycloak"
+    # generated bundle charts bake the harvest-time host into this env;
+    # pin it to the environment domain (participates in the set-shape swap)
+    URL_SHORTENER_HOST_NAME:
+      value: "https://modulith-test.digit.org"
+  dbMigrationOrder:
+    - combined
+  dbMigrations:
+    combined:
+      enabled: true
+      image:
+        repository: "notification-bundle-db"
+        tag: "modulith-domain-split-e794a35"
+        pullPolicy: IfNotPresent
+      env:
+        DB_URL:
+          value: "jdbc:postgresql://postgresql-lts.egov:5432/postgres"
+        FLYWAY_USER:
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        FLYWAY_PASSWORD:
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+
+billing-bundle:
+  namespace: egov
+  image:
+    repository: "billing-bundle"
+    tag: "modulith-domain-split-e794a35"
+    pullPolicy: IfNotPresent
+  env:
+    TENANT_MIGRATION_ENABLED:
+      value: "true"
+    KEYCLOAK_PUBLIC_BASE_URL:
+      value: "https://modulith-test.digit.org/keycloak"
+    # generated bundle charts bake the harvest-time host into this env;
+    # pin it to the environment domain (participates in the set-shape swap)
+    URL_SHORTENER_HOST_NAME:
+      value: "https://modulith-test.digit.org"
+  dbMigrationOrder:
+    - combined
+  dbMigrations:
+    combined:
+      enabled: true
+      image:
+        repository: "billing-bundle-db"
+        tag: "modulith-domain-split-e794a35"
+        pullPolicy: IfNotPresent
+      env:
+        DB_URL:
+          value: "jdbc:postgresql://postgresql-lts.egov:5432/postgres"
+        FLYWAY_USER:
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        FLYWAY_PASSWORD:
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+
+admin-bundle:
+  namespace: egov
+  image:
+    repository: "admin-bundle"
+    tag: "modulith-domain-split-e794a35"
+    pullPolicy: IfNotPresent
+  env:
+    TENANT_MIGRATION_ENABLED:
+      value: "true"
+    KEYCLOAK_PUBLIC_BASE_URL:
+      value: "https://modulith-test.digit.org/keycloak"
+    # generated bundle charts bake the harvest-time host into this env;
+    # pin it to the environment domain (participates in the set-shape swap)
+    URL_SHORTENER_HOST_NAME:
+      value: "https://modulith-test.digit.org"
+    # Filestore (bundle member): chart defaults point at AWS S3 + the
+    # egov-filestore secret (not present here); use in-cluster minio, same
+    # override the dev-bundle block carries.
+    S3_ACCESS_KEY:
+      valueFrom:
+        secretKeyRef:
+          name: minio
+          key: accesskey
+    S3_SECRET_KEY:
+      valueFrom:
+        secretKeyRef:
+          name: minio
+          key: secretkey
+    S3_ENDPOINT:
+      value: "minio.backbone.svc.cluster.local:9000"
+    S3_USE_SSL:
+      value: "false"
+  dbMigrationOrder:
+    - combined
+  dbMigrations:
+    combined:
+      enabled: true
+      image:
+        repository: "admin-bundle-db"
+        tag: "modulith-domain-split-e794a35"
+        pullPolicy: IfNotPresent
+      env:
+        DB_URL:
+          value: "jdbc:postgresql://postgresql-lts.egov:5432/postgres"
+        FLYWAY_USER:
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        FLYWAY_PASSWORD:
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+

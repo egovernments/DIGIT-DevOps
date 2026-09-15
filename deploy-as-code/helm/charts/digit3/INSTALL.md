@@ -175,6 +175,21 @@ kubectl exec vault-0 -n vault -- vault operator init -key-shares=1 -key-threshol
 kubectl exec -i vault-0 -n vault -- sh -c 'read -r K; vault operator unseal "$K"'  # key via stdin
 ```
 
+After any pod restart, Vault is sealed again (individual's PII encrypt/decrypt
+calls fail until unsealed — the service itself stays up). Re-unseal straight
+from the sops file, key never displayed:
+
+```bash
+sops -d --extract '["vault-operator"]["unseal-key"]' environments/azure-k3s-secrets.yaml | \
+  kubectl exec -i vault-0 -n vault -- sh -c 'read -r K; vault operator unseal "$K"'
+```
+
+Note the two credentials are different things: the **unseal key** decrypts
+Vault's keyring at startup; the **root token** merely authenticates admin API
+calls and cannot unseal. For real auto-unseal on Azure, configure a
+`seal "azurekeyvault"` stanza (the Azure analogue of test-lts's awskms) —
+requires an Azure identity.
+
 **Enable transit + AppRole** (as root, inside the pod):
 
 ```bash

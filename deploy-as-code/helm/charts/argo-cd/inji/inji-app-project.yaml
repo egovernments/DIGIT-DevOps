@@ -23,12 +23,22 @@ spec:
   description: Inji credentialing stack (certify, mimoto, web, verify, esignet)
 
   sourceRepos:
-    ## Argo matches this string verbatim, so the https and git@ forms of the
-    ## same repo are two distinct entries. Both are listed because
-    ## ApplicationSets in this repo have historically shipped either form, and
-    ## a mismatch fails with "application repo ... is not permitted in project".
+    ## EVERY repoURL used by an Application in this project must be listed
+    ## here, chart repos included -- not just the git repo holding the values.
+    ## Argo matches the string verbatim, so the https and git@ forms of the
+    ## same repo are two distinct entries, and a mismatch fails at
+    ## spec-validation with "application repo ... is not permitted in project"
+    ## before any sync is attempted. monitoring-project does the same thing for
+    ## its four upstream chart repos.
     - https://github.com/egovernments/DIGIT-DevOps.git
     - git@github.com:egovernments/DIGIT-DevOps.git
+
+    ## Upstream Inji/MOSIP charts. Required by every Application in
+    ## charts/argo-cd/inji/applications/ -- they are multi-source, pulling the
+    ## chart from here and the values from the git repo above via the $values
+    ## ref. Omitting this is what made inji-config-server sit at
+    ## Unknown/Unknown with InvalidSpecError instead of syncing.
+    - https://mosip.github.io/mosip-helm
 
   destinations:
     - namespace: inji

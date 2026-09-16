@@ -24,6 +24,18 @@ gitRepo:
   version: digit-lts
   searchFolders: deploy-as-code/inji-config
   private: false
+  ## token feeds the chart's own Secret, which the Deployment reads as
+  ## SPRING_CLOUD_CONFIG_SERVER_GIT_PASSWORD. That reference is
+  ## UNCONDITIONAL -- not gated on `private` -- so the Secret must exist even
+  ## for a public repo. The chart creates it, so nothing extra is needed here.
+  ##
+  ## TRAP if you ever set a real token: templates/secret.yaml writes
+  ##   data:
+  ##     github-token: {{ .Values.gitRepo.token | quote }}
+  ## straight into `data:` with NO b64enc, so the value must already be
+  ## base64 (`printf %s <token> | base64`). A plaintext token yields a Secret
+  ## Kubernetes cannot decode. Same shape as the softhsm securityPIN trap.
+  ## Empty is valid and is what a public repo needs.
   token: ""
   username: ""
 
@@ -62,7 +74,27 @@ activeProfileEnv: "default,inji-default,standalone,digit-landregistry"
 ## and clearing only envVariables leaves two postgres-setup-config references
 ## behind from extraEnvVars.
 envVariables: []
-extraEnvVars: []
+
+## extraEnvVars is emptied of upstream's MOSIP references, but carries ONE
+## entry we need.
+##
+## THE GIT LABEL. gitRepo.version is NOT wired into the server by this chart --
+## configmap-env-vars.yaml only emits GIT_SEARCHPATHS, GIT_URI and
+## GIT_USERNAME. gitRepo.version is used solely to build client-facing URLs in
+## configmap-share.yaml (spring_config_label_env, cache_config_url_env, ...).
+##
+## So the server falls back to Spring's default label, `master`, and
+## deploy-as-code/inji-config does not exist on master -- it is on digit-lts.
+## The observed symptom was the startup probe on /config/*/* returning 404
+## while the log showed "Reset label master to version AnyObjectId[987e6aa...]":
+## the clone succeeded, the branch was simply the wrong one.
+##
+## Each entry needs `enabled: true` -- the template's range is gated on it and
+## silently skips entries without it.
+extraEnvVars:
+  - name: SPRING_CLOUD_CONFIG_SERVER_GIT_DEFAULT_LABEL
+    enabled: true
+    value: "digit-lts"
 
 resources:
   limits:

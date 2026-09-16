@@ -210,6 +210,17 @@ requires an Azure identity.
 **Enable transit + AppRole** (as root, inside the pod):
 
 ```bash
+# 1. print the root token from the sops file (clear the terminal after use)
+sops -d --extract '["vault-operator"]["root-token"]' environments/azure-k3s-secrets.yaml
+
+# 2. shell into the pod and authenticate — paste the token at the login prompt
+kubectl exec -it vault-0 -n vault -- sh
+vault login
+```
+
+Inside the pod, enable the engines and create the policy + role:
+
+```bash
 vault secrets enable transit
 vault auth enable approle
 vault policy write digit-transit - <<'EOF'
@@ -217,16 +228,28 @@ path "transit/encrypt/*" { capabilities = ["create","update"] }   # create => pe
 path "transit/decrypt/*" { capabilities = ["update"] }
 EOF
 vault write auth/approle/role/individual token_policies=digit-transit token_ttl=1h token_max_ttl=4h
+
+# print the credentials the services will use, then `exit` the pod.
+# NOTE: every -f secret-id call GENERATES A FRESH secret-id — run it once and save that value
 vault read -field=role_id  auth/approle/role/individual/role-id      # -> sops: cluster-configs.secrets.vault-approle.role-id
 vault write -f -field=secret_id auth/approle/role/individual/secret-id  # -> ...vault-approle.secret-id
 ```
 
-**Wire the services**: put the real role/secret ids into the sops file's
-`vault-approle` section and re-sync cluster-configs (the `vault-approle`
-secret feeds `VAULT_ROLE_ID`/`VAULT_SECRET_ID`, `VAULT_HOST` comes from
-`egov-service-host.vault`), then flip `VAULT_ENABLED: "true"` in the
-service's env and roll it. `HMAC_SECRET` must be non-empty — the service
-fails closed at boot otherwise (the mobile-number blind index must be keyed).
+Back on the workstation, store both values in the sops file and re-sync
+cluster-configs so the `vault-approle` k8s secret is (re)rendered:
+
+```bash
+sops environments/azure-k3s-secrets.yaml   # set cluster-configs.secrets.vault-approle: role-id / secret-id
+(cd charts/digit3 && ./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync)
+```
+
+**Wire the services**: the `vault-approle` secret feeds
+`VAULT_ROLE_ID`/`VAULT_SECRET_ID` and `VAULT_HOST` comes from
+`egov-service-host.vault`; flip `VAULT_ENABLED: "true"` in the
+service's env and roll it (secret env resolves at pod start, so
+already-running pods need a `kubectl rollout restart`). `HMAC_SECRET`
+must be non-empty — the service fails closed at boot otherwise (the
+mobile-number blind index must be keyed).
 
 **Verify**: create an individual with a mobile number; the API returns
 plaintext, while the DB column holds `vault:v1:…` and

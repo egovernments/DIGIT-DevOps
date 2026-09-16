@@ -1,0 +1,45 @@
+## inji-config-server -- step 1 of 8 in the Inji bring-up order.
+##
+## First module up: it publishes the config-server-share ConfigMap that
+## esignet, inji-certify and mimoto all read. See applications/README.md.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-config-server
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: config-server
+      targetRevision: 12.0.4
+      helm:
+        releaseName: config-server
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/config-server.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

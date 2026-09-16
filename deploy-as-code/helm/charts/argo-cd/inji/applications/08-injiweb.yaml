@@ -1,0 +1,51 @@
+## inji-injiweb -- step 8 of 8 in the Inji bring-up order.
+##
+## Apply ONLY after step 7 is Synced/Healthy. ArgoCD does not order
+## Applications, so the sequence is enforced by applying these files in
+## filename order, not by anything in the manifests.
+## See applications/README.md for the full sequence and prerequisites.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-injiweb
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: injiweb
+      targetRevision: 0.15.0
+      helm:
+        ## releaseName injiweb -> Service "injiweb", which inji-ingress targets.
+        ##
+        ## Note there are two chart names in the MOSIP repo: `injiweb` (0.15.0)
+        ## and `inji-web` (0.11.1). `injiweb` is the maintained one.
+        releaseName: injiweb
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/injiweb.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

@@ -1,0 +1,46 @@
+## inji-softhsm-esignet -- step 3 of 8 in the Inji bring-up order.
+##
+## Apply ONLY after step 2 is Synced/Healthy. ArgoCD does not order
+## Applications, so the sequence is enforced by applying these files in
+## filename order, not by anything in the manifests.
+## See applications/README.md for the full sequence and prerequisites.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-softhsm-esignet
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: softhsm
+      targetRevision: 12.0.2
+      helm:
+        ## Two softhsm instances are required, not one: esignet reads
+        ## esignet-softhsm-share and inji-certify reads softhsm-certify-share.
+        ## They are separate keystores by design -- the OIDC provider's signing
+        ## keys and the credential issuer's are different trust domains.
+        releaseName: softhsm-esignet
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/softhsm-esignet.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

@@ -1,0 +1,45 @@
+## inji-artifactory -- step 2 of 8 in the Inji bring-up order.
+##
+## Apply ONLY after step 1 is Synced/Healthy. ArgoCD does not order
+## Applications, so the sequence is enforced by applying these files in
+## filename order, not by anything in the manifests.
+## See applications/README.md for the full sequence and prerequisites.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-artifactory
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: artifactory
+      targetRevision: 12.0.4
+      helm:
+        ## Publishes the artifactory-share configmap that inji-certify and
+        ## mimoto both list in extraEnvVarsCM. Not optional for those two,
+        ## despite not appearing in the deployment doc's component list.
+        releaseName: artifactory
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/artifactory.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

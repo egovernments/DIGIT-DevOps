@@ -1,0 +1,52 @@
+## inji-mimoto -- step 7 of 8 in the Inji bring-up order.
+##
+## Apply ONLY after step 6 is Synced/Healthy. ArgoCD does not order
+## Applications, so the sequence is enforced by applying these files in
+## filename order, not by anything in the manifests.
+## See applications/README.md for the full sequence and prerequisites.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-mimoto
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: mimoto
+      targetRevision: 0.20.0
+      helm:
+        ## releaseName MUST be mimoto-service: the chart renders its Service
+        ## from the release name, and injiweb's templated nginx.conf proxies
+        ## /v1/mimoto to inji_web.inji_web_service_host, which is set to
+        ## mimoto-service in injiweb.yaml. No Ingress -- Mimoto is
+        ## cluster-internal for the web wallet.
+        releaseName: mimoto-service
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/mimoto.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

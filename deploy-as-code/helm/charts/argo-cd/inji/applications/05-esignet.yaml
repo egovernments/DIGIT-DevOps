@@ -1,0 +1,48 @@
+## inji-esignet -- step 5 of 8 in the Inji bring-up order.
+##
+## Apply ONLY after step 4 is Synced/Healthy. ArgoCD does not order
+## Applications, so the sequence is enforced by applying these files in
+## filename order, not by anything in the manifests.
+## See applications/README.md for the full sequence and prerequisites.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-esignet
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: esignet
+      targetRevision: 1.8.0
+      helm:
+        ## releaseName esignet -> Service "esignet", which inji-ingress targets.
+        releaseName: esignet
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/esignet.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

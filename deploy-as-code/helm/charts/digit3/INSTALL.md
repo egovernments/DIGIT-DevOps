@@ -325,8 +325,8 @@ One helm release per service, each a thin values-wrapper over the `common`
 library chart. The bundler and manifest play **no part** in this shape.
 
 The services helmfile in this shape lists one release per service (idgen-java,
-billing-java, … 16 in all) plus keycloak, accesscontrol-java and gateway-kong
-— each release is the same 8-line pattern:
+billing-java, … 16 in all) plus keycloak and gateway-kong — each release is
+the same 8-line pattern:
 
 ```yaml
   - name: idgen-java
@@ -414,8 +414,8 @@ otherwise), `KEYCLOAK_PUBLIC_BASE_URL`, minio-backed S3
 bundled services' `egov-service-host` keys at
 `http://dev-bundle.egov.svc.cluster.local:8080/`.
 
-The services helmfile carries one `dev-bundle` release (plus keycloak,
-accesscontrol-java — not part of the bundle — and gateway-kong).
+The services helmfile carries one `dev-bundle` release (plus keycloak
+and gateway-kong).
 
 ### 4.3 Deploy, program kong, migrate a tenant
 

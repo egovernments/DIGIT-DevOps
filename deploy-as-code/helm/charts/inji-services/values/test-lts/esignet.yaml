@@ -1,0 +1,65 @@
+# esignet (mosip/esignet 1.8.0) for digit-lts — the OIDC provider that
+# authenticates the wallet user before a credential is issued.
+#
+# Own hostname, esignet.test-lts.digit.org, because the OIDC issuer identifier
+# and its authorization/token endpoints must be browser-reachable and must not
+# change shape once clients are registered.
+
+replicaCount: 1
+
+## Istio off. Note this chart's default gateways are
+## [istio-system/public, istio-system/internal] -- references to an Istio
+## install that does not exist here. Routing comes from inji-ingress, targeting
+## the Service named `esignet` (from helm.releaseName) on port 80.
+istio:
+  enabled: false
+
+service:
+  type: ClusterIP
+  port: 80
+
+## esignet-softhsm-share comes from the softhsm-esignet Application.
+## inji-stack-config is added so eSignet resolves the same hostnames as the
+## rest of the stack; upstream's default list contains only the softhsm entry.
+extraEnvVarsCM:
+  - esignet-softhsm-share
+  - inji-stack-config
+  - config-server-share
+
+## Role esignetuser, database mosip_esignet, schema esignet, on postgres.egov.
+extraEnvVars:
+  - name: SPRING_DATASOURCE_URL
+    value: "jdbc:postgresql://postgres.egov:5432/mosip_esignet?currentSchema=esignet"
+  - name: SPRING_DATASOURCE_USERNAME
+    value: "esignetuser"
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: inji-db
+        key: esignet-password
+
+## NOT YET DECIDED — the identity plugin.
+##
+## pluginNameEnv/pluginUrlEnv select what eSignet authenticates against. The
+## sandbox default is the mock identity system; a real deployment points at an
+## actual identity provider. Left unset rather than guessed, because the choice
+## determines whether a mock-identity-system Application is also needed and
+## what the credential subject data looks like. inji-stack-config currently
+## maps esignet-mock-host to the real eSignet host as a placeholder.
+# pluginNameEnv: ""
+# pluginUrlEnv: ""
+
+## Upstream default is `default`. The Inji stack needs the inji profile for its
+## own property files to be picked up from config-server.
+activeProfileEnv: "default,inji-default,standalone"
+
+persistence:
+  enabled: false
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 200m
+    memory: 1Gi

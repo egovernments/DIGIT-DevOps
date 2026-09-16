@@ -1335,3 +1335,35 @@ inji-db-init:
   db:
     host: "postgres.egov"
     port: 5432
+
+inji-stack-config:
+  ## The ConfigMap of hostnames that inji-certify, mimoto and injiweb all read
+  ## via extraEnvVarsCM. Enable BEFORE any upstream module Application, or
+  ## those pods fail on a missing ConfigMap reference.
+  enabled: false
+
+inji-ingress:
+  ## Kubernetes Ingress objects for the Inji modules. Needed because every
+  ## upstream Inji chart routes only through Istio (gateway.yaml /
+  ## virtualservice.yaml, both gated on istio.enabled) and renders no Ingress;
+  ## all of them are set istio.enabled=false in
+  ## charts/inji-services/values/test-lts/.
+  ##
+  ## Each module is gated separately. Enable one ONLY after its A record
+  ## resolves to 4.224.237.122 -- cert-manager solves HTTP01 against the real
+  ## hostname, and repeated failures count against Let's Encrypt rate limits.
+  ## Use certIssuer: letsencrypt-staging while iterating on hostnames.
+  enabled: false
+  certIssuer: "letsencrypt-prod"
+  modules:
+    injiweb:
+      enabled: false
+    injicertify:
+      enabled: false
+    esignet:
+      enabled: false
+    injiverify:
+      ## inji-verify is not built yet -- there is no Application for it in
+      ## inji-applications.yaml, so this would target a Service that does not
+      ## exist. Leave disabled until that chart is added.
+      enabled: false

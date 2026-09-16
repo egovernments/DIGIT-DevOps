@@ -1,0 +1,57 @@
+{{- $v := include "inji-ingress.mergedValues" . | fromYaml -}}
+{{- if $v.enabled }}
+{{- range $name, $m := $v.modules }}
+{{- if $m.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: inji-{{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    ## cert-manager creates the Certificate and the TLS secret named in
+    ## spec.tls[0].secretName, in THIS namespace. Ingress TLS secrets are
+    ## namespace-local, which is why the existing egov/test-lts.digit.org-tls-certs
+    ## cannot be reused from here -- and why each module needs its own host
+    ## certificate rather than sharing one (the cluster issuer uses an HTTP01
+    ## solver, so a wildcard is not possible).
+    cert-manager.io/cluster-issuer: {{ $v.certIssuer | quote }}
+{{- range $k, $val := $v.annotations }}
+    {{ $k }}: {{ $val | quote }}
+{{- end }}
+{{- with $m.additionalAnnotations }}
+{{- toYaml . | nindent 4 }}
+{{- end }}
+  labels:
+{{- range $k, $val := $v.labels }}
+    {{ $k }}: {{ $val | quote }}
+{{- end }}
+    inji-module: {{ $name | quote }}
+spec:
+  ingressClassName: {{ $v.ingressClassName | quote }}
+  rules:
+    - host: {{ $m.host | quote }}
+      http:
+        paths:
+          ## Root prefix, deliberately. Each module owns its hostname, so
+          ## there is nothing to share the host with and no path to strip --
+          ## which is what makes the stock upstream images usable: their CRA
+          ## bundles reference assets at absolute /static/... paths.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                ## The module's own Service -- NOT kong-kong-proxy. Upstream
+                ## charts have no fullnameOverride, so this name is whatever
+                ## the ArgoCD Application sets as helm.releaseName. Keep these
+                ## in step with charts/argo-cd/inji/inji-applications.yaml.
+                name: {{ $m.service | quote }}
+                port:
+                  number: {{ $m.port }}
+  tls:
+    - hosts:
+        - {{ $m.host | quote }}
+      secretName: {{ printf "%s-tls" $m.host | quote }}
+{{- end }}
+{{- end }}
+{{- end }}

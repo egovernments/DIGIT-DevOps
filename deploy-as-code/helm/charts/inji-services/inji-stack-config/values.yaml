@@ -1,0 +1,53 @@
+# The inji-stack-config ConfigMap.
+#
+# Per-module hostnames, NOT path prefixes on the shared DIGIT host. Path-based
+# routing was attempted and abandoned: inji-web and inji-verify's UI are both
+# CRA 5 builds with a bare <BrowserRouter> and no basename, so they cannot be
+# served from a subpath even after rebuilding with PUBLIC_URL. Per-module hosts
+# also put /.well-known/openid-credential-issuer at a host root, which is where
+# the OIDC4VCI spec expects it -- the upstream inji-certify chart declares exact
+# Istio matches for that path and /.well-known/did.json, confirming it.
+enabled: false
+
+# Every host must have an A record pointing at the ingress-nginx LoadBalancer
+# (4.224.237.122) BEFORE the module is enabled: cert-manager solves HTTP01
+# against the real hostname, so a missing record means the Certificate never
+# becomes Ready and the module is served the nginx default certificate.
+hosts:
+  # Base domain. The Inji modules get subdomains of the existing DIGIT host so
+  # they sit inside the same zone, but they do NOT share its certificate --
+  # each subdomain gets its own, since the cluster's letsencrypt-prod issuer
+  # uses an HTTP01 solver and so cannot issue a wildcard.
+  domain: "test-lts.digit.org"
+
+  injiweb: "injiweb.test-lts.digit.org"
+  injiverify: "injiverify.test-lts.digit.org"
+  injicertify: "injicertify.test-lts.digit.org"
+  esignet: "esignet.test-lts.digit.org"
+
+  # Mimoto is deliberately NOT given a hostname. The web wallet reaches it
+  # same-origin: the injiweb chart templates its own nginx.conf with
+  #   proxy_pass http://{{ .Values.inji_web.inji_web_service_host }}/v1/mimoto
+  # so the browser only ever talks to the injiweb host. A Mimoto hostname is
+  # needed only for the Inji MOBILE wallet, which is out of scope -- the phone
+  # would talk to Mimoto directly. Add one here if that changes.
+  mimotoInternal: "mimoto-service.inji.svc.cluster.local"
+
+# Reused DIGIT infrastructure rather than standing up Inji's own copies.
+infra:
+  # postgres.egov, not postgresql-lts: the lts instance is being decommissioned.
+  postgresHost: "postgres.egov"
+  postgresPort: "5432"
+  # In-cluster MinIO from the backbone namespace.
+  minioHost: "minio.backbone"
+  minioPort: "9000"
+  redisHost: "redis.backbone"
+  redisPort: "6379"
+
+# Pinned rather than "develop". The module chart versions are pinned in
+# inji-applications.yaml too; keep the two in step.
+injiVersion: "0.13.1"
+
+labels:
+  app: "inji-stack-config"
+  group: "inji"

@@ -1,0 +1,52 @@
+{{- $v := include "inji-stack-config.mergedValues" . | fromYaml -}}
+{{- if $v.enabled }}
+## Key names are dictated by upstream -- inji-certify, mimoto and injiweb read
+## these exact keys via extraEnvVarsCM, so they cannot be renamed to match
+## DIGIT's own naming. Kept in the upstream kebab-case form deliberately.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inji-stack-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{- range $k, $val := $v.labels }}
+    {{ $k }}: {{ $val | quote }}
+{{- end }}
+data:
+  inji-version: {{ $v.injiVersion | quote }}
+  installation-domain: {{ $v.hosts.domain | quote }}
+
+  ## Module hosts. Upstream's sample uses api./api-internal. fronting
+  ## everything through an Istio gateway pair; there is no Istio here, so each
+  ## module is addressed by its own host and the api/api-internal split does
+  ## not apply. api-host is pointed at injicertify because that is the only
+  ## externally-reachable Inji API in the web-wallet scope.
+  api-host: {{ $v.hosts.injicertify | quote }}
+  api-internal-host: {{ $v.hosts.injicertify | quote }}
+
+  injiweb-host: {{ $v.hosts.injiweb | quote }}
+  injiverify-host: {{ $v.hosts.injiverify | quote }}
+  injicertify-host: {{ $v.hosts.injicertify | quote }}
+  esignet-host: {{ $v.hosts.esignet | quote }}
+
+  ## Upstream's sample also sets esignet-mock-host, for the mock identity
+  ## system used in sandbox demos. Pointed at the real eSignet host here: a
+  ## separate mock is not deployed, and leaving the key absent makes any chart
+  ## that interpolates it render an empty host.
+  esignet-mock-host: {{ $v.hosts.esignet | quote }}
+
+  ## IAM. DIGIT's Keycloak is reused rather than standing up a second one.
+  ## Cluster-internal name: no Inji component needs to reach it from a browser.
+  iam-external-host: {{ printf "keycloak.keycloak.svc.cluster.local:8080" | quote }}
+
+  ## Shared infrastructure.
+  inji-postgres-host: {{ $v.infra.postgresHost | quote }}
+  inji-postgres-port: {{ $v.infra.postgresPort | quote }}
+  minio-host: {{ printf "%s:%s" $v.infra.minioHost $v.infra.minioPort | quote }}
+  redis-host: {{ $v.infra.redisHost | quote }}
+  redis-port: {{ $v.infra.redisPort | quote }}
+
+  ## Mimoto's in-cluster address, for anything that needs it server-side.
+  ## The browser never uses this -- injiweb's nginx proxies /v1/mimoto.
+  mimoto-host: {{ $v.hosts.mimotoInternal | quote }}
+{{- end }}

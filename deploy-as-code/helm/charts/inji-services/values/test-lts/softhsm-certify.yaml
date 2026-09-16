@@ -1,0 +1,44 @@
+# softhsm for Inji Certify (mosip/softhsm 12.0.2) on digit-lts.
+#
+# Software HSM holding Inji Certify's credential signing keys. Publishes
+# `softhsm-certify-share` (PKCS11_PROXY_SOCKET), listed in the inji-certify
+# chart's extraEnvVarsCM alongside config-server-share and artifactory-share.
+#
+# SEPARATE from softhsm-esignet by design: the OIDC provider's signing keys and
+# the credential issuer's are different trust domains, and upstream keeps two
+# instances rather than sharing one token.
+
+## Must be exactly `softhsm-certify` so the share ConfigMap renders as
+## `softhsm-certify-share`, the name inji-certify expects. Verified by rendering.
+fullnameOverride: softhsm-certify
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 80
+
+## Upstream defaults persistence ON with storageClass null (cluster default).
+## Kept enabled: losing the token means every credential Certify ever signed becomes
+## unverifiable. `default` here is disk.csi.azure.com, which is
+## WaitForFirstConsumer and ReadWriteOnce — fine for a single replica.
+persistence:
+  enabled: true
+  storageClass: "default"
+  size: 1Gi
+  accessModes:
+    - ReadWriteOnce
+
+## securityPIN is the PKCS#11 token PIN. Upstream ships a default; it should be
+## overridden with a SOPS-encrypted value before this is treated as anything
+## other than an evaluation. Left at the chart default for now, deliberately
+## not invented here.
+# securityPIN: ""
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi

@@ -1,0 +1,91 @@
+# mimoto (mosip/mimoto 0.20.0) for digit-lts — the wallet backend-for-frontend.
+#
+# CLUSTER-INTERNAL ONLY. No Ingress, no hostname, no certificate. The web
+# wallet reaches it through injiweb's own nginx (proxy_pass to
+# mimoto-service/v1/mimoto), so the browser never addresses it directly.
+# A hostname would only be needed for the Inji MOBILE wallet, where the phone
+# talks to Mimoto itself — out of scope here.
+#
+# The Application MUST set helm.releaseName: mimoto-service. This chart has no
+# fullnameOverride, so the Service name comes from the release name, and
+# injiweb.yaml's inji_web.inji_web_service_host points at exactly that name.
+
+replicaCount: 1
+
+## Istio off — see injiweb.yaml. Unlike the other charts, mimoto has no
+## gateway.yaml at all, only virtualservice.yaml, because upstream attaches it
+## to inji-web's gateway.
+istio:
+  enabled: false
+
+service:
+  type: ClusterIP
+  ## Service listens on 80 and targets the container's 8099. injiweb's nginx
+  ## proxies to `mimoto-service` with no port, i.e. 80, so this must stay 80.
+  port: 80
+  containerPort: 8099
+
+## artifactory-share comes from the artifactory Application; config-server-share
+## from config-server. Both must be Healthy before mimoto starts or the pod
+## fails on a missing ConfigMap reference.
+extraEnvVarsCM:
+  - inji-stack-config
+  - config-server-share
+  - artifactory-share
+
+## STILL REQUIRED, NOT YET CREATED.
+##
+## `google-client` backs the wallet's optional Google sign-in
+## (INJI_INJIWEB_GOOGLE_CLIENT_ID / _SECRET). The chart references it
+## unconditionally, so the pod will fail with CreateContainerConfigError until
+## the secret exists — even if Google login is unused. Create it with empty
+## values via cluster-configs if you do not want Google sign-in, or with real
+## credentials if you do.
+extraEnvVarsSecret:
+  - google-client
+
+## Database. Upstream expects a single shared `db-common-secrets` /
+## db-dbuser-password for every module; digit-lts instead has one role per
+## module with its own password, so this points at the per-module key in the
+## `inji-db` secret created by cluster-configs.
+##
+## Role mimotouser, database inji_mimoto, schema mimoto, on postgres.egov.
+extraEnvVars:
+  - name: SPRING_DATASOURCE_URL
+    value: "jdbc:postgresql://postgres.egov:5432/inji_mimoto?currentSchema=mimoto"
+  - name: SPRING_DATASOURCE_USERNAME
+    value: "mimotouser"
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: inji-db
+        key: mimoto-password
+
+## NOT YET RESOLVED — mimoto will not start without these two keystores:
+##
+##  1. `mimotooidc` secret, key oidckeystore.p12, mounted at /home/mosip/certs.
+##     These are the issuer keys the wallet uses to talk to Certify. They have
+##     to be generated, then SOPS-encrypted into test-lts-secrets.yaml.
+##  2. `mimoto-keygen-keymanager` PVC providing
+##     /home/mosip/encryption/encryptionkeystore.p12, produced upstream by a
+##     keygen job that is not part of this chart.
+##
+## Left unset rather than guessed: a wrong mount path here produces a pod that
+## starts and then fails at first credential download, which is much harder to
+## diagnose than a missing-volume error.
+# extraVolumes: []
+# extraVolumeMounts: []
+
+## No PVC for the landing folder. Upstream defaults to storageClass nfs-csi,
+## which does not exist here (digit-lts has azurefile / managed-csi). Enable
+## with storageClass: azurefile only if a shared landing folder is needed.
+persistence:
+  enabled: false
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 200m
+    memory: 1Gi

@@ -1,0 +1,84 @@
+# Kubernetes Ingress objects for the Inji modules.
+#
+# WHY THIS CHART EXISTS
+# Every upstream Inji chart routes exclusively through Istio -- gateway.yaml
+# and virtualservice.yaml, both gated on `istio.enabled`. There is no Istio in
+# digit-lts, and none of those charts renders a Kubernetes Ingress. Setting
+# istio.enabled=false leaves a clean Deployment + Service + ConfigMaps (verified
+# by rendering injiweb 0.15.0), so the routing layer is supplied here instead.
+#
+# Keeping all the Ingresses in one chart rather than patching five upstream
+# charts means one place to reason about hosts, TLS and annotations, and no
+# forks to rebase on an Inji version bump.
+#
+# These bypass Kong entirely: each backend is the module's own Service, not
+# kong-kong-proxy. Kong here performs DIGIT-specific auth (keycloak-rbac,
+# dynamic-jwt, header-enrichment, tenant metadata) which would fight OIDC4VCI.
+# Nothing in this chart touches an existing DIGIT ingress or Kong's config.
+enabled: false
+
+ingressClassName: "nginx"
+
+# letsencrypt-prod is the cluster's working issuer (HTTP01 solver against
+# ingressClass nginx). Switch to letsencrypt-staging while iterating on
+# hostnames: prod caps duplicate certificates at 5 per week per name, and a
+# wrong host burns an issuance.
+certIssuer: "letsencrypt-prod"
+
+annotations:
+  # The controller configmap sets no proxy-body-size, so the cluster default of
+  # 1 MB applies. Inji Verify accepts QR/PDF uploads and Mimoto handles
+  # credential payloads that exceed that. Set per-ingress here rather than
+  # raising it globally, which would change behaviour for every DIGIT service.
+  nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+  # Matches the timeouts already set cluster-wide for DIGIT (300s).
+  nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+  nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+
+# One entry per module. `enabled: false` on any of them renders nothing, so
+# modules can be turned on one at a time.
+#
+# host: must already have an A record to 4.224.237.122 -- cert-manager solves
+#       HTTP01 against the real hostname.
+# service/port: the Service the upstream chart renders. Upstream charts have no
+#       fullnameOverride support, so the Service name follows the ArgoCD
+#       Application's helm.releaseName. These must match the releaseName values
+#       in charts/argo-cd/inji/inji-applications.yaml.
+modules:
+  injiweb:
+    enabled: false
+    host: "injiweb.test-lts.digit.org"
+    service: "injiweb"
+    port: 80
+
+  injicertify:
+    enabled: false
+    host: "injicertify.test-lts.digit.org"
+    service: "inji-certify"
+    port: 80
+    # OIDC4VCI requires the credential issuer metadata at the HOST ROOT, not
+    # under a path. Because this module owns its hostname, the default "/"
+    # rule already serves /.well-known/openid-credential-issuer and
+    # /.well-known/did.json -- which is exactly the pair the upstream chart
+    # declares as explicit Istio matches. No extra rule needed.
+
+  esignet:
+    enabled: false
+    host: "esignet.test-lts.digit.org"
+    service: "esignet"
+    port: 80
+
+  injiverify:
+    enabled: false
+    host: "injiverify.test-lts.digit.org"
+    service: "inji-verify-ui"
+    port: 80
+
+# Mimoto has no entry on purpose: it is cluster-internal only. injiweb's own
+# nginx proxies /v1/mimoto to it, so the browser never addresses Mimoto
+# directly. It would need a host only for the Inji mobile wallet, which is out
+# of scope.
+
+labels:
+  app: "inji-ingress"
+  group: "inji"

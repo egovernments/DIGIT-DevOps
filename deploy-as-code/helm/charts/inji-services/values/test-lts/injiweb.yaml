@@ -1,0 +1,66 @@
+# injiweb (mosip/injiweb 0.15.0) for digit-lts — the web wallet UI.
+#
+# Note the MOSIP repo carries two chart names: `injiweb` (0.15.0) and
+# `inji-web` (0.11.1). `injiweb` is the maintained one.
+#
+# Served from its OWN hostname, injiweb.test-lts.digit.org, with the stock
+# image. This is why the hostname decision matters: the image is a Create React
+# App build whose index.html references assets at absolute /static/... paths,
+# and src/index.js wraps the app in a bare <BrowserRouter> with no basename. At
+# a subpath the assets 404 and the router matches no routes -- unfixable by any
+# chart value, and not even fixable by rebuilding with PUBLIC_URL alone.
+
+replicaCount: 1
+
+## Istio off. This chart's gateway.yaml and virtualservice.yaml are both gated
+## on istio.enabled and it renders no Kubernetes Ingress. digit-lts has no
+## Istio; routing comes from the local inji-ingress chart, which targets the
+## Service named `injiweb` (from helm.releaseName) on port 80.
+istio:
+  enabled: false
+
+service:
+  type: ClusterIP
+  port: 80
+
+inji_web:
+  ## The chart templates its OWN nginx.conf into a ConfigMap
+  ## (<release>-injiweb-nginx-cm) with:
+  ##   proxy_pass http://{{ .Values.inji_web.inji_web_service_host }}/v1/mimoto
+  ## so this value -- not the hardcoded mimoto-service:8099 in the repo's
+  ## checked-in nginx.conf -- is what actually gets deployed.
+  ##
+  ## This is what keeps Mimoto cluster-internal: the browser only ever talks to
+  ## the injiweb host, and nginx inside this pod forwards /v1/mimoto onward. No
+  ## Mimoto hostname, no Mimoto Ingress, no CORS.
+  ##
+  ## Must match the mimoto Application's helm.releaseName (mimoto-service).
+  ## Port omitted because the mimoto chart's Service listens on 80 and targets
+  ## containerPort 8099.
+  inji_web_service_host: 'mimoto-service'
+  inji_web_port: 3004
+
+## Where the wallet sends the user to authenticate against eSignet. Browser-
+## facing, so it must be the public hostname, not a cluster-internal name.
+esignet_redirect_url: 'esignet.test-lts.digit.org'
+
+## inji-stack-config is the local chart; injiweb-ui is rendered by this chart
+## itself (verified in the rendered output), so it must stay in the list.
+extraEnvVarsCM:
+  - inji-stack-config
+  - injiweb-ui
+
+## MIMOTO_URL is same-origin on purpose -- it resolves to this pod's own nginx,
+## which proxies to mimoto-service. Pointing it at a Mimoto hostname would
+## require a fifth DNS record, a fifth certificate, and CORS configuration.
+extraEnvVars:
+  - name: MIMOTO_URL
+    value: "https://injiweb.test-lts.digit.org/v1/mimoto"
+
+resources:
+  limits:
+    cpu: 300m
+    memory: 512Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi

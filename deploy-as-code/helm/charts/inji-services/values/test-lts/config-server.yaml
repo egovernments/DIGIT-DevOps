@@ -1,0 +1,61 @@
+# config-server (mosip/config-server 12.0.4) for digit-lts.
+#
+# Serves the .properties files that esignet, inji-certify and mimoto read at
+# startup, and publishes the `config-server-share` ConfigMap those charts list
+# in extraEnvVarsCM. Nothing downstream starts cleanly without it, so this is
+# the first Application to bring up.
+
+## Forces the Service name to `config-server` regardless of release name.
+## config-server is the only Inji-related chart that supports this -- the
+## others derive the Service name from helm.releaseName.
+fullnameOverride: config-server
+
+replicaCount: 1
+
+## Config properties live in a subfolder of THIS repo, not a separate
+## inji-config fork. searchFolders is what makes that work: config-server
+## clones the repo at `version` and then looks inside the listed folders.
+##
+## The repo is public, so gitRepo.private stays false and no token is needed.
+## If deploy-as-code/inji-config is ever moved to a private repo, set
+## private: true and supply username/token from a SOPS-encrypted secret.
+gitRepo:
+  uri: https://github.com/egovernments/DIGIT-DevOps
+  version: digit-lts
+  searchFolders: deploy-as-code/inji-config
+  private: false
+  token: ""
+  username: ""
+
+## The upstream default is `default,standalone`. inji-default is required for
+## the Inji modules to pick up the inji-*.properties files, and is what the
+## deployment doc means by "ensure config-server-share has
+## active_profile_env: default,inji-default,standalone".
+activeProfileEnv: "default,inji-default,standalone"
+
+## Upstream ships a long envVariables list wired to MOSIP-specific ConfigMaps
+## (postgres-setup-config, keycloak-*-share, etc.) that do not exist in
+## digit-lts. Each entry carries its own `enabled` flag, so rather than
+## deleting the list -- which would drop the ones we do want -- the unwanted
+## entries are disabled individually.
+##
+## LEFT AS A FOLLOW-UP, deliberately: this list has ~20 entries and disabling
+## the wrong one produces a config-server that starts but silently serves
+## incomplete properties. It needs to be walked entry by entry against the
+## rendered Deployment before this Application is enabled. Until then
+## config-server will CrashLoopBackOff on the missing postgres-setup-config
+## ConfigMap, which is the honest failure mode rather than a hidden one.
+# envVariables: []
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1536Mi
+  requests:
+    cpu: 100m
+    memory: 768Mi
+
+## No Ingress. config-server is consumed in-cluster only; exposing it would
+## publish every property, including credentials, to the internet.
+ingress:
+  enabled: false

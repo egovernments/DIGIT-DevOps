@@ -54,14 +54,25 @@ spec:
           ## true in the same commit that adds those values.
           - name: inji-db-init
 
-          ## Module charts are added here as they are built. Each one needs its
-          ## database to exist first, so do not enable a module before
-          ## inji-db-init has run green at least once.
-          # - name: esignet
-          # - name: inji-certify
-          # - name: mimoto
-          # - name: inji-web
-          # - name: inji-verify
+          ## The inji-stack-config ConfigMap. Required by inji-certify, mimoto
+          ## and injiweb (all three list it in extraEnvVarsCM), so it must be
+          ## Healthy before any of them is enabled.
+          ## Ships disabled; enable via inji-stack-config.enabled in test-lts.yaml.
+          - name: inji-stack-config
+
+          ## Kubernetes Ingress objects for the modules. Every upstream Inji
+          ## chart routes only through Istio and renders no Ingress, so routing
+          ## lives here. Ships disabled, and each module has its own enabled
+          ## flag so hosts can be turned on one at a time -- do not enable a
+          ## module's ingress before its DNS A record exists, or cert-manager
+          ## will fail the HTTP01 challenge and retry against rate limits.
+          - name: inji-ingress
+
+          ## The upstream modules (config-server, artifactory, softhsm x2,
+          ## esignet, inji-certify, mimoto, injiweb) are NOT listed here. They
+          ## come from the MOSIP Helm repo, not from a path in this repo, so
+          ## they are multi-source Applications in inji-applications.yaml
+          ## instead. This list generator only works for in-repo charts.
 
   template:
     metadata:

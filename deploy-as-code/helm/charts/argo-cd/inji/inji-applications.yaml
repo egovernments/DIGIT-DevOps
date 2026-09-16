@@ -1,0 +1,368 @@
+## Inji modules that come from the upstream MOSIP Helm repo.
+##
+## Same multi-source pattern as monitoring-applications.yaml: the chart is
+## pulled from https://mosip.github.io/mosip-helm at a pinned version and the
+## values come from this git repo via the $values ref. Nothing is vendored, so
+## an Inji version bump is a targetRevision change, not a re-fork.
+##
+## WHY NOT THE ApplicationSet: digit-lts-inji-appset-inji uses a list generator
+## over `path: .../inji-services/{{name}}`, which only works for charts that
+## live in this repo. It keeps the local charts (inji-db-init,
+## inji-stack-config, inji-ingress); the upstream charts are Applications here.
+##
+## EVERY upstream chart is set istio.enabled=false. All of them route solely
+## through Istio (gateway.yaml / virtualservice.yaml, both gated on that flag)
+## and render no Kubernetes Ingress. digit-lts has no Istio. Routing is supplied
+## by the local inji-ingress chart instead.
+##
+## helm.releaseName is load-bearing. None of these charts supports
+## fullnameOverride, so the rendered Service name derives from the release name
+## -- and those Service names are what inji-ingress and injiweb's nginx proxy
+## target. Changing a releaseName here silently breaks routing.
+##
+## ORDER MATTERS, and ArgoCD does not order Applications for you. Bring them up
+## in this sequence, confirming each is Healthy first:
+##   1. config-server   (publishes the config-server-share configmap)
+##   2. artifactory     (publishes artifactory-share; needed by certify+mimoto)
+##   3. softhsm-esignet + softhsm-certify  (publish the *-softhsm-share configmaps)
+##   4. esignet
+##   5. inji-certify
+##   6. mimoto
+##   7. injiweb
+##
+## PREREQUISITES, none of which these Applications create:
+##   - the four databases: inji-db-init must have run green
+##   - inji-stack-config: the local chart, enabled
+##   - DNS A records to 4.224.237.122 for injiweb./injicertify./esignet.
+##   - cluster capacity: this is ~8 additional mostly-JVM pods
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-config-server
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: config-server
+      targetRevision: 12.0.4
+      helm:
+        releaseName: config-server
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/config-server.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-artifactory
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: artifactory
+      targetRevision: 12.0.4
+      helm:
+        ## Publishes the artifactory-share configmap that inji-certify and
+        ## mimoto both list in extraEnvVarsCM. Not optional for those two,
+        ## despite not appearing in the deployment doc's component list.
+        releaseName: artifactory
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/artifactory.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-softhsm-esignet
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: softhsm
+      targetRevision: 12.0.2
+      helm:
+        ## Two softhsm instances are required, not one: esignet reads
+        ## esignet-softhsm-share and inji-certify reads softhsm-certify-share.
+        ## They are separate keystores by design -- the OIDC provider's signing
+        ## keys and the credential issuer's are different trust domains.
+        releaseName: softhsm-esignet
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/softhsm-esignet.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-softhsm-certify
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: softhsm
+      targetRevision: 12.0.2
+      helm:
+        releaseName: softhsm-certify
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/softhsm-certify.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-esignet
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: esignet
+      targetRevision: 1.8.0
+      helm:
+        ## releaseName esignet -> Service "esignet", which inji-ingress targets.
+        releaseName: esignet
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/esignet.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-certify
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: inji-certify
+      targetRevision: 0.13.1
+      helm:
+        ## releaseName inji-certify -> Service "inji-certify".
+        releaseName: inji-certify
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/inji-certify.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-mimoto
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: mimoto
+      targetRevision: 0.20.0
+      helm:
+        ## releaseName MUST be mimoto-service: the chart renders its Service
+        ## from the release name, and injiweb's templated nginx.conf proxies
+        ## /v1/mimoto to inji_web.inji_web_service_host, which is set to
+        ## mimoto-service in injiweb.yaml. No Ingress -- Mimoto is
+        ## cluster-internal for the web wallet.
+        releaseName: mimoto-service
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/mimoto.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-injiweb
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: injiweb
+      targetRevision: 0.15.0
+      helm:
+        ## releaseName injiweb -> Service "injiweb", which inji-ingress targets.
+        ##
+        ## Note there are two chart names in the MOSIP repo: `injiweb` (0.15.0)
+        ## and `inji-web` (0.11.1). `injiweb` is the maintained one.
+        releaseName: injiweb
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/injiweb.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

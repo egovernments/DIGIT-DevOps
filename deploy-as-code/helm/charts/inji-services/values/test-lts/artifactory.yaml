@@ -1,0 +1,32 @@
+# artifactory (mosip/artifactory 12.0.4) for digit-lts.
+#
+# Publishes the `artifactory-share` ConfigMap that inji-certify and mimoto both
+# list in extraEnvVarsCM — it carries artifactory_url_env, iam_adapter_url_env,
+# zip_file_path and friends. Neither module starts without it, even though the
+# deployment doc does not list artifactory among the components to install.
+#
+# It serves MOSIP build artifacts (plugin jars, config zips) in-cluster only.
+
+## The share ConfigMap is named "<fullname>-share", so the fullname must be
+## exactly `artifactory` to produce `artifactory-share`. Verified by rendering.
+## The key is not in the chart's values.yaml but is honoured via the bitnami
+## common.names.fullname helper.
+fullnameOverride: artifactory
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 80
+
+## No PVC — the artifacts ship inside the image.
+persistence:
+  enabled: false
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 100m
+    memory: 256Mi

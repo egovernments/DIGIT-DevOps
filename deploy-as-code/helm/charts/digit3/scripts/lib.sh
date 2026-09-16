@@ -6,7 +6,7 @@
 #   CHART_DIR   charts/digit3             ENV_FILE / SECRETS_FILE  environments/*
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 CHART_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 HELM_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 ENV_FILE="$HELM_DIR/environments/azure-k3s.yaml"
@@ -30,16 +30,17 @@ load_env() {
   # shellcheck disable=SC1090
   source "$DOTENV"
   : "${SSH_KEY:?missing in .env}" "${DOMAIN:?missing in .env}" "${KUBECONFIG_PATH:?missing in .env}"
+  VM_USER="${VM_USER:-azureuser}"
   export KUBECONFIG="$KUBECONFIG_PATH"
 }
 
-vm_ssh() { ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -i "$SSH_KEY" "azureuser@$DOMAIN" "$@"; }
+vm_ssh() { ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -i "$SSH_KEY" "${VM_USER:-azureuser}@$DOMAIN" "$@"; }
 
 # Re-open the API tunnel if the local port is closed.
 ensure_tunnel() {
   if ! nc -z -w 2 127.0.0.1 "$TUNNEL_PORT" 2>/dev/null; then
     pkill -f "$TUNNEL_PORT:127.0.0.1:6443" 2>/dev/null || true
-    ssh -f -N -L "$TUNNEL_PORT:127.0.0.1:6443" -o StrictHostKeyChecking=accept-new -i "$SSH_KEY" "azureuser@$DOMAIN"
+    ssh -f -N -L "$TUNNEL_PORT:127.0.0.1:6443" -o StrictHostKeyChecking=accept-new -i "$SSH_KEY" "${VM_USER:-azureuser}@$DOMAIN"
     sleep 1
   fi
 }

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # 01 — k3s on the VM + kubeconfig over an SSH tunnel (INSTALL.md §1.2–1.3).
-# Usage: ./01-cluster.sh <ssh-private-key> <domain>
+# Usage: ./01-cluster.sh <ssh-private-key> <domain> [vm-user]
 # Idempotent: skips the k3s install if present, re-opens the tunnel if stale.
 source "$(dirname "$0")/lib.sh"
 
-[ $# -eq 2 ] || die "usage: $0 <ssh-private-key> <domain>"
+[ $# -ge 2 ] || die "usage: $0 <ssh-private-key> <domain> [vm-user (default azureuser)]"
 SSH_KEY="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
 DOMAIN="$2"
+VM_USER="${3:-azureuser}"
 KUBECONFIG_PATH="$HOME/modulith-kubeconfig.yaml"
 [ -f "$SSH_KEY" ] || die "ssh key not found: $SSH_KEY"
 
@@ -25,6 +26,7 @@ chmod 600 "$KUBECONFIG_PATH"
 cat > "$DOTENV" <<EOF
 SSH_KEY="$SSH_KEY"
 DOMAIN="$DOMAIN"
+VM_USER="$VM_USER"
 KUBECONFIG_PATH="$KUBECONFIG_PATH"
 EOF
 note "saved connection settings to scripts/.env"

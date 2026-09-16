@@ -176,9 +176,20 @@ namespace `vault` not `vault-new`):
 **Init + unseal** (Shamir seal — repeat the unseal after EVERY pod restart):
 
 ```bash
+# 1. initialize — writes the unseal key + root token to init.json (PLAINTEXT — handle with care)
 kubectl exec vault-0 -n vault -- vault operator init -key-shares=1 -key-threshold=1 -format=json \
-  > init.json   # store unseal key + root token in the sops file (vault-operator:), then delete
-kubectl exec -i vault-0 -n vault -- sh -c 'read -r K; vault operator unseal "$K"'  # key via stdin
+  > init.json
+
+# 2. unseal — the in-pod command reads the key on stdin, so pipe it in
+#    (run bare, it sits waiting for input and looks stuck)
+jq -r '.unseal_keys_b64[0]' init.json | \
+  kubectl exec -i vault-0 -n vault -- sh -c 'read -r K; vault operator unseal "$K"'
+
+# 3. store unseal_keys_b64[0] + root_token in the sops file under `vault-operator:`
+#    (unseal-key / root-token), THEN delete the plaintext. Skipping this leaves
+#    secrets in the repo and breaks the re-unseal command below after any re-init.
+sops environments/azure-k3s-secrets.yaml
+rm init.json
 ```
 
 After any pod restart, Vault is sealed again (individual's PII encrypt/decrypt
@@ -485,5 +496,7 @@ does not migrate data.
 | Vault pod Pending, PVC stuck | test-lts chart copy pinned `storageClass: gp2` (AWS) → null it for the default SC; volumeClaimTemplates are immutable — uninstall + delete PVC before re-sync |
 | Vault: "error fetching AWS KMS wrapping key" | `seal "awskms"` stanza in the copied server config → remove it (Shamir seal; manual unseal after every restart) |
 | Vault statefulset change not rolling out | chart uses `OnDelete` update strategy → delete the pod to pick up spec changes |
+| Vault unseal command hangs with no output | the in-pod `read -r K` is waiting for the key on stdin → pipe it in (`jq -r '.unseal_keys_b64[0]' init.json \| kubectl exec -i …`) — see the Init + unseal section |
+| Vault unseal: `cipher: message authentication failed` | key in the sops file is from an older init — Vault was re-initialized (e.g. fresh PVC) → update `vault-operator:` in the sops file from the new init.json |
 | Service crash-loops in `VaultAuth` at boot | `VAULT_ENABLED=true` with unreachable Vault or empty role/secret ids — the client logs in eagerly |
 | New pods fail DB auth after a cluster-configs sync | the repo's sops secrets diverged from what the cluster was deployed with — cluster-configs re-rendered secrets over live ones; reconcile the sops file with the cluster before syncing |

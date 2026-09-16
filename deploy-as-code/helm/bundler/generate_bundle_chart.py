@@ -278,11 +278,15 @@ spec:
         {{- range $envName, $spec := $m.env }}
         {{- if $spec }}
           - name: {{ $envName | quote }}
-          {{- if hasKey $spec "value" }}
+          {{- /* non-empty value wins; a valueFrom override beats an empty chart-default
+               value (the common.name merge cannot delete keys, so both may be present) */}}
+          {{- if and (hasKey $spec "value") $spec.value }}
             value: {{ $spec.value | quote }}
           {{- else if hasKey $spec "valueFrom" }}
             valueFrom:
               {{- toYaml $spec.valueFrom | nindent 14 }}
+          {{- else if hasKey $spec "value" }}
+            value: {{ $spec.value | quote }}
           {{- end }}
         {{- end }}
         {{- end }}
@@ -316,11 +320,15 @@ spec:
         {{- range $envName, $spec := .Values.env }}
         {{- if $spec }}
             - name: {{ $envName | quote }}
-          {{- if hasKey $spec "value" }}
+          {{- /* non-empty value wins; a valueFrom override beats an empty chart-default
+               value (the common.name merge cannot delete keys, so both may be present) */}}
+          {{- if and (hasKey $spec "value") $spec.value }}
               value: {{ $spec.value | quote }}
           {{- else if hasKey $spec "valueFrom" }}
               valueFrom:
                 {{- toYaml $spec.valueFrom | nindent 16 }}
+          {{- else if hasKey $spec "value" }}
+              value: {{ $spec.value | quote }}
           {{- end }}
         {{- end }}
         {{- end }}

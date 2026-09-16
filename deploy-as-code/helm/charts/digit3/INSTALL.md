@@ -523,4 +523,6 @@ does not migrate data.
 | Vault unseal command hangs with no output | the in-pod `read -r K` is waiting for the key on stdin → pipe it in (`jq -r '.unseal_keys_b64[0]' init.json \| kubectl exec -i …`) — see the Init + unseal section |
 | Vault unseal: `cipher: message authentication failed` | key in the sops file is from an older init — Vault was re-initialized (e.g. fresh PVC) → update `vault-operator:` in the sops file from the new init.json |
 | Service crash-loops in `VaultAuth` at boot | `VAULT_ENABLED=true` with unreachable Vault or empty role/secret ids — the client logs in eagerly |
+| Vault login 500 "failed to determine alias name" | AppRole login sent an empty role_id — the env override didn't reach the pod; check `kubectl get deploy … -o yaml` for empty `VAULT_ROLE_ID` |
+| Bundle env `valueFrom` override renders as empty env var | chart default `value: ""` shadowed the `valueFrom` (the `common.name` mergo merge can't delete keys, `null` included) — fixed in the generator: non-empty `value` wins, else `valueFrom`; regenerate the bundle chart |
 | New pods fail DB auth after a cluster-configs sync | the repo's sops secrets diverged from what the cluster was deployed with — cluster-configs re-rendered secrets over live ones; reconcile the sops file with the cluster before syncing |

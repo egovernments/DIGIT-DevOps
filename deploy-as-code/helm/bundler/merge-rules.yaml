@@ -127,6 +127,24 @@ resolve:
   VAULT_HOST:
     valueFrom:
       configMapKeyRef: {name: egov-service-host, key: vault-host}
+  # otp ships Vault off with empty ids, individual ships it on with secret
+  # refs. Default the bundle to OFF (a Vault-less cluster must boot — the
+  # client logs in eagerly), but keep the secret refs as defaults: they are
+  # only read once VAULT_ENABLED is flipped per environment, and the
+  # cluster-configs-rendered secrets are the single source of truth.
+  VAULT_ENABLED:
+    value: "false"
+  VAULT_ROLE_ID:
+    valueFrom:
+      # optional: a Vault-less cluster has no vault-approle secret, and a bare
+      # secretKeyRef would fail container creation even with VAULT_ENABLED=false
+      secretKeyRef: {name: vault-approle, key: role-id, optional: true}
+  VAULT_SECRET_ID:
+    valueFrom:
+      secretKeyRef: {name: vault-approle, key: secret-id, optional: true}
+  HMAC_SECRET:
+    valueFrom:
+      secretKeyRef: {name: hmac-secret, key: hmac-secret, optional: true}
 
 # Env the bundle adds regardless of what members declared (its documented env
 # contract from application-bundle.properties). All overridable per environment

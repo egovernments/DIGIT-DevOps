@@ -95,11 +95,21 @@ def select_bundle(manifest, name):
 # ── chart resolution ─────────────────────────────────────────────────────────
 
 def resolve_chart(charts_root, service_name):
-    """Find the chart directory for a manifest service name."""
-    for group in sorted(p for p in charts_root.iterdir() if p.is_dir()):
+    """Find the chart directory for a manifest service name.
+
+    Several services have charts in more than one group (the digit3 v3 charts
+    plus legacy copies under core-services/ etc.); the digit3 group is the
+    source of truth for bundles, so it is searched first — a plain alphabetical
+    walk would silently harvest env from the legacy charts."""
+    groups = sorted((p for p in charts_root.iterdir() if p.is_dir()),
+                    key=lambda p: (p.name != "digit3", p.name))
+    for group in groups:
         for cand in CHART_NAME_CANDIDATES:
             chart_dir = group / cand.format(name=service_name)
             if (chart_dir / "Chart.yaml").exists():
+                if group.name != "digit3":
+                    print(f"  note: '{service_name}' resolved outside charts/digit3 "
+                          f"({chart_dir.relative_to(charts_root)})")
                 return chart_dir
     return None
 

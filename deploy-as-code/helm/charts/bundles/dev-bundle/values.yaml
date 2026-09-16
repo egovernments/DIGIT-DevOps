@@ -135,11 +135,6 @@ env:
     value: registry/v3/{schemaCode}/data/_search
   REGISTRY_BANK_ACCOUNT_SCHEMA:
     value: bank-account
-  INDIVIDUAL_HOST:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: individual-java
   INDIVIDUAL_CREATE_PATH:
     value: individuals/v3/individuals
   INDIVIDUAL_SEARCH_PATH:
@@ -213,7 +208,11 @@ env:
   NOTIFY_ASYNC:
     value: 'false'
   HMAC_SECRET:
-    value: ''
+    valueFrom:
+      secretKeyRef:
+        name: hmac-secret
+        key: hmac-secret
+        optional: true
   REDIS_HOST:
     value: redis.backbone.svc.cluster.local
   REDIS_PORT:
@@ -227,11 +226,19 @@ env:
         name: egov-service-host
         key: vault-host
   VAULT_ROLE_ID:
-    value: ''
+    valueFrom:
+      secretKeyRef:
+        name: vault-approle
+        key: role-id
+        optional: true
   VAULT_SECRET_ID:
-    value: ''
+    valueFrom:
+      secretKeyRef:
+        name: vault-approle
+        key: secret-id
+        optional: true
   VAULT_ENABLED:
-    value: 'true'
+    value: 'false'
   OTEL_SERVICE_VERSION:
     value: 1.0.0
   OTEL_TRACES_SAMPLER_ARG:
@@ -329,17 +336,17 @@ env:
   CANONICAL_API_PREFIX:
     value: canonical
   IDGEN_PATH:
-    value: idgen-java/v3/generate
+    value: idgen/v3/generate
   IDGEN_NAME:
     value: EmployeeCode
   IDGEN_ENABLED:
     value: 'true'
   BOUNDARY_PATH:
-    value: boundary-java/v3/relationship
+    value: boundary/v3/relationship
   BOUNDARY_ENABLED:
     value: 'true'
   INDIVIDUAL_PATH:
-    value: individuals-java/v3/individuals
+    value: individual/v3/individuals
   INDIVIDUAL_ENABLED:
     value: 'true'
   KEYCLOAK_BASE_URL:
@@ -363,186 +370,18 @@ env:
     value: employee-create-jurisdiction
   PUBSUB_TOPIC_UPDATE_JURISDICTION:
     value: employee-update-jurisdiction
-  SPRING_KAFKA_CONSUMER_GROUP_ID:
-    value: health-individual
-  SPRING_KAFKA_PRODUCER_KEY_SERIALIZER:
-    value: org.apache.kafka.common.serialization.StringSerializer
-  EGOV_IDGEN_HOST:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: egov-idgen
-  EGOV_IDGEN_PATH:
-    value: egov-idgen/id/_generate
-  EGOV_IDGEN_INTEGRATION_ENABLED:
-    value: 'true'
-  IDGEN.INDIVIDUAL.ID.FORMAT:
-    value: individual.id
-  SPRING_REDIS_HOST:
-    value: redis.backbone
-  SPRING_REDIS_PORT:
-    value: '6379'
-  SPRING_CACHE_TYPE:
-    value: redis
-  SPRING_CACHE_REDIS_TIME-TO-LIVE:
-    value: '60'
-  SPRING_CACHE_AUTOEXPIRY:
-    value: 'true'
-  INDIVIDUAL.CONSUMER.BULK.CREATE.TOPIC:
-    value: individual-consumer-bulk-create-topic
-  INDIVIDUAL.CONSUMER.BULK.UPDATE.TOPIC:
-    value: individual-consumer-bulk-update-topic
-  INDIVIDUAL.CONSUMER.BULK.DELETE.TOPIC:
-    value: individual-consumer-bulk-delete-topic
-  INDIVIDUAL.PRODUCER.SAVE.TOPIC:
-    value: save-individual-topic
-  INDIVIDUAL.PRODUCER.UPDATE.TOPIC:
-    value: update-individual-topic
-  INDIVIDUAL.PRODUCER.DELETE.TOPIC:
-    value: delete-individual-topic
-  KAFKA_TOPICS_NOTIFICATION_SMS:
-    value: egov.core.notification.sms
-  STATE_LEVEL_TENANT_ID:
-    value: pg
-  SECURITY_BASIC_ENABLED:
-    value: 'false'
-  EGOV_MDMS_HOST:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: mdms-service-v2
-  EGOV_MDMS_SEARCH_ENDPOINT:
-    value: /mdms-v2/v1/_search
-  EGOV_ENC_HOST:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: egov-enc-service
-  EGOV_LOCALIZATION_HOST:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: egov-localization
-  EGOV_ENC_ENCRYPT_ENDPOINT:
-    value: /egov-enc-service/crypto/v1/_encrypt
-  EGOV_ENC_DECRYPT_ENDPOINT:
-    value: /egov-enc-service/crypto/v1/_decrypt
-  AADHAAR_PATTERN:
-    value: \d{12}
-  MOBILE_PATTERN:
-    value: \d+
-  EGOV_USER_HOST:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: egov-user
-  EGOV_CREATE_USER_URL:
-    value: /user/users/_createnovalidate
-  EGOV_SEARCH_USER_URL:
-    value: /user/_search
-  EGOV_UPDATE_USER_URL:
-    value: /user/users/_updatenovalidate
-  EGOV_USER_INTEGRATION_ENABLED:
-    value: 'true'
-  USER_SYNC_ENABLED:
-    value: 'false'
-  USER_SERVICE_USER_TYPE:
-    value: CITIZEN
-  USER_SERVICE_ACCOUNT_LOCKED:
-    value: 'false'
-  INDIVIDUAL_PRODUCER_UPDATE_USER_ID_TOPIC:
-    value: update-user-id-topic
-  NOTIFICATION_SMS_ENABLED:
-    value: 'false'
-  EGOV_BOUNDARY_HOST:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: boundary-service
-  EGOV_BOUNDARY_SEARCH_URL:
-    value: /boundary-service/boundary/_search
-  EGOV_BOUNDARY_HIERARCHY_NAME:
-    value: REVENUE
-  VAULT_URL:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: vault-host
-  VAULT_ENCRYPT_PATH:
-    value: encrypt/
-  VAULT_TRANSIT_BASE_PATH:
-    value: v1/transit/
-  VAULT_SYS_MOUNT_TRANSIT_PATH:
-    value: v1/sys/mounts/transit
-  VAULT_KEY_CREATE_PATH:
-    value: keys/
-  VAULT_ASYM_SUFFIX:
-    value: -asym
-  VAULT_ASYM_ENCRYPT_PATH:
-    value: encrypt/
-  VAULT_AUTH_KUBERNETES_LOGIN_PATH:
-    value: v1/auth/kubernetes/login
-  VAULT_AUTH_KUBERNETES_ROLE:
-    value: enc-service-role
-  VAULT_K8S_TOKEN_PATH:
-    value: /var/run/secrets/kubernetes.io/serviceaccount/token
-  VAULT_SIGN_PATH:
-    value: sign/
-  VAULT_VERIFY_PATH:
-    value: verify/
-  VAULT_DECRYPT_PATH:
-    value: decrypt/
-  FLYWAY_ENABLED:
-    value: 'false'
-  APP_TIMEZONE:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: timezone
-  FLYWAY_URL:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: db-url
-  SPRING_DATASOURCE_TOMCAT_INITIAL_SIZE:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-datasource-tomcat-initialSize
-  SERVER_TOMCAT_MAX_THREADS:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: server-tomcat-max-threads
-  SERVER_TOMCAT_MAX_CONNECTIONS:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: server-tomcat-max-connections
-  SPRING_DATASOURCE_TOMCAT_MAX_ACTIVE:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-datasource-tomcat-max-active
-  SPRING_DATASOURCE_HIKARI_MAXIMUM-POOL-SIZE:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-datasource-tomcat-max-active
-  KAFKA_CONFIG_BOOTSTRAP_SERVER_CONFIG:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: kafka-brokers
-  SPRING_JPA_SHOW_SQL:
-    valueFrom:
-      configMapKeyRef:
-        name: egov-config
-        key: spring-jpa-show-sql
-  IS_ENVIRONMENT_CENTRAL_INSTANCE:
-    value: 'false'
   LOG_LEVEL:
     value: info
+  IDGEN_INDIVIDUAL_ID_FORMAT:
+    value: individual
+  PUBSUB_TOPIC_CREATE_INDIVIDUAL:
+    value: individual-create-individual
+  PUBSUB_TOPIC_UPDATE_INDIVIDUAL:
+    value: individual-update-individual
+  PUBSUB_TOPIC_DELETE_INDIVIDUAL:
+    value: individual-delete-individual
+  PUBSUB_TOPIC_UPSERT_CONFIG:
+    value: individual-upsert-config
   WF_INBOX_ASSIGNEDONLY:
     value: 'false'
   OTEL_TRACES_EXPORTER:
@@ -600,23 +439,23 @@ env:
   S3_READ_BUCKET:
     value: unified-dev-bucket-s3
   S3_USE_SSL:
-    value: 'true'
+    value: 'false'
   S3_REGION:
     value: ap-south-1
   S3_ACCESS_KEY:
     valueFrom:
       secretKeyRef:
-        key: awskey
-        name: egov-filestore
+        key: accesskey
+        name: minio
   S3_SECRET_KEY:
     valueFrom:
       secretKeyRef:
-        key: awssecretkey
-        name: egov-filestore
+        key: secretkey
+        name: minio
   S3_SOURCE:
     value: s3
   S3_ENDPOINT:
-    value: s3.ap-south-1.amazonaws.com
+    value: minio.backbone.svc.cluster.local:9000
   PUBSUB_TOPIC_UPLOAD_FILE:
     value: filestore-upload-file
   PUBSUB_TOPIC_CREATE_DOC_CATEGORY:
@@ -634,7 +473,7 @@ env:
   PUBSUB_TOPIC_DELETE_MESSAGE:
     value: localization-delete-message
   KEYCLOAK_PUBLIC_BASE_URL:
-    value: https://test-lts.digit.org/keycloak
+    value: https://modulith.digit.org/keycloak
   KEYCLOAK_ADMIN_USER:
     value: digit
   KEYCLOAK_ADMIN_PASS:
@@ -655,9 +494,9 @@ env:
         name: employee-iam-secret
         key: employee-iam-client-secret
   CLIENT_REDIRECT_URL:
-    value: https://test-lts.digit.org/*
+    value: https://modulith.digit.org/*
   FIRST_LOGIN_URLS:
-    value: admin=https://test-lts.digit.org/license/admin/{realm},employee=https://test-lts.digit.org/license/employee/{realm},citizen=https://test-lts.digit.org/license/citizen/{realm}
+    value: admin=https://modulith.digit.org/license/admin/{realm},employee=https://modulith.digit.org/license/employee/{realm},citizen=https://modulith.digit.org/license/citizen/{realm}
   SMTP_STARTTLS:
     value: 'true'
   SMTP_SSL:
@@ -1069,7 +908,7 @@ dbMigrations:
   individual:
     enabled: true
     image:
-      repository: individual-db
+      repository: individual-java-db
       tag: ''
     env:
       DB_URL:
@@ -1078,7 +917,7 @@ dbMigrations:
             name: egov-config
             key: db-url
       SCHEMA_TABLE:
-        value: individual_schema
+        value: individual_schema_v3
       FLYWAY_USER:
         valueFrom:
           secretKeyRef:
@@ -1096,6 +935,10 @@ dbMigrations:
           configMapKeyRef:
             name: egov-config
             key: flyway-locations
+      FLYWAY_SCHEMAS:
+        value: public
+      FLYWAY_DEFAULT_SCHEMA:
+        value: public
   workflow:
     enabled: true
     image:

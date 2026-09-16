@@ -264,7 +264,17 @@ mobile-number blind index must be keyed).
 
 **Verify**: create an individual with a mobile number; the API returns
 plaintext, while the DB column holds `vault:v1:…` and
-`vault list transit/keys` shows a key named after the tenant.
+`vault list transit/keys` shows a key named after the tenant (auto-created
+on first encrypt). Prerequisite: individual-id generation needs an idgen
+template registered for the tenant first — otherwise the create fails with
+`idgen returned status=404 "template not found"`:
+
+```bash
+curl -X POST http://<dev-bundle>:8080/idgen/v3/template \
+  -H 'Content-Type: application/json' -H 'X-Tenant-ID: <TENANT>' -H 'X-User-ID: admin' \
+  -d '{"templateCode":"individual","config":{"template":"IND-{DATE:yyyy}-{SEQ}",
+       "sequence":{"scope":"GLOBAL","start":1,"padding":{"length":6,"char":"0"}}}}'
+```
 
 ---
 

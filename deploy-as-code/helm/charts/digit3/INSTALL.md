@@ -97,6 +97,9 @@ No AWS/KMS dependency. One-time:
 
 ```bash
 age-keygen -o ~/.config/sops/age/keys.txt        # BACK THIS FILE UP — only key to the secrets
+# "file exists" → you already have a key; REUSE it (a new one can't decrypt old
+# secrets). Print its recipient for .sops.yaml with:
+#   age-keygen -y ~/.config/sops/age/keys.txt
 # macOS sops looks elsewhere:
 mkdir -p ~/Library/Application\ Support/sops/age
 ln -sf ~/.config/sops/age/keys.txt ~/Library/Application\ Support/sops/age/keys.txt
@@ -524,6 +527,7 @@ does not migrate data.
 | kong-migration: "failed to parse host name host:5432" | `db-host` in egov-config must be host-only |
 | kong: `mkdir /kong: read-only` / permission denied | `readOnlyRootFilesystem: false` + `env.prefix: /kong_prefix` (key appears twice in values — the later one wins) |
 | "Tag is mandatory" / `-db:latest` pull errors | every release block in the env file must pin image + init tags |
+| `Init:ImagePullBackOff` on a tag that "should" exist | compare the failing ref against `k3s ctr images ls` on the node — e.g. the `db` belongs in the repository (`dev-bundle-db:<tag>`), never in the tag |
 | Bundle pod `CreateContainerConfigError: secret "egov-filestore" not found` | chart default is AWS S3 → override S3 env to the minio secret |
 | Bundle boot: `NumberFormatException: "15m000"` | Go-duration `DB_CONN_MAX_LIFETIME=15m` harvested into env; dropped via bundler merge-rules |
 | Bundle crash-loop in `VaultAuth` | `VAULT_ENABLED=true` harvested; override to `false` (no Vault deployed) |

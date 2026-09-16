@@ -150,7 +150,17 @@ endpoints available", re-run sync once the webhook pod is ready.
 
 ```bash
 kubectl exec -n egov postgresql-lts-0 -- psql -U postgres -c "CREATE DATABASE new_keycloak"
-# plus a `keycloak` role with the password from the kc-db secret
+
+# create the `keycloak` role with the credentials from the kc-db secret
+# (rendered by cluster-configs, so role and pod can never disagree; the
+# password stays off-screen). Skipping this crash-loops Keycloak with
+# 'password authentication failed for user "keycloak"'.
+U=$(kubectl get secret kc-db -n keycloak -o jsonpath='{.data.username}' | base64 -d)
+P=$(kubectl get secret kc-db -n keycloak -o jsonpath='{.data.password}' | base64 -d)
+printf "CREATE ROLE %s LOGIN PASSWORD '%s';
+GRANT ALL PRIVILEGES ON DATABASE new_keycloak TO %s;
+ALTER DATABASE new_keycloak OWNER TO %s;\n" "$U" "$P" "$U" "$U" | \
+  kubectl exec -i -n egov postgresql-lts-0 -- psql -U postgres
 ```
 
 (Keycloak itself is installed by the services helmfile in every shape.)
@@ -524,5 +534,6 @@ does not migrate data.
 | Vault unseal: `cipher: message authentication failed` | key in the sops file is from an older init — Vault was re-initialized (e.g. fresh PVC) → update `vault-operator:` in the sops file from the new init.json |
 | Service crash-loops in `VaultAuth` at boot | `VAULT_ENABLED=true` with unreachable Vault or empty role/secret ids — the client logs in eagerly |
 | Vault login 500 "failed to determine alias name" | AppRole login sent an empty role_id — the env override didn't reach the pod; check `kubectl get deploy … -o yaml` for empty `VAULT_ROLE_ID` |
+| Keycloak crash-loops: `password authentication failed for user "keycloak"`; tenant create fails with `failed to get admin token: ConnectException` | the `keycloak` Postgres role from §1.7 was never created (the DB alone isn't enough) → create it from the kc-db secret, delete the Keycloak pod |
 | Bundle env `valueFrom` override renders as empty env var | chart default `value: ""` shadowed the `valueFrom` (the `common.name` mergo merge can't delete keys, `null` included) — fixed in the generator: non-empty `value` wins, else `valueFrom`; regenerate the bundle chart |
 | New pods fail DB auth after a cluster-configs sync | the repo's sops secrets diverged from what the cluster was deployed with — cluster-configs re-rendered secrets over live ones; reconcile the sops file with the cluster before syncing |

@@ -12,19 +12,33 @@
 ## The secrets:// entry needs argocd-repo-server SOPS/AWS-KMS wiring, which is
 ## already in place for the cluster-configs Application, so it works here too.
 ##
-## DELETION HAZARD: the generated Applications carry Argo's
-## resources-finalizer, so REMOVING an element from the list below (or deleting
-## this ApplicationSet) cascade-deletes that Application's workloads. prune:
-## false does NOT protect against this -- it only stops pruning of resources
-## that vanish from a chart. This is how the backbone elasticsearch
-## StatefulSets were lost. Comment an element out only if you intend the
-## workloads to go with it.
+## DELETION HAZARD, and the mitigation.
+##
+## By default an ApplicationSet stamps resources-finalizer.argocd.argoproj.io
+## onto every Application it generates, so REMOVING an element from the list
+## below -- or deleting this ApplicationSet -- cascade-deletes that
+## Application's workloads. prune:false does NOT protect against this; it only
+## stops pruning of resources that vanish from a chart. That is how the
+## backbone elasticsearch StatefulSets were lost.
+##
+## spec.syncPolicy.preserveResourcesOnDeletion: true suppresses that finalizer,
+## so removing an element orphans the live objects instead of deleting them.
+## Verified on this cluster: digit-lts-egov-appset-core sets it and its
+## egov-vc Application has no finalizer, while digit-lts-backbone-appset-
+## backbone does not set it and backbone-minio/backbone-redis both carry one.
+##
+## Cleaning up after Inji therefore becomes deliberate: delete the `inji`
+## namespace, rather than relying on removing an element to tidy up.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
   name: digit-lts-inji-appset-inji
   namespace: argocd
 spec:
+  syncPolicy:
+    ## See DELETION HAZARD above. Matches digit-lts-egov-appset-core.
+    preserveResourcesOnDeletion: true
+
   generators:
     - list:
         elements:

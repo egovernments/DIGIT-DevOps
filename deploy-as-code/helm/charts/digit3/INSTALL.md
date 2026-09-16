@@ -1,8 +1,9 @@
 # DIGIT 3 on single-node k3s — installation guide
 
-> Just installing the single-modulith shape? Follow the 30-step runbook in
-> [INSTALLATION-STEPS.md](INSTALLATION-STEPS.md) — every command and file
-> edit in order. This guide is the reference behind it.
+> Just installing the single-modulith shape? Follow the **9-step scripted
+> runbook** in [INSTALLATION-STEPS.md](INSTALLATION-STEPS.md) — the numbered,
+> idempotent scripts in [`scripts/`](scripts/) automate everything below
+> except VM provisioning. This guide is the reference behind them.
 
 DIGIT 3 has no fixed deployment shape: **which services share a JVM is
 declared in one manifest per shape** (`src/bundles/<shape>.package.yaml` in

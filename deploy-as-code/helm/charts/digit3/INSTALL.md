@@ -1,8 +1,9 @@
 # DIGIT 3 on single-node k3s — installation guide
 
 DIGIT 3 has no fixed deployment shape: **which services share a JVM is
-declared in one manifest** (`src/bundles/bundles.package.yaml` in the digit3
-repo), and every layer — the bundle jars, their Docker images, the helm
+declared in one manifest per shape** (`src/bundles/<shape>.package.yaml` in
+the digit3 repo — `dev-bundle.package.yaml`, `domain-split.package.yaml`),
+and every layer — the bundle jars, their Docker images, the helm
 charts, and kong's routing — is derived from it. Any grouping of the 16 core
 services is a valid deployment. Out of the box, three configurations are
 provided:
@@ -10,8 +11,8 @@ provided:
 | # | Configuration | Containers (core services) | Manifest | Bundler needed? |
 |---|---|---|---|---|
 | 1 | **Per-service** — every service its own pod | 16 | none | **No** |
-| 2 | **Single modulith** — everything in one JVM (`dev-bundle`) | 1 | [`modulith` branch](https://github.com/digitnxt/digit3/blob/modulith/src/bundles/bundles.package.yaml) | Yes |
-| 3 | **Domain bundles** — four JVMs along building-block lines | 4 | [`feat/modulith-domain-split` branch](https://github.com/digitnxt/digit3/blob/feat/modulith-domain-split/src/bundles/bundles.package.yaml) | Yes |
+| 2 | **Single modulith** — everything in one JVM (`dev-bundle`) | 1 | [`dev-bundle.package.yaml`](https://github.com/digitnxt/digit3/blob/modulith/src/bundles/dev-bundle.package.yaml) (`modulith` branch) | Yes |
+| 3 | **Domain bundles** — four JVMs along building-block lines | 4 | [`domain-split.package.yaml`](https://github.com/digitnxt/digit3/blob/modulith/src/bundles/domain-split.package.yaml) (`modulith` branch) | Yes |
 
 Configuration 3's grouping:
 
@@ -260,8 +261,8 @@ plaintext, while the DB column holds `vault:v1:…` and
 ## 2. The manifest: how a deployment shape is declared
 
 Skip this section for configuration 1 (per-service needs no bundler). For
-everything else, `digit3/src/bundles/bundles.package.yaml` is the single
-source of truth, with two sections:
+everything else, the shape's `digit3/src/bundles/<shape>.package.yaml` is the
+single source of truth, with two sections:
 
 - **`services:` — the catalog.** A map keyed by service name holding each
   service's composition-invariant facts (module path, GAV, `packageRoot`,
@@ -341,14 +342,14 @@ because helmfile v1 only templates `*.gotmpl` files.
 ## 4. Configuration 2 — single modulith (`dev-bundle`)
 
 Everything in one JVM (~0.5 GB instead of ~5 GB). Manifest: the `modulith`
-branch [`bundles.package.yaml`](https://github.com/digitnxt/digit3/blob/modulith/src/bundles/bundles.package.yaml)
+branch [`dev-bundle.package.yaml`](https://github.com/digitnxt/digit3/blob/modulith/src/bundles/dev-bundle.package.yaml)
 — one `dev-bundle` entry including all 16 catalog services.
 
 ### 4.1 Generate and build (workstation)
 
 ```bash
 cd digit3
-python3 src/bundles/generate_bundle.py src/bundles/bundles.package.yaml
+python3 src/bundles/generate_bundle.py src/bundles/dev-bundle.package.yaml
 # must print "no unresolved property conflicts" — never ignore that warning
 
 # app + db images, the official way (generated Dockerfile, repo root context):
@@ -374,7 +375,7 @@ docker save egovio/dev-bundle-db:$TAG | ssh -i <key> azureuser@<domain> 'sudo k3
 ```bash
 # bundle chart (in this repo): merges the member charts' env/init containers
 cd DIGIT-DevOps/deploy-as-code/helm/bundler
-python3 generate_bundle_chart.py --manifest <digit3>/src/bundles/bundles.package.yaml
+python3 generate_bundle_chart.py --manifest <digit3>/src/bundles/dev-bundle.package.yaml
 # → charts/bundles/dev-bundle ; read the generation report (dropped/resolved/UNRESOLVED)
 
 # the bundle owns its own database
@@ -423,9 +424,8 @@ Verify: every prefix through kong returns 401 (JWT rejecting anonymous),
 
 ## 5. Configuration 3 — domain bundles (4 containers)
 
-Same mechanics as configuration 2, N times. Manifest: the
-`feat/modulith-domain-split` branch
-[`bundles.package.yaml`](https://github.com/digitnxt/digit3/blob/feat/modulith-domain-split/src/bundles/bundles.package.yaml)
+Same mechanics as configuration 2, N times. Manifest: the `modulith` branch
+[`domain-split.package.yaml`](https://github.com/digitnxt/digit3/blob/modulith/src/bundles/domain-split.package.yaml)
 — four `bundles:` entries (identity, notification, billing, admin) covering
 the whole catalog, each service in exactly one. All on port 8080 (a bundle is
 just a bigger pod; ports are namespace-scoped).
@@ -439,7 +439,8 @@ What changes versus the single modulith:
   `${<OTHER>_BUNDLE_HOST:…}` envs defaulting to the other bundles' cluster
   DNS — in-cluster they work with **no extra env**; override only for
   unusual layouts.
-- **Charts**: run `generate_bundle_chart.py` per bundle → four charts under
+- **Charts**: run `generate_bundle_chart.py` per bundle (the manifest has four
+  `bundles:` entries, so pass `--bundle <name>` on each run) → four charts under
   `charts/bundles/`; four release entries in the helmfile; four env blocks in
   `azure-k3s.yaml` (each with its own image tags and combined-init
   `dbMigrations` entry — they can share `bundle_db`).

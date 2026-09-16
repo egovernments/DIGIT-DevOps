@@ -3,10 +3,13 @@
 
 The same <bundle>.package.yaml that drives digit3's generate_bundle.py (which
 composes the application jar) drives this generator on the DevOps side: the
-manifest's service list says which per-service Helm charts get merged into one
-bundle chart.
+manifest declares a `services:` catalog (keyed by service name) and a
+`bundles:` list; each bundle's ordered `include:` list says which per-service
+Helm charts get merged into that bundle's chart.
 
     python3 generate_bundle_chart.py --manifest /path/to/dev-bundle.package.yaml
+    # manifests with several bundles: pick one per run
+    python3 generate_bundle_chart.py --manifest domain-split.package.yaml --bundle identity-bundle
 
 For each service the generator resolves the chart directory (<name>-java, then
 <name>, across every charts/* group), renders it with `helm template` so all
@@ -56,6 +59,37 @@ def die(msg):
 def load_yaml(path):
     with open(path) as f:
         return yaml.safe_load(f)
+
+
+def select_bundle(manifest, name):
+    """Pick one bundle from the manifest's `bundles:` list and materialise its
+    service list from the `services:` catalog (in `include:` order, which is
+    also the tenant-migration order)."""
+    bundles = manifest.get("bundles")
+    catalog = manifest.get("services")
+    if not bundles or not isinstance(catalog, dict):
+        die("manifest must declare a `services:` catalog and a `bundles:` list")
+    if name is None:
+        if len(bundles) > 1:
+            die("manifest declares several bundles ("
+                + ", ".join(b["name"] for b in bundles)
+                + ") — pick one with --bundle")
+        chosen = bundles[0]
+    else:
+        chosen = next((b for b in bundles if b["name"] == name), None)
+        if chosen is None:
+            die(f"bundle '{name}' not in manifest (have: "
+                + ", ".join(b["name"] for b in bundles) + ")")
+    services = []
+    for svc_name in chosen.get("include", []):
+        if svc_name not in catalog:
+            die(f"bundle '{chosen['name']}' includes unknown service '{svc_name}'")
+        entry = dict(catalog[svc_name] or {})
+        entry["name"] = svc_name
+        services.append(entry)
+    if not services:
+        die(f"bundle '{chosen['name']}' has an empty `include:` list")
+    return chosen, services
 
 
 # ── chart resolution ─────────────────────────────────────────────────────────
@@ -513,11 +547,13 @@ def main():
     ap.add_argument("--rules", type=Path, default=HERE / "merge-rules.yaml")
     ap.add_argument("--output", type=Path, default=None,
                     help="output chart dir (default charts/bundles/<bundle.name>)")
+    ap.add_argument("--bundle", default=None,
+                    help="bundle name from the manifest's `bundles:` list "
+                         "(defaults to the only entry)")
     args = ap.parse_args()
 
     manifest = load_yaml(args.manifest)
-    bundle = manifest["bundle"]
-    services = manifest["services"]
+    bundle, services = select_bundle(manifest, args.bundle)
     policy = MergePolicy(load_yaml(args.rules), manifest.get("helm"))
     out_dir = args.output or (args.charts_root / "bundles" / bundle["name"])
     common_dir = args.charts_root / "common"

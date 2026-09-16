@@ -1,0 +1,64 @@
+# Bootstrap of the Inji databases/roles on postgres.egov.
+#
+# Ships DISABLED. The Job cannot succeed until the `inji-db` secret exists in
+# the inji namespace, which needs four SOPS-encrypted passwords in
+# environments/test-lts-secrets.yaml. Set this to true in the same commit that
+# adds them -- see charts/cluster-configs/templates/secrets/inji-db-secret.yaml.
+enabled: false
+
+labels:
+  app: "inji-db-init"
+  group: "inji"
+
+# Target database server.
+#
+# postgres.egov, NOT postgresql-lts: the lts instance is being decommissioned.
+# Deliberately spelled out here rather than read from the egov-config
+# configmap, whose `db-host` value is the combined "postgres.egov:5432" and so
+# cannot be used as PGHOST without splitting it.
+db:
+  host: "postgres.egov"
+  port: 5432
+
+  # Superuser used to CREATE DATABASE / CREATE ROLE. Sourced from the existing
+  # `db` secret rather than a new one -- that secret already holds the postgres
+  # superuser credentials DIGIT itself connects with. It is created by
+  # cluster-configs into whatever namespaces are listed under
+  # cluster-configs.secrets.db.namespace, so `inji` must appear in that list
+  # (added in environments/test-lts.yaml).
+  superuserSecret:
+    name: "db"
+    usernameKey: "username"
+    passwordKey: "password"
+
+  # Per-module application role passwords. One secret, four keys.
+  appUserSecret:
+    name: "inji-db"
+    certifyKey: "certify-password"
+    mimotoKey: "mimoto-password"
+    verifyKey: "verify-password"
+    esignetKey: "esignet-password"
+
+image:
+  # postgres:15.8-alpine, matching the 15.8 server, for a psql client of the
+  # same major version. Not the postgis/postgis:15-3.4 image the server runs:
+  # that is a ~600MB server image and this Job only needs a client.
+  repository: "postgres"
+  tag: "15.8-alpine"
+  pullPolicy: IfNotPresent
+
+# The Job is a PreSync hook, so a failure blocks the sync -- which is the
+# intent: no Inji module should start against a database that was not
+# provisioned. backoffLimit is low because the SQL either works or has a real
+# problem; retrying will not fix a failed preflight.
+job:
+  backoffLimit: 2
+  activeDeadlineSeconds: 300
+
+resources:
+  limits:
+    memory: 256Mi
+    cpu: 200m
+  requests:
+    memory: 64Mi
+    cpu: 50m

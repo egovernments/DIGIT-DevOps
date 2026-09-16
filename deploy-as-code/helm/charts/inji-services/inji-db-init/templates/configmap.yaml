@@ -1,0 +1,24 @@
+{{- $v := include "inji-db-init.mergedValues" . | fromYaml -}}
+{{- if $v.enabled }}
+## The provisioning SQL, mounted into the Job rather than inlined into a shell
+## heredoc.
+##
+## sync-wave "-1" puts this one wave ahead of the Job, so the ConfigMap exists
+## before the pod that mounts it. Without the wave both land in the same wave
+## and the Job can start against a missing ConfigMap, sitting in
+## ContainerCreating until activeDeadlineSeconds expires.
+##
+## Name carries the SQL checksum -- see _helpers.tpl for why.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inji-db-init-sql-{{ include "inji-db-init.sqlChecksum" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  labels:
+{{- include "inji-db-init.labels" $v.labels | nindent 4 }}
+data:
+  provision.sql: |
+{{ .Files.Get "files/provision.sql" | indent 4 }}
+{{- end }}

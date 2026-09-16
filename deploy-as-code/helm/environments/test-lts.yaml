@@ -5,7 +5,10 @@ global:
 cluster-configs:
     namespaces:  
       create: true
-      values: [ backbone, cert-manager, egov, es-cluster, kafka-cluster, logging, monitoring, playground, zookeeper-cluster, health ]
+      ## `inji` added for the Inji credentialing stack. It must exist before the
+      ## digit-lts-inji-appset-inji Applications sync; that appset also carries
+      ## CreateNamespace=true as a fallback in case this chart syncs later.
+      values: [ backbone, egov, es-cluster, kafka-cluster, monitoring, playground, health, inji ]
       
     root-ingress:
       cert-issuer: letsencrypt-prod
@@ -200,6 +203,15 @@ cluster-configs:
                 localization-java: "http://localization-java:8080/"
                 filestore-java: "http://filestore-java:8080/"
                 notification-java: "http://notification-java:8080/"
+
+    secrets:
+        db:
+            namespace: [ egov, health, inji ]
+
+        inji-db:
+            name: inji-db
+            namespace: [ inji ]
+
 employee:
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
   custom-js-injection: |
@@ -1307,3 +1319,19 @@ template-config-java:
       image:
         repository: "template-config-db"
         tag: "master-8ce9994"
+
+## ===========================================================================
+## Inji credentialing stack (namespace: inji)
+##
+## Runs ALONGSIDE the existing walt.id issuer (egov/vc -> egov/walt), which is
+## left untouched. Everything is served off the single existing hostname
+## test-lts.digit.org under a path prefix, so no new DNS records and no new
+## TLS certificates are required.
+## ===========================================================================
+
+inji-db-init:
+  enabled: false
+
+  db:
+    host: "postgres.egov"
+    port: 5432

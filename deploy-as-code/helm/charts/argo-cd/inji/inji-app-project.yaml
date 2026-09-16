@@ -1,0 +1,49 @@
+## AppProject for the Inji stack on the Azure AKS digit-lts (test-lts.digit.org)
+## environment.
+##
+## Inji gets its OWN project rather than joining egov-project, because
+## egov-project's destinations permit only the `egov` namespace. An Application
+## targeting `inji` under that project is rejected at spec-validation time with
+## "application destination is not permitted in project 'egov-project'" -- the
+## workloads never get created and the error surfaces on the Application, not
+## in any chart.
+##
+## A separate project is also what makes the Inji evaluation reversible: the
+## whole stack is scoped to one namespace and one project, so tearing it down
+## does not touch anything DIGIT owns.
+##
+## ORDERING: a namespace must appear in destinations BEFORE an element that
+## targets it is added to inji-app-set-inji.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: inji-project
+  namespace: argocd
+spec:
+  description: Inji credentialing stack (certify, mimoto, web, verify, esignet)
+
+  sourceRepos:
+    ## Argo matches this string verbatim, so the https and git@ forms of the
+    ## same repo are two distinct entries. Both are listed because
+    ## ApplicationSets in this repo have historically shipped either form, and
+    ## a mismatch fails with "application repo ... is not permitted in project".
+    - https://github.com/egovernments/DIGIT-DevOps.git
+    - git@github.com:egovernments/DIGIT-DevOps.git
+
+  destinations:
+    - namespace: inji
+      server: https://kubernetes.default.svc
+
+  ## Deliberately NO clusterResourceWhitelist. Nothing in the Inji charts
+  ## renders a cluster-scoped object. The namespace itself is created by the
+  ## cluster-configs chart (its `namespaces.values` list) and, as a fallback,
+  ## by CreateNamespace=true in the ApplicationSet's syncOptions -- neither of
+  ## which is a manifest this project has to permit.
+  ##
+  ## If a future chart does need a cluster-scoped resource, add the specific
+  ## group/kind here rather than the group:'*' kind:'*' wildcard that
+  ## egov-project carries.
+
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

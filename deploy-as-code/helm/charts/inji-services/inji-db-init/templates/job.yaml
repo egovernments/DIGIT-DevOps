@@ -1,0 +1,114 @@
+{{- $v := include "inji-db-init.mergedValues" . | fromYaml -}}
+{{- if $v.enabled }}
+## Runs provision.sql against postgres.egov as the postgres superuser.
+##
+## sync-wave "0": one wave after the ConfigMap it mounts.
+##
+## Not an ArgoCD hook. A PreSync hook would run BEFORE the sync phase that
+## applies the ConfigMap, so the pod would start with nothing to mount. Plain
+## resources ordered by sync-wave give the ordering without that trap, and
+## ArgoCD still gates Application health on the Job reaching Complete.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: inji-db-init-{{ include "inji-db-init.sqlChecksum" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+{{- include "inji-db-init.labels" $v.labels | nindent 4 }}
+spec:
+  backoffLimit: {{ $v.job.backoffLimit }}
+  activeDeadlineSeconds: {{ $v.job.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+{{- include "inji-db-init.labels" $v.labels | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70          # the postgres user in the postgres:*-alpine image
+        runAsGroup: 70
+      containers:
+        - name: psql
+          image: "{{ $v.image.repository }}:{{ $v.image.tag }}"
+          imagePullPolicy: {{ $v.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: PGHOST
+              value: {{ $v.db.host | quote }}
+            - name: PGPORT
+              value: {{ $v.db.port | quote }}
+            ## Connect to the `postgres` database: the script's preflight
+            ## asserts it can see Kong's tables there before changing
+            ## anything, and CREATE DATABASE must be issued from a database
+            ## other than the one being created.
+            - name: PGDATABASE
+              value: "postgres"
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $v.db.superuserSecret.name | quote }}
+                  key: {{ $v.db.superuserSecret.usernameKey | quote }}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $v.db.superuserSecret.name | quote }}
+                  key: {{ $v.db.superuserSecret.passwordKey | quote }}
+            ## Application role passwords, injected as psql variables below.
+            - name: CERTIFY_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $v.db.appUserSecret.name | quote }}
+                  key: {{ $v.db.appUserSecret.certifyKey | quote }}
+            - name: MIMOTO_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $v.db.appUserSecret.name | quote }}
+                  key: {{ $v.db.appUserSecret.mimotoKey | quote }}
+            - name: VERIFY_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $v.db.appUserSecret.name | quote }}
+                  key: {{ $v.db.appUserSecret.verifyKey | quote }}
+            - name: ESIGNET_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $v.db.appUserSecret.name | quote }}
+                  key: {{ $v.db.appUserSecret.esignetKey | quote }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              ## -v ON_ERROR_STOP=1 is also set inside the script; repeated
+              ## here so a failure before that \set -- a connection error, for
+              ## instance -- still returns non-zero and fails the Job instead
+              ## of logging and exiting 0.
+              ##
+              ## Passwords are passed as psql variables, so they appear in this
+              ## container's process list but are never written to the image,
+              ## the ConfigMap, or git. The server does not log them:
+              ## log_statement=none on postgres.egov (verified 2026-09-16).
+              exec psql \
+                -v ON_ERROR_STOP=1 \
+                -v certifypwd="$CERTIFY_PWD" \
+                -v mimotopwd="$MIMOTO_PWD" \
+                -v verifypwd="$VERIFY_PWD" \
+                -v esignetpwd="$ESIGNET_PWD" \
+                -f /sql/provision.sql
+          volumeMounts:
+            - name: sql
+              mountPath: /sql
+              readOnly: true
+          resources:
+{{- toYaml $v.resources | nindent 12 }}
+      volumes:
+        - name: sql
+          configMap:
+            name: inji-db-init-sql-{{ include "inji-db-init.sqlChecksum" . }}
+{{- end }}

@@ -1,0 +1,102 @@
+## ApplicationSet for the Inji stack on digit-lts (test-lts.digit.org).
+##
+## Environment file is ../../../environments/test-lts.yaml, NOT digit-lts.yaml.
+## This matters: test-lts.yaml is the only one of the two whose values match
+## this live cluster (domain test-lts.digit.org, db-host postgres.egov,
+## es-host elasticsearch-data.backbone, kafka release-name-kafka-controller-
+## headless.backbone). digit-lts.yaml points at digit-lts.digit.org and
+## postgresql-lts, which is the instance being decommissioned. The sibling
+## backbone appset uses digit-lts.yaml, which is the likelier cause of the
+## OutOfSync backbone-* Applications than anything in those charts.
+##
+## The secrets:// entry needs argocd-repo-server SOPS/AWS-KMS wiring, which is
+## already in place for the cluster-configs Application, so it works here too.
+##
+## DELETION HAZARD: the generated Applications carry Argo's
+## resources-finalizer, so REMOVING an element from the list below (or deleting
+## this ApplicationSet) cascade-deletes that Application's workloads. prune:
+## false does NOT protect against this -- it only stops pruning of resources
+## that vanish from a chart. This is how the backbone elasticsearch
+## StatefulSets were lost. Comment an element out only if you intend the
+## workloads to go with it.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: digit-lts-inji-appset-inji
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          ## Bootstrap only. Creates the four Inji databases/roles on
+          ## postgres.egov via a PreSync Job. Intentionally listed first,
+          ## though Argo does not order Applications within an appset -- the
+          ## ordering guarantee comes from each module chart waiting on its own
+          ## DB readiness, not from this list.
+          ##
+          ## Ships DISABLED (inji-db-init.enabled=false in test-lts.yaml).
+          ## The Job needs the `inji-db` secret, whose four passwords must be
+          ## SOPS-encrypted into test-lts-secrets.yaml first. Flip enabled to
+          ## true in the same commit that adds those values.
+          - name: inji-db-init
+
+          ## Module charts are added here as they are built. Each one needs its
+          ## database to exist first, so do not enable a module before
+          ## inji-db-init has run green at least once.
+          # - name: esignet
+          # - name: inji-certify
+          # - name: mimoto
+          # - name: inji-web
+          # - name: inji-verify
+
+  template:
+    metadata:
+      name: 'inji-{{name}}'
+
+    spec:
+      project: inji-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: digit-lts
+        path: deploy-as-code/helm/charts/inji-services/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/test-lts.yaml
+            - secrets://../../../environments/test-lts-secrets.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'inji'
+
+      syncPolicy:
+        automated:
+          ## prune:false matches every other appset in this repo: a rendering
+          ## mistake must not be able to delete Inji state.
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+          ## Fallback so an Application is not stuck if it syncs before the
+          ## cluster-configs Application has created the `inji` namespace.
+          - CreateNamespace=true
+          - SkipDryRunOnMissingResource=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        ## replicas is owned by the HPA / by manual scaling, not by git.
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+        - group: apps
+          kind: StatefulSet
+          jsonPointers:
+            - /spec/replicas

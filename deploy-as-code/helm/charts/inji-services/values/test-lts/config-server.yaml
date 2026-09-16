@@ -54,7 +54,12 @@ gitRepo:
 ##
 ## `inji-default` is what the deployment doc means by "ensure
 ## config-server-share has active_profile_env: default,inji-default,standalone".
-activeProfileEnv: "default,inji-default,standalone,digit-landregistry"
+## `digit-lts` carries per-application overrides that must outrank upstream's
+## {application}-default.properties -- currently the database hosts for mimoto
+## and esignet. It is placed BEFORE digit-landregistry so certify's plugin
+## profile still wins for certify. Profile order in this list IS the precedence
+## order: later profiles override earlier ones.
+activeProfileEnv: "default,inji-default,standalone,digit-lts,digit-landregistry"
 
 ## RESOLVED. Upstream wires 17 ConfigMap/Secret references into this
 ## Deployment -- activemq-activemq-artemis-share, global, keycloak-host,
@@ -85,9 +90,19 @@ envVariables: []
 ##
 ## So the server falls back to Spring's default label, `master`, and
 ## deploy-as-code/inji-config does not exist on master -- it is on digit-lts.
-## The observed symptom was the startup probe on /config/*/* returning 404
-## while the log showed "Reset label master to version AnyObjectId[987e6aa...]":
-## the clone succeeded, the branch was simply the wrong one.
+## The log showed "Reset label master to version AnyObjectId[987e6aa...]": the
+## clone succeeded, the branch was simply the wrong one.
+##
+## Without this, any client request that omits the label 404s:
+##   /config/certify/default             -> 404 before, 200 after
+## Verified present in this build's metadata
+## (spring-cloud-config-server-2.0.4.RELEASE):
+##   "name": "spring.cloud.config.server.git.default-label"
+##
+## Note this is a SEPARATE fault from the probe-path problem handled at the
+## bottom of this file. Both produced a 404 on the startup probe, which made
+## them look like one issue; fixing only the label left /config/*/* still
+## failing because of the wildcard application name.
 ##
 ## Each entry needs `enabled: true` -- the template's range is gated on it and
 ## silently skips entries without it.
@@ -108,3 +123,61 @@ resources:
 ## publish every property, including credentials, to the internet.
 ingress:
   enabled: false
+
+## ---------------------------------------------------------------------------
+## Probe path override.
+##
+## The chart's default probe path for all three probes is /config/*/* -- the
+## literal wildcard as the application name. This MOSIP build
+## (kernel-config-server, spring-cloud-config-server-2.0.4.RELEASE) rejects it:
+##
+##   /config/*/*                   -> 404 {"message":"Application Not Found"}
+##   /config/application/default   -> 200
+##   /config/certify/default       -> 200
+##
+## Measured against the running pod. The 404 kept the pod at 0/1 and cycling on
+## startup-probe failure, even though config-server was serving correctly the
+## whole time.
+##
+## /config/application/default is used instead: `application` is the global
+## property file that Spring Cloud Config serves to every client, so it always
+## exists, it is cheap, and it exercises the real git-backed code path rather
+## than a static health endpoint. Note /actuator/health is NOT an option here
+## -- it 404s on this build.
+##
+## No explicit label in the path: it resolves through
+## SPRING_CLOUD_CONFIG_SERVER_GIT_DEFAULT_LABEL above, so the probe also
+## verifies the default label is correct. If the branch is ever wrong again,
+## these probes fail loudly instead of the service silently serving nothing.
+startupProbe:
+  enabled: true
+  httpGet:
+    path: /config/application/default
+    port: 51000
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 10
+  successThreshold: 1
+  failureThreshold: 30
+
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /config/application/default
+    port: 51000
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 10
+  successThreshold: 1
+  failureThreshold: 6
+
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /config/application/default
+    port: 51000
+  initialDelaySeconds: 20
+  periodSeconds: 30
+  timeoutSeconds: 10
+  successThreshold: 1
+  failureThreshold: 6

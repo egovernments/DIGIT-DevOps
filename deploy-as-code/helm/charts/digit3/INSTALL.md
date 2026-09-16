@@ -73,7 +73,13 @@ ssh -f -N -L 16443:127.0.0.1:6443 -i <key> azureuser@<domain>
 #   pkill -f "16443:127.0.0.1:6443"   then re-run the ssh command
 
 ssh -i <key> azureuser@<domain> 'sudo cat /etc/rancher/k3s/k3s.yaml' > ~/modulith-kubeconfig.yaml
-# edit: server: https://127.0.0.1:16443 ; rename context/cluster/user to `modulith`
+
+# point the kubeconfig at the tunnel port — the file ships with 6443, and
+# kubectl fails with "connection refused 127.0.0.1:6443" if you skip this
+sed -i '' 's|server: https://127.0.0.1:6443|server: https://127.0.0.1:16443|' ~/modulith-kubeconfig.yaml   # macOS
+# sed -i 's|server: https://127.0.0.1:6443|server: https://127.0.0.1:16443|' ~/modulith-kubeconfig.yaml    # Linux
+
+# optional but recommended: rename context/cluster/user from `default` to `modulith`
 export KUBECONFIG=~/modulith-kubeconfig.yaml
 kubectl get nodes
 ```
@@ -475,6 +481,7 @@ does not migrate data.
 | Pod calls old upstream after `egov-service-host` change | `configMapKeyRef` env resolves at pod start → rollout-restart consumers |
 | `kubectl port-forward` hangs/000 over the SSH tunnel | curl ClusterIPs from the VM over SSH instead |
 | `bind :16443: Address already in use` on tunnel setup | old tunnel still bound; test kubectl first, else `pkill -f "16443:127.0.0.1:6443"` and reconnect |
+| `kubectl`: `connection refused` on `127.0.0.1:6443` | kubeconfig still has the k3s default port; edit `server:` to `https://127.0.0.1:16443` (the tunnel port) — see §1.3 |
 | Vault pod Pending, PVC stuck | test-lts chart copy pinned `storageClass: gp2` (AWS) → null it for the default SC; volumeClaimTemplates are immutable — uninstall + delete PVC before re-sync |
 | Vault: "error fetching AWS KMS wrapping key" | `seal "awskms"` stanza in the copied server config → remove it (Shamir seal; manual unseal after every restart) |
 | Vault statefulset change not rolling out | chart uses `OnDelete` update strategy → delete the pod to pick up spec changes |

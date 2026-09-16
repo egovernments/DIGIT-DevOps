@@ -26,17 +26,34 @@ extraEnvVarsCM:
   - inji-stack-config
   - config-server-share
 
-## Role esignetuser, database mosip_esignet, schema esignet, on postgres.egov.
+## Database and HSM credentials.
+##
+## esignet-default.properties (served from deploy-as-code/inji-config, copied
+## from mosip/mosip-config since inji-config does not carry it) already defines
+##   spring.datasource.url=jdbc:postgresql://${mosip.esignet.database.hostname}:...
+##                         /mosip_esignet?currentSchema=esignet
+##   spring.datasource.username=esignetuser
+##   spring.datasource.password=${db.dbuser.password}
+## and application-default.properties overrides
+## mosip.esignet.database.hostname to postgres.egov.
+##
+## So only the password is injected, and as DB_DBUSER_PASSWORD -- Spring's
+## relaxed binding maps it onto the ${db.dbuser.password} placeholder.
+## SPRING_DATASOURCE_PASSWORD would leave the placeholder unresolved.
 extraEnvVars:
-  - name: SPRING_DATASOURCE_URL
-    value: "jdbc:postgresql://postgres.egov:5432/mosip_esignet?currentSchema=esignet"
-  - name: SPRING_DATASOURCE_USERNAME
-    value: "esignetuser"
-  - name: SPRING_DATASOURCE_PASSWORD
+  - name: DB_DBUSER_PASSWORD
     valueFrom:
       secretKeyRef:
         name: inji-db
         key: esignet-password
+  ## Resolves ${softhsm.esignet.security.pin}. Secret created by the
+  ## softhsm-esignet Application, named after its fullnameOverride.
+  - name: SOFTHSM_ESIGNET_SECURITY_PIN
+    valueFrom:
+      secretKeyRef:
+        name: esignet-softhsm
+        key: security-pin
+
 
 ## NOT YET DECIDED — the identity plugin.
 ##

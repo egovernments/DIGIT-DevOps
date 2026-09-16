@@ -45,9 +45,23 @@ infra:
   redisPort: "6379"
 
 # Pinned rather than "develop". The module chart versions are pinned in
-# inji-applications.yaml too; keep the two in step.
+# charts/argo-cd/inji/applications/ too; keep the two in step.
 injiVersion: "0.13.1"
 
 labels:
   app: "inji-stack-config"
   group: "inji"
+
+# The `config-server` Secret (key github-token).
+#
+# config-server's chart references this secret unconditionally for
+# SPRING_CLOUD_CONFIG_SERVER_GIT_PASSWORD but never creates it, so
+# config-server cannot start without it -- even though the config directory is
+# in a public repo and needs no token. Rendered from this chart because it is
+# already the "exists before the modules" Application.
+configServerGitSecret:
+  enabled: true
+  name: "config-server"
+  # Empty is correct for a public repo. If deploy-as-code/inji-config moves to
+  # a private repo, supply this from a SOPS-encrypted value, never inline.
+  gitToken: ""

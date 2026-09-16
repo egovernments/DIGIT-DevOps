@@ -3,17 +3,19 @@
 # Runs ALONGSIDE the existing walt.id issuer (egov/vc -> egov/walt), which is
 # left untouched. Own hostname, injicertify.test-lts.digit.org.
 #
-# The hostname is not cosmetic here. OIDC4VCI locates credential issuer
-# metadata by inserting /.well-known/openid-credential-issuer between host and
-# path, i.e. at the HOST ROOT. This chart's own istio.uriMatches declares exact
-# matches for /.well-known/openid-credential-issuer and /.well-known/did.json,
+# The hostname is not cosmetic. OIDC4VCI locates credential issuer metadata by
+# inserting /.well-known/openid-credential-issuer between host and path, i.e.
+# at the HOST ROOT. This chart's own istio.uriMatches declares exact matches
+# for /.well-known/openid-credential-issuer and /.well-known/did.json,
 # confirming it. With a bare hostname the inji-ingress "/" prefix rule serves
 # both automatically; under a path prefix they would be unreachable.
 
 replicaCount: 1
 
-## Istio off. Routing comes from inji-ingress, targeting the Service named
-## `inji-certify` (from helm.releaseName) on port 80.
+## Istio off. This chart's gateway.yaml and virtualservice.yaml are both gated
+## on istio.enabled and it renders no Kubernetes Ingress. digit-lts has no
+## Istio; routing comes from the local inji-ingress chart, which targets the
+## Service named `inji-certify` (from helm.releaseName) on port 80.
 istio:
   enabled: false
 
@@ -30,23 +32,41 @@ extraEnvVarsCM:
   - artifactory-share
   - softhsm-certify-share
 
-## Role certifyuser, database inji_certify, schema certify, on postgres.egov.
-## Upstream expects a shared db-common-secrets/db-dbuser-password; digit-lts
-## uses one role per module, so this targets the per-module key in `inji-db`.
+## Database and HSM credentials.
+##
+## Only the password is injected here. certify-default.properties already
+## defines:
+##   spring.datasource.url=jdbc:postgresql://${mosip.certify.database.hostname}:...
+##                         /${mosip.certify.database.name}?currentSchema=certify
+##   spring.datasource.username=certifyuser
+##   spring.datasource.password=${db.dbuser.password}
+##   mosip.certify.database.name=inji_certify
+## and inji-config/application-default.properties overrides
+## mosip.certify.database.hostname to postgres.egov. So the URL, database name
+## and username all come from config-server.
+##
+## The env var MUST be DB_DBUSER_PASSWORD, not SPRING_DATASOURCE_PASSWORD:
+## Spring's relaxed binding maps DB_DBUSER_PASSWORD onto the
+## ${db.dbuser.password} placeholder. Setting SPRING_DATASOURCE_PASSWORD would
+## leave that placeholder unresolved and fail startup, because the property
+## file resolves the placeholder rather than reading the env var directly.
 extraEnvVars:
-  - name: SPRING_DATASOURCE_URL
-    value: "jdbc:postgresql://postgres.egov:5432/inji_certify?currentSchema=certify"
-  - name: SPRING_DATASOURCE_USERNAME
-    value: "certifyuser"
-  - name: SPRING_DATASOURCE_PASSWORD
+  - name: DB_DBUSER_PASSWORD
     valueFrom:
       secretKeyRef:
         name: inji-db
         key: certify-password
+  ## Resolves ${softhsm.certify.security.pin}, used by
+  ## mosip.kernel.keymanager.hsm.keystore-pass. The secret is created by the
+  ## softhsm-certify Application and named after its fullnameOverride.
+  - name: SOFTHSM_CERTIFY_SECURITY_PIN
+    valueFrom:
+      secretKeyRef:
+        name: softhsm-certify
+        key: security-pin
 
-## The image is inji-certify-with-plugins, so the HSM plugin is already in the
-## image; leave upstream's default rather than re-installing at startup.
-# installHSMPlugin: false
+## The image is inji-certify-with-plugins, so the HSM plugin ships in the
+## image; upstream's default for installHSMPlugin is kept.
 
 persistence:
   enabled: false

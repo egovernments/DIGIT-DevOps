@@ -1,0 +1,77 @@
+{
+  "_comment": [
+    "digit-lts issuers config for Mimoto. REPLACES the upstream file, which is",
+    "not usable here: it shipped 7 demo issuers (MosipOtp, Mosip, StayProtected,",
+    "Mock, MosipTAN, Land, MockMdl), every one of them pointing at MOSIP's own",
+    "sandbox hosts, and referencing 12 placeholders that nothing in this config",
+    "directory defines -- mimoto.oidc.*.partner.clientid, sunbirdrc.insurance.",
+    "esignet.host, mosip.injicertify.mosipid.host and so on. Mimoto would have",
+    "served a wallet listing seven issuers it cannot reach.",
+    "",
+    "More importantly all 7 used redirect_uri io.mosip.residentapp.inji://",
+    "oauthredirect -- an Android/iOS deep link for the MOBILE wallet. The web",
+    "wallet needs an https redirect back to injiweb, so none of them would have",
+    "completed an authorization round trip in a browser.",
+    "",
+    "The upstream file is preserved at mimoto-issuers-config.json.upstream for",
+    "diffing on an Inji version bump."
+  ],
+  "issuers": [
+    {
+      "issuer_id": "DigitLtsLicense",
+      "credential_issuer": "DigitLtsLicense",
+      "credential_issuer_host": "https://injicertify.test-lts.digit.org",
+      "display": [
+        {
+          "name": "DIGIT LTS Trade License",
+          "logo": {
+            "url": "https://injiweb.test-lts.digit.org/favicon.ico",
+            "alt_text": "digit-logo"
+          },
+          "title": "DIGIT LTS Trade License",
+          "description": "Download your trade license as a verifiable credential",
+          "language": "en"
+        }
+      ],
+      "protocol": "OpenId4VCI",
+
+      "_comment_client_id": [
+        "Must match a client REGISTERED WITH eSIGNET. Registration is a separate",
+        "step against eSignet's client-management API and has not been done yet;",
+        "until it is, the authorization request is rejected with invalid_client.",
+        "The public key registered there must be the one in oidckeystore.p12",
+        "under the alias named below."
+      ],
+      "client_id": "${mimoto.oidc.digitlts.partner.clientid}",
+      "client_alias": "digitlts-mimoto-certify-oidc",
+
+      "_comment_wellknown": [
+        "Certify serves issuer metadata under its servlet path. Kept in the",
+        "upstream shape (/v1/certify/issuance/.well-known/...) rather than the",
+        "host root: the host-root form is what a WALLET discovers via the",
+        "credential offer, while this field is the explicit endpoint Mimoto",
+        "fetches. Verify against the running service and correct if it 404s."
+      ],
+      "wellknown_endpoint": "https://injicertify.test-lts.digit.org/v1/certify/issuance/.well-known/openid-credential-issuer",
+
+      "_comment_redirect": [
+        "https back to the web wallet, NOT the mobile deep link every upstream",
+        "issuer used. This is the change that makes the browser flow work."
+      ],
+      "redirect_uri": "https://injiweb.test-lts.digit.org/redirect",
+
+      "_comment_token": [
+        "token_endpoint is Mimoto's own proxy, reached same-origin through",
+        "injiweb's nginx (/v1/mimoto -> mimoto-service). It is deliberately NOT",
+        "on a Mimoto hostname, because Mimoto has no Ingress in the web-wallet",
+        "scope -- see charts/inji-services/values/test-lts/mimoto.yaml."
+      ],
+      "token_endpoint": "https://injiweb.test-lts.digit.org/v1/mimoto/get-token/DigitLtsLicense",
+
+      "authorization_audience": "https://esignet.test-lts.digit.org/v1/esignet/oauth/v2/token",
+      "proxy_token_endpoint": "https://esignet.test-lts.digit.org/v1/esignet/oauth/v2/token",
+      "qr_code_type": "OnlineSharing",
+      "enabled": "true"
+    }
+  ]
+}

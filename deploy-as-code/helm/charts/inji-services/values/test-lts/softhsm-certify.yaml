@@ -29,11 +29,23 @@ persistence:
   accessModes:
     - ReadWriteOnce
 
-## securityPIN is the PKCS#11 token PIN. Upstream ships a default; it should be
-## overridden with a SOPS-encrypted value before this is treated as anything
-## other than an evaluation. Left at the chart default for now, deliberately
-## not invented here.
-# securityPIN: ""
+## securityPIN — MUST be set explicitly, and MUST be base64-encoded.
+##
+## Two traps in the upstream softhsm chart, both verified by reading
+## templates/secrets.yaml:
+##
+##  1. When securityPIN is set, the template writes it straight into the
+##     Secret's `data:` field with NO b64enc -- only the fallback branch
+##     encodes. A plaintext PIN here produces an invalid Secret and the pod
+##     fails to decode it. Supply `echo -n <pin> | base64`.
+##  2. When securityPIN is EMPTY, the template generates `randNumeric 8` at
+##     render time. Combined with ArgoCD selfHeal, every sync would produce a
+##     different PIN, and the HSM token -- along with every key signed under
+##     it -- becomes unusable. Leaving this unset is not a safe default here.
+##
+## The value must be SOPS-encrypted into test-lts-secrets.yaml and referenced,
+## not written literally into this file.
+# securityPIN: "<base64-encoded PIN from SOPS>"
 
 resources:
   limits:

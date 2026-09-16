@@ -288,6 +288,69 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA certify
 ALTER DEFAULT PRIVILEGES IN SCHEMA certify
     GRANT USAGE, SELECT ON SEQUENCES TO certifyuser;
 
+-- -----------------------------------------------------------------------------
+-- SECTION 3b — Credential source table for the Postgres data-provider plugin.
+--
+-- ADDED AFTER THE FIRST RUN. The Job is keyed by a checksum of this file, so
+-- editing it produces a new Job name and the SQL re-runs; every statement
+-- above is guarded, so the already-provisioned databases and roles are
+-- untouched and only this section does new work.
+--
+-- Certify's certify-digit-landregistry profile maps an OIDC scope to
+--   select * from certify_source.license_data where license_id=:id
+-- with :id bound from the access token's `sub` claim.
+--
+-- A DEDICATED table in a DEDICATED schema, not a DIGIT table.
+--
+-- Precisely what certifyuser can and cannot reach in the shared `postgres`
+-- database, measured on 2026-09-16 with SET ROLE:
+--   CONNECT:            yes. Section 2's REVOKE CONNECT ... FROM PUBLIC applies
+--                       only to the four databases it creates; the pre-existing
+--                       `postgres` database still grants PUBLIC connect, and
+--                       revoking that is not safe to do blind on a shared
+--                       database.
+--   readable tables:    3, all PostGIS metadata (spatial_ref_sys,
+--                       geometry_columns, geography_columns), which PostGIS
+--                       grants to PUBLIC by design. No DIGIT business data.
+--   Kong routes/consumers: NOT readable.
+--   DIGIT tenant schemas (e.g. ACC10): no USAGE.
+--
+-- So pointing scope-query-mapping at DIGIT data would require new explicit
+-- grants, not merely a different query. Populate this table from DIGIT with
+-- whatever ETL suits instead, and the isolation holds.
+--
+-- Kept OUT of the `certify` schema on purpose: that schema is owned by
+-- Certify's own Flyway migrations, and a hand-made table sitting in it would
+-- be indistinguishable from a migration artefact.
+-- -----------------------------------------------------------------------------
+
+\connect inji_certify
+\echo '--- inji_certify: credential source schema ---'
+
+CREATE SCHEMA IF NOT EXISTS certify_source AUTHORIZATION postgres;
+
+CREATE TABLE IF NOT EXISTS certify_source.license_data (
+    license_id    text PRIMARY KEY,
+    holder_name   text NOT NULL,
+    license_type  text,
+    trade_name    text,
+    tenant_id     text,
+    issued_date   date,
+    valid_upto    date,
+    -- Provenance of the row, so it is always clear which ETL run produced a
+    -- credential's source data.
+    source_system text DEFAULT 'digit-lts',
+    updated_at    timestamptz DEFAULT now()
+);
+
+-- SELECT only. The plugin reads; it never writes. Deliberately no INSERT /
+-- UPDATE / DELETE: if Certify is ever compromised it must not be able to mint
+-- itself a credential subject.
+GRANT USAGE ON SCHEMA certify_source TO certifyuser;
+GRANT SELECT ON ALL TABLES IN SCHEMA certify_source TO certifyuser;
+ALTER DEFAULT PRIVILEGES IN SCHEMA certify_source
+    GRANT SELECT ON TABLES TO certifyuser;
+
 \connect inji_mimoto
 \echo '--- inji_mimoto ---'
 CREATE SCHEMA IF NOT EXISTS mimoto AUTHORIZATION postgres;

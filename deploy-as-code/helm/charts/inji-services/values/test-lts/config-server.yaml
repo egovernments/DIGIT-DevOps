@@ -27,25 +27,42 @@ gitRepo:
   token: ""
   username: ""
 
-## The upstream default is `default,standalone`. inji-default is required for
-## the Inji modules to pick up the inji-*.properties files, and is what the
-## deployment doc means by "ensure config-server-share has
-## active_profile_env: default,inji-default,standalone".
-activeProfileEnv: "default,inji-default,standalone"
-
-## Upstream ships a long envVariables list wired to MOSIP-specific ConfigMaps
-## (postgres-setup-config, keycloak-*-share, etc.) that do not exist in
-## digit-lts. Each entry carries its own `enabled` flag, so rather than
-## deleting the list -- which would drop the ones we do want -- the unwanted
-## entries are disabled individually.
+## Published to every module in the config-server-share ConfigMap as
+## active_profile_env, which each chart passes to the container.
 ##
-## LEFT AS A FOLLOW-UP, deliberately: this list has ~20 entries and disabling
-## the wrong one produces a config-server that starts but silently serves
-## incomplete properties. It needs to be walked entry by entry against the
-## rendered Deployment before this Application is enabled. Until then
-## config-server will CrashLoopBackOff on the missing postgres-setup-config
-## ConfigMap, which is the honest failure mode rather than a hidden one.
-# envVariables: []
+## `digit-landregistry` activates certify-digit-landregistry.properties -- our
+## own Certify profile, selecting the Postgres data-provider plugin. Upstream's
+## certify-postgres-landregistry.properties is deliberately NOT activated: it
+## points at a database name we do not have and at MOSIP's own did:web. It
+## stays in the directory as the diff base.
+##
+## The list is shared by all modules, which is harmless: Spring ignores a
+## profile with no matching {application}-{profile}.properties file, so
+## esignet and mimoto simply see nothing for digit-landregistry.
+##
+## `inji-default` is what the deployment doc means by "ensure
+## config-server-share has active_profile_env: default,inji-default,standalone".
+activeProfileEnv: "default,inji-default,standalone,digit-landregistry"
+
+## RESOLVED. Upstream wires 17 ConfigMap/Secret references into this
+## Deployment -- activemq-activemq-artemis-share, global, keycloak-host,
+## msg-gateway, postgres-setup-config, s3, conf-secrets-various,
+## db-common-secrets, keycloak-client-secrets, mosip-captcha, softhsm-ida,
+## softhsm-kernel and more. Every one was confirmed MISSING in the inji
+## namespace; each would be a CreateContainerConfigError.
+##
+## They exist so a full MOSIP install can inject secrets INTO the config
+## stream, overriding properties as they are served to clients. digit-lts does
+## not need that: each Inji module receives its own credentials directly as
+## env vars from the `inji-db` and softhsm secrets (see the other values files
+## in this directory). So config-server's only job here is to serve the files
+## in deploy-as-code/inji-config verbatim, and every override is cleared.
+##
+## BOTH lists must be emptied -- the template has two separate range blocks,
+## and clearing only envVariables leaves two postgres-setup-config references
+## behind from extraEnvVars.
+envVariables: []
+extraEnvVars: []
 
 resources:
   limits:

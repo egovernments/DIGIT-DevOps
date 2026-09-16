@@ -33,33 +33,43 @@ extraEnvVarsCM:
   - config-server-share
   - artifactory-share
 
-## STILL REQUIRED, NOT YET CREATED.
+## google-client backs the wallet's optional Google sign-in.
 ##
-## `google-client` backs the wallet's optional Google sign-in
-## (INJI_INJIWEB_GOOGLE_CLIENT_ID / _SECRET). The chart references it
-## unconditionally, so the pod will fail with CreateContainerConfigError until
-## the secret exists — even if Google login is unused. Create it with empty
-## values via cluster-configs if you do not want Google sign-in, or with real
-## credentials if you do.
+## CORRECTED: an earlier draft said this secret had to be created externally.
+## It does not -- the mimoto chart renders the `google-client` Secret itself
+## (verified: it emits keys MOSIP_INJIWEB_GOOGLE_CLIENT_ID and
+## MOSIP_INJIWEB_GOOGLE_CLIENT_SECRET), so the reference resolves with the
+## chart's own empty defaults and the pod starts. Supply real values here only
+## if Google sign-in is actually wanted.
 extraEnvVarsSecret:
   - google-client
 
-## Database. Upstream expects a single shared `db-common-secrets` /
-## db-dbuser-password for every module; digit-lts instead has one role per
-## module with its own password, so this points at the per-module key in the
-## `inji-db` secret created by cluster-configs.
+## Database and keystore credentials.
 ##
-## Role mimotouser, database inji_mimoto, schema mimoto, on postgres.egov.
+## Upstream expects one shared `db-common-secrets`/db-dbuser-password for every
+## module; digit-lts has a separate role per module, so this points at the
+## per-module key in the `inji-db` secret created by cluster-configs.
+##
+## CORRECTED from an earlier draft that set SPRING_DATASOURCE_*.
+## mimoto-default.properties defines keymanager_database_url /
+## keymanager_database_username itself and reads the password as
+## ${db.dbuser.password}; application-default.properties overrides
+## inji.mimoto.database.hostname to postgres.egov. So only the password is
+## injected, via DB_DBUSER_PASSWORD (relaxed binding onto the placeholder).
 extraEnvVars:
-  - name: SPRING_DATASOURCE_URL
-    value: "jdbc:postgresql://postgres.egov:5432/inji_mimoto?currentSchema=mimoto"
-  - name: SPRING_DATASOURCE_USERNAME
-    value: "mimotouser"
-  - name: SPRING_DATASOURCE_PASSWORD
+  - name: DB_DBUSER_PASSWORD
     valueFrom:
       secretKeyRef:
         name: inji-db
         key: mimoto-password
+  ## Resolves ${mimoto.oidc.keystore.password}, used for BOTH
+  ## mosip.oidc.p12.password and the keymanager keystore pass.
+  ## STILL TO BE CREATED -- see the keystore note below.
+  - name: MIMOTO_OIDC_KEYSTORE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: mimotooidc
+        key: oidckeystore-password
 
 ## NOT YET RESOLVED — mimoto will not start without these two keystores:
 ##

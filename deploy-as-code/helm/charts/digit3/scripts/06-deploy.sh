@@ -57,8 +57,11 @@ case "$SHAPE" in
   dev-bundle)   KONG_BUNDLES="" ;;                # setup.py default manifest
   domain-split) KONG_BUNDLES="$MANIFEST" ;;
 esac
+# `env` (not bare assignments): a ${VAR:+X=Y} expansion is NOT parsed as an
+# assignment by bash — it becomes a command word and the line dies with
+# "KONG_BUNDLE_MANIFESTS=none: command not found".
 (cd "$DIGIT3/src/services/kong" && \
-  KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS="$DOMAIN" \
+  env KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS="$DOMAIN" \
   ${KONG_BUNDLES:+KONG_BUNDLE_MANIFESTS="$KONG_BUNDLES"} python3 setup.py)
 
 echo "$SHAPE" > "$SCRIPT_DIR/.last-shape"

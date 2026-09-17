@@ -36,8 +36,17 @@ load_env() {
 
 vm_ssh() { ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -i "$SSH_KEY" "${VM_USER:-azureuser}@$DOMAIN" "$@"; }
 
-# Re-open the API tunnel if the local port is closed.
+# Re-open the API tunnel if the local port is closed — or if the live tunnel
+# points at a DIFFERENT domain: a workstation that drives several environments
+# reuses the port, and a stale tunnel silently sends kubectl to the wrong
+# cluster (the symptom is "x509: certificate signed by unknown authority").
 ensure_tunnel() {
+  if pgrep -f "$TUNNEL_PORT:127.0.0.1:6443" >/dev/null 2>&1 && \
+     ! pgrep -af "$TUNNEL_PORT:127.0.0.1:6443" | grep -q "@$DOMAIN"; then
+    note "tunnel on :$TUNNEL_PORT points at another environment — replacing it"
+    pkill -f "$TUNNEL_PORT:127.0.0.1:6443" 2>/dev/null || true
+    sleep 1
+  fi
   if ! nc -z -w 2 127.0.0.1 "$TUNNEL_PORT" 2>/dev/null; then
     pkill -f "$TUNNEL_PORT:127.0.0.1:6443" 2>/dev/null || true
     ssh -f -N -L "$TUNNEL_PORT:127.0.0.1:6443" -o StrictHostKeyChecking=accept-new -i "$SSH_KEY" "${VM_USER:-azureuser}@$DOMAIN"

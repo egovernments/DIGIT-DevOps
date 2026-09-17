@@ -32,6 +32,19 @@ certify:
   port: 80
   servletPath: "/v1/certify"
 
+# PAYLOAD FIELDS: files/credential-config.json carries only fields that exist on
+# CredentialConfigurationDTO in mosip/inji-certify@v0.13.1.
+#
+# The upstream postman collections include three extra snake_case fields --
+# cryptographic_binding_methods_supported, credential_signing_alg_values_supported
+# and proof_types_supported. This DTO has NO such fields, and Jackson rejects the
+# whole request:
+#   JSON parse error: Unrecognized field "cryptographic_binding_methods_supported"
+#   (class CredentialConfigurationDTO), not marked as ignorable
+# Those three are GLOBAL properties (mosip.certify.credential-config.*), already
+# set in certify-default.properties -- they are not per-configuration. The
+# collections evidently target a different Certify version.
+#
 # Must match credentialConfigKeyId in files/credential-config.json -- the Job
 # uses it for the existence check.
 credentialConfigKeyId: "DigitLicenseCredential"

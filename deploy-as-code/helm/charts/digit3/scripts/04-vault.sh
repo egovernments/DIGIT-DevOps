@@ -44,16 +44,19 @@ path "transit/decrypt/*" { capabilities = ["update"] }
 EOF' >/dev/null
 vault_exec 'vault write auth/approle/role/individual token_policies=digit-transit token_ttl=1h token_max_ttl=4h' >/dev/null
 
-if [ -z "$(sops_get 'cluster-configs.secrets.vault-approle.role-id')" ]; then
-  note "storing approle credentials in the sops file"
-  sops_set "cluster-configs.secrets.vault-approle.role-id" \
-    "$(vault_exec 'vault read -field=role_id auth/approle/role/individual/role-id')"
+# Reconcile against the LIVE role-id — after a re-init (fresh PVC) the sops
+# file still holds the previous instance's ids, which no longer authenticate.
+LIVE_ROLE_ID=$(vault_exec 'vault read -field=role_id auth/approle/role/individual/role-id')
+if [ "$(sops_get 'cluster-configs.secrets.vault-approle.role-id')" != "$LIVE_ROLE_ID" ]; then
+  note "storing approle credentials in the sops file (stale or empty — minting fresh)"
+  sops_set "cluster-configs.secrets.vault-approle.role-id" "$LIVE_ROLE_ID"
   sops_set "cluster-configs.secrets.vault-approle.secret-id" \
     "$(vault_exec 'vault write -f -field=secret_id auth/approle/role/individual/secret-id')"
   note "re-rendering the vault-approle k8s secret"
   "$DEPLOY" -f backboneservices-helmfile.yaml -l name=cluster-configs sync
 else
-  echo "    approle credentials already in the sops file"
+  echo "    approle credentials current (sops matches the live role-id)"
 fi
+unset LIVE_ROLE_ID
 
 next "./05-build.sh <path-to-digit3-repo>"

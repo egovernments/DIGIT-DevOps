@@ -18,7 +18,13 @@ metadata:
     argocd.argoproj.io/sync-wave: "-1"
   labels:
 {{- include "inji-db-init.labels" $v.labels | nindent 4 }}
+## Every files/*.sql becomes its own ConfigMap key, so they land side by side
+## in the mount directory. provision.sql uses psql \ir to include the vendored
+## module SQL, and \ir resolves relative to the including file -- so they must
+## share a directory.
 data:
-  provision.sql: |
-{{ .Files.Get "files/provision.sql" | indent 4 }}
+{{- range $path, $_ := .Files.Glob "files/*.sql" }}
+  {{ base $path }}: |
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}
 {{- end }}

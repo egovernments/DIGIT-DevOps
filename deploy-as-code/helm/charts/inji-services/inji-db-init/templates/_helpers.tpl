@@ -58,7 +58,11 @@ Application would flip to Missing, and selfHeal would recreate it in a loop.
 Called with the root context, since it needs .Files.
 */}}
 {{- define "inji-db-init.sqlChecksum" -}}
-{{- .Files.Get "files/provision.sql" | sha256sum | trunc 8 -}}
+{{- $acc := "" -}}
+{{- range $path, $_ := .Files.Glob "files/*.sql" -}}
+{{- $acc = printf "%s%s%s" $acc $path ($.Files.Get $path) -}}
+{{- end -}}
+{{- $acc | sha256sum | trunc 8 -}}
 {{- end -}}
 
 {{/*

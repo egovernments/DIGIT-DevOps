@@ -351,6 +351,57 @@ GRANT SELECT ON ALL TABLES IN SCHEMA certify_source TO certifyuser;
 ALTER DEFAULT PRIVILEGES IN SCHEMA certify_source
     GRANT SELECT ON TABLES TO certifyuser;
 
+-- -----------------------------------------------------------------------------
+-- SECTION 3c — eSignet schema objects.
+--
+-- inji-db-init originally created databases, schemas, roles and grants but NO
+-- module tables. eSignet crash-looped on
+--   SQLState 42P01: relation "key_alias" does not exist
+-- because upstream expects db_scripts/init_db.sh to have been run out of band.
+-- That step has no place in a GitOps flow, so the SQL is vendored and applied
+-- here instead (files/esignet-ddl.sql, files/esignet-dml.sql).
+--
+-- GUARDED, and the guard is not optional:
+--   * 8 of the 9 upstream DDL files use bare CREATE TABLE with no
+--     IF NOT EXISTS, so a second run errors and fails the Job.
+--   * dml.sql TRUNCATEs esignet.client_detail and esignet.server_profile.
+--     client_detail is where registered OIDC clients live -- including the
+--     Mimoto client. Re-running it would silently delete them.
+--
+-- This Job re-runs whenever ANY file in files/ changes (the Job name is a
+-- checksum), so an unguarded block would eventually do exactly that. The guard
+-- keys on esignet.key_alias: present means the schema is already built, so DDL
+-- and seed data are both skipped.
+--
+-- To intentionally rebuild eSignet's schema, drop the database and let this
+-- run again -- do not remove the guard.
+-- -----------------------------------------------------------------------------
+
+\connect mosip_esignet
+\echo '--- mosip_esignet: schema objects ---'
+
+SELECT NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+     WHERE table_schema = 'esignet' AND table_name = 'key_alias'
+) AS esignet_needs_schema \gset
+
+\if :esignet_needs_schema
+    \echo '    key_alias absent -> applying eSignet DDL + seed data'
+    \ir esignet-ddl.sql
+    \ir esignet-dml.sql
+    \echo '    eSignet schema created'
+\else
+    \echo '    key_alias present -> schema already built, skipping (idempotent)'
+\endif
+
+-- Re-assert grants: the DDL above creates tables as postgres, and while
+-- ALTER DEFAULT PRIVILEGES from Section 3 covers tables created after it was
+-- set, being explicit here means a re-vendored DDL cannot leave esignetuser
+-- without access.
+GRANT SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES
+    ON ALL TABLES IN SCHEMA esignet TO esignetuser;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA esignet TO esignetuser;
+
 \connect inji_mimoto
 \echo '--- inji_mimoto ---'
 CREATE SCHEMA IF NOT EXISTS mimoto AUTHORIZATION postgres;
@@ -392,6 +443,76 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA esignet
     GRANT SELECT,INSERT,UPDATE,DELETE,REFERENCES ON TABLES TO esignetuser;
 ALTER DEFAULT PRIVILEGES IN SCHEMA esignet
     GRANT USAGE, SELECT ON SEQUENCES TO esignetuser;
+
+-- -----------------------------------------------------------------------------
+-- certify schema objects.
+--
+-- Same reasoning as the eSignet section: inji-db-init creates databases,
+-- schemas, roles and grants, but upstream expects db_scripts/init_db.sh to
+-- create the TABLES out of band, and the certify chart ships no migration hook.
+-- The SQL is vendored (certify-ddl.sql, certify-dml.sql) and applied here.
+--
+-- GUARDED on certify.key_alias: only 2 of 11 upstream CREATE TABLE statements use IF NOT EXISTS.
+-- This Job re-runs whenever any files/*.sql changes, so without the guard a
+-- later edit would re-run CREATE TABLE against an existing schema and fail.
+-- -----------------------------------------------------------------------------
+
+\connect inji_certify
+\echo '--- inji_certify: schema objects ---'
+
+SELECT NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+     WHERE table_schema = 'certify' AND table_name = 'key_alias'
+) AS certify_needs_schema \gset
+
+\if :certify_needs_schema
+    \echo '    key_alias absent -> applying certify DDL + seed data'
+    \ir certify-ddl.sql
+    \ir certify-dml.sql
+    \echo '    certify schema created'
+\else
+    \echo '    key_alias present -> schema already built, skipping (idempotent)'
+\endif
+
+-- Re-assert grants for tables the vendored DDL just created.
+GRANT SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES
+    ON ALL TABLES IN SCHEMA certify TO certifyuser;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA certify TO certifyuser;
+
+-- -----------------------------------------------------------------------------
+-- mimoto schema objects.
+--
+-- Same reasoning as the eSignet section: inji-db-init creates databases,
+-- schemas, roles and grants, but upstream expects db_scripts/init_db.sh to
+-- create the TABLES out of band, and the mimoto chart ships no migration hook.
+-- The SQL is vendored (mimoto-ddl.sql, mimoto-dml.sql) and applied here.
+--
+-- GUARDED on mimoto.key_alias: only 6 of 10 upstream CREATE TABLE statements use IF NOT EXISTS.
+-- This Job re-runs whenever any files/*.sql changes, so without the guard a
+-- later edit would re-run CREATE TABLE against an existing schema and fail.
+-- -----------------------------------------------------------------------------
+
+\connect inji_mimoto
+\echo '--- inji_mimoto: schema objects ---'
+
+SELECT NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+     WHERE table_schema = 'mimoto' AND table_name = 'key_alias'
+) AS mimoto_needs_schema \gset
+
+\if :mimoto_needs_schema
+    \echo '    key_alias absent -> applying mimoto DDL + seed data'
+    \ir mimoto-ddl.sql
+    \ir mimoto-dml.sql
+    \echo '    mimoto schema created'
+\else
+    \echo '    key_alias present -> schema already built, skipping (idempotent)'
+\endif
+
+-- Re-assert grants for tables the vendored DDL just created.
+GRANT SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES
+    ON ALL TABLES IN SCHEMA mimoto TO mimotouser;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA mimoto TO mimotouser;
 
 \echo ''
 \echo '=== Section 4: verification ==='

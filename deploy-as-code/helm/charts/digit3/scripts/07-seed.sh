@@ -27,13 +27,19 @@ ACC_IP=$(svc_ip "$ACC_SVC"); IDG_IP=$(svc_ip "$IDG_SVC"); IND_IP=$(svc_ip "$IND_
 note "shape: $SHAPE (account=$ACC_SVC, idgen=$IDG_SVC, individual=$IND_SVC, db=$APP_DB)"
 
 note "creating tenant '$NAME' (all calls run on the VM — port-forward is unreliable)"
-RESP=$(vm_curl "-X POST http://$ACC_IP:8080/account/v3/tenants -H 'Content-Type: application/json' -d '{\"name\":\"$NAME\",\"email\":\"$EMAIL\",\"phone\":\"$PHONE\"}'")
+# The backend user is created with the email as username and this password —
+# generated here (16 chars, JSON-safe) and printed ONCE at the end. Without it
+# the server generates one that is never delivered (SMTP is a placeholder).
+ADMIN_PASS=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-16)
+RESP=$(vm_curl "-X POST http://$ACC_IP:8080/account/v3/tenants -H 'Content-Type: application/json' -d '{\"name\":\"$NAME\",\"email\":\"$EMAIL\",\"phone\":\"$PHONE\",\"password\":\"$ADMIN_PASS\"}'")
 CODE=$(printf '%s' "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('code',''))" 2>/dev/null || true)
+FRESH_TENANT=true
 if [ -z "$CODE" ]; then
   # already exists? look it up by email before giving up
   CODE=$(vm_curl "'http://$ACC_IP:8080/account/v3/tenants?email=$EMAIL'" | \
     python3 -c "import sys,json;ts=json.load(sys.stdin).get('tenants') or [];print(ts[0]['code'] if ts else '')" 2>/dev/null || true)
-  [ -n "$CODE" ] && echo "    tenant already exists" || die "tenant create failed: $RESP"
+  [ -n "$CODE" ] && { echo "    tenant already exists (admin password unchanged)"; FRESH_TENANT=false; ADMIN_PASS=""; } \
+    || die "tenant create failed: $RESP"
 fi
 echo "    tenant code: $CODE"
 
@@ -50,8 +56,18 @@ TRESP=$(vm_curl "-X POST http://$IDG_IP:8080/idgen/v3/template -H 'Content-Type:
 printf '%s' "$TRESP" | grep -q '"templateCode":"individual"' && echo "    template registered" || \
   { printf '%s' "$TRESP" | grep -qi "exists" && echo "    template already exists" || die "template create failed: $TRESP"; }
 
+print_credentials() {
+  if [ -n "$ADMIN_PASS" ]; then
+    echo
+    echo "  tenant admin login (shown ONCE — store it now, e.g. in a password manager):"
+    echo "    username: $EMAIL"
+    echo "    password: $ADMIN_PASS"
+  fi
+}
+
 if ! $VERIFY; then
   note "done — tenant $CODE is ready"
+  print_credentials
   exit 0
 fi
 
@@ -71,3 +87,4 @@ echo "  API returns plaintext mobile           : $P1  ($IND_ID)"
 echo "  DB stores vault:v1 ciphertext + HMAC   : $P2"
 echo "  per-tenant transit key exists in Vault : $P3"
 [ "$P1$P2$P3" = "PASSPASSPASS" ] && note "verification PASSED" || die "verification FAILED — see the gotchas table in INSTALL.md"
+print_credentials

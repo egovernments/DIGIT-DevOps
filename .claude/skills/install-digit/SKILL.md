@@ -18,10 +18,16 @@ optional VM user (default `azureuser`). Ask (AskUserQuestion) for anything
 missing — do not guess:
 
 - **ssh key / domain**: required, no defaults.
-- **shape**: `single-container` (default — all 16 services in one JVM),
-  `domain-bundles` (4 JVMs), or `per-service` (16 pods). Ask only if the user
-  mentioned wanting a specific topology; otherwise default silently. Pass it
-  as `--shape <shape>` to 05 and 06 (07 reads it from `scripts/.env`).
+- **shape**: ALWAYS ask which deployment shape to install (AskUserQuestion),
+  unless the user already named one in their request. Options to present:
+  - `single-container` (recommended default) — all 16 services in one JVM,
+    ~0.5 GB, 1 pod
+  - `domain-bundles` — 4 JVMs along building-block lines (identity /
+    notification / billing / admin), independent scaling per group
+  - `per-service` — every service its own pod (16 pods, ~5 GB), the classic
+    microservice layout
+  Pass the choice as `--shape <shape>` to 05 and 06 (07 reads it from
+  `scripts/.env`).
 - **digit3 repo path**: needed by phases 05–06. First search for an existing
   checkout (e.g. `find ~/Documents -maxdepth 3 -name dev-bundle.package.yaml
   -path "*digit3*"`) and confirm the hit with the user. Only if none exists,

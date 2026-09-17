@@ -579,6 +579,42 @@ def generate(args, policy, manifest_path, bundle, services):
     print_report(report, services, missing_migrations, context_mismatches)
 
 
+
+# ── shape-overlay drift check ─────────────────────────────────────────────────
+
+def check_service_host_overlays(charts_root, manifest_path, jobs):
+    """Warn when an environments/azure-k3s-<shape>.yaml overlay's
+    egov-service-host keys disagree with THIS manifest's compositions.
+
+    The manifest is the single source of truth for which bundle owns which
+    service; the overlays restate that fact declaratively (no deploy-time
+    mutation), so a service moved between bundles in the manifest without the
+    overlay following silently routes cross-service calls at the wrong pod.
+    Only keys PRESENT in an overlay are checked — services intentionally
+    absent (no consumer reads their host key) stay absent. Ported as a check,
+    not a writer, from modulith-vault's --service-hosts rewriter."""
+    env_dir = charts_root.parent / "environments"
+    owner = {svc["name"]: bundle["name"] for bundle, members in jobs for svc in members}
+    shape = manifest_path.name.replace(".package.yaml", "")
+    targets = [(env_dir / f"azure-k3s-{shape}.yaml",
+                lambda n: f"http://{owner[n]}.egov.svc.cluster.local:8080/"),
+               (env_dir / "azure-k3s-services.yaml",
+                lambda n: f"http://{n}.egov.svc.cluster.local:8080/")]
+    for path, expect in targets:
+        if not path.exists():
+            continue
+        try:
+            data = (load_yaml(path)["cluster-configs"]["configmaps"]
+                    ["egov-service-host"]["data"])
+        except (KeyError, TypeError):
+            continue
+        drift = [(k, v, expect(k)) for k, v in data.items()
+                 if k in owner and v != expect(k)]
+        for k, got, want in drift:
+            print(f"WARNING: {path.name}: egov-service-host key '{k}' points at "
+                  f"{got} but {manifest_path.name} says {want} — overlay drifted "
+                  f"from the manifest composition")
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--manifest", required=True, type=Path,
@@ -605,6 +641,7 @@ def main():
         die("--output is only valid for a single-bundle manifest")
     for bundle, services in jobs:
         generate(args, policy, args.manifest, bundle, services)
+    check_service_host_overlays(args.charts_root, args.manifest, jobs)
 
 
 if __name__ == "__main__":

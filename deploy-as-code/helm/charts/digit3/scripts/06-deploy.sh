@@ -112,10 +112,25 @@ else
 fi
 
 note "programming kong from the manifest"
-kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 >/dev/null 2>&1 &
-PF_PID=$!
+# Kong may have just been (re)deployed in the sync above — wait for it, then
+# poll the Admin API through the port-forward instead of trusting a blind
+# sleep (port-forward over the SSH tunnel is the doc's known flaky spot; we
+# restart it once halfway through the wait).
+kubectl rollout status deploy/kong-kong -n egov --timeout=180s
+
+start_pf() {
+  kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 >/dev/null 2>&1 &
+  PF_PID=$!
+}
+start_pf
 trap 'kill $PF_PID 2>/dev/null || true' EXIT
-sleep 3
+ADMIN_UP=false
+for i in $(seq 1 15); do
+  if curl -sf -o /dev/null -m 3 http://localhost:18001/status; then ADMIN_UP=true; break; fi
+  sleep 2
+  if [ "$i" -eq 8 ]; then kill "$PF_PID" 2>/dev/null || true; sleep 1; start_pf; fi
+done
+$ADMIN_UP || die "Kong Admin API unreachable through the port-forward after ~30s — re-run this script; if it persists, run setup.py from the VM against the kong-kong-admin ClusterIP (see INSTALL.md on port-forward reliability)"
 KONG_MANIFESTS="$MANIFEST"
 [ "$SHAPE" = "per-service" ] && KONG_MANIFESTS="none"
 (cd "$DIGIT3/src/services/kong" && \

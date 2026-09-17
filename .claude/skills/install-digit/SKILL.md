@@ -1,6 +1,6 @@
 ---
 name: install-digit
-description: Install DIGIT 3 with Vault PII encryption on a single-node k3s VM using the phase scripts in deploy-as-code/helm/charts/digit3/scripts, in one of three shapes (single-container default, domain-bundles, per-service). Use when asked to install or deploy DIGIT to a VM/cluster. Needs an SSH key for the VM, a domain pointing at it, and a digit3 source checkout.
+description: Install DIGIT 3 with Vault PII encryption on a single-node k3s VM using the phase scripts in deploy-as-code/helm/charts/digit3/scripts. Always asks which of three deployment shapes to install — single-container (one JVM), domain-bundles (4 JVMs), or per-service (16 pods). Use when asked to install or deploy DIGIT to a VM/cluster. Needs an SSH key for the VM, a domain pointing at it, and a digit3 source checkout.
 argument-hint: <ssh-key-path> <domain> [vm-user]
 ---
 
@@ -17,17 +17,18 @@ From the arguments: `$1` = SSH private-key path, `$2` = domain, `$3` =
 optional VM user (default `azureuser`). Ask (AskUserQuestion) for anything
 missing — do not guess:
 
-- **ssh key / domain**: required, no defaults.
-- **shape**: ALWAYS ask which deployment shape to install (AskUserQuestion),
-  unless the user already named one in their request. Options to present:
-  - `single-container` (recommended default) — all 16 services in one JVM,
-    ~0.5 GB, 1 pod
+- **shape** — this is REQUIRED and must be an explicit AskUserQuestion before
+  running anything, unless the user already named a shape in their request.
+  Never pick one silently. Present exactly these three:
+  - `single-container` — all 16 services in one JVM (~0.5 GB, 1 pod); smallest
+    footprint, mark it the recommended option
   - `domain-bundles` — 4 JVMs along building-block lines (identity /
-    notification / billing / admin), independent scaling per group
-  - `per-service` — every service its own pod (16 pods, ~5 GB), the classic
+    notification / billing / admin); independent scaling per group
+  - `per-service` — every service its own pod (16 pods, ~5 GB); classic
     microservice layout
-  Pass the choice as `--shape <shape>` to 05 and 06 (07 reads it from
-  `scripts/.env`).
+  Pass the choice as `--shape <shape>` to **both** 05 and 06 (07 reads it from
+  `scripts/.env`; the flag may appear anywhere on the command line).
+- **ssh key / domain**: required, no defaults.
 - **digit3 repo path**: needed by phases 05–06. First search for an existing
   checkout (e.g. `find ~/Documents -maxdepth 3 -name dev-bundle.package.yaml
   -path "*digit3*"`) and confirm the hit with the user. Only if none exists,
@@ -84,7 +85,11 @@ Do not retry blindly and do not improvise cluster surgery:
    127.0.0.1:16443` mid-phase means the SSH tunnel dropped — re-run
    `./01-cluster.sh <key> <domain>` and then the interrupted script.
 2. Apply the mapped fix, then **re-run the same script** — idempotence makes
-   this safe.
+   this safe. The scripts already self-heal the known first-run ordering races
+   (03 waits out the cert-manager webhook and recovers a crash-looped Keycloak
+   plus its consumers; 04 reconciles stale vault-approle ids; 06 waits for
+   Kong before programming it), so on a clean run these need no intervention —
+   just let the phase finish or re-run it.
 3. If the symptom is not in the table, stop and report to the user with the
    error, the phase, and your best diagnosis.
 

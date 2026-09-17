@@ -20,7 +20,16 @@ enabled: false
 # no token is required. Verified: GET of a nonexistent id returns 404, not 401.
 certify:
   service: "inji-certify"
-  port: 8090
+  ## The SERVICE port, not the container port.
+  ##
+  ## This was set to 8090 -- the containerPort -- and the Job died with
+  ## DeadlineExceeded: the health-wait loop never connected, exhausted its 30
+  ## tries, retried, and hit activeDeadlineSeconds. Measured from inside the
+  ## namespace:
+  ##   http://inji-certify.inji:8090/v1/certify/actuator/health -> 000
+  ##   http://inji-certify.inji:80/v1/certify/actuator/health   -> 200
+  ## The chart renders Service port 80 -> targetPort 8090.
+  port: 80
   servletPath: "/v1/certify"
 
 # Must match credentialConfigKeyId in files/credential-config.json -- the Job

@@ -22,6 +22,19 @@ metadata:
 {{- with $m.additionalAnnotations }}
 {{- toYaml . | nindent 4 }}
 {{- end }}
+{{- if $m.denyPaths }}
+    ## Return 404 for admin paths that the application itself leaves
+    ## unauthenticated. Uses a server-snippet so the deny is evaluated before
+    ## the location that proxies to the module.
+    ##
+    ## 404 rather than 403 so the endpoints are not advertised as existing.
+    nginx.ingress.kubernetes.io/server-snippet: |
+{{- range $p := $m.denyPaths }}
+      location ~* ^{{ $p }} {
+        return 404;
+      }
+{{- end }}
+{{- end }}
   labels:
 {{- range $k, $val := $v.labels }}
     {{ $k }}: {{ $val | quote }}

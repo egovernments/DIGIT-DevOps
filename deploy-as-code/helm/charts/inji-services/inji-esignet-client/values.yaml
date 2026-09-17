@@ -1,0 +1,50 @@
+# Registers the Mimoto OIDC client with eSignet.
+#
+# WHY THE API AND NOT SQL
+# esignet.client_detail stores public_key_hash, computed by
+# IdentityProviderUtil.computePublicKeyHash() from a per-key-type subset of JWK
+# fields, and guarded by a UNIQUE constraint. Reproducing that hash by hand is
+# fragile and a mismatch would be silent. The API computes it, validates
+# userClaims / authContextRefs / grantTypes / clientAuthMethods against the
+# running configuration, and serialises the JWK the way eSignet expects.
+#
+# The API is reachable because eSignet now runs with
+# mosip.esignet.security.auth.{post,put,get}-urls={} -- the mock plugin's
+# intended posture -- which SecurityConfig turns into anyRequest().permitAll()
+# with no Keycloak resource server. The admin paths are blocked at the edge by
+# the inji-ingress chart, so this is reachable in-cluster only.
+#
+# SAFETY: GET first, POST only on a definite 404, never PUT or DELETE. An
+# existing client is never modified. Re-running is a no-op.
+enabled: false
+
+esignet:
+  service: "esignet"
+  ## SERVICE port, not containerPort. The chart renders 80 -> 8088; using 8088
+  ## here is what made the certify-config Job die with DeadlineExceeded.
+  port: 80
+  servletPath: "/v1/esignet"
+
+# Must match request.clientId in files/client.json -- used for the GET.
+clientId: "digitlts-mimoto"
+
+image:
+  repository: "curlimages/curl"
+  tag: "8.11.1"
+  pullPolicy: IfNotPresent
+
+job:
+  backoffLimit: 3
+  activeDeadlineSeconds: 420
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 32Mi
+
+labels:
+  app: "inji-esignet-client"
+  group: "inji"

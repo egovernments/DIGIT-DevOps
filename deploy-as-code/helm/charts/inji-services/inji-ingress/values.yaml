@@ -83,6 +83,25 @@ modules:
     host: "esignet.test-lts.digit.org"
     service: "esignet"
     port: 80
+    ## Deny these paths at the edge.
+    ##
+    ## eSignet runs with mosip.esignet.security.auth.{post,put,get}-urls={} --
+    ## the mock plugin's intended posture -- and SecurityConfig:73 turns that
+    ## into anyRequest().permitAll() with no OAuth2 resource server. That is
+    ## what makes the client-management API usable without a Keycloak realm we
+    ## do not have, but it also leaves the admin endpoints unauthenticated to
+    ## anyone who can reach the host.
+    ##
+    ## eSignet is publicly exposed, so the admin surface is blocked here
+    ## instead. In-cluster callers reach the Service directly and are
+    ## unaffected -- which is how inji-esignet-client registers the Mimoto
+    ## client.
+    ##
+    ## Not a substitute for real authorization: if eSignet is ever pointed at a
+    ## working IdP, repopulate the auth.*-urls maps and drop this.
+    denyPaths:
+      - /v1/esignet/client-mgmt
+      - /v1/esignet/system-info
 
   injiverify:
     enabled: false

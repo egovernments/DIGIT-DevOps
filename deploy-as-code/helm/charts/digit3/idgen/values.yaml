@@ -1,6 +1,6 @@
 # Common Labels
 labels:
-  app: "idgen-java"
+  app: "idgen"
   group: "core"
 
 # Ingress Configs
@@ -20,7 +20,7 @@ initContainers:
     enabled: true
     schemaTable: "idgen_schema"
     image:
-      repository: "idgen-java-db"
+      repository: "idgen-db"
     env: |
       - name: "DB_URL"
         valueFrom:
@@ -53,11 +53,11 @@ initContainers:
 
 # Container Configs
 image:
-  repository: "idgen-java"
+  repository: "idgen"
 replicas: 1
 appType: "java"
 # OTel span export switch (MANAGEMENT_TRACING_EXPORT_ENABLED) — override per
-# environment via the idgen-java block in environments/<env>.yaml
+# environment via the idgen block in environments/<env>.yaml
 tracing-export-enabled: "false"
 tracing-enabled: false
 heap: "-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=75.0"
@@ -85,7 +85,7 @@ env: |
   - name: SERVER_SERVLET_CONTEXT_PATH
     # Must match ingress.context (/idgen) -- they were out of step.
     # The ingress/kong route advertises /idgen, and in-cluster callers use
-    # /idgen/... too, but the app served /idgen-java, so every request 404'd with a
+    # /idgen/... too, but the app served /idgen, so every request 404'd with a
     # bare Tomcat error page. For idgen this broke bill generation: billing
     # POSTs /idgen/v3/generate and got 404, which calculator surfaced to the
     # UI as 502 Bad Gateway on /calculator/calculation/v3/*/confirm.

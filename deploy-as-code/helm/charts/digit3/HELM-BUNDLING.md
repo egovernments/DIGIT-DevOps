@@ -54,8 +54,8 @@ the rules and re-run.
 ### 2.1 Resolve each service to a chart
 
 For every manifest service, the generator searches the chart groups for
-`<name>-java` first, then `<name>` (so `idgen` → `idgen-java`,
-`apportion` → `apportion`) — with `charts/digit3` searched before every
+`<name>` first (charts in `charts/digit3` carry plain service names),
+falling back to `<name>-java` for legacy chart groups.
 other group. That ordering is load-bearing: legacy groups
 (`core-services`, `accelerators`, …) carry same-named charts from older
 stacks with reference-cluster values baked in, and plain alphabetical
@@ -200,7 +200,7 @@ dbMigrationOrder: [idgen, template-config, billing, …]   # manifest order
 dbMigrations:
   idgen:
     enabled: true
-    image: {repository: idgen-java-db, tag: ''}
+    image: {repository: idgen-db, tag: ''}
     env: {DB_URL: …, SCHEMA_TABLE: {value: idgen_schema}, FLYWAY_USER: …}
 ```
 
@@ -237,7 +237,7 @@ for why combined beats per-service: composition atomicity + version locking).
 ingress:
   enabled: true
   zuul: true
-  contexts: [idgen, template-config, billing, …, employee-java, individuals-java, accounts, boundary]
+  contexts: [idgen, template-config, billing, …, employee, individual, account, boundary]
 ```
 
 The ingress template ranges over `contexts` and — because `zuul: true`, same

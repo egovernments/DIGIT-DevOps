@@ -1,6 +1,6 @@
 # Common Labels
 labels:
-  app: "url-shortener-java"
+  app: "url-shortener"
   group: "core"
 
 # Ingress Configs
@@ -20,7 +20,7 @@ initContainers:
     enabled: true
     schemaTable: "url_shortener_schema"
     image:
-      repository: "url-shortener-java-db"
+      repository: "url-shortener-db"
     env: |
       - name: "DB_URL"
         valueFrom:
@@ -53,11 +53,11 @@ initContainers:
 
 # Container Configs
 image:
-  repository: "url-shortener-java"
+  repository: "url-shortener"
 replicas: 1
 appType: "java"
 # OTel span export switch (MANAGEMENT_TRACING_EXPORT_ENABLED) — override per
-# environment via the url-shortener-java block in environments/<env>.yaml
+# environment via the url-shortener block in environments/<env>.yaml
 tracing-export-enabled: "false"
 tracing-enabled: false
 heap: "-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=75.0"
@@ -90,7 +90,7 @@ env: |
   - name: SERVER_SERVLET_CONTEXT_PATH
     # Must match ingress.context (/url-shortener) -- they were out of step.
     # The ingress/kong route advertises /url-shortener, and in-cluster callers use
-    # /url-shortener/... too, but the app served /url-shortener-java, so every request 404'd with a
+    # /url-shortener/... too, but the app served /url-shortener, so every request 404'd with a
     # bare Tomcat error page. For idgen this broke bill generation: billing
     # POSTs /url-shortener/... and got 404, which calculator surfaced to the
     # UI as 502 Bad Gateway on /calculator/calculation/v3/*/confirm.

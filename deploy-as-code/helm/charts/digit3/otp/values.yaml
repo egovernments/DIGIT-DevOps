@@ -128,8 +128,15 @@ env: |
         name: egov-service-host
   - name: NOTIFY_ASYNC
     value: "false"
+  # From the cluster-configs-rendered secret — an empty-string value here is
+  # WORSE than absent: Spring prefers a present-but-empty env var over the
+  # property default and HmacSHA256 rejects the empty key (every generate 503s).
   - name: HMAC_SECRET
-    value: ""
+    valueFrom:
+      secretKeyRef:
+        name: hmac-secret
+        key: hmac-secret
+        optional: true
   - name: REDIS_HOST
     value: redis.backbone
   - name: REDIS_PORT
@@ -138,13 +145,24 @@ env: |
   - name: REDIS_DB
     value: "0"
   - name: VAULT_HOST
-    value: http://vault.vault-new.svc.cluster.local:8200
+    valueFrom:
+      configMapKeyRef:
+        key: vault
+        name: egov-service-host
   - name: VAULT_ROLE_ID
-    value: ""
+    valueFrom:
+      secretKeyRef:
+        name: vault-approle
+        key: role-id
+        optional: true
   - name: VAULT_SECRET_ID
-    value: ""
+    valueFrom:
+      secretKeyRef:
+        name: vault-approle
+        key: secret-id
+        optional: true
   - name: VAULT_ENABLED
-    value: "false"
+    value: {{ index .Values "vault-enabled" | quote }}
   - name: OTEL_ENABLED
     value: "false"
   - name: OTEL_SERVICE_NAME

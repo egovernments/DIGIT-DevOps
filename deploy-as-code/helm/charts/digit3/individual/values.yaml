@@ -58,6 +58,9 @@ appType: "java"
 # environment via the individual block in environments/<env>.yaml
 tracing-export-enabled: "false"
 tracing-enabled: false
+# Vault PII encryption: flip per environment (the env block sets it); the
+# secret refs above are chart defaults, rendered by cluster-configs.
+vault-enabled: "false"
 heap: "-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=75.0"
 healthChecks:
   enabled: false
@@ -127,19 +130,21 @@ env: |
       secretKeyRef:
         name: vault-approle
         key: role-id
+        optional: true
   - name: VAULT_SECRET_ID
     valueFrom:
       secretKeyRef:
         name: vault-approle
         key: secret-id
+        optional: true
   - name: VAULT_ENABLED
-    value: "false"
-
+    value: {{ index .Values "vault-enabled" | quote }}
   - name: HMAC_SECRET
     valueFrom:
       secretKeyRef:
         name: hmac-secret
         key: hmac-secret
+        optional: true
 
   - name: PUBSUB_ENABLED
     value: "true"

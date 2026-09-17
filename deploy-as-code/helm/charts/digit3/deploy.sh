@@ -16,7 +16,18 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Per-environment secrets: when scripts/.env names a DOMAIN and a matching
+# per-env file exists (environments/azure-k3s-secrets.<domain>.yaml), use it;
+# otherwise fall back to the shared legacy file. Helmfiles always reference
+# the fixed decrypted name, so selection lives only here.
 SRC=../../environments/azure-k3s-secrets.yaml
+if [ -f scripts/.env ]; then
+  DOMAIN=$(sed -n 's/^DOMAIN="\(.*\)"$/\1/p' scripts/.env)
+  if [ -n "$DOMAIN" ] && [ -f "../../environments/azure-k3s-secrets.$DOMAIN.yaml" ]; then
+    SRC="../../environments/azure-k3s-secrets.$DOMAIN.yaml"
+    echo "secrets: $SRC" >&2
+  fi
+fi
 DEC=../../environments/azure-k3s-secrets.dec.yaml
 
 trap 'rm -f "$DEC"' EXIT

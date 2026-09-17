@@ -31,6 +31,11 @@ load_env() {
   source "$DOTENV"
   : "${SSH_KEY:?missing in .env}" "${DOMAIN:?missing in .env}" "${KUBECONFIG_PATH:?missing in .env}"
   VM_USER="${VM_USER:-azureuser}"
+  # per-environment secrets file when present (see deploy.sh) — sops_set/get
+  # then read and write THIS environment's credentials, not another cluster's
+  if [ -f "$HELM_DIR/environments/azure-k3s-secrets.$DOMAIN.yaml" ]; then
+    SECRETS_FILE="$HELM_DIR/environments/azure-k3s-secrets.$DOMAIN.yaml"
+  fi
   export KUBECONFIG="$KUBECONFIG_PATH"
 }
 

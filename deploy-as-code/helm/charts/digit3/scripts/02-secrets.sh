@@ -30,13 +30,32 @@ if ! grep -q "$RECIPIENT" "$SOPS_RULES" 2>/dev/null; then
   note "adding creation rule to .sops.yaml"
   [ -f "$SOPS_RULES" ] && grep -q "creation_rules:" "$SOPS_RULES" || echo "creation_rules:" >> "$SOPS_RULES"
   cat >> "$SOPS_RULES" <<EOF
-  - path_regex: environments/azure-k3s-secrets\.yaml\$
+  - path_regex: environments/azure\-k3s\-secrets(\..*)?\.yaml\$
     age: $RECIPIENT
 EOF
 else
   note ".sops.yaml already lists this recipient"
 fi
+# Existing installs carry the pre-per-env rule — widen it in place (idempotent).
+python3 - "$SOPS_RULES" <<'PY'
+import sys
+f = sys.argv[1]
+s = open(f).read()
+old = r'environments/azure\-k3s\-secrets\.yaml$'
+new = r'environments/azure\-k3s\-secrets(\..*)?\.yaml$'
+if new not in s and old in s:
+    open(f, 'w').write(s.replace(old, new, 1))
+    print("==> widened the .sops.yaml rule to cover per-env secrets files")
+PY
 
+# Per-environment file: each cluster gets its own credentials (and its own
+# vault-operator/vault-approle entries — one shared file across environments
+# means one vault's unseal key overwrites another's). load_env already picked
+# the per-env path when the file exists; create it here when it doesn't.
+PERENV_FILE="$HELM_DIR/environments/azure-k3s-secrets.$DOMAIN.yaml"
+if [ "$SECRETS_FILE" != "$PERENV_FILE" ] && [ ! -f "$PERENV_FILE" ]; then
+  SECRETS_FILE="$PERENV_FILE"
+fi
 if [ -f "$SECRETS_FILE" ]; then
   note "secrets file exists — leaving it untouched ($SECRETS_FILE)"
 else

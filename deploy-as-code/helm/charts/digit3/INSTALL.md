@@ -135,13 +135,41 @@ kubectl exec -n egov postgresql-lts-0 -- psql -U postgres -c "CREATE DATABASE ne
 
 (Keycloak itself is installed by the services helmfile in both options.)
 
+### 1.8 Optional: HashiCorp Vault (PII encryption at rest)
+
+Services with PII (otp, individual) encrypt fields via Vault's **Transit**
+engine — stored as `vault:v1:…` ciphertext with a keyed HMAC blind index for
+search, one transit key **per tenant** (auto-created on first encrypt).
+Everything runs with `VAULT_ENABLED=false` until you flip it in the
+environment file (the dev-bundle and identity-bundle blocks in azure-k3s.yaml
+ship it ON; the chart defaults already carry the `vault-approle` /
+`hmac-secret` secretKeyRefs, rendered by cluster-configs from the sops file).
+
+The chart is `charts/digit3/vault` (official HashiCorp 0.29.1, de-AWS'd:
+no gp2 storageClass, no awskms auto-unseal, no public ingress; release name
+and namespace MUST be `vault` — egov-config's `vault-host` and
+egov-service-host's `vault` keys point there). One idempotent script deploys,
+initializes (1-of-1 Shamir, keys written straight into the sops file),
+unseals, enables transit + AppRole (`digit-services` role, `digit-transit`
+policy covering encrypt/decrypt/sign/verify/keys + token renew-self) and
+renders the `vault-approle` secret:
+
+```bash
+scripts/04-vault.sh        # needs scripts/.env: SSH_KEY, DOMAIN, KUBECONFIG_PATH
+```
+
+**After every Vault pod restart the Shamir seal closes** — re-run the script
+(it detects the initialized state and just unseals from the sops file). PII
+encrypt/decrypt calls fail while sealed; the services themselves stay up.
+
 ---
 
 ## 2. Option A — Deploy the modulith bundle
 
 The `modulith` branch helmfile is already in this shape:
-`digit3services-helmfile.yaml` contains keycloak, **dev-bundle**,
-accesscontrol-java (not part of the bundle) and gateway-kong.
+`digit3services-helmfile.yaml` contains keycloak, **dev-bundle** and
+gateway-kong (authorization is Keycloak itself — kong's keycloak-rbac
+plugin; the former accesscontrol service is no longer deployed).
 
 ### 2.1 Build the bundle jar (workstation)
 
@@ -217,18 +245,21 @@ the two `tag:` values to your `$TAG`):
 - **`egov-service-host`** keys of the 13 merged services →
   `http://dev-bundle.egov.svc.cluster.local:8080/`.
 
-Both of the above (domain + service-host keys) can be switched between the
-three deployment shapes with one command:
-`python3 environments/set-shape.py services|dev-bundle|domain-split`
-(follow with the cluster-configs sync below and a rollout restart of
-consumers).
+Both of the above (domain + service-host keys) live in the per-shape overlay
+files — `environments/azure-k3s-{services,dev-bundle,domain-split}.yaml` —
+layered by each shape's helmfile after the shared base `azure-k3s.yaml`.
+Switching shape = syncing the other shape's helmfile (then the
+cluster-configs sync below and a rollout restart of consumers). Image tags
+are not in any values file: every digit3 image is tagged from the `DIGIT_TAG`
+environment variable (`environments/digit-tag.yaml.gotmpl`) and the deploy
+fails loudly when it is unset.
 
 ### 2.4 Deploy
 
 ```bash
 cd deploy-as-code/helm/charts/digit3
 ./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync  # service-host update
-./deploy.sh -f digit3services-helmfile.yaml sync                            # keycloak, dev-bundle, accesscontrol, kong
+DIGIT_TAG=modulith-<sha> ./deploy.sh -f digit3services-helmfile.yaml sync   # keycloak, dev-bundle, kong
 kubectl get pods -n egov -l app=dev-bundle   # init container migrates public schema, then 1/1 Running
 ```
 
@@ -274,31 +305,32 @@ kubectl top pod -n egov -l app=dev-bundle    # ~600Mi for all 16 services
 ## 3. Option B — Deploy each service separately (microservice shape)
 
 This is the pre-bundle shape of `digit3services-helmfile.yaml`: one release
-per service (idgen-java, billing-java, …, 16 in all) plus keycloak,
-accesscontrol-java and gateway-kong. On the `modulith` branch those 16
+per service (idgen, billing, …, 16 in all) plus keycloak and
+gateway-kong. On the `modulith` branch those 16
 entries were replaced by `dev-bundle` — to deploy per-service, check out the
 helmfile from the commit before the bundle cutover (or re-add the release
 entries; each is the same 8-line pattern):
 
 ```yaml
-  - name: idgen-java
-    chart: ./idgen-java
+  - name: idgen
+    chart: ./idgen
     namespace: egov
     installed: true
     missingFileHandler: Warn
     values:
       - ../../environments/azure-k3s-secrets.dec.yaml
       - ../../environments/azure-k3s.yaml
-      - ./idgen-java/values.yaml
+      - ./idgen/values.yaml
 ```
 
-The per-service env blocks (image tags, init-container tags) are **still
-present** in `azure-k3s.yaml` — they were kept for exactly this purpose.
-Also revert the 13 `egov-service-host` keys from the bundle back to the
-per-service hosts — `python3 environments/set-shape.py services` does the
-domain and all 13 keys in one step. The per-service image pins for this
-shape live in `environments/modulith-images.yaml` (the charts default to
-unpublished `egovio/<name>-java` repos); pass it as an extra values file.
+This shape has its own helmfile — `services-helmfile.yaml` (keycloak, the
+16 services, kong) — which layers `environments/azure-k3s-services.yaml`
+(domain + the 13 per-service `egov-service-host` keys) and takes its image
+tags from `DIGIT_TAG`, like the other shapes:
+
+```bash
+DIGIT_TAG=modulith-<sha> ./deploy.sh -f services-helmfile.yaml sync
+```
 
 ### 3.1 Deploy
 
@@ -309,14 +341,14 @@ cd deploy-as-code/helm/charts/digit3
 kubectl get pods -n egov     # expect ~16 service pods + keycloak + kong, all Running
 ```
 
-Notes baked into the helmfile: keycloak first; `account-java` has
+Notes baked into the helmfile: keycloak first; `account` has
 `needs: [keycloak/keycloak]`; chart paths are explicit
-(`chart: ./idgen-java`) because helmfile v1 only templates `*.gotmpl` files.
+(`chart: ./idgen`) because helmfile v1 only templates `*.gotmpl` files.
 
 ### 3.2 Program kong (per-service upstreams)
 
 Same script, just **without** `KONG_BUNDLE_UPSTREAM` — upstreams then point
-at the per-service k8s Services (`http://idgen-java.egov.svc.cluster.local:8080`, …):
+at the per-service k8s Services (`http://idgen.egov.svc.cluster.local:8080`, …):
 
 ```bash
 kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 &
@@ -347,9 +379,9 @@ deployments gave the bundle its own `bundle_db`; that override is gone.)
 **B → A (services → bundle)** — the order matters, remove services first:
 
 ```bash
-for r in account-java apportion billing-java boundary-java employee-java filestore-java \
-         idgen-java individual-java localization-java notification-java otp-java pg-service \
-         registry-java template-config-java url-shortener-java workflow-java; do
+for r in account apportion billing boundary employee filestore \
+         idgen individual localization notification otp pg-service \
+         registry template-config url-shortener workflow; do
   helm uninstall "$r" -n egov
 done
 # then follow Option A from 2.3 (env/service-host) → 2.4 sync → 2.5 kong repoint
@@ -420,7 +452,7 @@ identical files → validation passes.
 - Rerun `generate_bundle_chart.py` — the peeled service's ingress context and
   `dbMigrations` entry disappear, and the *callers'* harvested env pointing
   at it (`APPORTION_BILLING_HOST`, `BILLING_HOST` ← `egov-service-host` key
-  `billing-java`) automatically **survives** the merge now (loopback
+  `billing`) automatically **survives** the merge now (loopback
   detection only drops env for bundled services). No manual env plumbing.
 - Peeled service's chart values: keep its datasource and db-migration init
   `DB_URL` on the **same database the bundle used** — its public tables,
@@ -444,7 +476,7 @@ identical files → validation passes.
 ```bash
 ./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync   # service-host key
 ./deploy.sh -f digit3services-helmfile.yaml -l name=dev-bundle sync          # FIRST: frees /billing
-./deploy.sh -f digit3services-helmfile.yaml -l name=billing-java sync        # THEN the peeled service
+./deploy.sh -f digit3services-helmfile.yaml -l name=billing sync        # THEN the peeled service
 kubectl rollout restart deploy/dev-bundle -n egov                            # see below
 ```
 
@@ -503,6 +535,8 @@ sync the bundle, rerun setup.py without the exclude.
 | kong: `mkdir /kong: read-only` / permission denied | `readOnlyRootFilesystem: false` + `env.prefix: /kong_prefix` (key appears twice in values — the later one wins) |
 | "Tag is mandatory" / `-db:latest` pull errors | every service block in the env file must pin image + init tags |
 | Bundle pod `CreateContainerConfigError: secret "egov-filestore" not found` | chart default is AWS S3 → override S3 env to the minio secret |
+| Vault login 500 "failed to determine alias name" | AppRole login sent an empty role_id — the env override didn't reach the pod; check `kubectl get deploy … -o yaml` for empty `VAULT_ROLE_ID` |
+| Bundle env `valueFrom` override renders as empty env var | chart default `value: ""` shadowed the `valueFrom` (the `common.name` mergo merge can't delete keys, `null` included) — fixed in the generator: non-empty `value` wins, else `valueFrom`; regenerate the bundle chart |
 | Bundle boot: `NumberFormatException: "15m000"` | Go-duration `DB_CONN_MAX_LIFETIME=15m` harvested into env; dropped via bundler merge-rules |
 | Bundle crash-loop in `VaultAuth` | `VAULT_ENABLED=true` harvested; override to `false` (no Vault deployed) |
 | Rendered Ingress "apiVersion not set" | generator template `{{- if … -}}` swallowed the line — fixed in `generate_bundle_chart.py` |

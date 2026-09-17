@@ -1,0 +1,258 @@
+# PER-SERVICE (microservice) shape: keycloak + the 16 digit3 services + kong,
+# each service as its own release/pod. Deploy exactly ONE shape per cluster —
+# this, digit3services-helmfile.yaml (dev-bundle) and domain-split-helmfile.yaml
+# publish the same ingress context paths and kong prefixes.
+#
+#   DIGIT_TAG=modulith-<sha> ./deploy.sh -f services-helmfile.yaml sync
+#
+# Explicit chart paths (no templating): helmfile v1 only renders Go templates
+# in *.gotmpl files. Image tags come solely from DIGIT_TAG via
+# environments/digit-tag.yaml.gotmpl; the shape's domain + service-host keys
+# come from environments/azure-k3s-services.yaml.
+
+releases:
+  - name: keycloak
+    chart: ./keycloak
+    namespace: keycloak
+    installed: true
+    missingFileHandler: Warn
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./keycloak/values.yaml
+
+  - name: idgen
+    chart: ./idgen
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./idgen/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: template-config
+    chart: ./template-config
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./template-config/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: billing
+    chart: ./billing
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./billing/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: apportion
+    chart: ./apportion
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./apportion/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: url-shortener
+    chart: ./url-shortener
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./url-shortener/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: pg-service
+    chart: ./pg-service
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./pg-service/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: otp
+    chart: ./otp
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./otp/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: notification
+    chart: ./notification
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./notification/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: employee
+    chart: ./employee
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./employee/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: individual
+    chart: ./individual
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./individual/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: workflow
+    chart: ./workflow
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./workflow/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: registry
+    chart: ./registry
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./registry/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: filestore
+    chart: ./filestore
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./filestore/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: localization
+    chart: ./localization
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./localization/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: account
+    chart: ./account
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./account/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: boundary
+    chart: ./boundary
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - keycloak/keycloak
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./boundary/values.yaml
+      - ../../environments/digit-tag.yaml.gotmpl
+
+  - name: gateway-kong
+    chart: ./gateway-kong
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-services.yaml
+      - ./gateway-kong/values.yaml

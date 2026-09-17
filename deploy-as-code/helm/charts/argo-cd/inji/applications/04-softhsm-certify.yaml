@@ -40,3 +40,27 @@ spec:
         duration: 15s
         factor: 2
         maxDuration: 5m
+  ignoreDifferences:
+    ## The PIN must never be re-applied by ArgoCD.
+    ##
+    ## The softhsm chart renders `security-pin` as `randNumeric 8` whenever
+    ## .Values.securityPIN is empty (templates/secrets.yaml). argocd-repo-server
+    ## caches manifests per git revision, so the value looks stable -- until the
+    ## next commit invalidates the cache, Helm produces a DIFFERENT random PIN,
+    ## and selfHeal overwrites the Secret. The SoftHSM token was initialised with
+    ## the original PIN, so after that write the token can no longer be opened and
+    ## every key under it is unusable.
+    ##
+    ## Excluding /data from the diff means ArgoCD leaves the live Secret alone and
+    ## the Application stays Synced regardless of what Helm rendered this time.
+    ##
+    ## CONSEQUENCE: this Secret is no longer declaratively owned. It is created
+    ## once, on first sync, and then pinned. If it is ever deleted the next sync
+    ## generates a new random PIN and the existing token becomes unreadable --
+    ## so keep a copy of the live PIN somewhere recoverable (SOPS) even though
+    ## nothing consumes it.
+    - group: ""
+      kind: Secret
+      name: softhsm-certify
+      jsonPointers:
+        - /data

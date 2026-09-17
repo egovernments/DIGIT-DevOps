@@ -6,7 +6,21 @@ load_env
 ensure_tunnel
 
 note "deploying backbone (cluster-configs, cert-manager, ingress, postgres, redis, minio, kafka)"
-"$DEPLOY" -f backboneservices-helmfile.yaml sync
+# First-ever sync installs cert-manager AND its ClusterIssuers in one pass;
+# the validating webhook isn't serving yet, so the issuers fail. Known race
+# (INSTALL.md §1.6) — wait for the webhook and retry once automatically.
+if ! OUT=$("$DEPLOY" -f backboneservices-helmfile.yaml sync 2>&1); then
+  if printf '%s' "$OUT" | grep -q 'webhook.cert-manager.io'; then
+    note "first-run race: cert-manager webhook not serving yet — waiting, then retrying once"
+    kubectl wait --for=condition=Available deploy/cert-manager-webhook -n cert-manager --timeout=180s >/dev/null
+    "$DEPLOY" -f backboneservices-helmfile.yaml sync
+  else
+    printf '%s\n' "$OUT" | tail -25
+    die "backbone sync failed (full error above)"
+  fi
+else
+  printf '%s\n' "$OUT" | tail -8
+fi
 
 note "waiting for postgres"
 wait_for_pod egov statefulset.kubernetes.io/pod-name=postgresql-lts-0 300

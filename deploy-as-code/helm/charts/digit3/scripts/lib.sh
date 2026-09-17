@@ -19,6 +19,25 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 note() { echo "==> $*"; }
 next() { echo; echo "next: $*"; }
 
+# sudo breaks everything downstream: the kubeconfig and scripts/.env end up
+# root-owned and unreadable to the later (non-root) script runs.
+[ "$(id -u)" -ne 0 ] || die "do not run these scripts with sudo — nothing here needs root on the workstation, and root-owned kubeconfig/.env files break the later phases"
+
+# Parse "$@" into SHAPE_FLAG (--shape X anywhere) + POSARGS (everything else).
+parse_args() {
+  SHAPE_FLAG=""
+  POSARGS=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --shape)   [ $# -ge 2 ] || die "--shape needs a value (single-container | domain-bundles | per-service)"; SHAPE_FLAG="$2"; shift 2 ;;
+      --shape=*) SHAPE_FLAG="${1#--shape=}"; shift ;;
+      --*)       die "unknown option: $1" ;;
+      *)         POSARGS+=("$1"); shift ;;
+    esac
+  done
+  [ -z "$SHAPE_FLAG" ] || shape_helmfile "$SHAPE_FLAG" >/dev/null   # validate early
+}
+
 # macOS sed needs -i '' ; GNU sed wants -i alone.
 sed_i() {
   if sed --version >/dev/null 2>&1; then sed -i "$@"; else sed -i '' "$@"; fi

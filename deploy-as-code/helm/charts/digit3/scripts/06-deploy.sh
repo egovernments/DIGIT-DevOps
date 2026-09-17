@@ -12,14 +12,31 @@ source "$(dirname "$0")/lib.sh"
 load_env
 ensure_tunnel
 
-SHAPE="$(current_shape)"
-if [ "${1:-}" = "--shape" ]; then SHAPE="$2"; shift 2; fi
+parse_args "$@"
+if [ -n "$SHAPE_FLAG" ]; then
+  SHAPE="$SHAPE_FLAG"
+elif [ -n "${SHAPE:-}" ]; then
+  : # persisted in scripts/.env by a previous run
+elif [ -t 0 ]; then
+  echo "which deployment shape? (they publish the same ingress paths — deploy ONE)"
+  echo "  1) single-container  — all 16 services in one JVM (~0.5 GB)  [default]"
+  echo "  2) domain-bundles    — 4 JVMs: identity/notification/billing/admin"
+  echo "  3) per-service       — every service its own pod (16 pods)"
+  read -r -p "choice [1]: " CHOICE
+  case "${CHOICE:-1}" in
+    1) SHAPE=single-container ;; 2) SHAPE=domain-bundles ;; 3) SHAPE=per-service ;;
+    *) die "invalid choice '$CHOICE'" ;;
+  esac
+else
+  SHAPE="$DEFAULT_SHAPE"
+  note "no shape given — defaulting to $DEFAULT_SHAPE"
+fi
 HELMFILE="$(shape_helmfile "$SHAPE")"
 
-[ $# -ge 1 ] || die "usage: $0 [--shape <shape>] <digit3-path> [TAG]"
-DIGIT3="$(cd "$1" && pwd)"
+[ ${#POSARGS[@]} -ge 1 ] || die "usage: $0 [--shape <shape>] <digit3-path> [TAG]"
+DIGIT3="$(cd "${POSARGS[0]}" && pwd)"
 MANIFEST="$(shape_manifest "$DIGIT3" "$SHAPE")"
-TAG="${2:-$(cat "$SCRIPT_DIR/.last-build-tag" 2>/dev/null || true)}"
+TAG="${POSARGS[1]:-$(cat "$SCRIPT_DIR/.last-build-tag" 2>/dev/null || true)}"
 set_env_var SHAPE "$SHAPE"
 note "shape: $SHAPE (helmfile: $HELMFILE)"
 

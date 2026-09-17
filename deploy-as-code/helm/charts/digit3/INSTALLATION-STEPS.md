@@ -86,6 +86,11 @@ programs Kong:
 ./06-deploy.sh ~/Documents/digit3                # same --shape; persisted for later scripts
 ```
 
+Run interactively without `--shape` (and no shape persisted from a previous
+run), `06-deploy.sh` presents the three-shape menu; under automation it
+defaults to `single-container`. The `--shape` flag is accepted anywhere on
+the command line, and unknown options are rejected loudly.
+
 **9. Seed + verify** — creates a tenant (Keycloak realm + per-tenant schema
 via the tenant-migration event), registers its `individual` idgen template,
 and with `--verify` proves the Vault pipeline end to end (API plaintext, DB

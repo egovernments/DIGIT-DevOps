@@ -8,6 +8,9 @@ source "$(dirname "$0")/lib.sh"
 SSH_KEY="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
 DOMAIN="$2"
 VM_USER="${3:-azureuser}"
+case "$DOMAIN" in
+  *@*) die "pass the domain only (got '$DOMAIN') — the ssh user goes in the 3rd argument: $0 <key> ${DOMAIN##*@} ${DOMAIN%%@*}" ;;
+esac
 KUBECONFIG_PATH="$HOME/modulith-kubeconfig.yaml"
 [ -f "$SSH_KEY" ] || die "ssh key not found: $SSH_KEY"
 

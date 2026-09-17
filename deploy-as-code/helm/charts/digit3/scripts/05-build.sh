@@ -13,13 +13,13 @@
 source "$(dirname "$0")/lib.sh"
 load_env
 
-SHAPE="$(current_shape)"
-if [ "${1:-}" = "--shape" ]; then SHAPE="$2"; shift 2; fi
+parse_args "$@"
+SHAPE="${SHAPE_FLAG:-$(current_shape)}"
 shape_helmfile "$SHAPE" >/dev/null   # validates the name
 
-[ $# -ge 1 ] || die "usage: $0 [--shape <shape>] <digit3-path> [TAG]"
-DIGIT3="$(cd "$1" && pwd)"
-TAG="${2:-$PUBLISHED_TAG}"
+[ ${#POSARGS[@]} -ge 1 ] || die "usage: $0 [--shape <shape>] <digit3-path> [TAG]"
+DIGIT3="$(cd "${POSARGS[0]}" && pwd)"
+TAG="${POSARGS[1]:-$PUBLISHED_TAG}"
 MANIFEST="$(shape_manifest "$DIGIT3" "$SHAPE")"
 [ -f "$MANIFEST" ] || die "manifest not found: $MANIFEST"
 

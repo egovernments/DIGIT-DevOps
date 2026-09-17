@@ -486,6 +486,10 @@ What changes versus the single container:
 
 ## 6. Custom combinations, peeling, re-absorbing
 
+> For a step-by-step custom-grouping walkthrough (what changes vs the stock
+> shapes, with commands), see [CUSTOM-BUNDLING.md](CUSTOM-BUNDLING.md). This
+> section is the reference behind it.
+
 The three stock configurations are just points on a spectrum — the manifest
 accepts any partition of the catalog:
 

@@ -126,3 +126,6 @@ and with `--verify` proves the Vault pipeline end to end (API plaintext, DB
   not found` without it).
 - Anything failing? Start with the **gotchas table** at the end of
   [INSTALL.md](INSTALL.md) — it maps symptoms to fixes.
+- Want a grouping other than the three stock shapes? See
+  [CUSTOM-BUNDLING.md](CUSTOM-BUNDLING.md) — phases 01–04 are identical; only
+  the build + deploy half changes.

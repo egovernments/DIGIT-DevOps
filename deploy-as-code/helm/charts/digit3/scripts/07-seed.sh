@@ -26,6 +26,24 @@ ACC_IP=$(svc_ip "$ACC_SVC"); IDG_IP=$(svc_ip "$IDG_SVC"); IND_IP=$(svc_ip "$IND_
 [ -n "$ACC_IP" ] || die "$ACC_SVC service not found — run 06-deploy.sh first"
 note "shape: $SHAPE (account=$ACC_SVC, idgen=$IDG_SVC, individual=$IND_SVC, db=$APP_DB)"
 
+# Readiness pre-check: the API calls below run over ssh+curl, so an unreachable
+# service would surface only as a bare non-zero curl (and set -e exits with no
+# message). Fail loudly and specifically instead — pods that back these
+# services must be Running/Ready before we POST anything.
+check_ready() { # deploy-name
+  local d="$1" ready
+  ready=$(kubectl get deploy "$d" -n egov -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
+  if [ "${ready:-0}" -lt 1 ] 2>/dev/null; then
+    local pod state
+    pod=$(kubectl get pods -n egov -l "app=$d" -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null)
+    state=$(kubectl get pods -n egov -l "app=$d" -o jsonpath='{.items[-1:].status.containerStatuses[0].state}' 2>/dev/null)
+    die "service '$d' has no ready pod (state: ${state:-unknown}). Check: kubectl logs -n egov $pod
+  A common cause is a stale vault-approle secret ('invalid role or secret ID' → CrashLoopBackOff): re-run ./04-vault.sh, then kubectl rollout restart deploy/$d -n egov"
+  fi
+}
+for d in $(printf '%s\n' "$ACC_SVC" "$IDG_SVC" "$IND_SVC" | sort -u); do check_ready "$d"; done
+echo "    services ready"
+
 note "creating tenant '$NAME' (all calls run on the VM — port-forward is unreliable)"
 # The backend user is created with the email as username and this password —
 # generated here (16 chars, JSON-safe) and printed ONCE at the end. Without it

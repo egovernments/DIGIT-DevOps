@@ -8,6 +8,18 @@ ensure_tunnel
 note "deploying backbone (cluster-configs, cert-manager, ingress, postgres, redis, minio, kafka)"
 "$DEPLOY" -f backboneservices-helmfile.yaml sync
 
+# The first-ever sync races cert-manager's webhook: the ClusterIssuer applies
+# fail with "no endpoints available" while helmfile still exits 0, leaving the
+# cluster silently without issuers. Detect, wait for the webhook, re-sync just
+# cert-manager, and fail LOUDLY if the issuers still don't exist.
+if ! kubectl get clusterissuer letsencrypt-prod >/dev/null 2>&1; then
+  note "ClusterIssuers missing (cert-manager webhook race) — waiting and re-syncing"
+  kubectl wait --for=condition=Available deploy/cert-manager-webhook -n egov --timeout=180s
+  "$DEPLOY" -f backboneservices-helmfile.yaml -l name=cert-manager sync
+  kubectl get clusterissuer letsencrypt-prod >/dev/null 2>&1 || \
+    die "ClusterIssuers still missing after cert-manager re-sync — see the gotchas table in INSTALL.md"
+fi
+
 note "waiting for postgres"
 wait_for_pod egov statefulset.kubernetes.io/pod-name=postgresql-lts-0 300
 

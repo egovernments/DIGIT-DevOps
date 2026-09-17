@@ -51,16 +51,33 @@ path "auth/token/renew-self" { capabilities = ["update"] }
 EOF' >/dev/null
 vault_exec 'vault write auth/approle/role/digit-services token_policies=digit-transit token_ttl=720h token_max_ttl=2160h' >/dev/null
 
-if [ -z "$(sops_get 'cluster-configs.secrets.vault-approle.role-id')" ]; then
-  note "storing approle credentials in the sops file"
+# Stored creds are only trusted after they LOG IN to THIS vault: the sops file
+# is shared state, and values minted by a previous vault instance (another
+# environment, a re-created server) look present but are dead — the classic
+# symptom is otp crash-looping on AppRole login 400. Invalid or absent creds
+# are re-minted and re-stored.
+STORED_ROLE_ID=$(sops_get 'cluster-configs.secrets.vault-approle.role-id')
+STORED_SECRET_ID=$(sops_get 'cluster-configs.secrets.vault-approle.secret-id')
+CREDS_OK=false
+if [ -n "$STORED_ROLE_ID" ] && [ -n "$STORED_SECRET_ID" ]; then
+  if printf '{"role_id":"%s","secret_id":"%s"}' "$STORED_ROLE_ID" "$STORED_SECRET_ID" | \
+     kubectl exec -i vault-0 -n vault -- sh -c \
+       'wget -qO- --post-data="$(cat)" --header="Content-Type: application/json" http://127.0.0.1:8200/v1/auth/approle/login 2>/dev/null' \
+     | grep -q '"client_token"'; then
+    CREDS_OK=true
+  fi
+fi
+unset STORED_ROLE_ID STORED_SECRET_ID
+if $CREDS_OK; then
+  echo "    approle credentials in the sops file log in against this vault — kept"
+else
+  note "storing approle credentials in the sops file (absent or minted by a different vault instance)"
   sops_set "cluster-configs.secrets.vault-approle.role-id" \
     "$(vault_exec 'vault read -field=role_id auth/approle/role/digit-services/role-id')"
   sops_set "cluster-configs.secrets.vault-approle.secret-id" \
     "$(vault_exec 'vault write -f -field=secret_id auth/approle/role/digit-services/secret-id')"
   note "re-rendering the vault-approle k8s secret"
   "$DEPLOY" -f backboneservices-helmfile.yaml -l name=cluster-configs sync
-else
-  echo "    approle credentials already in the sops file"
 fi
 
 next "./06-deploy.sh <path-to-digit3-repo> <services|dev-bundle|domain-split>   (05-build.sh only for locally-built bundle images)"

@@ -87,16 +87,9 @@ EOF
   note "encrypted in place"
 fi
 
-note "stamping domain '$DOMAIN' into $(basename "$ENV_FILE")"
-# The domain appears in several shapes (bare, https://…/, …/keycloak). Detect
-# the currently-stamped hostname from global.domain and swap it everywhere —
-# idempotent when it is already yours.
-OLD_DOMAIN=$(grep -m1 -E "^\s+domain:" "$ENV_FILE" | sed -E 's/.*domain:[[:space:]]*"?(https?:\/\/)?([^"\/[:space:]]+).*/\2/')
-if [ -n "$OLD_DOMAIN" ] && [ "$OLD_DOMAIN" != "$DOMAIN" ]; then
-  sed_i "s|$OLD_DOMAIN|$DOMAIN|g" "$ENV_FILE"
-  echo "    replaced '$OLD_DOMAIN' with '$DOMAIN' throughout"
-else
-  echo "    already stamped"
-fi
+# Domain is NOT stamped into the base env file: each shape overlay
+# (environments/azure-k3s-<shape>.yaml) owns its own global.domain, layered by
+# that shape's helmfile. If your VM's domain differs from the overlay's, edit
+# the overlay — the base azure-k3s.yaml stays shape-neutral.
 
 next "./03-backbone.sh"

@@ -526,7 +526,38 @@ does not migrate data.
 
 ---
 
-## 7. Gotchas index (hard-won, all encountered on this install)
+## 7. Calling the APIs through Kong
+
+Anonymous requests get **401** from the gateway; `/keycloak` redirects (303).
+An authenticated call needs a token that satisfies the `keycloak-rbac`
+plugin, which authorizes every request with a UMA check against Keycloak's
+**in-cluster** URL. Three requirements (each produces a distinct error when
+missed):
+
+1. **Issuer must be the cluster-DNS URL** the plugin itself uses
+   (`http://keycloak.keycloak.svc.cluster.local:8080/keycloak`). A token
+   minted via the public URL or a ClusterIP fails the UMA check with
+   `401 "Token rejected by Keycloak"`.
+2. **Client must be `auth-server`** (confidential; its per-realm secret is
+   readable via the Keycloak admin API). `admin-cli` tokens carry no realm
+   roles → the service answers `403 "No roles found in token"`.
+3. **The user needs realm roles** — tenant admins created by the account
+   service get `SUPERUSER`/`ADMIN`, which pass the UMA decision.
+
+`scripts/08-token.sh <TENANT-CODE> <email> [password]` does all of this and
+prints a ready bearer token plus a sample curl:
+
+```bash
+./scripts/08-token.sh MYTENANT admin@example.org      # password prompted silently
+curl -H "Authorization: Bearer <token>" -H "X-Tenant-ID: MYTENANT" \
+     -H "Host: <domain>" http://<kong-proxy-ip>:8000/individual/v3/individuals
+```
+
+Kong's header-enrichment injects the user identity from the JWT (audit
+fields show the Keycloak user id), so `X-User-ID` is not needed on gateway
+calls — only on direct in-cluster calls that bypass Kong.
+
+## 8. Gotchas index (hard-won, all encountered on this install)
 
 | Symptom | Cause / fix |
 |---|---|
@@ -559,5 +590,7 @@ does not migrate data.
 | Service crash-loops in `VaultAuth` at boot | `VAULT_ENABLED=true` with unreachable Vault or empty role/secret ids — the client logs in eagerly |
 | Vault login 500 "failed to determine alias name" | AppRole login sent an empty role_id — the env override didn't reach the pod; check `kubectl get deploy … -o yaml` for empty `VAULT_ROLE_ID` |
 | Keycloak crash-loops: `password authentication failed for user "keycloak"`; tenant create fails with `failed to get admin token: ConnectException` | the `keycloak` Postgres role from §1.7 was never created (the DB alone isn't enough) → create it from the kc-db secret, delete the Keycloak pod |
+| Kong: `403 "No roles found in token"` | token minted via `admin-cli`, which carries no realm roles → use the `auth-server` client (`scripts/08-token.sh`) |
+| Kong: `401 "Token rejected by Keycloak"` with a valid-looking JWT | issuer mismatch — the keycloak-rbac plugin validates against the in-cluster URL; mint the token with issuer `keycloak.keycloak.svc.cluster.local:8080` (see §7 / `08-token.sh`) |
 | Bundle env `valueFrom` override renders as empty env var | chart default `value: ""` shadowed the `valueFrom` (the `common.name` mergo merge can't delete keys, `null` included) — fixed in the generator: non-empty `value` wins, else `valueFrom`; regenerate the bundle chart |
 | New pods fail DB auth after a cluster-configs sync | the repo's sops secrets diverged from what the cluster was deployed with — cluster-configs re-rendered secrets over live ones; reconcile the sops file with the cluster before syncing |

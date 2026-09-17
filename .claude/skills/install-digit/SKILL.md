@@ -96,6 +96,10 @@ never `apply`; exactly one deployment shape at a time.
 
 End with:
 
+- the tenant admin credentials 07-seed printed (shown once — tell the user to
+  store them), and how to call APIs through Kong: `./08-token.sh <TENANT>
+  <email>` mints a gateway-ready bearer token (see INSTALL.md §7 for why
+  issuer/client matter)
 - the 07-seed PASS/FAIL verification table (API plaintext / `vault:v1:…` +
   HMAC in the DB / per-tenant transit key)
 - `export KUBECONFIG=~/modulith-kubeconfig.yaml` for manual kubectl use

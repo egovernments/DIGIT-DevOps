@@ -63,4 +63,4 @@ else
   echo "    approle credentials already in the sops file"
 fi
 
-next "./05-build.sh <path-to-digit3-repo>"
+next "./06-deploy.sh <path-to-digit3-repo> <services|dev-bundle|domain-split>   (05-build.sh only for locally-built bundle images)"

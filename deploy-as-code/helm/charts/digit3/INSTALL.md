@@ -1,5 +1,10 @@
 # DIGIT 3 on single-node k3s — full replication guide
 
+> **Scripted path:** [INSTALLATION-STEPS.md](INSTALLATION-STEPS.md) drives
+> everything below through the idempotent `scripts/01…07` pipeline (any
+> shape, optional Vault). This document remains the reference for what the
+> scripts do and the troubleshooting table.
+
 Two ways to run DIGIT 3 on one k3s node, exactly as deployed on
 `modulith.digit.org` (Azure VM, 8 vCPU / 32 GB / 100 GB, Ubuntu 22.04):
 

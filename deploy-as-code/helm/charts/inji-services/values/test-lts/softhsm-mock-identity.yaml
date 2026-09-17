@@ -1,0 +1,56 @@
+# softhsm for mock-identity-system (mosip/softhsm 12.0.2) on digit-lts.
+#
+# Software HSM holding mock-identity-system's signing keys. Publishes
+# `softhsm-mock-identity-system-share` (PKCS11_PROXY_SOCKET), the single entry in
+# the mock-identity-system chart's default extraEnvVarsCM.
+#
+# A THIRD softhsm instance, separate from esignet and certify: the OIDC provider's signing keys and
+# the credential issuer's are different trust domains, and upstream keeps two
+# instances rather than sharing one token.
+
+## Must be exactly `softhsm-mock-identity-system` so the share ConfigMap renders as
+## `softhsm-mock-identity-system-share`, the name the chart expects. Verified by rendering.
+fullnameOverride: softhsm-mock-identity-system
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 80
+
+## Upstream defaults persistence ON with storageClass null (cluster default).
+## Kept enabled: losing the token means every key mock-identity ever issued becomes
+## unverifiable. `default` here is disk.csi.azure.com, which is
+## WaitForFirstConsumer and ReadWriteOnce — fine for a single replica.
+persistence:
+  enabled: true
+  storageClass: "default"
+  size: 1Gi
+  accessModes:
+    - ReadWriteOnce
+
+## securityPIN — MUST be set explicitly, and MUST be base64-encoded.
+##
+## Two traps in the upstream softhsm chart, both verified by reading
+## templates/secrets.yaml:
+##
+##  1. When securityPIN is set, the template writes it straight into the
+##     Secret's `data:` field with NO b64enc -- only the fallback branch
+##     encodes. A plaintext PIN here produces an invalid Secret and the pod
+##     fails to decode it. Supply `echo -n <pin> | base64`.
+##  2. When securityPIN is EMPTY, the template generates `randNumeric 8` at
+##     render time. Combined with ArgoCD selfHeal, every sync would produce a
+##     different PIN, and the HSM token -- along with every key signed under
+##     it -- becomes unusable. Leaving this unset is not a safe default here.
+##
+## The value must be SOPS-encrypted into test-lts-secrets.yaml and referenced,
+## not written literally into this file.
+# securityPIN: "<base64-encoded PIN from SOPS>"
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi

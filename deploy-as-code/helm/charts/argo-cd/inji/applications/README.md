@@ -18,12 +18,27 @@ on. Nothing in the manifests will stop you skipping ahead.
 | 3 | `03-softhsm-esignet.yaml` | publishes `esignet-softhsm-share`, read by 5 |
 | 4 | `04-softhsm-certify.yaml` | publishes `softhsm-certify-share`, read by 6 |
 | 5 | `05-esignet.yaml` | the OIDC provider Certify authenticates against |
+| 5b | `05b-softhsm-mock-identity.yaml` | third softhsm; publishes `softhsm-mock-identity-system-share` |
+| 5c | `05c-mock-identity-system.yaml` | the identity backend eSignet authenticates against |
 | 6 | `06-inji-certify.yaml` | the credential issuer |
 | 7 | `07-mimoto.yaml` | wallet backend-for-frontend; cluster-internal only |
 | 8 | `08-injiweb.yaml` | the web wallet UI |
 
 Steps 3 and 4 are independent of each other and can go together. Everything
 else is strictly sequential.
+
+**Why 5b/5c exist.** eSignet is configured with
+`mosip.esignet.integration.authenticator=MockAuthenticationService` — the only
+authenticator present in the `esignet-with-plugins` image. It calls
+`/v1/mock-identity-system/{identity,kyc-auth,kyc-exchange,send-otp}`, so
+without 5c eSignet reports Healthy while every login fails. eSignet's copy of
+those URLs is overridden in `inji-config/esignet-digit-lts.properties` to the
+in-cluster Service, so 5c needs no hostname, certificate or ingress rule.
+
+This whole branch is a consequence of the Certify plugin choice: the
+`postgres-landregistry` (SQL) profile uses an EXTERNAL authorization server,
+and that server needs an identity backend. The `postgres-university` PreAuth
+profile would need neither eSignet nor 5b/5c.
 
 ```bash
 kubectl apply -f applications/01-config-server.yaml
@@ -48,6 +63,12 @@ clear error:
   fails with `CreateContainerConfigError` without it, even if Google sign-in
   is unused.
 - **`mimotooidc` secret** (`oidckeystore.p12`) for step 7.
+- **`mockidPassword`** in `test-lts-secrets.yaml`, twice: as a fifth key on the
+  `inji-db` block and as the `db-common-secrets` block. The
+  mock-identity-system chart hardcodes a reference to
+  `Secret/db-common-secrets` key `db-dbuser-password`, so that exact name has
+  to exist; it carries only the `mockidsystemuser` password, so per-module role
+  separation is unchanged.
 - **Cluster capacity.** These are ~8 additional mostly-JVM pods.
 - **DNS.** A records for `injiweb.`, `injicertify.`, `esignet.` before enabling
   the matching `inji-ingress.modules.*` flag.

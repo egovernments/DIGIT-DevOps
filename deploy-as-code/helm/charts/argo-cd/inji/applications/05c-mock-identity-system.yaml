@@ -1,0 +1,55 @@
+## inji-mock-identity-system -- step 05c of the Inji bring-up order.
+##
+## The identity backend eSignet authenticates against. eSignet uses
+## MockAuthenticationService (the only authenticator in the
+## esignet-with-plugins image), which calls
+##   /v1/mock-identity-system/{identity,kyc-auth,kyc-exchange,send-otp}
+## Without this, eSignet is Healthy but every login fails.
+##
+## PREREQUISITES: 05b (softhsm), the mosip_mockidentitysystem database from
+## inji-db-init, and the ConfigMaps/Secrets from inji-stack-config plus
+## db-common-secrets from cluster-configs.
+##
+## No ingress -- it is called only by eSignet, in-cluster.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-mock-identity-system
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: mock-identity-system
+      targetRevision: 0.13.0
+      helm:
+        ## releaseName esignet -> Service "esignet", which inji-ingress targets.
+        releaseName: mock-identity-system
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/mock-identity-system.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

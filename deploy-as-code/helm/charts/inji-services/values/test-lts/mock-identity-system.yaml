@@ -1,0 +1,45 @@
+# mock-identity-system (mosip/mock-identity-system 0.13.0) — step 05b.
+#
+# WHY IT EXISTS HERE
+# eSignet is configured with mosip.esignet.integration.authenticator=
+# MockAuthenticationService (the only authenticator in the
+# esignet-with-plugins image). That implementation calls
+#   /v1/mock-identity-system/{identity,kyc-auth,kyc-exchange,send-otp}
+# so without this service eSignet reports Healthy but every login fails.
+#
+# It is required because the Certify postgres data-provider plugin uses an
+# EXTERNAL authorization server (eSignet), and that server needs an identity
+# backend. The postgres-university PreAuth profile would not need any of this.
+
+replicaCount: 1
+
+## Istio off — same as every other module here; routing, where needed, comes
+## from the local inji-ingress chart. This service needs NO ingress: it is
+## called only by eSignet, in-cluster.
+istio:
+  enabled: false
+
+service:
+  type: ClusterIP
+  port: 80
+
+## Provided by the inji-stack-config chart (esignet-global,
+## mockid-postgres-config, redis-config, Secret/redis) and by the
+## softhsm-mock-identity Application (softhsm-mock-identity-system-share and
+## its security-pin secret). db-common-secrets comes from cluster-configs.
+##
+## Enumerated by rendering this chart and listing every configMapKeyRef /
+## secretKeyRef it does not create itself — all seven are now satisfied.
+extraEnvVarsCM:
+  - softhsm-mock-identity-system-share
+
+persistence:
+  enabled: false
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1536Mi
+  requests:
+    cpu: 100m
+    memory: 512Mi

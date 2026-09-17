@@ -124,7 +124,7 @@ DECLARE r record;
 BEGIN
     FOR r IN
         SELECT datname FROM pg_database
-         WHERE datname IN ('inji_certify','inji_mimoto','inji_verify','mosip_esignet')
+         WHERE datname IN ('inji_certify','inji_mimoto','inji_verify','mosip_esignet','mosip_mockidentitysystem')
     LOOP
         RAISE NOTICE 'Note: database % already exists; leaving untouched.', r.datname;
     END LOOP;
@@ -179,10 +179,18 @@ SELECT format(
  WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'esignetuser')
 \gexec
 
+-- mock-identity-system. Added with step 05b: eSignet's MockAuthenticationService
+-- has no backend without it, so login fails even though eSignet is healthy.
+SELECT format(
+    'CREATE ROLE mockidsystemuser INHERIT LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE '
+    'NOREPLICATION NOBYPASSRLS CONNECTION LIMIT 25 PASSWORD %L', :'mockidpwd')
+ WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mockidsystemuser')
+\gexec
+
 -- Report what exists, without echoing any password.
 SELECT rolname AS role_created_or_present
   FROM pg_roles
- WHERE rolname IN ('certifyuser','mimotouser','verifyuser','esignetuser')
+ WHERE rolname IN ('certifyuser','mimotouser','verifyuser','esignetuser','mockidsystemuser')
  ORDER BY rolname;
 
 \echo ''
@@ -245,11 +253,23 @@ SELECT $ddl$CREATE DATABASE mosip_esignet
  WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'mosip_esignet')
 \gexec
 
+SELECT $ddl$CREATE DATABASE mosip_mockidentitysystem
+    WITH ENCODING = 'UTF8'
+         LC_COLLATE = 'en_US.utf8'
+         LC_CTYPE = 'en_US.utf8'
+         TABLESPACE = pg_default
+         OWNER = postgres
+         TEMPLATE = template0
+         CONNECTION LIMIT = 30$ddl$
+ WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'mosip_mockidentitysystem')
+\gexec
+
 -- search_path per upstream db.sql. Safe to re-run.
 ALTER DATABASE inji_certify  SET search_path TO certify,pg_catalog,public;
 ALTER DATABASE inji_mimoto   SET search_path TO mimoto,pg_catalog,public;
 ALTER DATABASE inji_verify   SET search_path TO verify,pg_catalog,public;
 ALTER DATABASE mosip_esignet SET search_path TO esignet,pg_catalog,public;
+ALTER DATABASE mosip_mockidentitysystem SET search_path TO mockidentitysystem,pg_catalog,public;
 
 -- Hardening: PUBLIC holds CONNECT on every new database by default, which
 -- would let keycloak / metabase / any future DIGIT role connect here.
@@ -257,6 +277,7 @@ REVOKE CONNECT ON DATABASE inji_certify  FROM PUBLIC;
 REVOKE CONNECT ON DATABASE inji_mimoto   FROM PUBLIC;
 REVOKE CONNECT ON DATABASE inji_verify   FROM PUBLIC;
 REVOKE CONNECT ON DATABASE mosip_esignet FROM PUBLIC;
+REVOKE CONNECT ON DATABASE mosip_mockidentitysystem FROM PUBLIC;
 
 \echo ''
 \echo '=== Section 3: schemas and grants (per database) ==='
@@ -514,6 +535,48 @@ GRANT SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES
     ON ALL TABLES IN SCHEMA mimoto TO mimotouser;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA mimoto TO mimotouser;
 
+-- -----------------------------------------------------------------------------
+-- mock-identity-system schema objects (step 05b).
+--
+-- Database mosip_mockidentitysystem, schema mockidentitysystem, role
+-- mockidsystemuser -- names taken from
+-- mosip/esignet-mock-services@v0.13.0 db_scripts/mosip_mockidentitysystem
+-- (db.sql, role_dbuser.sql, deploy.properties), not invented.
+--
+-- GUARDED on mockidentitysystem.key_alias: NONE of the 8 upstream CREATE TABLE
+-- statements uses IF NOT EXISTS, so a re-run without the guard fails the Job.
+-- -----------------------------------------------------------------------------
+
+\connect mosip_mockidentitysystem
+\echo '--- mosip_mockidentitysystem: schema objects ---'
+
+CREATE SCHEMA IF NOT EXISTS mockidentitysystem AUTHORIZATION postgres;
+ALTER SCHEMA mockidentitysystem OWNER TO postgres;
+GRANT CONNECT ON DATABASE mosip_mockidentitysystem TO mockidsystemuser;
+GRANT USAGE ON SCHEMA mockidentitysystem TO mockidsystemuser;
+ALTER DEFAULT PRIVILEGES IN SCHEMA mockidentitysystem
+    GRANT SELECT,INSERT,UPDATE,DELETE,REFERENCES ON TABLES TO mockidsystemuser;
+ALTER DEFAULT PRIVILEGES IN SCHEMA mockidentitysystem
+    GRANT USAGE, SELECT ON SEQUENCES TO mockidsystemuser;
+
+SELECT NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+     WHERE table_schema = 'mockidentitysystem' AND table_name = 'key_alias'
+) AS mockid_needs_schema \gset
+
+\if :mockid_needs_schema
+    \echo '    key_alias absent -> applying mock-identity DDL + seed data'
+    \ir mockid-ddl.sql
+    \ir mockid-dml.sql
+    \echo '    mock-identity schema created'
+\else
+    \echo '    key_alias present -> schema already built, skipping (idempotent)'
+\endif
+
+GRANT SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES
+    ON ALL TABLES IN SCHEMA mockidentitysystem TO mockidsystemuser;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA mockidentitysystem TO mockidsystemuser;
+
 \echo ''
 \echo '=== Section 4: verification ==='
 
@@ -530,20 +593,20 @@ SELECT datname,
        datcollate              AS collate,
        pg_encoding_to_char(encoding) AS encoding
   FROM pg_database
- WHERE datname IN ('inji_certify','inji_mimoto','inji_verify','mosip_esignet')
+ WHERE datname IN ('inji_certify','inji_mimoto','inji_verify','mosip_esignet','mosip_mockidentitysystem')
  ORDER BY datname;
 
 \echo '--- new roles (must be no superuser, no createdb, capped at 25) ---'
 SELECT rolname, rolsuper, rolcreatedb, rolcreaterole, rolcanlogin, rolconnlimit
   FROM pg_roles
- WHERE rolname IN ('certifyuser','mimotouser','verifyuser','esignetuser')
+ WHERE rolname IN ('certifyuser','mimotouser','verifyuser','esignetuser','mockidsystemuser')
  ORDER BY rolname;
 
 \echo '--- PUBLIC must NOT hold CONNECT on the new databases ---'
 SELECT datname,
        has_database_privilege('public', datname, 'CONNECT') AS public_can_connect
   FROM pg_database
- WHERE datname IN ('inji_certify','inji_mimoto','inji_verify','mosip_esignet')
+ WHERE datname IN ('inji_certify','inji_mimoto','inji_verify','mosip_esignet','mosip_mockidentitysystem')
  ORDER BY datname;
 
 \echo '--- Kong and DIGIT untouched ---'

@@ -1,0 +1,71 @@
+## inji-softhsm-mock-identity -- step 05b of the Inji bring-up order.
+##
+## A THIRD softhsm instance, for mock-identity-system. eSignet, Certify and
+## mock-identity each get their own keystore -- separate trust domains, as
+## upstream intends. Publishes softhsm-mock-identity-system-share.
+##
+## Apply BEFORE 05c. See applications/README.md.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: inji-softhsm-mock-identity
+  namespace: argocd
+spec:
+  project: inji-project
+  sources:
+    - repoURL: https://mosip.github.io/mosip-helm
+      chart: softhsm
+      targetRevision: 12.0.2
+      helm:
+        ## Two softhsm instances are required, not one: esignet reads
+        ## esignet-softhsm-share and inji-certify reads softhsm-certify-share.
+        ## They are separate keystores by design -- the OIDC provider's signing
+        ## keys and the credential issuer's are different trust domains.
+        releaseName: softhsm-mock-identity-system
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/inji-services/values/test-lts/softhsm-mock-identity.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inji
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    ## The PIN must never be re-applied by ArgoCD.
+    ##
+    ## The softhsm chart renders `security-pin` as `randNumeric 8` whenever
+    ## .Values.securityPIN is empty (templates/secrets.yaml). argocd-repo-server
+    ## caches manifests per git revision, so the value looks stable -- until the
+    ## next commit invalidates the cache, Helm produces a DIFFERENT random PIN,
+    ## and selfHeal overwrites the Secret. The SoftHSM token was initialised with
+    ## the original PIN, so after that write the token can no longer be opened and
+    ## every key under it is unusable.
+    ##
+    ## Excluding /data from the diff means ArgoCD leaves the live Secret alone and
+    ## the Application stays Synced regardless of what Helm rendered this time.
+    ##
+    ## CONSEQUENCE: this Secret is no longer declaratively owned. It is created
+    ## once, on first sync, and then pinned. If it is ever deleted the next sync
+    ## generates a new random PIN and the existing token becomes unreadable --
+    ## so keep a copy of the live PIN somewhere recoverable (SOPS) even though
+    ## nothing consumes it.
+    - group: ""
+      kind: Secret
+      name: softhsm-mock-identity-system
+      jsonPointers:
+        - /data

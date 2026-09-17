@@ -1,0 +1,81 @@
+{{- $v := include "inji-stack-config.mergedValues" . | fromYaml -}}
+{{- if and $v.enabled $v.mockIdentity.enabled }}
+## Supporting ConfigMaps for mock-identity-system (step 05b).
+##
+## The mosip/mock-identity-system chart references these by fixed name and
+## creates none of them. Enumerated by rendering the chart and listing every
+## configMapKeyRef / secretKeyRef that it does not itself provide:
+##   esignet-global                        key mosip-esignet-host
+##   mockid-postgres-config                keys database-host/port/name/username
+##   redis-config                          keys redis-host/redis-port
+##   softhsm-mock-identity-system-share    (from the softhsm Application)
+##   db-common-secrets                     key db-dbuser-password  (cluster-configs)
+##   redis                                 key redis-password      (below)
+##   softhsm-mock-identity-system          key security-pin        (softhsm chart)
+##
+## They live in this chart because inji-stack-config is already the
+## "must exist before the modules" Application, so ordering is free.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: esignet-global
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{- range $k, $val := $v.labels }}
+    {{ $k }}: {{ $val | quote }}
+{{- end }}
+data:
+  ## Browser-facing eSignet host. mock-identity-system uses it to build the
+  ## audience/issuer it expects in requests from eSignet.
+  mosip-esignet-host: {{ $v.hosts.esignet | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mockid-postgres-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{- range $k, $val := $v.labels }}
+    {{ $k }}: {{ $val | quote }}
+{{- end }}
+data:
+  ## postgres.egov, and the database/role that inji-db-init provisions.
+  ## Names are upstream's, from
+  ## mosip/esignet-mock-services@v0.13.0 db_scripts/mosip_mockidentitysystem.
+  database-host: {{ $v.infra.postgresHost | quote }}
+  database-port: {{ $v.infra.postgresPort | quote }}
+  database-name: {{ $v.mockIdentity.databaseName | quote }}
+  database-username: {{ $v.mockIdentity.databaseUsername | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{- range $k, $val := $v.labels }}
+    {{ $k }}: {{ $val | quote }}
+{{- end }}
+data:
+  ## The existing backbone Redis, same instance the other modules use.
+  redis-host: {{ $v.infra.redisHost | quote }}
+  redis-port: {{ $v.infra.redisPort | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{- range $k, $val := $v.labels }}
+    {{ $k }}: {{ $val | quote }}
+{{- end }}
+type: Opaque
+stringData:
+  ## redis.backbone has no authentication configured, so this is intentionally
+  ## empty. The key must still EXIST -- the chart references it with a
+  ## secretKeyRef, and a missing key is CreateContainerConfigError, not a
+  ## silently empty value.
+  redis-password: {{ $v.infra.redisPassword | quote }}
+{{- end }}

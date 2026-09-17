@@ -43,6 +43,9 @@ infra:
   minioPort: "9000"
   redisHost: "redis.backbone"
   redisPort: "6379"
+  # No auth on the backbone Redis. Empty, but the key must exist -- see
+  # templates/mock-identity-deps.yaml.
+  redisPassword: ""
 
 # Pinned rather than "develop". The module chart versions are pinned in
 # charts/argo-cd/inji/applications/ too; keep the two in step.
@@ -51,3 +54,14 @@ injiVersion: "0.13.1"
 labels:
   app: "inji-stack-config"
   group: "inji"
+
+# mock-identity-system (step 05b) supporting objects.
+#
+# eSignet's MockAuthenticationService calls
+#   /v1/mock-identity-system/{identity,kyc-auth,kyc-exchange,send-otp}
+# so without this service eSignet is healthy but login fails.
+mockIdentity:
+  enabled: true
+  # Provisioned by inji-db-init; names are upstream's, not chosen by us.
+  databaseName: "mosip_mockidentitysystem"
+  databaseUsername: "mockidsystemuser"

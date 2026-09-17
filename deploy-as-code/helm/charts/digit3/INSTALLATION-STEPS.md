@@ -73,17 +73,24 @@ encryption:
 ./04-vault.sh
 ```
 
-**8. Images + deploy** — `05` is Docker-Hub-first: the published egovio
-images pinned in the environment file are verified and **nothing is built**
-(pass a custom TAG to build your own digit3 tree instead — bundle shapes
-only). `06` regenerates the shape's charts, derives the `egov-service-host`
-keys from the manifest (re-syncing cluster-configs), ensures the database,
-pins tags only when a local build happened, deploys the shape's helmfile, and
-programs Kong:
+**8. Deploy** — `06` regenerates the shape's charts, derives the
+`egov-service-host` keys from the manifest (re-syncing cluster-configs),
+ensures the database, deploys the shape's helmfile, and programs Kong. For all
+three out-of-the-box shapes the images are already published, so k3s pulls
+them on deploy — no build step:
 
 ```bash
-./05-build.sh ~/Documents/digit3                 # add --shape domain-bundles | per-service
-./06-deploy.sh ~/Documents/digit3                # same --shape; persisted for later scripts
+./06-deploy.sh ~/Documents/digit3                # add --shape domain-bundles | per-service
+```
+
+**`05-build.sh` is optional here** — it's a Docker-Hub-first pre-check that
+verifies every pinned image exists before you deploy (and, only if a tag is
+missing because you're running your own digit3 code, builds and loads it). Run
+it first if you want that safety check; skip it and `06` still works, k3s just
+surfaces a bad pin as an `ImagePullBackOff` instead:
+
+```bash
+./05-build.sh ~/Documents/digit3                 # optional; same --shape as 06
 ```
 
 Run interactively without `--shape` (and no shape persisted from a previous

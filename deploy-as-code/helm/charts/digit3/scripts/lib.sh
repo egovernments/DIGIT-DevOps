@@ -75,6 +75,66 @@ vault_exec() { # 'vault subcommand ...'
 
 psql_exec() { kubectl exec -i -n egov postgresql-lts-0 -- psql -U postgres "$@"; }
 
+# ── deployment shapes ────────────────────────────────────────────────────────
+# single-container (default) | domain-bundles | per-service. Deploy exactly ONE
+# shape at a time — they publish the same ingress context paths.
+DEFAULT_SHAPE="single-container"
+PUBLISHED_TAG="modulith-29bd3a4"   # multi-arch egovio images exist for every shape at this tag
+
+# 06-deploy.sh persists SHAPE in .env; scripts fall back to the default.
+current_shape() { echo "${SHAPE:-$DEFAULT_SHAPE}"; }
+
+shape_helmfile() {
+  case "$1" in
+    single-container) echo "digit3services-single-container-helmfile.yaml" ;;
+    domain-bundles)   echo "digit3services-domain-bundles-helmfile.yaml" ;;
+    per-service)      echo "digit3services-per-service-helmfile.yaml" ;;
+    *) die "unknown shape '$1' (single-container | domain-bundles | per-service)" ;;
+  esac
+}
+
+shape_manifest() { # <digit3-path> <shape>
+  case "$2" in
+    domain-bundles) echo "$1/src/bundles/domain-split.package.yaml" ;;
+    *)              echo "$1/src/bundles/dev-bundle.package.yaml" ;;
+  esac
+}
+
+shape_bundles() {
+  case "$1" in
+    single-container) echo "dev-bundle" ;;
+    domain-bundles)   echo "identity-bundle notification-bundle billing-bundle admin-bundle" ;;
+    per-service)      echo "" ;;
+  esac
+}
+
+# per-service shape: env-file block names (resolved chart names). Their images
+# are pinned per block in azure-k3s.yaml (mixed registries/tags from the
+# reference deployment) — NOT a uniform tag like the bundle shapes.
+PER_SERVICE_BLOCKS="idgen template-config billing apportion url-shortener pg-service otp notification employee individual workflow registry filestore localization account boundary"
+
+hub_has() { # <[namespace/]repo:tag> — anonymous Docker Hub check (default ns egovio)
+  local ref="${1%%:*}" tag="${1##*:}" ns=egovio repo
+  case "$ref" in */*) ns="${ref%%/*}"; repo="${ref##*/}" ;; *) repo="$ref" ;; esac
+  curl -sf -o /dev/null "https://hub.docker.com/v2/repositories/$ns/$repo/tags/$tag" 2>/dev/null
+}
+
+# Print "block repo:tag" for each per-service app image pinned in the env file
+# (repository defaults to the chart name when the block doesn't override it).
+per_service_images() {
+  python3 - "$ENV_FILE" $PER_SERVICE_BLOCKS <<'PYEOF'
+import sys, yaml
+doc = yaml.safe_load(open(sys.argv[1]))
+for b in sys.argv[2:]:
+    img = (doc.get(b) or {}).get("image") or {}
+    print(b, f"{img.get('repository', b)}:{img.get('tag', 'MISSING-TAG')}")
+PYEOF
+}
+
+set_env_var() { # persist KEY=VALUE into scripts/.env (idempotent)
+  grep -q "^$1=" "$DOTENV" 2>/dev/null && sed_i "s|^$1=.*|$1=\"$2\"|" "$DOTENV" || echo "$1=\"$2\"" >> "$DOTENV"
+}
+
 # curl a ClusterIP URL from the VM (kubectl port-forward over the tunnel is
 # unreliable for data transfer — see INSTALL.md).
 vm_curl() { vm_ssh "curl -s $*"; }

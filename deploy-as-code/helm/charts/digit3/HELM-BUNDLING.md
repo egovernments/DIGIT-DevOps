@@ -49,7 +49,7 @@ the rules and re-run.
 
 For every manifest service, the generator searches all chart groups
 (`charts/core-services`, `charts/digit3`, …) for `<name>-java` first, then
-`<name>` (so `idgen` → `idgen-java`, `apportion` → `apportion`). Missing
+`<name>` (so `idgen` → `idgen`, `apportion` → `apportion`). Missing
 chart = hard error before any work happens.
 
 ### 2.2 Render each member chart for real (`helm template`)
@@ -190,7 +190,7 @@ dbMigrationOrder: [idgen, template-config, billing, …]   # manifest order
 dbMigrations:
   idgen:
     enabled: true
-    image: {repository: idgen-java-db, tag: ''}
+    image: {repository: idgen-db, tag: ''}
     env: {DB_URL: …, SCHEMA_TABLE: {value: idgen_schema}, FLYWAY_USER: …}
 ```
 
@@ -227,7 +227,7 @@ for why combined beats per-service: composition atomicity + version locking).
 ingress:
   enabled: true
   zuul: true
-  contexts: [idgen, template-config, billing, …, employee-java, individuals-java, accounts, boundary]
+  contexts: [idgen, template-config, billing, …, employee, individuals-java, accounts, boundary]
 ```
 
 The ingress template ranges over `contexts` and — because `zuul: true`, same
@@ -290,7 +290,7 @@ manifest helm: ───┤→ generate_bundle_chart.py → charts/bundles/dev-b
                                             rendered Deployment/Service/Ingress
 ```
 
-The helmfile release (`digit3services-helmfile.yaml`) points at
+The helmfile release (`digit3services-single-container-helmfile.yaml`) points at
 `../bundles/dev-bundle` and passes the secrets + environment files; the
 `common.name` helper merges the environment's `dev-bundle:` block over the
 generated values with highest precedence. Maps (env, dbMigrations) deep-merge

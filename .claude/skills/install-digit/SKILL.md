@@ -1,10 +1,10 @@
 ---
 name: install-digit
-description: Install DIGIT 3 (single modulith + Vault PII encryption) on a single-node k3s VM using the phase scripts in deploy-as-code/helm/charts/digit3/scripts. Use when asked to install or deploy DIGIT to a VM/cluster. Needs an SSH key for the VM, a domain pointing at it, and a digit3 source checkout.
+description: Install DIGIT 3 with Vault PII encryption on a single-node k3s VM using the phase scripts in deploy-as-code/helm/charts/digit3/scripts, in one of three shapes (single-container default, domain-bundles, per-service). Use when asked to install or deploy DIGIT to a VM/cluster. Needs an SSH key for the VM, a domain pointing at it, and a digit3 source checkout.
 argument-hint: <ssh-key-path> <domain> [vm-user]
 ---
 
-# Install DIGIT 3 (single modulith + Vault) on a k3s VM
+# Install DIGIT 3 (+ Vault) on a k3s VM — single-container / domain-bundles / per-service
 
 You are driving the numbered, **idempotent** phase scripts in
 `deploy-as-code/helm/charts/digit3/scripts/` (repo root = this repo). Run the
@@ -18,6 +18,10 @@ optional VM user (default `azureuser`). Ask (AskUserQuestion) for anything
 missing — do not guess:
 
 - **ssh key / domain**: required, no defaults.
+- **shape**: `single-container` (default — all 16 services in one JVM),
+  `domain-bundles` (4 JVMs), or `per-service` (16 pods). Ask only if the user
+  mentioned wanting a specific topology; otherwise default silently. Pass it
+  as `--shape <shape>` to 05 and 06 (07 reads it from `scripts/.env`).
 - **digit3 repo path**: needed by phases 05–06. First search for an existing
   checkout (e.g. `find ~/Documents -maxdepth 3 -name dev-bundle.package.yaml
   -path "*digit3*"`) and confirm the hit with the user. Only if none exists,
@@ -52,8 +56,8 @@ phase in one line as it completes:
 ./02-secrets.sh                                # age key, sops rule, secrets file (fresh random passwords), domain stamp
 ./03-backbone.sh                               # backbone sync + keycloak DB AND role
 ./04-vault.sh                                  # init/unseal, transit+approle, creds into sops
-./05-build.sh <digit3-path>                    # bundle gen + 2 images + ctr import
-./06-deploy.sh <digit3-path>                   # chart gen + service-host map from manifest, bundle_db, tag pin, services sync, kong
+./05-build.sh [--shape <shape>] <digit3-path>  # Docker-Hub-first: verifies published pins, builds only what's missing
+./06-deploy.sh [--shape <shape>] <digit3-path> # chart gen + service-host map from manifest, db, tag pin, shape helmfile sync, kong
 ./07-seed.sh "<tenant name>" <email> --verify  # tenant, idgen template, Vault verification
 ```
 

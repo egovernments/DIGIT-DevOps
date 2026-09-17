@@ -1,6 +1,6 @@
 # DIGIT 3 on single-node k3s — installation guide
 
-> Just installing the single-modulith shape? Follow the **9-step scripted
+> Installing? Follow the **9-step scripted
 > runbook** in [INSTALLATION-STEPS.md](INSTALLATION-STEPS.md) — the numbered,
 > idempotent scripts in [`scripts/`](scripts/) automate everything below
 > except VM provisioning. This guide is the reference behind them.
@@ -16,7 +16,7 @@ provided:
 | # | Configuration | Containers (core services) | Manifest | Bundler needed? |
 |---|---|---|---|---|
 | 1 | **Per-service** — every service its own pod | 16 | none | **No** |
-| 2 | **Single modulith** — everything in one JVM (`dev-bundle`) | 1 | [`dev-bundle.package.yaml`](https://github.com/digitnxt/digit3/blob/modulith/src/bundles/dev-bundle.package.yaml) (`modulith` branch) | Yes |
+| 2 | **Single container** — everything in one JVM (`dev-bundle`) | 1 | [`dev-bundle.package.yaml`](https://github.com/digitnxt/digit3/blob/modulith/src/bundles/dev-bundle.package.yaml) (`modulith` branch) | Yes |
 | 3 | **Domain bundles** — four JVMs along building-block lines | 4 | [`domain-split.package.yaml`](https://github.com/digitnxt/digit3/blob/modulith/src/bundles/domain-split.package.yaml) (`modulith` branch) | Yes |
 
 Configuration 3's grouping:
@@ -33,7 +33,7 @@ infra, keycloak, kong. External behavior is identical in every shape — each
 service keeps its standalone URL (`/billing/v3/…`), kong keeps the same
 routes/plugins, and only the upstreams differ. Deploy exactly one shape at a
 time (they publish the same ingress paths). Measured trade-off: 16 JVMs ≈
-5 GB vs the single modulith ≈ 0.5 GB; grouped bundles sit in between and buy
+5 GB vs the single container ≈ 0.5 GB; grouped bundles sit in between and buy
 independent scaling/releases per group.
 
 Reference deployment: `modulith.digit.org` (Azure VM, 8 vCPU / 32 GB / 100 GB,
@@ -332,27 +332,27 @@ image rebuild, ever.
 One helm release per service, each a thin values-wrapper over the `common`
 library chart. The bundler and manifest play **no part** in this shape.
 
-The services helmfile in this shape lists one release per service (idgen-java,
-billing-java, … 16 in all) plus keycloak and gateway-kong — each release is
+The services helmfile in this shape lists one release per service (idgen,
+billing, … 16 in all) plus keycloak and gateway-kong — each release is
 the same 8-line pattern:
 
 ```yaml
-  - name: idgen-java
-    chart: ./idgen-java
+  - name: idgen
+    chart: ./idgen
     namespace: egov
     installed: true
     missingFileHandler: Warn
     values:
       - ../../environments/azure-k3s-secrets.dec.yaml
       - ../../environments/azure-k3s.yaml
-      - ./idgen-java/values.yaml
+      - ./idgen/values.yaml
 ```
 
 Deploy and program kong (note `KONG_BUNDLE_MANIFESTS=none` — otherwise
 setup.py defaults to the repo's manifest and repoints upstreams at bundles):
 
 ```bash
-./deploy.sh -f digit3services-helmfile.yaml sync
+./deploy.sh -f digit3services-single-container-helmfile.yaml sync
 kubectl get pods -n egov     # ~16 service pods + keycloak + kong, all Running
 
 kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 &
@@ -361,13 +361,13 @@ KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS=<domain> \
   KONG_BUNDLE_MANIFESTS=none python3 setup.py
 ```
 
-Ordering baked into the helmfile: keycloak first, `account-java`
-`needs: [keycloak/keycloak]`; chart paths are explicit (`chart: ./idgen-java`)
+Ordering baked into the helmfile: keycloak first, `account`
+`needs: [keycloak/keycloak]`; chart paths are explicit (`chart: ./idgen`)
 because helmfile v1 only templates `*.gotmpl` files.
 
 ---
 
-## 4. Configuration 2 — single modulith (`dev-bundle`)
+## 4. Configuration 2 — single container (`dev-bundle`)
 
 Everything in one JVM (~0.5 GB instead of ~5 GB). Manifest: the `modulith`
 branch [`dev-bundle.package.yaml`](https://github.com/digitnxt/digit3/blob/modulith/src/bundles/dev-bundle.package.yaml)
@@ -433,7 +433,7 @@ and gateway-kong).
 ```bash
 cd deploy-as-code/helm/charts/digit3
 ./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync  # service-host update
-./deploy.sh -f digit3services-helmfile.yaml sync
+./deploy.sh -f digit3services-single-container-helmfile.yaml sync
 kubectl get pods -n egov -l app=dev-bundle    # init container migrates, then 1/1 Running
 
 # kong: NO flags — the manifest is the default input
@@ -461,7 +461,7 @@ Same mechanics as configuration 2, N times. Manifest: the `modulith` branch
 the whole catalog, each service in exactly one. All on port 8080 (a bundle is
 just a bigger pod; ports are namespace-scoped).
 
-What changes versus the single modulith:
+What changes versus the single container:
 
 - **Generate once, get four modules** — `generate_bundle.py` on that manifest
   emits all four bundle modules, each with its own jar, Dockerfile, and

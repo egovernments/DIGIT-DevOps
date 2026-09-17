@@ -1,12 +1,22 @@
-# DIGIT 3 Single Modulith on k3s — Installation Steps
+# DIGIT 3 on k3s — Installation Steps
 
-The **single modulith (dev-bundle) shape with Vault PII encryption** in
-**9 steps**. Steps 4–9 are the numbered scripts in
-[`scripts/`](scripts/) — each is idempotent (safe to re-run; a completed
-phase converges to a no-op) and prints the next command when it finishes.
-Background, the other deployment shapes, and the troubleshooting table live
-in [INSTALL.md](INSTALL.md); the fully manual command-by-command path is in
-the history of this file (`git log -- INSTALLATION-STEPS.md`).
+DIGIT 3 with Vault PII encryption in **9 steps**, in your choice of three
+**out-of-the-box shapes** — pre-generated charts, pinned published images,
+no chart generation or image building required:
+
+| Shape (`--shape`) | Containers | What it is |
+|---|---|---|
+| `single-container` (default) | 1 | all 16 services in one JVM (`dev-bundle`) |
+| `domain-bundles` | 4 | identity / notification / billing / admin bundles |
+| `per-service` | 16 | every service its own pod |
+
+Steps 4–9 are the numbered scripts in [`scripts/`](scripts/) — each is
+idempotent (safe to re-run; a completed phase converges to a no-op) and
+prints the next command when it finishes. Deploy exactly ONE shape at a time
+(they publish the same ingress paths). Background, shape internals, and the
+troubleshooting table live in [INSTALL.md](INSTALL.md); the fully manual
+command-by-command path is in the history of this file
+(`git log -- INSTALLATION-STEPS.md`).
 
 Placeholders: `<key>` = SSH private key, `<domain>` = the VM's DNS name.
 
@@ -63,16 +73,17 @@ encryption:
 ./04-vault.sh
 ```
 
-**8. Build + deploy** — generates the bundle module, builds the app and
-db-migration images from the same tree, loads them into the node's
-containerd, generates the bundle chart, derives the `egov-service-host` keys
-from the manifest (re-syncing cluster-configs), creates `bundle_db`, pins the
-tags in the environment file, deploys the services, and programs Kong from
-the manifest:
+**8. Images + deploy** — `05` is Docker-Hub-first: the published egovio
+images pinned in the environment file are verified and **nothing is built**
+(pass a custom TAG to build your own digit3 tree instead — bundle shapes
+only). `06` regenerates the shape's charts, derives the `egov-service-host`
+keys from the manifest (re-syncing cluster-configs), ensures the database,
+pins tags only when a local build happened, deploys the shape's helmfile, and
+programs Kong:
 
 ```bash
-./05-build.sh ~/Documents/digit3
-./06-deploy.sh ~/Documents/digit3
+./05-build.sh ~/Documents/digit3                 # add --shape domain-bundles | per-service
+./06-deploy.sh ~/Documents/digit3                # same --shape; persisted for later scripts
 ```
 
 **9. Seed + verify** — creates a tenant (Keycloak realm + per-tenant schema
@@ -93,6 +104,11 @@ and with `--verify` proves the Vault pipeline end to end (API plaintext, DB
   `./01-cluster.sh <key> <domain>` to re-open the tunnel.
 - **New app build** — re-run `./05-build.sh` + `./06-deploy.sh` (the new
   git-derived tag is pinned and rolled out automatically).
+- **Switching shapes** — uninstall the old shape's releases first
+  (`helm uninstall <release> -n egov` for each), then run
+  `./06-deploy.sh --shape <new-shape> …`; bundle shapes share `bundle_db`,
+  per-service uses `postgres` — independent datasets, switching does not
+  migrate data.
 - **New tenant** — `./07-seed.sh "Name" email@org` (the idgen `individual`
   template is part of seeding; individuals fail with `idgen 404 template
   not found` without it).

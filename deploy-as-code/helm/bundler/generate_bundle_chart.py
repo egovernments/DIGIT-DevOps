@@ -92,25 +92,35 @@ def select_bundle(manifest, name):
     return chosen, services
 
 
-def update_service_host_keys(env_file, manifest, charts_root):
-    """Rewrite the egov-service-host keys of every manifest service to point at
-    its owning bundle's Service — derived from the manifest, so the map can
-    never drift from the deployed shape (keys are the resolved chart names the
-    per-service charts reference; infra keys like vault-host are untouched).
-    Covers ALL bundles in the manifest, not just the one being generated."""
+def update_service_host_keys(env_file, manifest, charts_root, mode="bundles"):
+    """Rewrite the egov-service-host keys of every manifest service to match
+    the deployed shape — derived from the manifest, so the map can never drift
+    (keys are the resolved chart names the per-service charts reference; infra
+    keys like vault-host are untouched). mode="bundles": each service points at
+    its owning bundle's Service (covers ALL bundles in the manifest, not just
+    the one being generated). mode="per-service": each service points at its
+    own release's Service (the bundler plays no part in that shape)."""
     mapping = {}
-    for b in manifest.get("bundles", []):
-        url = f"http://{b['name']}.egov.svc.cluster.local:{int(b.get('port', 8080))}/"
-        for svc_name in b.get("include", []):
+    if mode == "per-service":
+        for svc_name in manifest.get("services", {}):
             chart_dir = resolve_chart(charts_root, svc_name)
             key = chart_dir.name if chart_dir else svc_name
-            mapping[key] = (url, b["name"])
+            mapping[key] = (f"http://{key}.egov.svc.cluster.local:8080/", "per-service")
+    else:
+        for b in manifest.get("bundles", []):
+            url = f"http://{b['name']}.egov.svc.cluster.local:{int(b.get('port', 8080))}/"
+            for svc_name in b.get("include", []):
+                chart_dir = resolve_chart(charts_root, svc_name)
+                key = chart_dir.name if chart_dir else svc_name
+                mapping[key] = (url, b["name"])
 
     lines = env_file.read_text().splitlines(keepends=True)
     in_block = False
     block_indent = None
     last_key_idx = None
-    updated, unchanged = [], []
+    updated, unchanged, deduped = [], [], []
+    seen = set()
+    drop = set()
     for i, line in enumerate(lines):
         stripped = line.lstrip()
         indent = len(line) - len(stripped)
@@ -126,8 +136,13 @@ def update_service_host_keys(env_file, manifest, charts_root):
             continue
         last_key_idx = i
         key = m.group(2)
-        if key not in mapping:
+        if key not in mapping and key not in seen:
             continue
+        if key in seen:  # duplicate occurrence of a derived key — drop the line
+            drop.add(i)
+            deduped.append(key)
+            continue
+        seen.add(key)
         url, owner = mapping.pop(key)
         new_line = f'{m.group(1)}{key}: "{url}" # {owner} (generated from the manifest)\n'
         if line != new_line:
@@ -135,6 +150,8 @@ def update_service_host_keys(env_file, manifest, charts_root):
             updated.append(key)
         else:
             unchanged.append(key)
+    if drop:
+        lines = [l for i, l in enumerate(lines) if i not in drop]
 
     added = []
     if mapping and last_key_idx is not None:  # keys the map didn't have yet
@@ -143,15 +160,18 @@ def update_service_host_keys(env_file, manifest, charts_root):
         lines[last_key_idx + 1:last_key_idx + 1] = insert
         added = sorted(mapping)
 
-    if updated or added:
+    if updated or added or deduped:
         env_file.write_text("".join(lines))
     print(f"\nservice-host keys in {env_file.name}: "
-          f"{len(updated)} updated, {len(added)} added, {len(unchanged)} already current")
+          f"{len(updated)} updated, {len(added)} added, {len(deduped)} duplicates removed, "
+          f"{len(unchanged)} already current")
     for k in updated:
         print(f"  ~ {k}")
     for k in added:
         print(f"  + {k}")
-    return bool(updated or added)
+    for k in deduped:
+        print(f"  - {k} (duplicate)")
+    return bool(updated or added or deduped)
 
 
 # ── chart resolution ─────────────────────────────────────────────────────────
@@ -634,9 +654,20 @@ def main():
                     help="environment file whose egov-service-host keys are rewritten "
                          "from the manifest (every service -> its owning bundle's "
                          "Service; re-sync cluster-configs afterwards)")
+    ap.add_argument("--service-hosts-mode", choices=("bundles", "per-service"),
+                    default="bundles",
+                    help="bundles: keys point at each service's owning bundle; "
+                         "per-service: keys point at each service's own release")
     args = ap.parse_args()
 
     manifest = load_yaml(args.manifest)
+    if args.service_hosts and args.service_hosts_mode == "per-service":
+        # per-service shape: only the service-host rewrite applies — no bundle
+        # chart is generated (the shape doesn't use the bundler).
+        args.service_hosts.exists() or die(f"env file not found: {args.service_hosts}")
+        update_service_host_keys(args.service_hosts, manifest, args.charts_root,
+                                 mode="per-service")
+        return
     bundle, services = select_bundle(manifest, args.bundle)
     if args.service_hosts:
         args.service_hosts.exists() or die(f"env file not found: {args.service_hosts}")

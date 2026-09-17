@@ -142,7 +142,7 @@ Every clause solves a specific collision:
 ### 3.3 `BundlePathConfig.java` — re-creating sixteen context-paths
 
 Standalone, each service serves under `server.servlet.context-path`
-(`/idgen`, `/billing`, `/employee-java`…). One servlet context has exactly
+(`/idgen`, `/billing`, `/employee`…). One servlet context has exactly
 one context-path, so the bundle **blanks it** and re-creates each prefix at
 the handler-mapping layer:
 
@@ -269,7 +269,7 @@ never run in a tenant schema.
  kong (routes,   │            dev-bundle JVM  :8085             │
  strip_path=off) │  /idgen/**        → org.digit.idgen.*        │
  ───────────────▶│  /billing/**      → org.digit.billing.*      │
-                 │  /employee-java/**→ org.digit.employee.*     │
+                 │  /employee/**→ org.digit.employee.*     │
                  │  …16 prefixes (BundlePathConfig)             │
                  │                                              │
                  │  billing ──HTTP──▶ localhost:8085/idgen/…    │

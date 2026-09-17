@@ -65,9 +65,10 @@ encryption:
 
 **8. Build + deploy** — generates the bundle module, builds the app and
 db-migration images from the same tree, loads them into the node's
-containerd, generates the bundle chart, creates `bundle_db`, pins the tags
-in the environment file, deploys the services, and programs Kong from the
-manifest:
+containerd, generates the bundle chart, derives the `egov-service-host` keys
+from the manifest (re-syncing cluster-configs), creates `bundle_db`, pins the
+tags in the environment file, deploys the services, and programs Kong from
+the manifest:
 
 ```bash
 ./05-build.sh ~/Documents/digit3

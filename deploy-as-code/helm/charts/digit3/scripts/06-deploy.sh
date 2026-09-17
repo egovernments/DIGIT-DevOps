@@ -12,8 +12,13 @@ MANIFEST="$DIGIT3/src/bundles/dev-bundle.package.yaml"
 TAG="${2:-$(cat "$SCRIPT_DIR/.last-build-tag" 2>/dev/null || true)}"
 [ -n "$TAG" ] || die "no TAG given and scripts/.last-build-tag missing — run 05-build.sh first"
 
-note "generating the bundle chart"
-python3 "$HELM_DIR/bundler/generate_bundle_chart.py" --manifest "$MANIFEST" | tail -1
+note "generating the bundle chart (+ deriving egov-service-host keys from the manifest)"
+python3 "$HELM_DIR/bundler/generate_bundle_chart.py" --manifest "$MANIFEST" --service-hosts "$ENV_FILE" \
+  | grep -E "^wrote|^service-host|^  [~+]" || true
+
+note "re-rendering cluster-configs so the service-host map matches the shape"
+"$DEPLOY" -f backboneservices-helmfile.yaml -l name=cluster-configs sync >/dev/null
+echo "    cluster-configs synced"
 
 note "bundle database"
 if ! psql_exec -tAc "SELECT 1 FROM pg_database WHERE datname='bundle_db'" | grep -q 1; then

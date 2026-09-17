@@ -53,7 +53,7 @@ phase in one line as it completes:
 ./03-backbone.sh                               # backbone sync + keycloak DB AND role
 ./04-vault.sh                                  # init/unseal, transit+approle, creds into sops
 ./05-build.sh <digit3-path>                    # bundle gen + 2 images + ctr import
-./06-deploy.sh <digit3-path>                   # chart gen, bundle_db, tag pin, services sync, kong
+./06-deploy.sh <digit3-path>                   # chart gen + service-host map from manifest, bundle_db, tag pin, services sync, kong
 ./07-seed.sh "<tenant name>" <email> --verify  # tenant, idgen template, Vault verification
 ```
 
@@ -69,7 +69,10 @@ Do not retry blindly and do not improvise cluster surgery:
 1. Read the actual error from the script output (and `kubectl get pods
    -n egov`, pod logs) — then look it up in the **gotchas table** at the end
    of `deploy-as-code/helm/charts/digit3/INSTALL.md`. Nearly every known
-   failure mode is mapped to its fix there.
+   failure mode is mapped to its fix there. Most common transient: kubectl
+   suddenly failing with `TLS handshake timeout` or `connection refused
+   127.0.0.1:16443` mid-phase means the SSH tunnel dropped — re-run
+   `./01-cluster.sh <key> <domain>` and then the interrupted script.
 2. Apply the mapped fix, then **re-run the same script** — idempotence makes
    this safe.
 3. If the symptom is not in the table, stop and report to the user with the

@@ -418,9 +418,12 @@ otherwise), `KEYCLOAK_PUBLIC_BASE_URL`, minio-backed S3
 (`S3_ACCESS_KEY`/`S3_SECRET_KEY` from the `minio` secret,
 `S3_ENDPOINT: minio.backbone.svc.cluster.local:9000`, `S3_USE_SSL: "false"`);
 `dbMigrationOrder: [combined]` with one `dbMigrations.combined` entry using
-`dev-bundle-db:<TAG>` and `DB_URL` pointing at `bundle_db`. Also repoint the
-bundled services' `egov-service-host` keys at
-`http://dev-bundle.egov.svc.cluster.local:8080/`.
+`dev-bundle-db:<TAG>` and `DB_URL` pointing at `bundle_db`. The bundled
+services' `egov-service-host` keys are **derived from the manifest** — run
+`generate_bundle_chart.py --service-hosts environments/azure-k3s.yaml` (the
+`06-deploy.sh` script does this on every run) and re-sync cluster-configs;
+each service's key then points at its owning bundle's Service and can never
+drift from the deployed shape.
 
 The services helmfile carries one `dev-bundle` release (plus keycloak
 and gateway-kong).
@@ -501,7 +504,9 @@ accepts any partition of the catalog:
   - its chart values: datasource + init `DB_URL` → **`bundle_db`** (its data
     lives there), and **`TENANT_MIGRATION_ENABLED: "true"`** (per-service
     charts ship it false; standalone it must consume tenant events itself);
-  - re-add its helmfile release; revert its `egov-service-host` key;
+  - re-add its helmfile release; re-run the generator with `--service-hosts`
+    (a service in no bundle keeps its per-service key untouched — revert it
+    to per-service DNS manually if it was previously bundle-pointed);
   - **sync the bundle BEFORE the standalone service** (the ingress admission
     webhook rejects a duplicate path while the old bundle Ingress still owns
     it; helmfile syncs concurrently — use `-l` selectors), and rollout-restart

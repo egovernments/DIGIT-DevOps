@@ -92,6 +92,68 @@ def select_bundle(manifest, name):
     return chosen, services
 
 
+def update_service_host_keys(env_file, manifest, charts_root):
+    """Rewrite the egov-service-host keys of every manifest service to point at
+    its owning bundle's Service — derived from the manifest, so the map can
+    never drift from the deployed shape (keys are the resolved chart names the
+    per-service charts reference; infra keys like vault-host are untouched).
+    Covers ALL bundles in the manifest, not just the one being generated."""
+    mapping = {}
+    for b in manifest.get("bundles", []):
+        url = f"http://{b['name']}.egov.svc.cluster.local:{int(b.get('port', 8080))}/"
+        for svc_name in b.get("include", []):
+            chart_dir = resolve_chart(charts_root, svc_name)
+            key = chart_dir.name if chart_dir else svc_name
+            mapping[key] = (url, b["name"])
+
+    lines = env_file.read_text().splitlines(keepends=True)
+    in_block = False
+    block_indent = None
+    last_key_idx = None
+    updated, unchanged = [], []
+    for i, line in enumerate(lines):
+        stripped = line.lstrip()
+        indent = len(line) - len(stripped)
+        if stripped.startswith("egov-service-host:"):
+            in_block, block_indent = True, indent
+            continue
+        if in_block and stripped and not line.startswith("#") and indent <= block_indent:
+            in_block = False
+        if not in_block:
+            continue
+        m = re.match(r"^(\s+)([A-Za-z0-9_.-]+):\s*(.*)$", line)
+        if not m or m.group(2) in ("namespace", "data"):
+            continue
+        last_key_idx = i
+        key = m.group(2)
+        if key not in mapping:
+            continue
+        url, owner = mapping.pop(key)
+        new_line = f'{m.group(1)}{key}: "{url}" # {owner} (generated from the manifest)\n'
+        if line != new_line:
+            lines[i] = new_line
+            updated.append(key)
+        else:
+            unchanged.append(key)
+
+    added = []
+    if mapping and last_key_idx is not None:  # keys the map didn't have yet
+        insert = [f'                {k}: "{u}" # {o} (generated from the manifest)\n'
+                  for k, (u, o) in sorted(mapping.items())]
+        lines[last_key_idx + 1:last_key_idx + 1] = insert
+        added = sorted(mapping)
+
+    if updated or added:
+        env_file.write_text("".join(lines))
+    print(f"\nservice-host keys in {env_file.name}: "
+          f"{len(updated)} updated, {len(added)} added, {len(unchanged)} already current")
+    for k in updated:
+        print(f"  ~ {k}")
+    for k in added:
+        print(f"  + {k}")
+    return bool(updated or added)
+
+
 # ── chart resolution ─────────────────────────────────────────────────────────
 
 def resolve_chart(charts_root, service_name):
@@ -551,7 +613,7 @@ def print_report(report, services, missing_migrations, context_mismatches):
                 print(f"    ignored ({ig['service']}): {json.dumps(ig['spec'])}")
     print("\nreminders:")
     print("  - remove the merged services from the Argo CD ApplicationSet and add the bundle entry")
-    print("  - repoint egov-service-host keys for merged services at the bundle Service")
+    print("  - egov-service-host keys: pass --service-hosts <env.yaml> to rewrite them from the manifest, then re-sync cluster-configs")
     print("  - Kong routes for the merged prefixes must target the bundle Service")
 
 
@@ -568,10 +630,17 @@ def main():
     ap.add_argument("--bundle", default=None,
                     help="bundle name from the manifest's `bundles:` list "
                          "(defaults to the only entry)")
+    ap.add_argument("--service-hosts", type=Path, default=None, metavar="ENV_YAML",
+                    help="environment file whose egov-service-host keys are rewritten "
+                         "from the manifest (every service -> its owning bundle's "
+                         "Service; re-sync cluster-configs afterwards)")
     args = ap.parse_args()
 
     manifest = load_yaml(args.manifest)
     bundle, services = select_bundle(manifest, args.bundle)
+    if args.service_hosts:
+        args.service_hosts.exists() or die(f"env file not found: {args.service_hosts}")
+        update_service_host_keys(args.service_hosts, manifest, args.charts_root)
     policy = MergePolicy(load_yaml(args.rules), manifest.get("helm"))
     out_dir = args.output or (args.charts_root / "bundles" / bundle["name"])
     common_dir = args.charts_root / "common"

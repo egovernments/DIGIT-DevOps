@@ -30,7 +30,7 @@ Placeholders: `<key>` = SSH private key, `<domain>` = the VM's DNS name.
 
 ```bash
 cd ~/Documents
-git clone -b modulith-vault https://github.com/egovernments/DIGIT-DevOps.git
+git clone -b modulith-final https://github.com/egovernments/DIGIT-DevOps.git
 git clone -b modulith https://github.com/digitnxt/digit3.git
 ```
 

@@ -54,13 +54,26 @@ psql_exec -tAc "SELECT 1 FROM pg_roles WHERE rolname='$KC_USER'" | grep -q 1 \
 echo "    verified: new_keycloak database + $KC_USER role present"
 
 # If Keycloak was already up but crash-looping on the missing role, nudge it so
-# it retries with the now-valid credentials (no-op if it's healthy).
+# it retries with the now-valid credentials (no-op if it's healthy). And when we
+# do recover it, restart any already-running Keycloak consumers: the account
+# service builds its Keycloak admin client once at boot, so a service that
+# started while Keycloak was down caches a dead connection and every later
+# tenant-create fails with 'failed to get admin token: ConnectException'.
 if kubectl get deploy keycloak -n keycloak >/dev/null 2>&1; then
   RESTARTS=$(kubectl get pods -n keycloak -l app=keycloak -o jsonpath='{.items[-1:].status.containerStatuses[0].restartCount}' 2>/dev/null || echo 0)
   READY=$(kubectl get deploy keycloak -n keycloak -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
   if [ "${RESTARTS:-0}" -gt 0 ] 2>/dev/null && [ "${READY:-0}" -lt 1 ] 2>/dev/null; then
-    note "keycloak was crash-looping — restarting it now that the role exists"
+    note "keycloak was crash-looping — restarting it, then waiting for it to serve"
     kubectl rollout restart deploy/keycloak -n keycloak >/dev/null
+    kubectl rollout status deploy/keycloak -n keycloak --timeout=180s >/dev/null || true
+    # restart whichever account-bearing deployment exists (any shape) so it
+    # re-initializes its Keycloak admin client against the healthy instance
+    for d in identity-bundle dev-bundle account; do
+      if kubectl get deploy "$d" -n egov >/dev/null 2>&1; then
+        note "restarting $d so it refreshes its Keycloak admin client"
+        kubectl rollout restart "deploy/$d" -n egov >/dev/null
+      fi
+    done
   fi
 fi
 

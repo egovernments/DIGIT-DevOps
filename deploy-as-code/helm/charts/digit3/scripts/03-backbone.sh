@@ -44,4 +44,24 @@ GRANT ALL PRIVILEGES ON DATABASE new_keycloak TO %s;
 ALTER DATABASE new_keycloak OWNER TO %s;\n" "$KC_USER" "$KC_PASS" "$KC_USER" "$KC_USER" | psql_exec
 fi
 
+# Assert both objects exist before declaring the backbone done — a partial run
+# (e.g. an earlier sync failure that exited before this block) otherwise leaves
+# Keycloak crash-looping on 'password authentication failed for user keycloak'.
+psql_exec -tAc "SELECT 1 FROM pg_database WHERE datname='new_keycloak'" | grep -q 1 \
+  || die "new_keycloak database missing after creation — check postgres"
+psql_exec -tAc "SELECT 1 FROM pg_roles WHERE rolname='$KC_USER'" | grep -q 1 \
+  || die "keycloak role missing after creation — check postgres"
+echo "    verified: new_keycloak database + $KC_USER role present"
+
+# If Keycloak was already up but crash-looping on the missing role, nudge it so
+# it retries with the now-valid credentials (no-op if it's healthy).
+if kubectl get deploy keycloak -n keycloak >/dev/null 2>&1; then
+  RESTARTS=$(kubectl get pods -n keycloak -l app=keycloak -o jsonpath='{.items[-1:].status.containerStatuses[0].restartCount}' 2>/dev/null || echo 0)
+  READY=$(kubectl get deploy keycloak -n keycloak -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+  if [ "${RESTARTS:-0}" -gt 0 ] 2>/dev/null && [ "${READY:-0}" -lt 1 ] 2>/dev/null; then
+    note "keycloak was crash-looping — restarting it now that the role exists"
+    kubectl rollout restart deploy/keycloak -n keycloak >/dev/null
+  fi
+fi
+
 next "./04-vault.sh   (or skip to ./05-build.sh if not using Vault PII encryption)"

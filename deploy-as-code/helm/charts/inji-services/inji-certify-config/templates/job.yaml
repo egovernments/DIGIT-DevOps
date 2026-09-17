@@ -1,0 +1,129 @@
+{{- $v := include "inji-certify-config.mergedValues" . | fromYaml -}}
+{{- if $v.enabled }}
+{{- $sum := include "inji-certify-config.checksum" . -}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inji-certify-config-{{ $sum }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  labels:
+{{- range $k, $val := $v.labels }}
+    {{ $k }}: {{ $val | quote }}
+{{- end }}
+data:
+  credential-config.json: |
+{{ .Files.Get "files/credential-config.json" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: inji-certify-config-{{ $sum }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+{{- range $k, $val := $v.labels }}
+    {{ $k }}: {{ $val | quote }}
+{{- end }}
+spec:
+  backoffLimit: {{ $v.job.backoffLimit }}
+  activeDeadlineSeconds: {{ $v.job.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+{{- range $k, $val := $v.labels }}
+        {{ $k }}: {{ $val | quote }}
+{{- end }}
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+        - name: seed
+          image: "{{ $v.image.repository }}:{{ $v.image.tag }}"
+          imagePullPolicy: {{ $v.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: BASE
+              value: "http://{{ $v.certify.service }}.{{ .Release.Namespace }}:{{ $v.certify.port }}{{ $v.certify.servletPath }}"
+            - name: KEY_ID
+              value: {{ $v.credentialConfigKeyId | quote }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              EP="$BASE/credential-configurations"
+
+              ## Wait for Certify to be serving. The Job may start before the
+              ## Deployment is Ready, and a connection error must not be
+              ## mistaken for "configuration absent" -- that would make the
+              ## POST the only outcome we ever take.
+              i=0
+              until curl -sf -o /dev/null --max-time 5 "$BASE/actuator/health"; do
+                i=$((i+1))
+                [ "$i" -ge 30 ] && echo "certify not reachable at $BASE after 30 tries" && exit 1
+                sleep 5
+              done
+              echo "certify reachable"
+
+              ## IDEMPOTENCE GATE. 200 means the configuration already exists;
+              ## leave it completely alone. Only a definite 404 leads to a
+              ## POST. Any other status is treated as an error rather than as
+              ## permission to write.
+              CODE=$(curl -s -o /tmp/existing.json -w '%{http_code}' --max-time 15 "$EP/$KEY_ID")
+              echo "GET $EP/$KEY_ID -> $CODE"
+              if [ "$CODE" = "200" ]; then
+                echo "configuration '$KEY_ID' already present -- leaving untouched (idempotent)"
+                exit 0
+              fi
+              if [ "$CODE" != "404" ]; then
+                echo "unexpected status $CODE from the existence check; refusing to write"
+                cat /tmp/existing.json
+                exit 1
+              fi
+
+              echo "configuration absent -> creating"
+              CODE=$(curl -s -o /tmp/resp.json -w '%{http_code}' --max-time 30 \
+                       -X POST "$EP" \
+                       -H 'Content-Type: application/json' \
+                       --data @/config/credential-config.json)
+              echo "POST $EP -> $CODE"
+              cat /tmp/resp.json
+              echo
+
+              ## Certify answers 200 with an errors[] array on validation
+              ## failure, so the status code alone is not sufficient.
+              if [ "$CODE" != "200" ] && [ "$CODE" != "201" ]; then
+                echo "create failed"; exit 1
+              fi
+              if grep -q '"errors":\[{' /tmp/resp.json 2>/dev/null; then
+                echo "create returned a validation error"; exit 1
+              fi
+
+              ## Confirm it is actually readable now.
+              CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$EP/$KEY_ID")
+              [ "$CODE" = "200" ] || { echo "post-create verification failed ($CODE)"; exit 1; }
+              echo "configuration '$KEY_ID' created and verified"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          resources:
+{{- toYaml $v.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: inji-certify-config-{{ $sum }}
+        - name: tmp
+          emptyDir: {}
+{{- end }}

@@ -56,11 +56,27 @@ modules:
     host: "injicertify.test-lts.digit.org"
     service: "inji-certify"
     port: 80
-    # OIDC4VCI requires the credential issuer metadata at the HOST ROOT, not
-    # under a path. Because this module owns its hostname, the default "/"
-    # rule already serves /.well-known/openid-credential-issuer and
-    # /.well-known/did.json -- which is exactly the pair the upstream chart
-    # declares as explicit Istio matches. No extra rule needed.
+    ## Host-root .well-known rewrite -- REQUIRED, not optional.
+    ##
+    ## Certify serves issuer metadata and did.json under its servlet path, but
+    ## OIDC4VCI expects the metadata at the host root, and our DID
+    ## (did:web:injicertify.test-lts.digit.org) resolves to
+    ## https://injicertify.test-lts.digit.org/.well-known/did.json -- also the
+    ## host root. Without this, both 404 and the DID cannot be resolved by a
+    ## verifier. Replicates the two exact-match Istio rewrites in the upstream
+    ## chart's istio.uriMatches.
+    wellKnownRewrite:
+      enabled: true
+      pathRegex: "/\\.well-known/(openid-credential-issuer|did\\.json)"
+      target: "/v1/certify/issuance/.well-known/$1"
+    # CORRECTED: an earlier version of this comment claimed the default "/"
+    # prefix rule already served the host-root .well-known paths, so no extra
+    # rule was needed. That was wrong. Owning the hostname makes the paths
+    # REACHABLE, but nginx passes them through unmodified and Certify serves
+    # them only under its servlet path -- verified against the running pod:
+    #   /.well-known/openid-credential-issuer  -> 404
+    #   /.well-known/did.json                  -> 404
+    # Hence the wellKnownRewrite above.
 
   esignet:
     enabled: false

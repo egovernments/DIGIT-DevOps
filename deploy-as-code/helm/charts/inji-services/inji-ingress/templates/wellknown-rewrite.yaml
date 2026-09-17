@@ -1,0 +1,70 @@
+{{- $v := include "inji-ingress.mergedValues" . | fromYaml -}}
+{{- if $v.enabled }}
+{{- range $name, $m := $v.modules }}
+{{- if and $m.enabled $m.wellKnownRewrite }}
+{{- if $m.wellKnownRewrite.enabled }}
+---
+## Host-root .well-known rewrite for {{ $name }}.
+##
+## WHY THIS EXISTS
+## OIDC4VCI locates credential issuer metadata at the HOST ROOT, and a did:web
+## identifier of the form did:web:<host> resolves to
+## https://<host>/.well-known/did.json -- also the host root. Certify, however,
+## serves both under its servlet path (/v1/certify/issuance/.well-known/...).
+##
+## Upstream bridges that with two exact-match Istio rewrites (see
+## istio.uriMatches in the inji-certify chart). We replaced Istio with a plain
+## Ingress, so the rewrites have to be replicated here or both paths 404 --
+## verified against the running pod:
+##   /.well-known/openid-credential-issuer                     -> 404
+##   /.well-known/did.json                                     -> 404
+##   /v1/certify/issuance/.well-known/openid-credential-issuer -> 200
+##
+## A SEPARATE Ingress object, not extra paths on the main one: nginx's
+## rewrite-target is a per-Ingress annotation, so adding it to the Ingress that
+## also carries the `/` prefix rule would rewrite every request to the module.
+##
+## One regex rule covers both paths, capturing the filename so a single
+## rewrite-target can serve them. The cluster's ingress-nginx has
+## allow-snippet-annotations=true and annotations-risk-level=Critical, so
+## use-regex and rewrite-target are permitted.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: inji-{{ $name }}-wellknown
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    ## No cert-manager annotation here: the certificate is requested by the
+    ## main Ingress for this host. Two Certificates for one host would race and
+    ## burn Let's Encrypt duplicate-certificate quota.
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: {{ $m.wellKnownRewrite.target | quote }}
+{{- range $k, $val := $v.annotations }}
+    {{ $k }}: {{ $val | quote }}
+{{- end }}
+  labels:
+{{- range $k, $val := $v.labels }}
+    {{ $k }}: {{ $val | quote }}
+{{- end }}
+    inji-module: {{ $name | quote }}
+spec:
+  ingressClassName: {{ $v.ingressClassName | quote }}
+  rules:
+    - host: {{ $m.host | quote }}
+      http:
+        paths:
+          - path: {{ $m.wellKnownRewrite.pathRegex | quote }}
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ $m.service | quote }}
+                port:
+                  number: {{ $m.port }}
+  tls:
+    - hosts:
+        - {{ $m.host | quote }}
+      secretName: {{ printf "%s-tls" $m.host | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

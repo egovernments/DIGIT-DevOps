@@ -44,15 +44,42 @@ spec:
     - namespace: inji
       server: https://kubernetes.default.svc
 
-  ## Deliberately NO clusterResourceWhitelist. Nothing in the Inji charts
-  ## renders a cluster-scoped object. The namespace itself is created by the
-  ## cluster-configs chart (its `namespaces.values` list) and, as a fallback,
-  ## by CreateNamespace=true in the ApplicationSet's syncOptions -- neither of
-  ## which is a manifest this project has to permit.
+  ## CORRECTED: an earlier version of this file asserted that nothing in the
+  ## Inji charts renders a cluster-scoped object. That was wrong -- the
+  ## inji-certify chart renders a ClusterRoleBinding, and step 06 failed with
+  ## "one or more synchronization tasks are not valid" and
+  ## ClusterRoleBinding/inji-certify stuck at Unknown.
   ##
-  ## If a future chart does need a cluster-scoped resource, add the specific
-  ## group/kind here rather than the group:'*' kind:'*' wildcard that
-  ## egov-project carries.
+  ## Only the specific kind is permitted, not the group:'*' kind:'*' wildcard
+  ## that egov-project carries.
+  clusterResourceWhitelist:
+    ## inji-certify renders ClusterRoleBinding/inji-certify bound to
+    ## ServiceAccount inji-certify. It references ClusterRole `inji-certify`,
+    ## which NO chart in this stack creates -- certify has no clusterrole.yaml
+    ## (only injiweb does). So the binding is dangling and confers no
+    ## permissions at all. RBAC permits a binding to a non-existent role; it is
+    ## simply inert. Permitted because it is harmless and cannot be disabled:
+    ## the template is not gated on rbac.create, so rbac.create=false still
+    ## renders it.
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+
+  ## ClusterRole is deliberately NOT permitted.
+  ##
+  ## The injiweb chart (step 08) renders ClusterRole/injiweb with:
+  ##   apiGroups: ['*']
+  ##   resources: [endpoints, pods, services, configmaps, secrets,
+  ##               virtualservices, gateways]
+  ##   verbs: [get, list, create, update, patch]
+  ## i.e. cluster-wide read AND WRITE on Secrets in every namespace, for a
+  ## static nginx UI. It also references Istio kinds we do not run, so it looks
+  ## like an unreviewed copy-paste. Granting that would give the web wallet
+  ## access to every DIGIT secret in the cluster.
+  ##
+  ## Leaving it unlisted means step 08 will fail to sync the same way step 06
+  ## did -- which is the intended outcome: it forces a decision rather than
+  ## silently granting the permission. Resolve it before step 08, not by
+  ## adding ClusterRole here without narrowing the rules.
 
   namespaceResourceWhitelist:
     - group: '*'

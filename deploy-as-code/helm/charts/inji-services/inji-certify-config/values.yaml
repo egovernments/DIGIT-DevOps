@@ -1,0 +1,50 @@
+# Seeds Certify's credential_config via its own REST API.
+#
+# WHY THE API AND NOT SQL
+# certify.credential_config is a 28-column table with four partial unique
+# indexes, and Certify validates signatureCryptoSuite, signatureAlgo,
+# keyManagerAppId and keyManagerRefId against
+# mosip.certify.credential-config.* / signature-algo.key-alias-mapper before
+# accepting a configuration. A raw INSERT bypasses all of that and can produce
+# a row Certify will not use -- or one that violates a uniqueness rule it
+# expects to enforce itself. docs/Credential-Issuer-Configuration.md is
+# explicit that configurations are managed through the endpoints.
+#
+# SAFETY: the Job GETs the configuration first and POSTs only when it is
+# absent. It never issues PUT or DELETE, so an existing configuration is never
+# modified or removed. Re-running is a no-op.
+enabled: false
+
+# Reached in-cluster; no ingress or TLS involved.
+# /v1/certify/credential-configurations/** is in Certify's ignore-auth-urls, so
+# no token is required. Verified: GET of a nonexistent id returns 404, not 401.
+certify:
+  service: "inji-certify"
+  port: 8090
+  servletPath: "/v1/certify"
+
+# Must match credentialConfigKeyId in files/credential-config.json -- the Job
+# uses it for the existence check.
+credentialConfigKeyId: "DigitLicenseCredential"
+
+image:
+  # curl + jq for the GET/POST and response parsing.
+  repository: "curlimages/curl"
+  tag: "8.11.1"
+  pullPolicy: IfNotPresent
+
+job:
+  backoffLimit: 3
+  activeDeadlineSeconds: 300
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 32Mi
+
+labels:
+  app: "inji-certify-config"
+  group: "inji"

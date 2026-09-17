@@ -66,9 +66,26 @@ extraEnvVars:
 # pluginNameEnv: ""
 # pluginUrlEnv: ""
 
-## Upstream default is `default`. The Inji stack needs the inji profile for its
-## own property files to be picked up from config-server.
-activeProfileEnv: "default,inji-default,standalone"
+## MUST stay identical to activeProfileEnv in config-server.yaml.
+##
+## This chart renders active_profile_env as a LITERAL env entry, and an
+## explicit `env:` value overrides anything of the same name arriving via
+## envFrom -- so this value wins over the config-server-share ConfigMap, even
+## though that ConfigMap is in this chart's extraEnvVarsCM.
+##
+## That is a real trap. It cost a debugging round: config-server-share
+## correctly advertised
+##   default,inji-default,standalone,digit-lts,digit-landregistry
+## while the pod requested only
+##   default,inji-default,standalone
+## so esignet-digit-lts.properties was never loaded and startup failed on
+## ${redis.port} -- which lives in exactly that file. The commit and the
+## served config were both current; only the requested profile list was stale.
+##
+## inji-certify, mimoto and injiweb do NOT expose activeProfileEnv, so they
+## inherit the list from config-server-share and cannot drift this way.
+## eSignet is the only module where these two files must be kept in step.
+activeProfileEnv: "default,inji-default,standalone,digit-lts,digit-landregistry"
 
 persistence:
   enabled: false

@@ -467,14 +467,50 @@ DIGIT_TAG=<tag> ./deploy.sh -f domain-bundles-helmfile.yaml sync
 
 ---
 
-## 6. Switching between shapes
+## 6. Custom combinations, peeling, re-absorbing, switching
 
-The shapes are mutually exclusive (same ingress paths, same kong prefixes).
-Data note: both shapes use the default `postgres` database and the same
-per-tenant schemas, so the data carries across a shape switch. (Historic
-deployments gave the bundle its own `bundle_db`; that override is gone.)
+> For a step-by-step custom-grouping walkthrough (what changes vs the stock
+> shapes, with commands), see [CUSTOM-BUNDLING.md](CUSTOM-BUNDLING.md). This
+> section is the reference behind it.
 
-**B → A (services → bundle)** — the order matters, remove services first:
+The three stock configurations are just points on a spectrum — the manifest
+accepts any partition of the catalog:
+
+- **Regroup** (move a service between bundles): edit the `include:` lists,
+  regenerate, rebuild the affected bundles' images + charts, sync, rerun
+  `setup.py`. The generator refuses nothing except a service in two bundles.
+- **Peel one service out to run standalone** (executed for billing; full war
+  story on branch `modulith-separate-billing`): remove its name from
+  `include:`; if co-bundled callers reached it over loopback, re-declare those
+  hosts env-overridable in `overrides:`; regenerate; update the bundle's
+  hand-written tests to *pin the absence*. Then on the deploy side:
+  - build the standalone service's app **and** db image from the same source
+    tree — an externally-pinned db image fails Flyway checksum validation
+    against the history the bundle already applied;
+  - chart values: datasource + init `DB_URL` → **`bundle_db`** (its data lives
+    there), and **`TENANT_MIGRATION_ENABLED: "true"`** (per-service charts ship
+    it false; standalone it must consume tenant events itself);
+  - re-add its helmfile release, and set its `egov-service-host` key back to
+    per-service DNS in the shape overlay (`azure-k3s-<shape>.yaml`);
+  - **sync the bundle BEFORE the standalone service** (the ingress admission
+    webhook rejects a duplicate path while the old bundle Ingress still owns
+    it; helmfile syncs concurrently — use `-l` selectors), and rollout-restart
+    consumers of changed `egov-service-host` keys (configMapKeyRef env resolves
+    at pod start);
+  - rerun `setup.py` — the service is in no bundle now, so its upstream reverts
+    to per-service DNS automatically.
+- **Re-absorb**: the exact mirror — add the name back to `include:`,
+  regenerate, uninstall the standalone release, sync the bundle, rerun `setup.py`.
+
+### 6.1 Switching whole shapes
+
+Shapes are mutually exclusive (same ingress paths, same kong prefixes), so
+uninstall the old shape's releases first, then deploy the new shape and rerun
+`setup.py`. Data note: the bundle shapes and per-service both use the default
+`postgres`/`bundle_db` datasets per their charts — switching does not migrate
+data.
+
+**per-service → single-container** — remove the services first:
 
 ```bash
 for r in account apportion billing boundary employee filestore \
@@ -482,144 +518,56 @@ for r in account apportion billing boundary employee filestore \
          registry template-config url-shortener workflow; do
   helm uninstall "$r" -n egov
 done
-# then follow §3 (single-container) from 3.3 (env/service-host) → 3.4 sync → 3.5 kong repoint
+DIGIT_TAG=<tag> ./deploy.sh -f single-container-helmfile.yaml sync   # then §3.5 kong repoint
 ```
 
-**A → B (bundle → services)**:
+**single-container → per-service**:
 
 ```bash
 helm uninstall dev-bundle -n egov
-# restore the 16 release entries in the helmfile + per-service egov-service-host keys,
-# then §4 (per-service) 4.1 sync → 4.2 setup.py WITHOUT KONG_BUNDLE_UPSTREAM
+DIGIT_TAG=<tag> ./deploy.sh -f per-service-helmfile.yaml sync        # then §4.2 setup.py
 ```
 
 Finally (either shape): open NSG 80/443 → the `cm-acme-http-solver` pods
-complete, certificates issue, and `https://<domain>/<service>` works
-publicly.
+complete, certificates issue, and `https://<domain>/<service>` works publicly.
 
 ---
 
-## 7. Peeling one service out of the bundle (worked example: billing)
+## 7. Calling the APIs through Kong
 
-Sometimes one service needs to scale, fail, or release independently while the
-rest stay bundled. The design makes the *jar* side trivial ("remove the
-manifest entry and regenerate"), but a full deployment peel touches five
-layers. This section is the generic procedure; the executed billing peel
-lives on branch **`modulith-separate-billing`** in both repos (DIGIT-DevOps
-`05e09c83d`, digit3 `52a570c0`) — every referenced change can be read there
-verbatim.
+Anonymous requests get **401** from the gateway; `/keycloak` redirects (303).
+An authenticated call needs a token that satisfies the `keycloak-rbac` plugin,
+which authorizes every request with a UMA check against Keycloak's
+**in-cluster** URL. Three requirements (each produces a distinct error when
+missed):
 
-### 7.1 digit3: manifest + overrides + tests
+1. **Issuer must be the cluster-DNS URL** the plugin itself uses
+   (`http://keycloak.keycloak.svc.cluster.local:8080/keycloak`). A token minted
+   via the public URL or a ClusterIP fails the UMA check with
+   `401 "Token rejected by Keycloak"`.
+2. **Client must be `auth-server`** (confidential; its per-realm secret is
+   readable via the Keycloak admin API). `admin-cli` tokens carry no realm
+   roles → the service answers `403 "No roles found in token"`.
+3. **The user needs realm roles** — tenant admins created by the account
+   service get `SUPERUSER`/`ADMIN`, which pass the UMA decision.
 
-- Delete the service's name from its bundle's `include:` list in
-  its composition manifest (the catalog entry stays).
-- Prune `overrides:`: the service's own loopback hosts go away, and — the
-  subtle one — overrides that pointed **other services at it** over loopback
-  must become network-reachable. Check the callers' own defaults first: if
-  they are literal (`billing.host=http://localhost:8080/`, no `${…}`), the
-  bundle must re-declare them env-overridable, e.g.
-  `billing.host: "${BILLING_HOST:http://localhost:8080}/"`.
-- Regenerate (`generate_bundle.py`) — expect "no unresolved property
-  conflicts".
-- **Update the hand-written tests** (`src/test/` survives regeneration and
-  will fail compilation if it references the peeled service's classes). Flip
-  its assertions to *absence pins*: its route prefix must NOT be mounted, its
-  beans and Jackson customizers must be gone — so an accidental re-inclusion
-  fails the build loudly (billing's mapper modules changed every service's
-  BigDecimal wire format; silence would be dangerous).
-- `mvn clean test && mvn package`.
-
-### 7.2 Images — same source tree for everything (important)
-
-Build and import (§3.2 mechanics) with a new tag: the **bundle pair** AND the
-**peeled service's app + db images**, all from the same digit3 checkout:
+`scripts/08-token.sh <TENANT-CODE> <email> [password]` does all of this and
+prints a ready bearer token plus a sample curl:
 
 ```bash
-# app: runtime-only image from the service's *-exec.jar
-# db:  from src/services/<svc>/src/main/resources/db (its own Dockerfile)
+./scripts/08-token.sh MYTENANT admin@example.org      # password prompted silently
+curl -H "Authorization: Bearer <token>" -H "X-Tenant-ID: MYTENANT" \
+     -H "Host: <domain>" http://<kong-proxy-ip>:8000/individual/v3/individuals
 ```
 
-Do NOT reuse an externally-pinned per-service db image: the billing peel
-failed exactly there — the old image carried a different copy of one
-migration, and Flyway rejected it against the history the bundle had already
-applied to the bundle's database ("Migration checksum mismatch"). Same source tree →
-identical files → validation passes.
-
-### 7.3 DIGIT-DevOps: chart, values, env, helmfile
-
-- Rerun `generate_bundle_chart.py` — the peeled service's ingress context and
-  `dbMigrations` entry disappear, and the *callers'* harvested env pointing
-  at it (`APPORTION_BILLING_HOST`, `BILLING_HOST` ← `egov-service-host` key
-  `billing`) automatically **survives** the merge now (loopback
-  detection only drops env for bundled services). No manual env plumbing.
-- Peeled service's chart values: keep its datasource and db-migration init
-  `DB_URL` on the **same database the bundle used** — its public tables,
-  Flyway history and tenant schemas live there. With today's default
-  (`postgres` for every shape) nothing needs changing; the executed billing
-  peel predates that and had to pin `bundle_db` explicitly.
-- Tenant migration: the per-service charts now ship
-  `TENANT_MIGRATION_ENABLED`/`SCHEMA_SEPARATION_MODE` **true**, so a peeled
-  service consumes tenant events out of the box. (The original peel found
-  this the hard way: charts then shipped `false`, and creating tenant TEST
-  produced 53/72 tables — all 19 missing ones billing's — until the flag was
-  set and the consumer replayed the event.)
-- `environments/<env>.yaml`: bump the `dev-bundle:` tags; point the peeled
-  service's image + init image at the source-built tags
-  (`pullPolicy: IfNotPresent` for containerd-imported images); revert its
-  `egov-service-host` key from the bundle back to its own Service.
-- Helmfile: re-add the service's release entry (its env block was kept).
-
-### 7.4 Deploy — order matters
-
-```bash
-./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync            # service-host key
-DIGIT_TAG=<tag> ./deploy.sh -f single-container-helmfile.yaml -l name=dev-bundle sync   # FIRST: frees /billing
-DIGIT_TAG=<tag> ./deploy.sh -f single-container-helmfile.yaml -l name=billing sync      # THEN the peeled service
-kubectl rollout restart deploy/dev-bundle -n egov                                     # see below
-```
-
-Two traps encoded in that order:
-
-1. The nginx admission webhook rejects the peeled service's Ingress while the
-   OLD bundle Ingress still owns its path ("path /billing is already defined
-   in ingress egov/dev-bundle") — and helmfile syncs releases concurrently,
-   so a plain full sync can race into exactly that. Use `-l` selectors.
-2. `configMapKeyRef` env is resolved at **pod start**: if the bundle pod
-   started before the `egov-service-host` key changed, its `BILLING_HOST`
-   still points at itself. One rollout restart after the cluster-configs
-   sync fixes it.
-
-### 7.5 Kong
-
-```bash
-KONG_ADMIN_URL=… KONG_ROUTE_HOSTS=<domain> python3 setup.py
-```
-
-No extra flags: the peel already removed the service from the manifest's
-`include:` list, and `setup.py` derives upstreams from that manifest —
-services in no bundle keep (or revert to) their per-service upstreams on
-the next run. Route paths never change, so clients notice nothing.
-
-### 7.6 Verify + aftermath
-
-- Bundle: peeled prefix NOT served (expect the 400-coded
-  `NoResourceFoundException` envelope — the platform renders 404s that way);
-  all other prefixes intact.
-- Peeled pod: init container validates cleanly against the shared database; a
-  tenant-headered read returns real data (billing: `GET
-  /billing/v3/business-services` → 200; demo-tenant tables intact).
-- Kong: peeled route → its Service, others → bundle; 401s everywhere, and a
-  cross-boundary call works in both directions (bundle→peeled via
-  `*_HOST` env, peeled→bundle via the repointed `egov-service-host` keys).
-- Going forward: `POST /internal/migrate` on the bundle no longer covers the
-  peeled service — it consumes the same tenant-create events itself, but it
-  is now a second thing to check when provisioning tenants.
-
-Re-absorbing the service later is the exact mirror: restore the manifest
-entry + overrides, regenerate both generators, uninstall its release,
-sync the bundle, rerun setup.py without the exclude.
+Kong's header-enrichment injects the user identity from the JWT (audit fields
+show the Keycloak user id), so `X-User-ID` is not needed on gateway calls —
+only on direct in-cluster calls that bypass Kong. The `/…/internal/migrate`
+endpoints are deliberately never routed through Kong (ops-plane; reachable only
+in-cluster).
 
 ---
+
 
 ## 8. Gotchas index (hard-won, all encountered on this install)
 

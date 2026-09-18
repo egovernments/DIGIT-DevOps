@@ -7,7 +7,7 @@ scaling and release boundaries. This page covers a *custom* grouping: what
 changes versus the OOB path, and the exact steps.
 
 Reference material for the mechanics (peeling one service out, re-absorbing,
-cross-bundle wiring) lives in [INSTALL.md §7](INSTALL.md); this page is the
+cross-bundle wiring) lives in [INSTALL.md §6](INSTALL.md); this page is the
 practical how-to.
 
 ---
@@ -68,7 +68,7 @@ bundles:
 
 Rules the generator enforces / you must respect:
 - **Every service in exactly one bundle** (the generator refuses a service in
-  two; a service in none becomes standalone — see INSTALL.md §7 for peeling).
+  two; a service in none becomes standalone — see INSTALL.md §6 for peeling).
 - **Intra-bundle calls** stay on loopback (`http://localhost:${SERVER_PORT}`);
   **cross-bundle calls** must be env-parameterized in `overrides:` so they
   resolve to the callee's Service by default. Copy the `*_BUNDLE_HOST` pattern
@@ -190,7 +190,7 @@ same (API plaintext / DB `vault:v1:…` + HMAC / per-tenant transit key). See
 - **Peel a service out to standalone** or **re-absorb** it: the detailed,
   order-sensitive procedure (build both images from one tree, flip
   `TENANT_MIGRATION_ENABLED`, sync-order vs the ingress webhook, rollout-restart
-  consumers) is in **[INSTALL.md §7](INSTALL.md)** — follow it verbatim.
+  consumers) is in **[INSTALL.md §6](INSTALL.md)** — follow it verbatim.
 
 Data note: all bundles share `bundle_db`; switching groupings doesn't migrate
 data, and the services shape's `postgres` DB is a separate dataset.

@@ -99,3 +99,33 @@ resources:
   requests:
     cpu: 200m
     memory: 1Gi
+
+## Prometheus scrape path. REQUIRED HERE -- it is an upstream chart packaging
+## bug, not a preference.
+##
+## mimoto 0.20.0's values.yaml ships `endpointPath:` with NO value, while
+## templates/servicemonitor.yaml renders it unguarded:
+##     path: {{ .Values.metrics.endpointPath }}
+## so the ServiceMonitor comes out with a null path and the CRD rejects it:
+##   ServiceMonitor.monitoring.coreos.com "mimoto-service" is invalid:
+##     spec.endpoints[0].path: Invalid value: "null":
+##     spec.endpoints[0].path in body must be of type string
+##
+## The sibling charts do not have this problem -- esignet 1.8.0 ships
+## endpointPath: /v1/esignet/actuator/prometheus -- which is why esignet,
+## inji-certify and mock-identity-system all have working ServiceMonitors and
+## mimoto had none at all.
+##
+## CONSEQUENCE IF LEFT UNSET: the Application never reaches Synced. ArgoCD
+## retries the apply (limit 10, backoff to 5m) and inji-mimoto sits
+## OutOfSync/Healthy indefinitely -- Healthy because the Deployment itself is
+## fine, so this is easy to mistake for cosmetic drift. It also means no Mimoto
+## metrics are scraped.
+##
+## Value verified against the running pod, not inferred from the servlet path:
+##   /v1/mimoto/actuator/prometheus -> HTTP 200, 43176 bytes
+## and the actuator index exposes health, info, metrics, prometheus.
+## The template pairs it with targetPort: {{ .Values.service.containerPort }}
+## = 8099, which matches the Service's targetPort.
+metrics:
+  endpointPath: /v1/mimoto/actuator/prometheus

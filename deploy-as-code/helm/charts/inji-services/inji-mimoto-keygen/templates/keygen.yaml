@@ -1,0 +1,110 @@
+{{- $v := include "inji-mimoto-keygen.mergedValues" . | fromYaml -}}
+{{- if $v.enabled }}
+{{- $sum := include "inji-mimoto-keygen.checksum" . -}}
+---
+## The PVC the mimoto chart mounts but never creates. Kept out of the mimoto
+## Application on purpose: that Application is an upstream chart we do not
+## modify, and this must exist BEFORE its pod can schedule.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $v.pvc.name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+    ## Never delete this with the Application. It holds the keymanager's
+    ## signing keys; losing it makes every credential Mimoto has issued
+    ## unverifiable.
+    helm.sh/resource-policy: keep
+    argocd.argoproj.io/sync-options: Delete=false
+  labels:
+{{- range $k, $val := $v.labels }}
+    {{ $k }}: {{ $val | quote }}
+{{- end }}
+spec:
+  accessModes:
+    - {{ $v.pvc.accessMode | quote }}
+  storageClassName: {{ $v.pvc.storageClass | quote }}
+  resources:
+    requests:
+      storage: {{ $v.pvc.size | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inji-mimoto-keygen-{{ $sum }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  labels:
+{{- range $k, $val := $v.labels }}
+    {{ $k }}: {{ $val | quote }}
+{{- end }}
+data:
+  keygen.sh: |
+{{ .Files.Get "files/keygen.sh" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: inji-mimoto-keygen-{{ $sum }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+{{- range $k, $val := $v.labels }}
+    {{ $k }}: {{ $val | quote }}
+{{- end }}
+spec:
+  backoffLimit: {{ $v.job.backoffLimit }}
+  activeDeadlineSeconds: {{ $v.job.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+{{- range $k, $val := $v.labels }}
+        {{ $k }}: {{ $val | quote }}
+{{- end }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: keygen
+          image: "{{ $v.image.repository }}:{{ $v.image.tag }}"
+          imagePullPolicy: {{ $v.image.pullPolicy }}
+          command: ["/bin/sh", "/scripts/keygen.sh"]
+          env:
+            - name: KEYSTORE_FILE
+              value: {{ $v.keystore.fileName | quote }}
+            - name: KEYSTORE_SUBJECT
+              value: {{ $v.keystore.subject | quote }}
+            - name: KEYSTORE_DAYS
+              value: {{ $v.keystore.days | quote }}
+            ## Same password Mimoto reads for BOTH keystores via
+            ## ${mimoto.oidc.keystore.password}.
+            - name: KEYSTORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $v.keystore.passwordSecret.name | quote }}
+                  key: {{ $v.keystore.passwordSecret.key | quote }}
+          volumeMounts:
+            ## Mounted WITHOUT subPath, so the keystore is created as a file
+            ## inside the volume rather than as a subPath directory.
+            - name: keystore
+              mountPath: /keystore
+            - name: tmp
+              mountPath: /tmp
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+          resources:
+{{- toYaml $v.resources | nindent 12 }}
+      volumes:
+        - name: keystore
+          persistentVolumeClaim:
+            claimName: {{ $v.pvc.name }}
+        - name: tmp
+          emptyDir: {}
+        - name: scripts
+          configMap:
+            name: inji-mimoto-keygen-{{ $sum }}
+            defaultMode: 0555
+{{- end }}

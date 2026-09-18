@@ -1,0 +1,70 @@
+# Mimoto's keymanager keystore.
+#
+# WHY THIS CHART EXISTS
+# Step 07 failed to schedule with:
+#   0/6 nodes are available: persistentvolumeclaim "mimoto-keygen-keymanager"
+#   not found
+#
+# The mimoto chart mounts that PVC but never creates it. templates/pvc.yaml
+# only renders it when extraVolumes contains an entry with
+# kind: persistentVolumeClaim AND no claimName -- while the chart's own default
+# extraVolumes DOES set claimName and omits `kind`, so the condition can never
+# be true. Upstream expects a separate keygen step to have created both the PVC
+# and its contents; that step is a manual script with no GitOps equivalent.
+#
+# THE KEYSTORE MUST BE A FILE, NOT JUST AN EMPTY VOLUME
+# The chart mounts it with
+#   subPath: encryptionkeystore.p12
+# and Kubernetes creates a subPath entry as a DIRECTORY when it does not exist.
+# An empty PVC therefore yields a directory named encryptionkeystore.p12 and
+# the keymanager cannot read it as PKCS12. So the file is generated here before
+# Mimoto starts.
+#
+# It must be WRITABLE, which is why this is a PVC and not a Secret -- MOSIP's
+# keymanager adds generated keys to this keystore at runtime.
+enabled: false
+
+pvc:
+  name: "mimoto-keygen-keymanager"
+  size: "1Gi"
+  ## disk.csi.azure.com, the cluster default. ReadWriteOnce matches what the
+  ## upstream template would have requested; the chart's `persistence` block
+  ## defaults to nfs-csi/ReadWriteMany, which does not exist here.
+  storageClass: "default"
+  accessMode: "ReadWriteOnce"
+
+keystore:
+  fileName: "encryptionkeystore.p12"
+  ## Password comes from the same secret as the OIDC keystore, since Mimoto
+  ## reads BOTH with ${mimoto.oidc.keystore.password}:
+  ##   mosip.oidc.p12.password=${mimoto.oidc.keystore.password}
+  ##   mosip.kernel.keymanager.hsm.keystore-pass=${mimoto.oidc.keystore.password}
+  passwordSecret:
+    name: "mimotooidc"
+    key: "oidckeystore-password"
+  ## Subject for the self-signed entry that initialises the keystore. The
+  ## keymanager replaces/adds its own keys at runtime; this exists only so the
+  ## file is a valid PKCS12 from the start.
+  subject: "/CN=mimoto-keymanager/O=eGovernments Foundation/OU=digit-lts/C=IN"
+  days: 1095
+
+image:
+  repository: "alpine/openssl"
+  tag: "3.3.2"
+  pullPolicy: IfNotPresent
+
+job:
+  backoffLimit: 3
+  activeDeadlineSeconds: 300
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 32Mi
+
+labels:
+  app: "inji-mimoto-keygen"
+  group: "inji"

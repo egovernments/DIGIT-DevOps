@@ -1379,15 +1379,22 @@ inji-ingress:
   ## resolves to 4.224.237.122 -- cert-manager solves HTTP01 against the real
   ## hostname, and repeated failures count against Let's Encrypt rate limits.
   ## Use certIssuer: letsencrypt-staging while iterating on hostnames.
-  enabled: false
+  ## Chart enabled; each module still gated individually below.
+  enabled: true
   certIssuer: "letsencrypt-prod"
   modules:
     injiweb:
+      ## Step 08 -- also blocked on the ClusterRole decision.
       enabled: false
     injicertify:
+      ## Step 06 is Healthy, but leave this until the credential flow is being
+      ## exercised end to end; enabling it requests a certificate.
       enabled: false
     esignet:
-      enabled: false
+      ## ENABLED. DNS resolves (4.224.237.122) and the denyPaths snippet in the
+      ## chart blocks /v1/esignet/client-mgmt and /v1/esignet/system-info at
+      ## the edge -- necessary because eSignet runs permitAll.
+      enabled: true
     injiverify:
       ## inji-verify is not built yet -- there is no Application for it in
       ## inji-applications.yaml, so this would target a Service that does not

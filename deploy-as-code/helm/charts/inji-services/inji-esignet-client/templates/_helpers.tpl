@@ -15,8 +15,15 @@ Job is never replaced.
 */}}
 {{- define "inji-esignet-client.checksum" -}}
 {{- $v := include "inji-esignet-client.mergedValues" . | fromYaml -}}
+{{/* every file under files/ -- payload AND script -- so a change to either
+     produces a new Job name. Keeping the script inline in job.yaml left it out
+     of the hash: an edit then collided with the immutable spec.template of the
+     existing Job and ArgoCD could never apply it. */}}
+{{- $acc := "" -}}
+{{- range $path, $_ := .Files.Glob "files/*" -}}
+{{- $acc = printf "%s%s%s" $acc $path ($.Files.Get $path) -}}
+{{- end -}}
 {{- $sig := printf "%s|%s|%s|%v|%s"
-      (.Files.Get "files/client.json")
-      $v.clientId $v.esignet.service $v.esignet.port $v.esignet.servletPath -}}
+      $acc $v.clientId $v.esignet.service $v.esignet.port $v.esignet.servletPath -}}
 {{- $sig | sha256sum | trunc 8 -}}
 {{- end -}}

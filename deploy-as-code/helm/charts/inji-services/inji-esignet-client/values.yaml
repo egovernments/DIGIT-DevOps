@@ -14,8 +14,16 @@
 # with no Keycloak resource server. The admin paths are blocked at the edge by
 # the inji-ingress chart, so this is reachable in-cluster only.
 #
-# SAFETY: GET first, POST only on a definite 404, never PUT or DELETE. An
-# existing client is never modified. Re-running is a no-op.
+# SAFETY / IDEMPOTENCE, both paths verified against the running service:
+#   first run  -> {"response":{"clientId":"digitlts-mimoto","status":"ACTIVE"},
+#                  "errors":[]}                                  -> registered
+#   re-run     -> {"response":null,
+#                  "errors":[{"errorCode":"duplicate_client_id",...}]}
+#                                                                -> no-op, exit 0
+# This version of the API has no single-client GET, so existence is determined
+# by the POST itself. That is safe because a duplicate creates nothing. Only
+# POST is ever issued -- never PUT or DELETE -- so an existing registration
+# cannot be modified or removed.
 enabled: false
 
 esignet:

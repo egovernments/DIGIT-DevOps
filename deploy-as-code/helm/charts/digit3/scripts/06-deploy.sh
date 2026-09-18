@@ -13,26 +13,27 @@
 source "$(dirname "$0")/lib.sh"
 load_env
 ensure_tunnel
-[ $# -ge 2 ] || die "usage: $0 <path-to-digit3-repo> <services|dev-bundle|domain-split> [image-tag]"
+[ $# -ge 2 ] || die "usage: $0 <path-to-digit3-repo> <single-container|domain-bundles|per-service> [image-tag]"
 DIGIT3="$(cd "$1" && pwd)"
 SHAPE="$2"
+case "$SHAPE" in dev-bundle) SHAPE=single-container ;; domain-split) SHAPE=domain-bundles ;; services) SHAPE=per-service ;; esac
 TAG="${3:-$(cat "$SCRIPT_DIR/.last-build-tag" 2>/dev/null || true)}"
 [ -n "$TAG" ] || die "no tag given and scripts/.last-build-tag missing — pass the Actions tag (modulith-<sha>) or run 05-build.sh"
 
 case "$SHAPE" in
-  services)
-    HELMFILE=services-helmfile.yaml
+  per-service)
+    HELMFILE=per-service-helmfile.yaml
     MANIFEST=""                                   # kong: per-service upstreams
     ROLLOUT="idgen account boundary" ;;           # spot-check three; the rest follow
-  dev-bundle)
-    HELMFILE=digit3services-helmfile.yaml
+  single-container)
+    HELMFILE=single-container-helmfile.yaml
     MANIFEST="$DIGIT3/src/bundles/dev-bundle.package.yaml"
     ROLLOUT="dev-bundle" ;;
-  domain-split)
-    HELMFILE=domain-split-helmfile.yaml
+  domain-bundles)
+    HELMFILE=domain-bundles-helmfile.yaml
     MANIFEST="$DIGIT3/src/bundles/domain-split.package.yaml"
     ROLLOUT="identity-bundle notification-bundle billing-bundle admin-bundle" ;;
-  *) die "unknown shape '$SHAPE' (services|dev-bundle|domain-split)" ;;
+  *) die "unknown shape '$SHAPE' (single-container|domain-bundles|per-service)" ;;
 esac
 
 if [ -n "$MANIFEST" ]; then
@@ -60,9 +61,9 @@ for _ in $(seq 1 30); do
 done
 curl -sfm 2 -o /dev/null http://localhost:18001/status || die "kong Admin API not answering on the port-forward"
 case "$SHAPE" in
-  services)     KONG_BUNDLES="none" ;;
-  dev-bundle)   KONG_BUNDLES="" ;;                # setup.py default manifest
-  domain-split) KONG_BUNDLES="$MANIFEST" ;;
+  per-service)  KONG_BUNDLES="none" ;;
+  single-container) KONG_BUNDLES="" ;;            # setup.py default manifest
+  domain-bundles) KONG_BUNDLES="$MANIFEST" ;;
 esac
 # `env` (not bare assignments): a ${VAR:+X=Y} expansion is NOT parsed as an
 # assignment by bash — it becomes a command word and the line dies with

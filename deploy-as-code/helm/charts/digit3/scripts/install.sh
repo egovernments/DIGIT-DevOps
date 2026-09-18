@@ -2,12 +2,12 @@
 # ONE command from a provisioned VM to a deployed, seeded, verified DIGIT 3 —
 # a thin orchestrator over the idempotent phase scripts (01→07). Adapted from
 # modulith-final's install.sh onto this branch's shape/tag model: shapes are
-# services | dev-bundle | domain-split (modulith-final's names accepted as
+# single-container | domain-bundles | per-service (dev-bundle/domain-split/services accepted as
 # synonyms), images come from the published Actions builds via --tag (verified
 # against Docker Hub before deploying), and no tracked file is mutated.
 #
 #   ./install.sh --key <ssh-key> --domain <domain> --digit3 <path> \
-#                --shape services|dev-bundle|domain-split --tag modulith-<sha> \
+#                --shape single-container|domain-bundles|per-service --tag modulith-<sha> \
 #                --tenant "Name" --email admin@org [--vm-user azureuser] [--skip-vault]
 #
 # Run without flags on a terminal and it prompts. On failure it stops with the
@@ -44,20 +44,20 @@ ask KEY "ssh private-key path"
 ask DOM "VM domain (hostname only)"
 if [ -z "$SHAPE" ] && [ -t 0 ]; then
   echo "deployment shape (deploy ONE — they share ingress paths and kong prefixes):"
-  echo "  1) dev-bundle    — all 16 services in one JVM (~0.5 GB)  [recommended]"
-  echo "  2) domain-split  — 4 JVMs: identity/notification/billing/admin"
-  echo "  3) services      — every service its own pod (16 pods)"
+  echo "  1) single-container — all 16 services in one JVM (~0.5 GB)  [recommended]"
+  echo "  2) domain-bundles   — 4 JVMs: identity/notification/billing/admin"
+  echo "  3) per-service      — every service its own pod (16 pods)"
   read -r -p "choice [1]: " c
-  case "${c:-1}" in 1) SHAPE=dev-bundle ;; 2) SHAPE=domain-split ;; 3) SHAPE=services ;; *) die "invalid choice '$c'" ;;
+  case "${c:-1}" in 1) SHAPE=single-container ;; 2) SHAPE=domain-bundles ;; 3) SHAPE=per-service ;; *) die "invalid choice '$c'" ;;
   esac
 fi
-# accept modulith-final's shape names as synonyms
+# accept the pre-rename shape names as synonyms
 case "$SHAPE" in
-  single-container) SHAPE=dev-bundle ;;
-  domain-bundles)   SHAPE=domain-split ;;
-  per-service)      SHAPE=services ;;
+  dev-bundle)   SHAPE=single-container ;;
+  domain-split) SHAPE=domain-bundles ;;
+  services)     SHAPE=per-service ;;
 esac
-case "$SHAPE" in services|dev-bundle|domain-split) ;; *) die "unknown shape '$SHAPE'" ;; esac
+case "$SHAPE" in single-container|domain-bundles|per-service) ;; *) die "unknown shape '$SHAPE'" ;; esac
 ask DIGIT3 "path to the digit3 repo checkout"
 ask TAG    "image tag (published Actions build, modulith-<sha>)"
 ask TENANT "tenant name to seed"  "Demo Tenant"
@@ -70,9 +70,9 @@ DIGIT3="$(cd "$DIGIT3" && pwd)"
 # ── preflight: every image this shape deploys must exist on Docker Hub ────────
 hub_has() { curl -sfm 10 "https://hub.docker.com/v2/repositories/egovio/$1/tags/$2" >/dev/null 2>&1; }
 case "$SHAPE" in
-  services)     IMAGES="idgen template-config billing apportion url-shortener pg-service otp notification employee individual workflow registry filestore localization account boundary" ;;
-  dev-bundle)   IMAGES="dev-bundle" ;;
-  domain-split) IMAGES="identity-bundle notification-bundle billing-bundle admin-bundle" ;;
+  per-service)  IMAGES="idgen template-config billing apportion url-shortener pg-service otp notification employee individual workflow registry filestore localization account boundary" ;;
+  single-container) IMAGES="dev-bundle" ;;
+  domain-bundles) IMAGES="identity-bundle notification-bundle billing-bundle admin-bundle" ;;
 esac
 note "preflight: verifying egovio images at :$TAG on Docker Hub"
 MISSING=""

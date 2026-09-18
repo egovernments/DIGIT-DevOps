@@ -12,7 +12,7 @@ protocol) — collect the inputs in §1, then run it and monitor:
 
 ```bash
 ./install.sh --key <key> --domain <domain> --digit3 <path> \
-  --shape services|dev-bundle|domain-split --tag modulith-<sha> \
+  --shape single-container|domain-bundles|per-service --tag modulith-<sha> \
   --tenant "Name" --email <email> [--skip-vault]
 ```
 

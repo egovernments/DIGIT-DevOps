@@ -20,14 +20,15 @@ NAME="${ARGS[0]}" EMAIL="${ARGS[1]}" PHONE="${ARGS[2]:-+919999999999}"
 
 SHAPE=$(cat "$SCRIPT_DIR/.last-shape" 2>/dev/null || true)
 [ -n "$SHAPE" ] || die "scripts/.last-shape missing — run 06-deploy.sh first"
+case "$SHAPE" in dev-bundle) SHAPE=single-container ;; domain-split) SHAPE=domain-bundles ;; services) SHAPE=per-service ;; esac
 svc_ip() { kubectl get svc "$1" -n egov -o jsonpath='{.spec.clusterIP}'; }
 case "$SHAPE" in
-  services)     ACCOUNT=$(svc_ip account); IDGEN=$(svc_ip idgen)
+  per-service)  ACCOUNT=$(svc_ip account); IDGEN=$(svc_ip idgen)
                 INDIVIDUAL=$(svc_ip individual); NOTIF=$(svc_ip notification); OTP=$(svc_ip otp)
                 ACCOUNT_DEP=account; IDGEN_DEP=idgen; INDIVIDUAL_DEP=individual ;;
-  dev-bundle)   ACCOUNT=$(svc_ip dev-bundle); IDGEN=$ACCOUNT; INDIVIDUAL=$ACCOUNT; NOTIF=$ACCOUNT; OTP=$ACCOUNT
+  single-container) ACCOUNT=$(svc_ip dev-bundle); IDGEN=$ACCOUNT; INDIVIDUAL=$ACCOUNT; NOTIF=$ACCOUNT; OTP=$ACCOUNT
                 ACCOUNT_DEP=dev-bundle; IDGEN_DEP=dev-bundle; INDIVIDUAL_DEP=dev-bundle ;;
-  domain-split) ACCOUNT=$(svc_ip identity-bundle); INDIVIDUAL=$ACCOUNT; OTP=$ACCOUNT
+  domain-bundles) ACCOUNT=$(svc_ip identity-bundle); INDIVIDUAL=$ACCOUNT; OTP=$ACCOUNT
                 IDGEN=$(svc_ip admin-bundle); NOTIF=$(svc_ip notification-bundle)
                 ACCOUNT_DEP=identity-bundle; IDGEN_DEP=admin-bundle; INDIVIDUAL_DEP=identity-bundle ;;
   *) die "unknown shape in scripts/.last-shape: $SHAPE" ;;

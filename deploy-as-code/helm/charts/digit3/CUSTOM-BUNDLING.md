@@ -1,6 +1,6 @@
 # DIGIT 3 — Custom Bundling
 
-The three out-of-the-box shapes (dev-bundle, domain-split, services)
+The three out-of-the-box shapes (single-container, domain-bundles, per-service)
 are just three points on a spectrum. **Any partition of the 16-service catalog
 is valid** — you can group services into whatever set of JVMs suits your
 scaling and release boundaries. This page covers a *custom* grouping: what
@@ -131,7 +131,7 @@ on the existing `identity-bundle:` / `admin-bundle:` blocks):
 
 The stock shapes each have an overlay (`environments/azure-k3s-<shape>.yaml`)
 that sets the domain and repoints the 16 `egov-service-host` keys at the
-owning Service. Copy `environments/azure-k3s-domain-split.yaml` to
+owning Service. Copy `environments/azure-k3s-domain-bundles.yaml` to
 `environments/azure-k3s-<yourshape>.yaml` and, for every service, set its key
 to `http://<the-bundle-that-includes-it>.egov.svc.cluster.local:8080/`. The
 chart generator's own drift check will warn on the next run if an overlay key
@@ -145,7 +145,7 @@ DIGIT_TAG=<tag> ./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-co
 
 ## 6. Write a helmfile for your bundles
 
-Copy `domain-split-helmfile.yaml` to
+Copy `domain-bundles-helmfile.yaml` to
 `<yourshape>-helmfile.yaml` and list **your** bundle releases
 (each `chart: ../bundles/<name>`) plus `keycloak` and `gateway-kong`. Give the
 first bundle `needs: [keycloak/keycloak]`. Then create `bundle_db` (once) and
@@ -157,7 +157,7 @@ DIGIT_TAG=<tag> ./deploy.sh -f <yourshape>-helmfile.yaml sync
 ```
 
 (list your overlay in that helmfile's `values:` after `azure-k3s.yaml`, and
-the `digit-tag.yaml.gotmpl` layer, exactly as `domain-split-helmfile.yaml`
+the `digit-tag.yaml.gotmpl` layer, exactly as `domain-bundles-helmfile.yaml`
 does — that is where `DIGIT_TAG` and the service-host overlay get applied.)
 
 ## 7. Program Kong from your manifest

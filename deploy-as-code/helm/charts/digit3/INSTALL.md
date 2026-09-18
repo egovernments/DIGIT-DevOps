@@ -1,30 +1,36 @@
 # DIGIT 3 on single-node k3s — full replication guide
 
-> **Scripted path:** [INSTALLATION-STEPS.md](INSTALLATION-STEPS.md) drives
-> everything below through the idempotent `scripts/01…07` pipeline (any
-> shape, optional Vault). This document remains the reference for what the
-> scripts do and the troubleshooting table.
+> **Installing?** The one-command path is [ONE-STEP-INSTALL.md](ONE-STEP-INSTALL.md);
+> the phase-by-phase runbook is [INSTALLATION-STEPS.md](INSTALLATION-STEPS.md).
+> Both drive the idempotent `scripts/` pipeline. This document is the
+> reference *behind* them — what each step does, and the troubleshooting table.
 
-Three shapes run DIGIT 3 on one k3s node, exactly as deployed on
-`modulith.digit.org` (Azure VM, 8 vCPU / 32 GB / 100 GB, Ubuntu 22.04). The
-`scripts/install.sh` one-command path (and `06-deploy.sh <digit3> <shape>`)
-takes `--shape services | dev-bundle | domain-split`:
+DIGIT 3 has no fixed deployment shape: **which services share a JVM is declared
+in one manifest per shape** (`src/bundles/<shape>.package.yaml` in the digit3
+repo), and every layer — the bundle jars, their Docker images, the helm
+charts, and Kong's routing — is derived from it. Any grouping of the 16 core
+services is a valid deployment. Out of the box, three are provided (deployed on
+`modulith.digit.org`, an 8 vCPU / 32 GB / 100 GB Ubuntu 22.04 VM):
 
-- **Option A — Modulith bundle** (`dev-bundle`): the 16 core services compiled
-  into ONE Spring Boot JVM (~430 Mi). One app pod, one db-migration init
-  image; helmfile `digit3services-helmfile.yaml`. See [BUNDLING.md](./BUNDLING.md).
-- **Option B — Per-service** (`services`): every service as its own helm
-  release / pod (~16 JVMs, ~5 GB); helmfile `services-helmfile.yaml`.
-- **Option C — Domain split** (`domain-split`): four bundle JVMs
-  (identity / notification / billing / admin); helmfile
-  `domain-split-helmfile.yaml`. Same mechanics as Option A per bundle.
+| `--shape` | Configuration | Containers | Helmfile | Manifest (digit3 `modulith`) |
+|---|---|---|---|---|
+| `single-container` | everything in one JVM (`dev-bundle`, ~430 Mi) | 1 | `single-container-helmfile.yaml` | `src/bundles/dev-bundle.package.yaml` |
+| `domain-bundles` | four JVMs along building-block lines | 4 | `domain-bundles-helmfile.yaml` | `src/bundles/domain-split.package.yaml` |
+| `per-service` | every service its own pod | 16 | `per-service-helmfile.yaml` | none (charts served directly) |
+
+`domain-bundles` grouping: `identity-bundle` (otp, individual, employee,
+account) · `notification-bundle` (template-config, notification, url-shortener)
+· `billing-bundle` (billing, apportion, pg-service) · `admin-bundle` (idgen,
+localization, workflow, registry, filestore, boundary). See
+[BUNDLING.md](./BUNDLING.md) for how a bundle works internally, and
+[CUSTOM-BUNDLING.md](./CUSTOM-BUNDLING.md) for a non-stock grouping.
 
 Each shape's domain and `egov-service-host` keys come from its overlay
-(`environments/azure-k3s-<shape>.yaml`); image tags come from `DIGIT_TAG`.
-Deploy exactly ONE shape — they share ingress paths and kong prefixes.
-
-All three shapes sit on the **same foundation** (Section 1): k3s, secrets,
-backbone infra, keycloak, kong. Switching between them is covered in Section 4.
+(`environments/azure-k3s-<shape>.yaml`), layered by its helmfile; image tags
+come from `DIGIT_TAG`. All three sit on the **same foundation** (Section 1);
+deploy exactly ONE at a time (they share ingress paths and kong prefixes) —
+switching is Section 4. (The pre-rename names `dev-bundle` / `domain-split` /
+`services` are still accepted as shape synonyms.)
 
 Repos used (both on the `modulith` branch):
 
@@ -176,10 +182,10 @@ encrypt/decrypt calls fail while sealed; the services themselves stay up.
 
 ---
 
-## 2. Option A — Deploy the modulith bundle
+## 2. `single-container` — the modulith bundle
 
 The `modulith` branch helmfile is already in this shape:
-`digit3services-helmfile.yaml` contains keycloak, **dev-bundle** and
+`single-container-helmfile.yaml` contains keycloak, **dev-bundle** and
 gateway-kong (authorization is Keycloak itself — kong's keycloak-rbac
 plugin; the former accesscontrol service is no longer deployed).
 
@@ -271,7 +277,7 @@ fails loudly when it is unset.
 ```bash
 cd deploy-as-code/helm/charts/digit3
 ./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync  # service-host update
-DIGIT_TAG=modulith-<sha> ./deploy.sh -f digit3services-helmfile.yaml sync   # keycloak, dev-bundle, kong
+DIGIT_TAG=modulith-<sha> ./deploy.sh -f single-container-helmfile.yaml sync   # keycloak, dev-bundle, kong
 kubectl get pods -n egov -l app=dev-bundle   # init container migrates public schema, then 1/1 Running
 ```
 
@@ -314,9 +320,9 @@ kubectl top pod -n egov -l app=dev-bundle    # ~600Mi for all 16 services
 
 ---
 
-## 3. Option B — Deploy each service separately (microservice shape)
+## 3. `per-service` — each service its own pod
 
-This is the pre-bundle shape of `digit3services-helmfile.yaml`: one release
+This is the pre-bundle shape of `single-container-helmfile.yaml`: one release
 per service (idgen, billing, …, 16 in all) plus keycloak and
 gateway-kong. On the `modulith` branch those 16
 entries were replaced by `dev-bundle` — to deploy per-service, check out the
@@ -335,13 +341,13 @@ entries; each is the same 8-line pattern):
       - ./idgen/values.yaml
 ```
 
-This shape has its own helmfile — `services-helmfile.yaml` (keycloak, the
-16 services, kong) — which layers `environments/azure-k3s-services.yaml`
+This shape has its own helmfile — `per-service-helmfile.yaml` (keycloak, the
+16 services, kong) — which layers `environments/azure-k3s-per-service.yaml`
 (domain + the 13 per-service `egov-service-host` keys) and takes its image
 tags from `DIGIT_TAG`, like the other shapes:
 
 ```bash
-DIGIT_TAG=modulith-<sha> ./deploy.sh -f services-helmfile.yaml sync
+DIGIT_TAG=modulith-<sha> ./deploy.sh -f per-service-helmfile.yaml sync
 ```
 
 ### 3.1 Deploy
@@ -349,7 +355,7 @@ DIGIT_TAG=modulith-<sha> ./deploy.sh -f services-helmfile.yaml sync
 ```bash
 cd deploy-as-code/helm/charts/digit3
 ./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync  # if service-host changed
-DIGIT_TAG=modulith-<sha> ./deploy.sh -f services-helmfile.yaml sync
+DIGIT_TAG=modulith-<sha> ./deploy.sh -f per-service-helmfile.yaml sync
 kubectl get pods -n egov     # expect ~16 service pods + keycloak + kong, all Running
 ```
 
@@ -396,7 +402,7 @@ for r in account apportion billing boundary employee filestore \
          registry template-config url-shortener workflow; do
   helm uninstall "$r" -n egov
 done
-# then follow Option A from 2.3 (env/service-host) → 2.4 sync → 2.5 kong repoint
+# then follow §2 (single-container) from 2.3 (env/service-host) → 2.4 sync → 2.5 kong repoint
 ```
 
 **A → B (bundle → services)**:
@@ -404,7 +410,7 @@ done
 ```bash
 helm uninstall dev-bundle -n egov
 # restore the 16 release entries in the helmfile + per-service egov-service-host keys,
-# then Option B 3.1 sync → 3.2 setup.py WITHOUT KONG_BUNDLE_UPSTREAM
+# then §3 (per-service) 3.1 sync → 3.2 setup.py WITHOUT KONG_BUNDLE_UPSTREAM
 ```
 
 Finally (either shape): open NSG 80/443 → the `cm-acme-http-solver` pods
@@ -487,8 +493,8 @@ identical files → validation passes.
 
 ```bash
 ./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync            # service-host key
-DIGIT_TAG=<tag> ./deploy.sh -f digit3services-helmfile.yaml -l name=dev-bundle sync   # FIRST: frees /billing
-DIGIT_TAG=<tag> ./deploy.sh -f digit3services-helmfile.yaml -l name=billing sync      # THEN the peeled service
+DIGIT_TAG=<tag> ./deploy.sh -f single-container-helmfile.yaml -l name=dev-bundle sync   # FIRST: frees /billing
+DIGIT_TAG=<tag> ./deploy.sh -f single-container-helmfile.yaml -l name=billing sync      # THEN the peeled service
 kubectl rollout restart deploy/dev-bundle -n egov                                     # see below
 ```
 

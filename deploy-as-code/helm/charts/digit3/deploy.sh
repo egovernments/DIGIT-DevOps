@@ -8,8 +8,8 @@
 #
 # Usage (from anywhere):
 #   ./deploy.sh -f backboneservices-helmfile.yaml apply     # backbone first
-#   ./deploy.sh -f digit3services-helmfile.yaml apply       # then services
-#   ./deploy.sh -f digit3services-helmfile.yaml -l name=keycloak diff
+#   DIGIT_TAG=<tag> ./deploy.sh -f single-container-helmfile.yaml apply   # then a shape
+#   DIGIT_TAG=<tag> ./deploy.sh -f single-container-helmfile.yaml -l name=keycloak diff
 #
 # Set KUBECONFIG to the target cluster before running, e.g.:
 #   export KUBECONFIG=~/Documents/modulith-deployment/modulith-kubeconfig.yaml

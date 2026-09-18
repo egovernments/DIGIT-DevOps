@@ -595,10 +595,16 @@ def check_service_host_overlays(charts_root, manifest_path, jobs):
     not a writer, from modulith-vault's --service-hosts rewriter."""
     env_dir = charts_root.parent / "environments"
     owner = {svc["name"]: bundle["name"] for bundle, members in jobs for svc in members}
-    shape = manifest_path.name.replace(".package.yaml", "")
+    # manifest is named after its composition (dev-bundle / domain-split); the
+    # deployment SHAPE it feeds is named for its topology (single-container /
+    # domain-bundles), and its overlay follows the shape name.
+    shape = {"dev-bundle": "single-container",
+             "domain-split": "domain-bundles"}.get(
+                 manifest_path.name.replace(".package.yaml", ""),
+                 manifest_path.name.replace(".package.yaml", ""))
     targets = [(env_dir / f"azure-k3s-{shape}.yaml",
                 lambda n: f"http://{owner[n]}.egov.svc.cluster.local:8080/"),
-               (env_dir / "azure-k3s-services.yaml",
+               (env_dir / "azure-k3s-per-service.yaml",
                 lambda n: f"http://{n}.egov.svc.cluster.local:8080/")]
     for path, expect in targets:
         if not path.exists():

@@ -300,7 +300,7 @@ manifest helm: ───┤→ generate_bundle_chart.py → charts/bundles/dev-b
                                             rendered Deployment/Service/Ingress
 ```
 
-The helmfile release (`digit3services-helmfile.yaml`) points at
+The helmfile release (`single-container-helmfile.yaml`) points at
 `../bundles/dev-bundle` and passes the secrets + environment files; the
 `common.name` helper merges the environment's `dev-bundle:` block over the
 generated values with highest precedence. Maps (env, dbMigrations) deep-merge

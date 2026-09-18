@@ -20,6 +20,13 @@ if ! kubectl get clusterissuer letsencrypt-prod >/dev/null 2>&1; then
     die "ClusterIssuers still missing after cert-manager re-sync — see the gotchas table in INSTALL.md"
 fi
 
+# filestore's bucket: minio starts empty and the service reports NoSuchBucket
+# on the first upload — provision it once here (idempotent: mb -p).
+note "minio bucket for filestore"
+kubectl exec -n backbone minio-0 -- sh -c \
+  'mc alias set local http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null && mc mb -p local/unified-dev-bucket-s3' \
+  2>/dev/null | tail -1 || echo "    minio not ready yet — re-run this script (idempotent)"
+
 note "waiting for postgres"
 wait_for_pod egov statefulset.kubernetes.io/pod-name=postgresql-lts-0 300
 

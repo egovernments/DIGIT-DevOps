@@ -1404,12 +1404,34 @@ inji-ingress:
   certIssuer: "letsencrypt-prod"
   modules:
     injiweb:
-      ## Step 08 -- also blocked on the ClusterRole decision.
-      enabled: false
+      ## ENABLED. DNS resolves (injiweb.test-lts.digit.org -> 4.224.237.122).
+      ##
+      ## The ClusterRole concern that previously blocked this is mitigated, not
+      ## outstanding: ServiceAccount injiweb now carries
+      ## automountServiceAccountToken: false and the running pod was recreated,
+      ## so it has no kube-api-access volume and no token at all (verified --
+      ## /var/run/secrets/kubernetes.io/serviceaccount does not exist in the
+      ## container). The over-broad ClusterRole still exists but cannot be
+      ## exercised. See the long note in charts/argo-cd/inji/inji-app-project.yaml.
+      ##
+      ## That patch is LIVE-ONLY -- the chart does not declare the field, so
+      ## ArgoCD server-side apply leaves it alone, but a chart upgrade that
+      ## starts declaring it would revert the mitigation. Re-check after any
+      ## inji-web version bump.
+      enabled: true
     injicertify:
-      ## Step 06 is Healthy, but leave this until the credential flow is being
-      ## exercised end to end; enabling it requests a certificate.
-      enabled: false
+      ## ENABLED. DNS resolves (injicertify.test-lts.digit.org -> 4.224.237.122).
+      ##
+      ## Required now, not optional: the issuer DID is
+      ## did:web:injicertify.test-lts.digit.org, which a verifier resolves to
+      ## https://injicertify.test-lts.digit.org/.well-known/did.json, and
+      ## mimoto-issuers-config.json points credential_issuer_host and
+      ## wellknown_endpoint at this hostname. Mimoto's runtime call to
+      ## getIssuerConfiguration() fetches that wellknown, so without this
+      ## Ingress the web-wallet flow cannot resolve the issuer.
+      ## The host-root .well-known paths are served by the wellKnownRewrite
+      ## rule in the inji-ingress chart.
+      enabled: true
     esignet:
       ## ENABLED. DNS resolves (4.224.237.122) and the denyPaths snippet in the
       ## chart blocks /v1/esignet/client-mgmt and /v1/esignet/system-info at

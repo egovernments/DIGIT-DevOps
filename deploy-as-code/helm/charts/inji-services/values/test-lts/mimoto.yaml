@@ -129,3 +129,23 @@ resources:
 ## = 8099, which matches the Service's targetPort.
 metrics:
   endpointPath: /v1/mimoto/actuator/prometheus
+
+  serviceMonitor:
+    ## WITHOUT THIS LABEL THE ServiceMonitor IS APPLIED BUT NEVER SCRAPED.
+    ##
+    ## This cluster's Prometheus (monitoring/kube-prometheus-stack-prometheus,
+    ## v2.49.1) selects ServiceMonitors by label, not by namespace:
+    ##   serviceMonitorSelector:          matchLabels: {release: kube-prometheus-stack}
+    ##   serviceMonitorNamespaceSelector: {}      <- all namespaces, so the
+    ##                                               `inji` namespace is fine
+    ## The MOSIP charts label their ServiceMonitors only with the standard
+    ## app.kubernetes.io/* set, so none of them matches and Prometheus silently
+    ## ignores them. Confirmed against the live instance: of 53 active targets,
+    ## ZERO were in namespace inji -- including esignet and inji-certify, whose
+    ## ServiceMonitors had existed for 27+ hours.
+    ##
+    ## Add the same block to the other three module values files
+    ## (esignet.yaml, inji-certify.yaml, mock-identity-system.yaml) -- this is a
+    ## pre-existing gap across all of them, not specific to mimoto.
+    additionalLabels:
+      release: kube-prometheus-stack

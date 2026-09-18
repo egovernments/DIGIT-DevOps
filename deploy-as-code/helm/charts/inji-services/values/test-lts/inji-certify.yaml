@@ -78,3 +78,24 @@ resources:
   requests:
     cpu: 200m
     memory: 1Gi
+
+## Make the chart's ServiceMonitor actually scrapeable.
+## Prometheus here selects ServiceMonitors by label
+## (release=kube-prometheus-stack) across all namespaces; the MOSIP charts do
+## not set it, so this ServiceMonitor existed for 27h without being scraped.
+## See the fuller note in mimoto.yaml.
+metrics:
+  ## Override the chart default, which is WRONG for this image.
+  ## inji-certify 0.13.1 ships
+  ##   endpointPath: /v1/inji-certify/actuator/prometheus
+  ## but the app's servlet context is /v1/certify, so the chart's own path
+  ## 404s. Verified against the running pod on containerPort 8090:
+  ##   /v1/inji-certify/actuator/prometheus -> 404 (106 bytes)
+  ##   /v1/certify/actuator/prometheus      -> 200 (51263 bytes)
+  ## Left unfixed, adding the release label below would register a target that
+  ## fails every scrape -- worse than having no target, because it alerts.
+  endpointPath: /v1/certify/actuator/prometheus
+
+  serviceMonitor:
+    additionalLabels:
+      release: kube-prometheus-stack

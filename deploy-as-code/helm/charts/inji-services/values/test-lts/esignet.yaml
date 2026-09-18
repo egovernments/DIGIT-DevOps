@@ -97,3 +97,21 @@ resources:
   requests:
     cpu: 200m
     memory: 1Gi
+
+## Make the chart's ServiceMonitor actually scrapeable.
+##
+## The chart already ships a correct endpointPath
+## (/v1/esignet/actuator/prometheus), so unlike mimoto 0.20.0 the object
+## applies cleanly -- but it was never being scraped. This cluster's Prometheus
+## selects by label:
+##   serviceMonitorSelector:          matchLabels: {release: kube-prometheus-stack}
+##   serviceMonitorNamespaceSelector: {}      <- all namespaces
+## and the MOSIP charts label ServiceMonitors only with app.kubernetes.io/*.
+## Verified against the live instance: of 53 active targets, zero were in
+## namespace inji, despite this ServiceMonitor existing for 29h.
+##
+## See the fuller note in mimoto.yaml.
+metrics:
+  serviceMonitor:
+    additionalLabels:
+      release: kube-prometheus-stack

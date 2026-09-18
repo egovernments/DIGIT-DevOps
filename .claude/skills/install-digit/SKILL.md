@@ -6,6 +6,19 @@ argument-hint: <ssh-key-path> <domain> [vm-user]
 
 # Install DIGIT 3 on a k3s VM (any shape, optional Vault)
 
+**Preferred path: one command.** `scripts/install.sh` orchestrates everything
+below (flags or interactive prompts, Docker Hub preflight, per-phase resume
+protocol) — collect the inputs in §1, then run it and monitor:
+
+```bash
+./install.sh --key <key> --domain <domain> --digit3 <path> \
+  --shape services|dev-bundle|domain-split --tag modulith-<sha> \
+  --tenant "Name" --email <email> [--skip-vault]
+```
+
+Drive the individual phases yourself only when resuming a failed one or when
+the user asks for step-by-step control.
+
 You are driving the numbered, **idempotent** phase scripts in
 `deploy-as-code/helm/charts/digit3/scripts/` (repo root = this repo). Run the
 phases **straight through**, stopping only when a script fails. A completed

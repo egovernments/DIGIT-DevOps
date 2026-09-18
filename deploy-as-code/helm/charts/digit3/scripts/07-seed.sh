@@ -23,39 +23,80 @@ SHAPE=$(cat "$SCRIPT_DIR/.last-shape" 2>/dev/null || true)
 svc_ip() { kubectl get svc "$1" -n egov -o jsonpath='{.spec.clusterIP}'; }
 case "$SHAPE" in
   services)     ACCOUNT=$(svc_ip account); IDGEN=$(svc_ip idgen)
-                INDIVIDUAL=$(svc_ip individual); NOTIF=$(svc_ip notification); OTP=$(svc_ip otp) ;;
-  dev-bundle)   ACCOUNT=$(svc_ip dev-bundle); IDGEN=$ACCOUNT; INDIVIDUAL=$ACCOUNT; NOTIF=$ACCOUNT; OTP=$ACCOUNT ;;
+                INDIVIDUAL=$(svc_ip individual); NOTIF=$(svc_ip notification); OTP=$(svc_ip otp)
+                ACCOUNT_DEP=account; IDGEN_DEP=idgen; INDIVIDUAL_DEP=individual ;;
+  dev-bundle)   ACCOUNT=$(svc_ip dev-bundle); IDGEN=$ACCOUNT; INDIVIDUAL=$ACCOUNT; NOTIF=$ACCOUNT; OTP=$ACCOUNT
+                ACCOUNT_DEP=dev-bundle; IDGEN_DEP=dev-bundle; INDIVIDUAL_DEP=dev-bundle ;;
   domain-split) ACCOUNT=$(svc_ip identity-bundle); INDIVIDUAL=$ACCOUNT; OTP=$ACCOUNT
-                IDGEN=$(svc_ip admin-bundle); NOTIF=$(svc_ip notification-bundle) ;;
+                IDGEN=$(svc_ip admin-bundle); NOTIF=$(svc_ip notification-bundle)
+                ACCOUNT_DEP=identity-bundle; IDGEN_DEP=admin-bundle; INDIVIDUAL_DEP=identity-bundle ;;
   *) die "unknown shape in scripts/.last-shape: $SHAPE" ;;
 esac
 [ -n "$ACCOUNT" ] || die "account-hosting service not found — is shape '$SHAPE' deployed?"
 H_JSON="-H 'Content-Type: application/json'"
 
+# Readiness pre-check: these calls run over ssh+curl, so an unready service
+# surfaces as a bare curl failure — fail loudly and specifically instead.
+check_ready() { # deploy-name
+  local d="$1" ready
+  ready=$(kubectl get deploy "$d" -n egov -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
+  [ "${ready:-0}" -ge 1 ] 2>/dev/null || \
+    die "service '$d' has no ready pod — check: kubectl get pods -n egov -l app=$d; a stale vault-approle secret is the classic cause (re-run ./04-vault.sh, then rollout restart)"
+}
+for d in $(printf '%s\n' "$ACCOUNT_DEP" "$IDGEN_DEP" "$INDIVIDUAL_DEP" | sort -u); do check_ready "$d"; done
+echo "    services ready"
+
+print_credentials() {
+  if [ -n "$ADMIN_PASS" ]; then
+    echo
+    echo "  tenant admin login (shown ONCE — store it now):"
+    echo "    username: $EMAIL"
+    echo "    password: $ADMIN_PASS"
+  fi
+}
+
 note "creating tenant '$NAME' on shape '$SHAPE' (all calls run on the VM)"
-RESP=$(vm_curl "-X POST http://$ACCOUNT:8080/account/v3/tenants $H_JSON -H 'X-User-ID: seed-script' -d '{\"name\":\"$NAME\",\"email\":\"$EMAIL\",\"phone\":\"$PHONE\"}'")
+# The tenant admin is created with this password — generated here and printed
+# ONCE at the end. Without it the server generates one that is never delivered
+# (SMTP is a placeholder in test environments).
+ADMIN_PASS=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-16)
+RESP=$(vm_curl "-X POST http://$ACCOUNT:8080/account/v3/tenants $H_JSON -H 'X-User-ID: seed-script' -d '{\"name\":\"$NAME\",\"email\":\"$EMAIL\",\"phone\":\"$PHONE\",\"password\":\"$ADMIN_PASS\"}'")
 CODE=$(printf '%s' "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('code',''))" 2>/dev/null || true)
 if [ -z "$CODE" ]; then
   CODE=$(vm_curl "'http://$ACCOUNT:8080/account/v3/tenants?email=$EMAIL'" | \
     python3 -c "import sys,json;ts=json.load(sys.stdin).get('tenants') or [];print(ts[0]['code'] if ts else '')" 2>/dev/null || true)
-  [ -n "$CODE" ] && echo "    tenant already exists" || die "tenant create failed: $RESP"
+  [ -n "$CODE" ] && { echo "    tenant already exists (admin password unchanged)"; ADMIN_PASS=""; } || die "tenant create failed: $RESP"
 fi
 echo "    tenant code: $CODE"
+# Printed IMMEDIATELY, not at the end: a failure in any later step would
+# otherwise lose a password that was already written into Keycloak.
+print_credentials
 
-note "waiting for the tenant-migration event to build the '$CODE' schema"
+note "waiting for the tenant-migration fan-out to COMPLETE for '$CODE'"
+# Schema existence is NOT completion: the first consumer creates the schema
+# within a second, while the other 14 are still migrating — seeding a service
+# whose tables don't exist yet fails with an opaque 500 (proven live: otp's
+# event arrived 1.3s AFTER the schema already existed). All 15 tenant-migrating
+# services leave a <svc>_schema Flyway history table; wait for every one.
 WAITED=0
-until psql_exec -tAc "SELECT 1 FROM information_schema.schemata WHERE schema_name='$CODE'" | grep -q 1; do
+until [ "$(psql_exec -tAc "SELECT count(*) FROM pg_tables WHERE schemaname='$CODE' AND tablename LIKE '%_schema'")" = "15" ]; do
   sleep 3; WAITED=$((WAITED + 3))
-  [ "$WAITED" -ge 180 ] && die "schema $CODE not created after ${WAITED}s — check [tenant-migration] in the consumer logs"
+  [ "$WAITED" -ge 300 ] && die "tenant fan-out incomplete after ${WAITED}s ($(psql_exec -tAc "SELECT count(*) FROM pg_tables WHERE schemaname='$CODE' AND tablename LIKE '%_schema'")/15 histories) — check [tenant-migration] in the consumer logs"
 done
-echo "    schema ready"
+echo "    fan-out complete (15/15 service migrations)"
 
 hdr() { echo "-H 'X-Tenant-ID: $CODE' -H 'X-User-ID: seed-script'"; }
-seed() { # label url json ok-marker
-  local out; out=$(vm_curl "-X POST $2 $H_JSON $(hdr) -d '$3'")
-  if printf '%s' "$out" | grep -q "$4"; then echo "    $1: created"
-  elif printf '%s' "$out" | grep -qiE "exists|conflict|409"; then echo "    $1: already present"
-  else die "$1 failed: $out"; fi
+seed() { # label url json ok-marker — one retry: a service's very first request
+  # after rollout can 500 while pools/clients warm up (readiness can't see it)
+  local out attempt
+  for attempt in 1 2; do
+    out=$(vm_curl "-X POST $2 $H_JSON $(hdr) -d '$3'")
+    if printf '%s' "$out" | grep -q "$4"; then echo "    $1: created"; return 0
+    elif printf '%s' "$out" | grep -qiE "exists|conflict|409"; then echo "    $1: already present"; return 0
+    fi
+    [ "$attempt" = 1 ] && { echo "    $1: transient ($(printf '%s' "$out" | head -c 60)…) — retrying"; sleep 5; }
+  done
+  die "$1 failed: $out"
 }
 note "otp configs (login, registration)"
 for p in login registration; do

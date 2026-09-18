@@ -61,15 +61,18 @@ if [ -f "$SECRETS_FILE" ]; then
 else
   note "generating $SECRETS_FILE with fresh credentials"
   rand() { openssl rand -base64 24 | tr -d '/+=' | cut -c1-24; }
+  DB_PASS=$(rand)
   KRAFT_ID=$(python3 -c "import uuid,base64;print(base64.urlsafe_b64encode(uuid.uuid4().bytes).decode().rstrip('='))")
   cat > "$SECRETS_FILE" <<EOF
 cluster-configs:
   secrets:
     db:
       username: postgres
-      password: $(rand)
+      password: $DB_PASS
       flywayUsername: postgres
-      flywayPassword: $(rand)
+      # SAME credential: flyway connects AS the postgres user — an independent
+      # random here fails every -db init container (28P01) on fresh installs
+      flywayPassword: $DB_PASS
     minio:
       accesskey: $(openssl rand -hex 10)
       secretkey: $(openssl rand -hex 20)

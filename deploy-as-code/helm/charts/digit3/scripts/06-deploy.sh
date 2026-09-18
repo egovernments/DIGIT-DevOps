@@ -48,10 +48,17 @@ for d in $ROLLOUT; do
 done
 
 note "programming kong from the manifest"
+# kong just synced: wait for its deployment AND for the Admin API to answer —
+# programming a starting kong loses routes silently.
+kubectl rollout status deploy/kong-kong -n egov --timeout=300s >/dev/null
 kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 >/dev/null 2>&1 &
 PF_PID=$!
 trap 'kill $PF_PID 2>/dev/null || true' EXIT
-sleep 3
+for _ in $(seq 1 30); do
+  curl -sfm 2 -o /dev/null http://localhost:18001/status && break
+  sleep 2
+done
+curl -sfm 2 -o /dev/null http://localhost:18001/status || die "kong Admin API not answering on the port-forward"
 case "$SHAPE" in
   services)     KONG_BUNDLES="none" ;;
   dev-bundle)   KONG_BUNDLES="" ;;                # setup.py default manifest

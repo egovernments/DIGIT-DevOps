@@ -12,6 +12,26 @@ Placeholders: `<key>` = SSH private key, `<domain>` = the VM's DNS name,
 `<shape>` = `services|dev-bundle|domain-split`, `<tag>` = the image tag
 (`modulith-<sha>` from the GitHub Actions builds).
 
+## One command
+
+Everything below, in one go (prompts for anything omitted; on failure it
+stops with the exact resume command, and re-running no-ops through
+completed phases):
+
+```bash
+cd deploy-as-code/helm/charts/digit3/scripts
+./install.sh --key <key> --domain <domain> --digit3 <digit3-path> \
+  --shape services|dev-bundle|domain-split --tag modulith-<sha> \
+  --tenant "My Tenant" --email admin@example.org
+```
+
+It preflights every image the shape needs against Docker Hub, runs phases
+01→04, deploys with `DIGIT_TAG=<tag>`, seeds a tenant (printing the admin
+password ONCE) and, with Vault, verifies the PII pipeline. `--skip-vault`
+skips phase 04 (set `VAULT_ENABLED: "false"` in the shape's env blocks
+first). The step-by-step path below remains for understanding and for
+resuming individual phases.
+
 ## Steps
 
 **1. Workstation toolchain** — `kubectl`, `helm` (v4), `helmfile` (v1.7+),

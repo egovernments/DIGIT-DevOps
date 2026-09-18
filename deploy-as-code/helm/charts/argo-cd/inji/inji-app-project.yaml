@@ -64,7 +64,13 @@ spec:
     - group: rbac.authorization.k8s.io
       kind: ClusterRoleBinding
 
-  ## ClusterRole is deliberately NOT permitted.
+    ## injiweb (step 08) renders ClusterRole/injiweb. Permitted ONLY because
+    ## the sync cannot proceed otherwise -- NOT because the grant is
+    ## acceptable. Read the note below before relying on this.
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+
+  ## THE injiweb ClusterRole IS AN OVER-GRANT. Mitigate it, do not ignore it.
   ##
   ## The injiweb chart (step 08) renders ClusterRole/injiweb with:
   ##   apiGroups: ['*']
@@ -76,10 +82,24 @@ spec:
   ## like an unreviewed copy-paste. Granting that would give the web wallet
   ## access to every DIGIT secret in the cluster.
   ##
-  ## Leaving it unlisted means step 08 will fail to sync the same way step 06
-  ## did -- which is the intended outcome: it forces a decision rather than
-  ## silently granting the permission. Resolve it before step 08, not by
-  ## adding ClusterRole here without narrowing the rules.
+  ## The rules are HARDCODED in the chart's templates/clusterrole.yaml -- not
+  ## values-driven -- and the chart exposes no automountServiceAccountToken
+  ## option, so the grant cannot be narrowed through configuration. rbac.create
+  ## does not gate the template either (verified by rendering with it false).
+  ##
+  ## MITIGATION, required after step 08 is applied:
+  ##   kubectl -n inji patch serviceaccount injiweb \
+  ##     -p '{"automountServiceAccountToken": false}'
+  ## The ClusterRole and its binding still exist, but no injiweb pod receives a
+  ## usable token, so the permissions cannot be exercised. The chart does not
+  ## declare that field, so ArgoCD's server-side apply leaves the patch alone
+  ## rather than reverting it -- confirm after the next sync.
+  ##
+  ## RESIDUAL RISK: anyone able to create a pod in the inji namespace could
+  ## bind the injiweb ServiceAccount and use the grant. Acceptable only because
+  ## namespace write access is already privileged. The real fix is upstream
+  ## narrowing those rules -- the resource list (virtualservices, gateways)
+  ## shows they were written for an Istio deployment we do not run.
 
   namespaceResourceWhitelist:
     - group: '*'

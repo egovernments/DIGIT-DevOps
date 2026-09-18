@@ -45,6 +45,14 @@ check_ready() { # deploy-name
     die "service '$d' has no ready pod — check: kubectl get pods -n egov -l app=$d; a stale vault-approle secret is the classic cause (re-run ./04-vault.sh, then rollout restart)"
 }
 for d in $(printf '%s\n' "$ACCOUNT_DEP" "$IDGEN_DEP" "$INDIVIDUAL_DEP" | sort -u); do check_ready "$d"; done
+# Keycloak is the slowest thing on a fresh VM (~1 min JVM cold boot) and lives
+# in its own namespace, so the egov readiness loop above misses it — tenant
+# create calls its admin token endpoint and fails with a bare ConnectException
+# if it races the boot. Its readiness probe gates on the HTTP being up, so
+# wait for the Deployment to report Available before seeding.
+note "waiting for keycloak to be ready (admin API)"
+kubectl wait --for=condition=Available deploy/keycloak -n keycloak --timeout=180s >/dev/null \
+  || die "keycloak not Available after 180s — check: kubectl get pods -n keycloak; kubectl logs -n keycloak deploy/keycloak"
 echo "    services ready"
 
 print_credentials() {

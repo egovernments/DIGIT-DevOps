@@ -1008,7 +1008,12 @@ deploymentAnnotations: {}
 # "resources" and, if using the controller, "ingressController.resources" in values.yaml
 autoscaling:
   enabled: true
-  minReplicas: 2
+  # minReplicas: 1 so exactly one pod runs the init-container migration
+  # (`bootstrap && up && finish`) on a fresh DB — the sequence is unserialized
+  # and NOT run by a Job, so 2 first-boot replicas race and leave the DB
+  # mid-sequence (CrashLoopBackOff). A replica the HPA adds later re-runs the
+  # sequence against an already-migrated DB, where every step no-ops.
+  minReplicas: 1
   maxReplicas: 5
   behavior: {}
   ## targetCPUUtilizationPercentage only used if the cluster doesn't support autoscaling/v2 or autoscaling/v2beta

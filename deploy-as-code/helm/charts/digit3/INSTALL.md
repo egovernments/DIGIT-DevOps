@@ -5,19 +5,26 @@
 > shape, optional Vault). This document remains the reference for what the
 > scripts do and the troubleshooting table.
 
-Two ways to run DIGIT 3 on one k3s node, exactly as deployed on
-`modulith.digit.org` (Azure VM, 8 vCPU / 32 GB / 100 GB, Ubuntu 22.04):
+Three shapes run DIGIT 3 on one k3s node, exactly as deployed on
+`modulith.digit.org` (Azure VM, 8 vCPU / 32 GB / 100 GB, Ubuntu 22.04). The
+`scripts/install.sh` one-command path (and `06-deploy.sh <digit3> <shape>`)
+takes `--shape services | dev-bundle | domain-split`:
 
-- **Option A — Modulith bundle**: the 16 core services compiled into ONE
-  Spring Boot JVM (`dev-bundle`, ~430 Mi). One app pod, one db-migration
-  init image. See [BUNDLING.md](./BUNDLING.md) for how it works internally.
-- **Option B — Per-service (microservice shape)**: every service as its own
-  helm release / pod (~16 JVMs, ~5 GB).
+- **Option A — Modulith bundle** (`dev-bundle`): the 16 core services compiled
+  into ONE Spring Boot JVM (~430 Mi). One app pod, one db-migration init
+  image; helmfile `digit3services-helmfile.yaml`. See [BUNDLING.md](./BUNDLING.md).
+- **Option B — Per-service** (`services`): every service as its own helm
+  release / pod (~16 JVMs, ~5 GB); helmfile `services-helmfile.yaml`.
+- **Option C — Domain split** (`domain-split`): four bundle JVMs
+  (identity / notification / billing / admin); helmfile
+  `domain-split-helmfile.yaml`. Same mechanics as Option A per bundle.
 
-Both options sit on the **same foundation** (Section 1): k3s, secrets,
-backbone infra, keycloak, kong. **Deploy exactly one option at a time** —
-they publish the same ingress context paths and kong prefixes, so running
-both clashes. Switching between them is covered in Section 4.
+Each shape's domain and `egov-service-host` keys come from its overlay
+(`environments/azure-k3s-<shape>.yaml`); image tags come from `DIGIT_TAG`.
+Deploy exactly ONE shape — they share ingress paths and kong prefixes.
+
+All three shapes sit on the **same foundation** (Section 1): k3s, secrets,
+backbone infra, keycloak, kong. Switching between them is covered in Section 4.
 
 Repos used (both on the `modulith` branch):
 
@@ -32,7 +39,7 @@ Workstation prerequisites: `kubectl`, `helm` (v4 tested), `helmfile` (v1.7+),
 
 ---
 
-## 1. Common foundation (required for BOTH options)
+## 1. Common foundation (required for ALL shapes)
 
 ### 1.1 Provision the VM and DNS
 
@@ -138,7 +145,7 @@ kubectl exec -n egov postgresql-lts-0 -- psql -U postgres -c "CREATE DATABASE ne
 # plus a `keycloak` role with the password from the kc-db secret
 ```
 
-(Keycloak itself is installed by the services helmfile in both options.)
+(Keycloak is installed by every shape's helmfile.)
 
 ### 1.8 Optional: HashiCorp Vault (PII encryption at rest)
 
@@ -342,7 +349,7 @@ DIGIT_TAG=modulith-<sha> ./deploy.sh -f services-helmfile.yaml sync
 ```bash
 cd deploy-as-code/helm/charts/digit3
 ./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync  # if service-host changed
-./deploy.sh -f digit3services-helmfile.yaml sync
+DIGIT_TAG=modulith-<sha> ./deploy.sh -f services-helmfile.yaml sync
 kubectl get pods -n egov     # expect ~16 service pods + keycloak + kong, all Running
 ```
 
@@ -374,7 +381,7 @@ ssh -i <key> azureuser@<domain> \
 
 ---
 
-## 4. Switching between the two shapes
+## 4. Switching between shapes
 
 The shapes are mutually exclusive (same ingress paths, same kong prefixes).
 Data note: both shapes use the default `postgres` database and the same
@@ -479,10 +486,10 @@ identical files → validation passes.
 ### 5.4 Deploy — order matters
 
 ```bash
-./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync   # service-host key
-./deploy.sh -f digit3services-helmfile.yaml -l name=dev-bundle sync          # FIRST: frees /billing
-./deploy.sh -f digit3services-helmfile.yaml -l name=billing sync        # THEN the peeled service
-kubectl rollout restart deploy/dev-bundle -n egov                            # see below
+./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync            # service-host key
+DIGIT_TAG=<tag> ./deploy.sh -f digit3services-helmfile.yaml -l name=dev-bundle sync   # FIRST: frees /billing
+DIGIT_TAG=<tag> ./deploy.sh -f digit3services-helmfile.yaml -l name=billing sync      # THEN the peeled service
+kubectl rollout restart deploy/dev-bundle -n egov                                     # see below
 ```
 
 Two traps encoded in that order:

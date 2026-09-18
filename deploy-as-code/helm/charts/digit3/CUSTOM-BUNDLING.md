@@ -27,8 +27,8 @@ deploy**. Custom bundling only touches the second half.
 | 06 deploy | `--shape` picks a fixed helmfile + manifest | **you drive the generator + a hand-written helmfile** |
 | 07 seed | `07-seed.sh` resolves endpoints by shape | **point it at the bundle that owns account/idgen/individual** |
 
-The `--shape` flag maps to *fixed* bundle names, helmfiles, and manifests, so
-`05-build.sh (optional local build) --shape` / `06-deploy.sh --shape` **do not** cover a custom
+The `install.sh --shape` / `06-deploy.sh <digit3> <shape>` path maps to *fixed*
+bundle names, helmfiles, and manifests, so it **does not** cover a custom
 grouping. Run phases 01–04 with the scripts as usual, then follow the steps
 below in place of 05–06.
 
@@ -102,14 +102,14 @@ for B in core-bundle other-bundle; do        # your bundle names
 done
 ```
 
-## 3. Generate a chart per bundle
+## 3. Generate the charts
+
+One run regenerates **every** bundle in the manifest (no per-bundle flag):
 
 ```bash
-cd DIGIT-DevOps/deploy-as-code/helm/bundler
-for B in core-bundle other-bundle; do
-  python3 generate_bundle_chart.py --manifest <digit3>/src/bundles/<your>.package.yaml --bundle $B
-done
-# → charts/bundles/<each bundle>
+cd DIGIT-DevOps/deploy-as-code/helm
+python3 bundler/generate_bundle_chart.py --manifest <digit3>/src/bundles/<your>.package.yaml
+# → charts/bundles/<each bundle in the manifest>
 ```
 
 ## 4. Add an env block per bundle
@@ -127,34 +127,38 @@ on the existing `identity-bundle:` / `admin-bundle:` blocks):
 - **on the bundle that includes `individual`/`otp`**: `VAULT_ENABLED: "true"`
   (the role/secret/HMAC refs are chart defaults)
 
-## 5. Derive the service-host map from your manifest
+## 5. Write a shape overlay with your service-host map
 
-```bash
-python3 bundler/generate_bundle_chart.py \
-  --manifest <digit3>/src/bundles/<your>.package.yaml \
-  --service-hosts ../environments/azure-k3s.yaml
-```
-
-This rewrites every service's `egov-service-host` key to its owning bundle's
-Service (idempotent; dedupes). Re-sync cluster-configs so pods pick it up:
+The stock shapes each have an overlay (`environments/azure-k3s-<shape>.yaml`)
+that sets the domain and repoints the 16 `egov-service-host` keys at the
+owning Service. Copy `environments/azure-k3s-domain-split.yaml` to
+`environments/azure-k3s-<yourshape>.yaml` and, for every service, set its key
+to `http://<the-bundle-that-includes-it>.egov.svc.cluster.local:8080/`. The
+chart generator's own drift check will warn on the next run if an overlay key
+disagrees with the manifest's composition, so this stays honest. Re-sync
+cluster-configs so pods pick it up:
 
 ```bash
 cd charts/digit3
-./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync
+DIGIT_TAG=<tag> ./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync
 ```
 
 ## 6. Write a helmfile for your bundles
 
-Copy `digit3services-domain-split-helmfile.yaml` to
-`digit3services-<yourshape>-helmfile.yaml` and list **your** bundle releases
+Copy `domain-split-helmfile.yaml` to
+`<yourshape>-helmfile.yaml` and list **your** bundle releases
 (each `chart: ../bundles/<name>`) plus `keycloak` and `gateway-kong`. Give the
 first bundle `needs: [keycloak/keycloak]`. Then create `bundle_db` (once) and
 sync:
 
 ```bash
 kubectl exec -n egov postgresql-lts-0 -- psql -U postgres -c "CREATE DATABASE bundle_db"
-./deploy.sh -f digit3services-<yourshape>-helmfile.yaml sync
+DIGIT_TAG=<tag> ./deploy.sh -f <yourshape>-helmfile.yaml sync
 ```
+
+(list your overlay in that helmfile's `values:` after `azure-k3s.yaml`, and
+the `digit-tag.yaml.gotmpl` layer, exactly as `domain-split-helmfile.yaml`
+does — that is where `DIGIT_TAG` and the service-host overlay get applied.)
 
 ## 7. Program Kong from your manifest
 

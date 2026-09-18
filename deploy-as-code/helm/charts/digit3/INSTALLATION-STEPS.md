@@ -1,6 +1,6 @@
 # DIGIT 3 on k3s — scripted installation
 
-Any of the three deployment shapes — **per-service** (16 pods),
+Any of the three deployment shapes — **services** (16 pods),
 **dev-bundle** (one modulith JVM) or **domain-split** (4 bundle JVMs) — with
 optional **Vault PII encryption**, in 8 steps. Steps 4–8 are the numbered
 scripts in [`scripts/`](scripts/) — each is idempotent (safe to re-run; a
@@ -98,7 +98,7 @@ key):
 (`05-build.sh <path-to-digit3> [manifest]` is the optional offline path: it
 builds the bundle images locally from the checkout and side-loads them into
 containerd; `06-deploy.sh` then defaults its tag from
-`scripts/.last-build-tag`. The per-service shape always uses Actions images.)
+`scripts/.last-build-tag`. The services shape always uses Actions images.)
 
 ## Ongoing operations
 

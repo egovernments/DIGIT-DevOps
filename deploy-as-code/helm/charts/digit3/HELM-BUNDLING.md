@@ -260,7 +260,7 @@ generator; symptom was helm's "error validating data: apiVersion not set".)
 A ready-to-paste starter for `environments/<env>.yaml`: the `dev-bundle:`
 block skeleton with the image tag placeholders and one `dbMigrations` entry
 per service. The real azure-k3s block grew from this plus the overrides in
-INSTALL.md §2.3.
+INSTALL.md §3.3.
 
 ---
 

@@ -29,7 +29,7 @@ Each shape's domain and `egov-service-host` keys come from its overlay
 (`environments/azure-k3s-<shape>.yaml`), layered by its helmfile; image tags
 come from `DIGIT_TAG`. All three sit on the **same foundation** (Section 1);
 deploy exactly ONE at a time (they share ingress paths and kong prefixes) —
-switching is Section 4. (The pre-rename names `dev-bundle` / `domain-split` /
+switching is Section 6. (The pre-rename names `dev-bundle` / `domain-split` /
 `services` are still accepted as shape synonyms.)
 
 Repos used (both on the `modulith` branch):
@@ -182,14 +182,55 @@ encrypt/decrypt calls fail while sealed; the services themselves stay up.
 
 ---
 
-## 2. `single-container` — the modulith bundle
+## 2. The manifest: how a deployment shape is declared
+
+Skip this for `per-service` (it needs no bundler). For the bundle shapes, the
+shape's `digit3/src/bundles/<name>.package.yaml` is the single source of truth,
+with two sections:
+
+- **`services:` — the catalog.** A map keyed by service name, deliberately
+  minimal: only `module` (path under `src/`) and `packageRoot` are stated.
+  Maven coordinates are DERIVED from the module's pom; `contextPath` (`/<name>`),
+  `basePathKey` (`<name>.base-path`) and `schemaTable` (`<name>_schema`) follow
+  conventions, stated only for a deviation. `publicSchemaTable` marks a
+  public-only service (account); `publicMigrationDirs` picks the init
+  container's Flyway dirs. Bundles reference catalog names — never restating a
+  service's facts, so they can't drift between shapes.
+- **`bundles:` — the compositions.** A list; each entry is one JVM with its own
+  identity/port/`outputDir`, an **ordered** `include:` of catalog names (order =
+  tenant-migration order; keep `boundary` last — its PostGIS migration
+  fail-fasts on an extension-less DB), and its own `overrides:` (loopback hosts
+  for co-bundled callers, conflict resolutions, shared-infra properties).
+
+From one manifest, `generate_bundle.py` regenerates **every** listed bundle:
+the pom (plain-jar deps), main class, path-prefix config, the property chain,
+the private db-migration tree + combined init image, and a self-contained app
+Dockerfile (build context = repo root; compiles the member closure from the
+checkout, platform libs from Nexus — version-locked by construction). A catalog
+service in no bundle is reported as "runs standalone" — a designed mode, not an
+error.
+
+Cross-bundle calls are env-parameterized in the caller's `overrides:` as
+`${<OTHER>_BUNDLE_HOST:http://<other-bundle>.egov.svc.cluster.local:8080}`,
+defaulting to cluster DNS — in-cluster they need no extra env. All bundles use
+port 8080 (namespace-scoped in k8s).
+
+**Kong follows the manifest too**: `setup.py` reads it and derives each member's
+upstream as `http://<bundle.name>.egov.svc.cluster.local:<bundle.port>`, ensures
+each context path is a route, and leaves any unbundled service on its
+per-service DNS. Routes and plugins never change between shapes — no kong image
+rebuild.
+
+---
+
+## 3. `single-container` — the modulith bundle
 
 The `modulith` branch helmfile is already in this shape:
 `single-container-helmfile.yaml` contains keycloak, **dev-bundle** and
 gateway-kong (authorization is Keycloak itself — kong's keycloak-rbac
 plugin; the former accesscontrol service is no longer deployed).
 
-### 2.1 Build the bundle jar (workstation)
+### 3.1 Build the bundle jar (workstation)
 
 ```bash
 cd digit3 && export JAVA_HOME=<jdk25>
@@ -213,7 +254,7 @@ local Postgres+Redis — `mvn clean test`, run the jar, smoke with
 `X-Tenant-ID`/`X-User-ID` headers. Full local recipe:
 `digit3/src/bundles/README.md`.)*
 
-### 2.2 Build linux/amd64 images and load them into k3s (no registry)
+### 3.2 Build linux/amd64 images and load them into k3s (no registry)
 
 ```bash
 mkdir /tmp/bundle-image && cp src/bundles/dev-bundle/target/dev-bundle-*.jar /tmp/bundle-image/app.jar
@@ -234,7 +275,7 @@ docker save egovio/dev-bundle:$TAG    | ssh -i <key> azureuser@<domain> 'sudo k3
 docker save egovio/dev-bundle-db:$TAG | ssh -i <key> azureuser@<domain> 'sudo k3s ctr images import -'
 ```
 
-### 2.3 Bundle chart + database + environment
+### 3.3 Bundle chart + database + environment
 
 ```bash
 # regenerate the bundle chart if the manifest changed (committed output: charts/bundles/dev-bundle)
@@ -272,7 +313,7 @@ are not in any values file: every digit3 image is tagged from the `DIGIT_TAG`
 environment variable (`environments/digit-tag.yaml.gotmpl`) and the deploy
 fails loudly when it is unset.
 
-### 2.4 Deploy
+### 3.4 Deploy
 
 ```bash
 cd deploy-as-code/helm/charts/digit3
@@ -281,7 +322,7 @@ DIGIT_TAG=modulith-<sha> ./deploy.sh -f single-container-helmfile.yaml sync   # 
 kubectl get pods -n egov -l app=dev-bundle   # init container migrates public schema, then 1/1 Running
 ```
 
-### 2.5 Program kong (bundle upstream)
+### 3.5 Program kong (bundle upstream)
 
 ```bash
 kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 &
@@ -298,7 +339,7 @@ another manifest (the domain-split branch's manifest yields four bundle
 upstreams). Routes/plugins are unchanged (strip_path=false + each service's
 context path inside the bundle).
 
-### 2.6 Tenant + verify
+### 3.6 Tenant + verify
 
 ```bash
 # normal path: onboard a tenant through the account API (unprotected bootstrap
@@ -320,7 +361,7 @@ kubectl top pod -n egov -l app=dev-bundle    # ~600Mi for all 16 services
 
 ---
 
-## 3. `per-service` — each service its own pod
+## 4. `per-service` — each service its own pod
 
 This is the pre-bundle shape of `single-container-helmfile.yaml`: one release
 per service (idgen, billing, …, 16 in all) plus keycloak and
@@ -350,7 +391,7 @@ tags from `DIGIT_TAG`, like the other shapes:
 DIGIT_TAG=modulith-<sha> ./deploy.sh -f per-service-helmfile.yaml sync
 ```
 
-### 3.1 Deploy
+### 4.1 Deploy
 
 ```bash
 cd deploy-as-code/helm/charts/digit3
@@ -363,7 +404,7 @@ Notes baked into the helmfile: keycloak first; `account` has
 `needs: [keycloak/keycloak]`; chart paths are explicit
 (`chart: ./idgen`) because helmfile v1 only templates `*.gotmpl` files.
 
-### 3.2 Program kong (per-service upstreams)
+### 4.2 Program kong (per-service upstreams)
 
 Same script, just **without** `KONG_BUNDLE_UPSTREAM` — upstreams then point
 at the per-service k8s Services (`http://idgen.egov.svc.cluster.local:8080`, …):
@@ -374,7 +415,7 @@ cd digit3/src/services/kong
 KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS=<domain> python3 setup.py
 ```
 
-### 3.3 Verify
+### 4.3 Verify
 
 ```bash
 kubectl get pods -A          # everything Running
@@ -387,7 +428,46 @@ ssh -i <key> azureuser@<domain> \
 
 ---
 
-## 4. Switching between shapes
+## 5. `domain-bundles` — four JVMs (identity / notification / billing / admin)
+
+Same mechanics as single-container, four times. Manifest: the `modulith` branch
+[`domain-split.package.yaml`](https://github.com/digitnxt/digit3/blob/modulith/src/bundles/domain-split.package.yaml)
+— four `bundles:` entries covering the whole catalog, each service in exactly
+one, all on port 8080. Grouping: `identity-bundle` (otp, individual, employee,
+account) · `notification-bundle` (template-config, notification, url-shortener)
+· `billing-bundle` (billing, apportion, pg-service) · `admin-bundle` (idgen,
+localization, workflow, registry, filestore, boundary).
+
+What differs from single-container:
+
+- **One generate, four modules** — `generate_bundle.py` on that manifest emits
+  all four bundle modules (jar + Dockerfile + combined db-init each). The images
+  are already published; build four pairs with `05-build.sh` only for your own
+  code.
+- **Cross-bundle calls** are pre-wired in each bundle's `overrides:` as
+  `${<OTHER>_BUNDLE_HOST:…}` defaulting to the other bundles' cluster DNS — no
+  extra env in-cluster.
+- **Charts**: `generate_bundle_chart.py --manifest domain-split.package.yaml`
+  regenerates all four in ONE run (no per-bundle flag) → four charts under
+  `charts/bundles/`. `domain-bundles-helmfile.yaml` already lists the four
+  releases; `azure-k3s-domain-bundles.yaml` carries their env blocks and the
+  service-host map.
+- **Every bundle runs `TENANT_MIGRATION_ENABLED: "true"`** — each consumes the
+  tenant-create event under its own consumer group and migrates only its own
+  services' tables; a tenant is complete only when all four have consumed it.
+- **Kong**: nothing new — `setup.py` with `KONG_BUNDLE_MANIFESTS=<manifest>`
+  derives four upstreams, one per bundle.
+
+Deploy it exactly like the other shapes:
+
+```bash
+DIGIT_TAG=<tag> ./deploy.sh -f domain-bundles-helmfile.yaml sync
+# equivalently: ./scripts/06-deploy.sh <digit3> domain-bundles <tag>
+```
+
+---
+
+## 6. Switching between shapes
 
 The shapes are mutually exclusive (same ingress paths, same kong prefixes).
 Data note: both shapes use the default `postgres` database and the same
@@ -402,7 +482,7 @@ for r in account apportion billing boundary employee filestore \
          registry template-config url-shortener workflow; do
   helm uninstall "$r" -n egov
 done
-# then follow §2 (single-container) from 2.3 (env/service-host) → 2.4 sync → 2.5 kong repoint
+# then follow §3 (single-container) from 3.3 (env/service-host) → 3.4 sync → 3.5 kong repoint
 ```
 
 **A → B (bundle → services)**:
@@ -410,7 +490,7 @@ done
 ```bash
 helm uninstall dev-bundle -n egov
 # restore the 16 release entries in the helmfile + per-service egov-service-host keys,
-# then §3 (per-service) 3.1 sync → 3.2 setup.py WITHOUT KONG_BUNDLE_UPSTREAM
+# then §4 (per-service) 4.1 sync → 4.2 setup.py WITHOUT KONG_BUNDLE_UPSTREAM
 ```
 
 Finally (either shape): open NSG 80/443 → the `cm-acme-http-solver` pods
@@ -419,7 +499,7 @@ publicly.
 
 ---
 
-## 5. Peeling one service out of the bundle (worked example: billing)
+## 7. Peeling one service out of the bundle (worked example: billing)
 
 Sometimes one service needs to scale, fail, or release independently while the
 rest stay bundled. The design makes the *jar* side trivial ("remove the
@@ -429,7 +509,7 @@ lives on branch **`modulith-separate-billing`** in both repos (DIGIT-DevOps
 `05e09c83d`, digit3 `52a570c0`) — every referenced change can be read there
 verbatim.
 
-### 5.1 digit3: manifest + overrides + tests
+### 7.1 digit3: manifest + overrides + tests
 
 - Delete the service's name from its bundle's `include:` list in
   its composition manifest (the catalog entry stays).
@@ -449,9 +529,9 @@ verbatim.
   BigDecimal wire format; silence would be dangerous).
 - `mvn clean test && mvn package`.
 
-### 5.2 Images — same source tree for everything (important)
+### 7.2 Images — same source tree for everything (important)
 
-Build and import (§2.2 mechanics) with a new tag: the **bundle pair** AND the
+Build and import (§3.2 mechanics) with a new tag: the **bundle pair** AND the
 **peeled service's app + db images**, all from the same digit3 checkout:
 
 ```bash
@@ -465,7 +545,7 @@ migration, and Flyway rejected it against the history the bundle had already
 applied to the bundle's database ("Migration checksum mismatch"). Same source tree →
 identical files → validation passes.
 
-### 5.3 DIGIT-DevOps: chart, values, env, helmfile
+### 7.3 DIGIT-DevOps: chart, values, env, helmfile
 
 - Rerun `generate_bundle_chart.py` — the peeled service's ingress context and
   `dbMigrations` entry disappear, and the *callers'* harvested env pointing
@@ -489,7 +569,7 @@ identical files → validation passes.
   `egov-service-host` key from the bundle back to its own Service.
 - Helmfile: re-add the service's release entry (its env block was kept).
 
-### 5.4 Deploy — order matters
+### 7.4 Deploy — order matters
 
 ```bash
 ./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync            # service-host key
@@ -509,7 +589,7 @@ Two traps encoded in that order:
    still points at itself. One rollout restart after the cluster-configs
    sync fixes it.
 
-### 5.5 Kong
+### 7.5 Kong
 
 ```bash
 KONG_ADMIN_URL=… KONG_ROUTE_HOSTS=<domain> python3 setup.py
@@ -520,7 +600,7 @@ No extra flags: the peel already removed the service from the manifest's
 services in no bundle keep (or revert to) their per-service upstreams on
 the next run. Route paths never change, so clients notice nothing.
 
-### 5.6 Verify + aftermath
+### 7.6 Verify + aftermath
 
 - Bundle: peeled prefix NOT served (expect the 400-coded
   `NoResourceFoundException` envelope — the platform renders 404s that way);
@@ -541,7 +621,7 @@ sync the bundle, rerun setup.py without the exclude.
 
 ---
 
-## 6. Gotchas index (hard-won, all encountered on this install)
+## 8. Gotchas index (hard-won, all encountered on this install)
 
 | Symptom | Cause / fix |
 |---|---|

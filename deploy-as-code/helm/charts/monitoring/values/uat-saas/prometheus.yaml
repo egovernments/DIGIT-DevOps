@@ -7,20 +7,24 @@
 alertmanager:
   # env: prometheus.alertmanager.enabled
   enabled: true
-  # NOTE: deliberately NO `configSecret` here, unlike the test-lts overlay which
-  # sets configSecret: alertmanager-main.
-  #
-  # That Secret does not exist in this cluster and nothing renders it:
-  # environments/uat-saas-secrets.yaml has no `alertmanager` entry, so
-  # cluster-configs/templates/secrets/alertmanager-secret.yaml produces nothing.
-  # Pointing at a missing Secret leaves the Alertmanager pod unschedulable.
-  # Without it the chart generates its default config, so Alertmanager starts
-  # and receives alerts but has no notification routing.
-  #
-  # To wire routing: add cluster-configs.secrets.alertmanager (with `config`,
-  # `name: alertmanager-main`, `namespace: monitoring`) to the SOPS file, then
-  # add `configSecret: alertmanager-main` back under alertmanagerSpec.
   alertmanagerSpec:
+    # Use the SOPS-backed Secret rendered by cluster-configs from
+    # cluster-configs.secrets.alertmanager, rather than the config the chart
+    # generates from the shared values/prometheus.yaml.
+    #
+    # This is not just about keeping the Slack webhook out of git: the shared
+    # base config is itself invalid -- its route sets `receiver: default` while
+    # `receivers:` only defines slack-notification and email-notification, so
+    # the operator refuses it with
+    #     provision alertmanager configuration: failed to initialize from
+    #     secret: undefined receiver "default" used in route
+    # and never creates the StatefulSet. Pointing at configSecret makes the
+    # operator ignore the generated config entirely.
+    #
+    # The referenced Secret must be self-consistent in the same way: every
+    # receiver named by route.receiver and by each nested route must appear in
+    # its `receivers:` list.
+    configSecret: alertmanager-main
     storage:
       volumeClaimTemplate:
         spec:

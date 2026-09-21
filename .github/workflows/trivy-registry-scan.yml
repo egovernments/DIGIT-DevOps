@@ -1,0 +1,304 @@
+# Trivy container-image registry scan (manual). Auto-discovers repositories
+# under each namespace in .trivy/registries.yaml and scans every image.
+# NOTE: anonymous Docker Hub listing is capped at ~100 repos; supply that
+# registry's credentials to enumerate a large namespace in full.
+name: Trivy · Container image registry scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      registries-file:
+        description: 'Path to the registries list'
+        required: false
+        default: '.trivy/registries.yaml'
+      only-namespace:
+        description: 'Optional: scan just this one namespace (overrides the file)'
+        required: false
+        default: ''
+      severity:
+        description: 'Severities to report'
+        required: false
+        default: 'CRITICAL,HIGH,MEDIUM'
+      batch-size:
+        description: 'Images scanned per job (keeps the matrix under 256 jobs)'
+        required: false
+        default: '40'
+      fail-on-findings:
+        description: 'Fail the run if matching findings exist (report-only if false)'
+        type: boolean
+        default: false
+      publish-dashboard:
+        description: 'Publish results to the GitHub Pages dashboard (gh-pages)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+# Per-registry secrets must be mapped statically here (Actions can't resolve a
+# secret from a name held in a file). Add a registry = add its secrets here too.
+env:
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  DOCKERHUB_TOKEN:    ${{ secrets.DOCKERHUB_TOKEN }}
+  GHCR_USERNAME:      ${{ secrets.GHCR_USERNAME }}
+  GHCR_TOKEN:         ${{ secrets.GHCR_TOKEN }}
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      batches: ${{ steps.plan.outputs.batches }}
+      count:   ${{ steps.list.outputs.count }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Discover repositories
+        id: list
+        run: |
+          set -euo pipefail
+          file="${{ github.event.inputs.registries-file }}"
+          only="${{ github.event.inputs.only-namespace }}"
+          if [ -n "$only" ]; then
+            entries='[{"namespace":"'"$only"'","tag":"latest"}]'
+          else
+            entries=$(yq -o=json -I=0 '.registries' "$file")
+          fi
+
+          matches_any() { local name="$1" globs="$2" g; [ -z "$globs" ] && return 1
+            while IFS= read -r g; do [ -z "$g" ] && continue; case "$name" in $g) return 0;; esac; done <<< "$globs"; return 1; }
+
+          images='[]'
+          n=$(echo "$entries" | jq 'length')
+          for i in $(seq 0 $((n-1))); do
+            ns=$(echo "$entries"  | jq -r ".[$i].namespace")
+            tag=$(echo "$entries" | jq -r ".[$i].tag // \"latest\"")
+            u_env=$(echo "$entries" | jq -r ".[$i].username_env // \"\"")
+            p_env=$(echo "$entries" | jq -r ".[$i].password_env // \"\"")
+            inc=$(echo "$entries" | jq -r ".[$i].include // [] | .[]")
+            exc=$(echo "$entries" | jq -r ".[$i].exclude // [] | .[]")
+            # include_from_charts: keep only repos whose name matches a Helm
+            # chart (service) under the given path - i.e. our own DIGIT services.
+            icharts=$(echo "$entries" | jq -r ".[$i].include_from_charts // \"\"")
+            if [ -n "$icharts" ] && [ -d "$icharts" ]; then
+              chart_names=$(grep -rh '^name:' "$icharts" --include=Chart.yaml | sed 's/^name:[[:space:]]*//' | tr -d '"' | sort -u)
+              inc=$(printf '%s\n%s' "$inc" "$chart_names")
+            fi
+            USER=""; PASS=""
+            [ -n "$u_env" ] && USER="${!u_env:-}"
+            [ -n "$p_env" ] && PASS="${!p_env:-}"
+            host="${ns%%/*}"; org="${ns#*/}"; repos=""
+
+            # from_manifest: scan an explicit repo->tags manifest (e.g. the release
+            # builds extracted from docs.digit.org) instead of registry discovery.
+            manifest=$(echo "$entries" | jq -r ".[$i].from_manifest // \"\"")
+            if [ -n "$manifest" ] && [ -f "$manifest" ]; then
+              while IFS=$'\t' read -r repo t; do
+                [ -z "$repo" ] && continue
+                images=$(echo "$images" | jq --arg img "${ns}/${repo}:${t}" '. + [$img]')
+              done < <(yq -o=json '.images' "$manifest" | jq -r 'to_entries[] | .key as $k | .value[] | [$k, .] | @tsv')
+              continue
+            fi
+
+            case "$host" in
+              docker.io)
+                token=""
+                if [ -n "$PASS" ]; then
+                  token=$(curl -fsSL -H "Content-Type: application/json" \
+                    -d "{\"username\":\"${USER}\",\"password\":\"${PASS}\"}" \
+                    https://hub.docker.com/v2/users/login/ | jq -r '.token')
+                fi
+                hdr=(); [ -n "$token" ] && hdr=(-H "Authorization: JWT $token")
+                url="https://hub.docker.com/v2/repositories/${org}/?page_size=100"
+                while [ -n "$url" ] && [ "$url" != "null" ]; do
+                  page=$(curl -fsSL "${hdr[@]}" "$url") || { echo "::warning::Docker Hub listing stopped early for ${ns} (anonymous cap? add credentials)"; break; }
+                  repos="$repos $(echo "$page" | jq -r '.results[].name')"
+                  url=$(echo "$page" | jq -r '.next')
+                done
+                ;;
+              ghcr.io)
+                gh=(-H "Accept: application/vnd.github+json")
+                [ -n "$PASS" ] && gh+=(-H "Authorization: Bearer $PASS")
+                base="https://api.github.com"; page=1
+                while :; do
+                  pkgs=$(curl -fsSL "${gh[@]}" "$base/orgs/${org}/packages?package_type=container&per_page=100&page=$page" \
+                    || curl -fsSL "${gh[@]}" "$base/users/${org}/packages?package_type=container&per_page=100&page=$page") || break
+                  cnt=$(echo "$pkgs" | jq 'length'); [ "$cnt" = "0" ] && break
+                  repos="$repos $(echo "$pkgs" | jq -r '.[].name')"
+                  [ "$cnt" -lt 100 ] && break; page=$((page+1))
+                done
+                ;;
+              *)
+                auth=(); [ -n "$PASS" ] && auth=(-u "${USER}:${PASS}")
+                cat=$(curl -fsSL "${auth[@]}" "https://${host}/v2/_catalog?n=1000" | jq -r '.repositories[]')
+                for r in $cat; do case "$r" in ${org}/*|${org}) repos="$repos ${r#${org}/}";; esac; done
+                ;;
+            esac
+
+            for r in $repos; do
+              [ -z "$r" ] && continue
+              if [ -n "$inc" ]; then matches_any "$r" "$inc" || continue; fi
+              if [ -n "$exc" ]; then matches_any "$r" "$exc" && continue; fi
+              images=$(echo "$images" | jq --arg img "${ns}/${r}:${tag}" '. + [$img]')
+            done
+          done
+
+          images=$(echo "$images" | jq -c 'unique')
+          mkdir -p out; echo "$images" > out/images.json
+          echo "count=$(echo "$images" | jq 'length')" >> "$GITHUB_OUTPUT"
+          echo "Discovered $(echo "$images" | jq 'length') image(s) after filtering."
+
+      - name: Plan batches
+        id: plan
+        run: |
+          set -euo pipefail
+          size='${{ github.event.inputs.batch-size }}'; size=${size:-40}
+          count=$(jq 'length' out/images.json)
+          if [ "$count" -eq 0 ]; then echo "batches=[]" >> "$GITHUB_OUTPUT"; exit 0; fi
+          nb=$(( (count + size - 1) / size ))
+          if [ "$nb" -gt 256 ]; then
+            echo "::error::$count images / batch-size $size = $nb batches, over the 256-job cap. Raise batch-size or tighten include/exclude."; exit 1
+          fi
+          echo "batches=$(seq 0 $((nb-1)) | jq -R . | jq -c -s .)" >> "$GITHUB_OUTPUT"
+          echo "Planned $nb batch(es) of up to $size image(s)."
+
+      - name: Upload discovered image list
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: discovered-images
+          path: out/images.json
+          retention-days: 7
+
+  scan:
+    needs: discover
+    if: ${{ needs.discover.outputs.count != '0' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        batch: ${{ fromJson(needs.discover.outputs.batches) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Download discovered image list
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: discovered-images
+          path: out
+
+      - name: Login to Docker Hub
+        if: ${{ env.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login to GHCR
+        if: ${{ env.GHCR_TOKEN != '' }}
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: v0.36.0
+          cache: true
+
+      - name: Scan this batch
+        run: |
+          set -uo pipefail
+          size='${{ github.event.inputs.batch-size }}'; size=${size:-40}
+          start=$(( ${{ matrix.batch }} * size ))
+          batch=$(jq -c ".[$start:$start+$size]" out/images.json)
+          mkdir -p json sarif
+          while IFS= read -r image; do
+            [ -z "$image" ] && continue
+            safe=$(echo "$image" | tr '/:@' '___')
+            echo "::group::Trivy $image"
+            trivy image "$image" --config .trivy/trivy.yaml --ignorefile .trivy/.trivyignore.yaml \
+              --scanners vuln,secret --ignore-unfixed --severity '${{ github.event.inputs.severity }}' \
+              --format table || echo "::warning title=Trivy::scan error on $image"
+            trivy image "$image" --config .trivy/trivy.yaml --ignorefile .trivy/.trivyignore.yaml \
+              --scanners vuln,secret --ignore-unfixed --format json -o "json/${safe}.json" --skip-db-update 2>/dev/null || true
+            trivy image "$image" --config .trivy/trivy.yaml --ignorefile .trivy/.trivyignore.yaml \
+              --scanners vuln,secret --ignore-unfixed --format sarif -o "sarif/${safe}.sarif" --skip-db-update 2>/dev/null || true
+            echo "::endgroup::"
+          done < <(echo "$batch" | jq -r '.[]')
+          echo "Scanned $(echo "$batch" | jq 'length') image(s) in batch ${{ matrix.batch }}."
+
+      - name: Upload scan results (JSON + SARIF)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: trivy-registry-results-batch-${{ matrix.batch }}
+          path: |
+            json/
+            sarif/
+          retention-days: 7
+
+      # upload-sarif on a directory uploads every .sarif in it; one category/batch.
+      - name: Upload SARIF to Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@faaca9a8f6edddba5725ffe5adefdab6669a2eca # v3.38.0
+        with:
+          sarif_file: sarif
+          category: trivy-registry-batch-${{ matrix.batch }}
+
+      - name: Enforce threshold (optional)
+        if: ${{ github.event.inputs.fail-on-findings == 'true' }}
+        run: |
+          set -uo pipefail
+          size='${{ github.event.inputs.batch-size }}'; size=${size:-40}
+          start=$(( ${{ matrix.batch }} * size ))
+          batch=$(jq -c ".[$start:$start+$size]" out/images.json)
+          rc=0
+          while IFS= read -r image; do
+            [ -z "$image" ] && continue
+            trivy image "$image" --config .trivy/trivy.yaml --ignorefile .trivy/.trivyignore.yaml \
+              --scanners vuln,secret --ignore-unfixed --severity '${{ github.event.inputs.severity }}' \
+              --exit-code 1 --skip-db-update -q >/dev/null 2>&1 || { echo "findings in $image"; rc=1; }
+          done < <(echo "$batch" | jq -r '.[]')
+          exit $rc
+
+  # --- Stage 3: aggregate all batch results into the GitHub Pages dashboard --
+  dashboard:
+    needs: [discover, scan]
+    if: ${{ always() && github.event.inputs.publish-dashboard != 'false' && needs.discover.outputs.count != '0' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # push to gh-pages
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Download all batch results
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: trivy-registry-results-batch-*
+          path: results
+          merge-multiple: true   # merge every batch's json/ + sarif/ into one tree
+
+      - name: Check out existing gh-pages (keeps the Helm half)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: pages
+
+      - name: Build dashboard (image half)
+        run: |
+          mkdir -p pages
+          bash .trivy/dashboard/build-dashboard.sh images results/json pages \
+            "${{ github.server_url }}/${{ github.repository }}" "master"
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: pages
+          publish_branch: gh-pages
+          commit_message: "Update security dashboard (image scan)"

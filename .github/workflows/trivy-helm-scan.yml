@@ -1,0 +1,165 @@
+# Trivy Helm-chart security scan (manual, per branch). fs scan runs misconfig +
+# secret over the charts path, recursing into every sub-folder / nested chart.
+name: Trivy · Helm chart security scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to scan'
+        required: true
+        default: 'master'
+      charts-path:
+        description: 'Root path to scan (recurses into all sub-folders / nested charts)'
+        required: false
+        default: 'deploy-as-code/helm/charts'
+      severity:
+        description: 'Severities to report'
+        required: false
+        default: 'CRITICAL,HIGH,MEDIUM'
+      fail-on-findings:
+        description: 'Fail the run if matching findings exist (report-only if false)'
+        type: boolean
+        default: false
+      publish-dashboard:
+        description: 'Publish results to the GitHub Pages dashboard (gh-pages)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  helm:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.inputs.branch }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+
+      # Charts depend on the local `common` chart; Trivy silently skips a chart
+      # it can't render, so vendor deps first. All deps are file:// paths (offline).
+      - name: Vendor chart dependencies
+        run: |
+          set -uo pipefail
+          ok=0; skip=0; fail=0
+          while IFS= read -r chart; do
+            grep -q '^dependencies:' "$chart" || { skip=$((skip+1)); continue; }
+            d=$(dirname "$chart")
+            if (cd "$d" && helm dependency build --skip-refresh >/dev/null 2>&1) \
+               || (cd "$d" && helm dependency update --skip-refresh >/dev/null 2>&1); then
+              ok=$((ok+1))
+            else
+              fail=$((fail+1)); echo "::warning title=Helm deps::could not vendor deps for $d"
+            fi
+          done < <(find "${{ github.event.inputs.charts-path }}" -name Chart.yaml)
+          echo "Dependencies vendored: ok=$ok, no-deps=$skip, failed=$fail"
+
+      - name: Trivy misconfig + secret scan (table → logs)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ github.event.inputs.charts-path }}
+          scanners: 'misconfig,secret'
+          format: table
+          exit-code: '0'
+          hide-progress: true
+          trivy-config: .trivy/trivy.yaml
+          trivyignores: .trivy/.trivyignore.yaml
+
+      - name: Trivy misconfig + secret scan (SARIF → Security tab)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ github.event.inputs.charts-path }}
+          scanners: 'misconfig,secret'
+          format: sarif
+          output: trivy-helm.sarif
+          hide-progress: true
+          trivy-config: .trivy/trivy.yaml
+          trivyignores: .trivy/.trivyignore.yaml
+          skip-setup-trivy: true
+
+      - name: Trivy misconfig + secret scan (JSON → dashboard)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ github.event.inputs.charts-path }}
+          scanners: 'misconfig,secret'
+          format: json
+          output: helm/trivy-helm.json
+          hide-progress: true
+          trivy-config: .trivy/trivy.yaml
+          trivyignores: .trivy/.trivyignore.yaml
+          skip-setup-trivy: true
+
+      - name: Upload SARIF to Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@faaca9a8f6edddba5725ffe5adefdab6669a2eca # v3.38.0
+        with:
+          sarif_file: trivy-helm.sarif
+          category: trivy-helm-${{ github.event.inputs.branch }}
+
+      - name: Upload Helm results (JSON)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: trivy-helm-results
+          path: helm/trivy-helm.json
+          retention-days: 7
+
+      - name: Enforce threshold (optional)
+        if: ${{ github.event.inputs.fail-on-findings == 'true' }}
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ github.event.inputs.charts-path }}
+          scanners: 'misconfig,secret'
+          severity: ${{ github.event.inputs.severity }}
+          exit-code: '1'
+          hide-progress: true
+          skip-setup-trivy: true
+
+  # --- aggregate the Helm results into the GitHub Pages dashboard -----------
+  dashboard:
+    needs: helm
+    if: ${{ always() && github.event.inputs.publish-dashboard != 'false' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # push to gh-pages
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Download Helm results
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: trivy-helm-results
+          path: results
+
+      - name: Check out existing gh-pages (keeps the image half)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: pages
+
+      - name: Build dashboard (Helm half)
+        run: |
+          mkdir -p pages
+          bash .trivy/dashboard/build-dashboard.sh helm results pages \
+            "${{ github.server_url }}/${{ github.repository }}" "${{ github.event.inputs.branch }}"
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: pages
+          publish_branch: gh-pages
+          commit_message: "Update security dashboard (Helm scan)"

@@ -1,0 +1,36 @@
+# Registry namespaces to scan. Repos under each are auto-discovered (no image
+# list). Credentials are optional: omit -> public repos only; provide -> private
+# too, and full enumeration of large namespaces (anonymous listing caps at ~100).
+# Secret names here must also be mapped into the workflow's top-level env: block.
+# include/exclude are optional repo-name globs; empty include = all repos.
+# include_from_charts keeps only repos whose name matches a Helm chart (service)
+# under the given path - i.e. our own DIGIT service images, not third-party mirrors.
+registries:
+  - namespace: docker.io/egovio
+    tag: latest
+    username_env: DOCKERHUB_USERNAME
+    password_env: DOCKERHUB_TOKEN
+    # Scan the exact release builds extracted from docs.digit.org release notes
+    # (repo -> tags). Regenerate the manifest with .trivy/extract-release-images.sh.
+    # This takes precedence over discovery. To instead auto-discover from the
+    # registry, remove from_manifest and use include_from_charts / include / exclude.
+    from_manifest: .trivy/release-images.yaml
+    # include_from_charts: deploy-as-code/helm/charts
+    # include: []
+    # exclude: [jboss, openjdk, maven, kafka, zookeeper, redis, postgres, nginx, busybox, alpine]
+
+  # care-ecosystem is a separate product, not DIGIT - it has no Helm charts in
+  # THIS repo, so include_from_charts does not apply. Set an explicit include
+  # glob (e.g. ["care-*"]) or point include_from_charts at its own charts path
+  # if/when you want to narrow it; empty include = scan every repo under it.
+  - namespace: ghcr.io/care-ecosystem
+    tag: latest
+    username_env: GHCR_USERNAME
+    password_env: GHCR_TOKEN
+    include: []
+    exclude: []
+
+  # - namespace: <account>.dkr.ecr.<region>.amazonaws.com/egov
+  #   tag: latest
+  #   username_env: ECR_USERNAME
+  #   password_env: ECR_PASSWORD

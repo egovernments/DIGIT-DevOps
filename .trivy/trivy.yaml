@@ -1,0 +1,32 @@
+# Central Trivy config, referenced by every workflow via --config / trivy-config.
+scan:
+  scanners:
+    - vuln
+    - secret
+
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+vulnerability:
+  ignore-unfixed: true
+
+timeout: 10m
+
+# ECR mirror first (avoids GHCR TOOMANYREQUESTS), default as fallback.
+db:
+  repository:
+    - public.ecr.aws/aquasecurity/trivy-db
+    - ghcr.io/aquasecurity/trivy-db
+java-db:
+  repository:
+    - public.ecr.aws/aquasecurity/trivy-java-db
+    - ghcr.io/aquasecurity/trivy-java-db
+
+misconfiguration:
+  checks-bundle-repository: public.ecr.aws/aquasecurity/trivy-checks
+  # DIGIT charts mark the image tag mandatory (injected at deploy time); set a
+  # placeholder so every chart renders. The value doesn't affect misconfig checks.
+  helm:
+    set:
+      - image.tag=0.0.0-scan

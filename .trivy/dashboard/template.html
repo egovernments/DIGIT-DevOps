@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security Dashboard — Containers &amp; Helm charts</title>
+<style>
+  :root{
+    color-scheme:light;
+    --bg:#eef1f7; --surface:#ffffff; --surface-2:#f6f8fc; --surface-3:#eef2f9;
+    --ink:#0f1b2e; --ink-2:#42506a; --muted:#697689; --faint:#98a2b5;
+    --line:#e5eaf3; --line-2:#d6ddea;
+    --brand:#12385c; --brand-2:#3f4bd6; --accent:#4b52e0; --link:#2358d6;
+    --crit:#b31d33; --high:#e06a2c; --med:#c58a12; --low:#2f6fed; --unknown:#8a94a6;
+    --crit-bg:#fdeef0; --high-bg:#fdf0e7; --med-bg:#fbf4e2; --low-bg:#ecf2fe;
+    --p0:#6d28d9; --p1:#be1d6b; --p2:#0f766e; --p3:#5f6673; --good:#0f8a3c;
+    --sh-sm:0 1px 2px rgba(16,27,46,.05);
+    --sh:0 1px 2px rgba(16,27,46,.05),0 10px 26px -14px rgba(16,27,46,.20);
+    --sh-lg:0 24px 60px -30px rgba(16,27,46,.42);
+    --r:16px; --r-sm:11px;
+    --font:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,sans-serif;
+  }
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#0c1119; --surface:#141b26; --surface-2:#1a2230; --surface-3:#212b3b;
+    --ink:#e8edf6; --ink-2:#c1cad9; --muted:#8a94a5; --faint:#6a7484;
+    --line:#27313f; --line-2:#333e4e;
+    --brand:#cdd9ff; --brand-2:#8b83f0; --accent:#8b83f0; --link:#82a8ff;
+    --crit:#e0566d; --high:#ef8a5c; --med:#e2ab43; --low:#5b93f2; --unknown:#7b8698;
+    --crit-bg:#2a1820; --high-bg:#291a14; --med-bg:#26200f; --low-bg:#141f31;
+    --p0:#a78bfa; --p1:#f472b6; --p2:#34d399; --p3:#93a0b4; --good:#3ec46b;
+    --sh-sm:0 1px 2px rgba(0,0,0,.4);
+    --sh:0 1px 2px rgba(0,0,0,.35),0 10px 28px -14px rgba(0,0,0,.65);
+    --sh-lg:0 26px 64px -30px rgba(0,0,0,.85);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:var(--link);text-decoration:none} a:hover{text-decoration:underline}
+  ::-webkit-scrollbar{width:11px;height:11px}::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:7px;border:3px solid var(--bg)}::-webkit-scrollbar-track{background:transparent}
+
+  .app{display:grid;grid-template-columns:238px 1fr;min-height:100vh}
+
+  /* sidebar */
+  .sidebar{background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .sb-brand{display:flex;align-items:center;gap:11px;padding:20px 18px 18px}
+  .sb-logo{width:38px;height:38px;border-radius:11px;flex:none;background:linear-gradient(150deg,#12385c,#4b52e0);display:grid;place-items:center;color:#fff;box-shadow:var(--sh-sm)}
+  .sb-brand b{font-size:14.5px;font-weight:700;letter-spacing:-.01em;display:block}
+  .sb-brand span{font-size:11.5px;color:var(--muted)}
+  .sb-sec{font-size:10.5px;font-weight:700;letter-spacing:.09em;color:var(--faint);text-transform:uppercase;padding:10px 20px 6px}
+  .nav{padding:2px 12px;display:flex;flex-direction:column;gap:2px}
+  .nav a{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:10px;color:var(--ink-2);font-size:13.5px;font-weight:550;cursor:pointer}
+  .nav a .ni{width:17px;height:17px;flex:none;color:var(--muted)}
+  .nav a:hover{background:var(--surface-2);text-decoration:none;color:var(--ink)}
+  .nav a.on{background:color-mix(in srgb,var(--accent) 13%,transparent);color:var(--accent)}
+  .nav a.on .ni{color:var(--accent)}
+  .nav a .badge{margin-left:auto;font-size:11px;font-weight:700;color:var(--ink-2);background:var(--surface-3);border-radius:999px;padding:1px 8px;font-variant-numeric:tabular-nums}
+  .nav a.on .badge{background:color-mix(in srgb,var(--accent) 20%,transparent);color:var(--accent)}
+  .sb-foot{margin-top:auto;padding:16px 20px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);line-height:1.7}
+
+  /* topbar */
+  .main{min-width:0;display:flex;flex-direction:column}
+  .topbar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 84%,transparent);
+    backdrop-filter:saturate(1.5) blur(10px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:14px 30px}
+  .topbar h1{font-size:17px;font-weight:720;margin:0;letter-spacing:-.02em}
+  .topbar .sub{font-size:12px;color:var(--muted);margin-top:1px}
+  .tb-right{margin-left:auto;display:flex;align-items:center;gap:9px}
+  .runs{display:flex;gap:8px}
+  .runchip{display:flex;flex-direction:column;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:6px 12px;box-shadow:var(--sh-sm);min-width:0}
+  .runchip .lo{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);display:flex;align-items:center;gap:5px}
+  .runchip .lo::before{content:"";width:7px;height:7px;border-radius:2px;background:var(--accent)}
+  .runchip.helm .lo::before{background:var(--med)}
+  .runchip b{font-size:12px;color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .icon-btn{border:1px solid var(--line);background:var(--surface);color:var(--ink-2);width:36px;height:36px;border-radius:10px;cursor:pointer;display:grid;place-items:center;box-shadow:var(--sh-sm)}
+  .icon-btn:hover{color:var(--ink)}
+  .search{position:relative}
+  .search input{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:8px 12px 8px 32px;font:inherit;font-size:12.5px;width:190px;box-shadow:var(--sh-sm)}
+  .search svg{position:absolute;left:10px;top:9px;color:var(--faint)}
+
+  .content{padding:24px 30px 72px;max-width:1300px;width:100%}
+  .filterbar{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+  .chips{display:inline-flex;gap:6px;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px 5px 10px;font-size:12.5px;color:var(--ink-2);cursor:pointer;user-select:none;box-shadow:var(--sh-sm)}
+  .chip .dot{width:9px;height:9px;border-radius:3px;flex:none}
+  .chip[aria-pressed="false"]{opacity:.42}
+  .vhint{margin-left:auto;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px}
+  .vhint svg{width:14px;height:14px;color:var(--faint)}
+
+  /* posture */
+  .posture{display:grid;grid-template-columns:auto 1fr;gap:26px;align-items:center;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:22px 26px;box-shadow:var(--sh);margin-bottom:16px;position:relative;overflow:hidden}
+  .posture::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--band,var(--accent))}
+  .gauge{position:relative;width:122px;height:122px;flex:none}
+  .gauge .lab{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+  .gauge .lab b{font-size:42px;font-weight:790;line-height:1;letter-spacing:-.03em;color:var(--band,var(--ink))}
+  .gauge .lab b sub{font-size:16px;font-weight:640;color:var(--faint);bottom:-.15em;margin-left:1px}
+  .gauge .lab .cap{display:block;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;margin-top:7px;font-weight:600}
+  .posture .verdict{font-size:20px;font-weight:740;letter-spacing:-.01em;margin:0 0 5px;color:var(--band,var(--ink))}
+  .posture .pdesc{font-size:13px;color:var(--ink-2);max-width:70ch}
+  .statstrip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+
+  /* kpi */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:22px}
+  .tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px 17px 15px;box-shadow:var(--sh);min-width:0}
+  .tile .lab{font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:6px;font-weight:520}
+  .tile .val{font-size:30px;font-weight:730;letter-spacing:-.02em;margin-top:8px;line-height:1}
+  .tile .foot{font-size:11.5px;color:var(--muted);margin-top:8px}
+  .tile .val.c{color:var(--crit)}.tile .val.h{color:var(--high)}
+  .sev-ic{width:14px;height:14px;flex:none}
+
+  .grid-3-2{display:grid;grid-template-columns:1.35fr 1fr;gap:18px;margin-bottom:18px;align-items:start}
+  .dsplit{display:flex;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .dsplit .ds{flex:1;background:var(--surface-2);border-radius:10px;padding:11px 13px}
+  .dsplit .ds .dk{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .dsplit .ds .dk .d{width:8px;height:8px;border-radius:2px}
+  .dsplit .ds .dv{font-size:19px;font-weight:720;letter-spacing:-.01em;margin-top:3px}
+  .dsplit .ds .dsub{font-size:11px;color:var(--muted);margin-top:1px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden}
+  .card-h{display:flex;align-items:center;gap:10px;padding:16px 18px 13px}
+  .card-h h2{font-size:12px;font-weight:720;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2);margin:0;display:flex;align-items:center;gap:9px}
+  .card-h h2::before{content:"";width:14px;height:3px;border-radius:2px;background:var(--accent)}
+  .card-h .aux{margin-left:auto;font-size:11.5px;color:var(--muted)}
+  .card-b{padding:6px 18px 18px}
+
+  .donut-wrap{display:flex;align-items:center;gap:24px;padding:8px 4px}
+  .donut{position:relative;width:176px;height:176px;flex:none}
+  .donut .ctr{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+  .donut .ctr b{display:block;font-size:31px;font-weight:740;letter-spacing:-.02em;line-height:1}
+  .donut .ctr span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
+  .dlegend{display:flex;flex-direction:column;gap:11px;flex:1;min-width:0}
+  .dlegend .li{display:flex;align-items:center;gap:9px;font-size:13px}
+  .dlegend .sw{width:11px;height:11px;border-radius:3px;flex:none}
+  .dlegend .ln{color:var(--ink-2)}.dlegend .lv{margin-left:auto;font-weight:680;font-variant-numeric:tabular-nums}
+  .dlegend .lp{color:var(--muted);font-size:11.5px;width:42px;text-align:right;font-variant-numeric:tabular-nums}
+
+  .hbars{display:flex;flex-direction:column;gap:12px;padding:8px 2px 2px}
+  .hbar{display:grid;grid-template-columns:132px 1fr 46px;align-items:center;gap:12px}
+  .hbar .hl{font-size:12.5px;color:var(--ink);font-weight:520;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hbar .tk{height:20px;background:var(--surface-2);border-radius:6px;display:flex;overflow:hidden;gap:2px}
+  .hbar .tk i{height:100%;transition:filter .12s}.hbar .tk i:hover{filter:brightness(1.07)}
+  .hbar .hv{text-align:right;font-weight:680;font-size:13px;font-variant-numeric:tabular-nums}
+
+  .prio .pr{display:grid;grid-template-columns:auto 1fr auto;gap:13px;align-items:center;padding:13px 18px;border-top:1px solid var(--line)}
+  .prio .pr:first-child{border-top:0}
+  .prio .ptag{font-size:10.5px;font-weight:780;color:#fff;border-radius:6px;padding:3px 8px;letter-spacing:.03em}
+  .prio .pt{font-size:13.5px;font-weight:640;color:var(--ink)}
+  .prio .ps{font-size:12px;color:var(--muted);margin-top:1px}
+  .prio .pn{font-size:13px;font-weight:680;white-space:nowrap}
+  .trend{padding:12px 18px 18px}.trend .note{color:var(--muted);font-size:12.5px;margin-bottom:12px}
+
+  /* tables */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{position:sticky;top:0;text-align:left;font-weight:720;color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none;z-index:1}
+  thead th.num{text-align:right}
+  thead th .ar{opacity:.35;font-size:9px;margin-left:3px}thead th[aria-sort] .ar{opacity:1;color:var(--accent)}
+  tbody td{padding:11px 16px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr.drow{cursor:pointer}
+  tbody tr.drow:hover td{background:var(--surface-2)}
+  tbody tr.open td{background:var(--surface-2)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .chev{display:inline-flex;width:15px;color:var(--faint);transition:transform .15s;margin-right:2px}
+  tr.open .chev{transform:rotate(90deg);color:var(--accent)}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+  .name{font-weight:640}.name small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:1px}
+  .sev-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:680;white-space:nowrap}
+  .sev-pill .sev-ic{width:13px;height:13px}
+  .n0{color:var(--faint)}
+  .minibar{height:8px;border-radius:4px;display:flex;gap:1.5px;overflow:hidden;min-width:74px}.minibar i{height:100%}
+  .card-scroll{max-height:640px;overflow:auto}
+  .empty{padding:48px;text-align:center;color:var(--muted)}
+  .hide{display:none!important}.view{display:none}.view.on{display:block}
+  .fix-ok{color:var(--good);font-weight:640}
+
+  /* detail (drill-down) */
+  tr.det>td{padding:0;background:var(--surface-2);border-bottom:1px solid var(--line)}
+  .det .box{padding:14px 18px 16px 40px}
+  .det .why{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px 13px;font-size:12.5px;color:var(--ink-2);margin-bottom:12px}
+  .det .why b{color:var(--ink);font-weight:640}
+  .det .why code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;background:var(--surface-3);padding:1px 5px;border-radius:5px;color:var(--ink)}
+  .det .dh{font-size:10.5px;font-weight:720;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+  .flist{display:flex;flex-direction:column;gap:1px;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface)}
+  .fli{display:grid;grid-template-columns:120px 1fr auto;gap:12px;align-items:center;padding:8px 13px;font-size:12.5px;border-top:1px solid var(--line)}
+  .fli:first-child{border-top:0}
+  .fli .fp{font-family:ui-monospace,Menlo,monospace;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fli .fx{color:var(--muted);font-family:ui-monospace,Menlo,monospace;text-align:right;white-space:nowrap}
+  .fli-v{padding:9px 13px;border-top:1px solid var(--line)} .fli-v:first-child{border-top:0}
+  .fli-top{display:grid;grid-template-columns:118px 1fr auto;gap:12px;align-items:center}
+  .fli-top .fp{font-family:ui-monospace,Menlo,monospace;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fli-top .fx{color:var(--muted);font-family:ui-monospace,Menlo,monospace;text-align:right;white-space:nowrap}
+  .ftitle{font-size:12px;color:var(--ink-2);margin:5px 0 0 130px;line-height:1.45}
+  /* repo -> tag list */
+  .taglist{display:flex;flex-direction:column;gap:8px}
+  .tagblock{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+  .tagblock.open{border-color:var(--line-2);box-shadow:var(--sh-sm)}
+  .tagitem{display:grid;grid-template-columns:15px minmax(120px,1.5fr) minmax(80px,1fr) 150px 92px 50px;gap:12px;align-items:center;padding:10px 14px;cursor:pointer}
+  .tagitem:hover,.tagitem.open{background:var(--surface-2)}
+  .tagitem .chev{color:var(--faint);transition:transform .15s;display:inline-flex}
+  .tagitem.open .chev{transform:rotate(90deg);color:var(--accent)}
+  .tgname{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tgos{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tgsev{font-size:12px;white-space:nowrap;text-align:right}
+  .tgtot{font-variant-numeric:tabular-nums;font-weight:660;text-align:right;font-size:12.5px}
+  .tagvulns{border-top:1px solid var(--line);padding:13px 14px;background:var(--surface-2)}
+  .tagrow{display:flex;flex-wrap:wrap;gap:6px}
+  .tag{font-size:12px;background:var(--surface);border:1px solid var(--line-2);border-radius:7px;padding:4px 9px;color:var(--ink-2);font-family:ui-monospace,Menlo,monospace}
+
+  #tt{position:fixed;z-index:60;pointer-events:none;background:var(--ink);color:var(--surface);padding:8px 11px;border-radius:9px;font-size:12px;box-shadow:var(--sh-lg);opacity:0;transform:translateY(4px);transition:opacity .1s;max-width:260px}
+  #tt.on{opacity:1;transform:none}#tt .v{font-weight:720;font-size:13px}#tt .k{color:var(--faint)}
+
+  @media(max-width:1080px){.app{grid-template-columns:1fr}.sidebar{display:none}.kpis{grid-template-columns:repeat(2,1fr)}.grid-3-2{grid-template-columns:1fr}.search input{width:130px}.runs{display:none}}
+  @media print{.sidebar,.topbar .tb-right,.filterbar,.chev{display:none!important}.app{grid-template-columns:1fr}body{background:#fff}.card,.tile,.posture{box-shadow:none;border:1px solid #ccc}.view{display:block!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <div class="sb-logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+      <div><b id="sb-title">DIGIT Security</b><span>Trivy scan console</span></div>
+    </div>
+    <div class="sb-sec">Views</div>
+    <nav class="nav" id="nav">
+      <a data-v="overview" class="on"><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Overview</a>
+      <a data-v="images"><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>Container images<span class="badge" id="nb-images"></span></a>
+      <a data-v="charts"><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5zM3 16l9 5 9-5M3 12l9 5 9-5"/></svg>Helm charts<span class="badge" id="nb-charts"></span></a>
+      <div class="sb-sec">Findings</div>
+      <a data-v="vulns"><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.5 2.5 17a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.7 3.5a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9v4M12 17h.01"/></svg>Vulnerabilities<span class="badge" id="nb-vulns"></span></a>
+      <a data-v="rules"><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v4H4zM4 12h16v8H4z"/><path d="M8 6h.01M8 16h.01"/></svg>Misconfigurations<span class="badge" id="nb-rules"></span></a>
+    </nav>
+    <div class="sb-foot" id="sb-foot">—</div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div><h1 id="title">Security Dashboard</h1><div class="sub">Container images &amp; Helm charts &middot; Trivy</div></div>
+      <div class="tb-right">
+        <div class="runs">
+          <div class="runchip"><span class="lo">Image scan</span><b id="run-image">—</b></div>
+          <div class="runchip helm"><span class="lo">Helm scan</span><b id="run-helm">—</b></div>
+        </div>
+        <label class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="q" type="search" placeholder="Search name, CVE, rule…" autocomplete="off"></label>
+        <button class="icon-btn" id="print" title="Print / PDF"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg></button>
+        <button class="icon-btn" id="theme" title="Toggle theme">◐</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="filterbar">
+        <div class="chips" id="sevchips"></div>
+        <span class="vhint" id="vhint"></span>
+      </div>
+
+      <section class="view on" id="view-overview">
+        <div class="posture" id="posture"></div>
+        <div class="statstrip" id="statstrip"></div>
+        <div class="grid-3-2">
+          <div class="card"><div class="card-h"><h2>Findings by severity</h2><span class="aux">images + charts</span></div>
+            <div class="card-b"><div class="donut-wrap"><div class="donut" id="donut"></div><div class="dlegend" id="donut-legend"></div></div>
+              <div class="dsplit" id="dsplit"></div></div></div>
+          <div class="card"><div class="card-h"><h2>Findings by area</h2><span class="aux">Critical + High</span></div>
+            <div class="card-b"><div class="hbars" id="byarea"></div></div></div>
+        </div>
+        <div class="grid-3-2">
+          <div class="card"><div class="card-h"><h2>Priority remediation</h2><span class="aux">fix these first</span></div><div class="prio" id="prio"></div></div>
+          <div class="card"><div class="card-h"><h2>Trend across scans</h2><span class="aux">latest run</span></div><div class="trend" id="trend"></div></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-images">
+        <div class="kpis" id="kpi-images"></div>
+        <div class="card"><div class="card-h"><h2>Container images</h2><span class="aux" id="c-images"></span></div>
+          <div class="card-scroll"><table id="t-images"></table></div></div>
+      </section>
+
+      <section class="view" id="view-charts">
+        <div class="kpis" id="kpi-charts"></div>
+        <div class="card"><div class="card-h"><h2>Helm charts</h2><span class="aux" id="c-charts"></span></div>
+          <div class="card-scroll"><table id="t-charts"></table></div></div>
+      </section>
+
+      <section class="view" id="view-vulns">
+        <div class="card"><div class="card-h"><h2>Vulnerabilities</h2><span class="aux">from container images &middot; click a row for affected images</span><span class="aux" id="c-vulns" style="margin-left:0"></span></div>
+          <div class="card-scroll"><table id="t-vulns"></table></div></div>
+      </section>
+
+      <section class="view" id="view-rules">
+        <div class="card"><div class="card-h"><h2>Misconfigurations</h2><span class="aux">from Helm charts &middot; click a row for the why + affected charts</span><span class="aux" id="c-rules" style="margin-left:0"></span></div>
+          <div class="card-scroll"><table id="t-rules"></table></div></div>
+      </section>
+    </div>
+  </div>
+</div>
+<div id="tt" role="tooltip"></div>
+
+<script>
+const DATA=/*__DATA__*/{};
+const SEVS=["CRITICAL","HIGH","MEDIUM","LOW","UNKNOWN"];
+const SEVVAR={CRITICAL:"--crit",HIGH:"--high",MEDIUM:"--med",LOW:"--low",UNKNOWN:"--unknown"};
+const cssv=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const sevColor=s=>cssv(SEVVAR[s]||"--unknown");
+const cap=s=>s?s[0]+s.slice(1).toLowerCase():s;
+const fmt=n=>(n||0).toLocaleString();
+const esc=s=>{const d=document.createElement("div");d.textContent=s==null?"":String(s);return d.innerHTML;};
+const SEVICON={
+  CRITICAL:'<svg class="sev-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 2 2 20h20L12 2z"/><path d="M12 9v5"/><path d="M12 17.5v.01"/></svg>',
+  HIGH:'<svg class="sev-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5"/><path d="M12 16v.01"/></svg>',
+  MEDIUM:'<svg class="sev-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12h7"/></svg>',
+  LOW:'<svg class="sev-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/></svg>',
+  UNKNOWN:'<svg class="sev-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.1.9-1.1 1.8"/><path d="M12 17v.01"/></svg>'};
+const sevLab=s=>`<span style="color:${sevColor(s)}">${SEVICON[s]}</span> ${cap(s)}`;
+const CHEV='<span class="chev"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg></span>';
+const SR=s=>SEVS.indexOf(s);
+
+let state={view:"overview",sev:new Set(SEVS),q:"",open:{},repo:null,tag:null};
+const CHEVSVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
+function syncURL(){const p=new URLSearchParams();if(state.view!=="overview")p.set("view",state.view);if(state.view==="images"&&state.repo)p.set("repo",state.repo);if(state.view==="images"&&state.tag)p.set("tag",state.tag);if(document.documentElement.dataset.theme==="dark")p.set("theme","dark");const q=p.toString();history.replaceState(null,"",q?"?"+q:location.pathname);}
+const REPO=DATA.meta.repo||null;
+function fileHref(path,line){if(!REPO)return null;const p=REPO.helm_prefix?REPO.helm_prefix+"/"+path:path;return `${REPO.url}/blob/${REPO.ref}/${p}${line?"#L"+line:""}`;}
+const escAttr=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+function fileCell(path,line){const disp=esc(path.split("/").slice(-2).join("/"))+(line?":"+line:"");const h=fileHref(path,line);return h?`<a href="${escAttr(h)}" target="_blank" rel="noopener">${disp}</a>`:disp;}
+const activeSevs=()=>SEVS.filter(s=>state.sev.has(s));
+const rowMatch=s=>!state.q||s.toLowerCase().includes(state.q);
+const sevRowMatch=c=>activeSevs().some(s=>(c[s]||0)>0)||SEVS.every(s=>(c[s]||0)===0);
+const scopedTotal=t=>activeSevs().reduce((a,s)=>a+(t[s]||0),0);
+
+function initHead(){
+  const m=DATA.meta;
+  document.getElementById("title").textContent=m.title||"Security Dashboard";
+  document.getElementById("sb-title").textContent=(m.title||"DIGIT Security").split("·")[0].trim()||"DIGIT Security";
+  document.getElementById("run-image").textContent=m.image_scanned_at||"not run";
+  document.getElementById("run-helm").textContent=m.helm_scanned_at||"not run";
+  document.getElementById("sb-foot").innerHTML=`${m.images_count} images &middot; ${m.charts_count} charts<br>${m.trivy_version?("Trivy "+m.trivy_version):""}`;
+  document.getElementById("nb-images").textContent=m.images_count;
+  document.getElementById("nb-charts").textContent=m.charts_count;
+  document.getElementById("nb-vulns").textContent=DATA.vulns.length;
+  document.getElementById("nb-rules").textContent=DATA.rules.length;
+}
+
+function scoreOf(o){
+  const ch=o.CRITICAL,hi=o.HIGH,se=o.secrets;
+  if(ch>50)return 1;if(ch>20)return 2;if(ch>10)return 3;if(ch>0)return 4;
+  if(hi>50)return 5;if(hi>20)return 6;if(hi>5)return 7;if(hi>0)return 8;if(se>0)return 9;return 10;
+}
+function posture(){
+  const o=DATA.totals.overall,ch=o.CRITICAL,hi=o.HIGH;
+  const score=scoreOf(o);
+  const band=score<=3?"--crit":score<=6?"--med":"--good";const col=cssv(band);
+  let verdict,desc;
+  if(ch>0){verdict="Action required";desc=`${fmt(ch)} critical and ${fmt(hi)} high findings across images and charts need triage. Report-only — nothing is blocked yet.`;}
+  else if(hi>0){verdict="Needs attention";desc=`${fmt(hi)} high findings to review. No criticals outstanding.`;}
+  else{verdict="Healthy";desc="No critical or high findings outstanding.";}
+  const el=document.getElementById("posture");el.style.setProperty("--band",col);
+  const R=52,C=2*Math.PI*R,off=C*(1-score/10);
+  el.innerHTML=`
+    <div class="gauge"><svg width="122" height="122" viewBox="0 0 120 120">
+      <circle cx="60" cy="60" r="${R}" fill="none" stroke="var(--surface-3)" stroke-width="10"/>
+      <circle cx="60" cy="60" r="${R}" fill="none" stroke="${col}" stroke-width="10" stroke-linecap="butt" stroke-dasharray="${C}" stroke-dashoffset="${off}" transform="rotate(-90 60 60)"/></svg>
+      <div class="lab"><div><b>${score}<sub>/10</sub></b></div></div></div>
+    <div><p class="verdict">${verdict}</p><div class="pdesc">${desc}</div></div>`;
+}
+function statStrip(){
+  const o=DATA.totals.overall;
+  const tiles=[
+    {lab:sevLab("CRITICAL"),val:o.CRITICAL,vcls:"c",foot:"vulns + misconfigs"},
+    {lab:sevLab("HIGH"),val:o.HIGH,vcls:"h",foot:"vulns + misconfigs"},
+    {lab:"Secrets",val:o.secrets,foot:"hard-coded, all scans"},
+    {lab:"Assets scanned",val:DATA.meta.images_count+DATA.meta.charts_count,foot:`${DATA.meta.images_count} images · ${DATA.meta.charts_count} charts`}];
+  document.getElementById("statstrip").innerHTML=tiles.map(t=>`<div class="tile"><div class="lab">${t.lab}</div><div class="val ${t.vcls||''}">${fmt(t.val)}</div><div class="foot">${t.foot}</div></div>`).join("");
+}
+
+function kpis(elId,scope){
+  const t=DATA.totals[scope];
+  const foot=scope==="overall"?"images + charts":(scope==="image"?"container images":"helm charts");
+  const tiles=[
+    {lab:'<svg class="sev-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Open Crit + High',val:t.CRITICAL+t.HIGH,foot},
+    {lab:sevLab("CRITICAL"),val:t.CRITICAL,vcls:"c",foot:"findings"},
+    {lab:sevLab("HIGH"),val:t.HIGH,vcls:"h",foot:"findings"},
+    {lab:"Secrets",val:t.secrets,foot:"hard-coded"},
+    {lab:"Total findings",val:t.total,foot:"all severities"}];
+  document.getElementById(elId).innerHTML=tiles.map(x=>`<div class="tile"><div class="lab">${x.lab}</div><div class="val ${x.vcls||''}">${fmt(x.val)}</div><div class="foot">${x.foot}</div></div>`).join("");
+}
+
+function donut(){
+  const o=DATA.totals.overall;
+  const segs=activeSevs().filter(s=>o[s]>0).map(s=>({s,v:o[s]}));
+  const tot=segs.reduce((a,x)=>a+x.v,0)||1;const R=70,SW=22,C=2*Math.PI*R;let acc=0;
+  const rings=segs.map(x=>{const frac=x.v/tot,len=C*frac,off=-acc*C;acc+=frac;
+    return `<circle cx="88" cy="88" r="${R}" fill="none" stroke="${sevColor(x.s)}" stroke-width="${SW}" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${off}" transform="rotate(-90 88 88)" data-tip="${x.s}|${x.v}|${(frac*100).toFixed(1)}% of findings"></circle>`;}).join("");
+  document.getElementById("donut").innerHTML=`<svg width="176" height="176" viewBox="0 0 176 176"><circle cx="88" cy="88" r="${R}" fill="none" stroke="var(--surface-3)" stroke-width="${SW}"/>${rings}</svg><div class="ctr"><div><b>${fmt(tot)}</b><span>findings</span></div></div>`;
+  document.getElementById("donut-legend").innerHTML=segs.map(x=>`<div class="li"><span class="sw" style="background:${sevColor(x.s)}"></span><span class="ln">${cap(x.s)}</span><span class="lv">${fmt(x.v)}</span><span class="lp">${(x.v/tot*100).toFixed(0)}%</span></div>`).join("")||`<div class="li ln">No findings for this filter.</div>`;
+  const it=scopedTotal(DATA.totals.image),ht=scopedTotal(DATA.totals.helm);
+  document.getElementById("dsplit").innerHTML=`
+    <div class="ds"><div class="dk"><span class="d" style="background:var(--accent)"></span>Container images</div><div class="dv">${fmt(it)}</div><div class="dsub">${DATA.meta.images_count} scanned</div></div>
+    <div class="ds"><div class="dk"><span class="d" style="background:var(--med)"></span>Helm charts</div><div class="dv">${fmt(ht)}</div><div class="dsub">${DATA.meta.charts_count} scanned</div></div>`;
+  document.querySelectorAll("#donut circle[data-tip]").forEach(bindTip);
+}
+
+function byArea(){
+  const map={};
+  DATA.charts.forEach(c=>{const a="charts / "+(c.name.split("/")[0]||"?");map[a]=map[a]||{CRITICAL:0,HIGH:0};map[a].CRITICAL+=c.counts.CRITICAL;map[a].HIGH+=c.counts.HIGH;});
+  DATA.images.forEach(i=>{const a="container images";map[a]=map[a]||{CRITICAL:0,HIGH:0};map[a].CRITICAL+=i.counts.CRITICAL;map[a].HIGH+=i.counts.HIGH;});
+  const rows=Object.entries(map).map(([k,v])=>({k,v,t:(state.sev.has("CRITICAL")?v.CRITICAL:0)+(state.sev.has("HIGH")?v.HIGH:0)})).filter(r=>r.t>0).sort((a,b)=>b.t-a.t).slice(0,7);
+  const max=Math.max(1,...rows.map(r=>r.t));
+  document.getElementById("byarea").innerHTML=rows.map(r=>{
+    const segs=activeSevs().filter(s=>(r.v[s]||0)>0).map(s=>`<i style="width:${r.v[s]/max*100}%;background:${sevColor(s)}" data-tip="${s}|${r.v[s]}|${esc(r.k)}"></i>`).join("");
+    return `<div class="hbar"><div class="hl" title="${esc(r.k)}">${esc(r.k)}</div><div class="tk">${segs}</div><div class="hv">${fmt(r.t)}</div></div>`;}).join("")||`<div class="empty">No findings.</div>`;
+  document.querySelectorAll("#byarea i[data-tip]").forEach(bindTip);
+}
+
+function priorities(){
+  const items=[],byPkg={};
+  DATA.vulns.filter(v=>v.fixed&&state.sev.has(v.severity)).forEach(v=>{
+    const p=byPkg[v.pkg]||(byPkg[v.pkg]={pkg:v.pkg,cves:0,crit:0,imgs:new Set(),sev:"LOW",fix:""});
+    p.cves++;if(v.severity==="CRITICAL")p.crit++;(v.images||[]).forEach(i=>p.imgs.add(i));
+    if(SR(v.severity)<SR(p.sev))p.sev=v.severity;const f=(v.fixed||"").split(",")[0].trim();if(f&&f>p.fix)p.fix=f;});
+  Object.values(byPkg).forEach(p=>items.push({sev:p.sev,title:`Upgrade ${p.pkg}`,sub:`${p.crit?p.crit+" critical, ":""}${p.cves} CVE${p.cves>1?"s":""} · ${p.imgs.size} image${p.imgs.size>1?"s":""}${p.fix?" · → "+p.fix:""}`,weight:(p.sev==="CRITICAL"?1e7:1e4)+p.crit*100+p.imgs.size}));
+  DATA.rules.filter(r=>state.sev.has(r.severity)).forEach(r=>items.push({sev:r.severity,title:r.title||r.id,sub:`${r.id} · ${r.count} chart${r.count>1?"s":""}`,weight:(r.severity==="CRITICAL"?9e6:9e3)+r.count}));
+  const top=items.sort((a,b)=>b.weight-a.weight).slice(0,6);
+  document.getElementById("prio").innerHTML=top.map((i,ix)=>`<div class="pr"><span class="ptag" style="background:${sevColor(i.sev)}">P${Math.min(ix,3)}</span><div><div class="pt">${esc(i.title)}</div><div class="ps">${esc(i.sub)}</div></div><div class="pn" style="color:${sevColor(i.sev)}">${sevLab(i.sev)}</div></div>`).join("")||`<div class="empty">Nothing outstanding.</div>`;
+}
+
+function trend(){
+  const o=DATA.totals.overall,bars=activeSevs().filter(s=>o[s]>0).map(s=>({s,v:o[s]}));
+  const max=Math.max(1,...bars.map(b=>b.v));
+  document.getElementById("trend").innerHTML=`<div class="note">A time series builds up as scans repeat. This is the latest run:</div>
+    <div class="hbars">${bars.map(b=>`<div class="hbar"><div class="hl">${cap(b.s)}</div><div class="tk"><i style="width:${b.v/max*100}%;background:${sevColor(b.s)}"></i></div><div class="hv">${fmt(b.v)}</div></div>`).join("")}</div>`;
+}
+
+/* ---------- tables with drill-down ---------- */
+function minibar(c){const t=SEVS.reduce((a,s)=>a+(c[s]||0),0)||1;return `<span class="minibar">${SEVS.filter(s=>c[s]>0).map(s=>`<i style="width:${c[s]/t*100}%;background:${sevColor(s)}"></i>`).join("")}</span>`;}
+function numCell(n,s){return n>0?`<td class="num" style="color:${sevColor(s)};font-weight:640">${fmt(n)}</td>`:`<td class="num n0">0</td>`;}
+function sevPill(s){return `<span class="sev-pill" style="color:${sevColor(s)}">${SEVICON[s]} ${cap(s)}</span>`;}
+const SORT={};
+function build(id,cols,key,rows,rowHtml,detailHtml){
+  const st=SORT[key]||{};
+  if(st.col){const c=st.col,d=st.dir;const get=r=>c==="bar"?(r.total||0):(c in r?r[c]:(r.counts&&c in r.counts?r.counts[c]:0));
+    rows.sort((a,b)=>{let x=get(a),y=get(b);if(typeof x==="string"||typeof y==="string"){x=(x||"").toString().toLowerCase();y=(y||"").toString().toLowerCase();return x<y?-d:x>y?d:0;}return (x-y)*d;});}
+  const head=`<thead><tr>${cols.map(c=>{const on=st.col===c[0];return `<th class="${c[2]?'num':''}" data-col="${c[0]}" ${on?`aria-sort="${st.dir>0?'ascending':'descending'}"`:''}>${c[1]}<span class="ar">${on?(st.dir>0?'▲':'▼'):'↕'}</span></th>`;}).join("")}</tr></thead>`;
+  const body=rows.map((r,ix)=>{
+    const k=key+":"+(r.id||r.name||ix);const isOpen=!!state.open[k];
+    let tr=rowHtml(r,ix);
+    if(detailHtml){tr=tr.replace("<tr>",`<tr class="drow ${isOpen?'open':''}" data-k="${esc(k)}">`);
+      tr+=isOpen?`<tr class="det"><td colspan="${cols.length}"><div class="box">${detailHtml(r)}</div></td></tr>`:"";}
+    return tr;
+  }).join("")||`<tr><td class="empty" colspan="${cols.length}">Nothing matches this filter.</td></tr>`;
+  const t=document.getElementById(id);t.innerHTML=head+`<tbody>${body}</tbody>`;
+  t.querySelectorAll("th[data-col]").forEach(th=>th.onclick=()=>{const col=th.dataset.col,cur=SORT[key]||{};SORT[key]=cur.col===col?{col,dir:-cur.dir}:{col,dir:(["name","id","pkg","title","os"].includes(col)?1:-1)};render();});
+  if(detailHtml)t.querySelectorAll("tr.drow").forEach(tr=>tr.onclick=e=>{if(e.target.closest("a"))return;const k=tr.dataset.k;state.open[k]=!state.open[k];render();});
+  return rows.length;
+}
+function tImages(){
+  const cols=[["repo","Image · repo",0],["tag_count","Tags",1],["CRITICAL","Crit",1],["HIGH","High",1],["total","Total",1],["secrets","Secrets",1],["bar","Latest severity",0]];
+  let rows=DATA.images.filter(r=>rowMatch(r.repo+" "+r.os+" "+r.tags.map(t=>t.tag).join(" "))&&sevRowMatch(r.counts));
+  const st=SORT["images"]||{};
+  if(st.col){const c=st.col,d=st.dir;const g=r=>c==="bar"?(r.total||0):(c in r?r[c]:(r.counts&&c in r.counts?r.counts[c]:0));
+    rows.sort((a,b)=>{let x=g(a),y=g(b);if(typeof x==="string"||typeof y==="string"){x=(x||"").toString().toLowerCase();y=(y||"").toString().toLowerCase();return x<y?-d:x>y?d:0;}return (x-y)*d;});}
+  const head=`<thead><tr>${cols.map(c=>{const on=st.col===c[0];return `<th class="${c[2]?'num':''}" data-col="${c[0]}" ${on?`aria-sort="${st.dir>0?'ascending':'descending'}"`:''}>${c[1]}<span class="ar">${on?(st.dir>0?'▲':'▼'):'↕'}</span></th>`;}).join("")}</tr></thead>`;
+  const body=rows.map(r=>{
+    const isOpen=state.repo===r.repo;
+    let h=`<tr class="drow ${isOpen?'open':''}" data-repo="${esc(r.repo)}"><td class="name">${CHEV}${esc(r.repo)}<small>latest ${esc(r.latest_tag)}${r.os?" · "+esc(r.os):""}</small></td>
+      <td class="num">${r.tag_count}</td>${numCell(r.counts.CRITICAL,"CRITICAL")}${numCell(r.counts.HIGH,"HIGH")}<td class="num"><b>${fmt(r.total)}</b></td>${r.secrets?`<td class="num" style="color:${sevColor('CRITICAL')};font-weight:640">${r.secrets}</td>`:`<td class="num n0">0</td>`}<td>${minibar(r.counts)}</td></tr>`;
+    if(isOpen)h+=`<tr class="det"><td colspan="${cols.length}"><div class="box">${detailRepo(r)}</div></td></tr>`;
+    return h;
+  }).join("")||`<tr><td class="empty" colspan="${cols.length}">Nothing matches this filter.</td></tr>`;
+  const t=document.getElementById("t-images");t.innerHTML=head+`<tbody>${body}</tbody>`;
+  t.querySelectorAll("th[data-col]").forEach(th=>th.onclick=()=>{const col=th.dataset.col,cur=SORT["images"]||{};SORT["images"]=cur.col===col?{col,dir:-cur.dir}:{col,dir:(col==="repo"?1:-1)};render();});
+  t.querySelectorAll("tr.drow[data-repo]").forEach(tr=>tr.onclick=e=>{if(e.target.closest("a")||e.target.closest(".tagitem"))return;const rp=tr.dataset.repo;state.repo=state.repo===rp?null:rp;state.tag=null;syncURL();render();});
+  t.querySelectorAll(".tagitem[data-tag]").forEach(el=>el.onclick=e=>{if(e.target.closest("a"))return;e.stopPropagation();const tg=el.dataset.tag;state.tag=state.tag===tg?null:tg;syncURL();render();});
+  document.getElementById("c-images").textContent=rows.length+" of "+DATA.images.length+" repos · "+fmt(DATA.meta.image_tags_count)+" tags scanned";
+}
+function detailRepo(r){
+  return `<p class="dh">${r.tag_count} scanned tag${r.tag_count>1?"s":""} — latest to oldest · click a tag for its vulnerabilities</p>
+    <div class="taglist">${r.tags.map(t=>{const open=state.tag===t.tag;const dt=(t.scanned_at||"").slice(0,10);
+      return `<div class="tagblock ${open?'open':''}">
+        <div class="tagitem ${open?'open':''}" data-tag="${esc(t.tag)}">
+          <span class="chev">${CHEVSVG}</span>
+          <span class="tgname">${esc(t.tag)}</span>
+          <span class="tgos">${esc(t.os||'')}${dt?" · "+dt:""}</span>
+          <span class="tgsev">${t.counts.CRITICAL?`<b style="color:${sevColor('CRITICAL')}">${fmt(t.counts.CRITICAL)} crit</b>`:''}${t.counts.HIGH?` <b style="color:${sevColor('HIGH')}">${fmt(t.counts.HIGH)} high</b>`:''}${!t.counts.CRITICAL&&!t.counts.HIGH?'<span class="n0">clean</span>':''}</span>
+          <span class="tgmix">${minibar(t.counts)}</span>
+          <span class="tgtot">${fmt(t.total)}</span>
+        </div>
+        ${open?`<div class="tagvulns">${detailTag(t)}</div>`:""}
+      </div>`;}).join("")}</div>`;
+}
+function detailTag(t){
+  const f=(t.findings||[]).filter(x=>state.sev.has(x.severity));
+  if(!f.length)return `<p class="dh">No findings for this filter.</p>`;
+  const hasOS=f.some(x=>x.cls==="os-pkgs"),hasLib=f.some(x=>x.cls==="lang-pkgs");
+  const fixbits=[];
+  if(hasOS)fixbits.push("<b>OS packages</b> (e.g. "+esc((f.find(x=>x.cls==="os-pkgs")||{}).pkg||"")+"): rebuild the image on an updated base — <code>apt-get update &amp;&amp; apt-get upgrade</code> / <code>apk upgrade</code> pulls the “fixed in” version");
+  if(hasLib)fixbits.push("<b>App libraries</b>: bump the dependency to the “fixed in” version in the service build (pom.xml / package.json), then rebuild &amp; re-push");
+  const fixnote=fixbits.length?`<div class="why"><b>How to fix:</b> ${fixbits.join(". ")}.</div>`:"";
+  return `${fixnote}<p class="dh">What's wrong ${t.total>f.length?`(showing ${f.length} of ${fmt(t.total)})`:""}</p>
+    <div class="flist">${f.map(x=>`<div class="fli-v"><div class="fli-top">${sevPill(x.severity)}
+      <span class="fp">${x.url?`<a href="${escAttr(x.url)}" target="_blank" rel="noopener">${esc(x.id)}</a>`:esc(x.id)} &middot; ${esc(x.pkg)}</span>
+      <span class="fx">${esc(x.installed)}${x.fixed?` → <span class="fix-ok">${esc(x.fixed.split(",")[0].trim())}</span>`:' · no fix'}</span></div>
+      ${x.title?`<div class="ftitle">${esc(x.title)}</div>`:""}</div>`).join("")}</div>`;
+}
+function tCharts(){
+  const cols=[["name","Chart",0],["CRITICAL","Crit",1],["HIGH","High",1],["total","Total",1],["top_rule","Top rule",0],["bar","Severity mix",0]];
+  const rows=DATA.charts.filter(r=>rowMatch(r.name)&&sevRowMatch(r.counts));
+  build("t-charts",cols,"charts",rows,r=>`<tr><td class="name">${CHEV}${esc(r.name)}</td>${numCell(r.counts.CRITICAL,"CRITICAL")}${numCell(r.counts.HIGH,"HIGH")}<td class="num"><b>${fmt(r.total)}</b></td><td class="mono">${esc(r.top_rule)}</td><td>${minibar(r.counts)}</td></tr>`,
+    r=>detailChart(r));
+  document.getElementById("c-charts").textContent=rows.length+" of "+DATA.charts.length+" charts with findings";
+}
+function detailChart(r){
+  const f=(r.findings||[]).filter(x=>state.sev.has(x.severity));
+  if(!f.length)return `<p class="dh">No listed findings for this filter.</p>`;
+  return `<p class="dh">Findings in ${esc(r.name)} ${r.total>f.length?`(showing ${f.length} of ${fmt(r.total)})`:""}</p>
+    <div class="flist">${f.map(x=>`<div class="fli"><span>${sevPill(x.severity)}</span>
+      <span class="fp">${esc(x.rule)} &middot; ${esc(x.title)}</span>
+      <span class="fx">${fileCell(x.file,x.line)}</span></div>`).join("")}</div>`;
+}
+function tVulns(){
+  const cols=[["id","CVE / ID",0],["severity","Severity",0],["pkg","Package",0],["installed","Installed",0],["fixed","Fixed in",0],["count","Images",1]];
+  const rows=DATA.vulns.filter(r=>rowMatch(r.id+" "+r.pkg+" "+r.title)&&state.sev.has(r.severity));
+  build("t-vulns",cols,"vulns",rows,r=>`<tr><td class="mono">${CHEV}${r.url?`<a href="${escAttr(r.url)}" target="_blank" rel="noopener">${esc(r.id)}</a>`:esc(r.id)}</td><td>${sevPill(r.severity)}</td><td class="mono">${esc(r.pkg)}</td><td class="mono">${esc(r.installed)}</td><td class="mono">${r.fixed?`<span class="fix-ok">${esc(r.fixed.split(",")[0].trim())}</span>`:'<span class="n0">—</span>'}</td><td class="num"><b>${fmt(r.count)}</b></td></tr>`,
+    r=>detailVuln(r));
+  document.getElementById("c-vulns").textContent="· "+rows.length+" shown";
+}
+function detailVuln(r){
+  return `${r.title?`<div class="why"><b>What:</b> ${esc(r.title)}</div>`:""}
+    <p class="dh">Affected images (${r.images.length})</p>
+    <div class="tagrow">${r.images.map(i=>`<span class="tag">${esc(i)}</span>`).join("")}</div>
+    ${r.fixed?`<p class="dh" style="margin-top:12px">Fix</p><div class="tagrow"><span class="tag">upgrade ${esc(r.pkg)} → ${esc(r.fixed.split(",")[0].trim())}</span></div>`:""}`;
+}
+function tRules(){
+  const cols=[["id","ID",0],["severity","Severity",0],["title","Misconfiguration",0],["count","Charts",1]];
+  const rows=DATA.rules.filter(r=>rowMatch(r.id+" "+r.title)&&state.sev.has(r.severity));
+  build("t-rules",cols,"rules",rows,r=>`<tr><td class="mono">${CHEV}${esc(r.id)}</td><td>${sevPill(r.severity)}</td><td>${esc(r.title)}</td><td class="num"><b>${fmt(r.count)}</b></td></tr>`,
+    r=>detailRule(r));
+  document.getElementById("c-rules").textContent="· "+rows.length+" shown";
+}
+function detailRule(r){
+  const locs=(r.locations||[]);
+  return `${r.resolution?`<div class="why"><b>Why / how to fix:</b> ${esc(r.resolution)}</div>`:""}
+    <p class="dh">Where — affected charts (${r.charts.length})</p>
+    <div class="tagrow">${r.charts.map(c=>`<span class="tag">${esc(c)}</span>`).join("")}</div>
+    ${locs.length?`<p class="dh" style="margin-top:12px">Example locations</p><div class="flist">${locs.slice(0,20).map(l=>`<div class="fli"><span class="fp">${esc(l.chart)}</span><span></span><span class="fx">${fileCell(l.file,l.line)}</span></div>`).join("")}</div>`:""}`;
+}
+
+const tt=document.getElementById("tt");
+function bindTip(el){el.addEventListener("pointermove",e=>{const[s,n,ctx]=el.dataset.tip.split("|");
+  tt.innerHTML=`<div class="v" style="color:${sevColor(s)}">${cap(s)}</div><div><span class="v">${fmt(+n)}</span> <span class="k">findings</span></div><div class="k">${esc(ctx)}</div>`;
+  tt.classList.add("on");const pad=14;let x=e.clientX+pad,y=e.clientY+pad;if(x+tt.offsetWidth>innerWidth)x=e.clientX-tt.offsetWidth-pad;tt.style.left=x+"px";tt.style.top=y+"px";});
+  el.addEventListener("pointerleave",()=>tt.classList.remove("on"));}
+
+function setView(v){state.view=v;
+  document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.v===v));
+  document.querySelectorAll(".view").forEach(s=>s.classList.toggle("on",s.id==="view-"+v));
+  const hints={overview:"",images:"Every service repo and its scanned release tags (from docs.digit.org) — expand a repo, click a tag for its CVEs",charts:"Every Helm chart with at least one finding",vulns:"CVEs in the latest release tag of each image",rules:"Kubernetes misconfigurations found in Helm charts"};
+  const h=hints[v];document.getElementById("vhint").innerHTML=h?`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>${h}`:"";
+  syncURL();render();}
+function initChips(){
+  document.getElementById("sevchips").innerHTML=SEVS.map(s=>`<button class="chip" data-s="${s}" aria-pressed="true"><span class="dot" style="background:${sevColor(s)}"></span>${cap(s)}</button>`).join("");
+  document.querySelectorAll("#sevchips .chip").forEach(ch=>ch.onclick=()=>{const s=ch.dataset.s;if(state.sev.has(s))state.sev.delete(s);else state.sev.add(s);if(!state.sev.size)state.sev=new Set(SEVS);render();});}
+function syncChips(){document.querySelectorAll("#sevchips .chip").forEach(ch=>ch.setAttribute("aria-pressed",state.sev.has(ch.dataset.s)));}
+
+function render(){syncChips();
+  if(state.view==="overview"){posture();statStrip();donut();byArea();priorities();trend();}
+  else if(state.view==="images"){kpis("kpi-images","image");tImages();}
+  else if(state.view==="charts"){kpis("kpi-charts","helm");tCharts();}
+  else if(state.view==="vulns"){tVulns();}
+  else if(state.view==="rules"){tRules();}}
+
+document.getElementById("nav").addEventListener("click",e=>{const a=e.target.closest("a[data-v]");if(a){e.preventDefault();setView(a.dataset.v);}});
+document.getElementById("q").oninput=e=>{state.q=e.target.value.trim().toLowerCase();render();};
+document.getElementById("theme").onclick=()=>{const r=document.documentElement;r.dataset.theme=r.dataset.theme==="dark"?"light":"dark";syncURL();render();};
+document.getElementById("print").onclick=()=>window.print();
+const params=new URLSearchParams(location.search);
+if(params.get("theme")==="dark")document.documentElement.dataset.theme="dark";
+(params.get("open")||"").split(",").filter(Boolean).forEach(k=>state.open[k]=true);
+if(params.get("repo"))state.repo=params.get("repo");
+if(params.get("tag"))state.tag=params.get("tag");
+initHead();initChips();
+const uv=params.get("view");
+setView(["overview","images","charts","vulns","rules"].includes(uv)?uv:"overview");
+</script>
+</body>
+</html>

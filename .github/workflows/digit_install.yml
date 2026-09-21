@@ -11,6 +11,9 @@ on:
         description: 'Type "destroy" to run the terraform_infra_destruction job.'
         required: true
         default: ''   
+permissions:
+  contents: read
+
 jobs:
   check-changed-files:
     runs-on: ubuntu-latest
@@ -19,11 +22,11 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e # v2
     
     - name: Check for changes in deploy-as-code
       id: check_files
-      uses: tj-actions/changed-files@v46
+      uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c # v46
       with:
         files: |
           deploy-as-code/**
@@ -39,14 +42,14 @@ jobs:
       AWS_REGION:  ${{ secrets.AWS_REGION }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e # v2
       - name: Build project
         run: echo "Githubactions Workflow has started"
       - name: Displaying the input parameters provided
         run: cat input.yaml
         working-directory: infra-as-code/terraform/aws
       - name: Convert YAML to ENV
-        uses: dcarbone/yaml-to-env-action@main
+        uses: dcarbone/yaml-to-env-action@6688b7bd377445c6c797b4ad0c2be4c6dcea642f # main
         with:
           yaml-file: infra-as-code/terraform/aws/input.yaml
           debug: true # Optional: set to true to output some debug information
@@ -65,15 +68,17 @@ jobs:
       - name: Archive deploy-as-code folder
         run: tar -czf deploy-as-code.tar.gz deploy-as-code/
       - name: Upload infra-as-code folder as artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: infra-as-code-artifact
           path: infra-as-code.tar.gz
+          overwrite: true
       - name: Upload deploy-as-code folder as artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: deploy-as-code-artifact
-          path: deploy-as-code.tar.gz     
+          path: deploy-as-code.tar.gz
+          overwrite: true
 
   Terraform_Infra_Creation:
     if: ${{ github.event_name == 'push' }}
@@ -87,14 +92,14 @@ jobs:
       AWS_REGION:  ${{ secrets.AWS_REGION }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e # v2
       - name: Download infra-as-code folder from artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: infra-as-code-artifact
           path: .
       - name: Download deploy-as-code folder from artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: deploy-as-code-artifact
           path: .
@@ -103,7 +108,7 @@ jobs:
       - name: Extract deploy-as-code folder
         run: tar -xzf deploy-as-code.tar.gz 
       - name: Convert YAML to ENV
-        uses: dcarbone/yaml-to-env-action@main
+        uses: dcarbone/yaml-to-env-action@6688b7bd377445c6c797b4ad0c2be4c6dcea642f # main
         with:
           yaml-file: infra-as-code/terraform/aws/input.yaml
           debug: true # Optional: set to true to output some debug information
@@ -184,15 +189,17 @@ jobs:
       - name: Archive deploy-as-code folder
         run: tar -czf deploy-as-code.tar.gz deploy-as-code/
       - name: Upload infra-as-code folder as artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: infra-as-code-artifact
           path: infra-as-code.tar.gz
+          overwrite: true
       - name: Upload deploy-as-code folder as artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: deploy-as-code-artifact
-          path: deploy-as-code.tar.gz      
+          path: deploy-as-code.tar.gz
+          overwrite: true
 
   DIGIT-deployment:
     if: ${{ github.event_name == 'push' }}
@@ -206,14 +213,14 @@ jobs:
       AWS_REGION:  ${{ secrets.AWS_REGION }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e # v2
       - name: Download infra-as-code folder from artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: infra-as-code-artifact
           path: .
       - name: Download deploy-as-code folder from artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: deploy-as-code-artifact
           path: .
@@ -222,7 +229,7 @@ jobs:
       - name: Extract deploy-as-code folder
         run: tar -xzf deploy-as-code.tar.gz 
       - name: Convert YAML to ENV
-        uses: dcarbone/yaml-to-env-action@main
+        uses: dcarbone/yaml-to-env-action@6688b7bd377445c6c797b4ad0c2be4c6dcea642f # main
         with:
           yaml-file: infra-as-code/terraform/aws/input.yaml
           debug: true # Optional: set to true to output some debug information
@@ -313,7 +320,7 @@ jobs:
   #     AWS_REGION:  ${{ secrets.AWS_REGION }}
   #   steps:
   #     - name: Checkout code
-  #       uses: actions/checkout@v2
+  #       uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e # v2
   #     - name: Deploying because changes were made in deploy-as-code
   #       run: echo "Deploying because changes were made in deploy-as-code"
   #     - name: Displaying the input parameters provided
@@ -330,7 +337,7 @@ jobs:
   #       working-directory: infra-as-code/terraform/scripts        
 
   #     - name: Convert YAML to ENV
-  #       uses: dcarbone/yaml-to-env-action@main
+  #       uses: dcarbone/yaml-to-env-action@6688b7bd377445c6c797b4ad0c2be4c6dcea642f # main
   #       with:
   #         yaml-file: infra-as-code/terraform/aws/input.yaml
   #         debug: true # Optional: set to true to output some debug information
@@ -422,9 +429,9 @@ jobs:
       AWS_REGION:  ${{ secrets.AWS_REGION }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e # v2
       - name: Convert YAML to ENV
-        uses: dcarbone/yaml-to-env-action@main
+        uses: dcarbone/yaml-to-env-action@6688b7bd377445c6c797b4ad0c2be4c6dcea642f # main
         with:
           yaml-file: infra-as-code/terraform/aws/input.yaml
           debug: true # Optional: set to true to output some debug information

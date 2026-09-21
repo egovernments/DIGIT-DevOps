@@ -47,6 +47,8 @@ jobs:
       # Charts depend on the local `common` chart; Trivy silently skips a chart
       # it can't render, so vendor deps first. All deps are file:// paths (offline).
       - name: Vendor chart dependencies
+        env:
+          CHARTS_PATH: ${{ github.event.inputs.charts-path }}
         run: |
           set -uo pipefail
           ok=0; skip=0; fail=0
@@ -57,10 +59,13 @@ jobs:
                || (cd "$d" && helm dependency update --skip-refresh >/dev/null 2>&1); then
               ok=$((ok+1))
             else
-              fail=$((fail+1)); echo "::warning title=Helm deps::could not vendor deps for $d"
+              fail=$((fail+1)); echo "::error title=Helm deps::could not vendor deps for $d"
             fi
-          done < <(find "${{ github.event.inputs.charts-path }}" -name Chart.yaml)
+          done < <(find "$CHARTS_PATH" -name Chart.yaml)
           echo "Dependencies vendored: ok=$ok, no-deps=$skip, failed=$fail"
+          # Trivy silently skips charts it cannot render, so a vendor failure would
+          # publish an incomplete report as success - fail loudly instead.
+          [ "$fail" -eq 0 ] || { echo "::error::$fail chart(s) failed to vendor; aborting to avoid an incomplete scan."; exit 1; }
 
       - name: Trivy misconfig + secret scan (table → logs)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -125,6 +130,8 @@ jobs:
           severity: ${{ github.event.inputs.severity }}
           exit-code: '1'
           hide-progress: true
+          trivy-config: .trivy/trivy.yaml
+          trivyignores: .trivy/.trivyignore.yaml
           skip-setup-trivy: true
 
   # --- aggregate the Helm results into the GitHub Pages dashboard -----------
@@ -134,6 +141,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write   # push to gh-pages
+    # serialize with the image workflow's dashboard job so concurrent runs don't
+    # clobber each other's gh-pages update
+    concurrency:
+      group: security-dashboard-gh-pages
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -151,10 +163,12 @@ jobs:
           path: pages
 
       - name: Build dashboard (Helm half)
+        env:
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          REF: ${{ github.event.inputs.branch }}
         run: |
           mkdir -p pages
-          bash .trivy/dashboard/build-dashboard.sh helm results pages \
-            "${{ github.server_url }}/${{ github.repository }}" "${{ github.event.inputs.branch }}"
+          bash .trivy/dashboard/build-dashboard.sh helm results pages "$REPO_URL" "$REF"
 
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0

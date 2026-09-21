@@ -317,7 +317,8 @@ const CHEVSVG='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" strok
 function syncURL(){const p=new URLSearchParams();if(state.view!=="overview")p.set("view",state.view);if(state.view==="images"&&state.repo)p.set("repo",state.repo);if(state.view==="images"&&state.tag)p.set("tag",state.tag);if(document.documentElement.dataset.theme==="dark")p.set("theme","dark");const q=p.toString();history.replaceState(null,"",q?"?"+q:location.pathname);}
 const REPO=DATA.meta.repo||null;
 function fileHref(path,line){if(!REPO)return null;const p=REPO.helm_prefix?REPO.helm_prefix+"/"+path:path;return `${REPO.url}/blob/${REPO.ref}/${p}${line?"#L"+line:""}`;}
-function fileCell(path,line){const disp=esc(path.split("/").slice(-2).join("/"))+(line?":"+line:"");const h=fileHref(path,line);return h?`<a href="${h}" target="_blank" rel="noopener">${disp}</a>`:disp;}
+const escAttr=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+function fileCell(path,line){const disp=esc(path.split("/").slice(-2).join("/"))+(line?":"+line:"");const h=fileHref(path,line);return h?`<a href="${escAttr(h)}" target="_blank" rel="noopener">${disp}</a>`:disp;}
 const activeSevs=()=>SEVS.filter(s=>state.sev.has(s));
 const rowMatch=s=>!state.q||s.toLowerCase().includes(state.q);
 const sevRowMatch=c=>activeSevs().some(s=>(c[s]||0)>0)||SEVS.every(s=>(c[s]||0)===0);
@@ -493,7 +494,7 @@ function detailTag(t){
   const fixnote=fixbits.length?`<div class="why"><b>How to fix:</b> ${fixbits.join(". ")}.</div>`:"";
   return `${fixnote}<p class="dh">What's wrong ${t.total>f.length?`(showing ${f.length} of ${fmt(t.total)})`:""}</p>
     <div class="flist">${f.map(x=>`<div class="fli-v"><div class="fli-top">${sevPill(x.severity)}
-      <span class="fp">${x.url?`<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.id)}</a>`:esc(x.id)} &middot; ${esc(x.pkg)}</span>
+      <span class="fp">${x.url?`<a href="${escAttr(x.url)}" target="_blank" rel="noopener">${esc(x.id)}</a>`:esc(x.id)} &middot; ${esc(x.pkg)}</span>
       <span class="fx">${esc(x.installed)}${x.fixed?` → <span class="fix-ok">${esc(x.fixed.split(",")[0].trim())}</span>`:' · no fix'}</span></div>
       ${x.title?`<div class="ftitle">${esc(x.title)}</div>`:""}</div>`).join("")}</div>`;
 }
@@ -515,7 +516,7 @@ function detailChart(r){
 function tVulns(){
   const cols=[["id","CVE / ID",0],["severity","Severity",0],["pkg","Package",0],["installed","Installed",0],["fixed","Fixed in",0],["count","Images",1]];
   const rows=DATA.vulns.filter(r=>rowMatch(r.id+" "+r.pkg+" "+r.title)&&state.sev.has(r.severity));
-  build("t-vulns",cols,"vulns",rows,r=>`<tr><td class="mono">${CHEV}${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.id)}</a>`:esc(r.id)}</td><td>${sevPill(r.severity)}</td><td class="mono">${esc(r.pkg)}</td><td class="mono">${esc(r.installed)}</td><td class="mono">${r.fixed?`<span class="fix-ok">${esc(r.fixed.split(",")[0].trim())}</span>`:'<span class="n0">—</span>'}</td><td class="num"><b>${fmt(r.count)}</b></td></tr>`,
+  build("t-vulns",cols,"vulns",rows,r=>`<tr><td class="mono">${CHEV}${r.url?`<a href="${escAttr(r.url)}" target="_blank" rel="noopener">${esc(r.id)}</a>`:esc(r.id)}</td><td>${sevPill(r.severity)}</td><td class="mono">${esc(r.pkg)}</td><td class="mono">${esc(r.installed)}</td><td class="mono">${r.fixed?`<span class="fix-ok">${esc(r.fixed.split(",")[0].trim())}</span>`:'<span class="n0">—</span>'}</td><td class="num"><b>${fmt(r.count)}</b></td></tr>`,
     r=>detailVuln(r));
   document.getElementById("c-vulns").textContent="· "+rows.length+" shown";
 }

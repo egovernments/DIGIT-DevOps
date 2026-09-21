@@ -54,10 +54,13 @@ jobs:
 
       - name: Discover repositories
         id: list
+        env:
+          REG_FILE: ${{ github.event.inputs.registries-file }}
+          ONLY_NS: ${{ github.event.inputs.only-namespace }}
         run: |
           set -euo pipefail
-          file="${{ github.event.inputs.registries-file }}"
-          only="${{ github.event.inputs.only-namespace }}"
+          file="$REG_FILE"
+          only="$ONLY_NS"
           if [ -n "$only" ]; then
             entries='[{"namespace":"'"$only"'","tag":"latest"}]'
           else
@@ -149,9 +152,11 @@ jobs:
 
       - name: Plan batches
         id: plan
+        env:
+          BATCH_SIZE: ${{ github.event.inputs.batch-size }}
         run: |
           set -euo pipefail
-          size='${{ github.event.inputs.batch-size }}'; size=${size:-40}
+          size="${BATCH_SIZE:-40}"
           count=$(jq 'length' out/images.json)
           if [ "$count" -eq 0 ]; then echo "batches=[]" >> "$GITHUB_OUTPUT"; exit 0; fi
           nb=$(( (count + size - 1) / size ))
@@ -210,10 +215,14 @@ jobs:
           cache: true
 
       - name: Scan this batch
+        env:
+          BATCH_SIZE: ${{ github.event.inputs.batch-size }}
+          BATCH_IDX: ${{ matrix.batch }}
+          SEVERITY: ${{ github.event.inputs.severity }}
         run: |
           set -uo pipefail
-          size='${{ github.event.inputs.batch-size }}'; size=${size:-40}
-          start=$(( ${{ matrix.batch }} * size ))
+          size="${BATCH_SIZE:-40}"
+          start=$(( BATCH_IDX * size ))
           batch=$(jq -c ".[$start:$start+$size]" out/images.json)
           mkdir -p json sarif
           while IFS= read -r image; do
@@ -221,7 +230,7 @@ jobs:
             safe=$(echo "$image" | tr '/:@' '___')
             echo "::group::Trivy $image"
             trivy image "$image" --config .trivy/trivy.yaml --ignorefile .trivy/.trivyignore.yaml \
-              --scanners vuln,secret --ignore-unfixed --severity '${{ github.event.inputs.severity }}' \
+              --scanners vuln,secret --ignore-unfixed --severity "$SEVERITY" \
               --format table || echo "::warning title=Trivy::scan error on $image"
             trivy image "$image" --config .trivy/trivy.yaml --ignorefile .trivy/.trivyignore.yaml \
               --scanners vuln,secret --ignore-unfixed --format json -o "json/${safe}.json" --skip-db-update 2>/dev/null || true
@@ -229,7 +238,7 @@ jobs:
               --scanners vuln,secret --ignore-unfixed --format sarif -o "sarif/${safe}.sarif" --skip-db-update 2>/dev/null || true
             echo "::endgroup::"
           done < <(echo "$batch" | jq -r '.[]')
-          echo "Scanned $(echo "$batch" | jq 'length') image(s) in batch ${{ matrix.batch }}."
+          echo "Scanned $(echo "$batch" | jq 'length') image(s) in batch $BATCH_IDX."
 
       - name: Upload scan results (JSON + SARIF)
         if: always()
@@ -251,16 +260,20 @@ jobs:
 
       - name: Enforce threshold (optional)
         if: ${{ github.event.inputs.fail-on-findings == 'true' }}
+        env:
+          BATCH_SIZE: ${{ github.event.inputs.batch-size }}
+          BATCH_IDX: ${{ matrix.batch }}
+          SEVERITY: ${{ github.event.inputs.severity }}
         run: |
           set -uo pipefail
-          size='${{ github.event.inputs.batch-size }}'; size=${size:-40}
-          start=$(( ${{ matrix.batch }} * size ))
+          size="${BATCH_SIZE:-40}"
+          start=$(( BATCH_IDX * size ))
           batch=$(jq -c ".[$start:$start+$size]" out/images.json)
           rc=0
           while IFS= read -r image; do
             [ -z "$image" ] && continue
             trivy image "$image" --config .trivy/trivy.yaml --ignorefile .trivy/.trivyignore.yaml \
-              --scanners vuln,secret --ignore-unfixed --severity '${{ github.event.inputs.severity }}' \
+              --scanners vuln,secret --ignore-unfixed --severity "$SEVERITY" \
               --exit-code 1 --skip-db-update -q >/dev/null 2>&1 || { echo "findings in $image"; rc=1; }
           done < <(echo "$batch" | jq -r '.[]')
           exit $rc
@@ -272,6 +285,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write   # push to gh-pages
+    # serialize with the Helm workflow's dashboard job so concurrent runs don't
+    # clobber each other's gh-pages update
+    concurrency:
+      group: security-dashboard-gh-pages
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -290,10 +308,13 @@ jobs:
           path: pages
 
       - name: Build dashboard (image half)
+        env:
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
           mkdir -p pages
-          bash .trivy/dashboard/build-dashboard.sh images results/json pages \
-            "${{ github.server_url }}/${{ github.repository }}" "master"
+          # image findings carry no source links; ref is left empty so the Helm
+          # scan's branch (persisted in the data tree) drives Helm file links.
+          bash .trivy/dashboard/build-dashboard.sh images results/json pages "$REPO_URL" ""
 
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0

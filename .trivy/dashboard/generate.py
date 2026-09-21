@@ -111,6 +111,9 @@ def aggregate(image_reports, helm_reports):
             rec["images"].add(repo)
             if v["fixed"] and not rec["fixed"]:
                 rec["fixed"] = v["fixed"]
+            # grouped variants keep the highest observed severity
+            if rank(v["severity"]) < rank(rec["severity"]):
+                rec["severity"] = v["severity"]
         for t in rm["tags"]:
             t.pop("vulns_full", None)
         images.append({"repo": repo, "latest_tag": latest["tag"], "tag_count": len(rm["tags"]),
@@ -249,7 +252,11 @@ def main():
     tpl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "template.html")
     with open(tpl) as f:
         page = f.read()
-    page = page.replace("/*__DATA__*/{}", json.dumps(model, ensure_ascii=False))
+    # escape for an inline <script> context so a scanned string containing
+    # </script> or HTML can't break out of the DATA blob (XSS)
+    embedded = json.dumps(model, ensure_ascii=False)
+    embedded = embedded.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
+    page = page.replace("/*__DATA__*/{}", embedded)
     out = os.path.join(args.out, "index.html")
     with open(out, "w") as f:
         f.write(page)

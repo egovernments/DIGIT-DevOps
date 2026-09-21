@@ -44,7 +44,7 @@ fetch() {
     n=$(curl -fsSL -H "Authorization: JWT $tok" "https://hub.docker.com/v2/repositories/${ORG}/$r/tags/?page_size=100&page=$p&ordering=last_updated" 2>/dev/null | jq -r '.results[].name' 2>/dev/null)
     [ -z "$n" ] && break
     printf '%s\n' "$n" >> "$tmp/tags/$r.txt"
-    [ "$(printf '%s' "$n" | wc -l)" -lt 100 ] && break
+    [ "$(printf '%s\n' "$n" | wc -l)" -lt 100 ] && break
   done
 }
 export -f fetch

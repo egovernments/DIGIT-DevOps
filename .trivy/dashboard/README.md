@@ -2,7 +2,9 @@
 
 A single self-contained `index.html` (no build step, no external assets) that
 aggregates Trivy JSON from the image and Helm scans into one console, published
-to **GitHub Pages** (`gh-pages` branch).
+to **GitHub Pages** (`gh-pages` branch) under `security/trivy/`, i.e.
+
+    https://<org>.github.io/<repo>/security/trivy/
 
 ## Pieces
 - `generate.py` — aggregates Trivy JSON → `index.html`. Groups image reports by

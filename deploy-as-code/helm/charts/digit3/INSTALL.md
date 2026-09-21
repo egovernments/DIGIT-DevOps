@@ -74,8 +74,11 @@ If 6443 is not open in the NSG (recommended), tunnel it:
 
 ```bash
 # on the workstation — re-run after VM reboots or if kubectl starts timing out
-ssh -f -N -L 16443:127.0.0.1:6443 -i <key> azureuser@<domain>
-# "Address already in use" → a tunnel exists; test kubectl, and if stale:
+ssh -f -N -o ExitOnForwardFailure=yes -L 16443:127.0.0.1:6443 -i <key> azureuser@<domain>
+# Non-zero exit ("cannot listen to port: 16443") → a tunnel already holds the port.
+# Without ExitOnForwardFailure ssh would only warn, exit 0 and leave a useless
+# duplicate while the OLD tunnel keeps serving kubectl — possibly another cluster.
+# Test `kubectl get nodes`; if it fails or answers for the wrong VM:
 #   pkill -f "16443:127.0.0.1:6443"   then re-run the ssh command
 
 ssh -i <key> azureuser@<domain> 'sudo cat /etc/rancher/k3s/k3s.yaml' > ~/modulith-kubeconfig.yaml
@@ -123,6 +126,8 @@ both the shared file and **per-environment files** — name yours
 that file whenever `scripts/.env` (§1.3) names the matching `DOMAIN`, so two
 clusters never share credentials and §1.8's Vault keys never land in the
 tracked shared file. Add your age recipient to the rule if it is not there.
+If the file already exists (an earlier install of this environment), reuse
+it — its credentials become the new cluster's.
 
 Create the file (same YAML shape as `test-lts-secrets.yaml`:
 `cluster-configs.secrets.*` for `db`, `minio`, `kc-db`, `kc-admin`,
@@ -545,12 +550,56 @@ What differs from single-container:
 - **Kong**: nothing new — `setup.py` with `KONG_BUNDLE_MANIFESTS=<manifest>`
   derives four upstreams, one per bundle.
 
-Deploy it exactly like the other shapes:
+### 5.1 Deploy
 
 ```bash
-DIGIT_TAG=<tag> ./deploy.sh -f domain-bundles-helmfile.yaml sync
-# equivalently: ./scripts/06-deploy.sh <digit3> domain-bundles <tag>
+cd deploy-as-code/helm/charts/digit3
+./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync   # service-host map → the four bundles
+DIGIT_TAG=<tag> ./deploy.sh -f domain-bundles-helmfile.yaml sync              # keycloak, 4 bundles, kong
+# sync returns before the pods are up — each bundle's init container migrates its services first
+for b in identity-bundle notification-bundle billing-bundle admin-bundle; do
+  kubectl rollout status deploy/$b -n egov --timeout=900s
+done
+kubectl rollout status deploy/kong-kong -n egov --timeout=600s
+# equivalently: ./scripts/06-deploy.sh <digit3> domain-bundles <tag>   (does all of the above + §5.2)
 ```
+
+### 5.2 Program kong (four bundle upstreams)
+
+```bash
+kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 &
+cd digit3/src/services/kong
+KONG_BUNDLE_MANIFESTS=<digit3>/src/bundles/domain-split.package.yaml \
+  KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS=<domain> python3 setup.py
+# check: 16 services spread over exactly four hosts (admin 6, identity 4, billing 3, notification 3)
+curl -s http://localhost:18001/services | python3 -c \
+  'import sys,json,collections; c=collections.Counter(s["host"] for s in json.load(sys.stdin)["data"]); [print(n, h) for h,n in c.items()]'
+```
+
+### 5.3 Tenant + verify
+
+As §3.6, with two differences: `account` lives in **identity-bundle**, so the
+tenant call goes to `svc/identity-bundle`; and completion means all **four**
+bundles consumed the event (each migrates only its own services):
+
+```bash
+kubectl wait --for=condition=Available deploy/keycloak -n keycloak --timeout=300s
+BIP=$(kubectl get svc identity-bundle -n egov -o jsonpath='{.spec.clusterIP}')
+ssh -i <key> azureuser@<domain> "curl -s -X POST http://$BIP:8080/account/v3/tenants \
+  -H 'Content-Type: application/json' -H 'X-User-ID: bootstrap' \
+  -d '{\"name\":\"My Tenant\",\"email\":\"admin@example.org\",\"phone\":\"+919999999999\",\"password\":\"<choose>\"}'"
+kubectl exec -n egov postgresql-lts-0 -- psql -U postgres -tAc \
+  "SELECT count(*) FROM pg_tables WHERE schemaname='MYTENANT' AND tablename LIKE '%_schema'"   # 15
+kubectl exec -n backbone release-name-kafka-controller-0 -- \
+  /opt/bitnami/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --list | grep bundle   # 4 groups
+KIP=$(kubectl get svc kong-kong-proxy -n egov -o jsonpath='{.spec.clusterIP}')
+ssh -i <key> azureuser@<domain> \
+  "curl -s -o /dev/null -w '%{http_code}' -H 'Host: <domain>' http://$KIP:8000/idgen/"   # 401; /keycloak → 303
+kubectl top pods -n egov | grep bundle     # ~1.3 GB across the four JVMs
+```
+
+`07-seed.sh "<name>" <email> --verify` and `08-token.sh` work unchanged on this
+shape.
 
 ---
 

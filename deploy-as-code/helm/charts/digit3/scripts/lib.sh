@@ -54,7 +54,11 @@ ensure_tunnel() {
   fi
   if ! nc -z -w 2 127.0.0.1 "$TUNNEL_PORT" 2>/dev/null; then
     pkill -f "$TUNNEL_PORT:127.0.0.1:6443" 2>/dev/null || true
-    ssh -f -N -L "$TUNNEL_PORT:127.0.0.1:6443" -o StrictHostKeyChecking=accept-new -i "$SSH_KEY" "${VM_USER:-azureuser}@$DOMAIN"
+    # ExitOnForwardFailure: without it ssh only WARNS when the port is already
+    # bound, exits 0 and backgrounds a useless duplicate while the old tunnel
+    # keeps serving kubectl — make a busy port a hard failure instead.
+    ssh -f -N -o ExitOnForwardFailure=yes -L "$TUNNEL_PORT:127.0.0.1:6443" -o StrictHostKeyChecking=accept-new -i "$SSH_KEY" "${VM_USER:-azureuser}@$DOMAIN" \
+      || die "could not open the tunnel on :$TUNNEL_PORT — port busy? run: pkill -f \"$TUNNEL_PORT:127.0.0.1:6443\" and retry"
     sleep 1
   fi
 }

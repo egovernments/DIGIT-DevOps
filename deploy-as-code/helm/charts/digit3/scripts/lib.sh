@@ -71,8 +71,14 @@ wait_for_pod() { # ns selector [timeout-seconds]
   local ns="$1" sel="$2" timeout="${3:-300}" waited=0
   until kubectl get pods -n "$ns" -l "$sel" --no-headers 2>/dev/null | grep -qE '1/1\s+Running'; do
     sleep 5; waited=$((waited + 5))
-    [ "$waited" -ge "$timeout" ] && die "pod $ns/$sel not Ready after ${timeout}s: $(kubectl get pods -n "$ns" -l "$sel" --no-headers 2>&1 | head -2)"
+    # `if`, not `[ … ] && die`: the && list left status 1 as the loop's last
+    # command whenever the pod was not Ready on the FIRST check, so the function
+    # returned 1 and the caller's set -e killed the script (04-vault, twice).
+    if [ "$waited" -ge "$timeout" ]; then
+      die "pod $ns/$sel not Ready after ${timeout}s: $(kubectl get pods -n "$ns" -l "$sel" --no-headers 2>&1 | head -2)"
+    fi
   done
+  return 0
 }
 
 # Set one dotted path in the sops-encrypted secrets file without the value

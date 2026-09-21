@@ -110,7 +110,9 @@ transit key):
 ./07-seed.sh "My Tenant" admin@example.org --verify
 ```
 
-Mint an API token for a tenant user afterward: `./08-token.sh <TENANT-CODE> <email>`.
+Mint an API token for a tenant user afterward:
+`./08-token.sh <TENANT-CODE> <email> [password]` — the password step 9
+printed; omitted, it is prompted for (so pass it when scripting).
 
 ## Ongoing operations
 
@@ -122,9 +124,9 @@ Mint an API token for a tenant user afterward: `./08-token.sh <TENANT-CODE> <ema
 - **New image tag** — re-run `./06-deploy.sh <digit3> <shape> <new-tag>`.
 - **Switching shapes** — uninstall the old shape's releases first
   (`helm uninstall <release> -n egov` for each), then
-  `./06-deploy.sh <digit3> <new-shape> <tag>`. Bundle shapes share `bundle_db`,
-  per-service uses `postgres` — independent datasets; switching does not
-  migrate data.
+  `./06-deploy.sh <digit3> <new-shape> <tag>`. Every shape uses the same
+  default `postgres` database (tenants separate by schema), so the data is
+  simply still there after a switch — nothing is migrated or copied.
 - **New tenant** — `./07-seed.sh "Name" email@org` (the idgen `individual`
   template is part of seeding; individuals fail with `idgen 404 template
   not found` without it).

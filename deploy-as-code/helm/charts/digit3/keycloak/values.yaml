@@ -122,3 +122,28 @@ env: |
     value: "3000"
   - name: HTTP_CLIENT_REQUEST_TIMEOUT_MS
     value: "5000"
+
+# Without a readiness probe the Deployment is "Available" the moment the
+# container exists, while Keycloak needs ~100s to listen on a fresh VM — every
+# consumer that waits on Available (07-seed, install.sh, the manual guide) then
+# races the boot and gets ConnectException from the admin token endpoint.
+# /realms/master answers 200 only once the master realm is up; the /health
+# endpoints are not enabled in this image.
+healthChecks:
+  enabled: true
+  readinessProbe: |
+    httpGet:
+      path: /keycloak/realms/master
+      port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+  livenessProbe: |
+    httpGet:
+      path: /keycloak/realms/master
+      port: 8080
+    initialDelaySeconds: 180
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 6

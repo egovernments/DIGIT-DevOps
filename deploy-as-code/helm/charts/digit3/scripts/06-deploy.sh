@@ -55,11 +55,16 @@ kubectl rollout status deploy/kong-kong -n egov --timeout=300s >/dev/null
 kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 >/dev/null 2>&1 &
 PF_PID=$!
 trap 'kill $PF_PID 2>/dev/null || true' EXIT
-for _ in $(seq 1 30); do
-  curl -sfm 2 -o /dev/null http://localhost:18001/status && break
+# One successful /status is the signal. A second bare check after the loop used
+# to kill the phase on a transient port-forward drop seconds after kong was
+# Ready; setup.py retries transient errors itself. Re-spawn the forward if it dies.
+KONG_UP=false
+for _ in $(seq 1 45); do
+  kill -0 $PF_PID 2>/dev/null || { kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 >/dev/null 2>&1 & PF_PID=$!; sleep 2; }
+  curl -sfm 2 -o /dev/null http://localhost:18001/status && { KONG_UP=true; break; }
   sleep 2
 done
-curl -sfm 2 -o /dev/null http://localhost:18001/status || die "kong Admin API not answering on the port-forward"
+$KONG_UP || die "kong Admin API not answering after 3 min — check: kubectl get pods -n egov -l app.kubernetes.io/name=kong"
 case "$SHAPE" in
   per-service)  KONG_BUNDLES="none" ;;
   single-container) KONG_BUNDLES="" ;;            # setup.py default manifest

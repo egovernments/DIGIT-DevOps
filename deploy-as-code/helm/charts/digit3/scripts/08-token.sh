@@ -18,6 +18,7 @@ ensure_tunnel
 [ $# -ge 2 ] || die "usage: $0 <TENANT-CODE> <email> [password]"
 REALM="$1" USERNAME="$2" PASSWORD="${3:-}"
 if [ -z "$PASSWORD" ]; then
+  [ -t 0 ] || die "no password given and no terminal to prompt on — pass it as the 3rd argument"
   read -r -s -p "password for $USERNAME: " PASSWORD; echo
 fi
 
@@ -26,12 +27,19 @@ KGIP=$(kubectl get svc kong-kong-proxy -n egov -o jsonpath='{.spec.clusterIP}')
 [ -n "$KCIP" ] || die "keycloak service not found"
 
 # All secret material travels via stdin/remote shell vars — never argv, never displayed.
-TOKEN=$( printf '%s\n%s\n' "$(sops_get 'cluster-configs.secrets.kc-admin.password')" "$PASSWORD" | \
-  vm_ssh "read -r KCPW; read -r USERPW
+# The admin username is read HERE with sops_get: an earlier inline
+# `$(sops -d --extract '[\"…\"]' … || echo digit)` inside this double-quoted
+# string kept its backslashes, so sops failed and the fallback logged in as
+# "digit" — which only worked on environments whose admin happens to be "digit".
+KCUSER=$(sops_get 'cluster-configs.secrets.kc-admin.username')
+[ -n "$KCUSER" ] || die "kc-admin.username missing in $SECRETS_FILE"
+TOKEN=$( printf '%s\n%s\n%s\n' "$KCUSER" "$(sops_get 'cluster-configs.secrets.kc-admin.password')" "$PASSWORD" | \
+  vm_ssh "read -r KCUSER; read -r KCPW; read -r USERPW
 KC='http://keycloak.keycloak.svc.cluster.local:8080/keycloak'
 RES='--resolve keycloak.keycloak.svc.cluster.local:8080:$KCIP'
-ADM=\$(printf 'grant_type=password&client_id=admin-cli&username=$(sops -d --extract '[\"cluster-configs\"][\"secrets\"][\"kc-admin\"][\"username\"]' "$SECRETS_FILE" 2>/dev/null || echo digit)&password=%s' \"\$KCPW\" | \
-  curl -s \$RES -X POST \$KC/realms/master/protocol/openid-connect/token -d @- | \
+ADM=\$(curl -s \$RES -X POST \$KC/realms/master/protocol/openid-connect/token \
+  --data-urlencode grant_type=password --data-urlencode client_id=admin-cli \
+  --data-urlencode \"username=\$KCUSER\" --data-urlencode \"password=\$KCPW\" | \
   python3 -c 'import sys,json;print(json.load(sys.stdin).get(\"access_token\",\"\"))')
 [ -n \"\$ADM\" ] || { echo NOADMIN; exit 0; }
 CID=\$(curl -s \$RES -H \"Authorization: Bearer \$ADM\" \"\$KC/admin/realms/$REALM/clients?clientId=auth-server\" | \
@@ -39,8 +47,9 @@ CID=\$(curl -s \$RES -H \"Authorization: Bearer \$ADM\" \"\$KC/admin/realms/$REA
 [ -n \"\$CID\" ] || { echo NOCLIENT; exit 0; }
 CSEC=\$(curl -s \$RES -H \"Authorization: Bearer \$ADM\" \$KC/admin/realms/$REALM/clients/\$CID/client-secret | \
   python3 -c 'import sys,json;print(json.load(sys.stdin).get(\"value\",\"\"))')
-printf 'grant_type=password&client_id=auth-server&client_secret=%s&username=$USERNAME&password=%s' \"\$CSEC\" \"\$USERPW\" | \
-  curl -s \$RES -X POST \$KC/realms/$REALM/protocol/openid-connect/token -d @- | \
+curl -s \$RES -X POST \$KC/realms/$REALM/protocol/openid-connect/token \
+  --data-urlencode grant_type=password --data-urlencode client_id=auth-server \
+  --data-urlencode \"client_secret=\$CSEC\" --data-urlencode \"username=$USERNAME\" --data-urlencode \"password=\$USERPW\" | \
   python3 -c 'import sys,json;r=json.load(sys.stdin);print(r.get(\"access_token\") or \"NOTOKEN:\"+r.get(\"error_description\",r.get(\"error\",\"\")))'" )
 
 case "$TOKEN" in

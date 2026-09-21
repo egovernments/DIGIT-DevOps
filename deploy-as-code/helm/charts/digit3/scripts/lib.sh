@@ -5,6 +5,10 @@
 #   SCRIPT_DIR  charts/digit3/scripts     HELM_DIR   deploy-as-code/helm
 #   CHART_DIR   charts/digit3             ENV_FILE / SECRETS_FILE  environments/*
 set -euo pipefail
+# Name the failing command: under set -e a step that suppresses its own output
+# otherwise exits silently (seen: 04-vault dying right after "Sealed false"
+# with nothing to show for it).
+trap 'echo "ERROR: ${BASH_SOURCE[0]##*/}:${LINENO}: ${BASH_COMMAND} (exit $?)" >&2' ERR
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 CHART_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"

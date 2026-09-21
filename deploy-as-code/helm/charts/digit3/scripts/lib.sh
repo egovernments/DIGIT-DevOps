@@ -67,6 +67,19 @@ ensure_tunnel() {
   fi
 }
 
+# Docker Hub credentials for authenticated pulls. Anonymous pulls are capped at
+# 100/h per source IP and one per-service install needs 42 images, so a second
+# install on the same VM within the hour hits 429. Read from the environment
+# or from an untracked file; the images themselves stay public egovio/* — any
+# Docker Hub account (read-only token) lifts the cap.
+hub_creds() {
+  if [ -z "${DOCKERHUB_TOKEN:-}" ] && [ -f "$HOME/.config/digit3/dockerhub.env" ]; then
+    # shellcheck disable=SC1091
+    source "$HOME/.config/digit3/dockerhub.env"
+  fi
+  [ -n "${DOCKERHUB_USER:-}" ] && [ -n "${DOCKERHUB_TOKEN:-}" ]
+}
+
 wait_for_pod() { # ns selector [timeout-seconds]
   local ns="$1" sel="$2" timeout="${3:-300}" waited=0
   until kubectl get pods -n "$ns" -l "$sel" --no-headers 2>/dev/null | grep -qE '1/1\s+Running'; do

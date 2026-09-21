@@ -106,6 +106,7 @@ rather than hanging on a prompt):
 | `--email` | tenant admin email | yes |
 | `--vm-user` | SSH user | no (default `azureuser`) |
 | `--skip-vault` | skip Vault (PII stored plaintext; set `VAULT_ENABLED: "false"` in the shape's env blocks first) | no |
+| `--hub-user` / `--hub-token` | any Docker Hub account + **read-only** access token → the VM pulls authenticated (also read from `DOCKERHUB_USER`/`DOCKERHUB_TOKEN` or `~/.config/digit3/dockerhub.env`). Without it pulls are anonymous: 100/h per IP, and a per-service install needs 42 — a repeat within the hour fails with 429 | no |
 
 The pre-rename names `dev-bundle` / `domain-split` / `services` are still
 accepted as synonyms for `single-container` / `domain-bundles` / `per-service`.

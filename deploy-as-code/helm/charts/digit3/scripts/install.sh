@@ -8,7 +8,13 @@
 #
 #   ./install.sh --key <ssh-key> --domain <domain> --digit3 <path> \
 #                --shape single-container|domain-bundles|per-service --tag modulith-<sha> \
-#                --tenant "Name" --email admin@org [--vm-user azureuser] [--skip-vault]
+#                --tenant "Name" --email admin@org [--vm-user azureuser] [--skip-vault] \
+#                [--hub-user <dockerhub-user> --hub-token <read-only-token>]
+#
+# --hub-user/--hub-token (or DOCKERHUB_USER/DOCKERHUB_TOKEN in the environment,
+# or ~/.config/digit3/dockerhub.env) make the VM's image pulls authenticated:
+# anonymous Docker Hub pulls are capped at 100/h per IP and a per-service
+# install needs 42, so a second install within the hour otherwise hits 429.
 #
 # Run without flags on a terminal and it prompts. On failure it stops with the
 # exact resume command; every phase converges to a no-op when re-run.
@@ -26,6 +32,8 @@ while [ $# -gt 0 ]; do
     --tenant)     TENANT="$2"; shift 2 ;;
     --email)      EMAIL="$2"; shift 2 ;;
     --skip-vault) SKIP_VAULT=true; shift ;;
+    --hub-user)   export DOCKERHUB_USER="$2"; shift 2 ;;
+    --hub-token)  export DOCKERHUB_TOKEN="$2"; shift 2 ;;
     *) die "unknown option: $1 (see the header of $0)" ;;
   esac
 done

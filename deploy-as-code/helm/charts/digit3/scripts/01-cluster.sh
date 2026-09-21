@@ -11,6 +11,22 @@ VM_USER="${3:-azureuser}"
 KUBECONFIG_PATH="$HOME/modulith-kubeconfig.yaml"
 [ -f "$SSH_KEY" ] || die "ssh key not found: $SSH_KEY"
 
+# Authenticated Docker Hub pulls: containerd on the VM does the pulling, so the
+# credentials must live there — /etc/rancher/k3s/registries.yaml, read by k3s
+# at start (k3s-uninstall removes it, hence written on every run, BEFORE the
+# install). The token travels over stdin, never argv. Anonymous = 100 pulls/h
+# per VM IP; a per-service install needs 42.
+if hub_creds; then
+  note "docker hub pulls authenticated as '$DOCKERHUB_USER' (registries.yaml on the VM)"
+  printf '%s\n%s\n' "$DOCKERHUB_USER" "$DOCKERHUB_TOKEN" | vm_ssh 'read -r U; read -r P
+    sudo mkdir -p /etc/rancher/k3s
+    printf "configs:\n  \"docker.io\":\n    auth:\n      username: %s\n      password: %s\n  \"registry-1.docker.io\":\n    auth:\n      username: %s\n      password: %s\n" "$U" "$P" "$U" "$P" | sudo tee /etc/rancher/k3s/registries.yaml >/dev/null
+    sudo chmod 600 /etc/rancher/k3s/registries.yaml
+    if systemctl is-active --quiet k3s; then sudo systemctl restart k3s; fi'
+else
+  note "docker hub pulls are ANONYMOUS (100/h per VM IP) — set DOCKERHUB_USER/DOCKERHUB_TOKEN, ~/.config/digit3/dockerhub.env, or install.sh --hub-user/--hub-token"
+fi
+
 note "installing k3s (skipped if already installed)"
 vm_ssh 'command -v k3s >/dev/null || curl -sfL https://get.k3s.io | sh -s - --disable traefik'
 vm_ssh 'sudo k3s kubectl wait --for=condition=Ready node --all --timeout=180s' >/dev/null

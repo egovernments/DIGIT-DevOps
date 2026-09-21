@@ -60,9 +60,30 @@ Maven 3.9+ — the published `egovio/*:modulith-<sha>` images need none of these
 
 ```bash
 ssh -i <key> azureuser@<domain>
+# OPTIONAL but recommended — authenticated Docker Hub pulls. The images are
+# public, but anonymous pulls are capped at 100/h per IP and one per-service
+# install needs 42, so a second install within the hour hits 429. Any Docker
+# Hub account with a read-only access token lifts the cap. Write this BEFORE
+# installing k3s (it is read at start); k3s-uninstall removes it.
+sudo mkdir -p /etc/rancher/k3s && sudo tee /etc/rancher/k3s/registries.yaml >/dev/null <<'EOF'
+configs:
+  "docker.io":
+    auth:
+      username: <dockerhub-user>
+      password: <read-only-token>
+  "registry-1.docker.io":
+    auth:
+      username: <dockerhub-user>
+      password: <read-only-token>
+EOF
+sudo chmod 600 /etc/rancher/k3s/registries.yaml
+
 curl -sfL https://get.k3s.io | sh -s - --disable traefik
 sudo k3s kubectl get nodes    # wait for Ready
 ```
+
+(`01-cluster.sh` writes the same file from `DOCKERHUB_USER`/`DOCKERHUB_TOKEN`,
+`~/.config/digit3/dockerhub.env`, or `install.sh --hub-user/--hub-token`.)
 
 k3s ships `local-path` as the default StorageClass and klipper ServiceLB,
 which later gives the ingress-nginx LoadBalancer service the node's IP on

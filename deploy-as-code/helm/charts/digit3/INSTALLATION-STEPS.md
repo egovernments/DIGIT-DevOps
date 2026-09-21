@@ -45,7 +45,12 @@ Let's Encrypt).
 
 **4. Cluster** — installs k3s (Traefik disabled), opens the API tunnel on
 `127.0.0.1:16443`, writes a tunnel-ready kubeconfig, and saves the
-connection settings to `scripts/.env` for the later scripts:
+connection settings to `scripts/.env` for the later scripts. With
+`DOCKERHUB_USER`/`DOCKERHUB_TOKEN` set (or in `~/.config/digit3/dockerhub.env`)
+it also writes the VM's `registries.yaml` so image pulls are authenticated —
+anonymous pulls are capped at 100/h per IP and a per-service install needs 42,
+so a repeat install within the hour otherwise fails with 429. Any Docker Hub
+account's read-only token works; the images stay the public `egovio/*`:
 
 ```bash
 cd ~/Documents/DIGIT-DevOps/deploy-as-code/helm/charts/digit3/scripts

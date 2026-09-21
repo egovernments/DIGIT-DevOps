@@ -10,7 +10,7 @@ Every input is a Trivy JSON report (`--format json`). Image reports carry
 Vulnerabilities/Secrets; Helm reports (fs/config scan) carry Misconfigurations.
 The scan type is detected from the report, so a single --results dir works too.
 """
-import argparse, json, os, sys, glob, datetime, html, re
+import argparse, json, os, sys, glob, datetime, re
 
 SEV_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]
 

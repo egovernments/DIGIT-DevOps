@@ -1,0 +1,32 @@
+# loki — uat-saas (Azure AKS) overlay
+#
+# Targets the grafana/loki chart (6.x), matching this branch's convention --
+# NOT loki-stack. Materialises the `loki:` block from environments/uat-saas.yaml.
+
+loki:
+  # env: loki.limitsConfig
+  limits_config:
+    retention_period: 168h
+    reject_old_samples_max_age: 720h
+  # env: loki.compactor
+  compactor:
+    compaction_interval: 10m
+  # env: loki.schemaConfig — uat-saas declares a single tsdb/v13 schema from
+  # 2026-08-31. Unlike test-lts there is no earlier boltdb-shipper period,
+  # because this cluster has no pre-existing Loki data to stay compatible with.
+  schemaConfig:
+    configs:
+      - from: "2026-08-31"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: tsdb_index_
+          period: 24h
+
+singleBinary:
+  persistence:
+    enabled: true
+    # env: loki.persistence.size
+    size: 50Gi
+    storageClass: default

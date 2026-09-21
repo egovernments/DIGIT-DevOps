@@ -1,0 +1,98 @@
+# kube-prometheus-stack — uat-saas (Azure AKS) overlay
+#
+# Materialises the `prometheus:` block from environments/uat-saas.yaml. ArgoCD
+# multi-source Applications cannot template from an env file, so those values
+# are restated here. Keep them in step with the env file.
+
+alertmanager:
+  # env: prometheus.alertmanager.enabled
+  enabled: true
+  # NOTE: deliberately NO `configSecret` here, unlike the test-lts overlay which
+  # sets configSecret: alertmanager-main.
+  #
+  # That Secret does not exist in this cluster and nothing renders it:
+  # environments/uat-saas-secrets.yaml has no `alertmanager` entry, so
+  # cluster-configs/templates/secrets/alertmanager-secret.yaml produces nothing.
+  # Pointing at a missing Secret leaves the Alertmanager pod unschedulable.
+  # Without it the chart generates its default config, so Alertmanager starts
+  # and receives alerts but has no notification routing.
+  #
+  # To wire routing: add cluster-configs.secrets.alertmanager (with `config`,
+  # `name: alertmanager-main`, `namespace: monitoring`) to the SOPS file, then
+  # add `configSecret: alertmanager-main` back under alertmanagerSpec.
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: default
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+prometheus:
+  prometheusSpec:
+    # env: prometheus.externalLabels — identifies this cluster in federated views
+    externalLabels:
+      cluster: uat-saas
+    retention: 15d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: default
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+
+    # env: prometheus.additionalScrapeConfigs
+    additionalScrapeConfigs:
+      - job_name: nginx-ingress-metrics
+        static_configs:
+          - targets:
+              # verified present: svc egov/ingress-nginx-controller-metrics:10254
+              - ingress-nginx-controller-metrics.egov:10254
+      - job_name: blackbox
+        metrics_path: /probe
+        params:
+          module: [http_2xx]
+        relabel_configs:
+          - source_labels: [__address__]
+            target_label: __param_target
+          - source_labels: [__param_target]
+            target_label: instance
+          - replacement: prometheus-blackbox-exporter:9115
+            target_label: __address__
+        static_configs:
+          - targets:
+              - https://uat-saas.digit.org
+      - job_name: blackbox_exporter
+        static_configs:
+          - targets:
+              - prometheus-blackbox-exporter:9115
+      - job_name: digit-services-otel
+        metrics_path: /metrics
+        scrape_interval: 5s
+        static_configs:
+          - targets:
+              - open-telemetry-opentelemetry-collector:8889
+
+# Grafana is deployed as its own Application, not as this chart's subchart.
+grafana:
+  enabled: false
+
+prometheus-node-exporter:
+  hostRootFsMount:
+    enabled: false
+
+# AKS runs a managed control plane -- etcd, controller-manager and scheduler are
+# not reachable from the cluster, and kube-proxy metrics bind to localhost, so
+# these scrapers would only ever produce down targets
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false

@@ -38,6 +38,9 @@ wait_for_pod vault app.kubernetes.io/name=vault 120
 note "transit engine + approle (skips whatever already exists)"
 vault_exec 'vault secrets list -format=json' | grep -q '"transit/"' || vault_exec 'vault secrets enable transit'
 vault_exec 'vault auth list -format=json' | grep -q '"approle/"' || vault_exec 'vault auth enable approle'
+# The mount's default max_lease_ttl is 768h; without raising it Vault silently
+# truncates the role's 2160h token_max_ttl to 768h (it warns, the script went on).
+vault_exec 'vault auth tune -max-lease-ttl=2160h approle/' >/dev/null
 # Full transit baseline: encrypt/decrypt (otp, individual PII), sign/verify +
 # key management (registry's audit signing, per-tenant ed25519 keys), and
 # token self-renewal so long-lived service tokens don't silently expire.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 02 — age key, .sops.yaml rule, fresh encrypted secrets file, domain stamped
-# into the environment file (INSTALL.md §1.4–1.5).
+# 02 — age key, .sops.yaml rule, fresh encrypted per-environment secrets file
+# (INSTALL.md §1.4–1.5). The domain is owned by the shape overlays, not stamped here.
 # Idempotent: reuses an existing age key and never overwrites an existing
 # secrets file.
 source "$(dirname "$0")/lib.sh"

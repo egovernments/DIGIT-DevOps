@@ -345,7 +345,7 @@ context path inside the bundle).
 # normal path: onboard a tenant through the account API (unprotected bootstrap
 # route) — creates the tenant, its Keycloak realm, AND publishes the migration
 # event every consumer turns into the tenant's schema:
-#   POST /accounts/v3/tenants  {name, email, password, phone(E.164), address, …}
+#   POST /account/v3/tenants  {name, email, password, phone(E.164), address, …}
 # manual alternative (endpoint deliberately NOT routed through kong; in-cluster):
 BIP=$(kubectl get svc dev-bundle -n egov -o jsonpath='{.spec.clusterIP}')
 ssh -i <key> azureuser@<domain> \

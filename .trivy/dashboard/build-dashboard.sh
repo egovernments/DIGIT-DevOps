@@ -15,9 +15,9 @@ SITE="$PAGES/security/trivy"          # served at /security/trivy/
 mkdir -p "$SITE/data/images" "$SITE/data/helm"
 # replace only this domain's data; the other domain's stays as-is on gh-pages
 rm -f "$SITE/data/$DOMAIN"/*.json 2>/dev/null || true
-if ls "$SRC"/*.json >/dev/null 2>&1; then
-  cp "$SRC"/*.json "$SITE/data/$DOMAIN/"
-fi
+# copy every JSON under the results dir (works whether reports sit at its root or
+# in a subdir, e.g. an artifact that kept a json/ prefix)
+find "$SRC" -type f -name '*.json' -exec cp {} "$SITE/data/$DOMAIN/" \; 2>/dev/null || true
 echo "images json: $(ls "$SITE/data/images"/*.json 2>/dev/null | wc -l | tr -d ' ')  helm json: $(ls "$SITE/data/helm"/*.json 2>/dev/null | wc -l | tr -d ' ')"
 
 # Only Helm findings carry source-file links, so those links must use the branch

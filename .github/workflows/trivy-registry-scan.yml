@@ -178,13 +178,12 @@ jobs:
     if: ${{ needs.discover.outputs.count != '0' }}
     strategy:
       fail-fast: false
-      max-parallel: 8
+      max-parallel: 4   # softer pull burst against Docker Hub
       matrix:
         batch: ${{ fromJson(needs.discover.outputs.batches) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -226,39 +225,33 @@ jobs:
           size="${BATCH_SIZE:-40}"
           start=$(( BATCH_IDX * size ))
           batch=$(jq -c ".[$start:$start+$size]" out/images.json)
-          mkdir -p json sarif
+          mkdir -p json
+          # Warm the vuln DB once so the per-image scans reuse it (--skip-db-update
+          # below), avoiding repeated DB fetches across the loop.
+          trivy image --download-db-only >/dev/null 2>&1 || true
+          fails=0
+          # One scan per image (JSON for the dashboard). Scanning once - rather than
+          # a separate table+json+sarif pass - keeps registry pulls to ~1 per image
+          # so Docker Hub does not throttle (TOOMANYREQUESTS) a large run.
           while IFS= read -r image; do
             [ -z "$image" ] && continue
             safe=$(echo "$image" | tr '/:@' '___')
             echo "::group::Trivy $image"
             trivy image "$image" --config .trivy/trivy.yaml --ignorefile .trivy/.trivyignore.yaml \
               --scanners vuln,secret --ignore-unfixed --severity "$SEVERITY" \
-              --format table || echo "::warning title=Trivy::scan error on $image"
-            trivy image "$image" --config .trivy/trivy.yaml --ignorefile .trivy/.trivyignore.yaml \
-              --scanners vuln,secret --ignore-unfixed --severity "$SEVERITY" --format json -o "json/${safe}.json" --skip-db-update 2>/dev/null || true
-            trivy image "$image" --config .trivy/trivy.yaml --ignorefile .trivy/.trivyignore.yaml \
-              --scanners vuln,secret --ignore-unfixed --severity "$SEVERITY" --format sarif -o "sarif/${safe}.sarif" --skip-db-update 2>/dev/null || true
+              --format json -o "json/${safe}.json" --skip-db-update \
+              || { echo "::warning title=Trivy::scan error on $image"; fails=$((fails+1)); }
             echo "::endgroup::"
           done < <(echo "$batch" | jq -r '.[]')
-          echo "Scanned $(echo "$batch" | jq 'length') image(s) in batch $BATCH_IDX."
+          echo "Batch $BATCH_IDX: scanned $(echo "$batch" | jq 'length') image(s), $fails error(s)."
 
-      - name: Upload scan results (JSON + SARIF)
+      - name: Upload scan results (JSON)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: trivy-registry-results-batch-${{ matrix.batch }}
-          path: |
-            json/
-            sarif/
+          path: json/
           retention-days: 7
-
-      # upload-sarif on a directory uploads every .sarif in it; one category/batch.
-      - name: Upload SARIF to Security tab
-        if: always()
-        uses: github/codeql-action/upload-sarif@faaca9a8f6edddba5725ffe5adefdab6669a2eca # v3.38.0
-        with:
-          sarif_file: sarif
-          category: trivy-registry-batch-${{ matrix.batch }}
 
       - name: Enforce threshold (optional)
         if: ${{ github.event.inputs.fail-on-findings == 'true' }}
@@ -300,7 +293,7 @@ jobs:
         with:
           pattern: trivy-registry-results-batch-*
           path: results
-          merge-multiple: true   # merge every batch's json/ + sarif/ into one tree
+          merge-multiple: true   # merge every batch's json into one tree
 
       - name: Check out existing gh-pages (keeps the Helm half)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -316,7 +309,7 @@ jobs:
           mkdir -p pages
           # image findings carry no source links; ref is left empty so the Helm
           # scan's branch (persisted in the data tree) drives Helm file links.
-          bash .trivy/dashboard/build-dashboard.sh images results/json pages "$REPO_URL" ""
+          bash .trivy/dashboard/build-dashboard.sh images results pages "$REPO_URL" ""
 
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0

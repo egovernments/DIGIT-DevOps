@@ -62,7 +62,14 @@ else
   note "generating $SECRETS_FILE with fresh credentials"
   rand() { openssl rand -base64 24 | tr -d '/+=' | cut -c1-24; }
   DB_PASS=$(rand)
-  KRAFT_ID=$(python3 -c "import uuid,base64;print(base64.urlsafe_b64encode(uuid.uuid4().bytes).decode().rstrip('='))")
+  # KRaft cluster id: base64url of a random uuid (22 chars). Never let it start with '-' — the Bitnami
+  # entrypoint passes it as `kafka-storage format --cluster-id <id>` and argparse reads a leading '-'
+  # as an option, so Kafka crash-loops forever (seen 2026-09-22: id "-0KdtnE8TAuMLCjuNSMtdg").
+  KRAFT_ID=$(python3 -c "
+import uuid,base64
+while True:
+    i=base64.urlsafe_b64encode(uuid.uuid4().bytes).decode().rstrip('=')
+    if i[0] not in '-_': print(i); break")
   cat > "$SECRETS_FILE" <<EOF
 cluster-configs:
   secrets:

@@ -80,6 +80,37 @@ prometheus:
         static_configs:
           - targets:
               - open-telemetry-opentelemetry-collector:8889
+      # Kong's status listener (8100) is internal-only -- the chart's own values
+      # note it "cannot be exposed through a service or ingress", and
+      # kong-kong-proxy only publishes 80/443. So discover the pods and scrape
+      # the container port directly rather than going through a Service.
+      #
+      # Pod role emits one target per declared container port; keeping
+      # container_port_name=status pins us to 8100 without hardcoding it.
+      #
+      # Requires the Kong Prometheus plugin to be enabled in the cluster,
+      # otherwise /metrics on this listener returns 404.
+      - job_name: kong
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - egov
+        relabel_configs:
+          # labels come from kong.selectorLabels: name=kong, component=app
+          - source_labels:
+              - __meta_kubernetes_pod_label_app_kubernetes_io_name
+              - __meta_kubernetes_pod_label_app_kubernetes_io_component
+            action: keep
+            regex: kong;app
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: status
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
 
 # Grafana is deployed as its own Application, not as this chart's subchart.
 grafana:

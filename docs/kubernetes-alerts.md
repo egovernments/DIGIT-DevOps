@@ -2,8 +2,6 @@
 
 *Configured alerts and alerts still to be configured, in a single table. Kubernetes-scope only.*
 
-Platform-wide (the rule set is identical across all clusters) · v1.0 · 21 September 2026 · Confidential — internal
-
 **Scope note.** This list covers Kubernetes alerts only — nodes, pods and containers, workloads, scheduling and cluster resources, persistent storage, control-plane components, certificates, and the health of the monitoring stack itself.
 
 **Status:** `Configured` = rule exists and is sound · `Configured — fix` = rule exists but is ineffective or misconfigured · `To configure` = missing. Where the status is `Configured — fix`, the **What is misconfigured** column states the specific defect. **Priority:** P0 do first, P1 next, P2 backlog. The final column is blank for the implementation team to complete.

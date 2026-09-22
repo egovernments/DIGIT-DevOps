@@ -13,11 +13,23 @@ here="$(cd "$(dirname "$0")" && pwd)"
 SITE="$PAGES/security/trivy"          # served at /security/trivy/
 
 mkdir -p "$SITE/data/images" "$SITE/data/helm"
-# replace only this domain's data; the other domain's stays as-is on gh-pages
-rm -f "$SITE/data/$DOMAIN"/*.json 2>/dev/null || true
-# copy every JSON under the results dir (works whether reports sit at its root or
-# in a subdir, e.g. an artifact that kept a json/ prefix)
-find "$SRC" -type f -name '*.json' -exec cp {} "$SITE/data/$DOMAIN/" \; 2>/dev/null || true
+
+# Count fresh reports (works whether they sit at the results root or in a subdir,
+# e.g. an artifact that kept a json/ prefix) and what is already on record.
+fresh=$(find "$SRC" -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
+existing=$(ls "$SITE/data/$DOMAIN"/*.json 2>/dev/null | wc -l | tr -d ' ')
+min="${MIN_REPORTS:-0}"
+
+# Guard against a failed / incomplete run destroying the last good dashboard: only
+# replace this domain's data when the fresh set is non-empty AND (no minimum was
+# given, or it clears the minimum, or it is at least as large as what we already
+# have). The other domain's data stays untouched either way.
+if [ "$fresh" -eq 0 ] || { [ "$min" -gt 0 ] && [ "$fresh" -lt "$min" ] && [ "$fresh" -lt "$existing" ]; }; then
+  echo "::warning title=Dashboard::$DOMAIN: only $fresh fresh report(s) (expected >= $min, $existing already on record); keeping existing data instead of overwriting."
+else
+  rm -f "$SITE/data/$DOMAIN"/*.json 2>/dev/null || true
+  find "$SRC" -type f -name '*.json' -exec cp {} "$SITE/data/$DOMAIN/" \; 2>/dev/null || true
+fi
 echo "images json: $(ls "$SITE/data/images"/*.json 2>/dev/null | wc -l | tr -d ' ')  helm json: $(ls "$SITE/data/helm"/*.json 2>/dev/null | wc -l | tr -d ' ')"
 
 # Only Helm findings carry source-file links, so those links must use the branch

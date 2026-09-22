@@ -227,8 +227,15 @@ jobs:
           batch=$(jq -c ".[$start:$start+$size]" out/images.json)
           mkdir -p json
           # Warm the vuln DB once so the per-image scans reuse it (--skip-db-update
-          # below), avoiding repeated DB fetches across the loop.
-          trivy image --download-db-only >/dev/null 2>&1 || true
+          # below), avoiding repeated DB fetches across the loop. A missing DB would
+          # make every scan below error and emit an empty batch, so retry transient
+          # registry hiccups and fail loudly if it never lands.
+          warmed=0
+          for attempt in 1 2 3; do
+            if trivy image --download-db-only >/dev/null 2>&1; then warmed=1; break; fi
+            echo "::warning title=Trivy DB::warm-up attempt $attempt failed; retrying"; sleep $(( attempt * 10 ))
+          done
+          [ "$warmed" -eq 1 ] || { echo "::error title=Trivy DB::could not download the vulnerability DB; aborting batch."; exit 1; }
           fails=0
           # One scan per image (JSON for the dashboard). Scanning once - rather than
           # a separate table+json+sarif pass - keeps registry pulls to ~1 per image
@@ -305,11 +312,16 @@ jobs:
       - name: Build dashboard (image half)
         env:
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          EXPECTED: ${{ needs.discover.outputs.count }}
         run: |
           mkdir -p pages
+          # Refuse to overwrite the last good image data with a badly incomplete run
+          # (e.g. batches that failed): require at least 80% of the discovered images
+          # to have produced a report before replacing.
+          min=$(( EXPECTED * 80 / 100 ))
           # image findings carry no source links; ref is left empty so the Helm
           # scan's branch (persisted in the data tree) drives Helm file links.
-          bash .trivy/dashboard/build-dashboard.sh images results pages "$REPO_URL" ""
+          MIN_REPORTS="$min" bash .trivy/dashboard/build-dashboard.sh images results pages "$REPO_URL" ""
 
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0

@@ -8,6 +8,28 @@ loki:
   limits_config:
     retention_period: 168h
     reject_old_samples_max_age: 720h
+
+  # Loki 3.0 promotes only a fixed set of OTLP resource attributes to index
+  # labels; anything else becomes structured metadata and cannot be used in a
+  # stream selector. The stock "Kubernetes Logs from Loki" dashboard queries
+  #     {namespace=~"$namespace", pod=~"$pod"}
+  # so namespace/pod/container/job must be indexed, not just the k8s_* forms.
+  # The otel overlay's transform/loki_labels processor is what sets them.
+    otlp_config:
+      resource_attributes:
+        attributes_config:
+          - action: index_label
+            attributes:
+              - service.name
+              - service.namespace
+              - k8s.namespace.name
+              - k8s.pod.name
+              - k8s.container.name
+              - k8s.deployment.name
+              - namespace
+              - pod
+              - container
+              - job
   # env: loki.compactor
   compactor:
     compaction_interval: 10m

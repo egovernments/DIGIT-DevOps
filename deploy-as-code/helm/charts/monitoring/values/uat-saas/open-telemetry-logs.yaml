@@ -1,0 +1,109 @@
+# opentelemetry-collector (LOGS) — uat-saas (Azure AKS)
+#
+# Self-contained: this release does NOT layer on values/open-telemetry.yaml.
+# It is a second collector whose only job is shipping container logs to Loki.
+#
+# WHY A SECOND RELEASE, AND WHY daemonset
+#   The logsCollection preset uses a filelog receiver that tails /var/log/pods
+#   from the node filesystem. A collector running as `mode: deployment` is a
+#   single pod on a single node, so it can only ever see that node's logs.
+#   That was the real reason the Loki dashboard was empty: Loki held logs for
+#   just 4 deployments out of 67, and every one of them happened to be
+#   co-located on the collector's node (vmss000003) -- the sibling replicas on
+#   the other three nodes were simply never collected.
+#
+#   Log collection therefore has to be a DaemonSet (one per node). Traces and
+#   metrics are the opposite: they need one stable endpoint for apps to send to
+#   and for Prometheus to scrape, so that collector stays a Deployment. Hence
+#   two releases rather than flipping the existing one.
+
+mode: daemonset
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+
+command:
+  name: otelcol-contrib
+
+presets:
+  # Adds the filelog receiver plus the /var/log/pods hostPath mounts.
+  logsCollection:
+    enabled: true
+    # Never re-ingest this collector's own stdout -- that is a feedback loop.
+    includeCollectorLogs: false
+  # Supplies k8s.namespace.name / k8s.pod.name / k8s.container.name /
+  # k8s.deployment.name and creates the ClusterRole needed to read them.
+  kubernetesAttributes:
+    enabled: true
+
+config:
+  exporters:
+    otlphttp/loki:
+      # Loki's native OTLP ingest endpoint.
+      endpoint: http://loki-stack:3100/otlp
+      tls:
+        insecure: true
+
+  processors:
+    resource/service_name:
+      attributes:
+        - key: service.name
+          from_attribute: k8s.deployment.name
+          action: upsert
+
+    # Stock Grafana Loki dashboards select on {namespace=..., pod=...}. OTLP
+    # ingestion produces k8s_namespace_name / k8s_pod_name instead, so those
+    # dashboards match nothing. Duplicate the values under the conventional
+    # names; Loki indexes them because the loki overlay lists them in
+    # limits_config.otlp_config.
+    transform/loki_labels:
+      error_mode: ignore
+      log_statements:
+        - context: resource
+          statements:
+            - set(attributes["namespace"], attributes["k8s.namespace.name"])
+            - set(attributes["pod"], attributes["k8s.pod.name"])
+            - set(attributes["container"], attributes["k8s.container.name"])
+
+  service:
+    pipelines:
+      # Order matters: k8sattributes must populate the k8s.* attributes before
+      # resource/service_name and transform/loki_labels read them.
+      logs:
+        receivers: [filelog]
+        processors:
+          - memory_limiter
+          - k8sattributes
+          - resource/service_name
+          - transform/loki_labels
+          - batch
+        exporters: [otlphttp/loki]
+      # Removed: this collector must not also listen for traces/metrics on
+      # every node. Those belong to the gateway Deployment. `null` deletes the
+      # chart's default pipelines during values merge.
+      traces: null
+      metrics: null
+
+# Nothing sends OTLP to the per-node collectors, so no receiver ports are
+# published. Keeping them would open 4317/4318/9411/14250 on every node for no
+# reason.
+ports:
+  otlp:
+    enabled: false
+  otlp-http:
+    enabled: false
+  jaeger-compact:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  zipkin:
+    enabled: false
+
+resources:
+  limits:
+    memory: 512Mi
+  requests:
+    cpu: 50m
+    memory: 128Mi

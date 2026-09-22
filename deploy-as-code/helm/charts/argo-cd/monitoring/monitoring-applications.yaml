@@ -231,3 +231,45 @@ spec:
         duration: 15s
         factor: 2
         maxDuration: 5m
+---
+## Per-node log collector. Separate from monitoring-open-telemetry because the
+## filelog receiver only reads the node it runs on: as a single-replica
+## Deployment it collected 4 of 67 deployments. This one is a DaemonSet and
+## uses ONLY its own values file -- it deliberately does not layer on
+## values/open-telemetry.yaml, whose traces/metrics pipelines have no place on
+## every node.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-open-telemetry-logs
+  namespace: argocd
+spec:
+  project: monitoring-project
+  sources:
+    - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+      chart: opentelemetry-collector
+      targetRevision: 0.147.0
+      helm:
+        releaseName: open-telemetry-logs
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/monitoring/values/uat-saas/open-telemetry-logs.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: uat-saas
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

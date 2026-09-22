@@ -1,11 +1,15 @@
-# opentelemetry-collector — uat-saas (Azure AKS) overlay
+# opentelemetry-collector (GATEWAY) — uat-saas (Azure AKS) overlay
 #
-# Nothing in environments/uat-saas.yaml configures the collector; the base
-# settings below came from the helmfile's `set:` block.
+# Traces and metrics only. Log collection lives in a separate DaemonSet release
+# (values/uat-saas/open-telemetry-logs.yaml) because the filelog receiver can
+# only read the node it runs on -- see that file for the full reasoning.
 #
-# Prometheus scrapes this collector at
+# This stays a Deployment: applications need one stable OTLP endpoint to send
+# to, and Prometheus scrapes a single target at
 #   open-telemetry-opentelemetry-collector:8889
-# via the digit-services-otel job in the prometheus overlay.
+# via the digit-services-otel job in the prometheus overlay. Making this a
+# DaemonSet would turn that static target into 4 pods and silently return only
+# one node's metrics per scrape.
 mode: deployment
 
 image:
@@ -15,52 +19,20 @@ command:
   name: otelcol-contrib
 
 presets:
-  # Enriches every record with k8s.namespace.name / k8s.pod.name /
-  # k8s.container.name / k8s.deployment.name and creates the ClusterRole the
-  # processor needs to read that metadata from the API server.
-  #
-  # WHY THIS MATTERS: Loki 3.0's limits_config.otlp_config promotes a fixed set
-  # of OTLP resource attributes to index labels -- service.name,
-  # k8s.namespace.name, k8s.pod.name, k8s.container.name, k8s.deployment.name
-  # and friends. Without this processor those attributes are never set, so the
-  # only labels Loki sees are the handful the filelog receiver supplies and
-  # service_name stays "unknown_service" for everything. Enabling it is what
-  # makes per-service log filtering possible.
+  # Disabled here on purpose. Previously this was enabled and was the ONLY log
+  # collector, which limited Loki to a single node's logs (4 of 67 deployments).
+  # Owned by the DaemonSet release now; enabling it in both would double-ingest
+  # every line from whichever node this pod lands on.
+  logsCollection:
+    enabled: false
+  # Still useful for traces/metrics: tags spans and series with the pod,
+  # namespace and deployment they came from.
   kubernetesAttributes:
     enabled: true
-  logsCollection:
-    enabled: true
-    # Was true. The collector's own stdout was being scraped back in, and with
-    # the `debug` exporter on the logs pipeline every record was re-printed and
-    # re-ingested -- a feedback loop that filled Loki with "LogRecord #97" /
-    # "Span ID:" lines instead of application logs.
-    includeCollectorLogs: false
 
 config:
-  processors:
-    # Loki indexes service.name, but the filelog receiver leaves it unset so
-    # everything lands as "unknown_service". Derive it from the deployment name
-    # supplied by k8sattributes above.
-    #
-    # `upsert` with `from_attribute` is a no-op when the source attribute is
-    # absent (bare pods, DaemonSets), so those records keep whatever they had
-    # rather than being blanked.
-    resource/service_name:
-      attributes:
-        - key: service.name
-          from_attribute: k8s.deployment.name
-          action: upsert
-
   service:
     pipelines:
-      # Restated in full: pipeline receiver/processor/exporter lists are
-      # replaced wholesale rather than merged, so every element the base file
-      # sets must be repeated here.
-      #
-      # Order matters -- k8sattributes must run before resource/service_name,
-      # otherwise k8s.deployment.name does not exist yet and the upsert is a
-      # no-op. `debug` is deliberately dropped (see includeCollectorLogs above).
-      logs:
-        receivers: [otlp, filelog]
-        processors: [memory_limiter, k8sattributes, resource/service_name, batch]
-        exporters: [otlphttp/loki]
+      # Removed: the logs pipeline moves wholesale to the DaemonSet release.
+      # `null` deletes the base file's pipeline during values merge.
+      logs: null

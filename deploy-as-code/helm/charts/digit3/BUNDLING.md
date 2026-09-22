@@ -71,7 +71,7 @@ bundles:                   # (domain-split.package.yaml: same layout, four bundl
     include: [idgen, template-config, billing, ...]   # ORDERED catalog names
     overrides:                 # raw properties appended to application-bundle.properties
   billing.idgen.host: "http://localhost:${SERVER_PORT:8080}"   # loopback rewiring
-  spring.datasource.url: "jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:bundle_db}?sslmode=${DB_SSL_MODE:disable}"
+  spring.datasource.url: "jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:postgres}?sslmode=${DB_SSL_MODE:disable}"
   spring.datasource.hikari.maximum-pool-size: "${DB_MAX_OPEN_CONNS:40}"      # ONE shared pool
   spring.kafka.bootstrap-servers: "${KAFKA_BROKERS:localhost:9092}"
   # …plus every explicit resolution of a cross-service property conflict
@@ -273,14 +273,14 @@ never run in a tenant schema.
                  │  …16 prefixes (BundlePathConfig)             │
                  │                                              │
                  │  billing ──HTTP──▶ localhost:8080/idgen/…    │
-                 │  ONE Hikari pool → bundle_db (schemas/tenant)│
+                 │  ONE Hikari pool → postgres (schemas/tenant) │
                  │  ONE Kafka client set, ONE Redis client      │
                  └──────────────────────────────────────────────┘
    init container (dev-bundle-db): 16 sequential public-schema Flyway runs
 ```
 
 - One Tomcat, one port; every service answers at its standalone path.
-- One shared datasource (`bundle_db`) sized once
+- One shared datasource (the cluster's default `postgres` database) sized once
   (`DB_MAX_OPEN_CONNS`, default 40) instead of sixteen pools.
 - `POST /internal/migrate` (tenant migration) is served by the bundle but
   deliberately has **no kong route** — reachable only in-cluster.

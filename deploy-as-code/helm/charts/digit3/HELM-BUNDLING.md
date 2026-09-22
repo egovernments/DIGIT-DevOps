@@ -244,7 +244,7 @@ The ingress template ranges over `contexts` and — because `zuul: true`, same
 as every per-service chart — points **every path at `kong-kong-proxy:8000`**,
 with TLS from the shared `<domain>-tls-certs` secret. So nginx still funnels
 everything to kong; kong's own routes decide the upstream, which is why the
-deploy runbook re-runs `setup.py` with `KONG_BUNDLE_UPSTREAM` after
+deploy runbook re-runs `setup.py` with `KONG_BUNDLE_MANIFESTS` after
 switching shapes. The prefixes replace, path-for-path, the Ingresses the 16
 uninstalled service releases used to publish — which is exactly why the two
 shapes cannot coexist.
@@ -269,6 +269,11 @@ INSTALL.md §3.3.
 The generator ends with a report; it is the merge's audit trail:
 
 - **services merged** and any **missing db-migration** charts;
+- **overlay drift** — the shape overlay `environments/azure-k3s-<shape>.yaml`
+  is compared key by key against the composition (`dev-bundle` → `single-container`,
+  `domain-split` → `domain-bundles`; any other manifest is matched by its own
+  stem, so a custom overlay must be named after its manifest or it is not
+  checked), and `azure-k3s-per-service.yaml` is checked against per-service DNS;
 - **EXTERNAL PATH CHANGES** — chart context vs manifest prefix (kong/client
   action required);
 - **dropped env vars** — every var, which services carried it, and the rule

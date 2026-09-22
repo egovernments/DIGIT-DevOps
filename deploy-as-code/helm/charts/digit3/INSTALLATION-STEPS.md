@@ -85,8 +85,8 @@ in the shape's env blocks first):
 ./04-vault.sh
 ```
 
-**8. Deploy** — `06` regenerates the shape's bundle charts, ensures the
-database, syncs the shape's helmfile with the image tag supplied as
+**8. Deploy** — `06` regenerates the shape's bundle charts, syncs the
+shape's helmfile with the image tag supplied as
 `DIGIT_TAG`, and programs Kong (waiting for its Admin API). The shape's domain
 and `egov-service-host` keys come from `environments/azure-k3s-<shape>.yaml`,
 layered by the helmfile — no env file is mutated. Positional args:

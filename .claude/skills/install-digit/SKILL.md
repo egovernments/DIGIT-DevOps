@@ -1,10 +1,10 @@
 ---
 name: install-digit
-description: Install DIGIT 3 on a single-node k3s VM in any deployment shape (services | dev-bundle | domain-split), with optional Vault PII encryption, using the phase scripts in deploy-as-code/helm/charts/digit3/scripts. Use when asked to install or deploy DIGIT to a VM/cluster. Needs an SSH key for the VM, a domain pointing at it, a digit3 source checkout, and an image tag.
+description: Install DIGIT 3 on a single-node k3s VM in any deployment shape (single-container | domain-bundles | per-service), with Vault PII encryption on by default, using the phase scripts in deploy-as-code/helm/charts/digit3/scripts. Use when asked to install or deploy DIGIT to a VM/cluster. Needs an SSH key for the VM, a domain pointing at it, a digit3 source checkout, an image tag, and (recommended) Docker Hub credentials for authenticated pulls.
 argument-hint: <ssh-key-path> <domain> [vm-user]
 ---
 
-# Install DIGIT 3 on a k3s VM (any shape, optional Vault)
+# Install DIGIT 3 on a k3s VM (any shape; Vault on by default)
 
 **Preferred path: one command.** `scripts/install.sh` orchestrates everything
 below (flags or interactive prompts, Docker Hub preflight, per-phase resume
@@ -13,7 +13,8 @@ protocol) — collect the inputs in §1, then run it and monitor:
 ```bash
 ./install.sh --key <key> --domain <domain> --digit3 <path> \
   --shape single-container|domain-bundles|per-service --tag modulith-<sha> \
-  --tenant "Name" --email <email> [--skip-vault]
+  --tenant "Name" --email <email> [--skip-vault] \
+  [--hub-user <dockerhub-user> --hub-token <read-only-token>]
 ```
 
 Drive the individual phases yourself only when resuming a failed one or when
@@ -31,14 +32,25 @@ optional VM user (default `azureuser`). Ask (AskUserQuestion) for anything
 missing — do not guess:
 
 - **ssh key / domain**: required, no defaults.
-- **deployment shape**: `services` (16 pods), `dev-bundle` (one modulith
-  JVM), or `domain-split` (4 bundle JVMs). Always ask; there is no default.
+- **deployment shape**: `single-container` (all 16 services in one JVM),
+  `domain-bundles` (4 bundle JVMs), or `per-service` (16 pods). Always ask;
+  there is no default. The pre-rename names `dev-bundle` / `domain-split` /
+  `services` are accepted as synonyms if the user says them.
 - **image tag**: the `modulith-<sha>` tag of the GitHub Actions builds — the
   normal path. Local `05-build.sh` (bundle shapes only) is the fallback when
   the user wants images from their working tree; then the tag is derived.
-- **Vault**: ask whether PII encryption is wanted; if not, phase 04 is
-  skipped and `VAULT_ENABLED` must be `"false"` in the shape's env blocks
-  before deploying (check, don't assume).
+- **Docker Hub credentials** (recommended): a Docker Hub username and a
+  read-only access token — any account works, the `egovio/*` images are
+  public. Without them the VM pulls anonymously, capped at 100/h per IP; a
+  per-service install needs 42 images, so a repeat within the hour fails with
+  429. Accept them as `--hub-user/--hub-token`, or check for
+  `DOCKERHUB_USER`/`DOCKERHUB_TOKEN` in the environment or
+  `~/.config/digit3/dockerhub.env`; never echo the token.
+- **Vault**: on by default (the shipped env blocks have `vault-enabled` /
+  `VAULT_ENABLED` true). Only if the user explicitly declines PII encryption:
+  `--skip-vault`, and `VAULT_ENABLED` must be `"false"` in the shape's env
+  blocks before deploying (check, don't assume) — otherwise otp/individual
+  crash-loop.
 - **digit3 repo path**: needed by phases 05–07. First search for an existing
   checkout (e.g. `find ~/Documents ~ -maxdepth 3 -name dev-bundle.package.yaml
   -path "*digit3*" 2>/dev/null`) and confirm the hit with the user. Only if
@@ -60,6 +72,8 @@ Check and report as a checklist:
 - digit3 checkout has `src/bundles/dev-bundle.package.yaml`
 - the chosen tag exists on Docker Hub (spot-check one image:
   `https://hub.docker.com/v2/repositories/egovio/idgen/tags/<tag>`)
+- Docker Hub credentials available (flags, `DOCKERHUB_USER`/`DOCKERHUB_TOKEN`, or
+  `~/.config/digit3/dockerhub.env`) — if not, warn that pulls are anonymous (100/h per IP)
 
 VM provisioning is **out of scope** — if ssh fails because the VM doesn't
 exist, point the user at INSTALLATION-STEPS.md step 3 and stop.
@@ -73,7 +87,7 @@ phase in one line as it completes:
 ./01-cluster.sh <ssh-key> <domain> [vm-user]     # k3s + tunnel + kubeconfig + .env
 ./02-secrets.sh                                  # age key, sops rule, secrets file
 ./03-backbone.sh                                 # backbone sync + keycloak DB AND role
-./04-vault.sh                                    # OPTIONAL: init/unseal, transit+approle
+./04-vault.sh                                    # init/unseal, transit+approle (omit only with --skip-vault)
 ./05-build.sh <digit3> [manifest]                # OPTIONAL: local bundle images + ctr import
 ./06-deploy.sh <digit3> <shape> [tag]            # chart gen, DIGIT_TAG sync, kong
 ./07-seed.sh "<tenant name>" <email> --verify    # tenant, runtime seeds, Vault verification

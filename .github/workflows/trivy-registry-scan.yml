@@ -220,6 +220,12 @@ jobs:
           BATCH_SIZE: ${{ github.event.inputs.batch-size }}
           BATCH_IDX: ${{ matrix.batch }}
           SEVERITY: ${{ github.event.inputs.severity }}
+          # Trivy pulls with its own registry client and does not reliably read the
+          # docker login credentials on the runner, so it was pulling anonymously and
+          # hitting Docker Hub's unauthenticated rate limit. Pass the credentials to
+          # Trivy directly so pulls are authenticated (the account's higher limit).
+          TRIVY_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          TRIVY_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           set -uo pipefail
           size="${BATCH_SIZE:-40}"
@@ -266,6 +272,8 @@ jobs:
           BATCH_SIZE: ${{ github.event.inputs.batch-size }}
           BATCH_IDX: ${{ matrix.batch }}
           SEVERITY: ${{ github.event.inputs.severity }}
+          TRIVY_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          TRIVY_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           set -uo pipefail
           size="${BATCH_SIZE:-40}"

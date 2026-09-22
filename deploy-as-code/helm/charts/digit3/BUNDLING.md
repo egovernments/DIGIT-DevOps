@@ -179,9 +179,9 @@ Precedence (low → high): imported service defaults → `application-bundle.pro
 
 1. the auto section — `spring.application.name`, `server.port=${SERVER_PORT:8080}`,
    blank context-path, all the `basePathKey` assignments;
-2. tenant-migration multi-registration (one entry per service, see 3.6);
-3. rewired in-process Flyway locations (see 3.6);
-4. **the manifest `overrides:` verbatim** — loopback hosts, the single shared
+2. tenant-migration multi-registration (one entry per service, see 3.6) and
+   `spring.flyway.enabled=false` (no service migrates at boot);
+3. **the manifest `overrides:` verbatim** — loopback hosts, the single shared
    datasource/Kafka/Hikari, and every explicit conflict resolution.
 
 **Conflict detection**: the generator parses every imported defaults file,

@@ -432,7 +432,9 @@ with `KONG_BUNDLE_UPSTREAM_<NAME>`); keycloak keeps its own. Set
 `KONG_BUNDLE_MANIFESTS=none` for per-service upstreams (§4.2), or point it at
 another manifest (`src/bundles/domain-split.package.yaml` yields four bundle
 upstreams, §5). Routes/plugins are unchanged (strip_path=false + each
-service's context path inside the bundle).
+service's context path inside the bundle). The full `setup.py` parameter
+reference — every `KONG_*` variable, defaults, per-shape examples — is
+`digit3/src/services/kong/README.md`.
 
 ### 3.6 Tenant + verify
 

@@ -211,7 +211,8 @@ curl -s http://localhost:18001/services | python3 -c \
 ```
 
 Routes and plugins are the same for every shape; only each service's upstream
-host changes. A service in no bundle keeps its per-service upstream.
+host changes. A service in no bundle keeps its per-service upstream. Every `KONG_*`
+parameter, with defaults and per-shape examples: `digit3/src/services/kong/README.md`.
 
 ## 8. Seed + verify
 

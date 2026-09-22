@@ -9,12 +9,22 @@ loki:
     retention_period: 168h
     reject_old_samples_max_age: 720h
 
-  # Loki 3.0 promotes only a fixed set of OTLP resource attributes to index
-  # labels; anything else becomes structured metadata and cannot be used in a
-  # stream selector. The stock "Kubernetes Logs from Loki" dashboard queries
+  # Loki promotes only a fixed set of OTLP resource attributes to index labels;
+  # anything else becomes structured metadata, which is returned in query
+  # results but CANNOT be used in a stream selector. The stock "Kubernetes Logs
+  # from Loki" dashboard queries
   #     {namespace=~"$namespace", pod=~"$pod"}
-  # so namespace/pod/container/job must be indexed, not just the k8s_* forms.
+  # so namespace/pod/container/job have to be indexed, not just the k8s_* forms.
   # The otel overlay's transform/loki_labels processor is what sets them.
+  #
+  # MUST live under `distributor`, not `limits_config`, on this version:
+  # Loki 3.0.0 reads the mapping from distributor.otlp_config and only moved it
+  # under limits_config in a later release. Placed under limits_config it is
+  # parsed without any error and silently ignored -- the built-in index-label
+  # list stays in force and the dashboard stays empty. Verified against the
+  # running build: `/config` exposes distributor.otlp_config, and
+  # `/config?mode=diff` showed limits_config as entirely default.
+  distributor:
     otlp_config:
       resource_attributes:
         attributes_config:
@@ -30,6 +40,7 @@ loki:
               - pod
               - container
               - job
+
   # env: loki.compactor
   compactor:
     compaction_interval: 10m

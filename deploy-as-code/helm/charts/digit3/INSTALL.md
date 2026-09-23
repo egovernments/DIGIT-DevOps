@@ -163,7 +163,11 @@ sops -e -i environments/azure-k3s-secrets.<domain>.yaml
 **`db.password` and `db.flywayPassword` must be the SAME value** — both are
 the one `postgres` superuser (there is no separate flyway role). Different
 values give every service init container `FATAL: password authentication
-failed for user "postgres" (28P01)`. `02-secrets.sh` does all of the above.
+failed for user "postgres" (28P01)`. **`kafka-kraft.kraft-cluster-id` must not
+start with `-` or `_`** — Kafka's entrypoint passes it as
+`kafka-storage format --cluster-id <id>` and a leading `-` is parsed as an
+option, so Kafka crash-loops forever (22-char base64url of a UUID; regenerate
+if the first character is `-`/`_`). `02-secrets.sh` does all of the above.
 
 `helm-secrets` does not work with helm v4, so `charts/digit3/deploy.sh`
 decrypts to `environments/azure-k3s-secrets.dec.yaml` (git-ignored — ensure
@@ -200,7 +204,8 @@ cd deploy-as-code/helm/charts/digit3
 export KUBECONFIG=~/modulith-kubeconfig.yaml
 ./deploy.sh -f backboneservices-helmfile.yaml sync
 # On a fresh cluster the FIRST sync reliably fails on cert-manager's ClusterIssuer
-# ("no endpoints available for service cert-manager-webhook") — expected. Then:
+# ("server-side apply failed for object /letsencrypt-prod … Kind=ClusterIssuer:
+#  … failed calling webhook "webhook.cert-manager.io"") — expected. Then:
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=webhook -A --timeout=300s
 ./deploy.sh -f backboneservices-helmfile.yaml sync            # converges
 
@@ -406,8 +411,7 @@ other shape's helmfile (§6.1).
 
 ```bash
 cd deploy-as-code/helm/charts/digit3
-./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync  # service-host update
-DIGIT_TAG=modulith-<sha> ./deploy.sh -f single-container-helmfile.yaml sync   # keycloak, dev-bundle, kong
+DIGIT_TAG=modulith-<sha> ./deploy.sh -f single-container-helmfile.yaml sync   # cluster-configs (service-host map), keycloak, dev-bundle, kong
 # sync returns before the pods are up — wait (the init container migrates the public schema first, ~1–3 min)
 kubectl rollout status deploy/dev-bundle -n egov --timeout=900s
 kubectl rollout status deploy/kong-kong -n egov --timeout=600s
@@ -453,8 +457,8 @@ ssh -i <key> azureuser@<domain> "curl -s -X POST http://$BIP:8080/account/v3/ten
 
 # The tenant is usable only once ALL 15 tenant-migrating services have consumed the
 # event — schema existence is not completion. Wait for 15 Flyway history tables:
-kubectl exec -n egov postgresql-lts-0 -- psql -U postgres -tAc \
-  "SELECT count(*) FROM pg_tables WHERE schemaname='MYTENANT' AND tablename LIKE '%_schema'"   # 15
+until [ "$(kubectl exec -n egov postgresql-lts-0 -- psql -U postgres -tAc \
+  "SELECT count(*) FROM pg_tables WHERE schemaname='MYTENANT' AND tablename LIKE '%_schema'" | tr -d ' ')" = 15 ]; do sleep 5; done
 
 # schema-only alternative (no tenant record, no realm; endpoint deliberately NOT routed through kong):
 ssh -i <key> azureuser@<domain> \
@@ -501,7 +505,6 @@ other shapes. Every service entry is the same pattern:
 
 ```bash
 cd deploy-as-code/helm/charts/digit3
-./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync  # if service-host changed
 DIGIT_TAG=modulith-<sha> ./deploy.sh -f per-service-helmfile.yaml sync
 # sync returns before the pods are up — each service's init container migrates first (~2–4 min)
 kubectl wait --for=condition=Available deploy --all -n egov --timeout=1200s
@@ -578,8 +581,7 @@ What differs from single-container:
 
 ```bash
 cd deploy-as-code/helm/charts/digit3
-./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync   # service-host map → the four bundles
-DIGIT_TAG=<tag> ./deploy.sh -f domain-bundles-helmfile.yaml sync              # keycloak, 4 bundles, kong
+DIGIT_TAG=<tag> ./deploy.sh -f domain-bundles-helmfile.yaml sync              # cluster-configs (service-host map), keycloak, 4 bundles, kong
 # sync returns before the pods are up — each bundle's init container migrates its services first
 for b in identity-bundle notification-bundle billing-bundle admin-bundle; do
   kubectl rollout status deploy/$b -n egov --timeout=900s
@@ -612,8 +614,8 @@ BIP=$(kubectl get svc identity-bundle -n egov -o jsonpath='{.spec.clusterIP}')
 ssh -i <key> azureuser@<domain> "curl -s -X POST http://$BIP:8080/account/v3/tenants \
   -H 'Content-Type: application/json' -H 'X-User-ID: bootstrap' \
   -d '{\"name\":\"My Tenant\",\"email\":\"admin@example.org\",\"phone\":\"+919999999999\",\"password\":\"<choose>\"}'"
-kubectl exec -n egov postgresql-lts-0 -- psql -U postgres -tAc \
-  "SELECT count(*) FROM pg_tables WHERE schemaname='MYTENANT' AND tablename LIKE '%_schema'"   # 15
+until [ "$(kubectl exec -n egov postgresql-lts-0 -- psql -U postgres -tAc \
+  "SELECT count(*) FROM pg_tables WHERE schemaname='MYTENANT' AND tablename LIKE '%_schema'" | tr -d ' ')" = 15 ]; do sleep 5; done
 kubectl exec -n backbone release-name-kafka-controller-0 -- \
   /opt/bitnami/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --list | grep bundle   # 4 groups
 KIP=$(kubectl get svc kong-kong-proxy -n egov -o jsonpath='{.spec.clusterIP}')
@@ -754,6 +756,7 @@ that migrates every member.
 | Tenant code rejected with 400 ValidationFailed | account service requires UPPERCASE tenant codes |
 | `kubectl port-forward` hangs/000 over the SSH tunnel | curl ClusterIPs from the VM over SSH instead |
 | `bind :16443: Address already in use` on tunnel setup | old tunnel still bound; test kubectl first, else `pkill -f "16443:127.0.0.1:6443"` and reconnect |
+| mid-phase: kubectl `connection refused 127.0.0.1:16443` / `TLS handshake timeout`, or `06` ends with `rollout status … timed out waiting for the condition` while `kubectl get pods` shows them Ready | the SSH tunnel dropped (laptop sleep, network blip, VM reboot) — re-run `./01-cluster.sh <key> <domain>` (idempotent: reopens the tunnel, rewrites the kubeconfig), then re-run the interrupted script |
 | Ingress webhook: "path /X is already defined in ingress egov/dev-bundle" | both shapes publish the same path; sync dev-bundle BEFORE the peeled service (helmfile syncs concurrently — use `-l` selectors) |
 | Peeled service init: "Migration checksum mismatch" | externally-built db image ≠ the copies the bundle applied; build the service's db image from the same source tree |
 | Pod calls old upstream after `egov-service-host` change | `configMapKeyRef` env resolves at pod start → rollout-restart consumers after cluster-configs sync |

@@ -11,10 +11,12 @@ below (flags or interactive prompts, Docker Hub preflight, per-phase resume
 protocol) — collect the inputs in §1, then run it and monitor:
 
 ```bash
-./install.sh --key <key> --domain <domain> --digit3 <path> \
+cd deploy-as-code/helm/charts/digit3/scripts
+./install.sh --key <key> --domain <domain> [--vm-user <user>] --digit3 <path> \
   --shape single-container|domain-bundles|per-service --tag modulith-<sha> \
-  --tenant "Name" --email <email> [--skip-vault] \
-  [--hub-user <dockerhub-user> --hub-token <read-only-token>]
+  --tenant "Name" --email <email> [--skip-vault]
+# Docker Hub creds: lib.sh sources ~/.config/digit3/dockerhub.env (DOCKERHUB_USER=/DOCKERHUB_TOKEN=) or the
+# env vars by itself — pass --hub-user/--hub-token only when neither exists (the flag is visible in `ps`).
 ```
 
 Drive the individual phases yourself only when resuming a failed one or when
@@ -33,8 +35,10 @@ missing — do not guess:
 
 - **ssh key / domain**: required, no defaults.
 - **deployment shape**: `single-container` (all 16 services in one JVM),
-  `domain-bundles` (4 bundle JVMs), or `per-service` (16 pods). Always ask;
-  there is no default. The pre-rename names `dev-bundle` / `domain-split` /
+  `domain-bundles` (4 bundle JVMs), or `per-service` (16 pods). Always ask —
+  do not pick one for the user (install.sh's interactive menu marks
+  `single-container` as recommended; that is a hint for humans, not a default
+  for you). The pre-rename names `dev-bundle` / `domain-split` /
   `services` are accepted as synonyms if the user says them.
 - **image tag**: the `modulith-<sha>` tag of the GitHub Actions builds — the
   normal path. Local `05-build.sh` (bundle shapes only) is the fallback when
@@ -43,22 +47,30 @@ missing — do not guess:
   read-only access token — any account works, the `egovio/*` images are
   public. Without them the VM pulls anonymously, capped at 100/h per IP; a
   per-service install needs 42 images, so a repeat within the hour fails with
-  429. Accept them as `--hub-user/--hub-token`, or check for
-  `DOCKERHUB_USER`/`DOCKERHUB_TOKEN` in the environment or
-  `~/.config/digit3/dockerhub.env`; never echo the token.
+  429. Check for `DOCKERHUB_USER`/`DOCKERHUB_TOKEN` in the environment or
+  `~/.config/digit3/dockerhub.env` (`KEY=value` lines) — `lib.sh` sources
+  them automatically, no flags needed. Pass `--hub-user/--hub-token` only
+  when neither exists (a token on the command line is visible in `ps` for the
+  whole install); never echo the token.
 - **Vault**: on by default (the shipped env blocks have `vault-enabled` /
   `VAULT_ENABLED` true). Only if the user explicitly declines PII encryption:
   `--skip-vault`, and `VAULT_ENABLED` must be `"false"` in the shape's env
   blocks before deploying (check, don't assume) — otherwise otp/individual
   crash-loop.
 - **digit3 repo path**: needed by phases 05–07. First search for an existing
-  checkout (e.g. `find ~/Documents ~ -maxdepth 3 -name dev-bundle.package.yaml
-  -path "*digit3*" 2>/dev/null`) and confirm the hit with the user. Only if
+  checkout (e.g. `find ~/Documents ~ -maxdepth 4 -name dev-bundle.package.yaml
+  -path "*digit3*" 2>/dev/null` — the file sits at
+  `<checkout>/src/bundles/`, four levels below `~` for a checkout in `~`) and confirm the hit with the user. Only if
   none exists, offer to clone `-b modulith` beside this repo — clone only
   with explicit approval, never silently.
 - **tenant name + admin email**: the install always ends by seeding and
-  verifying a tenant; ask for both up front (tenant codes derive UPPERCASE
-  from the name; the email must be unique).
+  verifying a tenant; ask for both up front (the tenant code is the name
+  UPPERCASED with spaces removed — `"Skill Guntur"` → `SKILLGUNTUR`; the
+  email must be unique).
+- **age key / secrets file**: `02-secrets.sh` reuses `~/.config/sops/age/keys.txt`
+  if it exists (one key shared by every environment installed from this
+  workstation) and writes a per-domain secrets file
+  `environments/azure-k3s-secrets.<domain>.yaml`; neither needs input.
 
 ## 2. Preflight (read-only — fix-or-stop before touching anything)
 
@@ -70,8 +82,12 @@ Check and report as a checklist:
   <vm-user>@<domain> true` succeeds
 - `host <domain>` resolves
 - digit3 checkout has `src/bundles/dev-bundle.package.yaml`
-- the chosen tag exists on Docker Hub (spot-check one image:
-  `https://hub.docker.com/v2/repositories/egovio/idgen/tags/<tag>`)
+- the chosen tag exists on Docker Hub — spot-check the **shape's** image
+  (bundle builds publish no per-service images, so `idgen` 404s for a
+  bundle-only tag): `dev-bundle` for single-container, `identity-bundle` for
+  domain-bundles, `idgen` for per-service —
+  `https://hub.docker.com/v2/repositories/egovio/<image>/tags/<tag>`.
+  `install.sh` preflights the shape's full image set (with `-db` pairs) itself.
 - Docker Hub credentials available (flags, `DOCKERHUB_USER`/`DOCKERHUB_TOKEN`, or
   `~/.config/digit3/dockerhub.env`) — if not, warn that pulls are anonymous (100/h per IP)
 
@@ -93,11 +109,19 @@ phase in one line as it completes:
 ./07-seed.sh "<tenant name>" <email> --verify    # tenant, runtime seeds, Vault verification
 ```
 
-Timing: 03 (image pulls) and 05 (docker build) can take several minutes — use
-long Bash timeouts or `run_in_background` with a wait loop; never abandon a
-phase because it is slow. 02 prints a **BACK UP the age key** warning —
-relay it to the user verbatim in your final report. Without Vault, run 07
-without `--verify` (the verification is the Vault pipeline proof).
+Timing: 03 (backbone), 06 (image pulls + rollouts — the longest phase for
+per-service) and 07 (Keycloak readiness + the 15-service migration fan-out)
+each take several minutes; 05 (docker build) too when used. Use long Bash
+timeouts or `run_in_background` with a wait loop; never abandon a phase
+because it is slow. Expected noise: 03 prints `cert-manager webhook not
+serving yet (attempt 1) — waiting for it, then re-syncing` and heals itself.
+With `install.sh`, phase boundaries are the `── phase: NN ──` markers;
+capture stdout to a file and read it with `tr '\r' '\n'` (k3s and helmfile
+emit `\r` progress). 02 prints a **BACK UP the age key** warning — relay it
+to the user verbatim in your final report. 07 prints the **tenant admin
+password once** ("shown ONCE — store it now"): relay it to the user through a
+secure channel, never into logs or the report. Without Vault, run 07 without
+`--verify` (the verification is the Vault pipeline proof).
 
 ## 4. On failure
 
@@ -106,17 +130,22 @@ Do not retry blindly and do not improvise cluster surgery:
 1. Read the actual error from the script output (and `kubectl get pods
    -n egov`, pod logs) — then look it up in the **gotchas table** at the end
    of `deploy-as-code/helm/charts/digit3/INSTALL.md`. Nearly every known
-   failure mode is mapped to its fix there. Most common transient: kubectl
-   suddenly failing with `TLS handshake timeout` or `connection refused
-   127.0.0.1:16443` mid-phase means the SSH tunnel dropped — re-run
-   `./01-cluster.sh <key> <domain>` and then the interrupted script.
+   failure mode is mapped to its fix there. Most common transient: the SSH
+   tunnel dropped. From inside a phase it looks like `06` ending with
+   `rollout status … timed out waiting for the condition` (or any script
+   dying on a kubectl call); run `kubectl get pods -n egov` yourself and you
+   get `connection refused 127.0.0.1:<tunnel port 01-cluster printed>` or
+   `TLS handshake timeout` — while the pods are in fact Ready. Fix: re-run
+   `./01-cluster.sh <key> <domain>` (idempotent — reopens the tunnel,
+   rewrites the kubeconfig), then re-run the interrupted script.
 2. Apply the mapped fix, then **re-run the same script** — idempotence makes
    this safe.
 3. If the symptom is not in the table, stop and report to the user with the
    error, the phase, and your best diagnosis.
 
-Standing rules: never print secret values (the scripts already keep them off
-screen — keep it that way in any ad-hoc debugging); always helmfile `sync`,
+Standing rules: never print secret values (the scripts keep credentials off
+screen, except 07's one-time admin password — see §3; keep it that way in any
+ad-hoc debugging); always helmfile `sync`,
 never `apply`; exactly one deployment shape at a time (the shapes publish the
 same ingress paths and kong prefixes).
 
@@ -126,8 +155,15 @@ End with:
 
 - the 07-seed PASS/FAIL verification table (API plaintext / `vault:v1:…` +
   HMAC in the DB / per-tenant transit key), or the seed summary without Vault
-- `export KUBECONFIG=~/modulith-kubeconfig.yaml` for manual kubectl use
+- the tenant code 07-seed printed (`tenant code: …`) and where the one-time
+  admin password was delivered
+- `export KUBECONFIG=<path 01-cluster printed>` for manual kubectl use — the
+  authoritative value is `KUBECONFIG_PATH` in `scripts/.env` (default
+  `~/modulith-kubeconfig.yaml`; the tunnel port is `TUNNEL_PORT` in `lib.sh`,
+  default 16443)
 - the age-key backup warning
 - ongoing ops: Vault pod restart → re-run `04-vault.sh` (it just unseals);
   VM reboot / kubectl timeouts → re-run `01-cluster.sh`; new images → re-run
-  `06-deploy.sh <digit3> <shape> <new-tag>`; new tenant → `07-seed.sh`
+  `06-deploy.sh <digit3> <shape> <new-tag>`; new tenant → `07-seed.sh`;
+  API token for a tenant user → `08-token.sh <TENANT-CODE> <email>` (the
+  password 07 printed; prompted if omitted)

@@ -6,7 +6,7 @@
 # re-running this with the other shape (same domain = same overlay caveat:
 # each shape's overlay pins its own domain; see INSTALL.md §4).
 #
-#   ./06-deploy.sh <path-to-digit3-repo> <services|dev-bundle|domain-split> [tag]
+#   ./06-deploy.sh <path-to-digit3-repo> <single-container|domain-bundles|per-service> [tag]
 #
 # tag defaults to scripts/.last-build-tag (written by 05-build.sh); for the
 # Actions-built images pass it explicitly, e.g. modulith-39f619d.

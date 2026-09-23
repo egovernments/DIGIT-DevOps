@@ -83,4 +83,4 @@ else
   "$DEPLOY" -f backboneservices-helmfile.yaml -l name=cluster-configs sync
 fi
 
-next "./06-deploy.sh <path-to-digit3-repo> <services|dev-bundle|domain-split>   (05-build.sh only for locally-built bundle images)"
+next "./06-deploy.sh <path-to-digit3-repo> <single-container|domain-bundles|per-service> <tag>   (05-build.sh only for locally-built bundle images)"

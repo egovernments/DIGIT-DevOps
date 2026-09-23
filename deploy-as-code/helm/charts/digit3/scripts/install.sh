@@ -34,7 +34,8 @@ while [ $# -gt 0 ]; do
     --skip-vault) SKIP_VAULT=true; shift ;;
     --hub-user)   export DOCKERHUB_USER="$2"; shift 2 ;;
     --hub-token)  export DOCKERHUB_TOKEN="$2"; shift 2 ;;
-    *) die "unknown option: $1 (see the header of $0)" ;;
+    -h|--help)    sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "unknown option: $1 (see $0 --help)" ;;
   esac
 done
 
@@ -121,6 +122,6 @@ fi
 
 echo
 note "INSTALL COMPLETE — shape '$SHAPE' at :$TAG deployed$($SKIP_VAULT || echo ' and Vault-verified')."
-echo "  kubectl:            export KUBECONFIG=~/modulith-kubeconfig.yaml"
+echo "  kubectl:            export KUBECONFIG=$(sed -n 's/^KUBECONFIG_PATH="\(.*\)"$/\1/p' "$HERE/.env" 2>/dev/null || echo '~/modulith-kubeconfig.yaml')"
 echo "  API token helper:   ./08-token.sh <TENANT-CODE> <email>"
 echo "  back up ~/.config/sops/age/keys.txt — it is the only key to the secrets"

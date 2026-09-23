@@ -1,0 +1,45 @@
+## Lets the ArgoCD repo-server decrypt SOPS files keyed to Azure Key Vault,
+## using Azure Workload Identity. AWS KMS decryption is unaffected: the AWS_*
+## env and the aws-token volume stay exactly as they are, because
+## ci-secrets.yaml is dual-keyed and every other *-secrets.yaml in this cluster
+## is still AWS-KMS only.
+##
+## Apply BOTH steps. The annotation carries the identity, the label opts the pod
+## into the webhook, and neither works without the other.
+##
+##   1. annotate the ServiceAccount
+##      kubectl -n argocd annotate sa argocd-repo-server \
+##        azure.workload.identity/client-id=f9f7fc34-c51e-467d-ae45-cd569668f06b \
+##        azure.workload.identity/tenant-id=593ce202-d1a9-4760-ba26-ae35417c00cb \
+##        --overwrite
+##
+##   2. label the pod template (this file)
+##      kubectl -n argocd patch deploy argocd-repo-server --patch-file \
+##        charts/argo-cd/jenkins/argocd-repo-server-azure-sops-patch.yaml
+##
+## The mutating webhook then injects AZURE_CLIENT_ID, AZURE_TENANT_ID,
+## AZURE_FEDERATED_TOKEN_FILE and AZURE_AUTHORITY_HOST, and mounts the projected
+## token. Injecting the env by hand is avoided deliberately: the token path and
+## the volume that backs it then come from the same mechanism and cannot drift.
+##
+## Prerequisite -- workload identity is NOT enabled on this cluster yet
+## (securityProfile.workloadIdentity = null). Without it the webhook is absent
+## and nothing is injected:
+##   az aks update -g unified-dev-rg -n unified-dev \
+##     --enable-workload-identity --enable-oidc-issuer
+##
+## Azure resources this depends on (already created):
+##   vault      unified-dev-sops-kv       (unified-dev-rg, centralindia)
+##   key        .../keys/sops/a4fa05d717aa4583a8a1f2f568dc73e0
+##   identity   argocd-sops-unified-dev   clientId f9f7fc34-c51e-467d-ae45-cd569668f06b
+##   role       Key Vault Crypto User on the vault
+##   federated  system:serviceaccount:argocd:argocd-repo-server
+##
+## Note: the ServiceAccount is managed by the argo-cd Helm chart, so a chart
+## upgrade can drop the annotation. If ArgoCD is upgraded via Helm, move it into
+## the chart values (repoServer.serviceAccount.annotations) instead.
+spec:
+  template:
+    metadata:
+      labels:
+        azure.workload.identity/use: "true"

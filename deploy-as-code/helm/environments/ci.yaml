@@ -25,10 +25,20 @@ jenkins:
   persistence:
     enabled: true
     size: "350Gi"
-    storageClass: "gp3"
-    aws:
-      volumeId: "vol-0bb1df0e78bb51334"
-      zone: "ap-south-1b"
+    # --- Azure (unified-dev AKS) ---
+    # Cluster default StorageClass: disk.csi.azure.com, WaitForFirstConsumer.
+    # With no `azure:` block the chart skips the static PV in home-pv.yaml and
+    # AKS provisions the disk dynamically.
+    storageClass: "default"
+    # The chart defaults volumeName to "jenkins", which pins the PVC to a static
+    # PV of that name. No static PV is created here, so it must be cleared or the
+    # claim stays Pending forever.
+    volumeName: ""
+    # --- EKS (retired) -------------------------------------------------------
+    # storageClass: "gp3"
+    # aws:
+    #   volumeId: "vol-0bb1df0e78bb51334"
+    #   zone: "ap-south-1b"
   oauth:
     enabled: true
     acl:
@@ -98,86 +108,6 @@ jenkins:
       acl: [egovernments*micro-service-devops]
 
     # ---------------------------------------------------------------------------
-    # Unified — Dev  (7)
-    # ---------------------------------------------------------------------------
-    - name: unified-dev #devops
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*internal-devops-team,egovernments*unified-dev]
-    - name: unified-health-dev #shruti
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-health-dev]
-    - name: unified-studio-dev #tulika
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-studio-dev]
-    - name: unified-urban-dev #vinoth
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-urban-dev]
-    - name: unified-works-dev #sudha
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-works-dev]
-    - name: unified-care-dev #jagan
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-care-dev]
-
-    # ---------------------------------------------------------------------------
-    # Unified — QA  (9)
-    # ---------------------------------------------------------------------------
-    - name: unified-qa #devops
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-qa]
-    - name: unified-health-qa #shruti
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-health-qa]
-    - name: unified-urban-qa #vinoth
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-urban-qa]
-    - name: unified-works-qa #sudha
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-works-qa]
-    - name: unified-care-qa #jagan
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-care-qa]
-    - name: unified-studio-qa #Tulika
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-studio-qa]
-
-    # ---------------------------------------------------------------------------
-    # Unified — UAT  (5)
-    # ---------------------------------------------------------------------------
-    - name: unified-uat
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-uat]
-    - name: unified-health-uat
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-health-uat]
-    - name: unified-studio-uat
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-studio-uat]
-    - name: unified-urban-uat
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-urban-uat]
-    - name: unified-works-uat
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: unified-env-lts
-      acl: [egovernments*unified-works-uat]
-
-    # ---------------------------------------------------------------------------
     # Central Instance  (4) #Pradeep/#Vinoth
     # ---------------------------------------------------------------------------
     - name: central-instance
@@ -209,42 +139,6 @@ jenkins:
       branch: studio-demo
       acl: [egovernments*studio-demo]
 
-    # ---------------------------------------------------------------------------
-    # HCM — Demo  (1) #Shruti
-    # ---------------------------------------------------------------------------
-    - name: hcm-demo-new
-      repo: git@github.com:egovernments/health-campaign-devops.git
-      branch: hcm-demo-new
-      helmDir: config-as-code/helm
-      acl: [egovernments*hcm-demo]
-
-    # ---------------------------------------------------------------------------
-    # Mozambique Health / HCM-MOZ-IMPEL  (3) #Divij
-    # ---------------------------------------------------------------------------
-    - name: moz-health-prd #divij
-      repo: git@github.com:HCM-MOZ-IMPEL/health-campaign-devops.git
-      branch: main
-      helmDir: config-as-code/helm
-      acl: [egovernments*moz-health-prd]
-    - name: moz-health-qa #divij
-      repo: git@github.com:HCM-MOZ-IMPEL/health-campaign-devops.git
-      branch: main
-      helmDir: config-as-code/helm
-      acl: [egovernments*moz-health-cicd]
-    - name: moz-health-uat #divij
-      repo: git@github.com:HCM-MOZ-IMPEL/health-campaign-devops.git
-      branch: main
-      helmDir: config-as-code/helm
-      acl: [egovernments*moz-health-cicd]
-
-    # ---------------------------------------------------------------------------
-    # DIGIT LTS  (2) #Aniket
-    # ---------------------------------------------------------------------------
-    - name: digit-lts
-      repo: git@github.com:egovernments/DIGIT-DevOps.git
-      branch: digit-lts
-      acl: [egovernments*digit-lts]
-
   master:
     ingress:
       enabled: true
@@ -267,13 +161,18 @@ jenkins:
       -XX:+ParallelRefProcEnabled
       -XX:+DisableExplicitGC
       -XX:+AlwaysPreTouch
-    nodeSelector:
-      dedicated: egov-jenkins
-    tolerations:
-      - effect: NoSchedule
-        key: dedicated
-        operator: Equal
-        value: egov-jenkins
+    # --- Azure (unified-dev AKS) ---
+    # No dedicated=egov-jenkins pool exists on AKS (verified: 0 matching nodes),
+    # so Jenkins schedules on mainpool. Restore the pins below if a dedicated
+    # pool is created for it.
+    # --- EKS (retired) -------------------------------------------------------
+    # nodeSelector:
+    #   dedicated: egov-jenkins
+    # tolerations:
+    #   - effect: NoSchedule
+    #     key: dedicated
+    #     operator: Equal
+    #     value: egov-jenkins
 
 binfmt:
   namespace: kube-system

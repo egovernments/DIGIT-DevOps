@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: jenkins-project
+  namespace: argocd
+spec:
+  description: Jenkins CI for the unified-dev Azure AKS environment
+
+  sourceRepos:
+    - https://github.com/egovernments/DIGIT-DevOps.git
+
+  destinations:
+    - namespace: jenkins
+      server: https://kubernetes.default.svc
+
+  ## The chart renders exactly one cluster-scoped object: the kaniko build-cache
+  ## PersistentVolume (hostPath). Everything else is namespaced -- RBAC here is
+  ## Role/RoleBinding, not ClusterRole.
+  ##
+  ## With no clusterResourceWhitelist an AppProject permits no cluster-scoped
+  ## resources at all, and the whole sync fails with
+  ## "one or more synchronization tasks are not valid".
+  clusterResourceWhitelist:
+    - group: ''
+      kind: PersistentVolume
+
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

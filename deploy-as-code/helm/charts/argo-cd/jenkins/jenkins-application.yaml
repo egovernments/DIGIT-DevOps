@@ -1,0 +1,59 @@
+## Jenkins on the unified-dev Azure AKS cluster.
+##
+## Uses the existing ci.yaml / ci-secrets.yaml -- no Azure-specific copies.
+## ci-secrets.yaml is dual-keyed (AWS KMS + Azure Key Vault), so the repo-server
+## can decrypt it with either credential and the same file serves EKS and AKS.
+##
+## Prerequisites before applying:
+##   1. workload identity enabled on the cluster
+##        az aks update -g unified-dev-rg -n unified-dev \
+##          --enable-workload-identity --enable-oidc-issuer
+##   2. argocd-repo-server labelled azure.workload.identity/use: "true" and
+##      carrying AZURE_CLIENT_ID / AZURE_TENANT_ID (see jenkins-repo-server-patch.yaml)
+##   3. DNS for jenkins-aks.digit.org pointing at the ingress load balancer
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jenkins
+  namespace: argocd
+spec:
+  project: jenkins-project
+
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: egov-jenkins
+    path: deploy-as-code/helm/charts/backbone-services/jenkins
+    helm:
+      releaseName: jenkins
+      valueFiles:
+        - values.yaml
+        - ../../../environments/ci.yaml
+        - secrets://../../../environments/ci-secrets.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: jenkins
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+
+  ignoreDifferences:
+    # Jenkins is a singleton; replica changes are made out-of-band during
+    # maintenance (scale to 0 before a home-volume operation).
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

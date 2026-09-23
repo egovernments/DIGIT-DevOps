@@ -169,22 +169,21 @@ each bundle's `KEYCLOAK_PUBLIC_BASE_URL`. Copy
 Because the overlay carries the manifest's stem, the chart generator's drift
 check compares it against the composition on every run and warns if a key
 points at the wrong bundle — name it anything else and the check silently
-skips. Re-sync cluster-configs so the service-host map reaches the cluster:
-
-```bash
-cd charts/digit3
-./deploy.sh -f backboneservices-helmfile.yaml -l name=cluster-configs sync
-```
+skips. The map reaches the cluster through the `cluster-configs` release your
+helmfile lists first (§6) — the backbone helmfile syncs that release with base
+values only, so there is no separate re-sync step: the §6 sync applies it.
 
 ## 6. Write a helmfile for your bundles
 
-Copy `domain-bundles-helmfile.yaml` to `<yourshape>-helmfile.yaml` and list
-**your** bundle releases (each `chart: ../bundles/<name>`) plus `keycloak` and
-`gateway-kong`. Give **every** bundle `needs: [keycloak/keycloak]` — helmfile
-syncs concurrently, and the bundles need Keycloak's realm endpoints. Keep each
-bundle's `values:` in the stock order — `azure-k3s-secrets.dec.yaml`,
-`azure-k3s.yaml`, your overlay, `digit-tag.yaml.gotmpl` — that is where the
-service-host map and `DIGIT_TAG` are applied. Then sync:
+Copy `domain-bundles-helmfile.yaml` to `<yourshape>-helmfile.yaml`, point
+its `cluster-configs` and `keycloak` releases at **your** overlay, and list
+**your** bundle releases (each `chart: ../bundles/<name>`) plus `gateway-kong`.
+Keep `cluster-configs` first with `keycloak` needing it (it carries your
+overlay's `egov-service-host` map), and give **every** bundle
+`needs: [keycloak/keycloak]` — helmfile syncs concurrently, and the bundles need
+Keycloak's realm endpoints. Keep each bundle's `values:` in the stock order —
+`azure-k3s-secrets.dec.yaml`, `azure-k3s.yaml`, your overlay,
+`digit-tag.yaml.gotmpl` — that is where `DIGIT_TAG` is applied. Then sync:
 
 ```bash
 DIGIT_TAG=<tag> ./deploy.sh -f <yourshape>-helmfile.yaml sync

@@ -13,10 +13,24 @@
 # environments/azure-k3s.yaml for rollback (git-revert this file + sync).
 
 releases:
+  # cluster-configs carries this shape's egov-service-host map (which Service answers each
+  # service) from the overlay below; the backbone helmfile syncs the same release with base values
+  # only, so the shape sync must re-apply it — first, before anything reads the ConfigMap.
+  - name: cluster-configs
+    chart: ./cluster-configs
+    namespace: egov
+    installed: true
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ../../environments/azure-k3s-single-container.yaml
+
   - name: keycloak
     chart: ./keycloak
     namespace: keycloak
     installed: true
+    needs:
+      - egov/cluster-configs
     missingFileHandler: Warn
     values:
       - ../../environments/azure-k3s-secrets.dec.yaml

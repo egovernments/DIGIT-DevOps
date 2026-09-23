@@ -43,6 +43,10 @@ kubectl exec -n backbone minio-0 -- sh -c \
 
 note "waiting for postgres"
 wait_for_pod egov statefulset.kubernetes.io/pod-name=postgresql-lts-0 300
+# Kafka carries the tenant-migration events; if its controller never comes up (a bad KRaft id, a
+# storage problem) nothing notices until 07-seed's fan-out hangs — surface it here instead.
+note "waiting for kafka"
+wait_for_pod backbone statefulset.kubernetes.io/pod-name=release-name-kafka-controller-0 300
 
 note "keycloak database"
 if ! psql_exec -tAc "SELECT 1 FROM pg_database WHERE datname='new_keycloak'" | grep -q 1; then

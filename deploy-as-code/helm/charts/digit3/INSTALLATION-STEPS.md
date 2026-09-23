@@ -68,8 +68,8 @@ files too), and generates the encrypted secrets with fresh credentials.
 
 **6. Backbone** — deploys cluster-configs, cert-manager (self-healing the
 webhook race), ingress-nginx, postgres, redis, minio (provisioning
-filestore's bucket) and Kafka, then creates the Keycloak database **and** role
-from the `kc-db` secret:
+filestore's bucket) and Kafka, waits for postgres **and** Kafka to be Ready,
+then creates the Keycloak database **and** role from the `kc-db` secret:
 
 ```bash
 ./03-backbone.sh

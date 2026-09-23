@@ -205,6 +205,7 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=webhook -A
 ./deploy.sh -f backboneservices-helmfile.yaml sync            # converges
 
 kubectl wait --for=condition=ready pod postgresql-lts-0 -n egov --timeout=300s   # before §1.7
+kubectl wait --for=condition=ready pod release-name-kafka-controller-0 -n backbone --timeout=300s   # tenant events need it (§1.9)
 # filestore's bucket — the minio chart creates none (missing → NoSuchBucket on the first upload)
 kubectl exec -n backbone minio-0 -- sh -c \
   'mc alias set local http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null && mc mb -p local/unified-dev-bucket-s3'
@@ -722,9 +723,12 @@ curl -H "Authorization: Bearer <token>" -H "X-Tenant-ID: MYTENANT" \
 
 Kong's header-enrichment injects the user identity from the JWT (audit fields
 show the Keycloak user id), so `X-User-ID` is not needed on gateway calls —
-only on direct in-cluster calls that bypass Kong. The `/…/internal/migrate`
+only on direct in-cluster calls that bypass Kong. The `/internal/migrate`
 endpoints are deliberately never routed through Kong (ops-plane; reachable only
-in-cluster).
+in-cluster). Their path depends on the shape: a standalone service serves it
+under its context path (`http://individual.egov:8080/individual/internal/migrate`),
+a bundle serves one at its root (`http://<bundle>.egov:8080/internal/migrate`)
+that migrates every member.
 
 ---
 

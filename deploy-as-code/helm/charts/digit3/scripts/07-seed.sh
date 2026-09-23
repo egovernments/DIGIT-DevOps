@@ -24,7 +24,9 @@ if [ -n "${ACCOUNT_SVC:-}" ]; then
   # Custom grouping (CUSTOM-BUNDLING.md §8): name the k8s Service that owns each seeded
   # endpoint and the shape file is not consulted. Unset ones default to ACCOUNT_SVC (one
   # bundle holding everything). Deployment names are the Service names for bundles.
-  SHAPE=custom
+  # Report the shape by its real name when 06-deploy.sh or CUSTOM-BUNDLING.md §6
+  # recorded one; "custom" is only a fallback label for the log line.
+  SHAPE=$(cat "$SCRIPT_DIR/.last-shape" 2>/dev/null || true); SHAPE=${SHAPE:-custom}
   IDGEN_SVC=${IDGEN_SVC:-$ACCOUNT_SVC}; INDIVIDUAL_SVC=${INDIVIDUAL_SVC:-$ACCOUNT_SVC}
   NOTIFICATION_SVC=${NOTIFICATION_SVC:-$ACCOUNT_SVC}; OTP_SVC=${OTP_SVC:-$ACCOUNT_SVC}
   ACCOUNT=$(svc_ip "$ACCOUNT_SVC"); IDGEN=$(svc_ip "$IDGEN_SVC"); INDIVIDUAL=$(svc_ip "$INDIVIDUAL_SVC")

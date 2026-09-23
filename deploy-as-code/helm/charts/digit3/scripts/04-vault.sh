@@ -80,7 +80,23 @@ else
   sops_set "cluster-configs.secrets.vault-approle.secret-id" \
     "$(vault_exec 'vault write -f -field=secret_id auth/approle/role/digit-services/secret-id')"
   note "re-rendering the vault-approle k8s secret"
-  "$DEPLOY" -f backboneservices-helmfile.yaml -l name=cluster-configs sync
+  # cluster-configs carries BOTH the vault-approle secret and the shape
+  # overlay's egov-service-host map. Re-syncing it from the backbone helmfile
+  # applies base values only, which would silently revert every bundled
+  # service's host to its per-service DNS name and point cross-bundle calls at
+  # pods that do not exist. Before any shape is deployed the base values are
+  # correct; afterwards, re-sync through that shape's own helmfile.
+  # 06-deploy.sh records the shape; a custom grouping writes .last-shape itself
+  # (CUSTOM-BUNDLING.md §6).
+  CC_HELMFILE=backboneservices-helmfile.yaml
+  LAST_SHAPE=$(cat "$SCRIPT_DIR/.last-shape" 2>/dev/null || true)
+  if [ -n "$LAST_SHAPE" ] && [ -f "$CHART_DIR/$LAST_SHAPE-helmfile.yaml" ]; then
+    CC_HELMFILE="$LAST_SHAPE-helmfile.yaml"
+    echo "    re-syncing cluster-configs via $CC_HELMFILE (keeps the $LAST_SHAPE service-host map)"
+  fi
+  # No DIGIT_TAG needed: -l name=cluster-configs renders only that release's
+  # values, and cluster-configs takes no image.
+  "$DEPLOY" -f "$CC_HELMFILE" -l name=cluster-configs sync
 fi
 
 next "./06-deploy.sh <path-to-digit3-repo> <single-container|domain-bundles|per-service> <tag>   (05-build.sh only for locally-built bundle images)"

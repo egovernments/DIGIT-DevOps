@@ -301,6 +301,11 @@ const cssv=v=>getComputedStyle(document.documentElement).getPropertyValue(v).tri
 const sevColor=s=>cssv(SEVVAR[s]||"--unknown");
 const cap=s=>s?s[0]+s.slice(1).toLowerCase():s;
 const fmt=n=>(n||0).toLocaleString();
+// Timestamps are stored as ISO-8601 UTC; render them in the viewer's own
+// timezone (no UTC label, no numeric offset) so an IST browser shows IST, etc.
+const _p2=n=>String(n).padStart(2,"0");
+const fmtLocal=v=>{if(!v)return "not run";const d=new Date(v);if(isNaN(d))return v;return `${d.getFullYear()}-${_p2(d.getMonth()+1)}-${_p2(d.getDate())} ${_p2(d.getHours())}:${_p2(d.getMinutes())}`;};
+const fmtLocalDate=v=>{if(!v)return "";const d=new Date(v);if(isNaN(d))return String(v).slice(0,10);return `${d.getFullYear()}-${_p2(d.getMonth()+1)}-${_p2(d.getDate())}`;};
 const esc=s=>{const d=document.createElement("div");d.textContent=s==null?"":String(s);return d.innerHTML;};
 const SEVICON={
   CRITICAL:'<svg class="sev-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 2 2 20h20L12 2z"/><path d="M12 9v5"/><path d="M12 17.5v.01"/></svg>',
@@ -328,8 +333,8 @@ function initHead(){
   const m=DATA.meta;
   document.getElementById("title").textContent=m.title||"Security Dashboard";
   document.getElementById("sb-title").textContent=(m.title||"DIGIT Security").split("·")[0].trim()||"DIGIT Security";
-  document.getElementById("run-image").textContent=m.image_scanned_at||"not run";
-  document.getElementById("run-helm").textContent=m.helm_scanned_at||"not run";
+  document.getElementById("run-image").textContent=fmtLocal(m.image_scanned_at);
+  document.getElementById("run-helm").textContent=fmtLocal(m.helm_scanned_at);
   document.getElementById("sb-foot").innerHTML=`${m.images_count} images &middot; ${m.charts_count} charts<br>${m.trivy_version?("Trivy "+m.trivy_version):""}`;
   document.getElementById("nb-images").textContent=m.images_count;
   document.getElementById("nb-charts").textContent=m.charts_count;
@@ -471,7 +476,7 @@ function tImages(){
 }
 function detailRepo(r){
   return `<p class="dh">${r.tag_count} scanned tag${r.tag_count>1?"s":""} — latest to oldest · click a tag for its vulnerabilities</p>
-    <div class="taglist">${r.tags.map(t=>{const open=state.tag===t.tag;const dt=(t.scanned_at||"").slice(0,10);
+    <div class="taglist">${r.tags.map(t=>{const open=state.tag===t.tag;const dt=fmtLocalDate(t.scanned_at);
       return `<div class="tagblock ${open?'open':''}">
         <div class="tagitem ${open?'open':''}" data-tag="${esc(t.tag)}">
           <span class="chev">${CHEVSVG}</span>

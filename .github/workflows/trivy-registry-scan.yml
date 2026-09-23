@@ -220,12 +220,6 @@ jobs:
           BATCH_SIZE: ${{ github.event.inputs.batch-size }}
           BATCH_IDX: ${{ matrix.batch }}
           SEVERITY: ${{ github.event.inputs.severity }}
-          # Trivy pulls with its own registry client and does not reliably read the
-          # docker login credentials on the runner, so it was pulling anonymously and
-          # hitting Docker Hub's unauthenticated rate limit. Pass the credentials to
-          # Trivy directly so pulls are authenticated (the account's higher limit).
-          TRIVY_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          TRIVY_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           set -uo pipefail
           size="${BATCH_SIZE:-40}"
@@ -243,17 +237,25 @@ jobs:
           done
           [ "$warmed" -eq 1 ] || { echo "::error title=Trivy DB::could not download the vulnerability DB; aborting batch."; exit 1; }
           fails=0
-          # One scan per image (JSON for the dashboard). Scanning once - rather than
-          # a separate table+json+sarif pass - keeps registry pulls to ~1 per image
-          # so Docker Hub does not throttle (TOOMANYREQUESTS) a large run.
+          # Trivy's own registry client does not reliably pick up the docker login
+          # credentials (nor TRIVY_USERNAME/PASSWORD) on the runner, so it pulled
+          # anonymously and hit Docker Hub's low unauthenticated rate limit on large
+          # runs. Instead, pull each image through the docker daemon - which IS
+          # authenticated by the docker/login-action above, so it uses the account's
+          # rate limit - and let Trivy read it from the local daemon (its default
+          # source order is docker,containerd,podman,remote). Remove the image right
+          # after to keep the runner's disk bounded.
           while IFS= read -r image; do
             [ -z "$image" ] && continue
             safe=$(echo "$image" | tr '/:@' '___')
             echo "::group::Trivy $image"
+            docker pull -q "$image" >/dev/null 2>&1 \
+              || echo "::warning title=Docker pull::could not pull $image; Trivy will try a remote scan"
             trivy image "$image" --config .trivy/trivy.yaml --ignorefile .trivy/.trivyignore.yaml \
               --scanners vuln,secret --ignore-unfixed --severity "$SEVERITY" \
               --format json -o "json/${safe}.json" --skip-db-update \
               || { echo "::warning title=Trivy::scan error on $image"; fails=$((fails+1)); }
+            docker rmi -f "$image" >/dev/null 2>&1 || true
             echo "::endgroup::"
           done < <(echo "$batch" | jq -r '.[]')
           echo "Batch $BATCH_IDX: scanned $(echo "$batch" | jq 'length') image(s), $fails error(s)."

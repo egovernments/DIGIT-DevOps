@@ -194,13 +194,20 @@ def aggregate(image_reports, helm_reports):
     img_secrets = sum(img["secrets"] for img in images)   # latest tag per repo
     helm_secrets = sum(1 for s in secrets if s["domain"] == "helm")
 
-    def clean_ts(t):
-        return (t or "").replace("T", " ").split(".")[0].replace("Z", "") + (" UTC" if t else "")
+    def iso_ts(t):
+        # Emit an ISO-8601 UTC timestamp the browser can parse and render in the
+        # viewer's own timezone (the dashboard formats these client-side).
+        if not t:
+            return ""
+        s = re.sub(r"\.\d+", "", str(t).strip()).replace(" ", "T")
+        if s.endswith("Z") or re.search(r"[+-]\d{2}:?\d{2}$", s):
+            return s
+        return s + "Z"
 
     meta = {
-        "generated_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-        "image_scanned_at": clean_ts(image_created),
-        "helm_scanned_at": clean_ts(helm_created),
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
+        "image_scanned_at": iso_ts(image_created),
+        "helm_scanned_at": iso_ts(helm_created),
         "trivy_version": trivy_version or "",
         "images_count": len(images),
         "image_tags_count": sum(i["tag_count"] for i in images),

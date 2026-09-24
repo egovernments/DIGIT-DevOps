@@ -1,5 +1,8 @@
 global:
-  domain: builds.digit.org
+  # Drives BOTH ingress hosts + TLS secret names: the jenkins chart ingress and
+  # the cluster-configs root-ingress both template host from global.domain (they
+  # ignore jenkins.master.ingress.hostName entirely).
+  domain: jenkins-upgrade.digit.org
 cluster-configs:
   namespaces:
     create: true
@@ -140,13 +143,10 @@ jenkins:
       acl: [egovernments*studio-demo]
 
   master:
+    # host/TLS come from global.domain (see above); the chart ingress template
+    # reads only .Values.global.domain, so hostName/tls here would be dead config.
     ingress:
       enabled: true
-      hostName: jenkins-upgrade.digit.org
-      tls:
-        - secretName: jenkins-upgrade.digit.org-tls-certs
-          hosts:
-            - jenkins-upgrade.digit.org
     resources:
       limits:
         cpu: "2500m"

@@ -22,6 +22,20 @@ persistence:
   storageClassName: default
   accessModes: ["ReadWriteOnce"]
 
+# The PVC above is ReadWriteOnce -- an Azure disk attaches to one node at a
+# time -- and this Deployment runs a single replica. Under the chart's default
+# RollingUpdate, maxUnavailable rounds down to 0 for one replica, so Kubernetes
+# starts the replacement pod before stopping the old one. If the two land on
+# different nodes the new pod cannot attach the disk and waits on the old one,
+# which the Deployment will not remove until the new one is Ready: a deadlock
+# that needs a manual scale to 0 to clear (seen on the Kong dashboard rollout,
+# FailedAttachVolume / Multi-Attach).
+#
+# Recreate stops the old pod first, so the disk is free before the new pod is
+# scheduled. Same brief downtime, but the rollout completes on its own.
+deploymentStrategy:
+  type: Recreate
+
 # GF_AUTH_GITHUB_CLIENT_ID / _SECRET come from the SOPS-backed secret that
 # cluster-configs renders into this namespace.
 # Verified present: monitoring/grafana-oauth with both keys.

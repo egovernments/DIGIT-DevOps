@@ -81,9 +81,9 @@ resource "azurerm_subnet_nat_gateway_association" "nat_private" {
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "db_net_link" {
-  name                  = "${var.environment}VnetZone.com"
-  private_dns_zone_id   = azurerm_private_dns_zone.db.id
-  virtual_network_id    = azurerm_virtual_network.vnet.id
+  name                = "${var.environment}VnetZone.com"
+  private_dns_zone_id = azurerm_private_dns_zone.db.id
+  virtual_network_id  = azurerm_virtual_network.vnet.id
 }
 
 resource "azurerm_private_dns_zone" "db" {
@@ -109,6 +109,10 @@ module "kubernetes" {
   # Main User pool that runs workloads and is scaled by the schedule
   main_vm_size    = var.main_vm_size
   main_node_count = var.node_count
+
+  # Dedicated Jenkins pool, tainted dedicated=egov-jenkins:NoSchedule
+  jenkins_vm_size    = var.jenkins_vm_size
+  jenkins_node_count = var.jenkins_node_count
 }
 
 # Optional: Azure Automation + runbook + schedules to stop the AKS cluster at

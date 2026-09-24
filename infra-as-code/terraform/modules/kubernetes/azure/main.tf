@@ -5,6 +5,12 @@ resource "azurerm_kubernetes_cluster" "aks" {
   dns_prefix          = var.name
   kubernetes_version  = var.kubernetes_version
 
+  # OIDC issuer + Workload Identity. Enabled out-of-band via `az aks update` so
+  # the ArgoCD repo-server can decrypt Azure Key Vault-backed SOPS files. Pinned
+  # here so Terraform does not revert it back to the provider default (false).
+  oidc_issuer_enabled       = true
+  workload_identity_enabled = true
+
   # Always-on SYSTEM node pool (small: 2 vCPU / 4 GiB by default).
   # AKS requires at least one System node running at all times to host kube-system
   # pods (CoreDNS, metrics-server, etc.), so this pool is NEVER scaled to zero.
@@ -17,6 +23,12 @@ resource "azurerm_kubernetes_cluster" "aks" {
     node_public_ip_enabled      = false
     temporary_name_for_rotation = "tempsyspool"
     os_disk_size_gb             = var.os_disk_size_gb
+
+    # Pinned to the live AKS defaults so Terraform does not churn this block to
+    # null on every plan (azurerm re-applies a 10% surge default regardless).
+    upgrade_settings {
+      max_surge = "10%"
+    }
   }
 
   identity {
@@ -55,10 +67,48 @@ resource "azurerm_kubernetes_cluster_node_pool" "main" {
   os_disk_size_gb       = var.os_disk_size_gb
   orchestrator_version  = var.kubernetes_version
 
+  # Pinned to live so Terraform does not churn this block to null (see systempool).
+  upgrade_settings {
+    max_surge = "10%"
+  }
+
   # The scheduling runbook changes node_count out-of-band (0 at night / desired in
   # the morning), so ignore it here to stop Terraform fighting the schedule.
   lifecycle {
     ignore_changes = [node_count]
+  }
+
+  tags = {
+    Environment = var.environment
+  }
+}
+
+# Dedicated USER node pool for Jenkins. Tainted dedicated=egov-jenkins:NoSchedule
+# and labelled dedicated=egov-jenkins so only pods that tolerate the taint and
+# select the label schedule here -- the same key/value/effect as the egov-jenkins
+# nodegroup on EKS unified-dev. Created only when jenkins_node_count > 0.
+resource "azurerm_kubernetes_cluster_node_pool" "jenkins" {
+  count                 = var.jenkins_node_count > 0 ? 1 : 0
+  name                  = "jenkins"
+  kubernetes_cluster_id = azurerm_kubernetes_cluster.aks.id
+  mode                  = "User"
+  vm_size               = var.jenkins_vm_size
+  node_count            = var.jenkins_node_count
+  max_pods              = 100
+  vnet_subnet_id        = var.vnet_subnet_id
+  os_disk_size_gb       = var.os_disk_size_gb
+  orchestrator_version  = var.kubernetes_version
+
+  node_labels = {
+    dedicated = "egov-jenkins"
+  }
+
+  node_taints = [
+    "dedicated=egov-jenkins:NoSchedule",
+  ]
+
+  upgrade_settings {
+    max_surge = "10%"
   }
 
   tags = {

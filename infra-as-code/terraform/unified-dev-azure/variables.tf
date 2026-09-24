@@ -135,6 +135,16 @@ variable "node_count" {
   default     = 8
 }
 
+variable "jenkins_vm_size" {
+  description = "VM size for the dedicated Jenkins node pool (matches the m6a.xlarge egov-jenkins nodegroup on EKS: 4 vCPU / 16 GiB)"
+  default     = "Standard_D4s_v3"
+}
+
+variable "jenkins_node_count" {
+  description = "Number of nodes in the dedicated Jenkins pool. 0 disables the pool entirely."
+  default     = 1
+}
+
 variable "os_disk_size_gb" {
   description = "OS disk size in GB for AKS worker nodes"
   default     = 64

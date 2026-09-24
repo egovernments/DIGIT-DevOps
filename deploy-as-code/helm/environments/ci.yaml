@@ -161,18 +161,18 @@ jenkins:
       -XX:+ParallelRefProcEnabled
       -XX:+DisableExplicitGC
       -XX:+AlwaysPreTouch
-    # --- Azure (unified-dev AKS) ---
-    # No dedicated=egov-jenkins pool exists on AKS (verified: 0 matching nodes),
-    # so Jenkins schedules on mainpool. Restore the pins below if a dedicated
-    # pool is created for it.
-    # --- EKS (retired) -------------------------------------------------------
-    # nodeSelector:
-    #   dedicated: egov-jenkins
-    # tolerations:
-    #   - effect: NoSchedule
-    #     key: dedicated
-    #     operator: Equal
-    #     value: egov-jenkins
+    # Pin Jenkins to the dedicated `jenkins` node pool on AKS unified-dev. The
+    # pool is tainted dedicated=egov-jenkins:NoSchedule and labelled
+    # dedicated=egov-jenkins, so the toleration lets Jenkins onto it and the
+    # nodeSelector keeps Jenkins off every other pool. Same key/value/effect as
+    # the egov-jenkins nodegroup on EKS unified-dev.
+    nodeSelector:
+      dedicated: egov-jenkins
+    tolerations:
+      - effect: NoSchedule
+        key: dedicated
+        operator: Equal
+        value: egov-jenkins
 
 binfmt:
   namespace: kube-system

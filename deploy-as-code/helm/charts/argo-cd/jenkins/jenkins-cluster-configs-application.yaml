@@ -1,0 +1,51 @@
+## Renders the cluster-configs chart with the CI values, which produces the
+## jenkins-namespace resources the Jenkins deployment depends on -- chiefly the
+## `jenkins-credentials` Secret (17 keys from ci-secrets.yaml), plus the jenkins
+## Namespace and root Ingress.
+##
+## Why this is separate from the `jenkins` Application: the jenkins Application
+## deploys the Jenkins *chart*, which does not render jenkins-credentials. That
+## Secret is a cluster-configs template (`{{ .name }}-credentials`), fed from
+## ci-secrets.yaml. On EKS the CI helmfile deployed cluster-configs and jenkins
+## together; this Application is the cluster-configs half of that pairing.
+##
+## ci-secrets.yaml is dual-keyed (AWS KMS + Azure Key Vault), so the repo-server
+## decrypts it with its existing AWS credentials -- no dependency on the Azure
+## Workload Identity patch.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jenkins-cluster-configs
+  namespace: argocd
+spec:
+  project: jenkins-project
+
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: jenkins-upgrade
+    path: deploy-as-code/helm/charts/cluster-configs
+    helm:
+      releaseName: jenkins-cluster-configs
+      valueFiles:
+        - values.yaml
+        - ../../environments/ci.yaml
+        - secrets://../../environments/ci-secrets.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: jenkins
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

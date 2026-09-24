@@ -71,8 +71,6 @@ resources: |
 
 # Additional Container Envs
 env: |
-  - name: JAVA_OPTS
-    value: {{ index .Values "heap" | quote }}
   - name: SERVER_PORT
     value: "8080"
   - name: SERVER_CONTEXT_PATH
@@ -120,14 +118,21 @@ env: |
   - name: NOTIFY_BASE_URL
     valueFrom:
       configMapKeyRef:
-        # key `notification` resolves to http://notification:8080/ -- the pre-java
-        # Deployment, scaled to 0/0. notification-java is the live service.
-        key: notification-java
+        key: notify
         name: egov-service-host
+  - name: NOTIFY_SEND_PATH
+    value: notify/v3/notifications
+  # Tenant whose notification configs serve tenants that own none. Matches
+  # account's NOTIFICATION_PLATFORM_TENANT so one set of configs covers both.
+  - name: NOTIFY_PLATFORM_TENANT
+    value: default
   - name: NOTIFY_ASYNC
     value: "false"
   - name: HMAC_SECRET
-    value: "change-me-secret"
+    valueFrom:
+      secretKeyRef:
+        name: hmac-secret
+        key: hmac-secret
   - name: REDIS_HOST
     value: redis.backbone
   - name: REDIS_PORT
@@ -162,7 +167,7 @@ env: |
   - name: OTEL_TRACES_SAMPLER_ARG
     value: "1.0"
   - name: OTEL_EXPORTER_OTLP_ENDPOINT
-    value: open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
+    value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
   - name: CONSOLE_LOGS_ENABLED
     value: "true"
   - name: PUBSUB_ENABLED
@@ -202,18 +207,20 @@ env: |
     value: "1000000"
   - name: REDIS_CLEANUP_INTERVAL
     value: "86400"
-  - name: SCHEMA_SEPARATION_MODE
-    value: "false"
-  - name: SCHEMA_SEPARATION_TOPIC
+  # Seeds a new tenant's login and registration configs off the provisioning event below.
+  # Keycloak resolves an OTP config per tenant, so a tenant without one cannot log in.
+  - name: SEED_DEFAULT_CONFIG
+    value: "true"
+  # The event announcing a new tenant. Carries only the tenant code, which is what the
+  # schema is named after.
+  - name: TENANT_PROVISIONED_TOPIC
     value: account-migration
-  - name: MIGRATION_FLYWAY_LOCATIONS
-    value: filesystem:/opt/digit/db/migrations
-  - name: MIGRATION_SCRIPT_PATH
-    value: /opt/digit/migrate.sh
-  - name: MIGRATION_FLYWAY_BIN
-    value: /opt/flyway/flyway
-  - name: MIGRATION_SCHEMA_TABLE
+  - name: TENANT_MIGRATION_ENABLED
+    value: "false"
+  - name: TENANT_MIGRATION_SCHEMA_TABLE
     value: otp_schema
+  - name: TENANT_MIGRATION_CONSUMER_GROUP
+    value: otp-service
  
   # ── Observability: OTel span export disabled ──────────────────────────────
   # NB: the span switch is MANAGEMENT_TRACING_EXPORT_ENABLED — MANAGEMENT_TRACING_ENABLED

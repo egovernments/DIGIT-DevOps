@@ -118,10 +118,24 @@ serving yet (attempt 1) — waiting for it, then re-syncing` and heals itself.
 With `install.sh`, phase boundaries are the `── phase: NN ──` markers;
 capture stdout to a file and read it with `tr '\r' '\n'` (k3s and helmfile
 emit `\r` progress). 02 prints a **BACK UP the age key** warning — relay it
-to the user verbatim in your final report. 07 prints the **tenant admin
-password once** ("shown ONCE — store it now"): relay it to the user through a
-secure channel, never into logs or the report. Without Vault, run 07 without
+to the user verbatim in your final report. Without Vault, run 07 without
 `--verify` (the verification is the Vault pipeline proof).
+
+**The one-time admin password — do exactly this.** 07 prints it once ("shown
+ONCE — store it now"), so if you captured stdout your capture file now holds
+the only copy in plaintext. That is expected; do not pretend otherwise and do
+not try to scrub it after the fact. Instead, hand it over deterministically:
+
+1. `chmod 600 <capture file>` as soon as the run finishes.
+2. In your report, give the **path** and the label to look for
+   (`tenant admin login`) — never the value itself.
+3. Tell the user to store it in their password manager and then destroy the
+   capture: `shred -u <capture file>`.
+
+Never copy the value into your report, into another file, or into a
+`kubectl`/`curl` command you echo. If you need it yourself (e.g. for
+`08-token.sh`), read it from the capture in the same command that uses it, so
+it is never printed.
 
 ## 4. On failure
 
@@ -155,8 +169,9 @@ End with:
 
 - the 07-seed PASS/FAIL verification table (API plaintext / `vault:v1:…` +
   HMAC in the DB / per-tenant transit key), or the seed summary without Vault
-- the tenant code 07-seed printed (`tenant code: …`) and where the one-time
-  admin password was delivered
+- the tenant code 07-seed printed (`tenant code: …`), and for the one-time
+  admin password: the capture file's **path**, the `tenant admin login` label
+  to look for, and the `shred -u <path>` line — never the value (§3)
 - `export KUBECONFIG=<path 01-cluster printed>` for manual kubectl use — the
   authoritative value is `KUBECONFIG_PATH` in `scripts/.env` (default
   `~/modulith-kubeconfig.yaml`; the tunnel port is `TUNNEL_PORT` in `lib.sh`,

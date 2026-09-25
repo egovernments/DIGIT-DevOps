@@ -323,11 +323,22 @@ kill $PF       # a leftover forward is what makes the next run fail on a bound p
 ```
 
 Routes and plugins are the same for every shape; only each service's upstream
-host changes. A service in no bundle keeps its per-service upstream. Alongside
-the catalog services, `setup.py` always programs a few fixed routes that no
-manifest mentions — `keycloak`, `mdms-v2` and `account-config` — so the service
-count it reports is higher than your member count. Every `KONG_*` parameter,
-with defaults and per-shape examples: `digit3/src/services/kong/README.md`.
+host changes. A service in no bundle keeps its per-service upstream.
+
+`setup.py` derives each *upstream* from your manifest, but it only knows the
+*routes* it already carries. A grouping that includes a **service kong has
+never seen** — anything outside the 16-service catalog, e.g. a module a team
+added to a bundle — hard-exits with `… includes '<svc>' which has no kong
+service entry '<svc>' — add it to SERVICES/ROUTES first`. Add it to the
+`SERVICES` map and a route to `ROUTES` in `digit3/src/services/kong/setup.py`
+before you reach this step: the manifest decides where a route points, it
+cannot create one.
+
+Alongside the catalog services, `setup.py` always programs a few fixed routes
+that no manifest mentions — `keycloak`, `mdms-v2` and `account-config` — so the
+service count it reports is higher than your member count. Every `KONG_*`
+parameter, with defaults and per-shape examples:
+`digit3/src/services/kong/README.md`.
 
 ## 8. Seed + verify
 

@@ -56,12 +56,22 @@ ensure_tunnel() {
     pkill -f "$TUNNEL_PORT:127.0.0.1:6443" 2>/dev/null || true
     sleep 1
   fi
-  if ! nc -z -w 2 127.0.0.1 "$TUNNEL_PORT" 2>/dev/null; then
+  # Liveness must be an END-TO-END probe, not a local port check: when a
+  # forward dies the ssh process keeps holding the port, so `nc -z` succeeds
+  # against a tunnel that forwards nothing and this function silently does
+  # nothing while every kubectl call times out. Any HTTP status (401 included)
+  # proves the far end answered; only "000" means no answer.
+  if [ "$(curl -sk -m 5 -o /dev/null -w '%{http_code}' \
+            "https://127.0.0.1:$TUNNEL_PORT/version" 2>/dev/null)" = "000" ]; then
     pkill -f "$TUNNEL_PORT:127.0.0.1:6443" 2>/dev/null || true
     # ExitOnForwardFailure: without it ssh only WARNS when the port is already
     # bound, exits 0 and backgrounds a useless duplicate while the old tunnel
     # keeps serving kubectl — make a busy port a hard failure instead.
-    ssh -f -N -o ExitOnForwardFailure=yes -L "$TUNNEL_PORT:127.0.0.1:6443" -o StrictHostKeyChecking=accept-new -i "$SSH_KEY" "${VM_USER:-azureuser}@$DOMAIN" \
+    # ServerAlive*: without keepalives an idle or loaded forward is dropped by
+    # the network with nothing noticing — the single most common cause of
+    # "kubectl suddenly times out mid-phase" (INSTALL.md gotchas).
+    ssh -f -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
+      -o TCPKeepAlive=yes -L "$TUNNEL_PORT:127.0.0.1:6443" -o StrictHostKeyChecking=accept-new -i "$SSH_KEY" "${VM_USER:-azureuser}@$DOMAIN" \
       || die "could not open the tunnel on :$TUNNEL_PORT — port busy? run: pkill -f \"$TUNNEL_PORT:127.0.0.1:6443\" and retry"
     sleep 1
   fi

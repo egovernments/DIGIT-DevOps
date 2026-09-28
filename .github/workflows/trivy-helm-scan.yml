@@ -41,6 +41,23 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch }}
 
+      # The Trivy scan config (trivy.yaml + .trivyignore.yaml) is scan policy that
+      # lives with this workflow, not with the scanned branch - older branches may
+      # not have a .trivy/ dir at all. Fetch it from the ref this workflow runs on
+      # and stage it into the workspace so the scan config is consistent everywhere.
+      - name: Fetch Trivy scan config (from this workflow's ref)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          sparse-checkout: .trivy
+          sparse-checkout-cone-mode: false
+          path: .scan-config
+      - name: Stage Trivy scan config
+        run: |
+          rm -rf .trivy
+          cp -R .scan-config/.trivy .trivy
+          ls -la .trivy
+
       - name: Set up Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
 

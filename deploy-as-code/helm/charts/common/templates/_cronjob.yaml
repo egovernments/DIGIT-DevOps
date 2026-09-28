@@ -39,7 +39,18 @@ spec:
           - name: {{ template "common.name" . }}
             image: {{ template "common.image" (dict "Values" $.Values "repository" .Values.image.repository "tag" .Values.image.tag) }}
             imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- if .Values.command }}  
+            securityContext:
+            {{- if hasKey .Values "containerSecurityContext" }}
+              {{- toYaml .Values.containerSecurityContext | nindent 14 }}
+            {{- else }}
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                  - ALL
+              seccompProfile:
+                type: RuntimeDefault
+            {{- end }}
+          {{- if .Values.command }}
             command:
                 {{- toYaml .Values.command  | nindent 12 }} 
           {{- end }}

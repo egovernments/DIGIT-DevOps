@@ -1,0 +1,123 @@
+name: Auto-merge resource bumps (unified-env-lts)
+
+# Fast-lane for CPU/memory limit and request changes, modelled on
+# auto-merge-tag-bumps.yml. Branch protection on unified-env-lts restricts
+# direct pushes and requires an approving review, so a values-only tweak
+# otherwise blocks on a code owner being awake. For the narrow case of
+# "change resources.{limits,requests}.{cpu,memory} in one of the two chart
+# values files below, nothing else," this workflow validates the diff is
+# exactly that and, if so, approves (using a code owner's token) and merges.
+#
+# In scope -- exactly these two files, no globs:
+#   deploy-as-code/helm/charts/backbone-services/airflow/values.yaml
+#   deploy-as-code/helm/charts/backbone-services/clickhouse/values.yaml
+#
+# Anything else -- a different chart, an env file, a *-secrets.yaml, a new
+# or removed key, a non-resource value, a PVC storage request -- is left
+# untouched for normal human review.
+#
+# NOTE ON BLAST RADIUS: unlike the product-scoped env files in the tag lane,
+# these are chart-level values shared by the backbone ApplicationSets in
+# unified-dev, unified-qa AND unified-uat. A merge here reaches all three
+# environments on the next ArgoCD sync. That is the tradeoff this lane
+# accepts in exchange for the value checks in validate_resource_bump.py.
+
+on:
+  pull_request:
+    branches: [unified-env-lts]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "deploy-as-code/helm/charts/backbone-services/airflow/values.yaml"
+      - "deploy-as-code/helm/charts/backbone-services/clickhouse/values.yaml"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  validate-and-merge:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Fetch base ref
+        run: git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1
+
+      - name: Reject if any non-allowlisted file changed
+        id: files
+        run: |
+          CHANGED=$(git diff --name-only "origin/${{ github.event.pull_request.base.ref }}" HEAD)
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          safe=true
+          allowed=()
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              # Exact paths only -- no wildcards, so a new chart added under
+              # backbone-services cannot silently join this lane.
+              "deploy-as-code/helm/charts/backbone-services/airflow/values.yaml"|\
+              "deploy-as-code/helm/charts/backbone-services/clickhouse/values.yaml")
+                allowed+=("$f")
+                ;;
+              *)
+                echo "Disallowed file changed: $f"
+                safe=false
+                ;;
+            esac
+          done <<< "$CHANGED"
+
+          echo "safe=$safe" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "${allowed[@]}" > /tmp/allowed_files.txt
+          echo "Allowed files in this PR:"
+          cat /tmp/allowed_files.txt
+
+      - name: Set up Python
+        if: steps.files.outputs.safe == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install pyyaml
+        if: steps.files.outputs.safe == 'true'
+        run: pip install pyyaml
+
+      - name: Validate diff is cpu/memory-only and values are sane
+        if: steps.files.outputs.safe == 'true'
+        id: diffcheck
+        run: |
+          mapfile -t FILES < /tmp/allowed_files.txt
+          # Add --max-cpu <millicores> and --max-memory <quantity> once the
+          # node allocatable for these clusters is confirmed, so a request
+          # no node can satisfy is caught here instead of at schedule time.
+          python3 .github/scripts/validate_resource_bump.py \
+            --base "origin/${{ github.event.pull_request.base.ref }}" \
+            --files "${FILES[@]}"
+
+      - name: Approve PR
+        if: steps.diffcheck.outputs.safe == 'true'
+        # A PAT, not GITHUB_TOKEN: Actions cannot approve a PR as itself, and
+        # the approval has to come from a CODEOWNERS entry to satisfy
+        # require_code_owner_reviews.
+        env:
+          GH_TOKEN: ${{ secrets.CODEOWNER_APPROVAL_TOKEN }}
+        run: |
+          gh pr review "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --approve \
+            --body "Auto-approved: PR contains only resources.{limits,requests}.{cpu,memory} changes in an allowlisted backbone chart values file, and the changed blocks passed quantity and requests<=limits checks. See .github/workflows/auto-merge-resource-bumps.yml."
+
+      - name: Merge PR
+        if: steps.diffcheck.outputs.safe == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.CODEOWNER_APPROVAL_TOKEN }}
+        run: |
+          gh pr merge "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --squash

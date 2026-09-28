@@ -79,22 +79,25 @@
   .search input{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:8px 12px 8px 32px;font:inherit;font-size:12.5px;width:180px;box-shadow:var(--sh-sm)}
   .search svg{position:absolute;left:10px;top:9px;color:var(--faint)}
 
-  /* run / branch selector */
-  .rpick{position:relative}
-  .rbtn{display:flex;align-items:center;gap:11px;border:1.5px solid var(--line-2);background:var(--surface);border-radius:12px;padding:7px 12px;cursor:pointer;box-shadow:var(--sh-sm);min-width:0}
-  .rbtn:hover{border-color:var(--accent)}
-  .rbtn.open{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
-  .rbtn .rl{font-size:9.5px;font-weight:750;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
-  .rbtn .rv{font-size:13px;font-weight:660;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums}
-  .rbtn .rv small{color:var(--muted);font-weight:500}
-  .rbtn .cv{color:var(--muted);transition:transform .15s} .rbtn.open .cv{transform:rotate(180deg)}
-  .rmenu{position:absolute;right:0;top:calc(100% + 8px);width:340px;max-width:88vw;background:var(--surface);border:1px solid var(--line);
+  /* branch + report selectors (two dropdowns side by side) */
+  .picks{display:flex;gap:8px}
+  .pick{position:relative}
+  .pbtn{display:flex;align-items:center;gap:12px;border:1.5px solid var(--line-2);background:var(--surface);border-radius:12px;padding:6px 12px;cursor:pointer;box-shadow:var(--sh-sm);font:inherit;color:var(--ink)}
+  .pbtn:hover{border-color:var(--accent)}
+  .pbtn.open{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
+  .pbtn .txt{display:flex;flex-direction:column;align-items:flex-start;gap:1px;line-height:1.2;min-width:0}
+  .pbtn .pl{font-size:9px;font-weight:750;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .pbtn .pv{font-size:13px;font-weight:660;color:var(--ink);white-space:nowrap;font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:6px;max-width:230px;overflow:hidden;text-overflow:ellipsis}
+  .pbtn .pv .gi{width:13px;height:13px;color:var(--accent);flex:none}
+  .pbtn .cv{color:var(--muted);transition:transform .15s;flex:none} .pbtn.open .cv{transform:rotate(180deg)}
+  .pmenu{position:absolute;right:0;top:calc(100% + 8px);min-width:280px;max-width:92vw;background:var(--surface);border:1px solid var(--line);
     border-radius:14px;box-shadow:var(--sh-lg);padding:8px;z-index:40;display:none}
-  .rmenu.open{display:block}
-  .rmenu .bsearch{position:relative;margin:4px 4px 8px}
-  .rmenu .bsearch input{width:100%;border:1px solid var(--line);background:var(--surface-2);border-radius:9px;padding:8px 10px 8px 30px;font:inherit;font-size:12.5px;color:var(--ink)}
-  .rmenu .bsearch svg{position:absolute;left:9px;top:9px;color:var(--faint)}
-  .rmenu .msec{font-size:10px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:6px 10px 5px}
+  .pmenu.branch{left:0;right:auto}
+  .pmenu.open{display:block}
+  .pmenu .bsearch{position:relative;margin:2px 4px 8px}
+  .pmenu .bsearch input{width:100%;border:1px solid var(--line);background:var(--surface-2);border-radius:9px;padding:8px 10px 8px 30px;font:inherit;font-size:12.5px;color:var(--ink)}
+  .pmenu .bsearch svg{position:absolute;left:9px;top:9px;color:var(--faint)}
+  .pmenu .msec{font-size:10px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:6px 10px 5px}
   .branchlist{max-height:150px;overflow:auto;padding:0 2px 4px}
   .brow{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--ink-2)}
   .brow:hover{background:var(--surface-2)} .brow.on{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);font-weight:600}
@@ -259,12 +262,21 @@
     <div class="topbar">
       <div><h1 id="title">Dashboard <span class="tg" id="tag"></span></h1><div class="sub" id="sub">Trivy security scan</div></div>
       <div class="tb-right">
-        <div class="rpick" id="rpick">
-          <div class="rbtn" id="rbtn">
-            <div><div class="rl">Report</div><div class="rv" id="rbtn-v">—</div></div>
-            <svg class="cv" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        <div class="picks">
+          <div class="pick" id="bpick">
+            <button class="pbtn" id="bbtn" type="button">
+              <span class="txt"><span class="pl">Branch</span><span class="pv" id="bbtn-v">—</span></span>
+              <svg class="cv" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="pmenu branch" id="bmenu"></div>
           </div>
-          <div class="rmenu" id="rmenu"></div>
+          <div class="pick" id="rpick">
+            <button class="pbtn" id="rbtn" type="button">
+              <span class="txt"><span class="pl">Report</span><span class="pv" id="rbtn-v">—</span></span>
+              <svg class="cv" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="pmenu" id="rmenu"></div>
+          </div>
         </div>
         <label class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
           <input id="q" type="search" placeholder="Search…" autocomplete="off"></label>
@@ -345,7 +357,7 @@ let MODEL=null;
 const RUNS=DATA.runs||[];
 const runCache={};
 let state={view:"overview",sev:new Set(SEVS),q:"",open:{},repo:null,tag:null,
-           run:DATA.current, branch:(DATA.meta&&DATA.meta.branch)||"", menu:false, bq:""};
+           run:DATA.current, branch:"", menu:null, bq:""};
 
 const assets=()=>IS_DOCKER?(MODEL.images||[]):(MODEL.charts||[]);
 const findings=()=>IS_DOCKER?(MODEL.vulns||[]):(MODEL.rules||[]);
@@ -383,40 +395,50 @@ function initBadges(){
     : `${fmt(m.asset_count)} charts<br>branch ${esc(m.branch||"—")} · Trivy ${m.trivy_version||""}`;
 }
 
-/* ---------------- run / branch selector ---------------- */
-function currentRun(){return RUNS.find(r=>r.id===state.run)||RUNS[0]||{scanned_at:MODEL.meta&&MODEL.meta.scanned_at,actor:"",branch:MODEL.meta&&MODEL.meta.branch};}
+/* ---------------- branch + report selectors ---------------- */
+const GITICON='<svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="8" r="3"/><path d="M18 11a6 6 0 0 1-6 6H6"/></svg>';
+function currentRun(){return RUNS.find(r=>r.id===state.run)||RUNS.find(r=>r.branch===state.branch)||RUNS[0]||{scanned_at:MODEL&&MODEL.meta&&MODEL.meta.scanned_at,branch:state.branch};}
 function branches(){const s=[];RUNS.forEach(r=>{if(r.branch&&!s.includes(r.branch))s.push(r.branch);});return s;}
+function defaultBranch(){const b=branches();return b.includes("master")?"master":((DATA.meta&&DATA.meta.branch)||b[0]||"");}
 function initSelector(){
-  const r=currentRun();
-  document.getElementById("rbtn-v").innerHTML=`${r.actor?esc(r.actor)+" · ":""}${fmtRun(r.scanned_at)}`;
-  const menu=document.getElementById("rmenu");
   const brs=branches();
-  let bhtml="";
-  if(!IS_DOCKER && brs.length){
-    const shown=brs.filter(b=>!state.bq||b.toLowerCase().includes(state.bq));
-    bhtml=`<div class="msec">Branch</div>
-      <div class="bsearch"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+  if(!state.branch)state.branch=defaultBranch();
+  // ---- branch dropdown ----
+  document.getElementById("bbtn-v").innerHTML=`${GITICON}${esc(state.branch||"—")}`;
+  const shown=brs.filter(b=>!state.bq||b.toLowerCase().includes(state.bq));
+  const bmenu=document.getElementById("bmenu");
+  bmenu.innerHTML=`<div class="bsearch"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
       <input id="bq" placeholder="Search branch…" value="${escAttr(state.bq)}" autocomplete="off"></div>
-      <div class="branchlist">${shown.map(b=>{const n=RUNS.filter(x=>x.branch===b).length;return `<div class="brow ${b===state.branch?"on":""}" data-branch="${escAttr(b)}"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="8" r="3"/><path d="M18 11a6 6 0 0 1-6 6H6"/></svg>${esc(b)}<span class="bc">${n} run${n>1?"s":""}</span></div>`;}).join("")||`<div class="brow n0">No branch matches.</div>`}</div>`;
-  }
-  const rl=RUNS.filter(x=>IS_DOCKER||!state.branch||x.branch===state.branch);
-  const runs=`<div class="msec">Recent runs (${rl.length})</div>
+    <div class="branchlist">${shown.map(b=>{const n=RUNS.filter(x=>x.branch===b).length;return `<div class="brow ${b===state.branch?"on":""}" data-branch="${escAttr(b)}">${GITICON}${esc(b)}<span class="bc">${n} run${n>1?"s":""}</span></div>`;}).join("")||`<div class="brow n0">No branch matches.</div>`}</div>`;
+  // ---- report (timestamp) dropdown, filtered to the selected branch, no username ----
+  const cr=currentRun();
+  document.getElementById("rbtn-v").textContent=fmtRun(cr.scanned_at);
+  const rl=RUNS.filter(x=>x.branch===state.branch);
+  const rmenu=document.getElementById("rmenu");
+  rmenu.innerHTML=`<div class="msec">Recent runs (${rl.length})</div>
     <div class="runlist">${rl.map(x=>`<div class="rrow ${x.id===state.run?"on":""}" data-run="${escAttr(x.id)}">
-      <div class="t"><b>${x.actor?esc(x.actor)+" · ":""}${fmtRun(x.scanned_at)}</b>${x.latest?'<span class="lt">LATEST</span>':""}</div>
-      <div class="m">${x.branch?esc(x.branch):"scan"}<span class="dot"></span><span class="oc">${fmt(x.occ)} occ</span><span class="dot"></span>${fmt(x.assets)} ${IS_DOCKER?"repos":"charts"}<span class="dot"></span>score ${x.score}/10</div>
-    </div>`).join("")||`<div class="rrow n0">No runs.</div>`}</div>`;
-  menu.innerHTML=bhtml+runs;
-  document.getElementById("rbtn").classList.toggle("open",state.menu);
-  menu.classList.toggle("open",state.menu);
-  if(state.menu){
+      <div class="t"><b>${fmtRun(x.scanned_at)}</b>${x.latest?'<span class="lt">LATEST</span>':""}</div>
+      <div class="m"><span class="oc">${fmt(x.occ)} occ</span><span class="dot"></span>${fmt(x.assets)} ${IS_DOCKER?"repos":"charts"}<span class="dot"></span>score ${x.score}/10</div>
+    </div>`).join("")||`<div class="rrow n0">No runs on this branch.</div>`}</div>`;
+  // ---- open/close state ----
+  document.getElementById("bbtn").classList.toggle("open",state.menu==="branch");
+  bmenu.classList.toggle("open",state.menu==="branch");
+  document.getElementById("rbtn").classList.toggle("open",state.menu==="run");
+  rmenu.classList.toggle("open",state.menu==="run");
+  if(state.menu==="branch"){
     const bq=document.getElementById("bq");
     if(bq)bq.oninput=e=>{state.bq=e.target.value.toLowerCase();initSelector();document.getElementById("bq").focus();};
-    menu.querySelectorAll(".brow[data-branch]").forEach(el=>el.onclick=()=>{state.branch=el.dataset.branch;const first=RUNS.find(x=>x.branch===state.branch);if(first)selectRun(first.id);else initSelector();});
-    menu.querySelectorAll(".rrow[data-run]").forEach(el=>el.onclick=()=>selectRun(el.dataset.run));
+    bmenu.querySelectorAll(".brow[data-branch]").forEach(el=>el.onclick=()=>{
+      state.branch=el.dataset.branch;state.bq="";state.menu=null;
+      const first=RUNS.find(x=>x.branch===state.branch);
+      if(first&&first.id!==state.run)selectRun(first.id);else initSelector();});
+  }
+  if(state.menu==="run"){
+    rmenu.querySelectorAll(".rrow[data-run]").forEach(el=>el.onclick=()=>selectRun(el.dataset.run));
   }
 }
 async function selectRun(id){
-  state.menu=false;
+  state.menu=null;
   if(!runCache[id]){
     try{
       const res=await fetch(`data/runs/${id}.json`,{cache:"no-cache"});
@@ -667,16 +689,21 @@ function render(){
   const p=new URLSearchParams(location.search);
   if(p.get("theme")==="dark")document.documentElement.dataset.theme="dark";
   if(["overview","assets","findings"].includes(p.get("view")))state.view=p.get("view");
+  // default branch = master (if scanned), and show that branch's latest run
+  state.branch=defaultBranch();
+  const firstRun=RUNS.find(x=>x.branch===state.branch)||RUNS[0];
+  if(firstRun)state.run=firstRun.id;
   initChrome();initFilters();initSelector();
   document.getElementById("q").addEventListener("input",e=>{state.q=e.target.value.trim().toLowerCase();if(MODEL)render();});
   document.getElementById("theme").onclick=()=>{const d=document.documentElement;d.dataset.theme=d.dataset.theme==="dark"?"light":"dark";if(MODEL)render();};
   document.getElementById("print").onclick=()=>window.print();
-  const rbtn=document.getElementById("rbtn");
-  rbtn.onclick=e=>{e.stopPropagation();state.menu=!state.menu;initSelector();};
+  document.getElementById("bbtn").onclick=e=>{e.stopPropagation();state.menu=state.menu==="branch"?null:"branch";state.bq="";initSelector();};
+  document.getElementById("rbtn").onclick=e=>{e.stopPropagation();state.menu=state.menu==="run"?null:"run";initSelector();};
+  document.getElementById("bmenu").onclick=e=>e.stopPropagation();
   document.getElementById("rmenu").onclick=e=>e.stopPropagation();
-  document.addEventListener("click",()=>{if(state.menu){state.menu=false;initSelector();}});
+  document.addEventListener("click",()=>{if(state.menu){state.menu=null;initSelector();}});
   document.getElementById("posture").innerHTML='<div class="pdesc" style="padding:8px">Loading latest run…</div>';
-  selectRun(DATA.current);   // fetch + first render
+  selectRun(state.run);   // fetch + first render
 })();
 </script>
 </body>

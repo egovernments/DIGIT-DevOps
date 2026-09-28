@@ -1,26 +1,28 @@
-name: Auto-merge resource bumps (unified-env-lts)
+name: Auto-merge backbone chart values (unified-env-lts)
 
-# Fast-lane for CPU/memory limit and request changes, modelled on
+# Fast-lane for the two backbone chart values files below, modelled on
 # auto-merge-tag-bumps.yml. Branch protection on unified-env-lts restricts
-# direct pushes and requires an approving review, so a values-only tweak
-# otherwise blocks on a code owner being awake. For the narrow case of
-# "change resources.{limits,requests}.{cpu,memory} in one of the two chart
-# values files below, nothing else," this workflow validates the diff is
-# exactly that and, if so, approves (using a code owner's token) and merges.
+# direct pushes and requires an approving review, so a values tweak here
+# otherwise blocks on a code owner being awake.
+#
+# Where the tag lane is an ALLOWLIST (only image.tag/image.repository may
+# change), this lane is a DENYLIST: any key in these two files may change
+# EXCEPT credential, arbitrary-execution and privilege-posture paths, which
+# fall back to normal human review. See DENIED_KEYS in the validator for
+# the full list and the reasoning per group.
 #
 # In scope -- exactly these two files, no globs:
 #   deploy-as-code/helm/charts/backbone-services/airflow/values.yaml
 #   deploy-as-code/helm/charts/backbone-services/clickhouse/values.yaml
 #
-# Anything else -- a different chart, an env file, a *-secrets.yaml, a new
-# or removed key, a non-resource value, a PVC storage request -- is left
-# untouched for normal human review.
+# Any other file in the PR -- a different chart, an env file, a
+# *-secrets.yaml -- disqualifies the whole PR from this lane.
 #
 # NOTE ON BLAST RADIUS: unlike the product-scoped env files in the tag lane,
 # these are chart-level values shared by the backbone ApplicationSets in
 # unified-dev, unified-qa AND unified-uat. A merge here reaches all three
 # environments on the next ArgoCD sync. That is the tradeoff this lane
-# accepts in exchange for the value checks in validate_resource_bump.py.
+# accepts in exchange for the denylist and the resource value checks.
 
 on:
   pull_request:
@@ -88,7 +90,7 @@ jobs:
         if: steps.files.outputs.safe == 'true'
         run: pip install pyyaml
 
-      - name: Validate diff is cpu/memory-only and values are sane
+      - name: Validate no protected key changed and resource values are sane
         if: steps.files.outputs.safe == 'true'
         id: diffcheck
         run: |
@@ -96,7 +98,7 @@ jobs:
           # Add --max-cpu <millicores> and --max-memory <quantity> once the
           # node allocatable for these clusters is confirmed, so a request
           # no node can satisfy is caught here instead of at schedule time.
-          python3 .github/scripts/validate_resource_bump.py \
+          python3 .github/scripts/validate_backbone_values.py \
             --base "origin/${{ github.event.pull_request.base.ref }}" \
             --files "${FILES[@]}"
 
@@ -111,7 +113,7 @@ jobs:
           gh pr review "${{ github.event.pull_request.number }}" \
             --repo "${{ github.repository }}" \
             --approve \
-            --body "Auto-approved: PR contains only resources.{limits,requests}.{cpu,memory} changes in an allowlisted backbone chart values file, and the changed blocks passed quantity and requests<=limits checks. See .github/workflows/auto-merge-resource-bumps.yml."
+            --body "Auto-approved: PR only touches allowlisted backbone chart values files, changed no protected (credential / execution / privilege) key, and passed resource quantity and requests<=limits checks. See .github/workflows/auto-merge-backbone-values.yml."
 
       - name: Merge PR
         if: steps.diffcheck.outputs.safe == 'true'

@@ -51,20 +51,31 @@ jobs:
           CHARTS_PATH: ${{ github.event.inputs.charts-path }}
         run: |
           set -uo pipefail
-          ok=0; skip=0; fail=0
+          ok=0; skip=0; ready=0; fail=0
           while IFS= read -r chart; do
             grep -q '^dependencies:' "$chart" || { skip=$((skip+1)); continue; }
             d=$(dirname "$chart")
+            # A chart whose subcharts are already vendored under charts/ renders as-is
+            # - helm lists those deps as 'unpacked'/'ok', not 'missing'. Third-party
+            # charts (e.g. airflow, argo-cd) ship their deps this way; don't try to
+            # re-fetch them from remote repos (which aren't configured on the runner).
+            # Only vendor charts that actually have a missing dep (e.g. local common).
+            if deps=$(helm dependency list "$d" 2>/dev/null) \
+               && ! printf '%s\n' "$deps" | awk 'NR>1 && NF{print $NF}' | grep -qx 'missing'; then
+              ready=$((ready+1)); continue
+            fi
             if (cd "$d" && helm dependency build --skip-refresh >/dev/null 2>&1) \
                || (cd "$d" && helm dependency update --skip-refresh >/dev/null 2>&1); then
               ok=$((ok+1))
             else
-              fail=$((fail+1)); echo "::error title=Helm deps::could not vendor deps for $d"
+              miss=$(printf '%s\n' "$deps" | awk 'NR>1 && $NF=="missing"{print $1}' | paste -sd, -)
+              fail=$((fail+1)); echo "::error title=Helm deps::could not vendor deps for $d (missing: ${miss:-unknown})"
             fi
           done < <(find "$CHARTS_PATH" -name Chart.yaml)
-          echo "Dependencies vendored: ok=$ok, no-deps=$skip, failed=$fail"
-          # Trivy silently skips charts it cannot render, so a vendor failure would
-          # publish an incomplete report as success - fail loudly instead.
+          echo "Dependencies: vendored=$ok, already-vendored=$ready, no-deps=$skip, failed=$fail"
+          # Trivy silently skips charts it cannot render, so a genuine vendor failure
+          # (a dep that is missing AND can't be fetched) would publish an incomplete
+          # report as success - fail loudly instead.
           [ "$fail" -eq 0 ] || { echo "::error::$fail chart(s) failed to vendor; aborting to avoid an incomplete scan."; exit 1; }
 
       - name: Trivy misconfig + secret scan (table → logs)

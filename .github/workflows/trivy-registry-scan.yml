@@ -325,19 +325,19 @@ jobs:
           ref: gh-pages
           path: pages
 
-      - name: Build dashboard (image half)
+      - name: Build dashboard (Docker images)
         env:
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
           EXPECTED: ${{ needs.discover.outputs.count }}
+          ACTOR: ${{ github.actor }}
+          REF: ${{ github.ref_name }}
         run: |
           mkdir -p pages
           # Refuse to overwrite the last good image data with a badly incomplete run
           # (e.g. batches that failed): require at least 80% of the discovered images
           # to have produced a report before replacing.
           min=$(( EXPECTED * 80 / 100 ))
-          # image findings carry no source links; ref is left empty so the Helm
-          # scan's branch (persisted in the data tree) drives Helm file links.
-          MIN_REPORTS="$min" bash .trivy/dashboard/build-dashboard.sh images results pages "$REPO_URL" ""
+          MIN_REPORTS="$min" bash .trivy/dashboard/build-dashboard.sh images results pages "$REPO_URL" "$REF"
 
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0

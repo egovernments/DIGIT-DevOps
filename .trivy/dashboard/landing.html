@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trivy · DIGIT</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<style>
+  :root{
+    color-scheme:light;
+    --bg:#eef1f7; --surface:#ffffff; --surface-2:#f6f8fc; --surface-3:#eef2f9;
+    --ink:#0f1b2e; --ink-2:#42506a; --muted:#697689; --faint:#98a2b5;
+    --line:#e5eaf3; --line-2:#d6ddea;
+    --accent:#7c3aed; --link:#6d28d9;
+    --crit:#b31d33; --high:#e06a2c; --med:#c58a12; --low:#2f6fed; --unknown:#8a94a6; --good:#0f8a3c;
+    --sh-sm:0 1px 2px rgba(16,27,46,.05);
+    --sh:0 1px 2px rgba(16,27,46,.05),0 12px 30px -16px rgba(16,27,46,.22);
+    --sh-lg:0 30px 70px -34px rgba(76,29,149,.45);
+    --r:20px; --font:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,sans-serif;
+    --grad:linear-gradient(140deg,#4c1d95,#7c3aed 65%,#9d5cf5);
+  }
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#0b0f18; --surface:#141b26; --surface-2:#1a2230; --surface-3:#212b3b;
+    --ink:#e8edf6; --ink-2:#c1cad9; --muted:#8a94a5; --faint:#6a7484;
+    --line:#27313f; --line-2:#333e4e;
+    --accent:#a78bfa; --link:#c4b5fd;
+    --crit:#e0566d; --high:#ef8a5c; --med:#e2ab43; --low:#5b93f2; --unknown:#7b8698; --good:#3ec46b;
+    --sh-sm:0 1px 2px rgba(0,0,0,.4);
+    --sh:0 1px 2px rgba(0,0,0,.35),0 12px 30px -16px rgba(0,0,0,.7);
+    --sh-lg:0 32px 80px -34px rgba(0,0,0,.9);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1060px;margin:0 auto;padding:34px 26px 80px}
+  .top{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+  .top .logo{width:46px;height:46px;filter:drop-shadow(0 6px 16px rgba(124,58,237,.4))}
+  .top b{font-size:22px;font-weight:800;letter-spacing:-.02em;display:block}
+  .top span{font-size:13px;color:var(--muted)}
+  .top .theme{margin-left:auto;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);width:38px;height:38px;border-radius:11px;cursor:pointer;font-size:15px}
+
+  .hero{position:relative;overflow:hidden;background:var(--grad);color:#fff;border-radius:var(--r);padding:30px 32px;margin:20px 0 26px;box-shadow:var(--sh-lg)}
+  .hero::after{content:"";position:absolute;right:-60px;top:-60px;width:280px;height:280px;background:radial-gradient(circle,rgba(255,255,255,.16),transparent 70%)}
+  .hero h1{margin:0 0 6px;font-size:25px;font-weight:800;letter-spacing:-.02em}
+  .hero p{margin:0;font-size:14px;color:rgba(255,255,255,.85);max-width:64ch}
+  .hero .hrow{display:flex;gap:26px;margin-top:20px;flex-wrap:wrap;position:relative;z-index:1}
+  .hstat b{display:block;font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .hstat span{font-size:11.5px;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:.06em}
+  .hstat.c b{color:#ffd7dd}.hstat.h b{color:#ffe4cf}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:24px 24px 22px;box-shadow:var(--sh);display:block;transition:transform .13s,box-shadow .13s,border-color .13s}
+  .card:hover{transform:translateY(-3px);box-shadow:var(--sh-lg);border-color:var(--line-2)}
+  .card::before{content:"";position:absolute;left:0;top:22px;bottom:22px;width:5px;border-radius:0 4px 4px 0;background:var(--band,var(--accent))}
+  .ch{display:flex;align-items:center;gap:13px;margin-bottom:18px}
+  .ch .ci{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;color:#fff;background:var(--grad);flex:none}
+  .ch .ci svg{width:23px;height:23px}
+  .ch b{font-size:17px;font-weight:750;letter-spacing:-.01em;display:block}
+  .ch span{font-size:12px;color:var(--muted)}
+  .ch .go{margin-left:auto;color:var(--accent);font-weight:640;font-size:13px;display:flex;align-items:center;gap:5px}
+  .cbody{display:grid;grid-template-columns:auto 1fr;gap:22px;align-items:center}
+  .gauge{position:relative;width:104px;height:104px;flex:none}
+  .gauge .lab{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+  .gauge .lab b{font-size:34px;font-weight:800;letter-spacing:-.03em;color:var(--band,var(--ink));line-height:1}
+  .gauge .lab b sub{font-size:14px;font-weight:650;color:var(--faint)}
+  .mets{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .met{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:11px 13px}
+  .met .k{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .met .v{font-size:22px;font-weight:770;letter-spacing:-.02em;margin-top:3px;line-height:1}
+  .met .v.c{color:var(--crit)}.met .v.h{color:var(--high)}
+  .sev-ic{width:13px;height:13px}
+  .cfoot{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:8px}
+  .cfoot .cp{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:4px 9px}
+  .cfoot .cp b{color:var(--ink-2);font-weight:640}
+  .none{color:var(--faint);font-style:italic}
+  .foot{margin-top:30px;text-align:center;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <span class="logo" id="logo"></span>
+    <div><b>Trivy · DIGIT</b><span>Container &amp; Helm chart security</span></div>
+    <button class="theme" id="theme" title="Toggle theme">◐</button>
+  </div>
+
+  <div class="hero">
+    <h1>Security posture</h1>
+    <p>Continuous Trivy scanning of DIGIT container images and Helm charts. Report-only — findings are surfaced here for triage; nothing is blocked. Open a dashboard below for the full breakdown, run history and fixes.</p>
+    <div class="hrow" id="hrow"></div>
+  </div>
+
+  <div class="grid" id="cards"></div>
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+const DATA=/*__DATA__*/{};
+const cssv=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmt=n=>(n||0).toLocaleString();
+const _p2=n=>String(n).padStart(2,"0");
+const fmtLocal=v=>{if(!v)return "never";const d=new Date(v);if(isNaN(d))return v;return `${d.getFullYear()}-${_p2(d.getMonth()+1)}-${_p2(d.getDate())} ${_p2(d.getHours())}:${_p2(d.getMinutes())}`;};
+const esc=s=>{const d=document.createElement("div");d.textContent=s==null?"":String(s);return d.innerHTML;};
+const LOGO='<svg viewBox="0 0 48 48" width="46" height="46" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gv" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4c1d95"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs><path d="M24 3.2C24 3.2 32.5 8 39.6 8.6 40.2 8.65 40.6 9.1 40.6 9.7V22c0 10.6-6.8 17.9-15.9 21.6-.45.2-.95.2-1.4 0C14.2 39.9 7.4 32.6 7.4 22V9.7c0-.6.4-1.05 1-1.1C15.5 8 24 3.2 24 3.2Z" fill="url(#gv)"/><path d="M24 6.4C24 6.4 31.6 10.6 37.9 11.2V22c0 9-5.9 15.5-13.9 18.9C16 37.5 10.1 31 10.1 22V11.2C16.4 10.6 24 6.4 24 6.4Z" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="1.1"/><circle cx="18.7" cy="16.2" r="2.35" fill="#F2A23C"/><rect x="23.5" y="13.85" width="8.7" height="4.8" rx="2.4" fill="#F2A23C"/><circle cx="18.5" cy="23.7" r="2.95" fill="#3B7DD8"/><circle cx="26" cy="23.7" r="2.95" fill="#3B7DD8"/><circle cx="22.25" cy="30.9" r="2.95" fill="#54AE5A"/></svg>';
+const ICON={docker:'<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/>',
+  helm:'<path d="M12 3 3 8l9 5 9-5-9-5zM3 16l9 5 9-5M3 12l9 5 9-5"/>'};
+function gauge(score){const R=44,C=2*Math.PI*R,off=C*(1-score/10);const band=score<=3?"--crit":score<=6?"--med":"--good";const col=cssv(band);
+  return {band,html:`<div class="gauge"><svg width="104" height="104" viewBox="0 0 104 104"><circle cx="52" cy="52" r="${R}" fill="none" stroke="var(--surface-3)" stroke-width="10"/><circle cx="52" cy="52" r="${R}" fill="none" stroke="${col}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}" transform="rotate(-90 52 52)"/></svg><div class="lab"><div><b style="color:${col}">${score}<sub>/10</sub></b></div></div></div>`};}
+const CRIT='<svg class="sev-ic" viewBox="0 0 24 24" fill="none" stroke="var(--crit)" stroke-width="2.2" stroke-linecap="round"><path d="M12 2 2 20h20L12 2z"/><path d="M12 9v5"/><path d="M12 17.5v.01"/></svg>';
+const HIGH='<svg class="sev-ic" viewBox="0 0 24 24" fill="none" stroke="var(--high)" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5"/><path d="M12 16v.01"/></svg>';
+
+function card(dom,s){
+  const title=dom==="docker"?"Container images":"Helm charts";
+  const sub=dom==="docker"?"Trivy image · vulnerabilities":"Trivy config · misconfigurations";
+  if(!s){return `<a class="card" href="${dom}/"><div class="ch"><span class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[dom]}</svg></span><div><b>${title}</b><span>${sub}</span></div><span class="go">Open →</span></div><div class="none">Not scanned yet.</div></a>`;}
+  const g=gauge(s.score),t=s.totals;
+  const assetLine=dom==="docker"?`<span class="cp"><b>${fmt(s.asset_count)}</b> images</span><span class="cp"><b>${fmt(s.tag_count)}</b> tags</span>`:`<span class="cp"><b>${fmt(s.asset_count)}</b> charts</span><span class="cp">branch <b>${esc(s.branch||"—")}</b></span>`;
+  return `<a class="card" href="${dom}/" style="--band:var(${g.band})">
+    <div class="ch"><span class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[dom]}</svg></span>
+      <div><b>${title}</b><span>${sub}</span></div><span class="go">Open →</span></div>
+    <div class="cbody">${g.html}
+      <div class="mets">
+        <div class="met"><div class="k">${CRIT} Critical</div><div class="v c">${fmt(t.CRITICAL)}</div></div>
+        <div class="met"><div class="k">${HIGH} High</div><div class="v h">${fmt(t.HIGH)}</div></div>
+        <div class="met"><div class="k">Total findings</div><div class="v">${fmt(t.total)}</div></div>
+        <div class="met"><div class="k">Secrets</div><div class="v">${fmt(t.secrets)}</div></div>
+      </div></div>
+    <div class="cfoot">${assetLine}<span class="cp">scanned <b>${fmtLocal(s.scanned_at)}</b></span>${s.run_count>1?`<span class="cp"><b>${s.run_count}</b> runs</span>`:""}</div>
+  </a>`;
+}
+function hero(){
+  const d=DATA.docker,h=DATA.helm;
+  const C=(d?d.totals.CRITICAL:0)+(h?h.totals.CRITICAL:0);
+  const H=(d?d.totals.HIGH:0)+(h?h.totals.HIGH:0);
+  const T=(d?d.totals.total:0)+(h?h.totals.total:0);
+  const A=(d?d.asset_count:0)+(h?h.asset_count:0);
+  document.getElementById("hrow").innerHTML=`
+    <div class="hstat c"><b>${fmt(C)}</b><span>Critical</span></div>
+    <div class="hstat h"><b>${fmt(H)}</b><span>High</span></div>
+    <div class="hstat"><b>${fmt(T)}</b><span>Total findings</span></div>
+    <div class="hstat"><b>${fmt(A)}</b><span>Assets scanned</span></div>`;
+}
+(function(){
+  const p=new URLSearchParams(location.search);if(p.get("theme")==="dark")document.documentElement.dataset.theme="dark";
+  document.getElementById("logo").innerHTML=LOGO;
+  hero();
+  document.getElementById("cards").innerHTML=card("docker",DATA.docker)+card("helm",DATA.helm);
+  document.getElementById("foot").innerHTML=`Generated ${fmtLocal(DATA.generated_at)} · Trivy security scanning · report-only`;
+  document.getElementById("theme").onclick=()=>{const d=document.documentElement;d.dataset.theme=d.dataset.theme==="dark"?"light":"dark";};
+})();
+</script>
+</body>
+</html>

@@ -1,86 +1,99 @@
 #!/usr/bin/env python3
-"""Aggregate Trivy JSON (image + Helm/config scans) into a single self-contained
-static dashboard (index.html) suitable for publishing to GitHub Pages.
+"""Aggregate Trivy JSON into the DIGIT security dashboards.
 
-Usage:
-    python3 generate.py --images DIR --helm DIR --out site
-    python3 generate.py --results DIR --out site   # auto-detect scan type
+Two separate dashboards are produced under the same site:
+  - docker/index.html : container-image vulnerabilities (from `trivy image`)
+  - helm/index.html   : Helm-chart misconfigurations (from `trivy fs/config`)
+plus a landing index.html that links to both.
 
-Every input is a Trivy JSON report (`--format json`). Image reports carry
-Vulnerabilities/Secrets; Helm reports (fs/config scan) carry Misconfigurations.
-The scan type is detected from the report, so a single --results dir works too.
+Each scan run is archived under data/<domain>/runs/ (a compact per-run model +
+a manifest), so the Helm dashboard can offer a branch picker and a run/timestamp
+picker ("recent runs"), and both dashboards can show run history.
+
+Modes:
+  generate.py domain --domain docker --data DIR --site SITE [run metadata...]
+  generate.py landing --site SITE
 """
-import argparse, json, os, sys, glob, datetime, re
+import argparse, json, os, sys, glob, datetime, re, hashlib
 
 SEV_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]
+# history kept per domain (docker reports are large, so keep fewer)
+MAX_RUNS = {"docker": 8, "helm": 30}
 
 
-def load_reports(paths):
-    reports = []
-    for p in paths:
-        try:
-            with open(p) as f:
-                data = json.load(f)
-        except Exception as e:
-            print(f"skip {p}: {e}", file=sys.stderr)
-            continue
-        reports.append((p, data))
-    return reports
-
-
+# --------------------------------------------------------------------------- #
+# helpers
+# --------------------------------------------------------------------------- #
 def sev_bucket():
     return {s: 0 for s in SEV_ORDER}
 
 
-def is_image_report(data):
-    at = (data.get("ArtifactType") or "").lower()
-    if at in ("container_image", "image"):
-        return True
-    for r in data.get("Results") or []:
-        if r.get("Class") in ("os-pkgs", "lang-pkgs") or r.get("Vulnerabilities"):
-            return True
-    return False
+def rank(s):
+    return SEV_ORDER.index(s) if s in SEV_ORDER else len(SEV_ORDER)
+
+
+def iso_ts(t):
+    """Normalize any Trivy timestamp to an ISO-8601 UTC string the browser can
+    parse and render in the viewer's own timezone."""
+    if not t:
+        return ""
+    s = re.sub(r"\.\d+", "", str(t).strip()).replace(" ", "T")
+    if s.endswith("Z") or re.search(r"[+-]\d{2}:?\d{2}$", s):
+        return s
+    return s + "Z"
+
+
+def load_reports(paths):
+    out = []
+    for p in paths:
+        try:
+            with open(p) as f:
+                out.append((p, json.load(f)))
+        except Exception as e:
+            print(f"skip {p}: {e}", file=sys.stderr)
+    return out
 
 
 def chart_of(target):
-    # Target looks like "urban/pt-services-v2/templates/deployment.yaml"
     for sep in ("/templates/", "/charts/"):
         if sep in target:
             return target.split(sep)[0]
-    # fall back to the directory holding the file
     return os.path.dirname(target) or target
 
 
-def aggregate(image_reports, helm_reports):
-    images, charts = [], []
-    vuln_index = {}   # (id,pkg) -> record
-    rule_index = {}   # id -> record
-    secrets = []
-    trivy_version = None
-    image_created = None
-    helm_created = None
+def tag_key(t):
+    m = re.match(r"v?(\d+)\.(\d+)\.(\d+)", t or "")
+    ver = tuple(int(x) for x in m.groups()) if m else (0, 0, 0)
+    b = re.search(r"-(\d+)$", t or "")
+    return (ver, int(b.group(1)) if b else 0, t or "")
 
-    def rank(s):
-        return SEV_ORDER.index(s) if s in SEV_ORDER else len(SEV_ORDER)
 
-    def tag_key(t):
-        m = re.match(r'v?(\d+)\.(\d+)\.(\d+)', t or "")
-        ver = tuple(int(x) for x in m.groups()) if m else (0, 0, 0)
-        b = re.search(r'-(\d+)$', t or "")
-        return (ver, int(b.group(1)) if b else 0, t or "")
+def domain_totals(rows, extra_secrets):
+    t = sev_bucket()
+    for r in rows:
+        for s in SEV_ORDER:
+            t[s] += r["counts"].get(s, 0)
+    t["secrets"] = extra_secrets
+    t["total"] = sum(t[s] for s in SEV_ORDER)
+    return t
 
-    # ---- images: parse each (repo:tag) report, group by repo ----------------
-    repo_map = {}   # repo -> {"repo":..., "tags":[ per-tag record ]}
-    for path, data in image_reports:
+
+# --------------------------------------------------------------------------- #
+# aggregation
+# --------------------------------------------------------------------------- #
+def aggregate_images(reports):
+    repo_map, vuln_index = {}, {}
+    trivy_version, created = None, None
+    for path, data in reports:
         trivy_version = trivy_version or (data.get("Trivy") or {}).get("Version")
-        image_created = image_created or data.get("CreatedAt")
+        created = created or data.get("CreatedAt")
         name = data.get("ArtifactName") or os.path.basename(path)
         repo, tag = (name.rsplit(":", 1) + ["latest"])[:2] if ":" in name else (name, "latest")
         meta = data.get("Metadata") or {}
         os_name = ""
         if meta.get("OS"):
             os_name = f"{meta['OS'].get('Family','')} {meta['OS'].get('Name','')}".strip()
-        counts = sev_bucket(); n_secrets = 0; findings = []; vulns_full = []
+        counts, n_secrets, findings, vulns_full = sev_bucket(), 0, [], []
         for r in data.get("Results") or []:
             for v in r.get("Vulnerabilities") or []:
                 sev = (v.get("Severity") or "UNKNOWN").upper()
@@ -95,36 +108,55 @@ def aggregate(image_reports, helm_reports):
         findings.sort(key=lambda f: rank(f["severity"]))
         rec = {"tag": tag, "os": os_name, "counts": counts, "total": sum(counts.values()),
                "secrets": n_secrets, "findings": findings[:40], "vulns_full": vulns_full,
-               "scanned_at": (data.get("CreatedAt") or "")}
+               "scanned_at": iso_ts(data.get("CreatedAt") or "")}
         repo_map.setdefault(repo, {"repo": repo, "tags": []})["tags"].append(rec)
 
-    # per repo: sort tags latest->oldest; latest tag is the representative
+    images = []
     for repo, rm in repo_map.items():
         rm["tags"].sort(key=lambda x: tag_key(x["tag"]), reverse=True)
         latest = rm["tags"][0]
-        # fleet aggregates come from the latest tag only (no cross-version double count)
         for v in latest["vulns_full"]:
             key = (v["id"], v["pkg"])
-            rec = vuln_index.setdefault(key, {
-                "id": v["id"], "pkg": v["pkg"], "installed": v["installed"], "fixed": v["fixed"],
-                "severity": v["severity"], "title": v["title"], "url": v["url"], "images": set()})
-            rec["images"].add(repo)
-            if v["fixed"] and not rec["fixed"]:
-                rec["fixed"] = v["fixed"]
-            # grouped variants keep the highest observed severity
-            if rank(v["severity"]) < rank(rec["severity"]):
-                rec["severity"] = v["severity"]
+            r = vuln_index.setdefault(key, {"id": v["id"], "pkg": v["pkg"],
+                "installed": v["installed"], "fixed": v["fixed"], "severity": v["severity"],
+                "title": v["title"], "url": v["url"], "images": set()})
+            r["images"].add(repo)
+            if v["fixed"] and not r["fixed"]:
+                r["fixed"] = v["fixed"]
+            if rank(v["severity"]) < rank(r["severity"]):
+                r["severity"] = v["severity"]
         for t in rm["tags"]:
             t.pop("vulns_full", None)
         images.append({"repo": repo, "latest_tag": latest["tag"], "tag_count": len(rm["tags"]),
                        "os": latest["os"], "counts": latest["counts"], "total": latest["total"],
                        "secrets": latest["secrets"], "tags": rm["tags"]})
 
-    # ---- helm / charts ------------------------------------------------------
-    chart_map = {}
-    for path, data in helm_reports:
+    vulns = []
+    for r in vuln_index.values():
+        r["count"] = len(r["images"]); r["images"] = sorted(r["images"]); vulns.append(r)
+    vulns.sort(key=lambda r: (rank(r["severity"]), -r["count"]))
+    images.sort(key=lambda r: (-r["counts"]["CRITICAL"], -r["counts"]["HIGH"], -r["total"]))
+
+    img_secrets = sum(i["secrets"] for i in images)
+    totals = domain_totals(images, img_secrets)
+    return {
+        "domain": "docker",
+        "images": images,
+        "vulns": vulns[:80],
+        "totals": totals,
+        "asset_count": len(images),
+        "tag_count": sum(i["tag_count"] for i in images),
+        "trivy_version": trivy_version or "",
+        "scanned_at": iso_ts(created or ""),
+    }
+
+
+def aggregate_helm(reports):
+    chart_map, rule_index, secrets = {}, {}, []
+    trivy_version, created = None, None
+    for path, data in reports:
         trivy_version = trivy_version or (data.get("Trivy") or {}).get("Version")
-        helm_created = helm_created or data.get("CreatedAt")
+        created = created or data.get("CreatedAt")
         for r in data.get("Results") or []:
             target = r.get("Target") or ""
             for m in r.get("Misconfigurations") or []:
@@ -132,28 +164,27 @@ def aggregate(image_reports, helm_reports):
                     continue
                 chart = chart_of(target)
                 c = chart_map.setdefault(chart, {"name": chart, "counts": sev_bucket(),
-                                                 "total": 0, "rules": {}, "findings": []})
+                    "total": 0, "rules": {}, "findings": []})
                 sev = (m.get("Severity") or "UNKNOWN").upper()
                 c["counts"][sev] = c["counts"].get(sev, 0) + 1
                 c["total"] += 1
                 rid = m.get("ID") or m.get("AVDID") or "?"
                 c["rules"][rid] = c["rules"].get(rid, 0) + 1
                 line = ((m.get("CauseMetadata") or {}).get("StartLine")) or ""
-                loc = {"chart": chart, "file": target, "line": line}
                 c["findings"].append({"rule": rid, "title": m.get("Title") or "",
-                                      "severity": sev, "file": target, "line": line})
-                rec = rule_index.setdefault(rid, {
-                    "id": rid, "title": m.get("Title") or "", "severity": sev,
-                    "resolution": m.get("Resolution") or "", "charts": set(), "locations": []})
+                    "severity": sev, "file": target, "line": line})
+                rec = rule_index.setdefault(rid, {"id": rid, "title": m.get("Title") or "",
+                    "severity": sev, "resolution": m.get("Resolution") or "",
+                    "charts": set(), "locations": []})
                 rec["charts"].add(chart)
                 if len(rec["locations"]) < 60:
-                    rec["locations"].append(loc)
+                    rec["locations"].append({"chart": chart, "file": target, "line": line})
             for s in r.get("Secrets") or []:
                 secrets.append({"domain": "helm", "where": target,
-                                "rule": s.get("RuleID") or s.get("Category") or "secret",
-                                "severity": (s.get("Severity") or "").upper(),
-                                "title": s.get("Title") or "",
-                                "location": f"line {s.get('StartLine','?')}"})
+                    "rule": s.get("RuleID") or s.get("Category") or "secret",
+                    "severity": (s.get("Severity") or "").upper(),
+                    "title": s.get("Title") or "", "location": f"line {s.get('StartLine','?')}"})
+    charts = []
     for c in chart_map.values():
         top = sorted(c["rules"].items(), key=lambda kv: -kv[1])
         c["top_rule"] = top[0][0] if top else ""
@@ -161,116 +192,183 @@ def aggregate(image_reports, helm_reports):
         c["findings"].sort(key=lambda f: rank(f["severity"]))
         c["findings"] = c["findings"][:60]
         charts.append(c)
-
-    # ---- top lists ----------------------------------------------------------
-    vulns = []
-    for rec in vuln_index.values():
-        rec["count"] = len(rec["images"])
-        rec["images"] = sorted(rec["images"])
-        vulns.append(rec)
     rules = []
-    for rec in rule_index.values():
-        rec["count"] = len(rec["charts"])
-        rec["charts"] = sorted(rec["charts"])
-        rules.append(rec)
-
-    def sev_rank(s):
-        return SEV_ORDER.index(s) if s in SEV_ORDER else len(SEV_ORDER)
-
-    vulns.sort(key=lambda r: (sev_rank(r["severity"]), -r["count"]))
-    rules.sort(key=lambda r: (sev_rank(r["severity"]), -r["count"]))
-    images.sort(key=lambda r: (-r["counts"]["CRITICAL"], -r["counts"]["HIGH"], -r["total"]))
+    for r in rule_index.values():
+        r["count"] = len(r["charts"]); r["charts"] = sorted(r["charts"]); rules.append(r)
+    rules.sort(key=lambda r: (rank(r["severity"]), -r["count"]))
     charts.sort(key=lambda r: (-r["counts"]["CRITICAL"], -r["counts"]["HIGH"], -r["total"]))
 
-    def domain_totals(rows, extra_secrets):
-        t = sev_bucket()
-        for r in rows:
-            for s in SEV_ORDER:
-                t[s] += r["counts"].get(s, 0)
-        t["secrets"] = extra_secrets
-        t["total"] = sum(t[s] for s in SEV_ORDER)
-        return t
-
-    img_secrets = sum(img["secrets"] for img in images)   # latest tag per repo
-    helm_secrets = sum(1 for s in secrets if s["domain"] == "helm")
-
-    def iso_ts(t):
-        # Emit an ISO-8601 UTC timestamp the browser can parse and render in the
-        # viewer's own timezone (the dashboard formats these client-side).
-        if not t:
-            return ""
-        s = re.sub(r"\.\d+", "", str(t).strip()).replace(" ", "T")
-        if s.endswith("Z") or re.search(r"[+-]\d{2}:?\d{2}$", s):
-            return s
-        return s + "Z"
-
-    meta = {
-        "generated_at": datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
-        "image_scanned_at": iso_ts(image_created),
-        "helm_scanned_at": iso_ts(helm_created),
+    totals = domain_totals(charts, len(secrets))
+    return {
+        "domain": "helm",
+        "charts": charts,
+        "rules": rules[:80],
+        "secrets": secrets,
+        "totals": totals,
+        "asset_count": len(charts),
         "trivy_version": trivy_version or "",
-        "images_count": len(images),
-        "image_tags_count": sum(i["tag_count"] for i in images),
-        "charts_count": len(charts),
+        "scanned_at": iso_ts(created or ""),
     }
-    totals = {
-        "image": domain_totals(images, img_secrets),
-        "helm": domain_totals(charts, helm_secrets),
-    }
-    overall = sev_bucket()
-    for d in ("image", "helm"):
-        for s in SEV_ORDER:
-            overall[s] += totals[d][s]
-    overall["secrets"] = img_secrets + helm_secrets
-    overall["total"] = sum(overall[s] for s in SEV_ORDER)
-    totals["overall"] = overall
 
-    return {"meta": meta, "totals": totals, "images": images, "charts": charts,
-            "vulns": vulns[:50], "rules": rules[:50], "secrets": secrets}
+
+def score_of(t):
+    ch, hi, se = t["CRITICAL"], t["HIGH"], t.get("secrets", 0)
+    if ch > 50: return 1
+    if ch > 20: return 2
+    if ch > 10: return 3
+    if ch > 0:  return 4
+    if hi > 50: return 5
+    if hi > 20: return 6
+    if hi > 5:  return 7
+    if hi > 0:  return 8
+    if se > 0:  return 9
+    return 10
+
+
+# --------------------------------------------------------------------------- #
+# run archive
+# --------------------------------------------------------------------------- #
+def run_id(branch, ts):
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", (branch or "scan")).strip("-").lower() or "scan"
+    stamp = re.sub(r"[^0-9]", "", (ts or "")) or hashlib.sha1(os.urandom(8)).hexdigest()[:12]
+    return f"{slug}-{stamp}"[:80]
+
+
+def update_manifest(runs_dir, entry, max_runs):
+    os.makedirs(runs_dir, exist_ok=True)
+    mpath = os.path.join(runs_dir, "manifest.json")
+    runs = []
+    if os.path.exists(mpath):
+        try:
+            runs = json.load(open(mpath)).get("runs", [])
+        except Exception:
+            runs = []
+    runs = [r for r in runs if r.get("id") != entry["id"]]
+    runs.append(entry)
+    # newest first by scan time
+    runs.sort(key=lambda r: r.get("scanned_at") or "", reverse=True)
+    # trim, deleting archived files that fall off the list
+    keep, drop = runs[:max_runs], runs[max_runs:]
+    for r in drop:
+        try:
+            os.remove(os.path.join(runs_dir, r["id"] + ".json"))
+        except OSError:
+            pass
+    json.dump({"runs": keep}, open(mpath, "w"), ensure_ascii=False)
+    return keep
+
+
+# --------------------------------------------------------------------------- #
+# rendering
+# --------------------------------------------------------------------------- #
+def embed(page, model):
+    blob = json.dumps(model, ensure_ascii=False)
+    blob = blob.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
+    return page.replace("/*__DATA__*/{}", blob)
+
+
+def read_tpl(name):
+    return open(os.path.join(os.path.dirname(os.path.abspath(__file__)), name)).read()
+
+
+def build_domain(args):
+    reports = load_reports(sorted(glob.glob(os.path.join(args.data, "*.json"))))
+    model = aggregate_images(reports) if args.domain == "docker" else aggregate_helm(reports)
+
+    scanned_at = iso_ts(args.scanned_at) or model["scanned_at"] \
+        or datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
+    branch = args.branch or ("master" if args.domain == "docker" else "")
+    rid = run_id(branch, scanned_at)
+    t = model["totals"]
+    entry = {"id": rid, "branch": branch, "scanned_at": scanned_at,
+             "actor": args.actor or "", "occ": t["total"],
+             "critical": t["CRITICAL"], "high": t["HIGH"],
+             "assets": model["asset_count"], "score": score_of(t)}
+
+    repo = None
+    if args.repo_url and (args.ref or branch):
+        repo = {"url": args.repo_url.rstrip("/"), "ref": (args.ref or branch),
+                "helm_prefix": args.helm_prefix.strip("/") if args.domain == "helm" else ""}
+
+    meta = {"domain": args.domain, "generated_at":
+            datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
+            "scanned_at": scanned_at, "branch": branch, "actor": args.actor or "",
+            "trivy_version": model["trivy_version"], "asset_count": model["asset_count"],
+            "tag_count": model.get("tag_count", 0), "score": score_of(t), "repo": repo}
+    model["meta"] = meta
+
+    # archive this run (full model) + refresh manifest
+    site_domain = os.path.join(args.site, args.domain)
+    runs_dir = os.path.join(site_domain, "data", "runs")
+    os.makedirs(runs_dir, exist_ok=True)
+    json.dump({**model, "meta": meta, "run": entry},
+              open(os.path.join(runs_dir, rid + ".json"), "w"), ensure_ascii=False)
+    runs = update_manifest(runs_dir, entry, MAX_RUNS.get(args.domain, 12))
+    for r in runs:
+        r["latest"] = (r["id"] == runs[0]["id"])
+
+    # The page embeds only a light bootstrap (meta + run list); the heavy per-run
+    # model is fetched from data/runs/<id>.json on load and on run switch. This
+    # keeps index.html small and avoids duplicating the data both inline and in
+    # the archive.
+    boot = {"domain": args.domain, "meta": meta, "repo": repo,
+            "runs": runs, "current": rid}
+    os.makedirs(site_domain, exist_ok=True)
+    page = embed(read_tpl("dash.html"), boot)
+    out = os.path.join(site_domain, "index.html")
+    open(out, "w").write(page)
+
+    # a compact per-domain summary the landing page reads
+    json.dump({"domain": args.domain, "scanned_at": scanned_at, "branch": branch,
+               "actor": args.actor or "", "score": score_of(t), "totals": t,
+               "asset_count": model["asset_count"], "tag_count": model.get("tag_count", 0),
+               "run_count": len(runs)},
+              open(os.path.join(site_domain, "summary.json"), "w"), ensure_ascii=False)
+
+    print(f"wrote {out}  ({args.domain}: assets={model['asset_count']} "
+          f"CRIT={t['CRITICAL']} HIGH={t['HIGH']} score={score_of(t)}/10 runs={len(runs)})")
+
+
+def build_landing(args):
+    def load_summary(dom):
+        p = os.path.join(args.site, dom, "summary.json")
+        if os.path.exists(p):
+            try:
+                return json.load(open(p))
+            except Exception:
+                return None
+        return None
+    model = {"generated_at":
+             datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
+             "docker": load_summary("docker"), "helm": load_summary("helm")}
+    page = embed(read_tpl("landing.html"), model)
+    open(os.path.join(args.site, "index.html"), "w").write(page)
+    print(f"wrote {os.path.join(args.site, 'index.html')} (landing)")
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--images", help="dir of Trivy image JSON")
-    ap.add_argument("--helm", help="dir of Trivy Helm/config JSON")
-    ap.add_argument("--results", help="dir of mixed Trivy JSON (auto-detect type)")
-    ap.add_argument("--out", default="site", help="output dir")
-    ap.add_argument("--title", default="DIGIT Container & Chart Security")
-    ap.add_argument("--repo-url", default="", help="repo web URL for file hyperlinks (e.g. https://github.com/egovernments/DIGIT-DevOps)")
-    ap.add_argument("--ref", default="", help="branch/commit the Helm scan ran on (for blob links)")
-    ap.add_argument("--helm-prefix", default="deploy-as-code/helm/charts", help="path prefix of the charts dir within the repo")
+    sub = ap.add_subparsers(dest="mode", required=True)
+
+    d = sub.add_parser("domain")
+    d.add_argument("--domain", required=True, choices=["docker", "helm"])
+    d.add_argument("--data", required=True, help="dir of raw Trivy JSON for this domain")
+    d.add_argument("--site", required=True, help="site root (…/security/trivy)")
+    d.add_argument("--branch", default="")
+    d.add_argument("--actor", default="")
+    d.add_argument("--scanned-at", default="", dest="scanned_at")
+    d.add_argument("--repo-url", default="", dest="repo_url")
+    d.add_argument("--ref", default="")
+    d.add_argument("--helm-prefix", default="deploy-as-code/helm/charts", dest="helm_prefix")
+
+    l = sub.add_parser("landing")
+    l.add_argument("--site", required=True)
+
     args = ap.parse_args()
-
-    image_reports, helm_reports = [], []
-    if args.results:
-        for _, data in load_reports(sorted(glob.glob(os.path.join(args.results, "**/*.json"), recursive=True))):
-            (image_reports if is_image_report(data) else helm_reports).append(("", data))
-    if args.images:
-        image_reports += load_reports(sorted(glob.glob(os.path.join(args.images, "*.json"))))
-    if args.helm:
-        helm_reports += load_reports(sorted(glob.glob(os.path.join(args.helm, "*.json"))))
-
-    model = aggregate(image_reports, helm_reports)
-    model["meta"]["title"] = args.title
-    model["meta"]["repo"] = {"url": args.repo_url.rstrip("/"), "ref": args.ref,
-                             "helm_prefix": args.helm_prefix.strip("/")} if args.repo_url and args.ref else None
-
-    os.makedirs(args.out, exist_ok=True)
-    tpl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "template.html")
-    with open(tpl) as f:
-        page = f.read()
-    # escape for an inline <script> context so a scanned string containing
-    # </script> or HTML can't break out of the DATA blob (XSS)
-    embedded = json.dumps(model, ensure_ascii=False)
-    embedded = embedded.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
-    page = page.replace("/*__DATA__*/{}", embedded)
-    out = os.path.join(args.out, "index.html")
-    with open(out, "w") as f:
-        f.write(page)
-    m = model["meta"]; o = model["totals"]["overall"]
-    print(f"wrote {out}")
-    print(f"  images={m['images_count']} charts={m['charts_count']} "
-          f"CRITICAL={o['CRITICAL']} HIGH={o['HIGH']} secrets={o['secrets']}")
+    if args.mode == "domain":
+        build_domain(args)
+    else:
+        build_landing(args)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,44 @@
+## Registers QEMU binfmt handlers on the nodes so kaniko can build linux/arm64
+## images on AMD64 hardware.
+##
+## Without this, the arm64 branch of a multi-arch build fails with
+##   error building image: ... fork/exec /bin/sh: exec format error
+## which is what broke builds/Digit-Core/core-services/default-data-handler #67.
+##
+## The DaemonSet lands in kube-system but carries the dedicated=egov-jenkins
+## toleration so it also covers the tainted Jenkins pool where builds run.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jenkins-binfmt
+  namespace: argocd
+spec:
+  project: jenkins-project
+
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: jenkins-upgrade
+    path: deploy-as-code/helm/charts/backbone-services/binfmt
+    helm:
+      releaseName: binfmt
+      valueFiles:
+        - values.yaml
+        - ../../../environments/ci.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 3m

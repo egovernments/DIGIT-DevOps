@@ -1,0 +1,46 @@
+# unified-core Kargo pipeline: notification services, DEV -> QA -> UAT.
+kargo:
+  project: unified-core
+  registry: docker.io/egovio
+  argocdAppPrefix: egov-
+  git:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+
+  services:
+    - name: egov-notification-mail
+      freightCreationPolicy: Manual
+      # keep matched tags to ~20-40 (runbook §8): NewestBuild fetches a blob per matched tag
+      allowTags: '^(master|sandbox|base-docker-upgrade)-[0-9a-f]+'
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 30m0s
+    - name: egov-notification-sms
+      freightCreationPolicy: Manual
+      allowTags: '^(master|sandbox|base-docker-upgrade)-[0-9a-f]+'
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 30m0s
+
+  # Only DEV shares the cluster with Kargo (argocdUpdate); QA/UAT are cross-cluster git-push.
+  stages:
+    - name: dev
+      color: "#3BA9C2"
+      branch: unified-env-lts
+      envFile: deploy-as-code/helm/environments/unified-dev.yaml
+      autoPromotion: false
+      argocdUpdate: true
+      argocdNamespace: argocd
+    - name: qa
+      color: "#D64550"
+      from: dev
+      branch: unified-env-lts
+      envFile: deploy-as-code/helm/environments/unified-qa.yaml
+      autoPromotion: false
+    - name: uat
+      color: "#F2C230"
+      from: qa
+      branch: unified-env-lts
+      envFile: deploy-as-code/helm/environments/unified-uat.yaml
+      autoPromotion: false

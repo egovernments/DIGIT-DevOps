@@ -57,5 +57,43 @@ roleRef:
   ## Kargo itself; reusing them keeps these teams on the stock permission sets.
   name: kargo-{{ $role }}
   apiGroup: rbac.authorization.k8s.io
+---
+{{- /*
+  WHY A SECOND, CLUSTER-SCOPED BINDING IS REQUIRED
+
+  `projects.kargo.akuity.io` is CLUSTER-scoped (NAMESPACED=false), but the
+  three Roles above are namespaced and grant only stages/warehouses/
+  promotions/freights/projectconfigs. A namespaced Role can never grant read
+  on a cluster-scoped resource, so without this a user authenticates fine,
+  is matched to this ServiceAccount, and then sees an EMPTY project list --
+  the UI lists Projects before it can show anything else.
+
+  kargo-user is Kargo's own ClusterRole for this and grants ONLY
+  projects [get, list, watch] -- no stages, promotions or secrets -- so
+  per-project isolation is unaffected.
+
+  TRADE-OFF: `list` on a cluster-scoped resource cannot be filtered, so every
+  user sees the NAMES of all Projects. Contents stay isolated: without a
+  namespaced Role in another project, listing its stages is still denied.
+  To hide names too, swap for a per-project ClusterRole using
+  resourceNames: [<project>] with get/watch only -- but then the UI project
+  list is empty and users must navigate by direct URL.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  ## Cluster-scoped, so the name must be unique across all projects.
+  name: kargo-user-{{ $k.project }}-team-{{ $team.name }}
+  labels:
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    kargo.akuity.io/project: {{ $k.project }}
+subjects:
+  - kind: ServiceAccount
+    name: team-{{ $team.name }}
+    namespace: {{ $k.project }}
+roleRef:
+  kind: ClusterRole
+  name: kargo-user
+  apiGroup: rbac.authorization.k8s.io
 {{- end }}
 {{- end }}

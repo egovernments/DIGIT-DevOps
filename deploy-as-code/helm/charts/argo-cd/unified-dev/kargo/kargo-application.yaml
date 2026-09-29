@@ -21,6 +21,17 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: kargo
+  # The AKS Admissions Enforcer appends `control-plane NotIn [true]` and
+  # `kubernetes.azure.com/managedby NotIn [aks]` to every webhook's
+  # namespaceSelector. Most kargo webhooks leave that field unset so the
+  # addition is tolerated, but the two replicated-resource webhooks declare
+  # one -- without this, selfHeal strips AKS's entries and AKS re-adds them.
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: kargo
+      jqPathExpressions:
+        - '.webhooks[]?.namespaceSelector.matchExpressions[]? | select(.key == "control-plane" or .key == "kubernetes.azure.com/managedby")'
   syncPolicy:
     automated:
       prune: false
@@ -28,6 +39,8 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      # Required so the sync itself also leaves the ignored fields alone.
+      - RespectIgnoreDifferences=true
     retry:
       limit: 10
       backoff:

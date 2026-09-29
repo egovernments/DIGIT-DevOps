@@ -1,0 +1,61 @@
+{{- $k := .Values.kargo }}
+{{- if and $k.project $k.teams }}
+{{- /*
+  Per-project access for GitHub teams.
+
+  HOW KARGO AUTHORIZATION WORKS
+    Kargo does not have its own user database. After Dex authenticates someone
+    against GitHub, Kargo matches claims in the resulting OIDC token against
+    `rbac.kargo.akuity.io/claim.<claim>` annotations on ServiceAccounts, and
+    the caller then inherits whatever Kubernetes RBAC those ServiceAccounts
+    have. Because a ServiceAccount lives in ONE namespace, and a Kargo Project
+    IS a namespace, annotating here scopes a team to this project only -- a
+    team gets nothing in projects where it is not listed.
+
+  WHY NEW ServiceAccounts INSTEAD OF ANNOTATING kargo-admin/promoter/viewer
+    Kargo's management controller creates those three itself and marks them
+    `rbac.kargo.akuity.io/managed: "true"`. Editing controller-owned objects
+    from Helm invites a reconcile fight. These are separate, Helm-owned
+    ServiceAccounts that simply RoleBind to the same three Roles, so the
+    permission sets stay identical while ownership stays clean.
+
+  The groups claim is "<org>:<team-slug>", e.g. egovernments:micro-service-dev.
+  This depends on `teamNameField: slug` in the Dex connector.
+*/}}
+{{- range $team := $k.teams }}
+{{- $role := $team.role | default "viewer" }}
+{{- if not (has $role (list "admin" "promoter" "viewer")) }}
+{{- fail (printf "kargo.teams: role %q is invalid for team %q - must be admin, promoter or viewer" $role $team.name) }}
+{{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: team-{{ $team.name }}
+  namespace: {{ $k.project }}
+  annotations:
+    ## Comma-separate to map several GitHub teams onto the same access level.
+    rbac.kargo.akuity.io/claim.groups: {{ $team.groups | join "," | quote }}
+  labels:
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    kargo.akuity.io/project: {{ $k.project }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: team-{{ $team.name }}
+  namespace: {{ $k.project }}
+  labels:
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+subjects:
+  - kind: ServiceAccount
+    name: team-{{ $team.name }}
+    namespace: {{ $k.project }}
+roleRef:
+  kind: Role
+  ## kargo-admin / kargo-promoter / kargo-viewer are created per project by
+  ## Kargo itself; reusing them keeps these teams on the stock permission sets.
+  name: kargo-{{ $role }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+{{- end }}

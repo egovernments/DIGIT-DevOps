@@ -20,10 +20,54 @@ api:
       secretName: kargo.digit.org-tls-certs
     pathType: Prefix
   adminAccount:
+    # Keep enabled until GitHub SSO below is confirmed working, then set false
+    # so the shared admin password stops being a valid way in.
     enabled: true
     tokenTTL: 24h
   secret:
     name: kargo-api
+
+  # ---------------------------------------------------------------------
+  # GitHub SSO.
+  #
+  # GitHub speaks OAuth2, not OIDC, so Kargo cannot consume it directly --
+  # Dex bridges the two and re-issues a proper OIDC token. Same pattern as
+  # ArgoCD and Grafana in this cluster.
+  #
+  # Needs its OWN GitHub OAuth App; the callback is unique per app so the
+  # ArgoCD/Grafana ones cannot be reused:
+  #   Homepage URL:     https://kargo.digit.org
+  #   Authorization cb: https://kargo.digit.org/dex/callback
+  # (Dex's issuer is <api.baseURL>/dex, and its callback is always
+  #  <issuer>/callback. The API server reverse-proxies /dex, so the existing
+  #  kargo-api Ingress already covers it -- no extra ingress rule.)
+  #
+  # Credentials are NOT here: they come from the kargo-dex-github Secret,
+  # which cluster-configs renders from the SOPS-encrypted
+  # environments/<env>-secrets.yaml (cluster-configs.secrets.kargo.dexSecret).
+  # ---------------------------------------------------------------------
+  oidc:
+    enabled: true
+    dex:
+      enabled: true
+      envFrom:
+        - secretRef:
+            name: kargo-dex-github
+      connectors:
+        - type: github
+          id: github
+          name: GitHub
+          config:
+            clientID: $GITHUB_CLIENT_ID
+            clientSecret: $GITHUB_CLIENT_SECRET
+            redirectURI: https://kargo.digit.org/dex/callback
+            orgs:
+              - name: egovernments
+            # REQUIRED for per-project access. Without it the groups claim
+            # carries only the org, so every team collapses to "egovernments"
+            # and the per-project RBAC in templates/rbac.yaml cannot
+            # distinguish them. With it: "egovernments:<team-slug>".
+            teamNameField: slug
   argocd:
     urls:
       "": https://unified-dev.digit.org/argocd

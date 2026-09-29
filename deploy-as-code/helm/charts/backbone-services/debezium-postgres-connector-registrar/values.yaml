@@ -50,25 +50,16 @@ args:
     #     FOR TABLES IN SCHEMA health;
     # `FOR TABLES IN SCHEMA` keeps new health tables included automatically.
     #
-    # The capture set has now widened beyond `health`: public.message (the
-    # localization service's message store) is in table.include.list below and
-    # `FOR TABLES IN SCHEMA health` will never cover it, so it must be added to
-    # the publication by hand. ALTER PUBLICATION ... ADD TABLE requires
-    # ownership of both the publication and the table, so this runs as whoever
-    # owns public.message -- not the `debezium` role:
-    #   ALTER PUBLICATION debezium_unified_dev_publication
-    #     ADD TABLE public.message;
-    # Until that runs, the connector reads no message events and fails no
-    # loudly-visible check -- the topic simply stays empty.
+    # Localization (public.message) is captured by its own connector and
+    # publication, registered further down.
     #
     # That publication is wider than table.include.list below, so PostgreSQL
     # still exposes every health table to logical replication and will reject
     # UPDATEs on any of them lacking a replica identity. Narrowing it to the
-    # same 39 tables closes that, and must be done as unifieddev:
+    # same 38 tables closes that, and must be done as unifieddev:
     #   DROP PUBLICATION debezium_unified_dev_publication;
     #   CREATE PUBLICATION debezium_unified_dev_publication
-    #     FOR TABLE health.household, health.household_member, ... ,
-    #               public.message;
+    #     FOR TABLE health.household, health.household_member, ... ;
     #
     # database.user/database.password are `${file:...}` references into the
     # properties file the sibling `debezium-postgres-connect` chart's init
@@ -107,6 +98,49 @@ args:
       -o /dev/null -w 'HTTP %{http_code}\n' \
       "$CONNECT_REST_URL/connectors/$CONNECTOR_NAME/config"
 
+    # ------------------------------------------------------------------
+    # Localization connector: captures public.message only.
+    #
+    # Streaming is filtered by the row filter on its publication; the initial
+    # snapshot is filtered by snapshot.select.statement.overrides. Both use
+    # LOCALIZATION_MODULE_PREFIX.
+    #
+    # The publication, the replica identity it needs and the SELECT grant are
+    # created by 01-postgres/localization_publication.sql.
+    cat <<JSON > /tmp/connector-localization.json
+    {
+      "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+      "database.hostname": "$DB_HOST",
+      "database.port": "$DB_PORT",
+      "database.user": "\${file:/config-providers/db.properties:username}",
+      "database.password": "\${file:/config-providers/db.properties:password}",
+      "database.dbname": "$DB_NAME",
+      "topic.prefix": "$TOPIC_PREFIX",
+      "plugin.name": "pgoutput",
+      "slot.name": "$LOCALIZATION_SLOT_NAME",
+      "publication.name": "$LOCALIZATION_PUBLICATION_NAME",
+      "publication.autocreate.mode": "disabled",
+      "table.include.list": "public.message",
+      "snapshot.mode": "initial",
+      "snapshot.select.statement.overrides": "public.message",
+      "snapshot.select.statement.overrides.public.message": "SELECT * FROM public.message WHERE module LIKE '$LOCALIZATION_MODULE_PREFIX%'",
+      "snapshot.fetch.size": "2048",
+      "max.queue.size": "4096",
+      "max.batch.size": "1024",
+      "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+      "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+      "key.converter.schemas.enable": "false",
+      "value.converter.schemas.enable": "false",
+      "decimal.handling.mode": "string",
+      "tombstones.on.delete": "true"
+    }
+    JSON
+    echo "Registering $LOCALIZATION_CONNECTOR_NAME against $CONNECT_REST_URL"
+    curl -sf -X PUT -H "Content-Type: application/json" \
+      --data @/tmp/connector-localization.json \
+      -o /dev/null -w 'HTTP %{http_code}\n' \
+      "$CONNECT_REST_URL/connectors/$LOCALIZATION_CONNECTOR_NAME/config"
+
 env: |
   # REST API of the worker deployed by the sibling `debezium-postgres-connect` chart.
   - name: CONNECT_REST_URL
@@ -119,7 +153,7 @@ env: |
     value: "debezium_unified_dev"
   - name: PUBLICATION_NAME
     value: "debezium_unified_dev_publication"
-  # The 39 tables the Bronze layer consumes, schema-qualified. Narrowed from
+  # The 38 tables the Bronze layer consumes, schema-qualified. Narrowed from
   # `schema.include.list: health`, which captured all 152 tables in the schema
   # and OOM-killed the snapshot on eg_cm_campaign_data (1.08M rows) at a 512M
   # heap.
@@ -130,20 +164,22 @@ env: |
   # its UPDATEs rejected by PostgreSQL. Narrowing the publication to match is a
   # separate change, made as unifieddev.
   #
-  # public.message is the one entry outside the `health` schema, and so the one
-  # entry the publication does NOT pick up automatically -- see the ALTER
-  # PUBLICATION note in `args` above. Adding it here alone does nothing.
-  #
-  # It is also added to a connector that has already snapshotted. snapshot.mode
-  # is unset (= `initial`), which snapshots only on the connector's first start,
-  # and no signal.data.collection is configured for an incremental snapshot --
-  # so the rows already in public.message will never arrive on their own. They
-  # need a one-off load into analytics.stg_localization.
+  # public.message is captured by the localization connector, not here.
   #
   # Kept in step with raw_event_bronze_config.py in the analytics repo: a table
   # added there needs adding here, and to the publication.
   - name: TABLE_INCLUDE_LIST
-    value: "health.address,health.eg_expense_bill,health.eg_expense_billdetail,health.eg_expense_lineitem,health.eg_expense_party,health.eg_pgr_address_v2,health.eg_pgr_service_v2,health.eg_push_device_tokens,health.eg_service,health.eg_service_attribute_value,health.eg_service_definition,health.eg_wms_attendance_attendee,health.eg_wms_attendance_log,health.eg_wms_attendance_register,health.eg_wms_attendance_staff,health.eg_wms_attendance_summary,health.eg_wms_muster_roll,health.facility,health.hf_referral,health.household,health.household_member,health.individual,health.individual_address,health.product,health.product_variant,health.project,health.project_address,health.project_beneficiary,health.project_facility,health.project_staff,health.project_target,health.project_task,health.referral,health.side_effect,health.stock,health.stock_reconciliation_log,health.task_resource,health.user_action,public.message"
+    value: "health.address,health.eg_expense_bill,health.eg_expense_billdetail,health.eg_expense_lineitem,health.eg_expense_party,health.eg_pgr_address_v2,health.eg_pgr_service_v2,health.eg_push_device_tokens,health.eg_service,health.eg_service_attribute_value,health.eg_service_definition,health.eg_wms_attendance_attendee,health.eg_wms_attendance_log,health.eg_wms_attendance_register,health.eg_wms_attendance_staff,health.eg_wms_attendance_summary,health.eg_wms_muster_roll,health.facility,health.hf_referral,health.household,health.household_member,health.individual,health.individual_address,health.product,health.product_variant,health.project,health.project_address,health.project_beneficiary,health.project_facility,health.project_staff,health.project_target,health.project_task,health.referral,health.side_effect,health.stock,health.stock_reconciliation_log,health.task_resource,health.user_action"
+  # --- localization connector (public.message) ---------------------------
+  - name: LOCALIZATION_CONNECTOR_NAME
+    value: "unified-dev-localization-cdc"
+  - name: LOCALIZATION_SLOT_NAME
+    value: "debezium_localization"
+  - name: LOCALIZATION_PUBLICATION_NAME
+    value: "debezium_localization_publication"
+  # Used by both the publication's row filter and the snapshot override.
+  - name: LOCALIZATION_MODULE_PREFIX
+    value: "hcm-boundary-"
   - name: DB_PORT
     value: "5432"
   - name: DB_HOST

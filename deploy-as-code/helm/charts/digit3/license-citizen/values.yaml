@@ -1,0 +1,43 @@
+# Common Labels
+labels:
+  app: "license-citizen"
+  group: "web"
+
+# global:
+#     containerRegistry: taherabharmal
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: false
+  context: "license/citizen"
+
+# Init Containers Configs
+initContainers: {}
+
+# Container Configs
+image:
+  repository: "license-citizen"
+  tag: "latest"
+replicas: "1"
+httpPort: 80
+healthChecks:
+  enabled: true
+  livenessProbePath: "/license/citizen/health"
+  readinessProbePath: "/license/citizen/health"
+
+# Additional Container Envs
+env: |
+  # Internal Kong gateway (avoids hairpinning the public ELB -> fixes flaky/alternating
+  # responses). UI nginx preserves `Host: $host` (digit-lts.digit.org) so Kong host routes
+  # still match. /license suffix kept to preserve the existing proxy path behavior.
+  - name: API_PROXY_TARGET
+    value: "https://digit-lts.digit.org/license"
+
+resources: |
+  requests:
+    cpu: "100m"
+    memory: "300Mi"
+  limits:
+    cpu: "300m"
+    memory: "800Mi"

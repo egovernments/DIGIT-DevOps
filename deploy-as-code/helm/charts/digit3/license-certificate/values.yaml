@@ -1,0 +1,194 @@
+# Common Labels
+labels:
+  app: "license-certificate"
+  group: "rainmaker"
+
+# global:
+#   containerRegistry: taherabharmal
+    
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "license"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "license_certificate_schema"
+    image:
+      repository: "license-certificate-db"
+
+# Container Configs
+image:
+  repository: "license-certificate"
+replicas: "1"
+appType: "java-spring"
+heap: "-Xmx1012m -Xms512m"
+memory_limits: 1500Mi
+memory_requests: 768Mi
+tracing-export-enabled: "false"
+metrics-export-enabled: "false"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/license/actuator/health"
+  readinessProbePath: "/license/actuator/health"
+  livenessProbe: |
+    httpGet:
+      path: "{{ .Values.healthChecks.livenessProbePath }}"
+      port: {{ .Values.httpPort }}
+    initialDelaySeconds: 90
+    timeoutSeconds: 5
+    periodSeconds: 30
+    successThreshold: 1
+    failureThreshold: 5
+  readinessProbe: |
+    httpGet:
+      path: "{{ .Values.healthChecks.readinessProbePath }}"
+      port: {{ .Values.httpPort }}
+    initialDelaySeconds: 90
+    timeoutSeconds: 5
+    periodSeconds: 15
+    successThreshold: 1
+    failureThreshold: 5
+
+# Additional Container Envs
+env: |
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_NAME
+    value: "postgres"
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+  # - name: SPRING_DATASOURCE_URL
+  #   valueFrom:
+  #     configMapKeyRef:
+  #       key: db-url
+  #       name: egov-config
+  - name: SPRING_DATA_REDIS_HOST
+    value: "redis.backbone"
+  - name: SPRING_DATA_REDIS_PORT
+    value: "6379"
+  - name: EGOV_IDGEN_HOST
+    value: {{ index .Values "idgen-host" | default .Values.domain | quote }}
+  - name: EGOV_WORKFLOW_HOST
+    value: {{ index .Values "workflow-host" | default .Values.domain | quote }}
+  - name: EGOV_WORKFLOW_INTERNAL_TRANSITION_SEGMENT
+    value: "system"
+  - name: EGOV_CALCULATION_HOST
+    value: {{ index .Values "domain" | quote }}
+  - name: EGOV_CALCULATOR_HOST
+    value: {{ index .Values "calculator-host" | default .Values.domain | quote }}
+  - name: EGOV_SCHEMA_REGISTRY_HOST
+    value: {{ index .Values "schema-registry-host" | default .Values.domain | quote }}
+  - name: EGOV_FILESTORE_HOST
+    value: {{ index .Values "filestore-host" | default .Values.domain | quote }}
+  - name: EGOV_MDMS_HOST
+    value: {{ index .Values "mdms-host" | default .Values.domain | quote }}
+  - name: EGOV_BILLING_HOST
+    value: {{ index .Values "billing-host" | default .Values.domain | quote }}
+  - name: EGOV_BOUNDARY_HOST
+    value: {{ index .Values "boundary-host" | default .Values.domain | quote }}
+  - name: EGOV_INDIVIDUAL_HOST
+    value: {{ index .Values "individual-host" | default .Values.domain | quote }}
+  - name: EGOV_NOTIFICATION_HOST
+    value: {{ index .Values "notification-host" | default .Values.domain | quote }}
+  - name: EGOV_REGISTRY_HOST
+    value: {{ index .Values "registry-host" | default .Values.domain | quote }}
+  - name: APP_PORT
+    value: "8080"
+  - name: EGOV_PDF_SERVICE_HOST
+    value: {{ index .Values "pdf-service-host" | default .Values.domain | quote }}
+  - name: EGOV_VC_SERVICE_HOST
+    value: {{ index .Values "vc-service-host" | default .Values.domain | quote }}
+  - name: MASTER_TENANT_SCHEMA
+    value: {{ index .Values "master-tenant-schema" | quote }}
+  - name: EGOV_BILLING_INTERNAL_HOST
+    value: {{ index .Values "billing-internal-host" | quote }}
+  - name: EGOV_CALCULATOR_INTERNAL_HOST
+    value: {{ index .Values "calculator-internal-host" | quote }}
+  - name: EGOV_FILESTORE_INTERNAL_HOST
+    value: {{ index .Values "filestore-internal-host" | quote }}
+  - name: EGOV_PDF_SERVICE_INTERNAL_HOST
+    value: {{ index .Values "pdf-service-internal-host" | quote }}
+  - name: EGOV_SCHEMA_REGISTRY_INTERNAL_HOST
+    value: {{ index .Values "schema-registry-internal-host" | quote }}
+  - name: EGOV_VC_SERVICE_INTERNAL_HOST
+    value: {{ index .Values "vc-service-internal-host" | quote }}
+  - name: EGOV_METABASE_HOST
+    value: {{ index .Values "metabase-host" | quote }}
+  - name: EGOV_METABASE_API_KEY
+    valueFrom:
+      secretKeyRef:
+        key: egov-metabase-api-key
+        name: egov-metabase
+  - name: EGOV_METABASE_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        key: egov-metabase-secret-key
+        name: egov-metabase
+  - name: EGOV_METABASE_DATABASE_ID
+    value: "4"
+  - name: EGOV_METABASE_COLLECTION_ID
+    value: "7"
+  - name: EGOV_OTP_HOST
+    value: {{ index .Values "domain" | quote }}
+  - name: EGOV_ACCOUNT_HOST
+    value: {{ index .Values "domain" | quote }}
+  - name: EGOV_KEYCLOAK_HOST
+    value: {{ index .Values "keycloak-host" | quote }}
+  - name: EGOV_KEYCLOAK_CLIENT_ID
+    value: {{ index .Values "keycloak-client-id" | quote }}
+  - name: EGOV_LOCALIZATION_HOST
+    value: {{ index .Values "localization-host" | default .Values.domain | quote }}
+  - name: EGOV_EMPLOYEE_HOST
+    value: {{ index .Values "domain" | quote }}
+  - name: CERTIFICATE_OTP_BYPASS_CODE
+    valueFrom:
+      secretKeyRef:
+        key: certificate-otp-bypass-code
+        name: license-certificate
+  - name: EGOV_KEYCLOAK_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        key: egov-keycloak-client-secret
+        name: license-certificate
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: LOGGING_LEVEL_ORG_EGOV_CERTIFICATE
+    value: "DEBUG"
+  - name: CERTIFICATE_WORKFLOW_PAYMENT_STATE
+    value: {{ index .Values "certificate-workflow-payment-state" | quote }}
+  - name: CERTIFICATE_WORKFLOW_PAYMENT_ACTION
+    value: {{ index .Values "certificate-workflow-payment-action" | quote }}
+  - name: CERTIFICATE_WORKFLOW_TERMINAL_SUCCESS_STATE
+    value: {{ index .Values "certificate-workflow-terminal-success-state" | quote }}
+  - name: CERTIFICATE_WORKFLOW_TERMINAL_FAILURE_STATE
+    value: {{ index .Values "certificate-workflow-terminal-failure-state" | quote }}
+  - name: EGOV_FILESTORE_DOCUMENTCATEGORIES_BYCODE_PATH
+    value: {{ index .Values "filestore-documentcategory-bycode-path" | quote }}
+  - name: EGOV_FILESTORE_DOCUMENTCATEGORIES_PATH
+    value: {{ index .Values "filestore-documentcategory-path" | quote }}
+  - name: EGOV_WORKFLOW_INTERNAL_HOST
+    value: {{ index .Values "workflow-internal-host" | quote }}  
+  - name: MANAGEMENT_TRACING_EXPORT_ENABLED
+    value: {{ index .Values "tracing-export-enabled" | quote }}
+  - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
+    value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/traces
+  - name: MANAGEMENT_DEFAULTS_METRICS_EXPORT_ENABLED
+    value: "false"
+  - name: MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED
+    value: {{ index .Values "metrics-export-enabled" | quote }}
+  - name: MANAGEMENT_OTLP_METRICS_EXPORT_URL
+    value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/metrics
+  - name: MANAGEMENT_TRACING_SAMPLING_PROBABILITY
+    value: "1.0"

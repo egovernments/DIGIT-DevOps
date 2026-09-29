@@ -1,0 +1,36 @@
+# Kargo control plane. Upstream chart from the akuity OCI Helm registry, values
+# from this git repo via the $values ref (same pattern as monitoring-applications.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kargo
+  namespace: argocd
+spec:
+  project: kargo-project
+  sources:
+    - repoURL: ghcr.io/akuity/kargo-charts
+      chart: kargo
+      targetRevision: 1.11.4
+      helm:
+        releaseName: kargo
+        valueFiles:
+          - $values/deploy-as-code/helm/environments/kargo-unified-dev.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kargo
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

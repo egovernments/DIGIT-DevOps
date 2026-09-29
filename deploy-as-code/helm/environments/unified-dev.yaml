@@ -20,7 +20,16 @@ cluster-configs:
     ## (syncPolicy has prune:false, so Argo CD will not remove them itself) and hold
     ## the Application OutOfSync even when everything else is Synced.
     values: [ backbone, egov, monitoring, playground, temporal, kargo, unified-core, unified-health ]
-      
+    ## Kargo will not adopt a namespace that already exists without this label:
+    ## the Project goes Stalled/ExistingNamespaceMissingLabel. These namespaces
+    ## are created here, so they are labeled here too -- the kargo-pipelines
+    ## chart must not render them or the two Applications fight over ownership.
+    labels:
+      unified-core:
+        kargo.akuity.io/project: "true"
+      unified-health:
+        kargo.akuity.io/project: "true"
+
   root-ingress:
     cert-issuer: letsencrypt-prod
   configmaps:
@@ -1934,14 +1943,16 @@ kargo:
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
       discoveryLimit: 20
-      interval: 30m
+      ## Kargo normalizes Durations to Go format; write 30m0s so the rendered
+      ## value matches the live one and the Warehouse does not show as drift.
+      interval: 30m0s
     - name: egov-notification-sms
       freightCreationPolicy: Manual
       allowTags: '^(master|sandbox|base-docker-upgrade)-[0-9a-f]+'
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
       discoveryLimit: 20
-      interval: 30m
+      interval: 30m0s
 
   # Promotion chain DEV -> QA -> UAT. All three write to branch unified-env-lts,
   # each to its own env file. Only DEV shares the cluster with Kargo, so only DEV

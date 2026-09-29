@@ -11,11 +11,18 @@ metadata:
   name: {{ $k.project }}
   namespace: {{ $k.project }}
 spec:
+  {{- if and $k.services $k.stages }}
   promotionPolicies:
   {{- range $svc := $k.services }}
   {{- range $stage := $k.stages }}
     - stage: {{ $svc.name }}-{{ $stage.name }}
       autoPromotionEnabled: {{ $stage.autoPromotion | default false }}
   {{- end }}
+  {{- end }}
+  {{- else }}
+  ## A scaffolded project has no services/stages yet. The bare key would
+  ## serialize as null and the CRD rejects that: promotionPolicies must be an
+  ## array.
+  promotionPolicies: []
   {{- end }}
 {{- end }}

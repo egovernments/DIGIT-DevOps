@@ -35,6 +35,16 @@ Rendered by the **cluster-configs** chart from `cluster-configs.secrets.kargo`:
 
 Edit secrets with `AWS_PROFILE=egov sops environments/unified-dev-secrets.yaml`.
 
+## Verification (deploy-state check)
+
+Each stage runs a post-promotion check (needs Argo Rollouts — `argo-rollouts-application.yaml`):
+an `AnalysisTemplate` (`templates/analysistemplate.yaml`) runs a Job that uses a per-env
+read-only kubeconfig to assert the target cluster's Deployment runs the promoted tag and is
+Ready. Enabled per project via `kargo.verify.enabled`; each stage sets `verifyKubeconfigSecret`
+and each service its `namespace`. Kubeconfigs live in `cluster-configs.secrets.kargo.verifyKubeconfigs`
+(SOPS) and render as `verify-kubeconfig-<env>` in the project namespace. Verification gates
+promotion: a downstream stage only accepts freight verified upstream.
+
 ## DNS
 
 Point `kargo.digit.org` at the nginx LB IP; cert-manager (`letsencrypt-prod`) issues the cert.

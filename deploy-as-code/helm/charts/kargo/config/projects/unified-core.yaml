@@ -6,8 +6,11 @@ kargo:
   git:
     repoURL: https://github.com/egovernments/DIGIT-DevOps.git
 
+  # `namespace` is where each service's Deployment runs in the target cluster
+  # (used by verification); services may live in different namespaces.
   services:
     - name: egov-notification-mail
+      namespace: egov
       freightCreationPolicy: Manual
       # keep matched tags to ~20-40 (runbook §8): NewestBuild fetches a blob per matched tag
       allowTags: '^(master|sandbox|base-docker-upgrade)-[0-9a-f]+'
@@ -16,12 +19,18 @@ kargo:
       discoveryLimit: 20
       interval: 30m0s
     - name: egov-notification-sms
+      namespace: egov
       freightCreationPolicy: Manual
       allowTags: '^(master|sandbox|base-docker-upgrade)-[0-9a-f]+'
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
       discoveryLimit: 20
       interval: 30m0s
+
+  # Post-promotion verification: assert each env's Deployment runs the promoted
+  # tag and is healthy (uniform across dev/qa/uat via a per-env read-only kubeconfig).
+  verify:
+    enabled: true
 
   # Only DEV shares the cluster with Kargo (argocdUpdate); QA/UAT are cross-cluster git-push.
   stages:
@@ -32,18 +41,21 @@ kargo:
       autoPromotion: false
       argocdUpdate: true
       argocdNamespace: argocd
+      verifyKubeconfigSecret: verify-kubeconfig-dev
     - name: qa
       color: "#D64550"
       from: dev
       branch: unified-env-lts
       envFile: deploy-as-code/helm/environments/unified-qa.yaml
       autoPromotion: false
+      verifyKubeconfigSecret: verify-kubeconfig-qa
     - name: uat
       color: "#F2C230"
       from: qa
       branch: unified-env-lts
       envFile: deploy-as-code/helm/environments/unified-uat.yaml
       autoPromotion: false
+      verifyKubeconfigSecret: verify-kubeconfig-uat
 
   # GitHub teams with access to THIS project only. A team absent here has no
   # ServiceAccount in the unified-core namespace and therefore no access to it.

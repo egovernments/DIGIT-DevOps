@@ -1,0 +1,21 @@
+{{- $k := .Values.kargo }}
+{{- if $k.project }}
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Project
+metadata:
+  name: {{ $k.project }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: ProjectConfig
+metadata:
+  name: {{ $k.project }}
+  namespace: {{ $k.project }}
+spec:
+  promotionPolicies:
+  {{- range $svc := $k.services }}
+  {{- range $stage := $k.stages }}
+    - stage: {{ $svc.name }}-{{ $stage.name }}
+      autoPromotionEnabled: {{ $stage.autoPromotion | default false }}
+  {{- end }}
+  {{- end }}
+{{- end }}

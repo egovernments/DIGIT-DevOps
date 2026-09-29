@@ -1,0 +1,43 @@
+# Kargo control-plane values for unified-dev (consumed by the `kargo` Application).
+# Non-secret only. Admin credentials come from the kargo-api Secret
+# (rendered by kargo-unified-core, referenced here via api.secret.name).
+
+api:
+  host: kargo.digit.org
+  basePath: ""
+  # nginx terminates TLS (letsencrypt). API serves plain HTTP, but URLs are forced
+  # to https so UI assets/redirects are not mixed-content.
+  tls:
+    enabled: false
+    terminatedUpstream: true
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    tls:
+      enabled: true
+      selfSignedCert: false
+      secretName: kargo.digit.org-tls-certs
+    pathType: Prefix
+  adminAccount:
+    enabled: true
+    tokenTTL: 24h
+  # Admin password hash + token signing key are provided out-of-band via this Secret.
+  secret:
+    name: kargo-api
+  # Deep links from the Kargo UI to ArgoCD.
+  argocd:
+    urls:
+      "": https://unified-dev.digit.org/argocd
+
+controller:
+  argocd:
+    integrationEnabled: true
+    namespace: argocd
+    watchArgocdNamespaceOnly: true
+  gitClient:
+    name: kargo
+    email: kargo@digit.org

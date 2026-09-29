@@ -1,0 +1,34 @@
+# unified-core Kargo project: Project/ProjectConfig + Warehouses/Stages for the
+# core notification services. Pipeline config lives under the `kargo:` key in
+# unified-dev.yaml. Credential + kargo-api Secrets are rendered by the
+# cluster-configs chart (cluster-configs.secrets.kargo).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kargo-unified-core
+  namespace: argocd
+spec:
+  project: kargo-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      path: "deploy-as-code/helm/charts/kargo/kargo-pipelines"
+      helm:
+        valueFiles:
+          - values.yaml
+          - ../../../environments/unified-dev.yaml
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 20
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

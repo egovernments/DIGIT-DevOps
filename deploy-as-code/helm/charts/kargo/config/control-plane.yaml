@@ -48,6 +48,33 @@ api:
   # ---------------------------------------------------------------------
   oidc:
     enabled: true
+
+    # ---------------------------------------------------------------
+    # DELIBERATELY NO admins/users/viewers/projectCreators CLAIMS HERE.
+    #
+    # Those keys do one thing: annotate the ServiceAccounts
+    # kargo-{admin,project-creator,user,viewer} in this namespace with
+    # `rbac.kargo.akuity.io/claims`. Kargo then matches an OIDC token's
+    # claims against ServiceAccount annotations and inherits that account's
+    # RBAC. Nothing about them is privileged config -- they are sugar for
+    # annotating four fixed ServiceAccounts.
+    #
+    # Using them would mean listing every GitHub team twice: once here for
+    # login / project-list, and again in config/projects/<project>.yaml for
+    # in-project rights. The two lists then have to be kept in step by hand,
+    # and the failure when they drift is quiet -- the team logs in fine and
+    # lands on an empty "Projects" screen, with only an API-server line
+    #     projects.kargo.akuity.io is forbidden: list is not permitted
+    # to say why.
+    #
+    # So groups are declared ONCE, in the per-project `teams:` lists, and
+    # charts/kargo/templates/rbac.yaml renders the same annotated-
+    # ServiceAccount pattern from them -- including a "global" ServiceAccount
+    # per team in this namespace, which is what actually grants login and the
+    # project list. Adding a team to a project is a one-line change there and
+    # needs no edit to this file.
+    # ---------------------------------------------------------------
+
     dex:
       enabled: true
       envFrom:

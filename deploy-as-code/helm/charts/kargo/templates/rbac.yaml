@@ -59,18 +59,38 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 ---
 {{- /*
-  WHY A SECOND, CLUSTER-SCOPED BINDING IS REQUIRED
+  WHY A SECOND ServiceAccount, IN A DIFFERENT NAMESPACE
 
   `projects.kargo.akuity.io` is CLUSTER-scoped (NAMESPACED=false), but the
-  three Roles above are namespaced and grant only stages/warehouses/
-  promotions/freights/projectconfigs. A namespaced Role can never grant read
-  on a cluster-scoped resource, so without this a user authenticates fine,
-  is matched to this ServiceAccount, and then sees an EMPTY project list --
-  the UI lists Projects before it can show anything else.
+  Role above is namespaced and grants only stages/warehouses/promotions/
+  freights/projectconfigs. A namespaced Role can never grant read on a
+  cluster-scoped resource, so on its own it leaves a user authenticated but
+  looking at an EMPTY project list -- the UI lists Projects before it can
+  show anything else.
 
-  kargo-user is Kargo's own ClusterRole for this and grants ONLY
-  projects [get, list, watch] -- no stages, promotions or secrets -- so
-  per-project isolation is unaffected.
+  Granting it is NOT just a matter of ClusterRoleBinding the ServiceAccount
+  above: Kargo only consults ServiceAccounts living in the namespaces named
+  by GLOBAL_SERVICE_ACCOUNT_NAMESPACES when it authorizes a cluster-scoped
+  request. Bind the project-namespace ServiceAccount to kargo-user and
+  `kubectl auth can-i --as=...` answers yes while the API still logs
+  `projects.kargo.akuity.io is forbidden: list is not permitted`, because
+  that identity is never in play for this call.
+
+  Hence a second, "global" ServiceAccount carrying the same claim, in the
+  global namespace. This is the same mechanism the upstream chart uses for
+  `api.oidc.users.claims` (which is nothing more than sugar for annotating
+  the single kargo/kargo-user ServiceAccount) -- but keyed off `teams:` here,
+  so group lists live in exactly one place instead of being duplicated into
+  the control-plane values and having to be kept in step by hand.
+
+  Names are prefixed with the project because this namespace is shared by
+  every project, and two projects may well both define a team called e.g.
+  "devops". Where they do, both ServiceAccounts carry the same claim; Kargo
+  matches both and unions the permissions, which is harmless.
+
+  kargo-user grants ONLY namespaces/projects/clusterconfigs/
+  clusterpromotiontasks [get, list, watch] -- no stages, promotions or
+  secrets -- so per-project isolation is unaffected.
 
   TRADE-OFF: `list` on a cluster-scoped resource cannot be filtered, so every
   user sees the NAMES of all Projects. Contents stay isolated: without a
@@ -79,6 +99,20 @@ roleRef:
   resourceNames: [<project>] with get/watch only -- but then the UI project
   list is empty and users must navigate by direct URL.
 */}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  ## MUST be a namespace listed in the API server's
+  ## GLOBAL_SERVICE_ACCOUNT_NAMESPACES, or Kargo ignores this ServiceAccount
+  ## for cluster-scoped requests and the project list stays empty.
+  name: {{ $k.project }}-{{ $team.name }}
+  namespace: {{ $k.globalNamespace | default "kargo" }}
+  annotations:
+    rbac.kargo.akuity.io/claim.groups: {{ $team.groups | join "," | quote }}
+  labels:
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    kargo.akuity.io/project: {{ $k.project }}
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -89,8 +123,8 @@ metadata:
     kargo.akuity.io/project: {{ $k.project }}
 subjects:
   - kind: ServiceAccount
-    name: team-{{ $team.name }}
-    namespace: {{ $k.project }}
+    name: {{ $k.project }}-{{ $team.name }}
+    namespace: {{ $k.globalNamespace | default "kargo" }}
 roleRef:
   kind: ClusterRole
   name: kargo-user

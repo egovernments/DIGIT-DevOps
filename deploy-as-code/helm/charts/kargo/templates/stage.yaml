@@ -23,6 +23,20 @@ spec:
       {{- else }}
         direct: true
       {{- end }}
+  {{- if and $k.verify.enabled $stage.verifyKubeconfigSecret }}
+  verification:
+    analysisTemplates:
+      - name: deploy-state-check
+    args:
+      - name: kubeconfigSecret
+        value: {{ $stage.verifyKubeconfigSecret | quote }}
+      - name: namespace
+        value: {{ $svc.namespace | default $k.verify.namespace | quote }}
+      - name: deployment
+        value: {{ $svc.name | quote }}
+      - name: expectedTag
+        value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $svc.name | quote }}
+  {{- end }}
   promotionTemplate:
     spec:
       steps:

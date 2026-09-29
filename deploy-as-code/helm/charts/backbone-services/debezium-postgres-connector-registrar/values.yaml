@@ -105,8 +105,13 @@ args:
     # snapshot is filtered by snapshot.select.statement.overrides. Both use
     # LOCALIZATION_MODULE_PREFIX.
     #
-    # The publication, the replica identity it needs and the SELECT grant are
-    # created by 01-postgres/localization_publication.sql.
+    # Run once against unified-dev-db, as the owner of public.message, before
+    # this connector is registered:
+    #   ALTER TABLE public.message
+    #       REPLICA IDENTITY USING INDEX unique_message_entry;
+    #   CREATE PUBLICATION debezium_localization_publication
+    #       FOR TABLE public.message WHERE (module LIKE 'hcm-boundary-%');
+    #   GRANT SELECT ON public.message TO debezium;
     cat <<JSON > /tmp/connector-localization.json
     {
       "connector.class": "io.debezium.connector.postgresql.PostgresConnector",

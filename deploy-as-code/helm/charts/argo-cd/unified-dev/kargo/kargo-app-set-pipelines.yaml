@@ -1,0 +1,54 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-dev-kargo-appset-pipelines
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: unified-core
+          - name: unified-health
+
+  template:
+    metadata:
+      name: 'kargo-{{name}}'
+
+    spec:
+      project: kargo-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: unified-env-lts
+        path: deploy-as-code/helm/charts/kargo
+        helm:
+          valueFiles:
+            - values.yaml
+            - config/projects/{{name}}.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{name}}'
+
+      # strictSemvers is a CRD default; ignoring it stops Warehouses showing OutOfSync
+      ignoreDifferences:
+        - group: kargo.akuity.io
+          kind: Warehouse
+          jqPathExpressions:
+            - '.spec.subscriptions[]?.image.strictSemvers'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          # namespaces are created + labeled by cluster-configs
+          - CreateNamespace=false
+          - ServerSideApply=true
+          - RespectIgnoreDifferences=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s

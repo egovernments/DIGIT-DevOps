@@ -1,44 +1,42 @@
 # Kargo on unified-dev
 
-Kargo control plane + promotion pipelines, installed via ArgoCD on the unified-dev
-AKS cluster. UI at **https://kargo.digit.org**.
+Kargo control plane + promotion pipelines via ArgoCD. UI at **https://kargo.digit.org**.
+
+**Model:** a Kargo **project** is a module (`unified-core` = core services →
+`environments/unified-<stage>.yaml`; `unified-health` = health services →
+`environments/unified-health-<stage>.yaml`); a **stage** is an environment
+(DEV → QA → UAT). One control-plane instance serves all of them.
 
 ## Applications
 
 | File | Purpose |
 |---|---|
-| `kargo-app-project.yaml` | `kargo-project` AppProject (CRDs/webhooks/cluster-RBAC whitelisted) |
-| `kargo-application.yaml` | Control plane — upstream chart `ghcr.io/akuity/kargo-charts/kargo:1.11.4`, values from `environments/kargo-unified-dev.yaml` |
-| `kargo-unified-core-application.yaml` | `unified-core` project: Project/ProjectConfig + Warehouses/Stages for the notification services |
-| `kargo-unified-health-application.yaml` | `unified-health` project: scaffold only (no services yet) |
+| `kargo-app-project.yaml` | `kargo-project` AppProject |
+| `kargo-application.yaml` | Control plane — multi-source (upstream chart `ghcr.io/akuity/kargo-charts/kargo:1.11.4` + `config/control-plane.yaml` via `$values`), same pattern as `monitoring-applications.yaml` |
+| `kargo-app-set-pipelines.yaml` | ApplicationSet (`unified-dev-kargo-appset-pipelines`): one `kargo-<project>` Application per list element, same shape as `egov-app-set-core.yaml` |
 
-Pipeline config (project, services, stages) lives under the `kargo:` key in the
-existing env files (`environments/unified-dev.yaml`,
-`environments/unified-health-dev.yaml`) and is rendered by the
-`deploy-as-code/helm/charts/kargo/kargo-pipelines` chart. Promotion chain is
-DEV → QA → UAT, each stage writing image tags into `unified-dev.yaml` /
-`unified-qa.yaml` / `unified-uat.yaml` on `unified-env-lts`. Only DEV runs
-`argocd-update` (same cluster as Kargo); QA/UAT are cross-cluster git-push.
+## Onboard / change a project
+
+Add a list element in `kargo-app-set-pipelines.yaml` and a matching
+`charts/kargo/config/projects/<project>.yaml` (a `kargo:` overlay: project + services +
+stages) — exactly like adding a service to `egov-app-set-core.yaml`. Chart:
+`deploy-as-code/helm/charts/kargo`.
+
+Stages carry a `kargo.akuity.io/color` per env (DEV `#3BA9C2`, QA `#D64550`, UAT `#F2C230`).
+Promotion chain DEV → QA → UAT writes tags into `unified-dev.yaml` / `unified-qa.yaml` /
+`unified-uat.yaml` on `unified-env-lts`; only DEV runs `argocd-update` (same cluster).
 
 ## Credentials
 
-Kargo's credential Secrets are rendered by the **cluster-configs** chart (single
-owner), not by kargo-pipelines:
+Rendered by the **cluster-configs** chart from `cluster-configs.secrets.kargo`:
+- non-secret metadata (`projects`, `adminSecret.enabled/name/namespace`) in `charts/cluster-configs/values.yaml`
+- credentials (`adminSecret.passwordHash/tokenSigningKey`, `imageCredentials`, `gitCredentials`) SOPS-encrypted in `unified-dev-secrets.yaml`
+- template `charts/cluster-configs/templates/secrets/kargo-secret.yaml` renders `image-creds-*` / `git-creds-*` per project namespace and `kargo-api` in `kargo`
 
-- Non-secret metadata (`projects` list) in
-  `charts/cluster-configs/values.yaml` → `cluster-configs.secrets.kargo`.
-- Sensitive values in `environments/unified-dev-secrets.yaml` →
-  `cluster-configs.secrets.kargo` (`adminSecret`, `imageCredentials`,
-  `gitCredentials`), decrypted by argocd-repo-server via SOPS + AWS KMS.
-- Template: `charts/cluster-configs/templates/secrets/kargo-secret.yaml`
-  renders `image-creds-*` / `git-creds-*` into each project namespace and
-  `kargo-api` (admin) into the `kargo` namespace.
-
-Edit the secrets with `AWS_PROFILE=egov sops environments/unified-dev-secrets.yaml`.
+Edit secrets with `AWS_PROFILE=egov sops environments/unified-dev-secrets.yaml`.
 
 ## DNS
 
-Point `kargo.digit.org` at the nginx ingress LB IP (same as `unified-dev.digit.org`).
-cert-manager (`letsencrypt-prod`) issues the cert once DNS resolves.
+Point `kargo.digit.org` at the nginx LB IP; cert-manager (`letsencrypt-prod`) issues the cert.
 
-Full background: `kargo-setup-runbook.md`.
+Background: `kargo-setup-runbook.md`.

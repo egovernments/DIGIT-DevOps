@@ -26,6 +26,19 @@ kargo:
       cacheByTag: true
       discoveryLimit: 20
       interval: 30m0s
+    - name: boundary-service
+      freightCreationPolicy: Manual
+      # DB-migration service: the promotion must also bump the dbMigration
+      # init-container tag (boundary-service-db shares the app's tag).
+      dbMigration: true
+      # Built from the master-persister-changes-2.0 branch (no plain master-<sha>
+      # image exists). Anchored with $ so the -amd64/-arm64 manifest children
+      # are excluded from freight.
+      allowTags: '^master-persister-changes-2\.0-[0-9a-f]+$'
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 30m0s
 
   # Post-promotion verification: assert each env's Deployment runs the promoted
   # tag and is healthy (uniform across dev/qa/uat via a per-env read-only kubeconfig).

@@ -1,7 +1,7 @@
 {{- $k := .Values.kargo }}
 {{- if and $k.project $k.teams }}
 {{- /*
-  Per-project access for GitHub teams.
+  Per-project, per-stage access for GitHub teams.
 
   HOW KARGO AUTHORIZATION WORKS
     Kargo does not have its own user database. After Dex authenticates someone
@@ -16,26 +16,140 @@
     Kargo's management controller creates those three itself and marks them
     `rbac.kargo.akuity.io/managed: "true"`. Editing controller-owned objects
     from Helm invites a reconcile fight. These are separate, Helm-owned
-    ServiceAccounts that simply RoleBind to the same three Roles, so the
-    permission sets stay identical while ownership stays clean.
+    ServiceAccounts that RoleBind to the same three Roles (or, for stage-
+    scoped promoters, to a generated Role), so ownership stays clean.
 
   The groups claim is "<org>:<team-slug>", e.g. egovernments:micro-service-dev.
   This depends on `teamNameField: slug` in the Dex connector.
 */}}
+{{- $stageNames := list }}
+{{- range $s := ($k.stages | default list) }}
+{{- $stageNames = append $stageNames $s.name }}
+{{- end }}
 {{- range $team := $k.teams }}
 {{- $role := $team.role | default "viewer" }}
 {{- if not (has $role (list "admin" "promoter" "viewer")) }}
 {{- fail (printf "kargo.teams: role %q is invalid for team %q - must be admin, promoter or viewer" $role $team.name) }}
 {{- end }}
+
+{{- /*
+  promoteStages narrows `role: promoter` to specific stages.
+
+  Named by ENVIRONMENT (dev / qa / uat), i.e. the entries under `stages:`,
+  NOT by individual Stage object. Stage objects are per service and named
+  "<service>-<stage>" (see stage.yaml), so this project has
+  len(services) * len(stages) of them. RBAC `resourceNames` matches exact
+  names with no wildcard support, so "may promote to QA" has to be spelled
+  out as every "<service>-qa" -- generated below rather than hand-listed,
+  which is also why adding a service needs no RBAC edit.
+*/}}
+{{- $promoteStages := $team.promoteStages | default list }}
+{{- if and $promoteStages (ne $role "promoter") }}
+{{- fail (printf "kargo.teams: team %q sets promoteStages but role is %q - promoteStages only applies to role: promoter" $team.name $role) }}
+{{- end }}
+{{- range $ps := $promoteStages }}
+{{- if not (has $ps $stageNames) }}
+{{- fail (printf "kargo.teams: team %q has promoteStages entry %q which is not a stage in project %q (have: %s). A typo here would silently grant nothing." $team.name $ps $k.project (join ", " $stageNames)) }}
+{{- end }}
+{{- end }}
+{{- $promotable := list }}
+{{- range $svc := ($k.services | default list) }}
+{{- range $ps := $promoteStages }}
+{{- $promotable = append $promotable (printf "%s-%s" $svc.name $ps) }}
+{{- end }}
+{{- end }}
+{{- if and $promoteStages (not $promotable) }}
+{{- fail (printf "kargo.teams: team %q sets promoteStages but project %q declares no services, so no Stage would be promotable" $team.name $k.project) }}
+{{- end }}
+
+{{- /*
+  A team may be identified by GitHub team (`groups`) and/or by individual
+  (`emails`). Each claim gets its OWN ServiceAccount rather than stacking two
+  claim annotations on one account: whether Kargo ANDs or ORs multiple claims
+  on a single ServiceAccount is not something this chart should depend on, and
+  one-claim-per-account is OR by construction.
+
+  `emails` exists because a GitHub team is the smallest unit of identity
+  GitHub exposes -- it cannot express "three people out of this team". Use it
+  to grant promotion to named individuals without creating a child team.
+  Matches the `email` claim, which is what OIDC_USERNAME_CLAIM is set to.
+*/}}
+{{- $subjects := list }}
+{{- if $team.groups }}
+{{- $subjects = append $subjects (dict "suffix" "" "claim" "groups" "values" $team.groups) }}
+{{- end }}
+{{- if $team.emails }}
+{{- $subjects = append $subjects (dict "suffix" "-email" "claim" "email" "values" $team.emails) }}
+{{- end }}
+{{- if not $subjects }}
+{{- fail (printf "kargo.teams: team %q must set groups and/or emails, otherwise nobody can match it" $team.name) }}
+{{- end }}
+
+{{- if $promoteStages }}
+---
+{{- /*
+  Generated stand-in for the stock kargo-promoter Role, which grants
+  `promote` on stages with resourceNames unset (i.e. EVERY stage in the
+  project). Everything here matches kargo-promoter except that `promote` is
+  pinned to the stage list above.
+
+  `promotions: create` deliberately stays unrestricted: resourceNames cannot
+  constrain `create` (the object has no name yet), and `list`/`watch` do not
+  support it either. That is not a hole -- Kargo's promotion admission
+  webhook (promotion.kargo.akuity.io) runs a SubjectAccessReview for
+  `promote` on the TARGET stage, so a Promotion aimed at a stage missing from
+  resourceNames is rejected there.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: team-{{ $team.name }}
+  namespace: {{ $k.project }}
+  labels:
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+  annotations:
+    kargo.digit.org/promote-stages: {{ join "," $promoteStages | quote }}
+rules:
+  ## Read-only project visibility, identical to kargo-viewer.
+  - apiGroups: [""]
+    resources: [configmaps, events, serviceaccounts]
+    verbs: [get, list, watch]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [rolebindings, roles]
+    verbs: [get, list, watch]
+  - apiGroups: [kargo.akuity.io]
+    resources: [freights, stages, warehouses, projectconfigs]
+    verbs: [get, list, watch]
+  - apiGroups: [argoproj.io]
+    resources: [analysisruns, analysistemplates]
+    verbs: [get, list, watch]
+  ## The actual promotion grant, pinned to these stages only.
+  - apiGroups: [kargo.akuity.io]
+    resources: [stages]
+    resourceNames:
+    {{- range $s := $promotable }}
+      - {{ $s }}
+    {{- end }}
+    verbs: [promote]
+  - apiGroups: [kargo.akuity.io]
+    resources: [promotions]
+    verbs: [create, get, list, watch]
+  - apiGroups: [kargo.akuity.io]
+    resources: [freights/status]
+    verbs: [patch]
+{{- end }}
+
+{{- range $sub := $subjects }}
+{{- $saName := printf "team-%s%s" $team.name $sub.suffix }}
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: team-{{ $team.name }}
+  name: {{ $saName }}
   namespace: {{ $k.project }}
   annotations:
-    ## Comma-separate to map several GitHub teams onto the same access level.
-    rbac.kargo.akuity.io/claim.groups: {{ $team.groups | join "," | quote }}
+    ## Comma-separate to map several GitHub teams / people onto the same access.
+    rbac.kargo.akuity.io/claim.{{ $sub.claim }}: {{ $sub.values | join "," | quote }}
   labels:
     app.kubernetes.io/managed-by: {{ $.Release.Service }}
     kargo.akuity.io/project: {{ $k.project }}
@@ -43,19 +157,24 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: team-{{ $team.name }}
+  name: {{ $saName }}
   namespace: {{ $k.project }}
   labels:
     app.kubernetes.io/managed-by: {{ $.Release.Service }}
 subjects:
   - kind: ServiceAccount
-    name: team-{{ $team.name }}
+    name: {{ $saName }}
     namespace: {{ $k.project }}
 roleRef:
   kind: Role
+  {{- if $promoteStages }}
+  ## Stage-scoped: the generated Role above, not the project-wide stock one.
+  name: team-{{ $team.name }}
+  {{- else }}
   ## kargo-admin / kargo-promoter / kargo-viewer are created per project by
   ## Kargo itself; reusing them keeps these teams on the stock permission sets.
   name: kargo-{{ $role }}
+  {{- end }}
   apiGroup: rbac.authorization.k8s.io
 ---
 {{- /*
@@ -105,10 +224,10 @@ metadata:
   ## MUST be a namespace listed in the API server's
   ## GLOBAL_SERVICE_ACCOUNT_NAMESPACES, or Kargo ignores this ServiceAccount
   ## for cluster-scoped requests and the project list stays empty.
-  name: {{ $k.project }}-{{ $team.name }}
+  name: {{ $k.project }}-{{ $team.name }}{{ $sub.suffix }}
   namespace: {{ $k.globalNamespace | default "kargo" }}
   annotations:
-    rbac.kargo.akuity.io/claim.groups: {{ $team.groups | join "," | quote }}
+    rbac.kargo.akuity.io/claim.{{ $sub.claim }}: {{ $sub.values | join "," | quote }}
   labels:
     app.kubernetes.io/managed-by: {{ $.Release.Service }}
     kargo.akuity.io/project: {{ $k.project }}
@@ -117,17 +236,18 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   ## Cluster-scoped, so the name must be unique across all projects.
-  name: kargo-user-{{ $k.project }}-team-{{ $team.name }}
+  name: kargo-user-{{ $k.project }}-team-{{ $team.name }}{{ $sub.suffix }}
   labels:
     app.kubernetes.io/managed-by: {{ $.Release.Service }}
     kargo.akuity.io/project: {{ $k.project }}
 subjects:
   - kind: ServiceAccount
-    name: {{ $k.project }}-{{ $team.name }}
+    name: {{ $k.project }}-{{ $team.name }}{{ $sub.suffix }}
     namespace: {{ $k.globalNamespace | default "kargo" }}
 roleRef:
   kind: ClusterRole
   name: kargo-user
   apiGroup: rbac.authorization.k8s.io
+{{- end }}
 {{- end }}
 {{- end }}

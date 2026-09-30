@@ -30,6 +30,30 @@ kargo:
   # derives both the in-project role and the cluster-scoped login /
   # project-list grant from it. Nothing needs adding to
   # config/control-plane.yaml when a team is added here.
+  #
+  # Per entry:
+  #   name           required. Names the generated ServiceAccount/Role.
+  #   role           admin | promoter | viewer (default viewer).
+  #   groups         GitHub teams, "<org>:<team-slug>". Matches the groups claim.
+  #   emails         individual addresses. Matches the email claim. Use when a
+  #                  grant applies to some members of a team rather than all of
+  #                  it -- GitHub cannot express that, so there is no team to
+  #                  name. groups and emails are OR'd; either or both may be set.
+  #   promoteStages  role: promoter only. Environment names from `stages:`
+  #                  (dev/qa/uat) this team may promote TO. Omit for the stock
+  #                  project-wide promoter. rbac.yaml expands each entry to
+  #                  every "<service>-<stage>" Stage object, so adding a
+  #                  service needs no RBAC change. A name not in `stages:` is
+  #                  a hard template error rather than a silent no-op.
+  #
+  # Splitting view from promote is two entries, not one:
+  #   - name: health-devs          # everyone: read the whole project
+  #     role: viewer
+  #     groups: [egovernments:unified-health-dev]
+  #   - name: health-qa-promoters  # a subset: may promote to QA only
+  #     role: promoter
+  #     promoteStages: [qa]
+  #     emails: [a@egovernments.org, b@egovernments.org]
   teams: []
 
   # Namespace for the "global" per-team ServiceAccounts that grant login and

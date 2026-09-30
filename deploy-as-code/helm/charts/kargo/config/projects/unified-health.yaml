@@ -349,10 +349,43 @@ kargo:
 
   # GitHub teams with access to THIS project only. Deliberately a different set
   # (and different roles) from unified-core.
+  #
+  # View and promote are SEPARATE entries. health-devs below gives the whole
+  # team read-only access to the project; each `promoteStages` entry then adds
+  # promotion into one environment for a narrower set of people. Someone listed
+  # in several entries gets the union.
+  #
+  # promoteStages names the ENVIRONMENT (dev/qa/uat), not the Stage object.
+  # Stage objects are per service ("<service>-<stage>"), and this project has 37
+  # services, so each entry below expands to 37 Stage names in the generated
+  # Role. Adding a service needs no change here.
+  #
+  # TODO(padma): the three *-promoters entries are PLACEHOLDERS and match no
+  # real GitHub team, so they currently grant nobody anything. Replace each with
+  # a real team slug, or swap `groups:` for `emails: [a@..., b@...]` to name
+  # individuals -- which is what "only some people of unified-health-dev may
+  # promote" needs, since a GitHub team cannot express a subset of itself.
   teams:
     - name: devops
       role: admin
       groups: [egovernments:micro-service-devops]
+
+    # Whole team: read the project, promote nothing.
     - name: health-devs
       role: viewer
       groups: [egovernments:unified-health-dev]
+
+    - name: health-dev-promoters
+      role: promoter
+      promoteStages: [dev]
+      groups: [egovernments:unified-health-dev-promote]
+
+    - name: health-qa-promoters
+      role: promoter
+      promoteStages: [qa]
+      groups: [egovernments:unified-health-qa-promote]
+
+    - name: health-uat-promoters
+      role: promoter
+      promoteStages: [uat]
+      groups: [egovernments:unified-health-uat-promote]

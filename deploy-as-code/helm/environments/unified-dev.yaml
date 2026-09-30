@@ -731,6 +731,19 @@ egov-otp:
   memory_limits: "512Mi"
   heap: "-Xmx256m -Xms256m"
 
+keycloak:
+  image:
+    tag: "keycloak-spi-custom-build-aardhya-78019f9"
+  ## Keycloak migrates its own schema with Liquibase, so it gets a dedicated
+  ## database on the shared Azure Flexible Server rather than a schema inside
+  ## the flyway-managed `unified-dev-db`. Credentials come from the `db` secret
+  ## in `egov` (same server, same role), admin credentials from the `keycloak`
+  ## secret rendered by cluster-configs above.
+  kc-db-url: "jdbc:postgresql://unified-dev-server.postgres.database.azure.com:5432/keycloak"
+  ## Non-production: skip real SMS/e-mail delivery for the citizen-registration
+  ## SPI, matching `citizen-otp-fixed` used by the rest of this environment.
+  otp-default-otp: "123456"
+
 egov-user:
   initContainers:
     dbMigration:

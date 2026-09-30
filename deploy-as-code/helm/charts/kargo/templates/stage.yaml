@@ -1,5 +1,6 @@
 {{- $k := .Values.kargo }}
 {{- range $svc := $k.services }}
+{{- $repo := $svc.repo | default $svc.name }}
 {{- range $stage := $k.stages }}
 ---
 apiVersion: kargo.akuity.io/v1alpha1
@@ -35,7 +36,7 @@ spec:
       - name: deployment
         value: {{ $svc.name | quote }}
       - name: expectedTag
-        value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $svc.name | quote }}
+        value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
   {{- end }}
   promotionTemplate:
     spec:
@@ -51,10 +52,10 @@ spec:
             path: ./repo/{{ $stage.envFile }}
             updates:
               - key: {{ $svc.name }}.image.tag
-                value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $svc.name | quote }}
+                value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
               {{- if $svc.dbMigration }}
               - key: {{ $svc.name }}.initContainers.dbMigration.image.tag
-                value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $svc.name | quote }}
+                value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
               {{- end }}
         - uses: git-commit
           config:

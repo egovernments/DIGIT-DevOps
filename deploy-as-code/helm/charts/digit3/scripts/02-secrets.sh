@@ -108,6 +108,9 @@ cluster-configs:
       password: sms-pass-placeholder
     kafka-kraft:
       kraft-cluster-id: $KRAFT_ID
+    license-certificate:        # LnP overlay (09-lnp.sh); keycloak client secret filled by 09-lnp.sh
+      certificate-otp-bypass-code: $(rand)
+      egov-keycloak-client-secret: ""
 vault-operator:               # filled by 04-vault.sh
   unseal-key: ""
   root-token: ""

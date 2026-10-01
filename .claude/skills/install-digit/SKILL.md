@@ -131,6 +131,12 @@ not try to scrub it after the fact. Instead, hand it over deterministically:
    (`tenant admin login`) — never the value itself.
 3. Tell the user to store it in their password manager and then destroy the
    capture: `shred -u <capture file>`.
+4. When you inspect the capture yourself (checking the seed phase, finding
+   the block), print the label line only — `grep -n 'tenant admin login'
+   <capture file>` — never the lines after it: `password: <value>` is the
+   very next line, so `tail`, `sed -n '/phase: 07/,$p'` or redacting only
+   the label line still prints the value. Filter it out (`grep -v
+   'password:'`) or stop at the label.
 
 Never copy the value into your report, into another file, or into a
 `kubectl`/`curl` command you echo. If you need it yourself (e.g. for

@@ -296,8 +296,10 @@ with two sections:
 - **`bundles:` — the compositions.** A list; each entry is one JVM with its own
   identity/port/`outputDir`, an **ordered** `include:` of catalog names (order =
   tenant-migration order; keep `boundary` last — its PostGIS migration
-  fail-fasts on an extension-less DB), and its own `overrides:` (loopback hosts
-  for co-bundled callers, conflict resolutions, shared-infra properties).
+  fail-fasts on an extension-less DB), and its own `overrides:` (loopback and
+  cross-bundle hosts, plus the pins its particular membership forces). Shared
+  infrastructure — datasource, Kafka, Redis, OTEL posture — lives once in the
+  manifest's `bundleDefaults:`, not per bundle.
 
 From one manifest, `generate_bundle.py` regenerates **every** listed bundle:
 the pom (plain-jar deps), main class, path-prefix config, the property chain,

@@ -75,14 +75,18 @@ bundles:
       - individual
       - account
       - otp
-    overrides:
-      # datasource (copy from any existing bundle — the default database is `postgres`)
-      spring.datasource.url: "jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:postgres}?sslmode=${DB_SSL_MODE:disable}"
-      # ...and one entry per CROSS-BUNDLE call, parameterized so it defaults to
-      # the callee bundle's cluster-DNS name (see the domain-split manifest for
-      # the pattern: ${OTHER_BUNDLE_HOST:http://other-bundle.egov.svc.cluster.local:8080})
+    overrides:                     # ONLY what this bundle's membership determines
+      # one entry per intra-bundle call (loopback) and per CROSS-BUNDLE call,
+      # parameterized so it defaults to the callee bundle's cluster-DNS name (see
+      # domain-split.package.yaml: ${OTHER_BUNDLE_HOST:http://other-bundle.egov.svc.cluster.local:8080})
   # ...more bundles
 ```
+
+`bundleDefaults:` (above `bundles:`) carries what every bundle in the manifest gets —
+datasource and pool, Kafka, Redis, the tenant-migration switch, OTEL posture and the
+canonical skip list. Copy it verbatim from a stock manifest and do NOT repeat any of it
+under a bundle's `overrides:`; the generator warns when a bundle restates a
+`bundleDefaults` value.
 
 Rules the generator enforces / you must respect:
 - **A service is in at most one bundle** — the generator exits if two bundles

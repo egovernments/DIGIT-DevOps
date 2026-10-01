@@ -57,6 +57,11 @@ services:                  # the CATALOG: composition-invariant facts, once per 
     # Mode knobs: publicSchemaTable (public-only service, e.g. account),
     #             publicMigrationDirs (default [migration]; pg-service adds quartz)
 
+bundleDefaults:              # shape-wide: every bundle below gets these
+  spring.datasource.url: "jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:postgres}?sslmode=${DB_SSL_MODE:disable}"
+  spring.datasource.hikari.maximum-pool-size: "${DB_MAX_OPEN_CONNS:40}"      # ONE shared pool
+  spring.kafka.bootstrap-servers: "${KAFKA_BROKERS:localhost:9092}"
+
 bundles:                   # (domain-split.package.yaml: same layout, four bundles)                   # the COMPOSITIONS: each generates one module
   - name: dev-bundle
     groupId: org.digit.bundles
@@ -69,12 +74,9 @@ bundles:                   # (domain-split.package.yaml: same layout, four bundl
     port: 8080             # the ONE server port
     outputDir: dev-bundle  # module dir, relative to the manifest
     include: [idgen, template-config, billing, ...]   # ORDERED catalog names
-    overrides:                 # raw properties appended to application-bundle.properties
-  billing.idgen.host: "http://localhost:${SERVER_PORT:8080}"   # loopback rewiring
-  spring.datasource.url: "jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:postgres}?sslmode=${DB_SSL_MODE:disable}"
-  spring.datasource.hikari.maximum-pool-size: "${DB_MAX_OPEN_CONNS:40}"      # ONE shared pool
-  spring.kafka.bootstrap-servers: "${KAFKA_BROKERS:localhost:9092}"
-  # …plus every explicit resolution of a cross-service property conflict
+    overrides:                 # ONLY membership-determined properties
+      billing.idgen.host: "http://localhost:${SERVER_PORT:8080}"   # loopback rewiring
+      # …plus cross-bundle hosts and every explicit resolution of a cross-service conflict
 ```
 
 **Ordering matters**: tenant-migration registrations run in manifest order and
@@ -181,8 +183,9 @@ Precedence (low → high): imported service defaults → `application-bundle.pro
    blank context-path, all the `basePathKey` assignments;
 2. tenant-migration multi-registration (one entry per service, see 3.6) and
    `spring.flyway.enabled=false` (no service migrates at boot);
-3. **the manifest `overrides:` verbatim** — loopback hosts, the single shared
-   datasource/Kafka/Hikari, and every explicit conflict resolution.
+3. **the manifest's `bundleDefaults:` then the bundle's own `overrides:`, verbatim** —
+   the shared datasource/Kafka/Redis/Hikari posture from the former, loopback and
+   cross-bundle hosts plus membership-forced pins from the latter.
 
 **Conflict detection**: the generator parses every imported defaults file,
 groups values by key, and prints

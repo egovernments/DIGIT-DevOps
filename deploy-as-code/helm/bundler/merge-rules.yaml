@@ -65,12 +65,16 @@ drop:
     reason: shared-pool size is a bundle-level contract env, not one member chart's value
   - name: DB_MAX_IDLE_CONNS
     reason: Go-dialect idle knob; bundle minimum-idle reads DB_MIN_IDLE_CONNS
+  # These three drops are a CROSS-REPO contract with the manifest's `bundleDefaults:`
+  # block: the property there names the env var, and the chart keeps only that var.
+  # Change the var in digit3's manifest and these rules must change with it, or the
+  # bundle loses its broker/Redis config with nothing reporting it.
   - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
-    reason: bundle property spring.kafka.bootstrap-servers reads ${KAFKA_BROKERS}
+    reason: bundleDefaults spring.kafka.bootstrap-servers reads ${KAFKA_BROKERS}
   - name: SPRING_DATA_REDIS_HOST
-    reason: bundle property spring.data.redis.host reads ${REDIS_HOST}
+    reason: bundleDefaults spring.data.redis.host reads ${REDIS_HOST}
   - name: SPRING_DATA_REDIS_PORT
-    reason: bundle property spring.data.redis.port reads ${REDIS_PORT}
+    reason: bundleDefaults spring.data.redis.port reads ${REDIS_PORT}
   - name: SPRING_FLYWAY_ENABLED
     reason: uniform false in every service's own defaults; init containers migrate public
   # ── Observability: one JVM = one posture, driven by the bundle's
@@ -85,7 +89,7 @@ drop:
   - name: PROMETHEUS_PORT
     reason: metrics are served from the single actuator endpoint
   - name: TRACER_PUBSUB_TYPE
-    reason: bundle property tracer.pubsub.type reads ${PUBSUB_TYPE}
+    reason: bundleDefaults tracer.pubsub.type reads ${PUBSUB_TYPE} (same contract as above)
   - name: PUBSUB_ENABLED
     reason: one pub/sub client per JVM; gate publishing per service via properties
   - pattern: '^JAEGER_'

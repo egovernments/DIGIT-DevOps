@@ -28,8 +28,9 @@ the application bundles (digit3's composition manifests, one per shape:
 `dev-bundle.package.yaml`, `domain-split.package.yaml` — each carries the
 services catalog inline; the digit3 generator warns on sibling drift). One manifest edit →
 regenerate jar, migration image, *and* chart. Nothing merged by hand,
-nothing to keep in lockstep. One run emits a chart per composition — the
-modulith branch's manifest yields `dev-bundle`; the domain-split branch's
+nothing to keep in lockstep. One run emits a chart per composition — and both
+shapes coexist in one branch, so this is a choice of manifest, not of branch:
+`dev-bundle.package.yaml` yields `dev-bundle`, `domain-split.package.yaml`
 yields `identity-bundle`, `notification-bundle`, `billing-bundle` and
 `admin-bundle`.
 

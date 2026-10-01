@@ -1,0 +1,88 @@
+# Common Labels
+labels:
+  app: "pdf-v3"
+  group: "rainmaker"
+
+# global:
+#     containerRegistry: taherabharmal
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "pdf-v3"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "pdf_v3_schema"
+    image:
+      repository: "pdf-v3-db"
+
+# Container Configs
+spring_flyway_enabled: "true"
+image:
+  repository: "pdf-v3"
+replicas: "1"
+appType: "java-spring"
+heap: "-Xmx1012m -Xms512m"
+memory_limits: 1500Mi
+memory_requests: 768Mi
+healthChecks:
+  enabled: true
+  livenessProbePath: "/pdf-v3/health"
+  readinessProbePath: "/pdf-v3/health"
+  livenessProbe: |
+    httpGet:
+      path: "{{ .Values.healthChecks.livenessProbePath }}"
+      port: {{ .Values.httpPort }}
+      httpHeaders:
+        - name: X-Tenant-ID
+          value: ESMAGICO
+    initialDelaySeconds: 90
+    timeoutSeconds: 5
+    periodSeconds: 30
+    successThreshold: 1
+    failureThreshold: 5
+  readinessProbe: |
+    httpGet:
+      path: "{{ .Values.healthChecks.readinessProbePath }}"
+      port: {{ .Values.httpPort }}
+      httpHeaders:
+        - name: X-Tenant-ID
+          value: ESMAGICO
+    initialDelaySeconds: 90
+    timeoutSeconds: 5
+    periodSeconds: 15
+    successThreshold: 1
+    failureThreshold: 5
+
+# Additional Container Envs
+env: |
+  - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+    value: "update"
+  - name: REDIS_HOST
+    value: "redis.backbone"
+  - name: REDIS_PORT
+    value: "6379"
+  - name: REDIS_CACHE_TTL_MINUTES
+    value: "60"
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: "pdf-service-group"
+  - name: SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET
+    value: "earliest"
+  - name: SERVER_PORT
+    value: "8080"
+  - name: EGOV_FILESTORE_HOST
+    value: {{ index .Values "egov-filestore-host" | quote }}
+  - name: PLAYWRIGHT_HEADLESS
+    value: "true"
+  - name: PLAYWRIGHT_PAGE_WIDTH
+    value: "8.27in"
+  - name: PLAYWRIGHT_PAGE_HEIGHT
+    value: "11.69in"
+  - name: LOCALIZATION_SERVICE_URL
+    value: {{ index .Values "localization-service-url" | quote }}
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}

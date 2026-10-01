@@ -482,7 +482,8 @@ def emit_env_sample(out_dir, bundle, db_migrations):
 
 # ── report ───────────────────────────────────────────────────────────────────
 
-def print_report(report, services, missing_migrations, context_mismatches):
+def print_report(report, services, missing_migrations, context_mismatches,
+                 schema_table_overrides):
     print("\n=== bundle chart generation report ===")
     print(f"services merged: {', '.join(s['name'] for s in services)}")
     if missing_migrations:
@@ -492,6 +493,12 @@ def print_report(report, services, missing_migrations, context_mismatches):
         print("(Kong routes / clients using the old context must move to the manifest prefix):")
         for svc, chart_ctx, prefix in context_mismatches:
             print(f"  {svc}: chart served /{chart_ctx}, bundle serves {prefix}")
+    if schema_table_overrides:
+        print("\nSCHEMA_TABLE taken from the manifest, overriding the service chart")
+        print("(the chart value would have migrated public under a different history table"
+              " than the bundle's own db image and the running service use):")
+        for svc, chart_table, table in schema_table_overrides:
+            print(f"  {svc}: chart said {chart_table}, manifest says {table}")
     if report["dropped"]:
         print(f"\ndropped env vars ({len(report['dropped'])}):")
         for name in sorted(report["dropped"]):
@@ -519,6 +526,22 @@ def print_report(report, services, missing_migrations, context_mismatches):
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
+def manifest_schema_table(svc):
+    """Public-schema Flyway history table for a member, taken from the MANIFEST.
+
+    The same rule generate_bundle.py bakes into the bundle's combined <bundle>-db image
+    (migrate-all.sh passes it as a positional -table), so both migration paths read one
+    source of truth. Before this, the per-service init containers carried whatever their own
+    chart declared, which had already drifted: individual's chart said individual_schema_v3
+    while the manifest and the live database say individual_schema.
+
+    A public-only service (account) states publicSchemaTable and has no tenant-migration
+    registration; everything else follows the <svc_name>_schema convention ('-' -> '_').
+    """
+    return (svc.get("publicSchemaTable") or svc.get("schemaTable")
+            or svc["name"].replace("-", "_") + "_schema")
+
+
 def generate(args, policy, manifest_path, bundle, services):
     out_dir = args.output or (args.charts_root / "bundles" / bundle["name"])
     common_dir = args.charts_root / "common"
@@ -539,6 +562,7 @@ def generate(args, policy, manifest_path, bundle, services):
     db_migrations = []
     missing_migrations = []
     context_mismatches = []
+    schema_table_overrides = []
 
     with tempfile.TemporaryDirectory(prefix="bundle-chart-") as scratch:
         scratch_root = Path(scratch)
@@ -559,6 +583,11 @@ def generate(args, policy, manifest_path, bundle, services):
                 missing_migrations.append(svc["name"])
                 continue
             mig_env = {name: spec for name, spec in env_list_to_specs(mig.get("env") or [])}
+            table = manifest_schema_table(svc)
+            chart_table = ((mig_env.get("SCHEMA_TABLE") or {}).get("value") or "").strip()
+            if chart_table and chart_table != table:
+                schema_table_overrides.append((svc["name"], chart_table, table))
+            mig_env["SCHEMA_TABLE"] = {"value": table}
             db_migrations.append((svc["name"], {
                 "enabled": True,
                 "image": {
@@ -576,7 +605,8 @@ def generate(args, policy, manifest_path, bundle, services):
                db_migrations, contexts)
     emit_env_sample(out_dir, bundle, db_migrations)
     print(f"wrote {out_dir}")
-    print_report(report, services, missing_migrations, context_mismatches)
+    print_report(report, services, missing_migrations, context_mismatches,
+                 schema_table_overrides)
 
 
 

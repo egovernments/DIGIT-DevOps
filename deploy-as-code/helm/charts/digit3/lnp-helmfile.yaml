@@ -1,0 +1,151 @@
+# LnP (License & Permits) OVERLAY — additive, shape-agnostic. Deploy it on top of whichever shape
+# 06-deploy.sh installed; it never touches the shape's own releases (keycloak, the 16 services or
+# bundles, kong, cluster-configs). Driven by scripts/09-lnp.sh:
+#
+#   DOMAIN=<vm domain> DIGIT_SHAPE=<shape> ./deploy.sh -f lnp-helmfile.yaml sync
+#
+# Image tags: environments/azure-k3s-lnp-tags.yaml (scripts/lnp-tags.sh snapshots them from the LnP
+# team's test-lts.yaml). Hosts/URLs: environments/azure-k3s-lnp.yaml.gotmpl (from DOMAIN and the
+# shape's egov-service-host map). Kong routes are not Helm: 09-lnp.sh replays lnp/kong-routes.json.
+# Not included on purpose: notify (platform choice, not an LnP dependency), metabase (dashboards
+# only), oauth2-proxy (unrelated), OTEL export (no collector on the VMs). See LNP.md.
+
+releases:
+  - name: mdms-v2
+    chart: ./mdms-v2
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ./mdms-v2/values.yaml
+      - ../../environments/azure-k3s-lnp-tags.yaml
+      - ../../environments/azure-k3s-lnp.yaml.gotmpl
+
+  - name: walt
+    chart: ./walt
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    values:
+      - ../../environments/azure-k3s.yaml
+      - ./walt/values.yaml
+      - ../../environments/azure-k3s-lnp-tags.yaml
+      - ../../environments/azure-k3s-lnp.yaml.gotmpl
+
+  - name: calculator
+    chart: ./calculator
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ./calculator/values.yaml
+      - ../../environments/azure-k3s-lnp-tags.yaml
+      - ../../environments/azure-k3s-lnp.yaml.gotmpl
+
+  - name: schema-registry
+    chart: ./schema-registry
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ./schema-registry/values.yaml
+      - ../../environments/azure-k3s-lnp-tags.yaml
+      - ../../environments/azure-k3s-lnp.yaml.gotmpl
+
+  - name: pdf-v3
+    chart: ./pdf-v3
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ./pdf-v3/values.yaml
+      - ../../environments/azure-k3s-lnp-tags.yaml
+      - ../../environments/azure-k3s-lnp.yaml.gotmpl
+
+  - name: vc
+    chart: ./vc
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - egov/walt
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ./vc/values.yaml
+      - ../../environments/azure-k3s-lnp-tags.yaml
+      - ../../environments/azure-k3s-lnp.yaml.gotmpl
+
+  - name: license-certificate
+    chart: ./license-certificate
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs:
+      - egov/calculator
+      - egov/schema-registry
+      - egov/pdf-v3
+      - egov/vc
+      - egov/mdms-v2
+    values:
+      - ../../environments/azure-k3s-secrets.dec.yaml
+      - ../../environments/azure-k3s.yaml
+      - ./license-certificate/values.yaml
+      - ../../environments/azure-k3s-lnp-tags.yaml
+      - ../../environments/azure-k3s-lnp.yaml.gotmpl
+
+  - name: license-admin
+    chart: ./license-admin
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs: [egov/license-certificate]
+    values:
+      - ../../environments/azure-k3s.yaml
+      - ./license-admin/values.yaml
+      - ../../environments/azure-k3s-lnp-tags.yaml
+      - ../../environments/azure-k3s-lnp.yaml.gotmpl
+
+  - name: license-citizen
+    chart: ./license-citizen
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs: [egov/license-certificate]
+    values:
+      - ../../environments/azure-k3s.yaml
+      - ./license-citizen/values.yaml
+      - ../../environments/azure-k3s-lnp-tags.yaml
+      - ../../environments/azure-k3s-lnp.yaml.gotmpl
+
+  - name: license-employee
+    chart: ./license-employee
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs: [egov/license-certificate]
+    values:
+      - ../../environments/azure-k3s.yaml
+      - ./license-employee/values.yaml
+      - ../../environments/azure-k3s-lnp-tags.yaml
+      - ../../environments/azure-k3s-lnp.yaml.gotmpl
+
+  - name: license-validator
+    chart: ./license-validator
+    namespace: egov
+    installed: true
+    missingFileHandler: Warn
+    needs: [egov/license-certificate]
+    values:
+      - ../../environments/azure-k3s.yaml
+      - ./license-validator/values.yaml
+      - ../../environments/azure-k3s-lnp-tags.yaml
+      - ../../environments/azure-k3s-lnp.yaml.gotmpl

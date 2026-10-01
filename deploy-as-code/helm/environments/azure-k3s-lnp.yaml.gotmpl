@@ -1,0 +1,102 @@
+{{/* LnP (License & Permits) overlay — layered by charts/digit3/lnp-helmfile.yaml on top of ANY shape.
+     Two deploy-time inputs, both exported by scripts/09-lnp.sh (and DOMAIN by deploy.sh):
+       DOMAIN       the VM's public domain (scripts/.env)        → every browser-facing URL
+       DIGIT_SHAPE  per-service | single-container | domain-bundles (scripts/.last-shape)
+     Catalogue-service hosts are NOT written here: they are looked up in the shape overlay's
+     egov-service-host map (environments/azure-k3s-<shape>.yaml), so the overlay follows whichever
+     Service answers for idgen/billing/… in that shape. Image tags come from azure-k3s-lnp-tags.yaml. */}}
+{{ $domain := requiredEnv "DOMAIN" }}
+{{ $shape := requiredEnv "DIGIT_SHAPE" }}
+{{ $shapeFile := printf "azure-k3s-%s.yaml" $shape }}
+{{ $hosts := index (readFile $shapeFile | fromYaml) "cluster-configs" "configmaps" "egov-service-host" "data" }}
+{{ $idgen := index $hosts "idgen" | trimSuffix "/" }}
+{{ $workflow := index $hosts "workflow" | trimSuffix "/" }}
+{{ $filestore := index $hosts "filestore" | trimSuffix "/" }}
+{{ $billing := index $hosts "billing" | trimSuffix "/" }}
+{{ $boundary := index $hosts "boundary" | trimSuffix "/" }}
+{{ $individual := index $hosts "individual" | trimSuffix "/" }}
+{{ $notification := index $hosts "notification" | trimSuffix "/" }}
+{{ $registry := index $hosts "registry" | trimSuffix "/" }}
+{{ $localization := index $hosts "localization" | trimSuffix "/" }}
+{{/* LnP's own services always run as their own pods, whatever the shape */}}
+{{ $calculator := "http://calculator.egov.svc.cluster.local:8080" }}
+{{ $schemaRegistry := "http://schema-registry.egov.svc.cluster.local:8080" }}
+{{ $pdf := "http://pdf-v3.egov.svc.cluster.local:8080" }}
+{{ $vc := "http://vc.egov.svc.cluster.local:8080" }}
+{{ $mdms := "http://mdms-v2.egov.svc.cluster.local:8080" }}
+
+global:
+  domain: {{ $domain }}
+
+license-certificate:
+  domain: "https://{{ $domain }}/"
+  keycloak-host: "https://{{ $domain }}/keycloak"
+  keycloak-client-id: "auth-server"
+  master-tenant-schema: "BASETENANT"           # the tenant 09-lnp.sh seeds; LnP's master catalogue lives there
+  tracing-export-enabled: "false"              # no OTEL collector on the single-node VMs
+  metrics-export-enabled: "false"
+  idgen-host: "{{ $idgen }}"
+  workflow-host: "{{ $workflow }}"
+  workflow-internal-host: "{{ $workflow }}"
+  filestore-host: "{{ $filestore }}"
+  filestore-internal-host: "{{ $filestore }}"
+  billing-host: "{{ $billing }}"
+  billing-internal-host: "{{ $billing }}"
+  boundary-host: "{{ $boundary }}"
+  individual-host: "{{ $individual }}"
+  notification-host: "{{ $notification }}"
+  registry-host: "{{ $registry }}"
+  localization-host: "{{ $localization }}"
+  calculator-host: "{{ $calculator }}"
+  calculator-internal-host: "{{ $calculator }}"
+  schema-registry-host: "{{ $schemaRegistry }}"
+  schema-registry-internal-host: "{{ $schemaRegistry }}"
+  pdf-service-host: "{{ $pdf }}"
+  pdf-service-internal-host: "{{ $pdf }}"
+  vc-service-host: "{{ $vc }}"
+  vc-service-internal-host: "{{ $vc }}"
+  mdms-host: "{{ $mdms }}"
+  certificate-workflow-payment-state: "PENDING_PAYMENT"
+  certificate-workflow-payment-action: "PAY_LICENSE_FEE"
+  certificate-workflow-terminal-success-state: "ISSUED"
+  certificate-workflow-terminal-failure-state: "REJECTED"
+  filestore-documentcategory-bycode-path: "/filestore/v3/document-categories/{docCode}"
+  filestore-documentcategory-path: "/filestore/v3/document-categories"
+  spring-datasource-tomcat-max-active: 10
+  # Metabase is not part of the overlay: dashboards stay empty and the refresh job is off.
+  certificate-dashboard-refresh-enabled: "false"
+
+calculator:
+  egov-billing-host: "{{ $billing }}"
+  cors-allowed-origins: "https://{{ $domain }}/license/citizen, https://{{ $domain }}/license/employee, https://{{ $domain }}/license/admin, https://{{ $domain }}/license/validator"
+
+pdf-v3:
+  egov-filestore-host: "{{ $filestore }}/filestore/v3/files"
+  localization-service-url: "{{ $localization }}"
+
+walt:
+  ingress:
+    enabled: false        # only vc talks to walt, in-cluster; the public /walt path is dead on test-lts too
+
+vc:
+  localization-service-url: "{{ $localization }}"
+  vault-transit-server: "http://vault.vault.svc.cluster.local:8200/v1/transit"   # 04-vault.sh's Vault (ns vault)
+
+# The UIs: nginx images; env is a string block that replaces the chart default wholesale, so
+# API_PROXY_TARGET (internal Kong — no hairpin through the public ingress) must be repeated.
+license-citizen:
+  env: |
+    - name: API_PROXY_TARGET
+      value: "http://kong-kong-proxy.egov"
+    - name: KEYCLOAK_URL
+      value: "https://{{ $domain }}/keycloak"
+license-employee:
+  env: |
+    - name: API_PROXY_TARGET
+      value: "http://kong-kong-proxy.egov"
+    - name: KEYCLOAK_DIRECT_URL
+      value: "https://{{ $domain }}/keycloak"
+license-validator:
+  env: |
+    - name: API_PROXY_TARGET
+      value: "http://kong-kong-proxy.egov"

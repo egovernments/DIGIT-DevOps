@@ -76,11 +76,16 @@ extraEnv:
 ingress:
   enabled: true
   className: nginx
-  host: modulith.digit.org
+  # Empty = the environment's global.domain (each shape overlay owns it). Pinning one
+  # VM's domain here left the console on the ingress fake certificate everywhere else.
+  host: ""
   proxyBodySize: "8m"
+  # The site certificate is issued into egov, and a TLS secret must be namespace-local,
+  # so the console needs its own certificate issued into backbone.
+  clusterIssuer: letsencrypt-prod
   tls:
     enabled: true
-    secretName: modulith.digit.org-tls-certs
+    secretName: ""
   # Console path requires the trailing slash (/minio/...) so it doesn't also match bare
   # /minio; $1 = everything after /minio/. Bare /minio is handled by the redirect below.
   path: /minio/(.*)
@@ -103,7 +108,12 @@ ingress:
 # custom rewrite -> ingress ClusterIP) so pods can use the same endpoint — that DNS config is
 # cluster infra, managed outside this chart.
 apiIngress:
-  enabled: true
+  # OFF: minio-api.<domain> has no DNS record on any environment, so the cert-manager
+  # annotation below asked for a certificate whose HTTP-01 challenge could never pass —
+  # leaving one pending Order and a solver pod per cluster indefinitely. Nothing refers to
+  # the host either: filestore reaches S3 at minio.backbone.svc.cluster.local:9000. Turn
+  # this back on only together with a DNS record for the host below.
+  enabled: false
   className: nginx
   host: minio-api.modulith.digit.org
   service: minio          # S3 API service

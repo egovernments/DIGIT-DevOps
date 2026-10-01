@@ -33,4 +33,15 @@ DEC=../../environments/azure-k3s-secrets.dec.yaml
 trap 'rm -f "$DEC"' EXIT
 sops -d "$SRC" > "$DEC"
 
-helmfile "$@"
+# The VM's real domain, as recorded by 01-cluster.sh, overrides global.domain for every
+# release in the run. Without this, backbone releases (minio) take the domain from the base
+# environments/azure-k3s.yaml, which can only name one environment — so the MinIO console
+# ingress and its certificate were pinned to that one domain on every other cluster. Shape
+# overlays set the same value; this just means a release deployed from the shape-agnostic
+# backbone helmfile gets it too.
+DOMAIN_SET=()
+if [ -n "${DOMAIN:-}" ]; then
+  DOMAIN_SET=(--set "global.domain=$DOMAIN")
+fi
+
+helmfile "${DOMAIN_SET[@]}" "$@"

@@ -11,6 +11,9 @@ metadata:
     {{- include "minio.labels" . | nindent 4 }}
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: {{ .Values.ingress.proxyBodySize | quote }}
+    {{- with .Values.ingress.clusterIssuer }}
+    cert-manager.io/cluster-issuer: {{ . | quote }}
+    {{- end }}
     {{- if .Values.ingress.rewriteTarget }}
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/rewrite-target: {{ .Values.ingress.rewriteTarget | quote }}
@@ -20,11 +23,11 @@ spec:
   {{- if .Values.ingress.tls.enabled }}
   tls:
     - hosts:
-        - {{ .Values.ingress.host | quote }}
-      secretName: {{ .Values.ingress.tls.secretName | quote }}
+        - {{ .Values.ingress.host | default .Values.global.domain | quote }}
+      secretName: {{ .Values.ingress.tls.secretName | default (printf "%s-tls-certs" .Values.global.domain) | quote }}
   {{- end }}
   rules:
-    - host: {{ .Values.ingress.host | quote }}
+    - host: {{ .Values.ingress.host | default .Values.global.domain | quote }}
       http:
         paths:
           - path: {{ .Values.ingress.path | quote }}
@@ -52,11 +55,11 @@ spec:
   {{- if .Values.ingress.tls.enabled }}
   tls:
     - hosts:
-        - {{ .Values.ingress.host | quote }}
-      secretName: {{ .Values.ingress.tls.secretName | quote }}
+        - {{ .Values.ingress.host | default .Values.global.domain | quote }}
+      secretName: {{ .Values.ingress.tls.secretName | default (printf "%s-tls-certs" .Values.global.domain) | quote }}
   {{- end }}
   rules:
-    - host: {{ .Values.ingress.host | quote }}
+    - host: {{ .Values.ingress.host | default .Values.global.domain | quote }}
       http:
         paths:
           - path: {{ .Values.ingress.redirect.path | quote }}

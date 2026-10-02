@@ -12,7 +12,7 @@ upload() { # upload <docType> <module> -> FSID (a tiny PDF made on the VM, multi
   CODE=${out##*$'\n'}; BODY=${out%$'\n'*}; FSID=$(jq_ '(d if isinstance(d,list) else d.get("files") or d.get("data") or [d])[0].get("fileStoreId") or (d if isinstance(d,list) else [d])[0].get("id")')
 }
 tr_() { api POST "/license/certificate-types/$CT/certificates/$APP" "$1"; }
-st_() { jq_ 'd.get("status")'; }; wf_() { jq_ '(d.get("workflow") or {}).get("currentState") or d.get("currentState")'; }
+st_() { jq_ 'd.get("status")'; }; wf_() { jq_ '(d.get("workflow") or {}).get("currentState") or d.get("currentState")'; }   # the certificate response carries no workflow state; the payment check (D2) asks workflow itself
 echo "scenario stamp $STAMP" >> "$REPORT"
 
 echo "## A. admin — configuration surface"; as_admin x "$2" "$3"
@@ -79,7 +79,7 @@ check "C7 bill raised for the application (calculator -> billing)" 200; AMT=$(jq
 
 echo "## D. payment"; as counter
 api POST /billing/v3/payments "{\"totalAmountPaid\":${AMT:-0},\"paymentMode\":\"CASH\",\"paidBy\":\"Scenario Diner\",\"payerName\":\"Citizen Test\",\"paymentDetails\":[{\"totalAmountPaid\":${AMT:-0},\"billId\":\"$BILL\"}]}"; check "D1 counter payment (CASH) against the bill" "200|201"; echo "     payment status=$(jq_ 'd.get("paymentStatus")') txn=$(jq_ 'd.get("transactionNumber")')"
-for i in 1 2 3 4 5 6 7 8; do sleep 10; as citizen; api GET "/license/certificate-types/$CT/certificates/$APP"; ST=$(wf_); [ "$ST" != "PENDING_PAYMENT" ] && break; done
+for i in 1 2 3 4 5 6 7 8; do sleep 10; as counter; api GET "/workflow/v3/transition?entityId=$APPNO&processCode=$CT&history=true"; ST=$(jq_ '(d.get("processInstances") or [{}])[0].get("currentState")'); [ "$ST" != "PENDING_PAYMENT" ] && break; done
 if [ "$ST" = "PENDING_ISSUANCE" ]; then PASS=$((PASS+1)); echo "  PASS  D2 payment event moved the application to PENDING_ISSUANCE" | tee -a "$REPORT"
 else FAIL=$((FAIL+1)); echo "  FAIL  D2 payment event did not advance the workflow (state=$ST)" | tee -a "$REPORT"; as counter; tr_ "{\"processCode\":\"$CT\",\"action\":\"PAY_LICENSE_FEE\",\"comment\":\"manual pay transition\"}"; check "D2b fallback: counter PAY_LICENSE_FEE transition" "200"; fi
 

@@ -25,12 +25,60 @@
 {{ $vc := "http://vc.egov.svc.cluster.local:8080" }}
 {{ $mdms := "http://mdms-v2.egov.svc.cluster.local:8080" }}
 
+{{/* The LnP -db images run Flyway with -baselineOnMigrate=true and no -baselineVersion against `public`,
+     which on a shared DIGIT database is never empty — Flyway baselines at 1 and SKIPS V1__init_table.sql
+     (schema-registry and vc then fail at V2; calculator/pdf-v3 end up without their tables). Baseline at
+     0 so V1 runs. The block restates the common chart's default env because `env` replaces it wholesale. */}}
+{{- define "lnpDbMigrationEnv" }}
+  env: |
+    - name: "DB_URL"
+    {{ "{{" }}- if eq .Values.namespace "health" }}
+      valueFrom:
+        configMapKeyRef:
+          name: egov-config
+          key: health-db-url
+    {{ "{{" }}- else }}
+      valueFrom:
+        configMapKeyRef:
+          name: egov-config
+          key: db-url
+    {{ "{{" }}- end }}
+    - name: "SCHEMA_TABLE"
+      value: {{ "{{" }} .Values.initContainers.dbMigration.schemaTable | quote }}
+    - name: "FLYWAY_USER"
+      valueFrom:
+        secretKeyRef:
+            name: db
+            key: flyway-username
+    - name: "FLYWAY_PASSWORD"
+      valueFrom:
+        secretKeyRef: 
+            name: db
+            key: flyway-password
+    - name: JAVA_ENABLE_DEBUG
+      value: "TRUE"        
+    - name: "FLYWAY_LOCATIONS"
+      valueFrom: 
+        configMapKeyRef: 
+            name: egov-config
+            key: flyway-locations
+    - name: FLYWAY_BASELINE_VERSION
+      value: "0"
+{{- end }}
+
 global:
   domain: {{ $domain }}
 
 license-certificate:
-  domain: "https://{{ $domain }}/"
-  keycloak-host: "https://{{ $domain }}/keycloak"
+  initContainers:
+    dbMigration:
+{{- include "lnpDbMigrationEnv" . | nindent 4 }}
+  # Platform callbacks (account, otp, employee, calculation) go through the in-cluster Kong over
+  # HTTP — never the public URL: a Let's Encrypt rate-limited or staging cert fails the JVM's PKIX
+  # check, and tokens must be issued by the in-cluster Keycloak URL for Kong's dynamic-jwt anyway.
+  # 09-lnp.sh adds these hostnames to the Kong route hosts.
+  domain: "http://kong-kong-proxy.egov.svc.cluster.local:8000/"
+  keycloak-host: "http://keycloak.keycloak.svc.cluster.local:8080/keycloak"
   keycloak-client-id: "auth-server"
   master-tenant-schema: "BASETENANT"           # the tenant 09-lnp.sh seeds; LnP's master catalogue lives there
   tracing-export-enabled: "false"              # no OTEL collector on the single-node VMs
@@ -43,7 +91,9 @@ license-certificate:
   billing-host: "{{ $billing }}"
   billing-internal-host: "{{ $billing }}"
   boundary-host: "{{ $boundary }}"
-  individual-host: "{{ $individual }}"
+  # license-certificate calls individual at the PLURAL path (/individuals/v3/…, the test-lts platform
+  # build's context) — send it through Kong so the /individuals alias route rewrites it (LNP.md).
+  individual-host: "http://kong-kong-proxy.egov.svc.cluster.local:8000"
   notification-host: "{{ $notification }}"
   registry-host: "{{ $registry }}"
   localization-host: "{{ $localization }}"
@@ -67,10 +117,16 @@ license-certificate:
   certificate-dashboard-refresh-enabled: "false"
 
 calculator:
+  initContainers:
+    dbMigration:
+{{- include "lnpDbMigrationEnv" . | nindent 4 }}
   egov-billing-host: "{{ $billing }}"
   cors-allowed-origins: "https://{{ $domain }}/license/citizen, https://{{ $domain }}/license/employee, https://{{ $domain }}/license/admin, https://{{ $domain }}/license/validator"
 
 pdf-v3:
+  initContainers:
+    dbMigration:
+{{- include "lnpDbMigrationEnv" . | nindent 4 }}
   egov-filestore-host: "{{ $filestore }}/filestore/v3/files"
   localization-service-url: "{{ $localization }}"
 
@@ -79,8 +135,16 @@ walt:
     enabled: false        # only vc talks to walt, in-cluster; the public /walt path is dead on test-lts too
 
 vc:
+  initContainers:
+    dbMigration:
+{{- include "lnpDbMigrationEnv" . | nindent 4 }}
   localization-service-url: "{{ $localization }}"
   vault-transit-server: "http://vault.vault.svc.cluster.local:8200/v1/transit"   # 04-vault.sh's Vault (ns vault)
+
+schema-registry:
+  initContainers:
+    dbMigration:
+{{- include "lnpDbMigrationEnv" . | nindent 4 }}
 
 # The UIs: nginx images; env is a string block that replaces the chart default wholesale, so
 # API_PROXY_TARGET (internal Kong — no hairpin through the public ingress) must be repeated.

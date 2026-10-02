@@ -1,5 +1,5 @@
 {
-  "_comment": "LnP Kong routes, exported from test-lts (phase 0). Replayed by digit3 src/services/kong/setup.py when KONG_EXTRA_ROUTES points here: services are upserted from `url`, routes get strip_path=false and the listed plugins (names from setup.py's PLUGIN_DEFINITIONS; [] = public route). Edit here, not in Kong.",
+  "_comment": "LnP Kong routes, exported from test-lts (phase 0). Replayed by digit3 src/services/kong/setup.py when KONG_EXTRA_ROUTES points here: services are upserted from `url`, routes get strip_path=false and the listed plugins (names from setup.py's PLUGIN_DEFINITIONS; [] = public route). Edit here, not in Kong. Routes with strip_path=true are path aliases: license-certificate (built against the test-lts platform build) calls /accounts and /individuals; modulith serves /account and /individual. The alias strips its prefix and loops the request back through Kong at the singular path, so the inner route's plugins (incl. keycloak-rbac against the singular resource URIs) still apply.",
   "routes": [
     {
       "name": "calculator-route",
@@ -23,7 +23,8 @@
       "methods": [
         "GET"
       ],
-      "plugins": []
+      "plugins": [],
+      "regex_priority": 100
     },
     {
       "name": "license-certificate-route",
@@ -49,7 +50,8 @@
       "methods": [
         "GET"
       ],
-      "plugins": []
+      "plugins": [],
+      "regex_priority": 100
     },
     {
       "name": "mdms-route",
@@ -76,7 +78,8 @@
       "methods": [
         "GET"
       ],
-      "plugins": []
+      "plugins": [],
+      "regex_priority": 100
     },
     {
       "name": "pdf-v3-route",
@@ -100,7 +103,8 @@
       "methods": [
         "GET"
       ],
-      "plugins": []
+      "plugins": [],
+      "regex_priority": 100
     },
     {
       "name": "schema-certificate-form-config-public-route",
@@ -112,7 +116,8 @@
       "methods": [
         "GET"
       ],
-      "plugins": []
+      "plugins": [],
+      "regex_priority": 100
     },
     {
       "name": "schema-registry-route",
@@ -137,7 +142,8 @@
       "methods": [
         "GET"
       ],
-      "plugins": []
+      "plugins": [],
+      "regex_priority": 100
     },
     {
       "name": "vc-route",
@@ -150,6 +156,38 @@
         "header-enrichment",
         "dynamic-jwt"
       ]
+    },
+    {
+      "name": "lnp-accounts-alias-route",
+      "service": "kong-loop-account",
+      "url": "http://kong-kong-proxy.egov.svc.cluster.local:8000/account",
+      "paths": [
+        "/accounts"
+      ],
+      "strip_path": true,
+      "plugins": []
+    },
+    {
+      "name": "lnp-individuals-alias-route",
+      "service": "kong-loop-individual",
+      "url": "http://kong-kong-proxy.egov.svc.cluster.local:8000/individual",
+      "paths": [
+        "/individuals"
+      ],
+      "strip_path": true,
+      "plugins": []
+    },
+    {
+      "name": "workflow-process-definition-public-route",
+      "service": "workflow",
+      "paths": [
+        "~/workflow/v3/process/definition/[^/]+$"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "regex_priority": 100,
+      "plugins": []
     }
   ]
 }

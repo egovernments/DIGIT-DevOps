@@ -109,7 +109,7 @@ cluster-configs:
     kafka-kraft:
       kraft-cluster-id: $KRAFT_ID
     license-certificate:        # LnP overlay (09-lnp.sh); keycloak client secret filled by 09-lnp.sh
-      certificate-otp-bypass-code: $(rand)
+      certificate-otp-bypass-code: $(rand | cut -c1-16)   # <= 20 chars (license-certificate's otp.code limit)
       egov-keycloak-client-secret: ""
 vault-operator:               # filled by 04-vault.sh
   unseal-key: ""

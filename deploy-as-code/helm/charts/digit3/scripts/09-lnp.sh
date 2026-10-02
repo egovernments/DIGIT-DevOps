@@ -11,7 +11,10 @@
 #                 its auth-server client secret → sops → cluster-configs
 #   3. overlay  — DOMAIN/DIGIT_SHAPE ./deploy.sh -f lnp-helmfile.yaml sync, rollouts
 #   4. kong     — setup.py with KONG_EXTRA_ROUTES=lnp/kong-routes.json (catalogue routes re-applied, no-op)
-#   5. onboard  — POST /license/onboarding/_onboard-tenant as the BASETENANT admin: LnP provisions its
+#   5. onboard  — POST /license/onboarding/_onboard-tenant; 5b. lnp/seed-master-data.sh: certificate types,
+#                 workflows, billing/tax heads, idgen + OTP templates, document categories (lnp/exports);
+#                 5c. /license/access-control/_provision-* (Keycloak authz objects + MDMS UI actions)
+#                 workflows, billing/tax heads, idgen + OTP templates, document categories (lnp/exports) as the BASETENANT admin: LnP provisions its
 #                 own master data (certificate types, calculator rules, schemas, pdf templates, MDMS,
 #                 localisation, VC tenant) — the services' own seeding path, not SQL
 #   6. smoke    — certificate types through Kong, the four UIs through the ingress
@@ -23,7 +26,7 @@ load_env
 ensure_tunnel
 [ $# -ge 2 ] || die "usage: $0 <path-to-digit3-repo> <master-tenant-admin-email>"
 DIGIT3="$(cd "$1" && pwd)"; EMAIL="$2"
-TENANT_NAME="Base Tenant"; TENANT="BASETENANT"
+TENANT_NAME="BASETENANT"; TENANT="BASETENANT"   # name == code: the LnP UIs resolve the tenant with GET /accounts/v3/tenants?name=<code>
 SHAPE=$(cat "$SCRIPT_DIR/.last-shape" 2>/dev/null || true)
 [ -n "$SHAPE" ] || die "scripts/.last-shape missing — run 06-deploy.sh first (the overlay follows the deployed shape)"
 [ -f "$CHART_DIR/$SHAPE-helmfile.yaml" ] || die "no $SHAPE-helmfile.yaml — custom groupings: deploy the overlay by hand (LNP.md §custom)"
@@ -33,7 +36,8 @@ LNP_DIR="$CHART_DIR/lnp"
 # ---- 1. secrets ---------------------------------------------------------------------------------
 note "1/6 secrets: license-certificate entry in $(basename "$SECRETS_FILE")"
 if [ -z "$(sops_get 'cluster-configs.secrets.license-certificate.certificate-otp-bypass-code' 2>/dev/null)" ]; then
-  sops_set 'cluster-configs.secrets.license-certificate.certificate-otp-bypass-code' "$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)"
+  # <= 20 chars: license-certificate validates otp.code with @Size(max = 20), a longer bypass code can never be entered
+  sops_set 'cluster-configs.secrets.license-certificate.certificate-otp-bypass-code' "$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-16)"
   sops_set 'cluster-configs.secrets.license-certificate.egov-keycloak-client-secret' ""
   echo "    added (otp bypass code generated; client secret filled in step 2)"
 else
@@ -43,11 +47,18 @@ fi
 # ---- 2. master tenant + its auth-server client secret -------------------------------------------
 note "2/6 tenant $TENANT (\"$TENANT_NAME\", $EMAIL) via 07-seed.sh"
 SEED_CAP="$HOME/lnp-seed-$DOMAIN.log"
-( umask 077; "$SCRIPT_DIR/07-seed.sh" "$TENANT_NAME" "$EMAIL" > "$SEED_CAP" 2>&1 ) || { cat "$SEED_CAP"; die "07-seed.sh failed"; }
-grep -vE "^\s+password: " "$SEED_CAP"            # everything 07 said, minus the one-time value
-grep -q "tenant code: $TENANT" "$SEED_CAP" || die "07-seed.sh did not report tenant code $TENANT"
-if grep -q "shown ONCE" "$SEED_CAP"; then
+# 07 prints the password only on the run that creates the tenant; a re-run says "tenant already
+# exists". Capture to a scratch file and promote it only when it holds a fresh password, so an
+# earlier capture (the only copy) is never overwritten by a re-run.
+NEW_CAP=$(umask 077; mktemp "$HOME/.lnp-seed.XXXXXX")
+( "$SCRIPT_DIR/07-seed.sh" "$TENANT_NAME" "$EMAIL" > "$NEW_CAP" 2>&1 ) || { cat "$NEW_CAP"; rm -f "$NEW_CAP"; die "07-seed.sh failed"; }
+grep -vE "^\s+password: " "$NEW_CAP"            # everything 07 said, minus the one-time value
+grep -q "tenant code: $TENANT" "$NEW_CAP" || { rm -f "$NEW_CAP"; die "07-seed.sh did not report tenant code $TENANT"; }
+if grep -q "shown ONCE" "$NEW_CAP"; then
+  mv "$NEW_CAP" "$SEED_CAP"
   echo "    the one-time admin password is in $SEED_CAP (label: 'tenant admin login') — store it, then: shred -u $SEED_CAP"
+else
+  rm -f "$NEW_CAP"
 fi
 
 note "    auth-server client secret of realm $TENANT -> sops -> cluster-configs"
@@ -85,7 +96,7 @@ for d in mdms-v2 walt calculator schema-registry pdf-v3 vc license-certificate l
 done
 
 # ---- 4. kong ------------------------------------------------------------------------------------
-note "4/6 kong: catalogue routes (no-op) + lnp/kong-routes.json"
+note "4/6 kong: catalogue routes (+ in-cluster proxy hostnames) + lnp/kong-routes.json"
 kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 >/dev/null 2>&1 &
 PF_PID=$!; trap 'kill $PF_PID 2>/dev/null || true' EXIT
 for _ in $(seq 1 30); do curl -sfm 2 -o /dev/null http://localhost:18001/status && break; sleep 2; done
@@ -95,7 +106,7 @@ case "$SHAPE" in
   domain-bundles)   KONG_BUNDLES="$DIGIT3/src/bundles/domain-split.package.yaml" ;;
 esac
 (cd "$DIGIT3/src/services/kong" && \
-  env KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS="$DOMAIN" KONG_EXTRA_ROUTES="$LNP_DIR/kong-routes.json" \
+  env KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS="$DOMAIN,kong-kong-proxy.egov.svc.cluster.local,kong-kong-proxy.egov" KONG_EXTRA_ROUTES="$LNP_DIR/kong-routes.json" \
       ${KONG_BUNDLES:+KONG_BUNDLE_MANIFESTS="$KONG_BUNDLES"} python3 setup.py | grep -E "^Extra routes|✓ route .*(license|calculator|pdf|schema|credential|mdms)|Done")
 
 # ---- 5. onboard ---------------------------------------------------------------------------------
@@ -103,7 +114,7 @@ note "5/6 onboarding $TENANT through license-certificate (its own provisioning p
 KGIP=$(kubectl get svc kong-kong-proxy -n egov -o jsonpath='{.spec.clusterIP}')
 # The admin password lives only in the 07 capture (or, on a re-run, in the caller's hands): read it in
 # the same command that uses it, never echo it. Re-runs with the tenant already seeded need LNP_ADMIN_PASSWORD.
-PW=$(sed -n 's/^\s*password: //p' "$SEED_CAP" | head -1); PW=${PW:-${LNP_ADMIN_PASSWORD:-}}
+PW=$( [ -f "$SEED_CAP" ] && sed -n 's/^\s*password: //p' "$SEED_CAP" | head -1 ); PW=${PW:-${LNP_ADMIN_PASSWORD:-}}
 [ -n "$PW" ] || die "no admin password available — re-run with LNP_ADMIN_PASSWORD=<the one 07-seed printed> in the environment"
 TOKEN=$("$SCRIPT_DIR/08-token.sh" "$TENANT" "$EMAIL" "$PW" 2>/dev/null | grep -E '^ey[A-Za-z0-9_-]+\.' | head -1); unset PW
 [ -n "$TOKEN" ] || die "08-token.sh returned no token for $EMAIL in $TENANT"
@@ -114,9 +125,37 @@ import sys,json
 try: d=json.load(sys.stdin)
 except Exception: print("    non-JSON reply:", sys.stdin.read()[:300] if False else "see above"); raise SystemExit(1)
 steps=d.get("steps") or {}
-bad=[k for k,v in steps.items() if str(v.get("status",v)).upper() not in ("OK","SUCCESS","DONE","SKIPPED","UPDATED","CREATED")]
-for k,v in steps.items(): print(f"    {k:<28} {v.get(\"status\",v) if isinstance(v,dict) else v}")
-print("    steps with problems:", bad or "none")' || die "onboarding call failed: ${RESP:0:300}"
+val=lambda v: str(v.get("status",v)) if isinstance(v,dict) else str(v)
+bad=[k for k,v in steps.items() if any(w in val(v).upper() for w in ("FAIL","ERROR","ABORT","EXCEPTION"))]
+for k,v in steps.items(): print("    %-28s %s" % (k, val(v)[:150]))
+print("    steps with problems:", bad or "none")' || { printf "%s" "$RESP" > "$HOME/lnp-onboard-$DOMAIN.json"; die "onboarding call failed — full reply in $HOME/lnp-onboard-$DOMAIN.json: ${RESP:0:300}"; }
+
+# ---- 5b. master data ---------------------------------------------------------------------------
+note "5b/6 master data (certificate types, workflows, fee config, templates) from lnp/exports"
+PWF=$(umask 077; mktemp "$HOME/.lnp-pw.XXXXXX"); { [ -f "$SEED_CAP" ] && sed -n 's/^\s*password: //p' "$SEED_CAP" | head -1 || printf '%s' "${LNP_ADMIN_PASSWORD:-}"; } > "$PWF"
+"$LNP_DIR/seed-master-data.sh" "$TENANT" "$EMAIL" "$PWF" || die "master data seeding failed"; rm -f "$PWF"
+
+# ---- 5c. access control ------------------------------------------------------------------------
+# LnP's Keycloak authorization objects (scopes, resources, roles, policies, permissions on the shared
+# auth-server client) and the MDMS UI-action mapping — the second provisioning block _onboard-tenant
+# leaves out. The three Keycloak calls take the tenant super-user's email+password in the body (the
+# service's own contract); the value is read from the capture in the same command, never printed.
+note "5c/6 access control: Keycloak authz objects + MDMS UI actions for $TENANT"
+ACPW=$( [ -f "$SEED_CAP" ] && sed -n 's/^\s*password: //p' "$SEED_CAP" | head -1 ); ACPW=${ACPW:-${LNP_ADMIN_PASSWORD:-}}
+CRED=$(python3 -c 'import json,sys; print(json.dumps({"email": sys.argv[1], "password": sys.argv[2]}))' "$EMAIL" "$ACPW"); unset ACPW
+for ep in _provision-scopes-and-resources _provision-roles-and-policies _provision-permissions _provision-ui-actions; do
+  body="$CRED"; [ "$ep" = _provision-ui-actions ] && body='{}'
+  RESP=$(printf '%s\n%s' "$TOKEN" "$body" | vm_ssh "read -r T; curl -s -m 300 -X POST http://$KGIP:8000/license/access-control/$ep \
+    -H 'Host: $DOMAIN' -H 'X-Tenant-ID: $TENANT' -H 'X-User-Id: 09-lnp' -H 'Content-Type: application/json' -H \"Authorization: Bearer \$T\" -d @-")
+  printf '%s' "$RESP" | python3 -c '
+import sys,json,collections
+ep=sys.argv[1]
+try: d=json.load(sys.stdin)
+except Exception: print("    %-34s non-JSON reply" % ep); raise SystemExit(1)
+st=d.get("steps") or {}; c=collections.Counter(str(v).split(":")[0].split(" ")[0] for v in st.values())
+bad=[k for k,v in st.items() if str(v).upper().startswith("FAILED")]
+print("    %-34s %s%s" % (ep, dict(c), ("  FAILED: "+", ".join(bad[:5])) if bad else ""))' "$ep" || die "access-control $ep failed: ${RESP:0:200}"
+done; unset CRED
 
 # ---- 6. smoke -----------------------------------------------------------------------------------
 note "6/6 smoke"

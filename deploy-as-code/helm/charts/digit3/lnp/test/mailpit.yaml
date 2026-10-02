@@ -1,0 +1,22 @@
+# Test-only SMTP sink for the LnP UI/API tests on a VM: catches the e-mail OTPs the platform would otherwise
+# try to send through the placeholder SMTP credentials. Not part of the overlay. kubectl delete -f to remove.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: lnp-test-mailpit, namespace: egov, labels: { app: lnp-test-mailpit, purpose: lnp-test } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: lnp-test-mailpit } }
+  template:
+    metadata: { labels: { app: lnp-test-mailpit } }
+    spec:
+      containers:
+        - name: mailpit
+          image: axllent/mailpit:v1.21
+          ports: [{ containerPort: 1025, name: smtp }, { containerPort: 8025, name: http }]
+          env: [{ name: MP_SMTP_AUTH_ACCEPT_ANY, value: "1" }, { name: MP_SMTP_AUTH_ALLOW_INSECURE, value: "1" }]
+          resources: { requests: { cpu: 20m, memory: 64Mi }, limits: { cpu: 200m, memory: 256Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: lnp-test-mailpit, namespace: egov, labels: { purpose: lnp-test } }
+spec: { selector: { app: lnp-test-mailpit }, ports: [{ name: smtp, port: 1025, targetPort: 1025 }, { name: http, port: 8025, targetPort: 8025 }] }

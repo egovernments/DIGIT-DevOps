@@ -1,0 +1,22 @@
+# Test-only SMS "provider": answers 200 to any request and logs the full request (incl. the SMS text with the OTP)
+# to stdout, so a test can read the code with `kubectl logs`. Point the notification service's SMS_PROVIDER_URL here.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: lnp-test-sms-sink, namespace: egov, labels: { app: lnp-test-sms-sink, purpose: lnp-test } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: lnp-test-sms-sink } }
+  template:
+    metadata: { labels: { app: lnp-test-sms-sink } }
+    spec:
+      containers:
+        - name: echo
+          image: mendhak/http-https-echo:34
+          ports: [{ containerPort: 8080 }]
+          env: [{ name: HTTP_PORT, value: "8080" }, { name: LOG_WITHOUT_NEWLINE, value: "true" }]
+          resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { cpu: 200m, memory: 128Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: lnp-test-sms-sink, namespace: egov, labels: { purpose: lnp-test } }
+spec: { selector: { app: lnp-test-sms-sink }, ports: [{ port: 8080, targetPort: 8080 }] }

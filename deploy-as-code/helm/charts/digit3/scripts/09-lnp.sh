@@ -133,7 +133,8 @@ print("    steps with problems:", bad or "none")' || { printf "%s" "$RESP" > "$H
 # ---- 5b. master data ---------------------------------------------------------------------------
 note "5b/6 master data (certificate types, workflows, fee config, templates) from lnp/exports"
 PWF=$(umask 077; mktemp "$HOME/.lnp-pw.XXXXXX"); { [ -f "$SEED_CAP" ] && sed -n 's/^\s*password: //p' "$SEED_CAP" | head -1 || printf '%s' "${LNP_ADMIN_PASSWORD:-}"; } > "$PWF"
-"$LNP_DIR/seed-master-data.sh" "$TENANT" "$EMAIL" "$PWF" || die "master data seeding failed"; rm -f "$PWF"
+trap 'kill $PF_PID 2>/dev/null || true; rm -f "$PWF"' EXIT   # the password file lives until 5d; never leave it behind
+"$LNP_DIR/seed-master-data.sh" "$TENANT" "$EMAIL" "$PWF" data || die "master data seeding failed"
 
 # ---- 5c. access control ------------------------------------------------------------------------
 # LnP's Keycloak authorization objects (scopes, resources, roles, policies, permissions on the shared
@@ -158,6 +159,9 @@ print("    %-34s %s%s" % (ep, dict(c), ("  FAILED: "+", ".join(bad[:5])) if bad 
 done; unset CRED
 
 # ---- 6. smoke -----------------------------------------------------------------------------------
+note "5d/6 employee-portal menus (needs the mdms access.* schemas that 5c provisions)"
+"$LNP_DIR/seed-master-data.sh" "$TENANT" "$EMAIL" "$PWF" menus || die "menu seeding failed"; rm -f "$PWF"
+
 note "6/6 smoke"
 CT=$(printf '%s\n' "$TOKEN" | vm_ssh "read -r T; curl -s -o /dev/null -w '%{http_code}' -H 'Host: $DOMAIN' -H 'X-Tenant-ID: $TENANT' -H 'X-User-Id: 09-lnp' -H \"Authorization: Bearer \$T\" http://$KGIP:8000/license/certificate-types"); unset TOKEN
 echo "    GET /license/certificate-types via kong -> HTTP $CT"

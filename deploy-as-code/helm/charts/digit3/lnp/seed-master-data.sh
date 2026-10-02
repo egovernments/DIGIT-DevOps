@@ -4,11 +4,14 @@
 # their workflows, fee rules' tax heads, idgen templates and OTP templates come from the LnP team's
 # environment). Sources: lnp/exports/* captured read-only from test-lts. Idempotent: every call is a
 # create-if-absent or a no-op on conflict. Called by 09-lnp.sh after onboarding; safe to re-run alone:
-#   lnp/seed-master-data.sh <tenant> <admin-email> <admin-password-file>
+#   lnp/seed-master-data.sh <tenant> <admin-email> <admin-password-file> [all|data|menus]
+# `menus` needs the mdms access.* schemas, which /license/access-control/_provision-ui-actions creates;
+# 09-lnp.sh therefore runs `data` before access control and `menus` after it.
 set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd); SCRIPTS="$HERE/../scripts"; EXPORTS="$HERE/exports"
 source "$SCRIPTS/lib.sh"; load_env; set +e; trap - ERR
-TENANT=$1; EMAIL=$2; PWFILE=$3
+TENANT=$1; EMAIL=$2; PWFILE=$3; ONLY=${4:-all}
+case "$ONLY" in all|data|menus) ;; *) die "mode must be all, data or menus (got $ONLY)";; esac
 KGIP=$(kubectl get svc kong-kong-proxy -n egov -o jsonpath='{.spec.clusterIP}')
 TOK=$(umask 077; mktemp "$HOME/.lnp-tok.XXXXXX"); trap 'rm -f "$TOK"' EXIT
 pw=$(sed -n 's/^\s*password: //p' "$PWFILE" | head -1); [ -n "$pw" ] || pw=$(cat "$PWFILE")
@@ -21,6 +24,7 @@ api() { # api METHOD path [body] -> CODE BODY (token + body over the ssh stdin)
 j() { printf '%s' "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print($1)" 2>/dev/null || true; }
 tally() { case "$CODE" in 200|201) echo "created";; 409) echo "exists";; 400) case "$BODY" in *CONFLICT*|*"already exists"*) echo "exists";; *) echo "HTTP $CODE ${BODY:0:100}";; esac;; *) echo "HTTP $CODE ${BODY:0:100}";; esac; }
 
+if [ "$ONLY" != menus ]; then
 note "master data: certificate types, categories, rules, schemas, templates (SQL from lnp/exports/db)"
 for f in basetenant-lnp-config.sql basetenant-required-document.sql public-lnp-config.sql; do
   errs=$(psql_exec -v ON_ERROR_STOP=0 -q < "$EXPORTS/db/$f" 2>&1 | grep -c "ERROR" || true)
@@ -85,6 +89,10 @@ api GET /filestore/v3/document-categories; HAVE_DC=$(j '",".join(x["code"] for x
 for c in $(psql_exec -tAc "SELECT DISTINCT document_type FROM \"$TENANT\".required_document" 2>/dev/null); do
   echo ",$HAVE_DC," | grep -q ",$c," && continue
   api POST /filestore/v3/document-categories "{\"code\":\"$c\",\"type\":\"certificate\",\"allowedFormats\":[\"pdf\",\"jpg\",\"png\"],\"maxSize\":\"10MB\",\"isSensitive\":false,\"description\":\"$c\"}"; echo "    $c: $(tally)"; done
+fi
+
+[ "$ONLY" = data ] && { echo "    done"; exit 0; }
+[ "$ONLY" = menus ] && { api GET /license/certificate-types; TYPES=$(j '" ".join(t["code"] for t in d.get("certificateTypes",[]))'); }
 note "master data: employee-portal menus (mdms access.UIActions + PermissionActions) per certificate type"
 # license-certificate derives LC_<CODE>_{MODULE,REPORTS,INBOX,SEARCH,APPLY} only when a type is created through its API;
 # _provision-ui-actions ships a static manifest (TRADE_LICENSE, FIRE_NOC, ...), so SQL-imported types such as

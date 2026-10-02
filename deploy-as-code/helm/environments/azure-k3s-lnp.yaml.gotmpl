@@ -70,6 +70,13 @@ global:
   domain: {{ $domain }}
 
 license-certificate:
+  resources: |
+    requests:
+      cpu: "50m"
+      memory: "768Mi"
+    limits:
+      cpu: "300m"
+      memory: "1500Mi"
   initContainers:
     dbMigration:
 {{- include "lnpDbMigrationEnv" . | nindent 4 }}
@@ -117,6 +124,13 @@ license-certificate:
   certificate-dashboard-refresh-enabled: "false"
 
 calculator:
+  resources: |
+    requests:
+      cpu: "50m"
+      memory: "768Mi"
+    limits:
+      cpu: "300m"
+      memory: "1500Mi"
   initContainers:
     dbMigration:
 {{- include "lnpDbMigrationEnv" . | nindent 4 }}
@@ -124,6 +138,13 @@ calculator:
   cors-allowed-origins: "https://{{ $domain }}/license/citizen, https://{{ $domain }}/license/employee, https://{{ $domain }}/license/admin, https://{{ $domain }}/license/validator"
 
 pdf-v3:
+  resources: |
+    requests:
+      cpu: "50m"
+      memory: "768Mi"
+    limits:
+      cpu: "300m"
+      memory: "1500Mi"
   initContainers:
     dbMigration:
 {{- include "lnpDbMigrationEnv" . | nindent 4 }}
@@ -131,10 +152,24 @@ pdf-v3:
   localization-service-url: "{{ $localization }}"
 
 walt:
+  resources: |
+    requests:
+      cpu: "50m"
+      memory: "384Mi"
+    limits:
+      cpu: "300m"
+      memory: "768Mi"
   ingress:
     enabled: false        # only vc talks to walt, in-cluster; the public /walt path is dead on test-lts too
 
 vc:
+  resources: |
+    requests:
+      cpu: "50m"
+      memory: "768Mi"
+    limits:
+      cpu: "300m"
+      memory: "1500Mi"
   initContainers:
     dbMigration:
 {{- include "lnpDbMigrationEnv" . | nindent 4 }}
@@ -142,25 +177,82 @@ vc:
   vault-transit-server: "http://vault.vault.svc.cluster.local:8200/v1/transit"   # 04-vault.sh's Vault (ns vault)
 
 schema-registry:
+  resources: |
+    requests:
+      cpu: "50m"
+      memory: "768Mi"
+    limits:
+      cpu: "300m"
+      memory: "1500Mi"
   initContainers:
     dbMigration:
 {{- include "lnpDbMigrationEnv" . | nindent 4 }}
 
 # The UIs: nginx images; env is a string block that replaces the chart default wholesale, so
 # API_PROXY_TARGET (internal Kong — no hairpin through the public ingress) must be repeated.
+license-admin:
+  # Static nginx sites: request little so the overlay also fits the 4-JVM domain-split VM (the chart
+  # default 100m x4 tipped a 4-vCPU node over its CPU requests); limits stay at the chart default.
+  resources: |
+    requests:
+      cpu: "20m"
+      memory: "64Mi"
+    limits:
+      cpu: "300m"
+      memory: "800Mi"
+
 license-citizen:
+  # Static nginx sites: request little so the overlay also fits the 4-JVM domain-split VM (the chart
+  # default 100m x4 tipped a 4-vCPU node over its CPU requests); limits stay at the chart default.
+  resources: |
+    requests:
+      cpu: "20m"
+      memory: "64Mi"
+    limits:
+      cpu: "300m"
+      memory: "800Mi"
   env: |
     - name: API_PROXY_TARGET
       value: "http://kong-kong-proxy.egov"
     - name: KEYCLOAK_URL
       value: "https://{{ $domain }}/keycloak"
 license-employee:
+  # Static nginx sites: request little so the overlay also fits the 4-JVM domain-split VM (the chart
+  # default 100m x4 tipped a 4-vCPU node over its CPU requests); limits stay at the chart default.
+  resources: |
+    requests:
+      cpu: "20m"
+      memory: "64Mi"
+    limits:
+      cpu: "300m"
+      memory: "800Mi"
   env: |
     - name: API_PROXY_TARGET
       value: "http://kong-kong-proxy.egov"
     - name: KEYCLOAK_DIRECT_URL
       value: "https://{{ $domain }}/keycloak"
 license-validator:
+  # Static nginx sites: request little so the overlay also fits the 4-JVM domain-split VM (the chart
+  # default 100m x4 tipped a 4-vCPU node over its CPU requests); limits stay at the chart default.
+  resources: |
+    requests:
+      cpu: "20m"
+      memory: "64Mi"
+    limits:
+      cpu: "300m"
+      memory: "800Mi"
   env: |
     - name: API_PROXY_TARGET
       value: "http://kong-kong-proxy.egov"
+
+# CPU requests: the charts ask for 100-200m per service while these idle at 2-6m (kubectl top on
+# mx-split). On the 4-vCPU domain-split VM four bundle JVMs already reserve 2.5 CPUs, so the chart
+# requests left the UIs unschedulable. Requests drop to 50m; memory and limits keep the chart values.
+mdms-v2:
+  resources: |
+    requests:
+      cpu: "50m"
+      memory: "512Mi"
+    limits:
+      cpu: "200m"
+      memory: "512Mi"

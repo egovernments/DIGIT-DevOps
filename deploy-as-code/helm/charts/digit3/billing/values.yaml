@@ -146,6 +146,24 @@ env: |
         name: egov-service-host
   - name: BILLING_APPORTION_BILL_PATH
     value: apportion/v3/bills
+  # Bill / receipt PDFs: upload to filestore, org header from account. Host from the shared
+  # map ends with "/", so the paths are relative (the service default paths start with "/").
+  - name: BILLING_FILESTORE_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: filestore
+        name: egov-service-host
+  - name: BILLING_FILESTORE_UPLOAD_PATH
+    value: filestore/v3/files/upload
+  - name: BILLING_FILESTORE_DOWNLOAD_PATH
+    value: filestore/v3/files/{id}
+  # egov-service-host has no account key (nothing else calls account by host).
+  - name: ACCOUNTS_HOST
+    value: http://account.egov.svc.cluster.local:8080
+  # A filestore/account outage must not fail bill generation; POST
+  # /billing/internal/bills/pdf-backfill fills the PDF in later.
+  - name: BILLING_PDF_FAIL_ON_ERROR
+    value: "false"
   # ── Messaging (bulk-bill pipeline; tracer PubSubClient, kafka backend) ──
   - name: TRACER_PUBSUB_TYPE
     value: kafka

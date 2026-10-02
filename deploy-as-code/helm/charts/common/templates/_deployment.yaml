@@ -88,8 +88,15 @@ spec:
       {{ with .Values.initContainers.dbMigration}}
       - name: "db-migration"
         image: {{ template "common.image" (dict "Values" $.Values "repository" .image.repository "tag" .image.tag) }}
-        imagePullPolicy: {{ .image.pullPolicy }} 
-      {{- end }}    
+        imagePullPolicy: {{ .image.pullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          seccompProfile:
+            type: RuntimeDefault
+      {{- end }}
         {{- if .Values.initContainers.dbMigration.env }}
         env:
           {{- tpl (printf "\n%s" .Values.initContainers.dbMigration.env) . | nindent 12 }}
@@ -103,6 +110,12 @@ spec:
       {{- end }}
         securityContext:
           runAsUser: 65533 # git-sync user
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          seccompProfile:
+            type: RuntimeDefault
         volumeMounts:
         - name: git-secret
           mountPath: /etc/git-secret              
@@ -121,7 +134,22 @@ spec:
       {{- end }}      
         - name: {{ template "common.name" . }}
           image: {{ template "common.image" (dict "Values" $.Values "repository" .Values.image.repository "tag" .Values.image.tag) }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}  
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- /* Non-breaking hardening baseline. Override per service with
+                 .Values.containerSecurityContext. runAsNonRoot / readOnlyRootFilesystem
+                 are intentionally NOT defaulted here - they can break images that run as
+                 root or write to the root fs; enable them per service once validated. */}}
+          securityContext:
+          {{- if hasKey .Values "containerSecurityContext" }}
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- else }}
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          {{- end }}
       {{- if .Values.args }}
           args:
           {{- tpl (printf "\n%s" .Values.args) . | nindent 12 }}

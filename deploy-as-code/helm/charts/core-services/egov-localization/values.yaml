@@ -65,3 +65,24 @@ env: |
     value: {{ .Values.moduleAbsentMaxMessages | default "200000" | quote }}
   - name: LOCALIZATION_CACHE_MAX_ENTRY_BYTES
     value: {{ .Values.cacheMaxEntryBytes | default "10485760" | quote }}
+
+# --- Security hardening (pilot) ---
+# Main container hardened: non-root, read-only root fs (writable /tmp only),
+# no privilege escalation, all caps dropped, RuntimeDefault seccomp.
+# Verify on a cluster before wider rollout; adjust runAsUser if the image needs it.
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+extraVolumes: |
+  - name: tmp
+    emptyDir: {}
+extraVolumeMounts: |
+  - name: tmp
+    mountPath: /tmp

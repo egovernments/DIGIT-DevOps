@@ -159,7 +159,7 @@ done; unset CRED
 
 # ---- 6. smoke -----------------------------------------------------------------------------------
 note "6/6 smoke"
-CT=$(printf '%s\n' "$TOKEN" | vm_ssh "read -r T; curl -s -o /dev/null -w '%{http_code}' -H 'Host: $DOMAIN' -H 'X-Tenant-ID: $TENANT' -H \"Authorization: Bearer \$T\" http://$KGIP:8000/license/certificate-types"); unset TOKEN
+CT=$(printf '%s\n' "$TOKEN" | vm_ssh "read -r T; curl -s -o /dev/null -w '%{http_code}' -H 'Host: $DOMAIN' -H 'X-Tenant-ID: $TENANT' -H 'X-User-Id: 09-lnp' -H \"Authorization: Bearer \$T\" http://$KGIP:8000/license/certificate-types"); unset TOKEN
 echo "    GET /license/certificate-types via kong -> HTTP $CT"
 for u in license/admin license/citizen license/employee license/validator; do
   printf '    https://%s/%s -> HTTP %s\n' "$DOMAIN" "$u" "$(curl -sk -o /dev/null -m 15 -w '%{http_code}' "https://$DOMAIN/$u/")"

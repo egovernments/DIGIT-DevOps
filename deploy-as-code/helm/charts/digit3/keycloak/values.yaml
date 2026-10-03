@@ -120,8 +120,11 @@ env: |
     value: "mobileNumber"
   - name: HTTP_CLIENT_CONNECT_TIMEOUT_MS
     value: "3000"
+  # The e-mail/SMS OTP authenticator calls otp -> notification -> provider synchronously (NOTIFY_ASYNC=false),
+  # and a real SMTP send (Gmail) measures 5-7s: at 5000 every login timed out and fell to "Invalid
+  # username or password" while the mail still arrived. otp's own notify timeout is 15s; stay below it.
   - name: HTTP_CLIENT_REQUEST_TIMEOUT_MS
-    value: "5000"
+    value: "14000"
 
 # Without a readiness probe the Deployment is "Available" the moment the
 # container exists, while Keycloak needs ~100s to listen on a fresh VM — every

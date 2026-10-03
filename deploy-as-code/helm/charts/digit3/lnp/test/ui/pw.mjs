@@ -32,6 +32,11 @@ for (const s of script.steps) {
     if (s.setValue) await page.locator(sub(s.setValue.sel)).first().evaluate((el, v) => { const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value') || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value'); d.set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }, sub(s.setValue.value));
     if (s.net) { const re = new RegExp(s.net); netAll.filter(l => re.test(l)).forEach(l => console.log('NETALL ' + l)); }
     if (s.upload) await page.locator(s.upload.sel).first().setInputFiles(s.upload.path);
+    if (s.waitFile) { // {waitFile: path, var: NAME, timeout?: ms, secret?: bool} — poll for a file (no spawn timeout), read digits
+      const t0 = Date.now(); let val = '';
+      while (Date.now() - t0 < (s.timeout || 420000)) { if (fs.existsSync(s.waitFile) && fs.statSync(s.waitFile).size > 0) { val = fs.readFileSync(s.waitFile, 'utf8').replace(/[^0-9]/g, ''); if (val) break; } await page.waitForTimeout(2000); }
+      vars[s.var] = val || 'NONE'; console.log('VAR ' + s.var + '=' + (s.secret ? '<set>' : vars[s.var]));
+    }
     if (s.url) console.log('URL ' + page.url());
     if (s.shot) { await page.screenshot({ path: `${out}/${s.shot}.png`, fullPage: !!s.full }); console.log('SHOT ' + s.shot); }
     console.log('OK ' + JSON.stringify(s).replace(/"value":"[^"]*"/g, '"value":"…"').slice(0, 120));

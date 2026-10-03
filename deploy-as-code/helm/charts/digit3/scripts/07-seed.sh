@@ -134,7 +134,7 @@ for t in individual registryId BillNumber ReceiptNumber TxnID; do
 done
 note "sms-otp-login notification template"
 seed "sms-otp-login" "http://$NOTIF:8080/notification/v3/template" \
-  '{"templateId":"sms-otp-login","type":"SMS","content":"Your OTP is {{ .otp }}. Valid 5 minutes."}' '"templateId"'
+  '{"templateId":"sms-otp-login","type":"SMS","content":"Dear Citizen, Your Login OTP is {{.otp}}\n\nEGOVS"}' '"templateId"'
 
 if ! $VERIFY; then
   note "done — tenant $CODE is seeded and ready"

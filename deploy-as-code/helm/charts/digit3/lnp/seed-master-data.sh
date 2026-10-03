@@ -79,8 +79,8 @@ for ct in $TYPES; do
     api POST /idgen/v3/template "{\"templateCode\":\"$code\",\"config\":{\"template\":\"${pair##*:}-{DATE:yyyy}-{SEQ}\",\"sequence\":{\"scope\":\"GLOBAL\",\"start\":1,\"padding\":{\"length\":6,\"char\":\"0\"}}}}"; echo "    $code: $(tally)"; done
 done
 
-note "master data: OTP notification templates (otp maps non-login purposes to *-otp-generic; the Keycloak e-mail OTP login flow LnP installs uses email-otp-login)"
-api POST /notification/v3/template '{"templateId":"sms-otp-generic","type":"SMS","content":"Your verification code is {{ .otp }}. Valid 5 minutes."}'; echo "    sms-otp-generic: $(tally)"
+note "master data: OTP notification templates (otp maps non-login purposes to *-otp-generic; the Keycloak e-mail OTP login flow LnP installs uses email-otp-login). SMS text is the DLT-approved template — operators drop any other wording"
+api POST /notification/v3/template '{"templateId":"sms-otp-generic","type":"SMS","content":"Dear Citizen, Your Login OTP is {{.otp}}\n\nEGOVS"}'; echo "    sms-otp-generic: $(tally)"
 api POST /notification/v3/template '{"templateId":"email-otp-login","type":"EMAIL","subject":"Your login code","content":"Your login code is {{ .otp }}. Valid 5 minutes."}'; echo "    email-otp-login: $(tally)"
 api POST /notification/v3/template '{"templateId":"email-otp-generic","type":"EMAIL","subject":"Your verification code","content":"Your verification code is {{ .otp }}. Valid 5 minutes."}'; echo "    email-otp-generic: $(tally)"
 

@@ -52,9 +52,13 @@ spec:
         runAsUser: {{ .Values.securityContext.runAsUser }}
       {{- end }}
     {{- end }}
-    {{- if or .Values.initContainers.gitSync.enabled .Values.extraVolumes }}     
-      volumes:  
-    {{- if .Values.initContainers.gitSync.enabled }}  
+    {{- if or .Values.initContainers.gitSync.enabled .Values.extraVolumes .Values.hardened }}
+      volumes:
+    {{- if .Values.hardened }}
+      - name: tmp
+        emptyDir: {}
+    {{- end }}
+    {{- if .Values.initContainers.gitSync.enabled }}
       - name: git-secret
         secret:
           secretName: git-creds
@@ -110,6 +114,8 @@ spec:
       {{- end }}
         securityContext:
           runAsUser: 65533 # git-sync user
+          runAsNonRoot: true
+          readOnlyRootFilesystem: true   # git-sync only writes to the /work-dir volume
           allowPrivilegeEscalation: false
           capabilities:
             drop:
@@ -135,13 +141,25 @@ spec:
         - name: {{ template "common.name" . }}
           image: {{ template "common.image" (dict "Values" $.Values "repository" .Values.image.repository "tag" .Values.image.tag) }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- /* Non-breaking hardening baseline. Override per service with
-                 .Values.containerSecurityContext. runAsNonRoot / readOnlyRootFilesystem
-                 are intentionally NOT defaulted here - they can break images that run as
-                 root or write to the root fs; enable them per service once validated. */}}
+          {{- /* Container hardening. Precedence:
+                 1. .Values.containerSecurityContext - explicit per-service override.
+                 2. .Values.hardened: true - full hardening (non-root + read-only root fs,
+                    with a writable /tmp added below). Enable once the service is verified.
+                 3. default - the non-breaking baseline (no runAsNonRoot/readOnlyRootFilesystem,
+                    which can break images that run as root or write to the root fs). */}}
           securityContext:
           {{- if hasKey .Values "containerSecurityContext" }}
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- else if .Values.hardened }}
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: {{ .Values.runAsUser | default 1000 }}
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
           {{- else }}
             allowPrivilegeEscalation: false
             capabilities:
@@ -168,12 +186,16 @@ spec:
           lifecycle:
           {{- toYaml .Values.lifecycle | nindent 12 }}
         {{- end }}      
-        {{- if or .Values.initContainers.gitSync.enabled .Values.extraVolumeMounts }}
-          volumeMounts:              
-        {{- if .Values.initContainers.gitSync.enabled }}            
+        {{- if or .Values.initContainers.gitSync.enabled .Values.extraVolumeMounts .Values.hardened }}
+          volumeMounts:
+        {{- if .Values.hardened }}
+          - name: tmp
+            mountPath: /tmp
+        {{- end }}
+        {{- if .Values.initContainers.gitSync.enabled }}
           - name: workdir
             mountPath: "/work-dir"
-        {{- end }}             
+        {{- end }}
         {{- with .Values.extraVolumeMounts }}
           {{- tpl (printf "\n%s" .) $ | nindent 10 }}
         {{- end }}          

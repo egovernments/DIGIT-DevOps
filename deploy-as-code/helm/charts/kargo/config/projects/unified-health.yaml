@@ -7,10 +7,19 @@ kargo:
   git:
     repoURL: https://github.com/egovernments/DIGIT-DevOps.git
 
-  # Project-level default: only mainline master-* builds are discovered, to keep
-  # NewestBuild's per-tag config fetches bounded. Services on other branch families
-  # set a per-service allowTags override below.
-  allowTags: '^master-'
+  # Project-level discovery default. Two families are allowed into Freight:
+  #   - master-*                              (mainline, the only thing uat accepts)
+  #   - <PREFIX>-<ticket>-*                   (ticket branches for dev/qa)
+  #     PREFIX in FEATURE|BUGFIX|RELEASE|HCMPRE|DPG|SN|DUCE|HCMCONSOLE, ticket 1-5 digits
+  # Both are anchored on the trailing commit sha ([0-9a-f]{7,}$) so the per-arch
+  # manifest children (-amd64 / -arm64) are kept OUT of Freight; the main tag is
+  # already a multi-arch index. Services with additional branch families add them
+  # via `extraAllowTags` (also dev/qa only -- uat is master-only, see below).
+  allowTags: '^master-.*[0-9a-f]{7,}$|^(FEATURE|BUGFIX|RELEASE|HCMPRE|DPG|SN|DUCE|HCMCONSOLE)-[0-9]{1,5}-.*[0-9a-f]{7,}$'
+
+  # uat accepts master-* only (inherited from the chart default masterOnlyStages:
+  # [uat]). The ticket/extra branches are discoverable and promotable to dev and qa,
+  # but the uat promotion steps are guarded so a non master build is a no-op there.
 
   # Post-promotion verification against the health namespace on each target cluster.
   verify:
@@ -22,7 +31,6 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|HCMPRE)-'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -53,7 +61,7 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|microplanning-dev)-'
+      extraAllowTags: '^(microplanning-dev)-.*[0-9a-f]{7,}$'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -62,7 +70,7 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|newv|console)-'
+      extraAllowTags: '^(newv|console)-.*[0-9a-f]{7,}$'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -70,7 +78,7 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|console-dev|console)-'
+      extraAllowTags: '^(console-dev|console)-.*[0-9a-f]{7,}$'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -102,7 +110,7 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|fhiradapter)-'
+      extraAllowTags: '^(fhiradapter)-.*[0-9a-f]{7,}$'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -110,7 +118,7 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|fhiradapter)-'
+      extraAllowTags: '^(fhiradapter)-.*[0-9a-f]{7,}$'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -118,7 +126,6 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|HCMPRE)-'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -134,7 +141,6 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|HCMPRE)-'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -143,7 +149,6 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|HCMPRE)-'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -160,7 +165,7 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|service-primary-key-fix)-'
+      extraAllowTags: '^(service-primary-key-fix)-.*[0-9a-f]{7,}$'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -193,7 +198,6 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|HCMPRE)-'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -202,7 +206,7 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|service-primary-key-fix|multiarch-changes-digit-studio)-'
+      extraAllowTags: '^(service-primary-key-fix|multiarch-changes-digit-studio)-.*[0-9a-f]{7,}$'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -211,7 +215,7 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|health-ui)-'
+      extraAllowTags: '^(health-ui)-.*[0-9a-f]{7,}$'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -219,7 +223,7 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|service-primary-key-fix)-'
+      extraAllowTags: '^(service-primary-key-fix)-.*[0-9a-f]{7,}$'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -236,7 +240,7 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|console)-'
+      extraAllowTags: '^(console)-.*[0-9a-f]{7,}$'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -244,7 +248,7 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|console-dev|console)-'
+      extraAllowTags: '^(console-dev|console)-.*[0-9a-f]{7,}$'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -252,7 +256,7 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|microplanning-dev)-'
+      extraAllowTags: '^(microplanning-dev)-.*[0-9a-f]{7,}$'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -285,7 +289,7 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|microplanning-dev)-'
+      extraAllowTags: '^(microplanning-dev)-.*[0-9a-f]{7,}$'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -301,7 +305,7 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|transformer|worker-area-transformer)-'
+      extraAllowTags: '^(transformer|worker-area-transformer)-.*[0-9a-f]{7,}$'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s
@@ -309,7 +313,7 @@ kargo:
       namespace: health
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
-      allowTags: '^(master|console-dev|console)-'
+      extraAllowTags: '^(console-dev|console)-.*[0-9a-f]{7,}$'
       cacheByTag: true
       discoveryLimit: 50
       interval: 30m0s

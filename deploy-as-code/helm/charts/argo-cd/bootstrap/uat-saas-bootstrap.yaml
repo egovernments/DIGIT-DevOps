@@ -1,0 +1,84 @@
+## Root "app-of-apps" for uat-saas.
+##
+## Purpose: stop hand-applying the AppProjects, ApplicationSets and
+## Applications under charts/argo-cd/. This Application syncs that directory,
+## so a push to the uat-saas branch is enough -- no kubectl apply step, and no
+## more cases where the repo and the cluster silently disagree because someone
+## pushed an appset change but never applied it.
+##
+## WHAT THIS GIVES YOU FOR "a new service is added"
+##   Adding a service is an edit to a list generator in one of the
+##   uat-saas-egov-appset-* files. Today that edit reaches git but not the
+##   cluster until someone applies it. With this root app the chain is fully
+##   automatic:
+##     push -> root app syncs the appset -> the ApplicationSet controller
+##     generates the new Application -> that Application syncs itself.
+##
+## BOOTSTRAP (once per cluster, the only manual step that remains):
+##   kubectl apply -f uat-saas-bootstrap.yaml
+##
+## Adoption: the existing objects were applied by hand and carry no argocd
+## tracking-id. ServerSideApply lets Argo adopt them in place -- they are not
+## recreated. Expect a brief OutOfSync on first sync.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: uat-saas-bootstrap
+  namespace: argocd
+spec:
+  ## 'default' on purpose. It is permissive and, critically, is NOT one of the
+  ## projects this Application manages -- so the root can never prune the
+  ## project it itself runs under.
+  project: default
+
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: uat-saas
+    ## Like digit-lts and unlike the unified clusters, there is no
+    ## per-environment subdirectory on this branch.
+    path: deploy-as-code/helm/charts/argo-cd
+    directory:
+      recurse: true
+      include: '*.yaml'
+
+      ## Keeps the root from managing its own definition. Self-management
+      ## works, but it makes the resource tree confusing and means a bad edit
+      ## here could leave the root unable to correct itself. Re-apply this
+      ## file by hand on the rare occasion it changes.
+      ##
+      ## HISTORY, so this is not silently re-broken: this branch used to also
+      ## carry appset files for OTHER environments, left behind when the
+      ## branch was cut -- egov/egov-app-set-{core,backbone,frontend,
+      ## accelerators}.yaml and playground/*, defining digit-lts-* and
+      ## ng-central-prd-* sets, all with targetRevision: digit-lts. Syncing
+      ## this directory would have pulled 23 Applications off the WRONG BRANCH
+      ## into this cluster. They were deleted from this branch (they remain on
+      ## origin/digit-lts, which is where they are actually used), so the
+      ## exclude no longer needs to name them. If an appset whose name does
+      ## not start with uat-saas- ever reappears under egov/, that is the bug.
+      exclude: 'bootstrap/*'
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      ## prune: false to start -- deliberately conservative while the existing
+      ## hand-applied objects are being adopted. Flip to true once adoption
+      ## looks right.
+      ##
+      ## Extra caution here because of the exclude above: if prune is enabled
+      ## and someone later removes the exclude, Argo would both create the
+      ## wrong-environment appsets AND start pruning on their behalf.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

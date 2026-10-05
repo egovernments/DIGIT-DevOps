@@ -139,6 +139,45 @@ rules:
     verbs: [patch]
 {{- end }}
 
+{{- if $team.manageFreight }}
+---
+{{- /*
+  Freight management, as a SEPARATE Role from the promoter Role above.
+
+  Kept separate on purpose. Freight is a PROJECT-level object -- unlike
+  `promote` it cannot be pinned with resourceNames -- so whoever holds this can
+  create, edit and DELETE any Freight in the project, including Freight another
+  team is about to promote to uat. Folding that into the promoter Role would
+  hand it to every promoter as a side effect of granting promotion; as its own
+  Role it is granted only where `manageFreight: true` is set, and revoking it
+  is a one-line change that leaves promotion rights untouched.
+
+  Upstream's stock kargo-promoter grants only get/list/watch on freights and
+  reserves the rest for kargo-admin (freights: *). Without this Role, Freight
+  assembly in the UI fails with
+      freights.kargo.akuity.io "freight" is forbidden: create is not permitted
+  even though existing Freight is visible.
+
+  Verbs are spelled out rather than using "*" so that a verb added to the CRD
+  later is a deliberate decision here, not an automatic grant. update AND patch
+  are both listed because the UI and kubectl differ in which they send.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: team-{{ $team.name }}-freight
+  namespace: {{ $k.project }}
+  labels:
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+rules:
+  - apiGroups: [kargo.akuity.io]
+    resources: [freights]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [kargo.akuity.io]
+    resources: [freights/status]
+    verbs: [patch]
+{{- end }}
+
 {{- range $sub := $subjects }}
 {{- $saName := printf "team-%s%s" $team.name $sub.suffix }}
 ---
@@ -176,6 +215,30 @@ roleRef:
   name: kargo-{{ $role }}
   {{- end }}
   apiGroup: rbac.authorization.k8s.io
+{{- if $team.manageFreight }}
+---
+{{- /*
+  Second binding, kept separate from the one above so that dropping
+  `manageFreight` removes Freight rights without disturbing the role binding
+  that grants promotion. Emitted inside the subjects loop so a team identified
+  by BOTH groups and emails gets it on each of its ServiceAccounts.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $saName }}-freight
+  namespace: {{ $k.project }}
+  labels:
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $saName }}
+    namespace: {{ $k.project }}
+roleRef:
+  kind: Role
+  name: team-{{ $team.name }}-freight
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
 ---
 {{- /*
   WHY A SECOND ServiceAccount, IN A DIFFERENT NAMESPACE

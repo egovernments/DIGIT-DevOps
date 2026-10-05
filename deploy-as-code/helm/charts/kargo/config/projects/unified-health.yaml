@@ -1,0 +1,396 @@
+# unified-health Kargo pipeline: health services (health namespace), DEV -> QA -> UAT.
+# Service list + dbMigration extracted from the health ns across dev/qa/uat clusters.
+kargo:
+  project: unified-health
+  registry: docker.io/egovio
+  argocdAppPrefix: health-
+  git:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+
+  # Project-level default: only mainline master-* builds are discovered, to keep
+  # NewestBuild's per-tag config fetches bounded. Services on other branch families
+  # set a per-service allowTags override below.
+  allowTags: '^master-'
+
+  # Post-promotion verification against the health namespace on each target cluster.
+  verify:
+    enabled: true
+    namespace: health
+
+  services:
+    - name: airflow-trigger-service
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|HCMPRE)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: auth-proxy
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: beneficiary-idgen
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: boundary-management
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: census-service
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|microplanning-dev)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: console
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|newv|console)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: dashboard-ui
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|console-dev|console)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: egov-notification-push
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: excel-ingestion
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: facility
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: fhir-supplychain-transformer
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|fhiradapter)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: fhiradapter
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|fhiradapter)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: geopode-adapter
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|HCMPRE)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: health-attendance
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: health-expense
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|HCMPRE)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: health-expense-calculator
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|HCMPRE)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: health-hrms
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: health-individual
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|service-primary-key-fix)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: health-muster-roll
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: health-notification-service
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: health-pgr-services
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: health-project
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|HCMPRE)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: health-service-request
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|service-primary-key-fix|multiarch-changes-digit-studio)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: health-ui
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|health-ui)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: household
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|service-primary-key-fix)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: inbox-v2
+      repo: inbox   # deployment name != docker repo (egovio/inbox)
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: microplan-ui
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|console)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: payments-ui
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|console-dev|console)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: plan-service
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|microplanning-dev)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: product
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: project-factory
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: referralmanagement
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: resource-generator
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|microplanning-dev)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: stock
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: transformer
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|transformer|worker-area-transformer)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: workbench-ui
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      allowTags: '^(master|console-dev|console)-'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: worker-registry
+      namespace: health
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+
+  # Stages + colours identical to unified-core; envFiles are the health overlays.
+  stages:
+    - name: dev
+      color: "#3BA9C2"
+      branch: unified-env-lts
+      envFile: deploy-as-code/helm/environments/unified-health-dev.yaml
+      autoPromotion: false
+      argocdUpdate: true
+      argocdNamespace: argocd
+      verifyKubeconfigSecret: verify-kubeconfig-dev
+    - name: qa
+      color: "#D64550"
+      from: dev
+      branch: unified-env-lts
+      envFile: deploy-as-code/helm/environments/unified-health-qa.yaml
+      autoPromotion: false
+      verifyKubeconfigSecret: verify-kubeconfig-qa
+    - name: uat
+      color: "#F2C230"
+      from: qa
+      branch: unified-env-lts
+      envFile: deploy-as-code/helm/environments/unified-health-uat.yaml
+      autoPromotion: false
+      verifyKubeconfigSecret: verify-kubeconfig-uat
+
+  # GitHub teams with access to THIS project only. Deliberately a different set
+  # (and different roles) from unified-core.
+  #
+  # View and promote are SEPARATE entries. health-devs below gives the whole
+  # team read-only access to the project; each `promoteStages` entry then adds
+  # promotion into one environment for a narrower set of people. Someone listed
+  # in several entries gets the union.
+  #
+  # promoteStages names the ENVIRONMENT (dev/qa/uat), not the Stage object.
+  # Stage objects are per service ("<service>-<stage>"), and this project has 37
+  # services, so each entry below expands to 37 Stage names in the generated
+  # Role. Adding a service needs no change here.
+  #
+  # TODO(padma): the three *-promoters entries are PLACEHOLDERS and match no
+  # real GitHub team, so they currently grant nobody anything. Replace each with
+  # a real team slug, or swap `groups:` for `emails: [a@..., b@...]` to name
+  # individuals -- which is what "only some people of unified-health-dev may
+  # promote" needs, since a GitHub team cannot express a subset of itself.
+  teams:
+    - name: devops
+      role: admin
+      groups: [egovernments:micro-service-devops]
+
+    # Whole team: read the project, promote nothing.
+    - name: health-devs
+      role: viewer
+      groups: [egovernments:unified-health-dev]
+
+    # manageFreight is set ONLY here, deliberately. Freight is project-level and
+    # cannot be scoped to a stage, so this grants create/update/delete over all
+    # Freight in unified-health. The qa and uat promoters below do not get it --
+    # they promote existing Freight rather than assembling it.
+    - name: health-dev-promoters
+      role: promoter
+      promoteStages: [dev]
+      manageFreight: true
+      groups: [egovernments:unified-health-dev-promote]
+
+    - name: health-qa-promoters
+      role: promoter
+      promoteStages: [qa]
+      groups: [egovernments:unified-health-qa-promote]
+
+    - name: health-uat-promoters
+      role: promoter
+      promoteStages: [uat]
+      groups: [egovernments:unified-health-uat-promote]

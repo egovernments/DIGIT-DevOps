@@ -1,0 +1,26 @@
+{{- $k := .Values.kargo }}
+{{- if $k.project }}
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Project
+metadata:
+  name: {{ $k.project }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: ProjectConfig
+metadata:
+  name: {{ $k.project }}
+  namespace: {{ $k.project }}
+spec:
+  {{- if and $k.services $k.stages }}
+  promotionPolicies:
+  {{- range $svc := $k.services }}
+  {{- range $stage := $k.stages }}
+    - stage: {{ $svc.name }}-{{ $stage.name }}
+      autoPromotionEnabled: {{ $stage.autoPromotion | default false }}
+  {{- end }}
+  {{- end }}
+  {{- else }}
+  # scaffolded project: empty list (a bare key serializes to null and the CRD rejects it)
+  promotionPolicies: []
+  {{- end }}
+{{- end }}

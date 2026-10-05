@@ -109,6 +109,8 @@ module "kubernetes" {
   # Main User pool that runs workloads and is scaled by the schedule
   main_vm_size    = var.main_vm_size
   main_node_count = var.node_count
+  jenkins_vm_size    = var.jenkins_vm_size
+  jenkins_node_count = var.jenkins_node_count
 }
 
 # Optional: Azure Automation + runbook + schedules to stop the AKS cluster at

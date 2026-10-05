@@ -660,101 +660,234 @@ function detailRule(r){
     ${locs.length?`<p class="dh" style="margin-top:12px">Example locations</p><div class="flist">${locs.slice(0,20).map(l=>`<div class="fli"><span class="fp">${esc(l.chart)}</span><span></span><span class="fx">${fileCell(l.file,l.line)}</span></div>`).join("")}</div>`:""}`;
 }
 
-/* ---------------- Excel export (SpreadsheetML 2003, no dependencies) ---------------- */
-const xmlEsc=s=>String(s==null?"":s).replace(/[^\x09\x0A\x0D\x20-퟿-�]/g,"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-function xCell(v,o){o=o||{};const t=o.t||(typeof v==="number"?"Number":"String");
-  const attr=(o.style?` ss:StyleID="${o.style}"`:"")+(o.href?` ss:HRef="${xmlEsc(o.href)}"`:"");
-  const data=t==="Number"?`<Data ss:Type="Number">${v==null||v===""?0:v}</Data>`:`<Data ss:Type="String">${xmlEsc(v)}</Data>`;
-  return `<Cell${attr}>${data}</Cell>`;}
-const xRow=c=>`<Row>${c.join("")}</Row>`;
-let _xUsed=new Set();   // reset per export; Excel sheet names must be unique (case-insensitive) and <=31 chars
+/* ---------------- Excel (.xlsx) export — minimal OOXML writer, no dependencies ---------------- */
+const _enc=new TextEncoder();
+const _crcTab=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
+function _crc32(u8){let c=0xFFFFFFFF;for(let i=0;i<u8.length;i++)c=_crcTab[(c^u8[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function _zip(files){ // files:[{name,bytes}] -> Uint8Array (stored, no compression)
+  const u16=n=>[n&255,(n>>8)&255], u32=n=>[n&255,(n>>8)&255,(n>>16)&255,(n>>24)&255];
+  const parts=[],central=[]; let offset=0;
+  for(const f of files){
+    const nm=_enc.encode(f.name),d=f.bytes,crc=_crc32(d);
+    const lh=new Uint8Array([0x50,0x4b,0x03,0x04,...u16(20),...u16(0),...u16(0),...u16(0),...u16(0),...u32(crc),...u32(d.length),...u32(d.length),...u16(nm.length),...u16(0)]);
+    parts.push(lh,nm,d);
+    central.push(new Uint8Array([0x50,0x4b,0x01,0x02,...u16(20),...u16(20),...u16(0),...u16(0),...u16(0),...u16(0),...u32(crc),...u32(d.length),...u32(d.length),...u16(nm.length),...u16(0),...u16(0),...u16(0),...u16(0),...u32(0),...u32(offset)]),nm);
+    offset+=lh.length+nm.length+d.length;
+  }
+  let cd=0; central.forEach(c=>cd+=c.length);
+  const eocd=new Uint8Array([0x50,0x4b,0x05,0x06,...u16(0),...u16(0),...u16(files.length),...u16(files.length),...u32(cd),...u32(offset),...u16(0)]);
+  const all=[...parts,...central,eocd]; let tot=0; all.forEach(a=>tot+=a.length);
+  const out=new Uint8Array(tot); let p=0; all.forEach(a=>{out.set(a,p);p+=a.length;}); return out;
+}
+const _xe=s=>String(s==null?"":s).replace(/[^\x09\x0A\x0D\x20-퟿-�]/g,"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+function _colA(n){let s="";n++;while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=(n-r-1)/26;}return s;}
+// cell factories: {v, t:'s'|'n'|'l'(link), s:styleIdx, disp?}
+const S=(v,s)=>({v,t:"s",s:s||0});
+const N=(v,s)=>({v:(v===""||v==null)?null:v,t:(v===""||v==null)?"s":"n",s:s||0});
+const L=(url,disp,s)=>({v:url,disp:disp,t:"l",s:s||0});
+function _cellXml(ref,c){
+  if(c==null||c.v==null&&c.t!=="l") {
+    if(c&&c.s) return `<c r="${ref}" s="${c.s}"/>`;
+    return `<c r="${ref}"/>`;
+  }
+  const s=c.s?` s="${c.s}"`:"";
+  if(c.t==="n") return `<c r="${ref}"${s}><v>${c.v}</v></c>`;
+  if(c.t==="l"){ const u=_xe(String(c.v)).replace(/"/g,"&quot;"); const d=_xe(c.disp==null?c.v:c.disp); return `<c r="${ref}"${s} t="str"><f>HYPERLINK("${u}","${d.replace(/"/g,'&quot;')}")</f><v>${d}</v></c>`; }
+  return `<c r="${ref}"${s} t="inlineStr"><is><t xml:space="preserve">${_xe(c.v)}</t></is></c>`;
+}
+function _sheetXml(sh){
+  const cols=(sh.cols||[]).map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("");
+  const rowsXml=sh.rows.map((row,ri)=>{
+    const r=ri+1;
+    const cells=row.cells.map((c,ci)=>_cellXml(_colA(ci)+r,c)).join("");
+    const ht=row.h?` ht="${row.h}" customHeight="1"`:"";
+    return `<row r="${r}"${ht}>${cells}</row>`;
+  }).join("");
+  const merges=(sh.merges&&sh.merges.length)?`<mergeCells count="${sh.merges.length}">${sh.merges.map(m=>`<mergeCell ref="${m}"/>`).join("")}</mergeCells>`:"";
+  const pane=sh.freeze?`<pane ySplit="${sh.freeze}" topLeftCell="A${sh.freeze+1}" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft"/>`:"";
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`+
+   `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`+
+   `<sheetViews><sheetView workbookViewId="0" showGridLines="0">${pane}</sheetView></sheetViews>`+
+   `<sheetFormatPr defaultRowHeight="15"/>`+
+   (cols?`<cols>${cols}</cols>`:"")+
+   `<sheetData>${rowsXml}</sheetData>${merges}</worksheet>`;
+}
+function _stylesXml(){
+  // fonts
+  const fonts=[
+   `<font><sz val="11"/><color rgb="FF1F2937"/><name val="Calibri"/></font>`,                 /*0 default*/
+   `<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>`,               /*1 white bold*/
+   `<font><b/><sz val="11"/><color rgb="FF1F2937"/><name val="Calibri"/></font>`,               /*2 bold*/
+   `<font><b/><sz val="18"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>`,               /*3 title*/
+   `<font><u/><sz val="11"/><color rgb="FF2563EB"/><name val="Calibri"/></font>`,               /*4 link*/
+   `<font><sz val="11"/><color rgb="FFEDE9FE"/><name val="Calibri"/></font>`,                   /*5 subtitle white-ish*/
+   `<font><b/><sz val="12"/><color rgb="FF4C1D95"/><name val="Calibri"/></font>`,               /*6 section violet*/
+  ];
+  const fills=[
+   `<fill><patternFill patternType="none"/></fill>`,         /*0*/
+   `<fill><patternFill patternType="gray125"/></fill>`,      /*1 (reserved)*/
+   `<fill><patternFill patternType="solid"><fgColor rgb="FF4C1D95"/></patternFill></fill>`, /*2 violet*/
+   `<fill><patternFill patternType="solid"><fgColor rgb="FF7C3AED"/></patternFill></fill>`, /*3 violet-light head2*/
+   `<fill><patternFill patternType="solid"><fgColor rgb="FFB31D33"/></patternFill></fill>`, /*4 crit*/
+   `<fill><patternFill patternType="solid"><fgColor rgb="FFE06A2C"/></patternFill></fill>`, /*5 high*/
+   `<fill><patternFill patternType="solid"><fgColor rgb="FFC58A12"/></patternFill></fill>`, /*6 med*/
+   `<fill><patternFill patternType="solid"><fgColor rgb="FF2F6FED"/></patternFill></fill>`, /*7 low*/
+   `<fill><patternFill patternType="solid"><fgColor rgb="FFF4F2FB"/></patternFill></fill>`, /*8 zebra*/
+   `<fill><patternFill patternType="solid"><fgColor rgb="FFEDE9FE"/></patternFill></fill>`, /*9 kv header tint*/
+  ];
+  const borders=[
+   `<border><left/><right/><top/><bottom/><diagonal/></border>`, /*0 none*/
+   `<border><left style="thin"><color rgb="FFD6DDEA"/></left><right style="thin"><color rgb="FFD6DDEA"/></right><top style="thin"><color rgb="FFD6DDEA"/></top><bottom style="thin"><color rgb="FFD6DDEA"/></bottom></border>`, /*1 thin*/
+  ];
+  // alignments helper
+  const A=(h,wrap)=>`<alignment horizontal="${h}" vertical="center"${wrap?' wrapText="1"':''}/>`;
+  // xf: [fontIdx, fillIdx, borderIdx, alignXml]
+  const xfs=[
+   [0,0,0,A("left")],                        /*0 default*/
+   [3,2,0,A("left")],                         /*1 title*/
+   [5,2,0,A("left")],                         /*2 subtitle*/
+   [6,0,0,A("left")],                         /*3 section*/
+   [2,9,1,A("left")],                         /*4 kv-key*/
+   [0,0,1,A("left",1)],                       /*5 kv-val*/
+   [1,2,1,A("center",1)],                     /*6 header*/
+   [0,0,1,A("left",1)],                       /*7 text*/
+   [0,8,1,A("left",1)],                       /*8 text-zebra*/
+   [4,0,1,A("left",1)],                       /*9 link*/
+   [4,8,1,A("left",1)],                       /*10 link-zebra*/
+   [0,0,1,A("center")],                       /*11 num*/
+   [0,8,1,A("center")],                       /*12 num-zebra*/
+   [1,4,1,A("center")],                       /*13 sev CRIT*/
+   [1,5,1,A("center")],                       /*14 sev HIGH*/
+   [1,6,1,A("center")],                       /*15 sev MED*/
+   [1,7,1,A("center")],                       /*16 sev LOW*/
+   [2,0,1,A("center")],                       /*17 sev UNKNOWN*/
+  ];
+  const cellXfs=xfs.map(x=>`<xf numFmtId="0" fontId="${x[0]}" fillId="${x[1]}" borderId="${x[2]}" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">${x[3]}</xf>`).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`+
+   `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`+
+   `<fonts count="${fonts.length}">${fonts.join("")}</fonts>`+
+   `<fills count="${fills.length}">${fills.join("")}</fills>`+
+   `<borders count="${borders.length}">${borders.join("")}</borders>`+
+   `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>`+
+   `<cellXfs count="${xfs.length}">${cellXfs}</cellXfs>`+
+   `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+}
+function buildXlsx(sheets){
+  const names=sheets.map(s=>s.name);
+  const wbRels=sheets.map((s,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join("")+
+    `<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`;
+  const wb=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`+
+   `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">`+
+   `<sheets>${sheets.map((s,i)=>`<sheet name="${_xe(s.name)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join("")}</sheets></workbook>`;
+  const ct=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`+
+   `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">`+
+   `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`+
+   `<Default Extension="xml" ContentType="application/xml"/>`+
+   `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>`+
+   `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>`+
+   sheets.map((s,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")+
+   `</Types>`;
+  const rootRels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const files=[
+   {name:"[Content_Types].xml",bytes:_enc.encode(ct)},
+   {name:"_rels/.rels",bytes:_enc.encode(rootRels)},
+   {name:"xl/workbook.xml",bytes:_enc.encode(wb)},
+   {name:"xl/_rels/workbook.xml.rels",bytes:_enc.encode(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${wbRels}</Relationships>`)},
+   {name:"xl/styles.xml",bytes:_enc.encode(_stylesXml())},
+   ...sheets.map((s,i)=>({name:`xl/worksheets/sheet${i+1}.xml`,bytes:_enc.encode(_sheetXml(s))})),
+  ];
+  return _zip(files);
+}
+// unique, Excel-safe sheet names (<=31 chars, case-insensitive unique)
+let _xUsed=new Set();
 function xName(n){let b=String(n).replace(/[\[\]\*\?\/\\:]/g,"-").slice(0,31)||"Sheet";let x=b,i=2;
   while(_xUsed.has(x.toLowerCase())){const suf="-"+i;x=b.slice(0,31-suf.length)+suf;i++;}
   _xUsed.add(x.toLowerCase());return x;}
-function xSheet(name,rows,cols){const c=(cols||[]).map(w=>`<Column ss:Width="${w}"/>`).join("");
-  return `<Worksheet ss:Name="${xmlEsc(xName(name))}"><Table>${c}${rows.join("")}</Table></Worksheet>`;}
-const xSev=s=>s==="CRITICAL"?"crit":s==="HIGH"?"high":"";
-function xWorkbook(sheets){
-  return `<?xml version="1.0"?>\n<?mso-application progid="Excel.Sheet"?>\n`+
-  `<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">`+
-  `<Styles>`+
-    `<Style ss:ID="h"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#4C1D95" ss:Pattern="Solid"/></Style>`+
-    `<Style ss:ID="t"><Font ss:Bold="1" ss:Size="14"/></Style>`+
-    `<Style ss:ID="k"><Font ss:Bold="1"/></Style>`+
-    `<Style ss:ID="lnk"><Font ss:Color="#0563C1" ss:Underline="Single"/></Style>`+
-    `<Style ss:ID="crit"><Font ss:Bold="1" ss:Color="#B31D33"/></Style>`+
-    `<Style ss:ID="high"><Font ss:Color="#C2410C"/></Style>`+
-  `</Styles>`+sheets.join("")+`</Workbook>`;
-}
-function xDownload(name,xml){const b=new Blob(["﻿"+xml],{type:"application/vnd.ms-excel"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;
-  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500);}
+const _sevXf={CRITICAL:13,HIGH:14,MEDIUM:15,LOW:16,UNKNOWN:17};
+
 function exportExcel(){
-  if(!MODEL){return;}
+  if(!MODEL)return;
   _xUsed=new Set();
-  const m=MODEL.meta,t=MODEL.totals,sheets=[],sum=[];
-  sum.push(xRow([xCell((IS_DOCKER?"DIGIT Container Image":"DIGIT Helm Chart")+" Security — Trivy",{style:"t"})]));
-  sum.push(xRow([]));
-  const meta=[["Dashboard",IS_DOCKER?"Container images":"Helm charts"],["Branch",m.branch||"-"],
+  const m=MODEL.meta,t=MODEL.totals,sheets=[];
+  const kind=IS_DOCKER?"Container Image":"Helm Chart";
+  const sub=`${m.branch?("branch "+m.branch+"  ·  "):""}scanned ${fmtLocal(m.scanned_at)}  ·  Trivy ${m.trivy_version||"-"}  ·  ${fmt(m.asset_count)} ${IS_DOCKER?"images":"charts"}`;
+
+  /* ---------- Summary ---------- */
+  const SW=IS_DOCKER?5:5;
+  const srows=[];
+  srows.push({h:34,cells:[S(`DIGIT ${kind} Security  ·  Trivy`,1)]});
+  srows.push({h:22,cells:[S(sub,2)]});
+  srows.push({cells:[]});
+  srows.push({cells:[S("Scan details",3)]});
+  const det=[["Dashboard",IS_DOCKER?"Container images":"Helm charts"],["Branch",m.branch||"-"],
     ["Scanned at",fmtLocal(m.scanned_at)],["Report generated",fmtLocal(m.generated_at)],
-    ["Trivy version",m.trivy_version||"-"],[IS_DOCKER?"Images scanned":"Charts scanned",m.asset_count]];
-  if(IS_DOCKER)meta.push(["Image tags scanned",m.tag_count]);
-  meta.push(["Posture score",m.score+" / 10"]);
-  meta.forEach(([k,v])=>sum.push(xRow([xCell(k,{style:"k"}),xCell(v)])));
-  sum.push(xRow([]));
-  sum.push(xRow([xCell("Findings by severity",{style:"k"})]));
-  sum.push(xRow([xCell("Severity",{style:"h"}),xCell("Count",{style:"h"})]));
-  SEVS.forEach(s=>{if((t[s]||0)>0)sum.push(xRow([xCell(cap(s),{style:xSev(s)}),xCell(t[s],{t:"Number"})]));});
-  sum.push(xRow([xCell("Secrets"),xCell(t.secrets||0,{t:"Number"})]));
-  sum.push(xRow([xCell("Total",{style:"k"}),xCell(t.total||0,{t:"Number",style:"k"})]));
-  sum.push(xRow([]));
+    ["Trivy version",m.trivy_version||"-"],[IS_DOCKER?"Images scanned":"Charts scanned",String(m.asset_count)]];
+  if(IS_DOCKER)det.push(["Image tags scanned",String(m.tag_count)]);
+  det.push(["Posture score",m.score+" / 10"]);
+  det.forEach(([k,v])=>srows.push({cells:[S(k,4),S(v,5)]}));
+  srows.push({cells:[]});
+  srows.push({cells:[S("Findings by severity",3)]});
+  srows.push({cells:[S("Severity",6),S("Count",6)]});
+  SEVS.forEach(s=>{ if((t[s]||0)>0) srows.push({cells:[S(cap(s),_sevXf[s]),N(t[s],11)]}); });
+  srows.push({cells:[S("Secrets",7),N(t.secrets||0,11)]});
+  srows.push({cells:[S("Total",4),N(t.total||0,4)]});
 
   if(!IS_DOCKER){
-    const rules=MODEL.rules||[];
-    if(rules.length){
-      sum.push(xRow([xCell("Findings by rule",{style:"k"})]));
-      sum.push(xRow([xCell("Rule ID",{style:"h"}),xCell("Severity",{style:"h"}),xCell("Title",{style:"h"}),xCell("Charts",{style:"h"})]));
-      rules.forEach(r=>sum.push(xRow([xCell(r.id),xCell(cap(r.severity),{style:xSev(r.severity)}),xCell(r.title),xCell(r.count,{t:"Number"})])));
-      sum.push(xRow([]));
-    }
-    // group charts by top-level directory under helm/charts
     const byDir={};
     (MODEL.charts||[]).forEach(c=>{const d=(c.name.replace(/^charts\//,"").split("/")[0]||"other");(byDir[d]=byDir[d]||[]).push(c);});
     const dirs=Object.keys(byDir).sort();
-    sum.push(xRow([xCell("Findings by directory",{style:"k"})]));
-    sum.push(xRow([xCell("Directory",{style:"h"}),xCell("Charts",{style:"h"}),xCell("Critical",{style:"h"}),xCell("High",{style:"h"}),xCell("Total",{style:"h"})]));
+    srows.push({cells:[]});
+    srows.push({cells:[S("Findings by rule",3)]});
+    srows.push({cells:[S("Rule ID",6),S("Severity",6),S("Title",6),S("Charts",6)]});
+    (MODEL.rules||[]).forEach(r=>srows.push({cells:[S(r.id,7),S(cap(r.severity),_sevXf[r.severity]||17),S(r.title,7),N(r.count,11)]}));
+    srows.push({cells:[]});
+    srows.push({cells:[S("Findings by directory",3)]});
+    srows.push({cells:[S("Directory",6),S("Charts",6),S("Critical",6),S("High",6),S("Total",6)]});
     dirs.forEach(d=>{let cr=0,hi=0,tt=0;byDir[d].forEach(c=>{cr+=c.counts.CRITICAL;hi+=c.counts.HIGH;tt+=c.total;});
-      sum.push(xRow([xCell(d),xCell(byDir[d].length,{t:"Number"}),xCell(cr,{t:"Number",style:cr?"crit":""}),xCell(hi,{t:"Number"}),xCell(tt,{t:"Number"})]));});
-    sheets.push(xSheet("Summary",sum,[170,330]));
-    // one sheet per directory
+      srows.push({cells:[S(d,7),N(byDir[d].length,11),N(cr,11),N(hi,11),N(tt,11)]});});
+    sheets.push({name:xName("Summary"),cols:[26,12,12,46,12],freeze:2,merges:["A1:E1","A2:E2"],rows:srows});
+    // per-directory sheets
     dirs.forEach(d=>{
-      const rows=[xRow([xCell("Chart",{style:"h"}),xCell("Rule ID",{style:"h"}),xCell("Severity",{style:"h"}),xCell("Title",{style:"h"}),xCell("File",{style:"h"}),xCell("Line",{style:"h"})])];
-      byDir[d].forEach(c=>(c.findings||[]).forEach(f=>{const href=fileHref(f.file,f.line);
-        rows.push(xRow([xCell(c.name),xCell(f.rule),xCell(cap(f.severity),{style:xSev(f.severity)}),xCell(f.title),
-          href?xCell(f.file,{href:href,style:"lnk"}):xCell(f.file),(f.line?xCell(f.line,{t:"Number"}):xCell(""))]));}));
-      sheets.push(xSheet(d,rows,[230,95,80,340,440,55]));
+      let n=0; byDir[d].forEach(c=>n+=(c.findings||[]).length);
+      const rows=[];
+      rows.push({h:30,cells:[S(`${d}  ·  ${d==="other"?"":"charts/"}${d}`,1)]});
+      rows.push({h:20,cells:[S(`${n} finding${n!==1?"s":""}  ·  ${byDir[d].length} chart${byDir[d].length!==1?"s":""}  ·  branch ${m.branch||"-"}`,2)]});
+      rows.push({cells:[S("Chart",6),S("Rule ID",6),S("Severity",6),S("Title",6),S("File location",6),S("Line",6)]});
+      let z=0;
+      byDir[d].forEach(c=>(c.findings||[]).forEach(f=>{
+        const zt=z%2?8:7, zl=z%2?10:9, zn=z%2?12:11; z++;
+        const href=fileHref(f.file,f.line);
+        rows.push({cells:[S(c.name,zt),S(f.rule,zt),S(cap(f.severity),_sevXf[f.severity]||17),S(f.title,zt),
+          href?L(href,f.file,zl):S(f.file,zt), f.line?N(f.line,zn):S("",zn)]});
+      }));
+      sheets.push({name:xName(d),cols:[34,14,12,52,64,8],freeze:3,merges:["A1:F1","A2:F2"],rows:rows});
     });
-    // secrets, if any
     const secs=MODEL.secrets||[];
     if(secs.length){
-      const rows=[xRow([xCell("Rule",{style:"h"}),xCell("Severity",{style:"h"}),xCell("Title",{style:"h"}),xCell("Where",{style:"h"}),xCell("Location",{style:"h"})])];
-      secs.forEach(s=>rows.push(xRow([xCell(s.rule),xCell(cap(s.severity||"")),xCell(s.title),xCell(s.where),xCell(s.location)])));
-      sheets.push(xSheet("Secrets",rows,[180,80,300,420,120]));
+      const rows=[{h:30,cells:[S("Hard-coded secrets",1)]},{h:20,cells:[S(`${secs.length} finding${secs.length!==1?"s":""}`,2)]},
+        {cells:[S("Rule",6),S("Severity",6),S("Title",6),S("Where",6),S("Location",6)]}];
+      let z=0; secs.forEach(s=>{const zt=z%2?8:7;z++;rows.push({cells:[S(s.rule,zt),S(cap(s.severity||""),_sevXf[(s.severity||"").toUpperCase()]||17),S(s.title,zt),S(s.where,zt),S(s.location,zt)]});});
+      sheets.push({name:xName("Secrets"),cols:[22,12,40,50,16],freeze:3,merges:["A1:E1","A2:E2"],rows:rows});
     }
   } else {
-    sheets.push(xSheet("Summary",sum,[170,330]));
-    const vr=[xRow([xCell("CVE / ID",{style:"h"}),xCell("Severity",{style:"h"}),xCell("Package",{style:"h"}),xCell("Installed",{style:"h"}),xCell("Fixed in",{style:"h"}),xCell("Images",{style:"h"}),xCell("Advisory",{style:"h"})])];
-    (MODEL.vulns||[]).forEach(v=>vr.push(xRow([xCell(v.id),xCell(cap(v.severity),{style:xSev(v.severity)}),xCell(v.pkg),xCell(v.installed),
-      xCell(v.fixed?v.fixed.split(",")[0].trim():""),xCell(v.count,{t:"Number"}),v.url?xCell("link",{href:v.url,style:"lnk"}):xCell("")])));
-    sheets.push(xSheet("Vulnerabilities",vr,[150,80,230,140,140,60,80]));
-    const ir=[xRow([xCell("Image repo",{style:"h"}),xCell("Latest tag",{style:"h"}),xCell("Critical",{style:"h"}),xCell("High",{style:"h"}),xCell("Total",{style:"h"}),xCell("Secrets",{style:"h"})])];
-    (MODEL.images||[]).forEach(i=>ir.push(xRow([xCell(shortRepo(i.repo)),xCell(i.latest_tag),xCell(i.counts.CRITICAL,{t:"Number",style:i.counts.CRITICAL?"crit":""}),
-      xCell(i.counts.HIGH,{t:"Number"}),xCell(i.total,{t:"Number"}),xCell(i.secrets,{t:"Number"})])));
-    sheets.push(xSheet("Images",ir,[260,200,70,60,60,70]));
+    sheets.push({name:xName("Summary"),cols:[26,14,12,46,12],freeze:2,merges:["A1:E1","A2:E2"],rows:srows});
+    const vr=[{h:30,cells:[S("Vulnerabilities",1)]},{h:20,cells:[S(sub,2)]},
+      {cells:[S("CVE / ID",6),S("Severity",6),S("Package",6),S("Installed",6),S("Fixed in",6),S("Images",6),S("Advisory",6)]}];
+    let z=0;(MODEL.vulns||[]).forEach(v=>{const zt=z%2?8:7,zl=z%2?10:9,zn=z%2?12:11;z++;
+      vr.push({cells:[S(v.id,zt),S(cap(v.severity),_sevXf[v.severity]||17),S(v.pkg,zt),S(v.installed,zt),S(v.fixed?v.fixed.split(",")[0].trim():"",zt),N(v.count,zn),v.url?L(v.url,"advisory",zl):S("",zt)]});});
+    sheets.push({name:xName("Vulnerabilities"),cols:[22,12,30,20,20,10,14],freeze:3,merges:["A1:G1","A2:G2"],rows:vr});
+    const ir=[{h:30,cells:[S("Images",1)]},{h:20,cells:[S(sub,2)]},
+      {cells:[S("Image repo",6),S("Latest tag",6),S("Critical",6),S("High",6),S("Total",6),S("Secrets",6)]}];
+    z=0;(MODEL.images||[]).forEach(i=>{const zt=z%2?8:7,zn=z%2?12:11;z++;
+      ir.push({cells:[S(shortRepo(i.repo),zt),S(i.latest_tag,zt),N(i.counts.CRITICAL,i.counts.CRITICAL?13:zn),N(i.counts.HIGH,zn),N(i.total,zn),N(i.secrets,zn)]});});
+    sheets.push({name:xName("Images"),cols:[34,28,12,10,10,12],freeze:3,merges:["A1:F1","A2:F2"],rows:ir});
   }
+
   const date=fmtLocalDate(m.scanned_at)||fmtLocalDate(m.generated_at)||"export";
   const br=m.branch?"-"+m.branch.replace(/[^A-Za-z0-9._-]/g,"-"):"";
-  xDownload(`trivy-${DOMAIN}${br}-${date}.xls`,xWorkbook(sheets));
+  const blob=new Blob([buildXlsx(sheets)],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`trivy-${DOMAIN}${br}-${date}.xlsx`;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500);
 }
 
 /* ---------------- tooltip ---------------- */

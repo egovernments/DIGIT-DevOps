@@ -1,0 +1,18 @@
+# Trusted container registries for Trivy's KSV-0125 check
+# (builtin.kubernetes.KSV0125 / "Restrict container images to trusted registries").
+#
+# KSV-0125 defaults to trusting only Azure/ECR/GCR, so docker.io - and our images,
+# which render as egovio/<service> (and third-party as quay.io/..., apache/...) -
+# are all flagged as "untrusted registry". This declares the registries we actually
+# and deliberately pull from as trusted. Images from any other registry are still
+# flagged. Loaded into the Rego checks via TRIVY_CONFIG_DATA in the Helm scan.
+ksv0125:
+  trusted_registries:
+    - docker.io        # Docker Hub: egovio/* (DIGIT service images) + library images
+    - egovio           # egovio/* rendered without an explicit host prefix
+    - quay.io          # argo-cd (quay.io/argoproj)
+    - ghcr.io          # GitHub Container Registry
+    - registry.k8s.io  # upstream Kubernetes images
+    - public.ecr.aws   # AWS public ECR (e.g. DB mirror)
+    - apache           # apache/airflow
+    - bitnami          # bitnami/* vendored subcharts (postgresql, etc.)

@@ -58,7 +58,20 @@ securityContexts:
     runAsUser: 50000
     runAsGroup: 0
     fsGroup: 0
-  containers: {}
+  # Container hardening applied to every airflow component (scheduler, workers,
+  # webserver/apiServer, triggerer, dagProcessor, ...). runAsNonRoot + the uid
+  # match the pod context above. readOnlyRootFilesystem is deliberately NOT set:
+  # airflow writes under /opt/airflow (config, logs) so it needs a writable root
+  # fs unless those paths are carved out as emptyDir mounts (tracked separately).
+  containers:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    runAsUser: 50000
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
 
 # Global container lifecycle hooks for airflow containers
 containerLifecycleHooks: {}

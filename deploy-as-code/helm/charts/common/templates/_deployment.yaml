@@ -39,22 +39,38 @@ spec:
       labels:
       {{- include "common.labels" . | nindent 8 }}            
     spec:
+    {{- /* Pod-level security context. Merge, into a single block, git-sync's
+           fsGroup requirement, any explicit .Values.securityContext, and the
+           hardened baseline (runAsNonRoot + seccomp). Emitting one block keeps
+           the pod spec free of a default/empty context (KSV-0118) without ever
+           producing a duplicate securityContext key. Non-hardened services
+           with none of these set are left untouched. */}}
+    {{- $podSC := dict }}
     {{- if .Values.initContainers.gitSync.enabled }}
-      securityContext:
-        fsGroup: 65533 # to make SSH key readable 
+      {{- $_ := set $podSC "fsGroup" 65533 }}{{/* make SSH key readable */}}
     {{- end }}
-    {{- if .Values.securityContext }}
-      securityContext:
-      {{- if .Values.securityContext.fsGroup }}
-        fsGroup: {{ .Values.securityContext.fsGroup }}
-      {{- end }}
-      {{- if .Values.securityContext.runAsUser }}
-        runAsUser: {{ .Values.securityContext.runAsUser }}
-      {{- end }}
+    {{- with .Values.securityContext }}
+      {{- if .fsGroup }}{{- $_ := set $podSC "fsGroup" .fsGroup }}{{- end }}
+      {{- if .runAsUser }}{{- $_ := set $podSC "runAsUser" .runAsUser }}{{- end }}
     {{- end }}
-    {{- if or .Values.initContainers.gitSync.enabled .Values.extraVolumes }}     
-      volumes:  
-    {{- if .Values.initContainers.gitSync.enabled }}  
+    {{- if .Values.hardened }}
+      {{- $_ := set $podSC "runAsNonRoot" true }}
+      {{- if not (hasKey $podSC "runAsUser") }}
+        {{- $_ := set $podSC "runAsUser" (.Values.runAsUser | default 1000) }}
+      {{- end }}
+      {{- $_ := set $podSC "seccompProfile" (dict "type" "RuntimeDefault") }}
+    {{- end }}
+    {{- if $podSC }}
+      securityContext:
+        {{- toYaml $podSC | nindent 8 }}
+    {{- end }}
+    {{- if or .Values.initContainers.gitSync.enabled .Values.extraVolumes .Values.hardened }}
+      volumes:
+    {{- if .Values.hardened }}
+      - name: tmp
+        emptyDir: {}
+    {{- end }}
+    {{- if .Values.initContainers.gitSync.enabled }}
       - name: git-secret
         secret:
           secretName: git-creds
@@ -88,8 +104,25 @@ spec:
       {{ with .Values.initContainers.dbMigration}}
       - name: "db-migration"
         image: {{ template "common.image" (dict "Values" $.Values "repository" .image.repository "tag" .image.tag) }}
-        imagePullPolicy: {{ .image.pullPolicy }} 
-      {{- end }}    
+        imagePullPolicy: {{ .image.pullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+        {{- if $.Values.hardened }}
+          runAsNonRoot: true
+          runAsUser: {{ $.Values.runAsUser | default 1000 }}
+          readOnlyRootFilesystem: true
+        {{- end }}
+          capabilities:
+            drop:
+              - ALL
+          seccompProfile:
+            type: RuntimeDefault
+        {{- if $.Values.hardened }}
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        {{- end }}
+      {{- end }}
         {{- if .Values.initContainers.dbMigration.env }}
         env:
           {{- tpl (printf "\n%s" .Values.initContainers.dbMigration.env) . | nindent 12 }}
@@ -103,6 +136,14 @@ spec:
       {{- end }}
         securityContext:
           runAsUser: 65533 # git-sync user
+          runAsNonRoot: true
+          readOnlyRootFilesystem: true   # git-sync only writes to the /work-dir volume
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          seccompProfile:
+            type: RuntimeDefault
         volumeMounts:
         - name: git-secret
           mountPath: /etc/git-secret              
@@ -121,7 +162,34 @@ spec:
       {{- end }}      
         - name: {{ template "common.name" . }}
           image: {{ template "common.image" (dict "Values" $.Values "repository" .Values.image.repository "tag" .Values.image.tag) }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}  
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- /* Container hardening. Precedence:
+                 1. .Values.containerSecurityContext - explicit per-service override.
+                 2. .Values.hardened: true - full hardening (non-root + read-only root fs,
+                    with a writable /tmp added below). Enable once the service is verified.
+                 3. default - the non-breaking baseline (no runAsNonRoot/readOnlyRootFilesystem,
+                    which can break images that run as root or write to the root fs). */}}
+          securityContext:
+          {{- if hasKey .Values "containerSecurityContext" }}
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- else if .Values.hardened }}
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: {{ .Values.runAsUser | default 1000 }}
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          {{- else }}
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          {{- end }}
       {{- if .Values.args }}
           args:
           {{- tpl (printf "\n%s" .Values.args) . | nindent 12 }}
@@ -140,12 +208,16 @@ spec:
           lifecycle:
           {{- toYaml .Values.lifecycle | nindent 12 }}
         {{- end }}      
-        {{- if or .Values.initContainers.gitSync.enabled .Values.extraVolumeMounts }}
-          volumeMounts:              
-        {{- if .Values.initContainers.gitSync.enabled }}            
+        {{- if or .Values.initContainers.gitSync.enabled .Values.extraVolumeMounts .Values.hardened }}
+          volumeMounts:
+        {{- if .Values.hardened }}
+          - name: tmp
+            mountPath: /tmp
+        {{- end }}
+        {{- if .Values.initContainers.gitSync.enabled }}
           - name: workdir
             mountPath: "/work-dir"
-        {{- end }}             
+        {{- end }}
         {{- with .Values.extraVolumeMounts }}
           {{- tpl (printf "\n%s" .) $ | nindent 10 }}
         {{- end }}          

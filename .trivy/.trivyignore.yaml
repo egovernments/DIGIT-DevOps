@@ -8,12 +8,19 @@ vulnerabilities: []
 
 misconfigurations:
   - id: KSV-0013
+    paths:
+      - "**/argo-cd/**"
+      - "**/superset/**"
+      - "**/default-data-handler/**"
     expired_at: 2027-04-30
     statement: >-
-      Image tags are pinned per service at deploy time via the environment values
-      files (deploy-as-code/helm/environments/unified-*.yaml). The scan renders charts
-      without those overrides, so init/sidecar images fall back to ":latest" in the scan
-      only - not in any real deployment. Revisit if the deploy/values model changes.
+      Sidecar/helper init images (argocd-repo-server download-tools,
+      superset wait-for-postgres-redis, default-data-handler wait-for-dependencies)
+      render as ":latest" in the scan; their tags are pinned at deploy via the
+      environment values files (deploy-as-code/helm/environments/unified-*.yaml).
+      Scoped to these charts so a genuinely unpinned image elsewhere still flags.
+      The DIGIT db-migration/git-sync init tags are handled in trivy.yaml (helm.set),
+      not ignored.
   - id: KSV-01010
     paths:
       - "**/argo-cd/**"

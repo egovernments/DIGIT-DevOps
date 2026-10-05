@@ -27,6 +27,12 @@ misconfiguration:
   checks-bundle-repository: public.ecr.aws/aquasecurity/trivy-checks
   # DIGIT charts mark the image tag mandatory (injected at deploy time); set a
   # placeholder so every chart renders. The value doesn't affect misconfig checks.
+  # Also pin the init-container image tags (db-migration, git-sync) which are
+  # otherwise empty here and render as ":latest" (KSV-0013) - their real tags are
+  # injected at deploy. This keeps KSV-0013 meaningful: a genuinely unpinned image
+  # elsewhere still flags.
   helm:
     set:
       - image.tag=0.0.0-scan
+      - initContainers.dbMigration.image.tag=0.0.0-scan
+      - initContainers.gitSync.image.tag=0.0.0-scan

@@ -661,13 +661,16 @@ function detailRule(r){
 }
 
 /* ---------------- Excel export (SpreadsheetML 2003, no dependencies) ---------------- */
-const xmlEsc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const xmlEsc=s=>String(s==null?"":s).replace(/[^\x09\x0A\x0D\x20-퟿-�]/g,"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 function xCell(v,o){o=o||{};const t=o.t||(typeof v==="number"?"Number":"String");
   const attr=(o.style?` ss:StyleID="${o.style}"`:"")+(o.href?` ss:HRef="${xmlEsc(o.href)}"`:"");
   const data=t==="Number"?`<Data ss:Type="Number">${v==null||v===""?0:v}</Data>`:`<Data ss:Type="String">${xmlEsc(v)}</Data>`;
   return `<Cell${attr}>${data}</Cell>`;}
 const xRow=c=>`<Row>${c.join("")}</Row>`;
-const xName=n=>String(n).replace(/[\[\]\*\?\/\\:]/g,"-").slice(0,31)||"Sheet";
+let _xUsed=new Set();   // reset per export; Excel sheet names must be unique (case-insensitive) and <=31 chars
+function xName(n){let b=String(n).replace(/[\[\]\*\?\/\\:]/g,"-").slice(0,31)||"Sheet";let x=b,i=2;
+  while(_xUsed.has(x.toLowerCase())){const suf="-"+i;x=b.slice(0,31-suf.length)+suf;i++;}
+  _xUsed.add(x.toLowerCase());return x;}
 function xSheet(name,rows,cols){const c=(cols||[]).map(w=>`<Column ss:Width="${w}"/>`).join("");
   return `<Worksheet ss:Name="${xmlEsc(xName(name))}"><Table>${c}${rows.join("")}</Table></Worksheet>`;}
 const xSev=s=>s==="CRITICAL"?"crit":s==="HIGH"?"high":"";
@@ -688,6 +691,7 @@ function xDownload(name,xml){const b=new Blob(["﻿"+xml],{type:"application/vnd
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500);}
 function exportExcel(){
   if(!MODEL){return;}
+  _xUsed=new Set();
   const m=MODEL.meta,t=MODEL.totals,sheets=[],sum=[];
   sum.push(xRow([xCell((IS_DOCKER?"DIGIT Container Image":"DIGIT Helm Chart")+" Security — Trivy",{style:"t"})]));
   sum.push(xRow([]));
@@ -715,7 +719,7 @@ function exportExcel(){
     }
     // group charts by top-level directory under helm/charts
     const byDir={};
-    (MODEL.charts||[]).forEach(c=>{const d=(c.name.split("/")[0]||"other");(byDir[d]=byDir[d]||[]).push(c);});
+    (MODEL.charts||[]).forEach(c=>{const d=(c.name.replace(/^charts\//,"").split("/")[0]||"other");(byDir[d]=byDir[d]||[]).push(c);});
     const dirs=Object.keys(byDir).sort();
     sum.push(xRow([xCell("Findings by directory",{style:"k"})]));
     sum.push(xRow([xCell("Directory",{style:"h"}),xCell("Charts",{style:"h"}),xCell("Critical",{style:"h"}),xCell("High",{style:"h"}),xCell("Total",{style:"h"})]));
@@ -727,7 +731,7 @@ function exportExcel(){
       const rows=[xRow([xCell("Chart",{style:"h"}),xCell("Rule ID",{style:"h"}),xCell("Severity",{style:"h"}),xCell("Title",{style:"h"}),xCell("File",{style:"h"}),xCell("Line",{style:"h"})])];
       byDir[d].forEach(c=>(c.findings||[]).forEach(f=>{const href=fileHref(f.file,f.line);
         rows.push(xRow([xCell(c.name),xCell(f.rule),xCell(cap(f.severity),{style:xSev(f.severity)}),xCell(f.title),
-          href?xCell(f.file,{href:href,style:"lnk"}):xCell(f.file),xCell(f.line||"",{t:"Number"})]));}));
+          href?xCell(f.file,{href:href,style:"lnk"}):xCell(f.file),(f.line?xCell(f.line,{t:"Number"}):xCell(""))]));}));
       sheets.push(xSheet(d,rows,[230,95,80,340,440,55]));
     });
     // secrets, if any

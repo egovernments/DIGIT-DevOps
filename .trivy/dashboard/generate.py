@@ -142,7 +142,7 @@ def aggregate_images(reports):
     return {
         "domain": "docker",
         "images": images,
-        "vulns": vulns[:80],
+        "vulns": vulns[:5000],   # high cap: full set for the Excel export (UI filters)
         "totals": totals,
         "asset_count": len(images),
         "tag_count": sum(i["tag_count"] for i in images),
@@ -204,7 +204,7 @@ def aggregate_helm(reports):
     return {
         "domain": "helm",
         "charts": charts,
-        "rules": rules[:80],
+        "rules": rules[:2000],   # high cap: full set for the Excel export (UI filters)
         "secrets": secrets,
         "totals": totals,
         "asset_count": len(charts),

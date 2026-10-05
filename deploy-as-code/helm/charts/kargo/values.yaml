@@ -9,6 +9,14 @@ kargo:
   services: []
   stages: []
 
+  # Stage names whose promotion only accepts master-* Freight. On these stages the
+  # mutating promotion steps are guarded with an `if` on the image tag, so a non
+  # master build is a no-op (nothing is written to the env file). Lets feature/ticket
+  # builds reach dev/qa while keeping the named stages on master only.
+  # Default is [uat] (org policy: uat is mainline only). A project may override it,
+  # e.g. `masterOnlyStages: []` to allow any discovered Freight into every stage.
+  masterOnlyStages: [uat]
+
   # Post-promotion deploy-state verification (needs Argo Rollouts).
   # Each stage sets verifyKubeconfigSecret (read-only kubeconfig for that env's
   # cluster); the Job checks the workload runs the promoted tag and is healthy.

@@ -2,6 +2,8 @@
 {{- range $svc := $k.services }}
 {{- $repo := $svc.repo | default $svc.name }}
 {{- range $stage := $k.stages }}
+{{- $masterOnly := has $stage.name ($k.masterOnlyStages | default list) }}
+{{- $masterGuard := printf "${{ imageFrom(\"%s/%s\").Tag matches '^master-' }}" $k.registry $repo }}
 ---
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
@@ -48,6 +50,10 @@ spec:
               - branch: {{ $stage.branch }}
                 path: ./repo
         - uses: yaml-update
+          {{- if $masterOnly }}
+          # Only master-* builds may be written to this stage's env file.
+          if: {{ $masterGuard | quote }}
+          {{- end }}
           config:
             path: ./repo/{{ $stage.envFile }}
             updates:
@@ -58,15 +64,24 @@ spec:
                 value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
               {{- end }}
         - uses: git-commit
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
           config:
             path: ./repo
             message: {{ printf "kargo: promote %s to %s" $svc.name $stage.name | quote }}
         - uses: git-push
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
           config:
             path: ./repo
             targetBranch: {{ $stage.branch }}
       {{- if $stage.argocdUpdate }}
         - uses: argocd-update
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
           config:
             apps:
               - name: {{ $k.argocdAppPrefix }}{{ $svc.name }}

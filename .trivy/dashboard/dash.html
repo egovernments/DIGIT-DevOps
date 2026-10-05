@@ -280,6 +280,7 @@
         </div>
         <label class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
           <input id="q" type="search" placeholder="Search…" autocomplete="off"></label>
+        <button class="icon-btn" id="xls" title="Download Excel report"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9.5 12.5 5 5M14.5 12.5l-5 5"/></svg></button>
         <button class="icon-btn" id="print" title="Print / PDF"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg></button>
         <button class="icon-btn" id="theme" title="Toggle theme">◐</button>
       </div>
@@ -659,6 +660,103 @@ function detailRule(r){
     ${locs.length?`<p class="dh" style="margin-top:12px">Example locations</p><div class="flist">${locs.slice(0,20).map(l=>`<div class="fli"><span class="fp">${esc(l.chart)}</span><span></span><span class="fx">${fileCell(l.file,l.line)}</span></div>`).join("")}</div>`:""}`;
 }
 
+/* ---------------- Excel export (SpreadsheetML 2003, no dependencies) ---------------- */
+const xmlEsc=s=>String(s==null?"":s).replace(/[^\x09\x0A\x0D\x20-퟿-�]/g,"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+function xCell(v,o){o=o||{};const t=o.t||(typeof v==="number"?"Number":"String");
+  const attr=(o.style?` ss:StyleID="${o.style}"`:"")+(o.href?` ss:HRef="${xmlEsc(o.href)}"`:"");
+  const data=t==="Number"?`<Data ss:Type="Number">${v==null||v===""?0:v}</Data>`:`<Data ss:Type="String">${xmlEsc(v)}</Data>`;
+  return `<Cell${attr}>${data}</Cell>`;}
+const xRow=c=>`<Row>${c.join("")}</Row>`;
+let _xUsed=new Set();   // reset per export; Excel sheet names must be unique (case-insensitive) and <=31 chars
+function xName(n){let b=String(n).replace(/[\[\]\*\?\/\\:]/g,"-").slice(0,31)||"Sheet";let x=b,i=2;
+  while(_xUsed.has(x.toLowerCase())){const suf="-"+i;x=b.slice(0,31-suf.length)+suf;i++;}
+  _xUsed.add(x.toLowerCase());return x;}
+function xSheet(name,rows,cols){const c=(cols||[]).map(w=>`<Column ss:Width="${w}"/>`).join("");
+  return `<Worksheet ss:Name="${xmlEsc(xName(name))}"><Table>${c}${rows.join("")}</Table></Worksheet>`;}
+const xSev=s=>s==="CRITICAL"?"crit":s==="HIGH"?"high":"";
+function xWorkbook(sheets){
+  return `<?xml version="1.0"?>\n<?mso-application progid="Excel.Sheet"?>\n`+
+  `<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">`+
+  `<Styles>`+
+    `<Style ss:ID="h"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#4C1D95" ss:Pattern="Solid"/></Style>`+
+    `<Style ss:ID="t"><Font ss:Bold="1" ss:Size="14"/></Style>`+
+    `<Style ss:ID="k"><Font ss:Bold="1"/></Style>`+
+    `<Style ss:ID="lnk"><Font ss:Color="#0563C1" ss:Underline="Single"/></Style>`+
+    `<Style ss:ID="crit"><Font ss:Bold="1" ss:Color="#B31D33"/></Style>`+
+    `<Style ss:ID="high"><Font ss:Color="#C2410C"/></Style>`+
+  `</Styles>`+sheets.join("")+`</Workbook>`;
+}
+function xDownload(name,xml){const b=new Blob(["﻿"+xml],{type:"application/vnd.ms-excel"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500);}
+function exportExcel(){
+  if(!MODEL){return;}
+  _xUsed=new Set();
+  const m=MODEL.meta,t=MODEL.totals,sheets=[],sum=[];
+  sum.push(xRow([xCell((IS_DOCKER?"DIGIT Container Image":"DIGIT Helm Chart")+" Security — Trivy",{style:"t"})]));
+  sum.push(xRow([]));
+  const meta=[["Dashboard",IS_DOCKER?"Container images":"Helm charts"],["Branch",m.branch||"-"],
+    ["Scanned at",fmtLocal(m.scanned_at)],["Report generated",fmtLocal(m.generated_at)],
+    ["Trivy version",m.trivy_version||"-"],[IS_DOCKER?"Images scanned":"Charts scanned",m.asset_count]];
+  if(IS_DOCKER)meta.push(["Image tags scanned",m.tag_count]);
+  meta.push(["Posture score",m.score+" / 10"]);
+  meta.forEach(([k,v])=>sum.push(xRow([xCell(k,{style:"k"}),xCell(v)])));
+  sum.push(xRow([]));
+  sum.push(xRow([xCell("Findings by severity",{style:"k"})]));
+  sum.push(xRow([xCell("Severity",{style:"h"}),xCell("Count",{style:"h"})]));
+  SEVS.forEach(s=>{if((t[s]||0)>0)sum.push(xRow([xCell(cap(s),{style:xSev(s)}),xCell(t[s],{t:"Number"})]));});
+  sum.push(xRow([xCell("Secrets"),xCell(t.secrets||0,{t:"Number"})]));
+  sum.push(xRow([xCell("Total",{style:"k"}),xCell(t.total||0,{t:"Number",style:"k"})]));
+  sum.push(xRow([]));
+
+  if(!IS_DOCKER){
+    const rules=MODEL.rules||[];
+    if(rules.length){
+      sum.push(xRow([xCell("Findings by rule",{style:"k"})]));
+      sum.push(xRow([xCell("Rule ID",{style:"h"}),xCell("Severity",{style:"h"}),xCell("Title",{style:"h"}),xCell("Charts",{style:"h"})]));
+      rules.forEach(r=>sum.push(xRow([xCell(r.id),xCell(cap(r.severity),{style:xSev(r.severity)}),xCell(r.title),xCell(r.count,{t:"Number"})])));
+      sum.push(xRow([]));
+    }
+    // group charts by top-level directory under helm/charts
+    const byDir={};
+    (MODEL.charts||[]).forEach(c=>{const d=(c.name.replace(/^charts\//,"").split("/")[0]||"other");(byDir[d]=byDir[d]||[]).push(c);});
+    const dirs=Object.keys(byDir).sort();
+    sum.push(xRow([xCell("Findings by directory",{style:"k"})]));
+    sum.push(xRow([xCell("Directory",{style:"h"}),xCell("Charts",{style:"h"}),xCell("Critical",{style:"h"}),xCell("High",{style:"h"}),xCell("Total",{style:"h"})]));
+    dirs.forEach(d=>{let cr=0,hi=0,tt=0;byDir[d].forEach(c=>{cr+=c.counts.CRITICAL;hi+=c.counts.HIGH;tt+=c.total;});
+      sum.push(xRow([xCell(d),xCell(byDir[d].length,{t:"Number"}),xCell(cr,{t:"Number",style:cr?"crit":""}),xCell(hi,{t:"Number"}),xCell(tt,{t:"Number"})]));});
+    sheets.push(xSheet("Summary",sum,[170,330]));
+    // one sheet per directory
+    dirs.forEach(d=>{
+      const rows=[xRow([xCell("Chart",{style:"h"}),xCell("Rule ID",{style:"h"}),xCell("Severity",{style:"h"}),xCell("Title",{style:"h"}),xCell("File",{style:"h"}),xCell("Line",{style:"h"})])];
+      byDir[d].forEach(c=>(c.findings||[]).forEach(f=>{const href=fileHref(f.file,f.line);
+        rows.push(xRow([xCell(c.name),xCell(f.rule),xCell(cap(f.severity),{style:xSev(f.severity)}),xCell(f.title),
+          href?xCell(f.file,{href:href,style:"lnk"}):xCell(f.file),(f.line?xCell(f.line,{t:"Number"}):xCell(""))]));}));
+      sheets.push(xSheet(d,rows,[230,95,80,340,440,55]));
+    });
+    // secrets, if any
+    const secs=MODEL.secrets||[];
+    if(secs.length){
+      const rows=[xRow([xCell("Rule",{style:"h"}),xCell("Severity",{style:"h"}),xCell("Title",{style:"h"}),xCell("Where",{style:"h"}),xCell("Location",{style:"h"})])];
+      secs.forEach(s=>rows.push(xRow([xCell(s.rule),xCell(cap(s.severity||"")),xCell(s.title),xCell(s.where),xCell(s.location)])));
+      sheets.push(xSheet("Secrets",rows,[180,80,300,420,120]));
+    }
+  } else {
+    sheets.push(xSheet("Summary",sum,[170,330]));
+    const vr=[xRow([xCell("CVE / ID",{style:"h"}),xCell("Severity",{style:"h"}),xCell("Package",{style:"h"}),xCell("Installed",{style:"h"}),xCell("Fixed in",{style:"h"}),xCell("Images",{style:"h"}),xCell("Advisory",{style:"h"})])];
+    (MODEL.vulns||[]).forEach(v=>vr.push(xRow([xCell(v.id),xCell(cap(v.severity),{style:xSev(v.severity)}),xCell(v.pkg),xCell(v.installed),
+      xCell(v.fixed?v.fixed.split(",")[0].trim():""),xCell(v.count,{t:"Number"}),v.url?xCell("link",{href:v.url,style:"lnk"}):xCell("")])));
+    sheets.push(xSheet("Vulnerabilities",vr,[150,80,230,140,140,60,80]));
+    const ir=[xRow([xCell("Image repo",{style:"h"}),xCell("Latest tag",{style:"h"}),xCell("Critical",{style:"h"}),xCell("High",{style:"h"}),xCell("Total",{style:"h"}),xCell("Secrets",{style:"h"})])];
+    (MODEL.images||[]).forEach(i=>ir.push(xRow([xCell(shortRepo(i.repo)),xCell(i.latest_tag),xCell(i.counts.CRITICAL,{t:"Number",style:i.counts.CRITICAL?"crit":""}),
+      xCell(i.counts.HIGH,{t:"Number"}),xCell(i.total,{t:"Number"}),xCell(i.secrets,{t:"Number"})])));
+    sheets.push(xSheet("Images",ir,[260,200,70,60,60,70]));
+  }
+  const date=fmtLocalDate(m.scanned_at)||fmtLocalDate(m.generated_at)||"export";
+  const br=m.branch?"-"+m.branch.replace(/[^A-Za-z0-9._-]/g,"-"):"";
+  xDownload(`trivy-${DOMAIN}${br}-${date}.xls`,xWorkbook(sheets));
+}
+
 /* ---------------- tooltip ---------------- */
 const tt=document.getElementById("tt");
 function bindTip(el){el.addEventListener("pointermove",e=>{const[s,n,ctx]=el.dataset.tip.split("|");
@@ -697,6 +795,7 @@ function render(){
   document.getElementById("q").addEventListener("input",e=>{state.q=e.target.value.trim().toLowerCase();if(MODEL)render();});
   document.getElementById("theme").onclick=()=>{const d=document.documentElement;d.dataset.theme=d.dataset.theme==="dark"?"light":"dark";if(MODEL)render();};
   document.getElementById("print").onclick=()=>window.print();
+  document.getElementById("xls").onclick=()=>{ if(MODEL) exportExcel(); };
   document.getElementById("bbtn").onclick=e=>{e.stopPropagation();state.menu=state.menu==="branch"?null:"branch";state.bq="";initSelector();};
   document.getElementById("rbtn").onclick=e=>{e.stopPropagation();state.menu=state.menu==="run"?null:"run";initSelector();};
   document.getElementById("bmenu").onclick=e=>e.stopPropagation();

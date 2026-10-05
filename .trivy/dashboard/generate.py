@@ -190,7 +190,9 @@ def aggregate_helm(reports):
         c["top_rule"] = top[0][0] if top else ""
         del c["rules"]
         c["findings"].sort(key=lambda f: rank(f["severity"]))
-        c["findings"] = c["findings"][:60]
+        # keep (almost) all findings so the Excel export is complete; the UI only
+        # renders a slice anyway. A high cap still guards against a pathological chart.
+        c["findings"] = c["findings"][:1000]
         charts.append(c)
     rules = []
     for r in rule_index.values():

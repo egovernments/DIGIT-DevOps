@@ -95,11 +95,21 @@ spec:
         imagePullPolicy: {{ .image.pullPolicy }}
         securityContext:
           allowPrivilegeEscalation: false
+        {{- if $.Values.hardened }}
+          runAsNonRoot: true
+          runAsUser: {{ $.Values.runAsUser | default 1000 }}
+          readOnlyRootFilesystem: true
+        {{- end }}
           capabilities:
             drop:
               - ALL
           seccompProfile:
             type: RuntimeDefault
+        {{- if $.Values.hardened }}
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        {{- end }}
       {{- end }}
         {{- if .Values.initContainers.dbMigration.env }}
         env:

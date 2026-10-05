@@ -39,18 +39,30 @@ spec:
       labels:
       {{- include "common.labels" . | nindent 8 }}            
     spec:
+    {{- /* Pod-level security context. Merge, into a single block, git-sync's
+           fsGroup requirement, any explicit .Values.securityContext, and the
+           hardened baseline (runAsNonRoot + seccomp). Emitting one block keeps
+           the pod spec free of a default/empty context (KSV-0118) without ever
+           producing a duplicate securityContext key. Non-hardened services
+           with none of these set are left untouched. */}}
+    {{- $podSC := dict }}
     {{- if .Values.initContainers.gitSync.enabled }}
-      securityContext:
-        fsGroup: 65533 # to make SSH key readable 
+      {{- $_ := set $podSC "fsGroup" 65533 }}{{/* make SSH key readable */}}
     {{- end }}
-    {{- if .Values.securityContext }}
+    {{- with .Values.securityContext }}
+      {{- if .fsGroup }}{{- $_ := set $podSC "fsGroup" .fsGroup }}{{- end }}
+      {{- if .runAsUser }}{{- $_ := set $podSC "runAsUser" .runAsUser }}{{- end }}
+    {{- end }}
+    {{- if .Values.hardened }}
+      {{- $_ := set $podSC "runAsNonRoot" true }}
+      {{- if not (hasKey $podSC "runAsUser") }}
+        {{- $_ := set $podSC "runAsUser" (.Values.runAsUser | default 1000) }}
+      {{- end }}
+      {{- $_ := set $podSC "seccompProfile" (dict "type" "RuntimeDefault") }}
+    {{- end }}
+    {{- if $podSC }}
       securityContext:
-      {{- if .Values.securityContext.fsGroup }}
-        fsGroup: {{ .Values.securityContext.fsGroup }}
-      {{- end }}
-      {{- if .Values.securityContext.runAsUser }}
-        runAsUser: {{ .Values.securityContext.runAsUser }}
-      {{- end }}
+        {{- toYaml $podSC | nindent 8 }}
     {{- end }}
     {{- if or .Values.initContainers.gitSync.enabled .Values.extraVolumes .Values.hardened }}
       volumes:

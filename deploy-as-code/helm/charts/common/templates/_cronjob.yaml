@@ -26,8 +26,16 @@ spec:
           labels:
           {{- include "common.labels" . | nindent 12 }}              
         spec:
-        {{- if .Values.extraVolumes }}     
-          volumes:      
+        {{- if .Values.hardened }}
+          {{- /* Pod-level context so the cron pod spec is non-default (KSV-0118). */}}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.runAsUser | default 1000 }}
+            seccompProfile:
+              type: RuntimeDefault
+        {{- end }}
+        {{- if .Values.extraVolumes }}
+          volumes:
           {{- with .Values.extraVolumes }}
             {{- tpl . $ | nindent 12 }}
           {{- end }}     

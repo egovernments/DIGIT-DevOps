@@ -6,11 +6,46 @@ vulnerabilities: []
 #     expired_at: 2026-12-01
 #     statement: Not reachable from any entrypoint; base-image bump tracked separately.
 
-misconfigurations: []
-#   - id: AVD-KSV011
-#     paths: ["deploy-as-code/helm/charts/monitoring/**"]
-#     expired_at: 2026-12-01
-#     statement: Scrapers intentionally un-capped on CPU; accepted by SRE.
+misconfigurations:
+  - id: KSV-0013
+    paths:
+      - "**/argo-cd/**"
+      - "**/superset/**"
+      - "**/default-data-handler/**"
+    expired_at: 2027-04-30
+    statement: >-
+      Sidecar/helper init images (argocd-repo-server download-tools,
+      superset wait-for-postgres-redis, default-data-handler wait-for-dependencies)
+      render as ":latest" in the scan; their tags are pinned at deploy via the
+      environment values files (deploy-as-code/helm/environments/unified-*.yaml).
+      Scoped to these charts so a genuinely unpinned image elsewhere still flags.
+      The DIGIT db-migration/git-sync init tags are handled in trivy.yaml (helm.set),
+      not ignored.
+  - id: KSV-01010
+    paths:
+      - "**/argo-cd/**"
+      - "**/ingress-nginx/**"
+      - "**/jenkins/**"
+      - "**/kafka-kraft/**"
+      - "**/es-curator/**"
+      - "**/pgadmin/**"
+    expired_at: 2027-04-30
+    statement: >-
+      Keyword false positives: the check matches config field NAMES (e.g.
+      application.instanceLabelKey, hsts-max-age, controller.quorum.voters, Jenkins JCasC
+      fields, shell variables) in these third-party/infra charts - not real secret values.
+      Verified no hard-coded secrets. Scoped to these charts so an inline secret elsewhere
+      still trips the check.
+  - id: KSV-0109
+    paths:
+      - "**/ingress-nginx/**"
+      - "**/kafka-kraft/**"
+      - "**/pgadmin/**"
+    expired_at: 2027-04-30
+    statement: >-
+      Keyword false positives: matches config field names (server-tokens; pgAdmin's
+      ALLOW_SAVE_PASSWORD, set from enable-save-password=false, a feature flag not a
+      secret; a bash "password" variable) - not real secrets. Scoped to these charts.
 
 secrets: []
 

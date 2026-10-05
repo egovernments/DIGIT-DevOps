@@ -204,6 +204,7 @@ cluster-configs:
                 filestore-java: "http://filestore-java:8080/"
                 notification-java: "http://notification-java:8080/"
                 notify: "http://notify:8080/"
+                boundary-management: "http://boundary-management:8080/"
 
     secrets:
         db:
@@ -887,6 +888,26 @@ boundary-java:
        image:
          repository: "boundary-db"
          tag: boundary-performance-2d39f1f
+
+boundary-management:
+  # Images come from digit3's "Build boundary-management" GitHub Action
+  # (.github/workflows/build_boundary_management.yaml), tagged <branch>-<short-sha>.
+  # Both tags below must be replaced with the tag printed in that run's summary
+  # before the first sync; there is no :latest on either repo.
+  image:
+    repository: "boundary-management"
+    tag: "bounday-master-c150177"
+  initContainers:
+    dbMigration:
+      image:
+        repository: "boundary-management-db"
+        tag: "bounday-master-c150177"
+  logLevel: "debug"
+  defaultLocale: "en_IN"
+  # Filestore document category the xlsx uploads are filed under (must exist per tenant).
+  filestoreModule: "boundary"
+  # Keep equal to or below boundary-java's BULK_RELATIONSHIP_MAX_SIZE (1000).
+  bulkRelationshipChunkSize: "1000"
 
 calculator:
   image:

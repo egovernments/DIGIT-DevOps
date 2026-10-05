@@ -1,0 +1,189 @@
+# Common Labels
+labels:
+  app: "boundary-management"
+  group: "core"
+
+# Ingress Configs
+# Exposes https://<domain>/boundary-management/* ; the app itself mounts its router on
+# CONTEXT_PATH (/boundary-management), so the path is passed through unchanged.
+ingress:
+  enabled: true
+  zuul: true
+  context: "boundary-management"
+
+# Init Containers Configs
+# Flyway migration image built from src/utilities/boundary-management/migration in digit3
+# (egovio/boundary-management-db). Its migrate.sh differs from the Java services' one: it
+# loops over SCHEMA_NAME (comma separated) and appends ?currentSchema=<name> to DB_URL, so
+# SCHEMA_NAME is mandatory - with it unset the loop runs zero times and nothing is migrated.
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "boundary_management_schema"
+    image:
+      repository: "boundary-management-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "SCHEMA_NAME"
+          value: {{ .Values.dbSchema | default "public" | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+
+# Container Configs
+image:
+  repository: "boundary-management"
+replicas: 1
+# Node.js app: no appType so the common chart does not inject the Spring env block.
+appType: ""
+tracing-enabled: false
+healthChecks:
+  # The service exposes no dedicated health route yet.
+  enabled: false
+  livenessProbePath: "/boundary-management/"
+  readinessProbePath: "/boundary-management/"
+
+# Node heap is capped at 2048 MB by the image (NODE_OPTIONS=--max-old-space-size=2048),
+# so the memory limit has to sit above that.
+resources: |
+  requests:
+    cpu: "150m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "2.5Gi"
+
+# Per-environment knobs (referenced from the env block below so an environment
+# can tune them without re-declaring the whole env string).
+dbSchema: "public"
+logLevel: "info"
+maxDebugChar: "1000"
+defaultLocale: "en_IN"
+# Tenant used when a request carries no X-Tenant-Id (optional).
+defaultTenantId: ""
+# Filestore document category (type) uploads are filed under; must exist for the tenant
+# with allowedFormats containing xlsx.
+filestoreModule: "boundary"
+# Must not exceed the boundary service's BULK_RELATIONSHIP_MAX_SIZE (boundary-java chart: 1000).
+bulkRelationshipChunkSize: "1000"
+
+# Additional Container Envs
+# Defaults in src/server/config/index.ts already target the digit3 paths
+# (boundary/v3/*, filestore/v3/*, localization/v3/*, mdms-v2/v2), so only hosts are set here.
+# Job status rows are written straight to Postgres (PERSISTENCE_MODE=db); Kafka is only
+# connected when that is switched to "kafka".
+env: |
+  - name: APP_PORT
+    value: "8080"
+  - name: CONTEXT_PATH
+    value: "/boundary-management"
+  - name: APP_LOG_LEVEL
+    value: {{ .Values.logLevel | quote }}
+  - name: APP_MAX_DEBUG_CHAR
+    value: {{ .Values.maxDebugChar | quote }}
+  - name: EGOV_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-services-fqdn-name
+  - name: DIGIT_CLIENT_ID
+    value: "boundary-management"
+  {{- if .Values.defaultTenantId }}
+  - name: DEFAULT_TENANT_ID
+    value: {{ .Values.defaultTenantId | quote }}
+  {{- end }}
+  - name: LOCALE
+    value: {{ .Values.defaultLocale | quote }}
+  - name: LOCALIZATION_MODULE
+    value: "hcm-admin-schemas"
+  - name: FILESTORE_MODULE
+    value: {{ .Values.filestoreModule | quote }}
+  # ── Database (the app reads DB_HOST up to the first ':' so egov-config's host:port is fine) ──
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
+  - name: DB_SCHEMA
+    value: {{ .Values.dbSchema | quote }}
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: DB_SSL
+    value: "false"
+  - name: PERSISTENCE_MODE
+    value: "db"
+  # ── Downstream digit3 services ─────────────────────────────────────────────
+  - name: EGOV_BOUNDARY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: boundary-java
+  - name: EGOV_FILESTORE_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: filestore-java
+  - name: EGOV_LOCALIZATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: localization-java
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: mdms-v2
+  - name: EGOV_MDMS_V2_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: mdms-v2
+  - name: BULK_RELATIONSHIP_ENABLED
+    value: "true"
+  - name: BULK_RELATIONSHIP_CHUNK_SIZE
+    value: {{ .Values.bulkRelationshipChunkSize | quote }}
+  - name: CONFIRM_PARENT_ENABLED
+    value: "false"
+  # ── Messaging / cache (Kafka unused in db persistence mode; Redis cache off unless CACHE_ENABLED is set) ──
+  - name: KAFKA_BROKER_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: REDIS_HOST
+    value: redis.backbone.svc.cluster.local
+  - name: REDIS_PORT
+    value: "6379"

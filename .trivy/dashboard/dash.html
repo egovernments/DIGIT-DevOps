@@ -465,9 +465,17 @@ function posture(){
   const band=score<=3?"--crit":score<=6?"--med":"--good";const col=cssv(band);
   let verdict,desc;
   const noun=IS_DOCKER?"images":"charts";
-  if(ch>0){verdict="Action required";desc=`${fmt(ch)} critical and ${fmt(hi)} high findings across ${noun} need triage. Report-only — nothing is blocked yet.`;}
-  else if(hi>0){verdict="Needs attention";desc=`${fmt(hi)} high findings to review. No criticals outstanding.`;}
-  else{verdict="Healthy";desc="No critical or high findings outstanding.";}
+  // Verdict follows the weighted posture score (severity + density across all
+  // findings), so it stays in step with the ring colour; the counts that remain
+  // are carried in the description.
+  const open=[];
+  if(ch>0)open.push(`${fmt(ch)} critical`);
+  if(hi>0)open.push(`${fmt(hi)} high`);
+  const tail=open.length?`${open.join(" and ")} outstanding across ${noun}. Report-only — nothing is blocked.`
+                        :`No critical or high findings outstanding.`;
+  if(score<=3){verdict="Action required";desc=tail;}
+  else if(score<=6){verdict="Needs attention";desc=tail;}
+  else{verdict=open.length?"Good posture":"Healthy";desc=tail;}
   const el=document.getElementById("posture");el.style.setProperty("--band",col);
   const R=54,C=2*Math.PI*R,off=C*(1-score/10);
   const r=currentRun();

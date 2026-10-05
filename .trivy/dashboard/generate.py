@@ -213,18 +213,24 @@ def aggregate_helm(reports):
     }
 
 
-def score_of(t):
-    ch, hi, se = t["CRITICAL"], t["HIGH"], t.get("secrets", 0)
-    if ch > 50: return 1
-    if ch > 20: return 2
-    if ch > 10: return 3
-    if ch > 0:  return 4
-    if hi > 50: return 5
-    if hi > 20: return 6
-    if hi > 5:  return 7
-    if hi > 0:  return 8
-    if se > 0:  return 9
-    return 10
+def score_of(t, assets=0):
+    """Severity-weighted posture score, 0-10 (10 = clean).
+
+    A density of weighted findings per asset, so it reflects the whole posture
+    (including Medium findings and volume) rather than only the single worst
+    severity - clearing many findings visibly improves the score. Critical still
+    dominates via its weight. Mapped with score = 10 / (1 + penalty/K).
+    """
+    total = (t["CRITICAL"] + t["HIGH"] + t["MEDIUM"]
+             + t.get("LOW", 0) + t.get("UNKNOWN", 0) + t.get("secrets", 0))
+    if total == 0:
+        return 10
+    n = assets or 1
+    penalty = (t["CRITICAL"] * 10 + t["HIGH"] * 3 + t["MEDIUM"] * 1
+               + t.get("LOW", 0) * 0.5 + t.get("UNKNOWN", 0) * 0.5
+               + t.get("secrets", 0) * 5) / n
+    K = 14.0  # calibration: clean=10; ~7/chart -> 7; ~20/chart -> 4; very high -> 1
+    return max(1, min(10, round(10 / (1 + penalty / K))))
 
 
 # --------------------------------------------------------------------------- #
@@ -285,7 +291,7 @@ def build_domain(args):
     entry = {"id": rid, "branch": branch, "scanned_at": scanned_at,
              "actor": args.actor or "", "occ": t["total"],
              "critical": t["CRITICAL"], "high": t["HIGH"],
-             "assets": model["asset_count"], "score": score_of(t)}
+             "assets": model["asset_count"], "score": score_of(t, model["asset_count"])}
 
     repo = None
     if args.repo_url and (args.ref or branch):
@@ -296,7 +302,7 @@ def build_domain(args):
             datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
             "scanned_at": scanned_at, "branch": branch, "actor": args.actor or "",
             "trivy_version": model["trivy_version"], "asset_count": model["asset_count"],
-            "tag_count": model.get("tag_count", 0), "score": score_of(t), "repo": repo}
+            "tag_count": model.get("tag_count", 0), "score": score_of(t, model["asset_count"]), "repo": repo}
     model["meta"] = meta
 
     # archive this run (full model) + refresh manifest
@@ -322,13 +328,13 @@ def build_domain(args):
 
     # a compact per-domain summary the landing page reads
     json.dump({"domain": args.domain, "scanned_at": scanned_at, "branch": branch,
-               "actor": args.actor or "", "score": score_of(t), "totals": t,
+               "actor": args.actor or "", "score": score_of(t, model["asset_count"]), "totals": t,
                "asset_count": model["asset_count"], "tag_count": model.get("tag_count", 0),
                "run_count": len(runs)},
               open(os.path.join(site_domain, "summary.json"), "w"), ensure_ascii=False)
 
     print(f"wrote {out}  ({args.domain}: assets={model['asset_count']} "
-          f"CRIT={t['CRITICAL']} HIGH={t['HIGH']} score={score_of(t)}/10 runs={len(runs)})")
+          f"CRIT={t['CRITICAL']} HIGH={t['HIGH']} score={score_of(t, model['asset_count'])}/10 runs={len(runs)})")
 
 
 def build_landing(args):

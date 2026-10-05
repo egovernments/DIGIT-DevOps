@@ -1,0 +1,86 @@
+## Root "app-of-apps" for digit-lts.
+##
+## Purpose: stop hand-applying the AppProjects, ApplicationSets and
+## Applications under charts/argo-cd/. This Application syncs that whole
+## directory, so a push to the digit-lts branch is enough -- no kubectl apply
+## step, and no more cases where the repo and the cluster silently disagree
+## because someone pushed an appset change but never applied it.
+##
+## WHAT THIS GIVES YOU FOR "a new service is added"
+##   Adding a service is an edit to a list generator in one of the appsets.
+##   Today that edit reaches git but not the cluster until someone applies it.
+##   With this root app the chain is fully automatic:
+##     push -> root app syncs the appset -> the ApplicationSet controller
+##     generates the new Application -> that Application syncs itself, because
+##     every appset here already sets template.spec.syncPolicy.automated
+##     (selfHeal: true).
+##   No step in that chain needs a human.
+##
+## BOOTSTRAP (once per cluster, the only manual step that remains):
+##   kubectl apply -f digit-lts-bootstrap.yaml
+##
+## Adoption: the existing objects were applied by hand and carry no argocd
+## tracking-id. ServerSideApply lets Argo adopt them in place -- they are not
+## recreated. Expect a brief OutOfSync on first sync.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: digit-lts-bootstrap
+  namespace: argocd
+spec:
+  ## 'default' on purpose. It is permissive (destinations '*',
+  ## clusterResourceWhitelist '*') and, critically, is NOT one of the projects
+  ## this Application manages -- so the root can never prune the project it
+  ## itself runs under.
+  project: default
+
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: digit-lts
+    ## NOTE: unlike the unified clusters there is no per-environment
+    ## subdirectory on this branch -- backbone/, egov/, inji/, monitoring/,
+    ## cluster-configs/ and playground/ sit directly under charts/argo-cd.
+    path: deploy-as-code/helm/charts/argo-cd
+    directory:
+      ## recurse picks up every subdirectory, including inji/applications
+      ## (and anything added later).
+      recurse: true
+      include: '*.yaml'
+      ## Excluding this directory keeps the root app from managing its own
+      ## definition. Self-management works, but it makes the resource tree
+      ## confusing and means a bad edit here could leave the root unable to
+      ## correct itself. Re-apply this file by hand on the rare occasion it
+      ## changes.
+      exclude: 'bootstrap/*'
+
+  destination:
+    server: https://kubernetes.default.svc
+    ## AppProject, ApplicationSet and Application are all namespaced resources
+    ## living in argocd.
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      ## prune: false to start. Removing a file from git will NOT delete the
+      ## object from the cluster yet -- deliberately conservative while the
+      ## existing hand-applied objects are being adopted.
+      ##
+      ## Flip to true once adoption looks right; that is what gives real
+      ## GitOps semantics (delete the file -> the appset goes away).
+      ##
+      ## Careful: this root manages 6 AppProjects, 9 ApplicationSets and 17
+      ## Applications. With prune enabled, deleting an appset file also
+      ## deletes every Application it generated, and deleting an AppProject
+      ## file orphans everything running under it.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      ## Required to adopt the pre-existing objects without recreating them.
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

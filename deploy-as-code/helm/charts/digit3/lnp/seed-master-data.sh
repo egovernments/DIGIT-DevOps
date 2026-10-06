@@ -72,6 +72,13 @@ for ct in $TYPES; do
 done; EXTRA="$EXTRA]"
 [ "$EXTRA" = "[]" ] && echo "    tax heads (from rules): all present" || { api POST /billing/v3/tax-heads "$EXTRA"; echo "    tax heads (from rules): $(j 'len(d)') $(tally)"; }
 
+note "master data: Business License files without a category (its form has no category control; the type's taxonomy would make every citizen submission fail with 'category is required')"
+api GET /license/certificate-types/BUSINESS_LICENSE
+if [ "$(j 'str((d.get("categoryConfig") or {}).get("enabled"))')" = "True" ]; then
+  api PUT /license/certificate-types/BUSINESS_LICENSE "$(j 'json.dumps({**{k:v for k,v in d.items() if k not in ("auditDetail","dashboards","id","tenantId","configVersion","version")}, "categoryConfig": {"enabled": False}})')"
+  echo "    BUSINESS_LICENSE categoryConfig.enabled=false: $(tally)"
+else echo "    BUSINESS_LICENSE: no category taxonomy (ok)"; fi
+
 note "master data: idgen templates per certificate type"
 for ct in $TYPES; do
   api GET "/license/certificate-types/$ct"; P=$(echo "$ct" | cut -c1-2)

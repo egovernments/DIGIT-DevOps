@@ -435,6 +435,22 @@ env:
     value: kafka-kraft.backbone.svc.cluster.local:9092
   - name: CUSTOM_REPORTS_AUTOMATION_TOPIC
     value: save-hcm-report-metadata
+  - name: EGOV_BOUNDARY_SERVICE_BASE_URL
+    value: http://boundary-service.egov.svc.cluster.local:8080
+  - name: EGOV_BOUNDARY_RELATIONSHIP_SEARCH_PATH
+    value: /boundary-service/boundary-relationships/_search
+  - name: EGOV_USER_SERVICE_BASE_URL
+    value: http://egov-user.egov.svc.cluster.local:8080
+  - name: EGOV_USER_SEARCH_PATH
+    value: /user/_search
+  - name: EGOV_MDMS_SERVICE_BASE_URL
+    value: http://mdms-v2.egov.svc.cluster.local:8080
+  - name: EGOV_MDMS_SEARCH_PATH
+    value: /egov-mdms-service/v1/_search
+  - name: EGOV_WORKFLOW_SERVICE_BASE_URL
+    value: http://egov-workflow-v2.egov.svc.cluster.local:8080
+  - name: EGOV_WORKFLOW_PROCESS_SEARCH_PATH
+    value: /egov-workflow-v2/egov-wf/process/_search
 
 # Volumes for all airflow containers
 volumes: []
@@ -613,7 +629,16 @@ apiSecretKeySecretName: ~
 jwtSecret: ~
 # Add custom annotations to the JWT secret
 jwtSecretAnnotations: {}
-jwtSecretName: ~
+# Pinned, exactly like fernetKeySecretName above. Left as `~`, the chart's
+# templates/secrets/jwt-secret.yaml mints `randAlphaNum 32` on EVERY render --
+# there is no `lookup` guard on it at all -- so Argo CD rewrites the Secret on
+# every sync. Because secretKeyRef env is resolved only at pod creation, the
+# api-server, scheduler and freshly-spawned worker pods end up holding
+# different keys, and every task fails with
+#   ServerResponseError: Invalid auth token: Signature verification failed
+# Setting this makes the chart skip its own Secret; cluster-configs supplies a
+# stable one from SOPS (templates/secrets/airflow-jwt-secret.yaml).
+jwtSecretName: backbone-airflow-jwt-secret
 
 # Flask secret key for Airflow <3 Webserver: `[webserver] secret_key` in airflow.cfg
 webserverSecretKey: ~

@@ -1,0 +1,28 @@
+{{- $k := .Values.kargo }}
+{{- range $svc := $k.services }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ $k.project }}
+spec:
+  freightCreationPolicy: {{ $svc.freightCreationPolicy | default "Automatic" }}
+  {{- if $svc.interval }}
+  interval: {{ $svc.interval }}
+  {{- end }}
+  subscriptions:
+    - image:
+        repoURL: {{ $k.registry }}/{{ $svc.repo | default $svc.name }}
+        imageSelectionStrategy: {{ $svc.imageSelectionStrategy | default "NewestBuild" }}
+        {{- $allowTags := $svc.allowTags | default $k.allowTags }}
+        {{- if $svc.extraAllowTags }}
+        {{- $allowTags = printf "%s|%s" $allowTags $svc.extraAllowTags }}
+        {{- end }}
+        {{- if $allowTags }}
+        allowTagsRegexes:
+          - {{ $allowTags | quote }}
+        {{- end }}
+        cacheByTag: {{ $svc.cacheByTag | default false }}
+        discoveryLimit: {{ $svc.discoveryLimit | default 10 }}
+{{- end }}

@@ -1,0 +1,79 @@
+{{- $k := .Values.kargo }}
+{{- if and $k.project $k.verify.enabled }}
+# Deploy-state verification: a Job asserts the target env's Deployment is running
+# the promoted tag and is healthy. Reaches the target cluster via a per-env
+# read-only kubeconfig Secret. {{ `{{args.*}}` }} are resolved by Argo Rollouts.
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: deploy-state-check
+  namespace: {{ $k.project }}
+spec:
+  args:
+    - name: kubeconfigSecret
+    - name: namespace
+    - name: deployment
+    - name: expectedTag
+  metrics:
+    - name: deploy-state
+      count: 1
+      provider:
+        job:
+          spec:
+            backoffLimit: 0
+            activeDeadlineSeconds: {{ add $k.verify.timeoutSeconds 60 }}
+            ttlSecondsAfterFinished: 600
+            template:
+              spec:
+                restartPolicy: Never
+                securityContext:
+                  runAsNonRoot: true
+                  seccompProfile:
+                    type: RuntimeDefault
+                volumes:
+                  - name: kubeconfig
+                    secret:
+                      secretName: {{ `{{args.kubeconfigSecret}}` | quote }}
+                containers:
+                  - name: verify
+                    image: {{ $k.verify.image | quote }}
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      runAsNonRoot: true
+                      runAsUser: 65532
+                      capabilities:
+                        drop: [ALL]
+                    env:
+                      - name: KUBECONFIG
+                        value: /kc/config
+                      - name: HOME              # kubectl cache dir must be writable by non-root
+                        value: /tmp
+                      - name: NS
+                        value: {{ `{{args.namespace}}` | quote }}
+                      - name: DEPLOY
+                        value: {{ `{{args.deployment}}` | quote }}
+                      - name: EXPECTED_TAG
+                        value: {{ `{{args.expectedTag}}` | quote }}
+                      - name: TIMEOUT
+                        value: {{ $k.verify.timeoutSeconds | quote }}
+                    volumeMounts:
+                      - name: kubeconfig
+                        mountPath: /kc
+                        readOnly: true
+                    command: ["/bin/sh", "-c"]
+                    args:
+                      - |
+                        deadline=$(( $(date +%s) + ${TIMEOUT} ))
+                        while [ "$(date +%s)" -lt "${deadline}" ]; do
+                          img=$(kubectl -n "$NS" get deploy "$DEPLOY" -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
+                          tag="${img##*:}"
+                          ready=$(kubectl -n "$NS" get deploy "$DEPLOY" -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo 0)
+                          updated=$(kubectl -n "$NS" get deploy "$DEPLOY" -o jsonpath='{.status.updatedReplicas}' 2>/dev/null || echo 0)
+                          echo "running=$tag ready=${ready:-0} updated=${updated:-0} expected=$EXPECTED_TAG"
+                          if [ "$tag" = "$EXPECTED_TAG" ] && [ "${ready:-0}" -ge 1 ] && [ "${updated:-0}" -ge 1 ]; then
+                            echo "VERIFIED"; exit 0
+                          fi
+                          sleep 10
+                        done
+                        echo "TIMEOUT: $DEPLOY not running $EXPECTED_TAG or not healthy"; exit 1
+{{- end }}

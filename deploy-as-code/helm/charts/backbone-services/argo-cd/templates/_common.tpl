@@ -49,6 +49,9 @@ Return valid version label
 Common labels
 */}}
 {{- define "argo-cd.labels" -}}
+{{- /* See _env-overrides.tpl. Note this helper receives a dict, so the root
+       context is .context, not . */ -}}
+{{- include "argo-cd.envOverrides" .context -}}
 helm.sh/chart: {{ include "argo-cd.chart" .context }}
 {{ include "argo-cd.selectorLabels" (dict "context" .context "component" .component "name" .name) }}
 app.kubernetes.io/managed-by: {{ .context.Release.Service }}

@@ -1,0 +1,192 @@
+## One cluster-configs Application per product env file -- these are the only
+## Applications that use the secrets:// scheme.
+##
+## valueFiles resolve relative to spec.sources[].path (charts/cluster-configs),
+## i.e. ../../environments/<env>.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-configs-unified-qa
+  namespace: argocd
+spec:
+  project: cluster-configs-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      path: "deploy-as-code/helm/charts/cluster-configs"
+      helm:
+        valueFiles:
+          - values.yaml
+          - ../../environments/unified-qa.yaml
+          ## secrets:// is decrypted by argocd-repo-server via SOPS + AWS KMS.
+          ## Key mapping: deploy-as-code/helm/.sops.yaml
+          - secrets://../../environments/unified-qa-secrets.yaml
+  destination:
+    server: https://kubernetes.default.svc
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-configs-unified-urban-qa
+  namespace: argocd
+spec:
+  project: cluster-configs-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      path: "deploy-as-code/helm/charts/cluster-configs"
+      helm:
+        valueFiles:
+          - values.yaml
+          - ../../environments/unified-urban-qa.yaml
+          ## secrets:// is decrypted by argocd-repo-server via SOPS + AWS KMS.
+          ## Key mapping: deploy-as-code/helm/.sops.yaml
+          - secrets://../../environments/unified-urban-qa-secrets.yaml
+        ## Only cluster-configs-unified-qa renders the cluster-wide singletons
+        ## (digit-admin / digit-user ClusterRoles, digit-user-read / global-readonly
+        ## ClusterRoleBindings, and the shared root-ingress). The chart defaults
+        ## cluster-roles.enabled to true, so every product Application rendered them
+        ## too; whichever synced last claimed ownership and the others sat
+        ## permanently OutOfSync with SharedResourceWarning.
+        ## Namespaced RoleBindings are unaffected -- rolebindings.yaml is now gated
+        ## on `rbac` alone.
+        parameters:
+          - name: cluster-configs.cluster-roles.enabled
+            value: "false"
+          - name: cluster-configs.root-ingress
+            value: "null"
+        ## NOTE: no namespaces.create=false override here.
+        ##
+        ## It used to be set on the assumption that cluster-configs-unified-dev
+        ## creates every namespace, but that env only creates
+        ## [backbone, egov, monitoring, playground, temporal]. With creation
+        ## disabled here nothing ever created `urban`, and the sync failed with
+        ##   namespaces "urban" not found
+        ##   error running kubectl auth reconcile: error getting namespace urban
+        ## Each product env owns its own namespaces (urban here, health+sso,
+        ## studio, care) and the lists do not overlap, so there is no contention --
+        ## studio and care synced cleanly precisely because they were never
+        ## overridden.
+  destination:
+    server: https://kubernetes.default.svc
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-configs-unified-health-qa
+  namespace: argocd
+spec:
+  project: cluster-configs-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      path: "deploy-as-code/helm/charts/cluster-configs"
+      helm:
+        valueFiles:
+          - values.yaml
+          - ../../environments/unified-health-qa.yaml
+          ## secrets:// is decrypted by argocd-repo-server via SOPS + AWS KMS.
+          ## Key mapping: deploy-as-code/helm/.sops.yaml
+          - secrets://../../environments/unified-health-qa-secrets.yaml
+        ## Only cluster-configs-unified-dev renders the cluster-wide singletons
+        ## (digit-admin / digit-user ClusterRoles, digit-user-read / global-readonly
+        ## ClusterRoleBindings, and the shared root-ingress). The chart defaults
+        ## cluster-roles.enabled to true, so every product Application rendered them
+        ## too; whichever synced last claimed ownership and the others sat
+        ## permanently OutOfSync with SharedResourceWarning.
+        ## Namespaced RoleBindings are unaffected -- rolebindings.yaml is now gated
+        ## on `rbac` alone.
+        parameters:
+          - name: cluster-configs.cluster-roles.enabled
+            value: "false"
+          - name: cluster-configs.root-ingress
+            value: "null"
+        ## NOTE: no namespaces.create=false override here -- see the urban
+        ## Application above. This env creates `health` and `sso`, and with creation
+        ## disabled the sync failed with `namespaces "health" not found` /
+        ## `namespaces "sso" not found`.
+  destination:
+    server: https://kubernetes.default.svc
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-configs-unified-studio-qa
+  namespace: argocd
+spec:
+  project: cluster-configs-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      path: "deploy-as-code/helm/charts/cluster-configs"
+      helm:
+        valueFiles:
+          - values.yaml
+          - ../../environments/unified-studio-qa.yaml
+          ## secrets:// is decrypted by argocd-repo-server via SOPS + AWS KMS.
+          ## Key mapping: deploy-as-code/helm/.sops.yaml
+          - secrets://../../environments/unified-studio-qa-secrets.yaml
+        parameters:
+          - name: cluster-configs.cluster-roles.enabled
+            value: "false"
+          - name: cluster-configs.root-ingress
+            value: "null"
+  destination:
+    server: https://kubernetes.default.svc
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s
+

@@ -13,3 +13,9 @@ variable "system_node_count" {}
 # Main User node pool that runs workloads (scaled 0 <-> desired by the schedule)
 variable "main_vm_size" {}
 variable "main_node_count" {}
+
+# Dedicated User node pool for Jenkins, tainted so only Jenkins pods land on it
+# (mirrors the egov-jenkins nodegroup on EKS unified-dev). Created only when
+# jenkins_node_count > 0.
+variable "jenkins_vm_size" {}
+variable "jenkins_node_count" {}

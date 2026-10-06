@@ -10,9 +10,24 @@ name: Auto-merge build tag bumps (unified-env-lts)
 # config -- is left untouched for normal human review.
 #
 # In scope: deploy-as-code/helm/environments/unified-<product>-{dev,qa,uat}.yaml
-#   (e.g. unified-health-dev.yaml, unified-urban-qa.yaml, unified-works-uat.yaml)
+#   (e.g. unified-urban-qa.yaml, unified-works-uat.yaml)
 # Explicitly NOT in scope: unified-dev.yaml / unified-qa.yaml / unified-uat.yaml
 #   (the base, non-product-scoped env files) and any *-secrets.yaml file.
+#
+# Also NOT in scope: the health env files, unified-health-{dev,qa,uat}.yaml.
+# Kargo owns those -- each stage in
+# deploy-as-code/helm/charts/kargo/config/projects/unified-health.yaml names the
+# env file it owns via `envFile`, and its promotion rewrites
+# <service>.image.tag there on every run. Auto-merging a hand-written bump to
+# those files made editing by hand strictly faster than promoting, which
+# rewarded the exact habit Kargo is meant to replace. They now fail this
+# workflow with a pointer to Kargo instead of being merged.
+#
+# The health paths deliberately stay in the `paths:` trigger below: the workflow
+# has to actually run in order to report that failure. There is no risk of this
+# guard firing on Kargo's own writes -- Kargo pushes straight to the branch
+# (git-push in deploy-as-code/helm/charts/kargo/templates/stage.yaml) and never
+# opens a PR, so a pull_request-triggered guard only ever sees human edits.
 
 on:
   pull_request:
@@ -25,7 +40,9 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  # `write` so the health guard below can leave an explanatory comment on the
+  # PR. Approve and merge still use CODEOWNER_APPROVAL_TOKEN.
+  pull-requests: write
 
 jobs:
   validate-and-merge:
@@ -41,13 +58,90 @@ jobs:
       - name: Fetch base ref
         run: git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1
 
+      - name: Collect changed files
+        run: |
+          git diff --name-only \
+            "origin/${{ github.event.pull_request.base.ref }}" HEAD \
+            > /tmp/changed_files.txt
+          echo "Changed files:"
+          cat /tmp/changed_files.txt
+
+      # Runs before the allowlist check so the PR gets the Kargo explanation
+      # rather than a generic "disallowed file changed" line.
+      - name: Block Kargo-managed health env files
+        env:
+          GH_TOKEN: ${{ secrets.CODEOWNER_APPROVAL_TOKEN || secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          kargo_managed=()
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              # Secrets files are not Kargo-managed. Leave them to the
+              # allowlist step, which rejects them like any other file.
+              deploy-as-code/helm/environments/unified-health-*-secrets.yaml)
+                ;;
+              deploy-as-code/helm/environments/unified-health-*.yaml)
+                kargo_managed+=("$f")
+                ;;
+            esac
+          done < /tmp/changed_files.txt
+
+          if [ ${#kargo_managed[@]} -eq 0 ]; then
+            echo "No Kargo-managed health env files in this PR."
+            exit 0
+          fi
+
+          {
+            echo "<!-- kargo-health-guard -->"
+            echo "### :no_entry: Health image tags are promoted by Kargo"
+            echo
+            echo "Auto-merge is disabled for the health env files, and this PR edits:"
+            echo
+            for f in "${kargo_managed[@]}"; do
+              echo "- \`$f\`"
+            done
+            echo
+            echo "**Editing these by hand does not stick.** Every Kargo promotion rewrites"
+            echo "\`<service>.image.tag\` in the file above, so a merged hand-edit is reverted by"
+            echo "the next promotion of that service. It also makes the live deployment tag"
+            echo "diverge from the Freight that Kargo believes is deployed, which fails the"
+            echo "\`deploy-state-check\` verification for everyone else on that stage."
+            echo
+            echo "Promote instead. Stages are \`<service>-dev\` -> \`<service>-qa\` ->"
+            echo "\`<service>-uat\`, all manual:"
+            echo
+            echo '```sh'
+            echo "kargo get freight   --project unified-health --stage <service>-dev"
+            echo "kargo promote       --project unified-health --stage <service>-dev --freight <id>"
+            echo '```'
+            echo
+            echo "Or use the Kargo UI: project \`unified-health\` -> your service's stage."
+            echo
+            echo "If this is a genuine **non-tag** config change to a health env file (DB host,"
+            echo "replica count, feature flag), that is fine -- it just cannot take the"
+            echo "auto-merge fast lane. Ask a code owner to review and merge it normally."
+          } > /tmp/kargo_guard.md
+
+          cat /tmp/kargo_guard.md >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/kargo_guard.md
+
+          if gh pr view "$PR" --repo "$REPO" --json comments \
+               --jq '.comments[].body' 2>/dev/null \
+               | grep -qF '<!-- kargo-health-guard -->'; then
+            echo "Guard comment already on this PR; not posting a duplicate."
+          else
+            gh pr comment "$PR" --repo "$REPO" --body-file /tmp/kargo_guard.md \
+              || echo "::warning::Could not post the guard comment; failing the job anyway."
+          fi
+
+          echo "::error title=Use Kargo to promote health image tags::This PR edits Kargo-managed health env file(s): ${kargo_managed[*]}. Auto-merge is disabled for these files -- promote via the Kargo unified-health project instead. See the job summary or the PR comment for details."
+          exit 1
+
       - name: Reject if any non-allowlisted file changed
         id: files
         run: |
-          CHANGED=$(git diff --name-only "origin/${{ github.event.pull_request.base.ref }}" HEAD)
-          echo "Changed files:"
-          echo "$CHANGED"
-
           safe=true
           allowed=()
           while IFS= read -r f; do
@@ -58,6 +152,17 @@ jobs:
               "deploy-as-code/helm/environments/unified-qa.yaml"|\
               "deploy-as-code/helm/environments/unified-uat.yaml")
                 echo "Disallowed file changed (base env file, not product-scoped): $f"
+                safe=false
+                ;;
+              # Explicitly excluded: Kargo-managed health env files. The guard
+              # step above already fails the job for these; this arm only keeps
+              # the allowlist honest if the steps are ever reordered.
+              deploy-as-code/helm/environments/unified-health-*-secrets.yaml)
+                echo "Disallowed file changed (secrets file): $f"
+                safe=false
+                ;;
+              deploy-as-code/helm/environments/unified-health-*.yaml)
+                echo "Disallowed file changed (Kargo-managed, promote via Kargo): $f"
                 safe=false
                 ;;
               # Allowed: unified-<product>-dev.yaml / -qa.yaml / -uat.yaml,
@@ -72,10 +177,13 @@ jobs:
                 safe=false
                 ;;
             esac
-          done <<< "$CHANGED"
+          done < /tmp/changed_files.txt
 
           echo "safe=$safe" >> "$GITHUB_OUTPUT"
-          printf '%s\n' "${allowed[@]}" > /tmp/allowed_files.txt
+          : > /tmp/allowed_files.txt
+          if [ ${#allowed[@]} -gt 0 ]; then
+            printf '%s\n' "${allowed[@]}" > /tmp/allowed_files.txt
+          fi
           echo "Allowed files in this PR:"
           cat /tmp/allowed_files.txt
 
@@ -94,6 +202,11 @@ jobs:
         id: diffcheck
         run: |
           mapfile -t FILES < /tmp/allowed_files.txt
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "No allowlisted files to validate -> nothing to auto-merge."
+            echo "safe=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           python3 .github/scripts/validate_tag_bump.py \
             --base "origin/${{ github.event.pull_request.base.ref }}" \
             --files "${FILES[@]}"

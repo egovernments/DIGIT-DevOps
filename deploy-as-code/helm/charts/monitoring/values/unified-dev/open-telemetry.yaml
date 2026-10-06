@@ -1,0 +1,74 @@
+# opentelemetry-collector — unified-dev (Azure AKS) overlay
+#
+# Points the base pipelines at the real backends in this environment.
+#
+# Nothing in environments/unified-dev.yaml configures the collector, and no
+# chart currently sends to it: the OTLP endpoints found in this branch are
+# stale placeholders (billing -> "localhost:4320", localization ->
+# "jaeger-collector.tracing:4318", a namespace that does not exist). So this is
+# a fresh configuration, not a migration of existing values.
+#
+# To actually route traffic here, point services at:
+#     http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318
+# (Spring Boot: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT, which
+#  wants the full path .../v1/traces.)
+
+config:
+  exporters:
+    otlp/jaeger:
+      # Jaeger chart 4.4.7 is Jaeger v2 and ingests OTLP natively — its Service
+      # is `jaeger` in this namespace with otlp-grpc on 4317 (verified against
+      # the rendered chart). No jaeger-specific exporter is needed.
+      #
+      # DEPENDENCY: this requires the monitoring-jaeger Application to be
+      # deployed. monitoring-helmfile.yaml has that release `installed: false`,
+      # so if Jaeger is not enabled the collector will retry and then drop
+      # spans, logging export failures. It keeps running and metrics are
+      # unaffected — but swap this exporter for `debug` if Jaeger stays off.
+      endpoint: jaeger:4317
+      tls:
+        # In-cluster traffic to a Service with no serving certificate.
+        insecure: true
+
+    prometheus:
+      # Received OTLP metrics are re-exposed in Prometheus format and scraped
+      # by kube-prometheus-stack via the ServiceMonitor below — a pull model,
+      # so no remote-write receiver has to be enabled on Prometheus.
+      endpoint: 0.0.0.0:8889
+      # Promote OTLP resource attributes (service.name, k8s.*) onto the metric
+      # labels, otherwise everything collapses into indistinguishable series.
+      resource_to_telemetry_conversion:
+        enabled: true
+
+  service:
+    pipelines:
+      # Exporter lists are replaced wholesale, not merged, so both pipelines are
+      # restated here to swap `debug` for the real backends.
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlp/jaeger]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [prometheus]
+
+ports:
+  prom-exporter:
+    # Carries the prometheus exporter above. Not one of the chart's built-in
+    # ports, so it is declared explicitly.
+    enabled: true
+    containerPort: 8889
+    servicePort: 8889
+    protocol: TCP
+
+serviceMonitor:
+  # kube-prometheus-stack is deployed in this namespace and discovers
+  # ServiceMonitors, so this is how both endpoints get scraped.
+  enabled: true
+  metricsEndpoints:
+    # 8888 — the collector's own health: spans refused, batches dropped, queue
+    # depth. Watch this; a silent collector is worse than a missing one.
+    - port: metrics
+    # 8889 — application metrics arriving over OTLP.
+    - port: prom-exporter

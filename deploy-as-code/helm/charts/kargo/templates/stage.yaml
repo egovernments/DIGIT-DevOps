@@ -1,0 +1,91 @@
+{{- $k := .Values.kargo }}
+{{- range $svc := $k.services }}
+{{- $repo := $svc.repo | default $svc.name }}
+{{- range $stage := $k.stages }}
+{{- $masterOnly := has $stage.name ($k.masterOnlyStages | default list) }}
+{{- $masterGuard := printf "${{ imageFrom(\"%s/%s\").Tag matches '^master-' }}" $k.registry $repo }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: {{ $svc.name }}-{{ $stage.name }}
+  namespace: {{ $k.project }}
+  {{- if $stage.color }}
+  annotations:
+    kargo.akuity.io/color: {{ $stage.color | quote }}
+  {{- end }}
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: {{ $svc.name }}
+      sources:
+      {{- if $stage.from }}
+        stages:
+          - {{ $svc.name }}-{{ $stage.from }}
+      {{- else }}
+        direct: true
+      {{- end }}
+  {{- if and $k.verify.enabled $stage.verifyKubeconfigSecret }}
+  verification:
+    analysisTemplates:
+      - name: deploy-state-check
+    args:
+      - name: kubeconfigSecret
+        value: {{ $stage.verifyKubeconfigSecret | quote }}
+      - name: namespace
+        value: {{ $svc.namespace | default $k.verify.namespace | quote }}
+      - name: deployment
+        value: {{ $svc.name | quote }}
+      - name: expectedTag
+        value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
+  {{- end }}
+  promotionTemplate:
+    spec:
+      steps:
+        - uses: git-clone
+          config:
+            repoURL: {{ $k.git.repoURL }}
+            checkout:
+              - branch: {{ $stage.branch }}
+                path: ./repo
+        - uses: yaml-update
+          {{- if $masterOnly }}
+          # Only master-* builds may be written to this stage's env file.
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            path: ./repo/{{ $stage.envFile }}
+            updates:
+              - key: {{ $svc.name }}.image.tag
+                value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
+              {{- if $svc.dbMigration }}
+              - key: {{ $svc.name }}.initContainers.dbMigration.image.tag
+                value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
+              {{- end }}
+        - uses: git-commit
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            path: ./repo
+            message: {{ printf "kargo: promote %s to %s" $svc.name $stage.name | quote }}
+        - uses: git-push
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            path: ./repo
+            targetBranch: {{ $stage.branch }}
+      {{- if $stage.argocdUpdate }}
+        - uses: argocd-update
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            apps:
+              - name: {{ $k.argocdAppPrefix }}{{ $svc.name }}
+                namespace: {{ $stage.argocdNamespace | default "argocd" }}
+      {{- end }}
+{{- end }}
+{{- end }}

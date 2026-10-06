@@ -1,0 +1,152 @@
+# Common Labels
+labels:
+  app: "keycloak"
+  group: "keycloak"
+namespace: egov
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: false
+  context: "keycloak"
+
+# Container Configs
+image:
+  repository: "keycloak"
+replicas: "1"
+events-listeners: "jboss-logging,register-citizen-listener"
+cpu_requests: "250m"
+memory_requests: "512Mi"
+cpu_limits: "500m"
+memory_limits: "1024Mi"
+
+## Keycloak owns its schema and migrates it with Liquibase on startup, so it
+## must NOT share the DIGIT application database (that one is flyway-managed by
+## the `db-migration` init containers). Point this at a dedicated database and
+## override it per environment in environments/<env>.yaml.
+kc-db-url: "jdbc:postgresql://postgres.egov:5432/new_keycloak"
+## Secret holding the Postgres credentials for `kc-db-url`; keys `username` and
+## `password`. `db` is the cluster-configs-managed secret present in every
+## unified-* environment.
+kc-db-secret: "db"
+## Secret holding the Keycloak bootstrap admin credentials; keys
+## `keycloak-admin-user` and `keycloak-admin-pass`. Rendered by cluster-configs
+## from `cluster-configs.secrets.keycloak` in the environment file.
+kc-admin-secret: "keycloak"
+## Base URL Keycloak advertises in issuer / redirect / admin-console URLs. Must
+## match what the ingress serves, otherwise KC_HOSTNAME_STRICT rejects requests.
+## Empty -> https://<global.domain>/keycloak, which is what the ingress below
+## produces.
+kc-hostname: ""
+
+## OTP service backing the register-citizen-listener SPI. This is DIGIT's
+## `otp-java` service (v3 API) -- `egov-otp` only speaks v1 and will not work.
+otp-host: "http://otp-java.egov:8080/"
+otp-registration-roles: "CITIZEN"
+## Fixed OTP for non-production environments. Leave empty to let the OTP service
+## generate and deliver a real one.
+otp-default-otp: ""
+
+resources: |
+  requests:
+    {{- if index .Values "cpu_requests" }}
+    cpu: {{ index .Values "cpu_requests" | quote }}
+    {{- end }}
+    {{- if index .Values "memory_requests" }}
+    memory: {{ .Values.memory_requests | quote }}
+    {{- end }}
+  limits:
+    {{- if index .Values "cpu_limits" }}
+    cpu: {{ index .Values "cpu_limits" | quote }}
+    {{- end }}
+    {{- if index .Values "memory_limits" }}
+    memory: {{ .Values.memory_limits | quote }}
+    {{- end }}
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: KC_HOSTNAME
+    value: {{ index .Values "kc-hostname" | default (printf "https://%s/keycloak" .Values.global.domain) | quote }}
+  - name: KC_HOSTNAME_STRICT
+    value: "true"
+  - name: KC_PROXY
+    value: "edge"
+  - name: KC_HTTP_RELATIVE_PATH
+    value: "/keycloak"
+  - name: KC_DB_URL
+    value: {{ index .Values "kc-db-url" | quote }}
+  - name: KC_DB
+    value: "postgres"
+  - name: DB_PORT
+    value: "5432"
+  - name: KC_DB_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: {{ index .Values "kc-db-secret" | quote }}
+        key: username
+  - name: KC_DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: {{ index .Values "kc-db-secret" | quote }}
+        key: password
+  - name: KEYCLOAK_ADMIN
+    valueFrom:
+      secretKeyRef:
+        name: {{ index .Values "kc-admin-secret" | quote }}
+        key: keycloak-admin-user
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: {{ index .Values "kc-admin-secret" | quote }}
+        key: keycloak-admin-pass
+  - name: KC_EVENTS_LISTENERS
+    value: {{ index .Values "events-listeners" | quote }}
+  - name: KC_SPI_EVENTS_LISTENER_REGISTER_CITIZEN_LISTENER_ENABLED
+    value: "true"
+  - name: KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: KC_FEATURES
+    value: "token-exchange,admin-fine-grained-authz"
+  - name: OTEL_TRACES_EXPORTER
+    value: "none"
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "org.postgresql.Driver"
+  - name: OTP_HOST
+    value: {{ index .Values "otp-host" | quote }}
+  - name: OTP_GENERATE_PATH
+    value: "otp/v3/generate"
+  - name: OTP_RESEND_PATH
+    value: "otp/v3/resend"
+  - name: OTP_VERIFY_PATH
+    value: "otp/v3/verify"
+  - name: OTP_INVALIDATE_PATH
+    value: "otp/v3/invalidate"
+  - name: OTP_EMAIL_PURPOSE
+    value: "login"
+  - name: OTP_SMS_PURPOSE
+    value: "login"
+  - name: OTP_REGISTRATION_PURPOSE
+    value: "registration"
+  - name: OTP_REGISTRATION_ROLES
+    value: {{ index .Values "otp-registration-roles" | quote }}
+  {{- if index .Values "otp-default-otp" }}
+  - name: OTP_EMAIL_DEFAULT_OTP
+    value: {{ index .Values "otp-default-otp" | quote }}
+  - name: OTP_SMS_DEFAULT_OTP
+    value: {{ index .Values "otp-default-otp" | quote }}
+  - name: OTP_REGISTRATION_DEFAULT_OTP
+    value: {{ index .Values "otp-default-otp" | quote }}
+  {{- end }}
+  - name: KEYCLOAK_EMAIL_DESTINATION_ATTRIBUTE
+    value: "email"
+  - name: KEYCLOAK_SMS_DESTINATION_ATTRIBUTE
+    value: "mobileNumber"
+  - name: HTTP_CLIENT_CONNECT_TIMEOUT_MS
+    value: "3000"
+  - name: HTTP_CLIENT_REQUEST_TIMEOUT_MS
+    value: "5000"

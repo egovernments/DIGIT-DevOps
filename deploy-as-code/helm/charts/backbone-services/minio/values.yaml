@@ -219,7 +219,21 @@ service:
 ## DNS: this needs an A record -> the ingress-nginx load balancer
 ## (135.13.178.110 on unified-dev). Until that record exists the ingress will
 ## be admitted by the controller but the name will not resolve.
-s3Domain: "minio-dev.digit.org"
+# Host for the S3 API ingress (the MinIO *console* uses global.domain instead,
+# see consoleIngress below).
+#
+# Deliberately EMPTY here. This used to be hardcoded to minio-dev.digit.org,
+# which meant every environment -- qa and uat included -- published its S3
+# endpoint on the unified-dev hostname. Set it per environment as a
+# TOP-LEVEL key in environments/<env>.yaml (the backbone ApplicationSet
+# passes that file at the chart root, so it is `s3Domain:`, not nested under
+# a `minio:` block).
+#
+# When unset it falls back to minio.<global.domain>, so a new environment
+# gets its own host rather than silently inheriting another one.
+# Whatever value is used needs a DNS A record pointing at the ingress-nginx
+# load balancer before cert-manager can solve HTTP-01 for it.
+s3Domain: ""
 
 ingress:
   enabled: true
@@ -253,11 +267,11 @@ ingress:
   # Root path on the dedicated host: boto3 appends /<bucket>/<key> itself.
   path: /
   hosts:
-    - "{{ .Values.s3Domain }}"
+    - '{{- $d := "" }}{{- with .Values.minio }}{{- $d = (.s3Domain | default "") }}{{- end }}{{- $d | default .Values.s3Domain | default (printf "minio.%s" .Values.global.domain) }}'
   tls:
-    - secretName: "{{ .Values.s3Domain }}-tls-certs"
+    - secretName: '{{- $d := "" }}{{- with .Values.minio }}{{- $d = (.s3Domain | default "") }}{{- end }}{{- $d | default .Values.s3Domain | default (printf "minio.%s" .Values.global.domain) }}-tls-certs'
       hosts:
-        - "{{ .Values.s3Domain }}"
+        - '{{- $d := "" }}{{- with .Values.minio }}{{- $d = (.s3Domain | default "") }}{{- end }}{{- $d | default .Values.s3Domain | default (printf "minio.%s" .Values.global.domain) }}'
 
 consoleService:
   type: ClusterIP

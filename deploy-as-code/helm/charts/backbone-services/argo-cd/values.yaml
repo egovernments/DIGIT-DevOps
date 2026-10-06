@@ -4,6 +4,21 @@
 
 # -- Provide a name in place of `argocd`
 nameOverride: argocd
+
+# Key under which this chart reads per-environment overrides out of
+# environments/<env>.yaml, matching how the application services work via the
+# `common` library chart. Defaults to the chart name, "argo-cd":
+#
+#   environments/unified-dev.yaml
+#     argo-cd:
+#       global:
+#         domain: unified-dev.digit.org
+#         sopsRoleArn: arn:aws:iam::...:role/argocd-rs-unified-dev-sops-web-identity
+#
+# Anything omitted there keeps the default from this file. Do not confuse this
+# with nameOverride above, which controls resource naming, not values scoping.
+# Implementation: templates/_env-overrides.tpl
+envOverrideKey: argo-cd
 # -- String to fully override `"argo-cd.fullname"`
 fullnameOverride: "argocd"
 # -- Override the namespace
@@ -54,7 +69,7 @@ crds:
   # Without them argocd-server dies with "could not find the requested resource
   # (post appprojects.argoproj.io)" and the applicationset controller with
   # "no matches for argoproj.io/v1alpha1".
-  install: false
+  install: true
   # -- Keep CRDs on chart uninstall
   keep: true
   # -- Annotations to be added to all CRDs
@@ -70,6 +85,19 @@ global:
   ## to the EKS ELB -- repoint DNS at the AKS ingress LoadBalancer, or the UI and
   ## every ingress on this host will answer from the old cluster.
   domain: unified-dev.digit.org
+
+  # -- IAM role the repo-server assumes to decrypt the SOPS-encrypted
+  # cluster-configs secrets (kms:Decrypt on the egov KMS key).
+  ## Set per environment alongside `domain` in environments/<env>.yaml, e.g.
+  ##   global:
+  ##     domain: unified-qa.digit.org
+  ##     sopsRoleArn: arn:aws:iam::218381940040:role/argocd-rs-unified-qa-sops-web-identity
+  ## Rendered into AWS_ROLE_ARN on the repo-server by
+  ## templates/argocd-repo-server/deployment.yaml. Each environment needs its own
+  ## role: the trust policy pins the specific AKS OIDC issuer, so one cluster's
+  ## role cannot be assumed from another. The value below is the default and is
+  ## only correct for unified-dev -- any new environment MUST override it.
+  sopsRoleArn: arn:aws:iam::218381940040:role/argocd-rs-unified-dev-sops-web-identity
 
   # -- Runtime class name for all components
   runtimeClassName: ""
@@ -2838,7 +2866,11 @@ repoServer:
   name: repo-server
 
   # -- The number of repo server pods to run
-  replicas: 1
+  # 2 replicas: repo-server is stateless and horizontally scalable, so this
+  # halves per-pod manifest-generation load and keeps a serving endpoint during
+  # a restart or rollout. With one replica, any restart takes manifest
+  # generation down for every Application in the cluster.
+  replicas: 2
 
   # -- Runtime class name for the repo server
   # @default -- `""` (defaults to global.runtimeClassName)
@@ -2957,8 +2989,12 @@ repoServer:
     ##
     ## The service account name below must stay `argocd-repo-server` -- it is the
     ## `sub` the trust policy pins.
-    - name: AWS_ROLE_ARN
-      value: "arn:aws:iam::218381940040:role/argocd-rs-unified-dev-sops-web-identity"
+    ##
+    ## AWS_ROLE_ARN is NOT listed here: it is per-environment and is emitted by
+    ## templates/argocd-repo-server/deployment.yaml from `global.sopsRoleArn`,
+    ## so it can be set next to `domain` in environments/<env>.yaml. Hardcoding
+    ## it here would pin every environment to the unified-dev role, whose trust
+    ## policy only accepts the unified-dev AKS OIDC issuer.
     - name: AWS_WEB_IDENTITY_TOKEN_FILE
       value: /var/run/secrets/aws/token
     - name: AWS_REGION
@@ -3139,12 +3175,22 @@ repoServer:
   ## through ApplicationSets, and every manifest generation shells out to the
   ## helm-secrets wrapper. At 50m (0.05 core) the repo-server throttles hard and
   ## syncs start timing out.
+  # CPU raised from 500m. With ~126 Applications this pod forks a helm template
+  # per app (plus the SOPS plugin on some), which pinned it at the 500m ceiling:
+  # cgroup cpu.stat showed 1908 throttled of 2043 periods (93%). Starved of CPU
+  # it could not answer the /healthz?full=true liveness probe inside its 1s
+  # timeout, so kubelet killed it roughly every 60s -- 38 restarts over 3d6h,
+  # exit code 0 ("clean shutdown", not OOM). While it backed off the Service had
+  # no endpoint and 21 Applications reported "connection refused" from the
+  # repo-server, i.e. they could not compute desired state at all.
+  # Memory was never implicated (501Mi of 1Gi), so only CPU is changed.
+  # After the change: throttling fell to 6-20% and restarts stopped.
   resources:
    limits:
-     cpu: 500m
+     cpu: "2"
      memory: 1Gi
    requests:
-     cpu: 100m
+     cpu: 500m
      memory: 256Mi
 
   # Repo server container ports

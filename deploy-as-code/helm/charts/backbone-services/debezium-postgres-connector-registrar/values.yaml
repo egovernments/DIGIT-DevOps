@@ -1,0 +1,199 @@
+# Common Labels
+name: debezium-postgres-connector-registrar
+namespace: backbone
+labels:
+  app: "debezium-postgres-connector-registrar"
+  group: "infra"
+
+# Container Configs
+# Kafka Connect has no CRD-based connector object without the Strimzi
+# operator (which this cluster does not run). Debezium's own docs register
+# connectors by PUTting the config JSON straight at the REST API, so this
+# CronJob does that with a plain curl image instead of a one-off Job --
+# common/ only ships a CronJob template, and re-running the (idempotent) PUT
+# on a schedule also means a Connect pod restart or a config change gets
+# picked up without a manual step.
+image:
+  repository: curlimages/curl
+  tag: "8.12.1"
+
+memory_limits: 64Mi
+resources: |
+  requests:
+    memory: {{ .Values.memory_limits | quote }}
+    cpu: 50m
+  limits:
+    memory: {{ .Values.memory_limits | quote }}
+
+cron:
+  schedule: "*/5 * * * *"
+
+# common.cronjob renders `command`/`args` with `toYaml` (no `tpl`), so these
+# must be plain values -- everything dynamic is passed in via `env` below
+# (which *is* `tpl`'d) and read back here as plain shell variables.
+command:
+  - "/bin/sh"
+  - "-c"
+args:
+  - |
+    set -eu
+    # PUT .../connectors/{name}/config takes the *flat* config map as the
+    # body (the name comes from the URL) -- unlike POST /connectors, this
+    # endpoint errors ("Cannot deserialize ... from Object value") if the
+    # body is wrapped in {"name":..., "config": {...}}.
+    #
+    # publication.autocreate.mode is `disabled`, not `filtered`: only a table's
+    # OWNER may add it to a publication, and the `debezium` role is deliberately
+    # not a member of unifieddev (that would hand it every schema, defeating the
+    # health-only scoping). So the publication is pre-created once by unifieddev:
+    #   CREATE PUBLICATION debezium_unified_dev_publication
+    #     FOR TABLES IN SCHEMA health;
+    # `FOR TABLES IN SCHEMA` keeps new health tables included automatically.
+    #
+    # Localization (public.message) is captured by its own connector and
+    # publication, registered further down.
+    #
+    # That publication is wider than table.include.list below, so PostgreSQL
+    # still exposes every health table to logical replication and will reject
+    # UPDATEs on any of them lacking a replica identity. Narrowing it to the
+    # same 38 tables closes that, and must be done as unifieddev:
+    #   DROP PUBLICATION debezium_unified_dev_publication;
+    #   CREATE PUBLICATION debezium_unified_dev_publication
+    #     FOR TABLE health.household, health.household_member, ... ;
+    #
+    # database.user/database.password are `${file:...}` references into the
+    # properties file the sibling `debezium-postgres-connect` chart's init
+    # container renders from the `db` Secret, resolved by Kafka Connect's
+    # FileConfigProvider only in-memory inside the task. Kafka Connect's
+    # REST API echoes a connector's stored config back verbatim on GET (this
+    # Debezium version doesn't mark database.password as sensitive for that
+    # endpoint) -- a literal credential here would be readable by anything
+    # in-cluster that can reach :8083. The `\$` escapes keep the shell from
+    # trying (and failing) to expand `${file:...}` itself.
+    cat <<JSON > /tmp/connector.json
+    {
+      "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+      "database.hostname": "$DB_HOST",
+      "database.port": "$DB_PORT",
+      "database.user": "\${file:/config-providers/db.properties:username}",
+      "database.password": "\${file:/config-providers/db.properties:password}",
+      "database.dbname": "$DB_NAME",
+      "topic.prefix": "$TOPIC_PREFIX",
+      "plugin.name": "pgoutput",
+      "slot.name": "$SLOT_NAME",
+      "publication.name": "$PUBLICATION_NAME",
+      "publication.autocreate.mode": "disabled",
+      "table.include.list": "$TABLE_INCLUDE_LIST",
+      "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+      "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+      "key.converter.schemas.enable": "false",
+      "value.converter.schemas.enable": "false",
+      "decimal.handling.mode": "string",
+      "tombstones.on.delete": "true"
+    }
+    JSON
+    echo "Registering $CONNECTOR_NAME against $CONNECT_REST_URL"
+    curl -sf -X PUT -H "Content-Type: application/json" \
+      --data @/tmp/connector.json \
+      -o /dev/null -w 'HTTP %{http_code}\n' \
+      "$CONNECT_REST_URL/connectors/$CONNECTOR_NAME/config"
+
+    # ------------------------------------------------------------------
+    # Localization connector: captures public.message only.
+    #
+    # Streaming is filtered by the row filter on its publication; the initial
+    # snapshot is filtered by snapshot.select.statement.overrides. Both use
+    # LOCALIZATION_MODULE_PREFIX.
+    #
+    # Run once against unified-dev-db, as the owner of public.message, before
+    # this connector is registered:
+    #   ALTER TABLE public.message
+    #       REPLICA IDENTITY USING INDEX unique_message_entry;
+    #   CREATE PUBLICATION debezium_localization_publication
+    #       FOR TABLE public.message WHERE (module LIKE 'hcm-boundary-%');
+    #   GRANT SELECT ON public.message TO debezium;
+    cat <<JSON > /tmp/connector-localization.json
+    {
+      "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+      "database.hostname": "$DB_HOST",
+      "database.port": "$DB_PORT",
+      "database.user": "\${file:/config-providers/db.properties:username}",
+      "database.password": "\${file:/config-providers/db.properties:password}",
+      "database.dbname": "$DB_NAME",
+      "topic.prefix": "$TOPIC_PREFIX",
+      "plugin.name": "pgoutput",
+      "slot.name": "$LOCALIZATION_SLOT_NAME",
+      "publication.name": "$LOCALIZATION_PUBLICATION_NAME",
+      "publication.autocreate.mode": "disabled",
+      "table.include.list": "public.message",
+      "snapshot.mode": "initial",
+      "snapshot.select.statement.overrides": "public.message",
+      "snapshot.select.statement.overrides.public.message": "SELECT * FROM public.message WHERE module LIKE '$LOCALIZATION_MODULE_PREFIX%'",
+      "snapshot.fetch.size": "2048",
+      "max.queue.size": "4096",
+      "max.batch.size": "1024",
+      "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+      "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+      "key.converter.schemas.enable": "false",
+      "value.converter.schemas.enable": "false",
+      "decimal.handling.mode": "string",
+      "tombstones.on.delete": "true"
+    }
+    JSON
+    echo "Registering $LOCALIZATION_CONNECTOR_NAME against $CONNECT_REST_URL"
+    curl -sf -X PUT -H "Content-Type: application/json" \
+      --data @/tmp/connector-localization.json \
+      -o /dev/null -w 'HTTP %{http_code}\n' \
+      "$CONNECT_REST_URL/connectors/$LOCALIZATION_CONNECTOR_NAME/config"
+
+env: |
+  # REST API of the worker deployed by the sibling `debezium-postgres-connect` chart.
+  - name: CONNECT_REST_URL
+    value: "http://debezium-postgres-connect.backbone:8083"
+  - name: CONNECTOR_NAME
+    value: "unified-dev-postgres-cdc"
+  - name: TOPIC_PREFIX
+    value: "unified-dev"
+  - name: SLOT_NAME
+    value: "debezium_unified_dev"
+  - name: PUBLICATION_NAME
+    value: "debezium_unified_dev_publication"
+  # The 38 tables the Bronze layer consumes, schema-qualified. Narrowed from
+  # `schema.include.list: health`, which captured all 152 tables in the schema
+  # and OOM-killed the snapshot on eg_cm_campaign_data (1.08M rows) at a 512M
+  # heap.
+  #
+  # This filters what Debezium READS. It does not change the publication, which
+  # is still `FOR TABLES IN SCHEMA health` and so still exposes every table to
+  # logical replication -- any of those without a replica identity will have
+  # its UPDATEs rejected by PostgreSQL. Narrowing the publication to match is a
+  # separate change, made as unifieddev.
+  #
+  # public.message is captured by the localization connector, not here.
+  #
+  # Kept in step with raw_event_bronze_config.py in the analytics repo: a table
+  # added there needs adding here, and to the publication.
+  - name: TABLE_INCLUDE_LIST
+    value: "health.address,health.eg_expense_bill,health.eg_expense_billdetail,health.eg_expense_lineitem,health.eg_expense_party,health.eg_pgr_address_v2,health.eg_pgr_service_v2,health.eg_push_device_tokens,health.eg_service,health.eg_service_attribute_value,health.eg_service_definition,health.eg_wms_attendance_attendee,health.eg_wms_attendance_log,health.eg_wms_attendance_register,health.eg_wms_attendance_staff,health.eg_wms_attendance_summary,health.eg_wms_muster_roll,health.facility,health.hf_referral,health.household,health.household_member,health.individual,health.individual_address,health.product,health.product_variant,health.project,health.project_address,health.project_beneficiary,health.project_facility,health.project_staff,health.project_target,health.project_task,health.referral,health.side_effect,health.stock,health.stock_reconciliation_log,health.task_resource,health.user_action"
+  # --- localization connector (public.message) ---------------------------
+  - name: LOCALIZATION_CONNECTOR_NAME
+    value: "unified-dev-localization-cdc"
+  - name: LOCALIZATION_SLOT_NAME
+    value: "debezium_localization"
+  - name: LOCALIZATION_PUBLICATION_NAME
+    value: "debezium_localization_publication"
+  # Used by both the publication's row filter and the snapshot override.
+  - name: LOCALIZATION_MODULE_PREFIX
+    value: "hcm-boundary-"
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name

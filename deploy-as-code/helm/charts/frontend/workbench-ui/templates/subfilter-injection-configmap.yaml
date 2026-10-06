@@ -1,5 +1,13 @@
-{{- $envOverrides := index .Values (tpl .Chart.Name .) -}} 
-{{- $_ := set . "Values" (merge .Values $envOverrides) -}}
+{{/*
+  mustMergeOverwrite, not merge: `merge` gives priority to its FIRST argument, so
+  .Values.namespace (hardcoded to "health" in this chart's values.yaml) would win
+  over an environments/<env>.yaml override and this ConfigMap would be rendered
+  into a different namespace than the Deployment that mounts it. unified-qa runs
+  workbench-ui in `egov`, so it needs the override to actually take effect.
+  The Deployment gets this right already -- common's helper uses mustMergeOverwrite.
+*/}}
+{{- $envOverrides := index .Values (tpl .Chart.Name .) -}}
+{{- $_ := set . "Values" (mustMergeOverwrite .Values (deepCopy ($envOverrides | default dict))) -}}
 {{- if index .Values "custom-js-injection" -}}
 apiVersion: v1
 kind: ConfigMap

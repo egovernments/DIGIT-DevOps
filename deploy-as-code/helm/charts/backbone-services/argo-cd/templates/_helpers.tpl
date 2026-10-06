@@ -264,6 +264,10 @@ Expand the namespace of the release.
 Allows overriding it for multi-namespace deployments in combined charts.
 */}}
 {{- define "argo-cd.namespace" -}}
+{{- /* Folds environments/<env>.yaml overrides into .Values. See _env-overrides.tpl.
+       Hooked here (and in argo-cd.labels) because between them they cover ~120 of
+       this chart's templates and always render inside metadata:, i.e. before spec:. */ -}}
+{{- include "argo-cd.envOverrides" . -}}
 {{- default .Release.Namespace .Values.namespaceOverride | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 

@@ -49,3 +49,8 @@ output "main_node_pool_name" {
   description = "Name of the main (User) node pool that the schedule scales"
   value       = azurerm_kubernetes_cluster_node_pool.main.name
 }
+
+output "jenkins_node_pool_name" {
+  description = "Name of the dedicated Jenkins node pool (empty if not created)"
+  value       = try(azurerm_kubernetes_cluster_node_pool.jenkins[0].name, "")
+}

@@ -1,0 +1,243 @@
+## ArgoCD cannot execute monitoring-helmfile.yaml, so each helmfile release
+## becomes one Application. The upstream chart comes from its own Helm repo and
+## the values come from this git repo via the $values ref, which keeps the
+## chart versions identical to the helmfile.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-kube-prometheus-stack
+  namespace: argocd
+spec:
+  project: monitoring-project
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 56.6.2
+      helm:
+        releaseName: kube-prometheus-stack
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/monitoring/values/prometheus.yaml
+          - $values/deploy-as-code/helm/charts/monitoring/values/unified-dev/prometheus.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-grafana
+  namespace: argocd
+spec:
+  project: monitoring-project
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: grafana
+      targetRevision: 7.3.0
+      helm:
+        releaseName: grafana
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/monitoring/values/grafana.yaml
+          - $values/deploy-as-code/helm/charts/monitoring/values/unified-dev/grafana.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-loki
+  namespace: argocd
+spec:
+  project: monitoring-project
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      # loki-stack 2.10.1, matching monitoring-helmfile.yaml. Two reasons this is
+      # NOT the standalone `loki` chart:
+      #   * loki-stack bundles promtail (promtail.enabled=true), so logs are
+      #     actually shipped. Plain `loki` has no collector — the stack would
+      #     come up healthy and receive nothing.
+      #   * values/loki-stack.yaml and the unified-dev overlay are Loki 2.x
+      #     schema (boltdb-shipper / shared_store / table_manager). loki 6.x
+      #     expects the 3.x layout and would silently ignore all of it.
+      # Its bundled grafana and prometheus subcharts are disabled in the base
+      # values, so this does not duplicate the separate Applications.
+      chart: loki-stack
+      targetRevision: 2.10.1
+      helm:
+        releaseName: loki-stack
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/monitoring/values/loki-stack.yaml
+          - $values/deploy-as-code/helm/charts/monitoring/values/unified-dev/loki.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-jaeger
+  namespace: argocd
+spec:
+  project: monitoring-project
+  sources:
+    - repoURL: https://jaegertracing.github.io/helm-charts
+      chart: jaeger
+      targetRevision: 4.4.7
+      helm:
+        releaseName: jaeger
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/monitoring/values/jaeger.yaml
+          - $values/deploy-as-code/helm/charts/monitoring/values/unified-dev/jaeger.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-open-telemetry
+  namespace: argocd
+spec:
+  project: monitoring-project
+  sources:
+    - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+      chart: opentelemetry-collector
+      targetRevision: 0.147.0
+      helm:
+        releaseName: open-telemetry
+        valueFiles:
+          - $values/deploy-as-code/helm/charts/monitoring/values/open-telemetry.yaml
+          - $values/deploy-as-code/helm/charts/monitoring/values/unified-dev/open-telemetry.yaml
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-env-lts
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-blackbox-exporter
+  namespace: argocd
+spec:
+  project: monitoring-project
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: unified-env-lts
+    path: deploy-as-code/helm/charts/backbone-services/prometheus-blackbox-exporter
+    helm:
+      releaseName: blackbox
+      valueFiles:
+        - values.yaml
+        - ../../monitoring/values/blackbox-exporter.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

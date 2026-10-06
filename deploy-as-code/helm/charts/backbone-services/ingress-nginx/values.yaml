@@ -69,9 +69,24 @@ controller:
     X-Frame-Options: "sameorigin"
     X-Content-Type-Options: "nosniff"
     X-Download-Options: "noopen"
-    Content-Security-Policy: "default-src 'self' https: 'unsafe-eval' 'unsafe-inline'; object-src 'none'; img-src 'self' https: data: blob:; style-src https: blob: 'unsafe-inline'; worker-src 'self' blob:; font-src 'self' https: data: blob:; child-src 'self' https: data: blob:; frame-src *.digit.org; frame-ancestors *.digit.org;"
-    X-XSS-Protection: "1"
+    Content-Security-Policy: "default-src 'self' https: 'unsafe-eval' 'unsafe-inline'; object-src 'none'; img-src 'self' https: data: blob:; style-src https: blob: 'unsafe-inline'; worker-src 'self' blob:; font-src 'self' https: data: blob:; child-src 'self' https: data: blob:; frame-src *.digit.org https://view.officeapps.live.com/; frame-ancestors *.digit.org;"
+    X-XSS-Protection: "0"
     Referrer-Policy: "no-referrer-when-downgrade"
+    Expires: "0"
+    Pragma: no-cache
+    allow-snippet-annotations: "true"
+    force-ssl-redirect: "true"
+    hide-headers: Server,X-Powered-By
+    hsts: "true"
+    hsts-include-subdomains: "true"
+    hsts-max-age: "31536000"
+    hsts-preload: "true"
+    server-tokens: "false"
+    ssl-ciphers: ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305
+    ssl-prefer-server-ciphers: "true"
+    ssl-protocols: TLSv1.2 TLSv1.3
+    ssl-redirect: "true"
+    ssl-session-tickets: "false"
     # Content-Security-Policy: 'default-src ''self'' https: ''unsafe-eval'' ''unsafe-inline'';
     # object-src ''none''; img-src ''self'' https: data: blob:; style-src https: blob:
     # ''unsafe-inline''; worker-src ''self'' blob:; font-src ''self'' https: data: blob:;
@@ -227,6 +242,31 @@ controller:
   maxmindLicenseKey: ""
   # -- Additional command line arguments to pass to Ingress-Nginx Controller
   # E.g. to specify the default SSL certificate you can use
+  # -- Certificate served for any host whose Ingress does not have a usable TLS
+  # secret in its OWN namespace.
+  #
+  # WHY THIS IS NEEDED: an Ingress can only reference a Secret in its own
+  # namespace -- Kubernetes has no cross-namespace secretRef. cert-manager is
+  # driven by the root-ingress in `egov`, so the real certificate only ever
+  # exists as egov/<domain>-tls-certs. Every other service ingress (kibana in
+  # `backbone`, and so on) renders `secretName: <domain>-tls-certs` inside its
+  # own namespace, where no such Secret exists -- so nginx falls back to its
+  # built-in self-signed "Kubernetes Ingress Controller Fake Certificate".
+  #
+  # Pointing --default-ssl-certificate at the egov secret replaces that fake
+  # certificate with the real one, so every host is served correctly regardless
+  # of which namespace its Ingress lives in. The controller can read it because
+  # controller.scope.enabled is false and the ClusterRole grants list/watch on
+  # secrets cluster-wide; setting scope.enabled=true would break this.
+  defaultSSLCertificate:
+    enabled: true
+    # Namespace holding the cert-manager-issued certificate (where root-ingress lives).
+    namespace: egov
+    # Defaults to "<global.domain>-tls-certs", matching what the root-ingress
+    # template and common.ingress both generate. Override only for a wildcard
+    # or externally-managed certificate with a different Secret name.
+    secretName: ""
+
   extraArgs: {}
   ## extraArgs:
   ##   default-ssl-certificate: "<namespace>/<secret_name>"
@@ -543,7 +583,7 @@ controller:
 
     # -- External traffic policy of the external controller service. Set to "Local" to preserve source IP on providers supporting it.
     # Ref: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
-    externalTrafficPolicy: ""
+    externalTrafficPolicy: "Local"
     # -- Session affinity of the external controller service. Must be either "None" or "ClientIP" if set. Defaults to "None".
     # Ref: https://kubernetes.io/docs/reference/networking/virtual-ips/#session-affinity
     sessionAffinity: ""

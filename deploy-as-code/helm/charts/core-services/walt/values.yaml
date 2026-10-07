@@ -24,3 +24,50 @@ resources: |
     memory: "768Mi"
 healthChecks:
   enabled: false
+
+tracing-enabled: "false"
+
+# OpenTelemetry Java Agent Instrumentation
+extraVolumes: |
+  {{- if eq (index .Values "tracing-enabled" | default "false" | toString) "true" }}
+  - name: otel-agent
+    emptyDir: {}
+  {{- end }}
+
+extraVolumeMounts: |
+  {{- if eq (index .Values "tracing-enabled" | default "false" | toString) "true" }}
+  - name: otel-agent
+    mountPath: /otel
+  {{- end }}
+
+initContainers:
+  extraInitContainers: |
+    {{- if eq (index .Values "tracing-enabled" | default "false" | toString) "true" }}
+    - name: otel-agent-init
+      image: ghcr.io/open-telemetry/opentelemetry-java-instrumentation/clean-nightly-snapshots:latest
+      imagePullPolicy: IfNotPresent
+      command: ["cp", "/javaagent.jar", "/otel/opentelemetry-javaagent.jar"]
+      volumeMounts:
+        - name: otel-agent
+          mountPath: /otel
+    {{- end }}
+
+env: |
+  {{- if eq (index .Values "tracing-enabled" | default "false" | toString) "true" }}
+  - name: JAVA_TOOL_OPTIONS
+    value: "-javaagent:/otel/opentelemetry-javaagent.jar"
+  - name: OTEL_SERVICE_NAME
+    value: "walt"
+  - name: OTEL_TRACES_EXPORTER
+    value: "otlp"
+  - name: OTEL_METRICS_EXPORTER
+    value: "otlp"
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: "http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4317"
+  - name: OTEL_EXPORTER_OTLP_PROTOCOL
+    value: "grpc"
+  - name: OTEL_TRACES_SAMPLER
+    value: "parentbased_always_on"
+  {{- end }}
+
+

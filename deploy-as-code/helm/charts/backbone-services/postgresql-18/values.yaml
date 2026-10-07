@@ -133,6 +133,32 @@ auth:
   existingSecret: ""
   superuserSecret: ""
 
+# Declarative role management (spec.managed.roles).
+#
+# THIS IS WHAT MAKES THE OWNER PASSWORD ROTATABLE. bootstrap.initdb.secret is
+# consumed once and never looked at again, so on its own a password change in
+# SOPS updates the Secret and nothing else -- the database keeps the old one.
+# A managed role is reconciled on every pass, so the same Secret change is
+# applied to the running database.
+#
+# ownerFromSecret turns bootstrap.owner into a managed role backed by
+# auth.existingSecret. Requires auth.existingSecret to be set, and its
+# `username` to equal bootstrap.owner.
+managedRoles:
+  ownerFromSecret: true
+
+  # Additional roles, passed through verbatim to spec.managed.roles. Any
+  # passwordSecret referenced here must also be kubernetes.io/basic-auth with
+  # `username` and `password` keys, and is best rendered by cluster-configs
+  # from environments/<env>-secrets.yaml.
+  #
+  #   - name: readonly
+  #     ensure: present
+  #     login: true
+  #     passwordSecret:
+  #       name: postgresql-18-readonly-db
+  extra: []
+
 # Set to false to disable the `postgres` superuser entirely (application user
 # only), which is the tighter production posture. When false, superuserSecret
 # is ignored.

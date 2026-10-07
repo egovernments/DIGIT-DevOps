@@ -86,6 +86,38 @@ spec:
   monitoring:
     enablePodMonitor: {{ $v.monitoring.enabled }}
 
+{{- /*
+  Declarative roles. Unlike bootstrap.initdb.secret -- which the operator reads
+  once, when PGDATA is empty, and never again -- spec.managed.roles is
+  reconciled on every pass. That is the difference between a password that can
+  be rotated from SOPS and one that is frozen at bootstrap.
+
+  The owner is included automatically so the credentials in auth.existingSecret
+  stay authoritative for the life of the cluster, not just its first second.
+*/}}
+{{- $roles := list }}
+{{- if and $v.managedRoles.ownerFromSecret $v.auth.existingSecret }}
+{{- $roles = append $roles (dict
+      "name" $v.bootstrap.owner
+      "ensure" "present"
+      "login" true
+      "passwordSecret" (dict "name" $v.auth.existingSecret)) }}
+{{- end }}
+{{- range $r := ($v.managedRoles.extra | default list) }}
+{{- if not $r.name }}
+{{- fail "postgresql-18: every entry in managedRoles.extra needs a name" }}
+{{- end }}
+{{- if eq $r.name $v.bootstrap.owner }}
+{{- fail (printf "postgresql-18: managedRoles.extra redefines %q, which is already managed via managedRoles.ownerFromSecret -- two entries for one role make the applied password order-dependent" $r.name) }}
+{{- end }}
+{{- $roles = append $roles $r }}
+{{- end }}
+{{- if $roles }}
+  managed:
+    roles:
+      {{- toYaml $roles | nindent 6 }}
+{{- end }}
+
   ## initdb runs ONCE, on first bootstrap. Editing these afterwards does not
   ## rename or recreate anything in an existing cluster.
   bootstrap:

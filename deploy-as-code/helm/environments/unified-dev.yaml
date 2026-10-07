@@ -1954,6 +1954,15 @@ postgresql-18:
   monitoring:
     # kube-prometheus-stack is installed here, so the PodMonitor CRD exists.
     enabled: true
+  bootstrap:
+    # owner MUST equal the `username` in the postgresql-18-db secret
+    # (cluster-configs.secrets.postgresql-18.username). If they differ, the
+    # database is created owned by a role those credentials cannot authenticate
+    # as -- and because initdb runs ONCE, it cannot be corrected without
+    # recreating the cluster.
+    owner: coredev
+    database: coredb
+
   auth:
     # Secrets rendered by cluster-configs from unified-dev-secrets.yaml
     # (cluster-configs.secrets.postgresql-18). Without these the operator

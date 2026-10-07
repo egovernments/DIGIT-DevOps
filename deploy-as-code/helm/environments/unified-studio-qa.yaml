@@ -30,6 +30,8 @@ cluster-configs:
         db-name: unifiedqadb ## Add db-name
         db-url: jdbc:postgresql://unified-qa-server.postgres.database.azure.com:5432/unifiedqadb ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
         db-url-no-schema: "jdbc:postgresql://unified-qa-server.postgres.database.azure.com:5432/unifiedqadb" ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
+        db-url: jdbc:postgresql://unified-qa-server.postgres.database.azure.com:5432/unifiedqadb?currentSchema=studio ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
+        db-url-no-schema: "jdbc:postgresql://unified-qa-server.postgres.database.azure.com:5432/unifiedqadb"
         domain: "https://unified-qa.digit.org" ## Add your Domain Name
         egov-services-fqdn-name: "https://unified-qa.digit.org/" ## Add your Domain Name
         state-level-tenantid-length: "2"
@@ -166,7 +168,7 @@ cluster-configs:
         vehicle: "http://vehicle.sanitation:8080"
         vendor: "http://vendor.sanitation:8080"
         project: "http://project.egov:8080/"
-        individual: "http://individual.egov:8080/"
+        individual: "http://studio-individual.studio:8080/"
         household: "http://household.health:8080/"
         product: "http://product.health:8080/"
         facility: "http://facility.health:8080/"
@@ -186,7 +188,7 @@ cluster-configs:
         studio-calculator-service: "http://studio-calculator-service.studio:8080/"
         sunbird-credential-schema: "http://sunbirdrc-credential-schema-service.sunbirdrc:3333/"
         sunbird-credential-service: "http://sunbirdrc-credentials-service.sunbirdrc:3000/"
-        service-request: "http://service-request:8080/"
+        service-request: "http://studio-service-request.studio:8080/"
         health-service-request: "http://health-service-request.health:8080/"
         hcm-abha: "http://hcm-abha:8080/"
         filestore: "http://filestore:8080/"
@@ -233,6 +235,7 @@ public-service:
   mdms-v2-create-endpoint: "egov-mdms-service/v2/_create"
   mdms-service-host: "http://mdms-v2.egov:8080/"
   mdms-v2-update-endpoint: "egov-mdms-service/v2/_update"
+  auto-escalation-system-user-uuid: "069bcd98-8ee2-4a60-9a44-9716da096527"
 
   image:
     tag: CCSD-1835-8ff13ad
@@ -272,6 +275,9 @@ studio-pdf:
     tag: multi-module-2d0a529
 studio-pdf-helper-service:
   namespace: studio
+  github-config-branch: "UNIFIED-QA"
+  github-devops-file-path: "deploy-as-code/helm/environments/unified-qa.yaml"
+  github-devops-branch: "unified-env-lts"
   resources: |
     limits:
       cpu: "100m"
@@ -290,41 +296,6 @@ studio-calculator-service:
   replicas: 1
   namespace: studio
   memory_limits: 256Mi
-
-
-
-
-
-
-
-
-
-
-
- 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   image:
     tag: payment-dev-7b6242f
 studio-hrms:
@@ -334,6 +305,11 @@ studio-hrms:
     dbMigration:
       image:
         tag: develop-eb01115
+        namespace: studio
+  heap: "-Xmx256m -Xms256m"
+  memory_limits: "512Mi"
+  cpu_limits: "200m"
+  tracing-enabled: true
 
 studio-individual:
   image:
@@ -342,6 +318,16 @@ studio-individual:
     dbMigration:
       image:
         tag: studio-dynamic-dashboard-backend-f283291
+  namespace: studio
+  heap: "-Xmx256m -Xms256m"
+  memory_limits: 512Mi
+  tracing-enabled: true
+  java-enable-debug: true
+  aadhaar-pattern: "\\d{12}"
+  mobile-pattern: "\\d+"
+  notification-sms-disabled-roles: "ORG_ADMIN"
+  egov-boundary-hierarchy: ADMIN
+  kafka-mdc-enabled: "true"
 
 studio-service-request:
   image:
@@ -350,8 +336,17 @@ studio-service-request:
     dbMigration:
       image:
         tag: studio-dynamic-dashboard-backend-44ee338
+  namespace: studio
+  heap: "-Xmx320m -Xms256m"
+  memory_limits: "512Mi"
+  cpu_limits: "200m"
 
 studio-user-otp:
   image:
     tag: studio-dynamic-dashboard-backend-9fd6152
+  namespace: studio
+  heap: "-Xmx192m -Xms192m"
+  memory_limits: "512Mi"
+  cpu_limits: "200m"
+  tracing-enabled: true
 

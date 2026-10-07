@@ -1,0 +1,25 @@
+{{- $v := include "pg18.values" . | fromYaml }}
+{{- if and $v.backup.enabled $v.backup.scheduledBackup.enabled }}
+{{- /*
+  Recurring base backups. Without this, backup.enabled only gives continuous
+  WAL archiving -- which cannot be restored from on its own, because
+  point-in-time recovery replays WAL on top of a base backup. Enabling one
+  without the other is the classic way to discover at restore time that there
+  is nothing to restore.
+*/}}
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ include "pg18.name" . }}
+  namespace: {{ $v.namespace }}
+  labels:
+    {{- include "pg18.labels" . | nindent 4 }}
+spec:
+  ## SIX fields -- CloudNativePG cron leads with SECONDS, unlike Kubernetes
+  ## CronJob. "0 0 2 * * *" is 02:00 daily; the 5-field "0 2 * * *" would be
+  ## rejected.
+  schedule: {{ $v.backup.scheduledBackup.schedule | quote }}
+  backupOwnerReference: {{ $v.backup.scheduledBackup.backupOwnerReference | default "self" }}
+  cluster:
+    name: {{ include "pg18.name" . }}
+{{- end }}

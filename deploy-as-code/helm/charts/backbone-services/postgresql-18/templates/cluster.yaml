@@ -1,0 +1,128 @@
+{{- $v := include "pg18.values" . | fromYaml }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "pg18.name" . }}
+  namespace: {{ $v.namespace }}
+  labels:
+    {{- include "pg18.labels" . | nindent 4 }}
+spec:
+  instances: {{ $v.instances }}
+  imageName: {{ printf "%s:%s" $v.image.repository $v.image.tag | quote }}
+  imagePullPolicy: {{ $v.image.pullPolicy | default "IfNotPresent" }}
+  {{- with $v.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+  ## switchover promotes a standby before touching the primary, so a
+  ## multi-instance cluster updates with seconds of downtime instead of a full
+  ## restart. No effect at instances: 1.
+  primaryUpdateStrategy: {{ $v.primaryUpdateStrategy | default "unsupervised" }}
+  primaryUpdateMethod: {{ $v.primaryUpdateMethod | default "switchover" }}
+
+  enableSuperuserAccess: {{ $v.enableSuperuserAccess }}
+  {{- if and $v.enableSuperuserAccess $v.auth.superuserSecret }}
+  ## Rendered by cluster-configs from environments/<env>-secrets.yaml. Unlike
+  ## the owner password below, this one IS reconciled onto the running database
+  ## whenever the Secret changes.
+  superuserSecret:
+    name: {{ $v.auth.superuserSecret }}
+  {{- end }}
+  enablePDB: {{ $v.enablePDB }}
+
+  storage:
+    size: {{ $v.storage.size }}
+    {{- if $v.storage.storageClass }}
+    storageClass: {{ $v.storage.storageClass }}
+    {{- end }}
+    ## Omitted when empty ON PURPOSE: the operator then uses the cluster's
+    ## default StorageClass, which is what keeps this portable across AKS,
+    ## EKS, k3s and bare metal.
+
+  {{- if $v.walStorage.enabled }}
+  walStorage:
+    size: {{ $v.walStorage.size }}
+    {{- if $v.walStorage.storageClass }}
+    storageClass: {{ $v.walStorage.storageClass }}
+    {{- end }}
+  {{- end }}
+
+  {{- with $v.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+  affinity:
+    enablePodAntiAffinity: {{ $v.affinity.enablePodAntiAffinity }}
+    topologyKey: {{ $v.affinity.topologyKey }}
+    podAntiAffinityType: {{ $v.affinity.podAntiAffinityType | default "preferred" }}
+    {{- with $v.nodeSelector }}
+    nodeSelector:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $v.tolerations }}
+    tolerations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- with $v.priorityClassName }}
+  priorityClassName: {{ . }}
+  {{- end }}
+
+  postgresql:
+    {{- with $v.postgresql.parameters }}
+    parameters:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $v.postgresql.pg_hba }}
+    pg_hba:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with $v.postgresql.shared_preload_libraries }}
+    shared_preload_libraries:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+
+  monitoring:
+    enablePodMonitor: {{ $v.monitoring.enabled }}
+
+  ## initdb runs ONCE, on first bootstrap. Editing these afterwards does not
+  ## rename or recreate anything in an existing cluster.
+  bootstrap:
+    initdb:
+      database: {{ $v.bootstrap.database }}
+      owner: {{ $v.bootstrap.owner }}
+      {{- if $v.auth.existingSecret }}
+      ## Consumed ONCE, at bootstrap. Its `username` must equal owner above --
+      ## otherwise the database is created owned by a role these credentials
+      ## cannot authenticate as, and the app connects with the wrong identity.
+      secret:
+        name: {{ $v.auth.existingSecret }}
+      {{- end }}
+
+  {{- if $v.backup.enabled }}
+  {{- if not $v.backup.destinationPath }}
+  {{- fail "postgresql-18: backup.enabled is true but backup.destinationPath is empty -- backups would silently never run" }}
+  {{- end }}
+  {{- if not $v.backup.credentialsSecret }}
+  {{- fail "postgresql-18: backup.enabled is true but backup.credentialsSecret is empty -- create it from environments/<env>-secrets.yaml, never inline the keys" }}
+  {{- end }}
+  backup:
+    retentionPolicy: {{ $v.backup.retentionPolicy }}
+    barmanObjectStore:
+      destinationPath: {{ $v.backup.destinationPath }}
+      {{- with $v.backup.endpointURL }}
+      endpointURL: {{ . }}
+      {{- end }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ $v.backup.credentialsSecret }}
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: {{ $v.backup.credentialsSecret }}
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: {{ $v.backup.wal.compression }}
+      data:
+        compression: {{ $v.backup.data.compression }}
+  {{- end }}

@@ -1,0 +1,184 @@
+# PostgreSQL 18 (CloudNativePG) -- defaults.
+#
+# These values are PLATFORM-NEUTRAL: they apply unchanged to a managed cluster
+# (AKS/EKS/GKE) and to bare metal / on-prem, including single-node and
+# air-gapped installs. Anything site-specific -- a named StorageClass,
+# zone-aware anti-affinity, an object store -- is overridden per environment
+# under a `postgresql-18:` key in environments/<env>.yaml. See README.md.
+
+namespace: backbone
+
+labels:
+  app: "postgresql-18"
+  group: "db"
+
+# Image for the PostgreSQL instances ("operand").
+#
+# Pinned explicitly rather than left to the operator default, so the image is
+# reproducible and an air-gapped install has exactly one string to repoint at a
+# local mirror. Major + variant are pinned while the patch level floats, so
+# 18.x security fixes arrive without a values change.
+#
+#   standard -> adds pgvector, PGAudit, Postgres Failover Slots, LLVM JIT
+#   minimal  -> smaller; note PostgreSQL 18 minimal images drop JIT support
+#
+# Built on official Debian slim using the PostgreSQL Global Development Group
+# (PGDG) apt packages -- the same upstream binaries as docker.io/library/postgres.
+image:
+  repository: ghcr.io/cloudnative-pg/postgresql
+  tag: "18-standard-trixie"
+  pullPolicy: IfNotPresent
+# imagePullSecrets:
+#   - name: regcred
+
+# Number of PostgreSQL instances: 1 primary + (n-1) hot standbys.
+#
+# Defaults to 1 because a single-node or physical install may have nowhere to
+# place a second. Set to 3 wherever there are three schedulable nodes -- that is
+# what buys automated failover. Even numbers give no extra safety.
+instances: 1
+
+storage:
+  size: 20Gi
+  # EMPTY ON PURPOSE -- uses whatever the cluster marks as its default
+  # StorageClass: managed-csi on AKS, gp3 on EKS, local-path on k3s, Rook-Ceph
+  # or OpenEBS on bare metal. Naming one here is what would break portability.
+  #
+  # Use block storage, NOT NFS. PostgreSQL needs POSIX fsync semantics that NFS
+  # does not reliably provide; an NFS-backed data directory is a known source of
+  # corruption after an unclean shutdown.
+  storageClass: ""
+
+# Write-ahead log on its own volume. Off by default because it doubles the PVC
+# count. Worth enabling under sustained write load, and on physical servers
+# where it can sit on a separate disk: it stops WAL growth (a stalled archive or
+# a long transaction) from filling the data volume and halting the database.
+walStorage:
+  enabled: false
+  size: 5Gi
+  storageClass: ""
+
+# Resource requests/limits for each instance.
+#
+# PRODUCTION: set requests == limits for memory. A large gap invites node
+# overcommit, and a database that gets OOMKilled mid-write is far more costly
+# than one that was scheduled conservatively. CPU is intentionally left without
+# a limit: throttling a database during a checkpoint is worse than letting it
+# burst.
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 2Gi
+
+# Anti-affinity spreads instances across failure domains.
+#
+# hostname, not zone: bare-metal and single-site clusters carry no
+# topology.kubernetes.io/zone labels, and a rule keyed on a label that does not
+# exist silently stops spreading replicas -- you believe you have failover and
+# do not. Cloud environments override this to zone, where zone labels exist.
+affinity:
+  enablePodAntiAffinity: true
+  topologyKey: kubernetes.io/hostname
+  podAntiAffinityType: preferred
+
+# Node placement. Useful on mixed clusters to keep the database on nodes with
+# fast local disks.
+nodeSelector: {}
+tolerations: []
+priorityClassName: ""
+
+# PostgreSQL server settings. shared_buffers is allocated up front, so raise it
+# only together with resources.requests.memory -- roughly 25% of it is the
+# conventional starting point.
+postgresql:
+  parameters:
+    max_connections: "200"
+    shared_buffers: 128MB
+    work_mem: 4MB
+    maintenance_work_mem: 64MB
+  # Additional pg_hba.conf lines, evaluated BEFORE the operator's generated
+  # rules. CloudNativePG already requires TLS for replication and issues its own
+  # certificates; add entries here only to further restrict client access.
+  pg_hba: []
+  shared_preload_libraries: []
+
+# Database created on first bootstrap. Changing these afterwards has NO effect
+# on an existing cluster -- initdb runs once.
+bootstrap:
+  database: app
+  owner: app
+
+# Credentials.
+#
+# By default both are empty and the operator generates random passwords into
+# secrets it owns (<name>-app and <name>-superuser). Set these to consume
+# secrets rendered by cluster-configs from the SOPS-encrypted
+# environments/<env>-secrets.yaml instead -- which is what unified-dev does.
+#
+# Both secrets must be type kubernetes.io/basic-auth with `username` and
+# `password` keys; the operator rejects Opaque secrets here.
+#
+# TWO DIFFERENT LIFECYCLES, worth knowing before rotating anything:
+#   superuserSecret -- reconciled continuously. Change it in SOPS, push, and the
+#                      operator applies it to the running database.
+#   existingSecret  -- read ONLY at first bootstrap, because initdb runs once.
+#                      Changing it later updates the Secret but NOT the
+#                      database. Rotate the application user with an ALTER ROLE
+#                      or spec.managed.roles instead.
+#
+# existingSecret.username MUST match bootstrap.owner above.
+auth:
+  existingSecret: ""
+  superuserSecret: ""
+
+# Set to false to disable the `postgres` superuser entirely (application user
+# only), which is the tighter production posture. When false, superuserSecret
+# is ignored.
+enableSuperuserAccess: true
+
+# Rolling-update behaviour. `switchover` promotes a replica before touching the
+# primary, so a multi-instance cluster updates with seconds of downtime rather
+# than a full restart. It has no effect when instances is 1.
+primaryUpdateStrategy: unsupervised
+primaryUpdateMethod: switchover
+
+# PodDisruptionBudget, so a node drain cannot take down the primary and its
+# standbys at once. Harmless at instances: 1.
+enablePDB: true
+
+# Prometheus integration. Requires the PodMonitor CRD from kube-prometheus-stack,
+# which a minimal on-prem cluster may not have -- enabling it without the CRD
+# fails the sync. Off by default; switch on per environment.
+monitoring:
+  enabled: false
+  prometheusRule: false
+
+# Backups via barman-cloud to any S3-compatible object store.
+#
+# PRODUCTION: this is the single most important block to configure. Off by
+# default only because it needs a bucket and credentials that differ per site.
+# The same `s3` block serves both worlds -- point endpointURL at MinIO on-prem
+# (already deployed in this repo's backbone namespace) or at the cloud object
+# store elsewhere. `azure` and `google` are also supported by the operator.
+#
+# Credentials MUST come from a Secret; never inline them here. Create it from
+# the SOPS-encrypted environments/<env>-secrets.yaml and name it below.
+backup:
+  enabled: false
+  # destinationPath: s3://postgresql-18-backups/
+  # endpointURL: http://minio.backbone.svc.cluster.local:9000
+  # S3 credentials are read from this Secret (keys ACCESS_KEY_ID / ACCESS_SECRET_KEY)
+  # credentialsSecret: postgresql-18-backup-creds
+  retentionPolicy: 30d
+  wal:
+    compression: gzip
+  data:
+    compression: gzip
+  # Scheduled base backups. CNPG cron has SIX fields -- it leads with seconds.
+  # "0 0 2 * * *" is 02:00 daily, not 00:00.
+  scheduledBackup:
+    enabled: false
+    schedule: "0 0 2 * * *"
+    backupOwnerReference: self

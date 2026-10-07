@@ -1,0 +1,30 @@
+apiVersion: v2
+name: postgresql-18
+description: >-
+  PostgreSQL 18 managed by the CloudNativePG operator. Renders a single
+  Cluster resource (plus optional ScheduledBackup) from values, so environment
+  overrides come from environments/<env>.yaml like every other chart here.
+type: application
+
+# Chart version. Bump on any change to templates or default values.
+version: 0.1.0
+
+# PostgreSQL major version delivered. The actual image is pinned in values.yaml.
+appVersion: "18"
+
+keywords:
+  - postgresql
+  - database
+  - cloudnative-pg
+
+# NOTE: cnpg/cluster is deliberately NOT declared as a dependency.
+#
+# Helm resolves subchart values before templates render, so values from
+# environments/<env>.yaml could never be mapped into a subchart's scope. The
+# Cluster resource is a small, stable CRD, so this chart renders it directly --
+# which keeps the environment-override contract identical to every other chart
+# in backbone-services, and removes the `helm dependency build` step that Argo
+# CD would otherwise run on every sync.
+#
+# The CloudNativePG OPERATOR is installed separately (see README) because its
+# CRDs must exist before any Cluster resource is applied.

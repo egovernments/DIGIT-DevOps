@@ -1934,3 +1934,29 @@ temporal:
     # On AKS Elasticsearch runs in the backbone namespace; this matches
     # egov-config.es-host in the temporal namespace on this cluster.
     host: elasticsearch-master.backbone
+
+# PostgreSQL 18 (CloudNativePG). Overrides charts/backbone-services/postgresql-18.
+postgresql-18:
+  # Single instance: this node pool is tight -- a node recently sat at 103% CPU
+  # and restart-looped every Java service on it. Raise to 3 once three
+  # schedulable nodes have headroom; that is what buys automated failover.
+  instances: 1
+  storage:
+    size: 20Gi
+    # Azure managed disk. The chart default is empty (cluster default class),
+    # named here so it cannot move if the default-class annotation is changed.
+    storageClass: managed-csi
+  affinity:
+    # AKS labels nodes with zone, so replicas spread across availability zones
+    # rather than merely across nodes. The chart defaults to hostname because
+    # on-prem clusters have no zone labels.
+    topologyKey: topology.kubernetes.io/zone
+  monitoring:
+    # kube-prometheus-stack is installed here, so the PodMonitor CRD exists.
+    enabled: true
+  auth:
+    # Secrets rendered by cluster-configs from unified-dev-secrets.yaml
+    # (cluster-configs.secrets.postgresql-18). Without these the operator
+    # generates its own random passwords instead.
+    existingSecret: postgresql-18-db
+    superuserSecret: postgresql-18-superuser-db

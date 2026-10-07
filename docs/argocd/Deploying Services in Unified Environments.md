@@ -3,10 +3,6 @@
 How to get a service running in `unified-dev`, `unified-qa` or `unified-uat`
 using Argo CD.
 
-Written for someone outside the DevOps team who needs to deploy a service and
-does not already know how this repo is wired. Everything here is a change to
-git — **you do not need cluster access to deploy.**
-
 ## Contents
 
 - [1. What you need before you start](#1-what-you-need-before-you-start)
@@ -221,16 +217,119 @@ that repo to `sourceRepos` as well — see §8.
 
 ### 5.3 Point an appset at it
 
-Either add your service to an existing appset whose `destination.namespace`
-is already your namespace, or create a new appset file in the domain
-directory. Copy a neighbouring one and change `path`,
-`destination.namespace` and the element list.
+Add your service to an existing appset whose `destination.namespace` is already
+your namespace — or create a new one, see §5.5.
 
 ### 5.4 Image pull credentials
 
 Images come from a private Docker Hub org, so each namespace needs a
 `docker-registry-secret`. A brand-new namespace will not have one, and pods
 will sit in `ImagePullBackOff`. Ask DevOps to seed it.
+
+### 5.5 New AppProject or appset
+
+**Which do you need?**
+
+| | |
+|---|---|
+| New **AppProject** | Only for a new *domain* — a new team or module that should be isolated from the others |
+| New **appset** | A new chart family, or a new target namespace, within an existing domain |
+
+Both files live in `charts/argo-cd/<env>/<domain>/` and are picked up by the
+bootstrap on push. Create them per environment.
+
+#### New AppProject
+
+`charts/argo-cd/<env>/<domain>/<domain>-app-project.yaml`
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: <domain>-project
+  namespace: argocd
+spec:
+  description: <domain> services for the Azure AKS <env> environment
+  sourceRepos:
+    - https://github.com/egovernments/DIGIT-DevOps.git
+  destinations:
+    - namespace: '<namespace>'
+      server: https://kubernetes.default.svc
+```
+
+Add only if you need them:
+
+```yaml
+  # charts pulled from outside this repo
+  sourceRepos:
+    - https://example.github.io/helm-charts
+  # CRDs, ClusterRole, webhooks -- most services need none
+  clusterResourceWhitelist:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+```
+
+#### New appset
+
+`charts/argo-cd/<env>/<domain>/<domain>-app-set-<family>.yaml`
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: <env>-<domain>-appset-<family>
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: my-service
+
+  template:
+    metadata:
+      name: '<domain>-{{name}}'
+    spec:
+      project: <domain>-project
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: unified-env-lts
+        path: deploy-as-code/helm/charts/<family>/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/unified-<domain>-<env>.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '<namespace>'
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff: { duration: 5s, factor: 2, maxDuration: 3m0s }
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+```
+
+Four things to get right:
+
+- **`project`** must match an AppProject that lists your namespace in
+  `destinations`, or every sync is rejected.
+- **`../../../environments/...`** is relative to the chart directory in
+  `path`, not to the appset file. Three levels is correct for
+  `charts/<family>/<service>`.
+- **Names must be unique across the cluster.** Prefix the appset with the
+  environment and the generated Applications with the domain, as above.
+- **`{{name}}` substitution is positional.** If your template also uses
+  `{{namespace}}`, every element must set `namespace:` — a missing key renders
+  the literal string and the sync fails.
 
 ---
 
@@ -346,11 +445,3 @@ helm template my-service charts/health-services/my-service \
 - [ ] External chart repos added to `sourceRepos`, if any
 - [ ] `docker-registry-secret` seeded in the new namespace
 
----
-
-## Related
-
-- `charts/backbone-services/postgresql-18/README.md` — a worked example of
-  adding a service that needs an operator, a new namespace, SOPS credentials
-  and `ServerSideDiff`
-- `docs/kargo/` — promoting builds between dev, QA and UAT once deployed

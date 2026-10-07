@@ -1,0 +1,185 @@
+# unified-studio Kargo pipeline: studio services (studio namespace), DEV -> QA -> UAT.
+# Service list + dbMigration extracted from the studio ns across dev/qa/uat clusters.
+kargo:
+  project: unified-studio
+  registry: docker.io/egovio
+  argocdAppPrefix: studio-
+  git:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+
+  # Project-level discovery default: mainline only.
+  #   - master-*                              (the only thing uat accepts)
+  # Anchored on the trailing commit sha ([0-9a-f]{7,}$) so the per-arch manifest
+  # children (-amd64 / -arm64) are kept OUT of Freight; the main tag is already a
+  # multi-arch index. Services add their own branch families via `extraAllowTags`
+  # (dev/qa only -- uat is master-only, see below).
+  #
+  # NOTE, and it differs from unified-health: NO studio service is currently built
+  # from master -- every deployed tag comes from a develop or feature branch. The
+  # default below therefore matches nothing today and every service carries an
+  # extraAllowTags. That is deliberate: it keeps the mainline default honest, so as
+  # services move onto master they are discovered with no change here, and dropping
+  # a stale extraAllowTags line is all that is needed to retire a branch family.
+  allowTags: '^master-.*[0-9a-f]{7,}$'
+
+  # uat accepts master-* only (inherited from the chart default masterOnlyStages:
+  # [uat]). The branch builds below are discoverable and promotable to dev and qa,
+  # but the uat promotion steps are guarded so a non master build is a no-op there.
+
+  # Post-promotion verification against the studio namespace on each target cluster.
+  verify:
+    enabled: true
+    namespace: studio
+
+  services:
+    # studio-develop-dev-<sha>-<build>: unlike every other studio repo the tag does
+    # not end at the sha, so the trailing -<build> counter is matched explicitly.
+    - name: digit-studio
+      namespace: studio
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      extraAllowTags: '^studio-develop-dev-.*[0-9a-f]{7,}-[0-9]+$'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: public-service
+      namespace: studio
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      extraAllowTags: '^studio-dynamic-dashboard-backend-.*[0-9a-f]{7,}$'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: public-service-init
+      namespace: studio
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      extraAllowTags: '^designer-delete-republish-authz-.*[0-9a-f]{7,}$'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: studio-calculator-service
+      namespace: studio
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      extraAllowTags: '^java-migration-.*[0-9a-f]{7,}$'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: studio-hrms
+      namespace: studio
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      # plain develop-<sha>; the sha anchor keeps this off develop-dev-* builds
+      extraAllowTags: '^develop-[0-9a-f]{7,}$'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: studio-individual
+      namespace: studio
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      extraAllowTags: '^studio-dynamic-dashboard-backend-.*[0-9a-f]{7,}$'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: studio-pdf
+      namespace: studio
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      extraAllowTags: '^studio-dynamic-dashboard-backend-.*[0-9a-f]{7,}$'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: studio-pdf-helper-service
+      namespace: studio
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      extraAllowTags: '^java-migration-.*[0-9a-f]{7,}$'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: studio-service-request
+      namespace: studio
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      extraAllowTags: '^studio-dynamic-dashboard-backend-.*[0-9a-f]{7,}$'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+      dbMigration: true
+    - name: studio-user-otp
+      namespace: studio
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      extraAllowTags: '^studio-dynamic-dashboard-backend-.*[0-9a-f]{7,}$'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+
+  # Only DEV shares the cluster with Kargo (argocdUpdate); QA/UAT are cross-cluster
+  # git-push, picked up by that cluster's own Argo CD.
+  stages:
+    - name: dev
+      color: "#3BA9C2"
+      branch: unified-env-lts
+      envFile: deploy-as-code/helm/environments/unified-studio-dev.yaml
+      autoPromotion: false
+      argocdUpdate: true
+      argocdNamespace: argocd
+      verifyKubeconfigSecret: verify-kubeconfig-dev
+    - name: qa
+      color: "#D64550"
+      from: dev
+      branch: unified-env-lts
+      envFile: deploy-as-code/helm/environments/unified-studio-qa.yaml
+      autoPromotion: false
+      verifyKubeconfigSecret: verify-kubeconfig-qa
+    - name: uat
+      color: "#F2C230"
+      from: qa
+      branch: unified-env-lts
+      envFile: deploy-as-code/helm/environments/unified-studio-uat.yaml
+      autoPromotion: false
+      verifyKubeconfigSecret: verify-kubeconfig-uat
+
+  # GitHub teams with access to THIS project only. Starting with devops alone --
+  # add studio-specific entries the same way as unified-health, e.g.
+  #   - name: studio-devs
+  #     role: viewer
+  #     groups: [egovernments:<studio-team-slug>]
+  #   - name: studio-dev-promoters
+  #     role: promoter
+  #     promoteStages: [dev]
+  #     manageFreight: true
+  #     groups: [egovernments:<studio-dev-promote-slug>]
+  teams:
+    - name: devops
+      role: admin
+      groups: [egovernments:micro-service-devops]
+
+    - name: studio-devs
+      role: viewer
+      groups: [egovernments:unified-studio-dev]
+
+    - name: studio-dev-promoters
+      role: promoter
+      promoteStages: [dev]
+      manageFreight: true
+      groups: [egovernments:unified-studio-dev-promote]
+
+    - name: studio-qa-promoters
+      role: promoter
+      promoteStages: [qa]
+      groups: [egovernments:unified-studio-qa-promote]
+
+    - name: studio-uat-promoters
+      role: promoter
+      promoteStages: [uat]
+      groups: [egovernments:unified-studio-uat-promote]
+

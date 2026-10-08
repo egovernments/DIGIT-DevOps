@@ -73,6 +73,10 @@ jobs:
       - name: Trivy misconfig + secret scan (table → logs)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          # Pin the Trivy binary (matches trivy-registry-scan.yml). The action's
+          # default (v0.70.0) emits some Terraform misconfig results without a file
+          # location, which the code-scanning SARIF uploader rejects; 0.74.0 does not.
+          version: v0.74.0
           scan-type: fs
           scan-ref: ${{ env.TF_DIR }}
           scanners: 'misconfig,secret'
@@ -104,6 +108,36 @@ jobs:
           hide-progress: true
           trivy-config: .trivy/trivy.yaml
           skip-setup-trivy: true
+
+      # The code-scanning uploader rejects the whole file if any result lacks a
+      # physical location (artifactLocation.uri). Such results can't be annotated
+      # on a line in the Security tab anyway, and they still reach the dashboard
+      # via the JSON above, so drop them here to keep the upload robust across
+      # Trivy versions.
+      - name: Sanitize SARIF (drop locationless results)
+        if: always()
+        run: |
+          f="trivy-terraform-${{ matrix.cloud }}.sarif"
+          [ -f "$f" ] || { echo "no SARIF to sanitize"; exit 0; }
+          python3 - "$f" <<'PY'
+          import json, sys
+          f = sys.argv[1]
+          with open(f) as fh:
+              doc = json.load(fh)
+          dropped = 0
+          for run in doc.get("runs", []):
+              kept = []
+              for r in run.get("results", []):
+                  locs = r.get("locations") or []
+                  if any((l.get("physicalLocation", {}).get("artifactLocation", {}) or {}).get("uri") for l in locs):
+                      kept.append(r)
+                  else:
+                      dropped += 1
+              run["results"] = kept
+          with open(f, "w") as fh:
+              json.dump(doc, fh)
+          print(f"dropped {dropped} locationless result(s)")
+          PY
 
       - name: Upload SARIF to Security tab
         if: always()

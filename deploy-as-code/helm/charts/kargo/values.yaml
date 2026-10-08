@@ -24,7 +24,13 @@ kargo:
     enabled: false
     namespace: egov            # fallback ns; per-service `namespace` overrides
     image: alpine/k8s:1.34.1     # needs a shell + kubectl (not distroless)
-    timeoutSeconds: 300
+    # Must exceed the slowest git-push stage's roll-out lag. On qa/uat Kargo only
+    # pushes the commit (no argocd-update -- the target cluster's Argo CD is remote
+    # and unreachable from the control plane), so the clock is: Argo CD poll
+    # (reconciliation, ~120s on qa) + image pull + roll-out to Ready. 300s lost that
+    # race by seconds; 600s covers it with margin. dev still verifies quickly because
+    # its stage runs argocd-update to force an immediate sync.
+    timeoutSeconds: 600
 
   # GitHub teams granted access to THIS project (see templates/rbac.yaml).
   # Set per project in config/projects/<project>.yaml -- each project gets its

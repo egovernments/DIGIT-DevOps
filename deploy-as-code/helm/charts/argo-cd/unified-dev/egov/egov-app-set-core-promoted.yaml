@@ -1,0 +1,65 @@
+# unified-core services under Kargo branch-per-env promotion. Split out of
+# egov-app-set-core.yaml so their targetRevision tracks THIS env's promotion
+# branch (unified-dev) instead of unified-env-lts. Kargo commits the promoted
+# image tag + env file onto that branch; Argo auto-syncs it into the real egov
+# namespace on this cluster. App names stay 'egov-<name>' (unchanged), so a
+# single owner generates each one.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-dev-egov-appset-core-promoted
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: egov-notification-mail
+          - name: egov-notification-sms
+          - name: boundary-service
+
+  template:
+    metadata:
+      name: 'egov-{{name}}'
+      # Authorize the matching Kargo Stage to run argocd-update on this app.
+      annotations:
+        kargo.akuity.io/authorized-stage: 'unified-core:{{name}}-dev'
+
+    spec:
+      project: egov-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        # promotion branch for this env -- Kargo writes the promoted tag here
+        targetRevision: unified-dev
+        path: deploy-as-code/helm/charts/core-services/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/unified-dev.yaml
+          parameters:
+            - name: namespace
+              value: egov
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'egov'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

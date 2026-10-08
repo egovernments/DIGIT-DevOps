@@ -1,4 +1,4 @@
-# unified-core Kargo pipeline: notification services, DEV -> QA -> UAT.
+# unified-core Kargo pipeline: notification + boundary services, DEV -> QA -> UAT.
 kargo:
   project: unified-core
   registry: docker.io/egovio
@@ -6,14 +6,22 @@ kargo:
   git:
     repoURL: https://github.com/egovernments/DIGIT-DevOps.git
 
+  # Project-level discovery default: mainline master-* builds, anchored on the
+  # commit sha ([0-9a-f]{7,}$) so the per-architecture manifest children
+  # (-amd64 / -arm64) are kept OUT of Freight (the main tag is already a multi-arch
+  # index). Services on extra branch families add them via `extraAllowTags`; a
+  # service on a different scheme replaces this with its own `allowTags`.
+  allowTags: '^master-.*[0-9a-f]{7,}$'
+
   # `namespace` is where each service's Deployment runs in the target cluster
   # (used by verification); services may live in different namespaces.
   services:
     - name: egov-notification-mail
       namespace: egov
       freightCreationPolicy: Manual
-      # keep matched tags to ~20-40 (runbook §8): NewestBuild fetches a blob per matched tag
-      allowTags: '^(master|sandbox|base-docker-upgrade)-[0-9a-f]+'
+      # master (project default) + sandbox / base-docker-upgrade families.
+      # These extra families reach dev/qa; uat stays master-only (see stages).
+      extraAllowTags: '^(sandbox|base-docker-upgrade)-.*[0-9a-f]{7,}$'
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
       discoveryLimit: 20
@@ -21,7 +29,7 @@ kargo:
     - name: egov-notification-sms
       namespace: egov
       freightCreationPolicy: Manual
-      allowTags: '^(master|sandbox|base-docker-upgrade)-[0-9a-f]+'
+      extraAllowTags: '^(sandbox|base-docker-upgrade)-.*[0-9a-f]{7,}$'
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
       discoveryLimit: 20
@@ -32,10 +40,10 @@ kargo:
       # DB-migration service: the promotion must also bump the dbMigration
       # init-container tag (boundary-service-db shares the app's tag).
       dbMigration: true
-      # Built from the master-persister-changes-2.0 branch (no plain master-<sha>
-      # image exists). Anchored with $ so the -amd64/-arm64 manifest children
-      # are excluded from freight.
-      allowTags: '^master-persister-changes-2\.0-[0-9a-f]+$'
+      # Built from the master-persister-changes-2.0 branch; pin to it (replaces the
+      # project default) so other master-* branches are not discovered. Sha-anchored
+      # to exclude the -amd64 / -arm64 manifest children.
+      allowTags: '^master-persister-changes-2\.0-.*[0-9a-f]{7,}$'
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
       discoveryLimit: 20
@@ -45,8 +53,8 @@ kargo:
   # tag and is healthy (uniform across dev/qa/uat via a per-env read-only kubeconfig).
   verify:
     enabled: true
+    namespace: egov
 
-  # Only DEV shares the cluster with Kargo (argocdUpdate); QA/UAT are cross-cluster git-push.
   # BRANCH-PER-ENVIRONMENT. Each stage writes to its OWN environment's branch,
   # so a promotion is a commit onto the branch that environment's Argo CD
   # actually tracks. The envFile path is unchanged -- that file lives on the
@@ -80,12 +88,36 @@ kargo:
       autoPromotion: false
       verifyKubeconfigSecret: verify-kubeconfig-uat
 
-  # GitHub teams with access to THIS project only. A team absent here has no
-  # ServiceAccount in the unified-core namespace and therefore no access to it.
+  # GitHub teams with access to THIS project only. View and promote are SEPARATE
+  # entries (same shape as unified-health / unified-studio): the whole team reads
+  # the project, and per-environment promoter teams add promotion into one stage.
+  # A team absent here has no ServiceAccount in the unified-core namespace and so
+  # no access. Replace the group slugs with real GitHub teams as they are created.
   teams:
     - name: devops
       role: admin
       groups: [egovernments:micro-service-devops]
+
+    # Whole team: read the project, promote nothing.
     - name: core-devs
+      role: viewer
+      groups: [egovernments:unified-core-dev]
+
+    # manageFreight is set ONLY here: Freight is project-level and cannot be
+    # scoped to a stage, so this grants create/update/delete over all Freight in
+    # unified-core. The qa and uat promoters below promote existing Freight only.
+    - name: core-dev-promoters
       role: promoter
-      groups: [egovernments:unified-dev]
+      promoteStages: [dev]
+      manageFreight: true
+      groups: [egovernments:unified-core-dev-promote]
+
+    - name: core-qa-promoters
+      role: promoter
+      promoteStages: [qa]
+      groups: [egovernments:unified-core-qa-promote]
+
+    - name: core-uat-promoters
+      role: promoter
+      promoteStages: [uat]
+      groups: [egovernments:unified-core-uat-promote]

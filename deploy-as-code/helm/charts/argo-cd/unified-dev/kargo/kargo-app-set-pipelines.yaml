@@ -5,11 +5,21 @@ metadata:
   namespace: argocd
 spec:
   generators:
+    # Per-element branch: each project's Kargo pipeline (chart + config/projects)
+    # is read from the branch it should promote to and deploy from.
+    #   - unified-core  -> unified-dev   (branch-per-env test; promotes to unified-dev/qa/uat)
+    #   - unified-health -> unified-env-lts  (unchanged; promotes to + deploys from unified-env-lts)
+    #   - unified-studio -> unified-env-lts  (unchanged)
+    # Moving health/studio here would send their promotions to unified-dev branches
+    # while their Deployments still track unified-env-lts, silently breaking them.
     - list:
         elements:
           - name: unified-core
+            branch: unified-dev
           - name: unified-health
+            branch: unified-env-lts
           - name: unified-studio
+            branch: unified-env-lts
 
   template:
     metadata:
@@ -20,7 +30,7 @@ spec:
 
       source:
         repoURL: https://github.com/egovernments/DIGIT-DevOps.git
-        targetRevision: unified-dev
+        targetRevision: '{{branch}}'
         path: deploy-as-code/helm/charts/kargo
         helm:
           valueFiles:

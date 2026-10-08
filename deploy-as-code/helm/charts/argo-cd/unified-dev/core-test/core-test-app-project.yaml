@@ -1,0 +1,32 @@
+# TEMPORARY -- Kargo live-promotion test harness for the 3 unified-core services
+# (egov-notification-mail, egov-notification-sms, boundary-service) across
+# dev / qa / uat, all on THIS cluster (in-cluster), each env in its own namespace.
+# Delete this directory once promotion testing is done.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: unified-core-test
+  namespace: argocd
+spec:
+  description: TEMPORARY unified-core 3-service promotion test (dev/qa/uat, in-cluster). Remove after testing.
+  sourceRepos:
+    - https://github.com/egovernments/DIGIT-DevOps.git
+
+  destinations:
+    - namespace: unified-core-test-dev
+      server: https://kubernetes.default.svc
+    - namespace: unified-core-test-qa
+      server: https://kubernetes.default.svc
+    - namespace: unified-core-test-uat
+      server: https://kubernetes.default.svc
+
+  # some core charts (e.g. gateway) render cluster-scoped RBAC; allow it or the sync is rejected
+  clusterResourceWhitelist:
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

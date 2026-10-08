@@ -1,0 +1,83 @@
+# TEMPORARY -- generates one Application per (service x environment) for the 3
+# unified-core test services, so Argo CD deploys dev/qa/uat on THIS cluster and
+# you can watch Kargo promotions land. Matrix = {3 services} x {3 envs}.
+#
+# Each env's app tracks that env's BRANCH (unified-dev / unified-qa / unified-uat)
+# and reads that branch's env file. qa/uat apps stay OutOfSync/unknown until those
+# branches exist (expected). Deployment picks up promoted tags via Argo CD
+# auto-sync (Kargo's dev argocd-update targets the real egov-* apps, not these).
+#
+# Delete this directory once testing is done.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-core-test-appset
+  namespace: argocd
+spec:
+  generators:
+    - matrix:
+        generators:
+          - list:
+              elements:
+                - svc: egov-notification-mail
+                - svc: egov-notification-sms
+                - svc: boundary-service
+          - list:
+              elements:
+                - env: dev
+                  branch: unified-dev
+                  ns: unified-core-test-dev
+                - env: qa
+                  branch: unified-qa
+                  ns: unified-core-test-qa
+                - env: uat
+                  branch: unified-uat
+                  ns: unified-core-test-uat
+
+  template:
+    metadata:
+      name: 'core-test-{{svc}}-{{env}}'
+      # Authorize the matching Kargo stage to run argocd-update on this app if ever
+      # pointed here. Stage names are '<service>-<env>' in project unified-core.
+      annotations:
+        kargo.akuity.io/authorized-stage: 'unified-core:{{svc}}-{{env}}'
+
+    spec:
+      project: unified-core-test
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: '{{branch}}'
+        path: 'deploy-as-code/helm/charts/core-services/{{svc}}'
+        helm:
+          valueFiles:
+            - values.yaml
+            - '../../../environments/unified-{{env}}.yaml'
+          parameters:
+            - name: namespace
+              value: '{{ns}}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ns}}'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

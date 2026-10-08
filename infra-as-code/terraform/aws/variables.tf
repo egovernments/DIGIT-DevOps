@@ -52,7 +52,7 @@ variable "db_version" {
 
 variable "db_instance_class" {
   description = "DB instance class"
-  default = "db.t4g.medium"
+  default = "db.t3.medium"
 }
 
 variable "architecture" {

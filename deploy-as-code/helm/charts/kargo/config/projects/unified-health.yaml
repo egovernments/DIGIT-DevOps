@@ -327,10 +327,19 @@ kargo:
       dbMigration: true
 
   # Stages + colours identical to unified-core; envFiles are the health overlays.
+  # BRANCH-PER-ENVIRONMENT. Each stage writes to its OWN environment's branch,
+  # so a promotion is a commit onto the branch that environment's Argo CD
+  # actually tracks. The envFile path is unchanged -- that file lives on the
+  # TARGET branch, which is why unified-qa.yaml / unified-uat.yaml are not
+  # present on this branch and must not be re-added here.
+  #
+  # Consequence: promotion to qa or uat fails until those branches exist with
+  # the matching env file. Kargo itself runs only in unified-dev and drives all
+  # three, so this project config stays here in full.
   stages:
     - name: dev
       color: "#3BA9C2"
-      branch: unified-env-lts
+      branch: unified-dev
       envFile: deploy-as-code/helm/environments/unified-health-dev.yaml
       autoPromotion: false
       argocdUpdate: true
@@ -339,14 +348,14 @@ kargo:
     - name: qa
       color: "#D64550"
       from: dev
-      branch: unified-env-lts
+      branch: unified-qa
       envFile: deploy-as-code/helm/environments/unified-health-qa.yaml
       autoPromotion: false
       verifyKubeconfigSecret: verify-kubeconfig-qa
     - name: uat
       color: "#F2C230"
       from: qa
-      branch: unified-env-lts
+      branch: unified-uat
       envFile: deploy-as-code/helm/environments/unified-health-uat.yaml
       autoPromotion: false
       verifyKubeconfigSecret: verify-kubeconfig-uat

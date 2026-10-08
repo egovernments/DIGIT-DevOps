@@ -124,10 +124,19 @@ kargo:
 
   # Only DEV shares the cluster with Kargo (argocdUpdate); QA/UAT are cross-cluster
   # git-push, picked up by that cluster's own Argo CD.
+  # BRANCH-PER-ENVIRONMENT. Each stage writes to its OWN environment's branch,
+  # so a promotion is a commit onto the branch that environment's Argo CD
+  # actually tracks. The envFile path is unchanged -- that file lives on the
+  # TARGET branch, which is why unified-qa.yaml / unified-uat.yaml are not
+  # present on this branch and must not be re-added here.
+  #
+  # Consequence: promotion to qa or uat fails until those branches exist with
+  # the matching env file. Kargo itself runs only in unified-dev and drives all
+  # three, so this project config stays here in full.
   stages:
     - name: dev
       color: "#3BA9C2"
-      branch: unified-env-lts
+      branch: unified-dev
       envFile: deploy-as-code/helm/environments/unified-studio-dev.yaml
       autoPromotion: false
       argocdUpdate: true
@@ -136,14 +145,14 @@ kargo:
     - name: qa
       color: "#D64550"
       from: dev
-      branch: unified-env-lts
+      branch: unified-qa
       envFile: deploy-as-code/helm/environments/unified-studio-qa.yaml
       autoPromotion: false
       verifyKubeconfigSecret: verify-kubeconfig-qa
     - name: uat
       color: "#F2C230"
       from: qa
-      branch: unified-env-lts
+      branch: unified-uat
       envFile: deploy-as-code/helm/environments/unified-studio-uat.yaml
       autoPromotion: false
       verifyKubeconfigSecret: verify-kubeconfig-uat

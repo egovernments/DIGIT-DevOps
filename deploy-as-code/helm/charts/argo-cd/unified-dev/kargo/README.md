@@ -24,7 +24,7 @@ stages) — exactly like adding a service to `egov-app-set-core.yaml`. Chart:
 
 Stages carry a `kargo.akuity.io/color` per env (DEV `#3BA9C2`, QA `#D64550`, UAT `#F2C230`).
 Promotion chain DEV → QA → UAT writes tags into `unified-dev.yaml` / `unified-qa.yaml` /
-`unified-uat.yaml` on `unified-env-lts`; only DEV runs `argocd-update` (same cluster).
+`unified-uat.yaml` on `unified-dev`; only DEV runs `argocd-update` (same cluster).
 
 ## Credentials
 

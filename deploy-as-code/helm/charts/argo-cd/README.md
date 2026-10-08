@@ -32,7 +32,7 @@ The full upstream chart is vendored at
 168 files including `templates/` and the `redis-ha` subchart).
 
 **Deployment uses a single `values.yaml` and no `-f` flags.** This branch
-(`unified-env-lts`) *is* the unified-dev environment, so the chart's own
+(`unified-dev`) *is* the unified-dev environment, so the chart's own
 `values.yaml` holds this environment's configuration directly — the same pattern
 the `digit-lts` branch uses, where its `values.yaml` carries `test-lts.digit.org`
 and the digit-lts role. Helm loads `values.yaml` automatically, so:
@@ -107,7 +107,7 @@ bump the tag in the env file** — no change needed here.
 instead of `values.yaml` (currently only `core-services/egov-user`); Helm does not
 auto-load those, so the file is named explicitly via `'{{name}}-values.yaml'`.
 
-`targetRevision` is **`unified-env-lts`** on every manifest — the branch these
+`targetRevision` is **`unified-dev`** on every manifest — the branch these
 files and charts live on. Push the branch before syncing.
 
 ## SOPS

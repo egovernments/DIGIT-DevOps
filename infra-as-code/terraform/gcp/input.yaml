@@ -1,27 +1,52 @@
-# NOTE: the keys below must match the <PLACEHOLDER> tokens in the GCP .tf files
-# exactly, and every value must be wrapped in double quotes.
+# ---------------------------------------------------------------------------
+# GCP infrastructure inputs.
+# The keys below must match the <PLACEHOLDER> tokens in the GCP .tf files
+# exactly, and every value MUST be wrapped in double quotes.
+# `go run ../scripts/init.go` substitutes these into the Terraform files,
+# which enforce the same rules again via validation blocks in variables.tf.
+# ---------------------------------------------------------------------------
 
-# ID of the GCP project where resources will be provisioned
+# ID of the GCP project where resources will be provisioned.
+# Example: "digit-demo-123456"
 GCP_PROJECT_ID: "project-name"
 
-# GCP region for the resources (e.g. asia-south1 for Mumbai)
+# GCP region for the resources (e.g. asia-south1 for Mumbai).
+# Example: "asia-south1"
 GCP_REGION: "asia-south1"
 
-# GCP availability zone within the region above
+# GCP availability zone within the region above.
+# Example: "asia-south1-a"
 GCP_AVAILABILITY_ZONE: "asia-south1-a"
 
-# Environment/cluster name. Use lowercase alphanumeric characters and hyphens.
-# For example: "gke-demo"
+# GKE cluster + environment name.
+# Rules: 3-40 chars; lowercase letters, numbers and hyphens only; start with a
+#        letter and end with a letter or number; no consecutive hyphens.
+# Example: "gke-demo"
 ENVIRONMENT_NAME: "gke-latest"
 
-# Name you want to give to your database
-# DB name must contain only alphanumeric characters
+# Cloud SQL (PostgreSQL) database name.
+# Rules: 3-40 chars; letters and numbers only (NO hyphens or special chars);
+#        must start with a letter.
+# Example: "digitdb"
 DATABASE_NAME: "testdemodb"
 
-# DB username you want
-# DB user name must contain only alphanumeric characters
+# Cloud SQL (PostgreSQL) user name.
+# Rules: 3-40 chars; letters and numbers only (NO hyphens or special chars);
+#        must start with a letter.
+# Example: "digituser"
 DATABASE_USERNAME: "testdemo"
 
-# Name of the GCS bucket used to store the terraform state.
-# Create it via the remote-state step first, then set the same name here.
+# Name of the GCS bucket used to store the terraform state. Must be globally
+# unique. Create it via the remote-state step first, then set the same name here.
+# Rules (GCS bucket naming): 3-63 chars; lowercase letters, numbers, hyphens
+#        and underscores (avoid dots: dotted names require domain verification);
+#        start and end with a letter or number; must not begin with "goog" nor
+#        contain "google".
+# Example: "digit-demo-tf-state"
 terraform_state_bucket_name: "gke-latest-state-gcs-bucket"
+
+# NOTE: db_password is NOT set here. It is passed at plan/apply time, e.g.
+#   terraform plan -var='db_password=digit#123'
+# Rules: 6-16 chars; start with a lowercase letter; letters, numbers and @ or #
+#        only.
+# Example: "digit#1234"

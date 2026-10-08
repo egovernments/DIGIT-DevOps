@@ -1,16 +1,39 @@
-# Replace with the name which you want to give to your EKS cluster
-# Cluster name can have only lowercase alphanumeric characters and hyphens
-# For example: "digit-demo"
+# ---------------------------------------------------------------------------
+# AWS infrastructure inputs.
+# Every value MUST be wrapped in double quotes.
+# `go run ../scripts/init.go` substitutes these into the Terraform files,
+# which enforce the same rules again via validation blocks in variables.tf.
+# ---------------------------------------------------------------------------
+
+# EKS cluster + environment name.
+# Rules: 3-40 chars; lowercase letters, numbers and hyphens only; start with a
+#        letter and end with a letter or number; no consecutive hyphens.
+# Example: "digit-demo"
 cluster_name: "eks-latest"
 
-# Name you want to give to your Database
-# DB name must contain only alphanumeric characters
+# PostgreSQL (RDS) database name.
+# Rules: 3-40 chars; letters and numbers only (NO hyphens or special chars);
+#        must start with a letter. Hyphens make RDS creation fail.
+# Example: "digitdb"
 db_name: "testdemodb"
 
-# Replace with DB username you want
-# DB user name must contain only alphanumeric characters
-db_username: "testdemo" 
+# PostgreSQL (RDS) master username.
+# Rules: 3-40 chars; letters and numbers only (NO hyphens or special chars);
+#        must start with a letter.
+# Example: "digituser"
+db_username: "testdemo"
 
-# Replace with the name you want to give to your S3 bucket which is used to store the terraform state
+# S3 bucket for Terraform remote state (also used as the DynamoDB lock table
+# name). Must be globally unique across all AWS accounts.
+# Rules (S3 bucket naming): 3-63 chars; lowercase letters, numbers and hyphens
+#        only (avoid dots: the TF S3 backend uses HTTPS virtual-host addressing);
+#        start and end with a letter or number; must not start with xn--,
+#        sthree- or amzn-s3-demo-, nor end with -s3alias or --ol-s3.
+# Example: "digit-demo-tf-state"
 terraform_state_bucket_name: "eks-latest-state-s3-bucket"
 
+# NOTE: db_password is NOT set here. It is passed at plan/apply time, e.g.
+#   terraform plan -var='db_password=digit#123'
+# Rules: 8-16 chars; start with a lowercase letter; letters, numbers and '#'
+#        only (RDS does not allow @, /, quotes or spaces).
+# Example: "digit#1234"

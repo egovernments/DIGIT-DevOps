@@ -4,8 +4,24 @@
 #
 
 variable "cluster_name" {
-  description = "Name of the Kubernetes cluster"
-  default = <cluster_name> #REPLACE
+  description = "Name of the Kubernetes cluster (EKS) and environment name"
+  type        = string
+  default     = <cluster_name> #REPLACE
+  validation {
+    condition = (
+      length(var.cluster_name) >= 3 &&
+      length(var.cluster_name) <= 40 &&
+      can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.cluster_name)) &&
+      !can(regex("--", var.cluster_name)) # no consecutive hyphens
+    )
+    error_message = <<EOT
+Cluster name must:
+- Be 3 to 40 characters long
+- Contain only lowercase letters, numbers, and hyphens
+- Start with a lowercase letter and end with a letter or number
+- Not contain consecutive hyphens
+EOT
+  }
 }
 
 variable "vpc_cidr_block" {
@@ -84,12 +100,40 @@ variable "max_worker_nodes" {
 
 variable "db_name" {
   description = "RDS DB name. Make sure there are no hyphens or other special characters in the DB name. Else, DB creation will fail"
-  default = <db_name> #REPLACE
+  type        = string
+  default     = <db_name> #REPLACE
+  validation {
+    condition = (
+      length(var.db_name) >= 3 &&
+      length(var.db_name) <= 40 &&
+      can(regex("^[a-zA-Z][a-zA-Z0-9]*$", var.db_name))
+    )
+    error_message = <<EOT
+DB name must:
+- Be 3 to 40 characters long
+- Contain only letters and numbers (no hyphens or special characters)
+- Start with a letter
+EOT
+  }
 }
 
 variable "db_username" {
   description = "RDS database user name"
-  default = <db_username> #REPLACE
+  type        = string
+  default     = <db_username> #REPLACE
+  validation {
+    condition = (
+      length(var.db_username) >= 3 &&
+      length(var.db_username) <= 40 &&
+      can(regex("^[a-zA-Z][a-zA-Z0-9]*$", var.db_username))
+    )
+    error_message = <<EOT
+DB user name must:
+- Be 3 to 40 characters long
+- Contain only letters and numbers (no hyphens or special characters)
+- Start with a letter
+EOT
+  }
 }
 
 variable "ami_id" {
@@ -125,7 +169,23 @@ variable "enable_ClusterAutoscaler" {
 }
 
 #DO NOT fill in here. This will be asked at runtime
-variable "db_password" {}
+variable "db_password" {
+  description = "RDS master password (provided at plan/apply time via -var)"
+  type        = string
+  validation {
+    condition = (
+      length(var.db_password) >= 8 &&
+      length(var.db_password) <= 16 &&
+      can(regex("^[a-z][a-zA-Z0-9#]*$", var.db_password))
+    )
+    error_message = <<EOT
+DB password must:
+- Be 8 to 16 characters long
+- Start with a lowercase letter
+- Use only letters, numbers, and # (RDS does not allow @, /, quotes or spaces)
+EOT
+  }
+}
 
 variable cloudwatch_eks_log_group_retention_in_days {
   default = "7"

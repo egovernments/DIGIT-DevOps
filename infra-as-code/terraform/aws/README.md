@@ -67,6 +67,8 @@ Required values:
 - `db_username`: PostgreSQL admin user.
 - `terraform_state_bucket_name`: S3 bucket used for Terraform state and the DynamoDB lock table name.
 
+These values are validated against the relevant AWS naming rules (EKS cluster name, RDS DB name/user, S3 bucket name) when you run `terraform plan`, so a bad value fails fast with a clear message. The exact constraints and examples are documented inline in `input.yaml`. `db_password` must be 8 to 16 characters, start with a lowercase letter, and use only letters, numbers and `#` (RDS does not allow `@`).
+
 Review `variables.tf` for version, sizing, and autoscaling defaults before applying:
 
 - `kubernetes_version` defaults to `1.35`.

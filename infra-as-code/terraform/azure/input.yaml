@@ -1,16 +1,44 @@
-# Replace with the name which you want to give to your AKS cluster
-# Environment name can have only lowercase alphanumeric characters and hyphens
-# For example: "digit-demo"
+# ---------------------------------------------------------------------------
+# Azure infrastructure inputs.
+# Every value MUST be wrapped in double quotes.
+# `go run ../scripts/init.go` substitutes these into the Terraform files,
+# which enforce the same rules again via validation blocks in variables.tf.
+# ---------------------------------------------------------------------------
+
+# AKS cluster + environment name.
+# Rules: 3-40 chars; lowercase letters, numbers and hyphens only; start with a
+#        letter and end with a letter or number; no consecutive hyphens.
+# Example: "digit-demo"
 environment: "aks-latest"
 
+# Azure resource group that holds all resources for this environment.
+# Example: "digit-demo-rg"
 resource_group: "aks-upgrade"
 
+# Azure region.
+# Example: "centralus"
 location: "centralus"
 
-# Azure subscription ID where the resources will be provisioned
+# Azure subscription ID where the resources will be provisioned.
+# Example: "00000000-0000-0000-0000-000000000000"
 subscription_id: "6437289374yu89876"
 
-# Replace with DB username you want
-# DB user name must contain only alphanumeric characters
-db_user: "testdemo" 
+# Storage Account that holds the Terraform remote state. This single value is
+# substituted into both the remote-state module (which creates the account) and
+# the backend block in main.tf, so they always match.
+# Rules (Azure Storage Account naming): 3-24 chars; lowercase letters and numbers
+#        only (no hyphens, underscores or uppercase); globally unique across Azure.
+# Example: "digitdemotfstate"
+storage_account_name: "akslatesttfstate"
 
+# PostgreSQL (Flexible Server) admin username.
+# Rules: 3-40 chars; lowercase letters, numbers and hyphens only; start with a
+#        letter and end with a letter or number; no consecutive hyphens.
+# Example: "digituser"
+db_user: "testdemo"
+
+# NOTE: db_password is NOT set here. It is passed at plan/apply time, e.g.
+#   terraform plan -var='db_password=digit#123'
+# Rules: 6-16 chars; start with a lowercase letter; letters, numbers and @ or #
+#        only.
+# Example: "digit#1234"

@@ -26,6 +26,25 @@ variable "location" {
   default = "<location>"
 }
 
+variable "storage_account_name" {
+  description = "Globally-unique Azure Storage Account name that holds the Terraform state"
+  type        = string
+  default     = "<storage_account_name>"
+  validation {
+    condition = (
+      length(var.storage_account_name) >= 3 &&
+      length(var.storage_account_name) <= 24 &&
+      can(regex("^[a-z0-9]+$", var.storage_account_name))
+    )
+    error_message = <<EOT
+Storage account name must follow Azure naming rules:
+- Be 3 to 24 characters long
+- Contain only lowercase letters and numbers (no hyphens, underscores or uppercase)
+- Be globally unique across all of Azure
+EOT
+  }
+}
+
 variable "resource_group" {
   description = "Azure Resource Group name"
   type        = string

@@ -69,6 +69,8 @@ Required values:
 - `DATABASE_USERNAME`: PostgreSQL admin user.
 - `terraform_state_bucket_name`: GCS bucket used for Terraform state.
 
+These values are validated against the relevant GCP naming rules (GKE/environment name, Cloud SQL DB name/user, GCS bucket name) when you run `terraform plan`, so a bad value fails fast with a clear message. The exact constraints and examples are documented inline in `input.yaml`. `db_password` must be 6 to 16 characters, start with a lowercase letter, and use only letters, numbers and `@` or `#`.
+
 Review `variables.tf` for version and sizing defaults before applying:
 
 - `gke_version` defaults to `1.35.8-gke.1225000`.

@@ -12,8 +12,24 @@ variable "zone" {
 }
 
 variable "env_name" {
+  description = "Name of the env (GKE cluster) and environment name"
+  type        = string
   default     = <ENVIRONMENT_NAME>
-  description = "Name of the env"
+  validation {
+    condition = (
+      length(var.env_name) >= 3 &&
+      length(var.env_name) <= 40 &&
+      can(regex("^[a-z][a-z0-9-]*[a-z0-9]$", var.env_name)) &&
+      !can(regex("--", var.env_name)) # no consecutive hyphens
+    )
+    error_message = <<EOT
+Environment name must:
+- Be 3 to 40 characters long
+- Contain only lowercase letters, numbers, and hyphens
+- Start with a lowercase letter and end with a letter or number
+- Not contain consecutive hyphens
+EOT
+  }
 }
 
 variable "private_subnet_cidr" {
@@ -67,14 +83,60 @@ variable "db_version"{
 }
 
 variable "db_name" {
-  default = <DATABASE_NAME>
+  description = "Cloud SQL (PostgreSQL) database name"
+  type        = string
+  default     = <DATABASE_NAME>
+  validation {
+    condition = (
+      length(var.db_name) >= 3 &&
+      length(var.db_name) <= 40 &&
+      can(regex("^[a-zA-Z][a-zA-Z0-9]*$", var.db_name))
+    )
+    error_message = <<EOT
+DB name must:
+- Be 3 to 40 characters long
+- Contain only letters and numbers (no hyphens or special characters)
+- Start with a letter
+EOT
+  }
 }
 
 variable "db_username" {
-  default = <DATABASE_USERNAME>
+  description = "Cloud SQL (PostgreSQL) user name"
+  type        = string
+  default     = <DATABASE_USERNAME>
+  validation {
+    condition = (
+      length(var.db_username) >= 3 &&
+      length(var.db_username) <= 40 &&
+      can(regex("^[a-zA-Z][a-zA-Z0-9]*$", var.db_username))
+    )
+    error_message = <<EOT
+DB user name must:
+- Be 3 to 40 characters long
+- Contain only letters and numbers (no hyphens or special characters)
+- Start with a letter
+EOT
+  }
 }
 
-variable "db_password" {}
+variable "db_password" {
+  description = "Cloud SQL (PostgreSQL) user password (provided at plan/apply time via -var)"
+  type        = string
+  validation {
+    condition = (
+      length(var.db_password) >= 6 &&
+      length(var.db_password) <= 16 &&
+      can(regex("^[a-z][a-zA-Z0-9@#]*$", var.db_password))
+    )
+    error_message = <<EOT
+DB password must:
+- Be 6 to 16 characters long
+- Start with a lowercase letter
+- Use only letters, numbers, and @ or # (no other symbols)
+EOT
+  }
+}
 
 variable "force_peering_cleanup" {
   default = false

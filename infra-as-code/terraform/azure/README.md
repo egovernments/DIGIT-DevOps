@@ -68,7 +68,10 @@ Required values:
 - `resource_group`: Azure resource group name.
 - `location`: Azure region.
 - `subscription_id`: Azure subscription ID.
+- `storage_account_name`: Globally-unique Azure Storage Account that holds the Terraform state. The init helper substitutes it into both the remote-state module and the backend block in `main.tf`, so they always match (no manual copy step).
 - `db_user`: PostgreSQL admin user.
+
+These values are validated against the relevant Azure naming rules (environment/AKS name, resource group, storage account, DB user) when you run `terraform plan`, so a bad value fails fast with a clear message. The exact constraints and examples are documented inline in `input.yaml`. `db_password` must be 6 to 16 characters, start with a lowercase letter, and use only letters, numbers and `@` or `#`.
 
 Review `variables.tf` for version and sizing defaults before applying:
 
@@ -99,7 +102,7 @@ terraform plan
 terraform apply
 ```
 
-Use the generated storage account name from the remote-state output or Azure portal to update the backend placeholder in `main.tf` if needed, then provision the Azure infrastructure:
+The storage account is created from the `storage_account_name` you set in `input.yaml`, and the init helper substitutes that same value into the backend block in `main.tf`, so no manual copy step is needed. Provision the Azure infrastructure:
 
 ```bash
 cd ..

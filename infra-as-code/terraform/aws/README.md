@@ -14,36 +14,34 @@ This directory provisions the AWS infrastructure required for a DIGIT environmen
 - Creates an S3 filestore bucket, IAM user, IAM policy, access key, and Kubernetes secret.
 - Adds an S3 backend and DynamoDB state-locking bootstrap under `remote-state/`.
 
-## What's New in Kubernetes 1.34
+## What's New in Kubernetes 1.35
 
-Upstream highlights relevant to DIGIT workloads (verify feature availability against the EKS 1.34 support matrix before relying on any of them):
+Kubernetes 1.35 ("Timbernetes") upstream highlights relevant to DIGIT workloads (verify feature availability against the EKS 1.35 support matrix before relying on any of them):
 
-- **Dynamic Resource Allocation (DRA) core is GA** — standardized requesting and sharing of GPUs and other specialized devices.
-- **In-place Pod vertical resource resize** continues to mature — adjust container CPU/memory without a restart.
-- **Pod-level resource requests and limits** — resources can be declared at the Pod scope, not only per container.
-- **Structured authentication configuration** graduated — cleaner multi-issuer / OIDC auth.
-- **Ordered (orderly) namespace deletion** — safer teardown order for namespaced objects.
-- **Fine-grained SupplementalGroups control** for Pod security.
-- **KYAML** — a stricter, safer YAML output format available in `kubectl`.
-- **`.kuberc`** — user-level `kubectl` preferences file.
-- Continued API deprecations/removals; the in-tree AWS cloud provider is no longer used (the external AWS cloud controller / add-ons are standard).
+- **cgroup v1 support removed**: nodes must run cgroup v2. EKS-optimized AL2023 AMIs already default to cgroup v2, so default managed node groups need no action; any custom AMI or bootstrap must be on cgroup v2 before upgrading.
+- **In-place Pod resource resize is GA**: adjust container CPU/memory without restarting the Pod.
+- **PreferSameNode / PreferSameZone traffic distribution**: Services can prefer local endpoints first, reducing latency and cross-AZ data cost.
+- **kube-proxy IPVS mode deprecated**: nftables is the long-term replacement. The default EKS kube-proxy add-on (iptables mode) is unaffected.
+- **kubeadm v1beta3 config API removed**: not used by the EKS managed control plane.
+- **DRAResourceHealth v1alpha1 deprecated** (removal targeted for 1.40).
+- Note: ingress-nginx receives best-effort maintenance only until March 2026; plan a migration path if DIGIT ingress relies on it.
 
-Official release notes: https://kubernetes.io/blog/2025/08/27/kubernetes-v1-34-release/ · CHANGELOG: https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.34.md
+Official release notes: https://kubernetes.io/blog/2025/12/17/kubernetes-v1-35-release/ · CHANGELOG: https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.35.md · EKS 1.35 availability: https://aws.amazon.com/about-aws/whats-new/2026/01/amazon-eks-distro-kubernetes-version-1-35/
 
-## Kubernetes 1.34 — Terraform Code Changes (EKS 1.33 → 1.34)
+## Kubernetes 1.35 — Terraform Code Changes (EKS 1.34 → 1.35)
 
-Code/config changes made for the 1.33 → 1.34 upgrade:
+Code/config changes made for the 1.34 → 1.35 upgrade:
 
-- `kubernetes_version` default bumped from `1.33` to `1.34` in `variables.tf`.
-- EKS and the managed node group are provisioned through `terraform-aws-modules/eks/aws` and its `eks-managed-node-group` submodule pinned to `~> 21.0`. The module resolves the correct EKS-optimized **AL2023** AMI for the cluster version automatically via `ami_type` (from `ami_type_map`), instead of pinning a version-specific 1.33 AMI ID.
+- `kubernetes_version` default bumped from `1.34` to `1.35` in `variables.tf`.
+- EKS and the managed node group are provisioned through `terraform-aws-modules/eks/aws` and its `eks-managed-node-group` submodule pinned to `~> 21.0` (no module bump needed for 1.35). The module resolves the correct EKS-optimized **AL2023** AMI for the cluster version automatically via `ami_type` (from `ami_type_map`), so no version-specific AMI ID is pinned and AL2023 satisfies the new cgroup v2 requirement.
 - Managed EKS add-ons (`vpc-cni`, `coredns`, `kube-proxy`, `aws-ebs-csi-driver`) are declared with `resolve_conflicts_on_create/on_update = "OVERWRITE"` so they upgrade in step with the control plane.
-- Optional `enable_karpenter` and `enable_ClusterAutoscaler` toggles remain available; when Karpenter is enabled its `EC2NodeClass` AMI selection must target 1.34.
+- Optional `enable_karpenter` and `enable_ClusterAutoscaler` toggles remain available; the Karpenter `EC2NodeClass` uses `alias: al2023@latest`, so new nodes roll onto the 1.35 AL2023 AMI automatically.
 
-## Upgrading from 1.33 to 1.34
+## Upgrading from 1.34 to 1.35
 
-> EKS upgrades one minor version at a time. The cluster must already be on **1.33** before upgrading to **1.34**.
+> EKS upgrades one minor version at a time. The cluster must already be on **1.34** before upgrading to **1.35**.
 
-1. **Bump the version** — `kubernetes_version = "1.34"` (already the default in `variables.tf`).
+1. **Bump the version** — `kubernetes_version = "1.35"` (already the default in `variables.tf`).
 2. **Upgrade the control plane**
    ```bash
    terraform init
@@ -52,11 +50,11 @@ Code/config changes made for the 1.33 → 1.34 upgrade:
    ```
 3. **Validate**
    ```bash
-   kubectl get nodes        # every node reports v1.34.x
+   kubectl get nodes        # every node reports v1.35.x
    kubectl version
    kubectl get pods -A      # coredns, kube-proxy, vpc-cni, ebs-csi healthy
    ```
-4. If Karpenter is enabled, update the `EC2NodeClass` AMI/alias to 1.34 and confirm new nodes come up on 1.34.
+4. If Karpenter is enabled, confirm drifted nodes are replaced and new nodes come up on the 1.35 AL2023 AMI (`alias: al2023@latest`).
 
 ## Important Inputs
 
@@ -71,7 +69,7 @@ Required values:
 
 Review `variables.tf` for version, sizing, and autoscaling defaults before applying:
 
-- `kubernetes_version` defaults to `1.34`.
+- `kubernetes_version` defaults to `1.35`.
 - `db_version` defaults to `15.18`.
 - `architecture` defaults to `x86_64`.
 - `enable_karpenter` and `enable_ClusterAutoscaler` default to `false`.

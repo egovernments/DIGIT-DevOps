@@ -27,7 +27,7 @@ variable "public_subnet_cidr" {
 }
 
 variable "gke_version" {
-  default = "1.34.8-gke.1000000"
+  default = "1.35.8-gke.1225000"
 }
 
 variable "node_machine_type" {

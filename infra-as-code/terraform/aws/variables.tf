@@ -26,7 +26,7 @@ variable "availability_zones" {
 
 variable "kubernetes_version" {
   description = "kubernetes version"
-  default = "1.34"
+  default = "1.35"
 }
 
 variable "db_version" {

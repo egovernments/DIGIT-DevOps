@@ -213,6 +213,102 @@ def aggregate_helm(reports):
     }
 
 
+# --------------------------------------------------------------------------- #
+# terraform (IaC misconfig) — same Trivy "Misconfigurations" shape as helm, but
+# grouped by terraform module and split per cloud (aws/azure/gcp). Produces one
+# helm-shaped model per cloud plus a combined "all clouds" model whose assets are
+# prefixed with the cloud, so the Excel "by directory" export yields one
+# worksheet per cloud automatically.
+# --------------------------------------------------------------------------- #
+TF_CLOUDS = ["aws", "azure", "gcp"]
+TF_CLOUD_LABEL = {"aws": "AWS", "azure": "Azure", "gcp": "GCP"}
+
+
+def tf_module_of(target):
+    """Human-readable terraform module name for a scanned file target."""
+    t = re.sub(r"^(\.\./)+", "", target or "")
+    d = os.path.dirname(t)
+    return d or "root"
+
+
+def tf_repo_path(cloud, target, root="infra-as-code/terraform"):
+    """Resolve a Trivy target (relative to the cloud dir) to a repo path, or ""
+    when it points outside the repo (e.g. a downloaded registry module)."""
+    t = target or ""
+    if t.startswith("terraform-aws-modules/") or t.startswith(".terraform/") or "/.terraform/" in t:
+        return ""
+    base = f"{root}/{cloud}"
+    parts = (base + "/" + t).split("/")
+    out = []
+    for p in parts:
+        if p in ("", "."):
+            continue
+        if p == "..":
+            if out:
+                out.pop()
+        else:
+            out.append(p)
+    rp = "/".join(out)
+    return rp if rp.startswith(root + "/") else ""
+
+
+def aggregate_tf(reports, cloud, prefix=False):
+    """Build a helm-shaped model (charts=modules, rules) from one cloud's Trivy
+    misconfig JSON. With prefix=True the module (asset) names are prefixed with
+    the cloud for the combined overview."""
+    chart_map, rule_index, secrets = {}, {}, []
+    trivy_version, created = None, None
+    for path, data in reports:
+        trivy_version = trivy_version or (data.get("Trivy") or {}).get("Version")
+        created = created or data.get("CreatedAt")
+        for r in data.get("Results") or []:
+            target = r.get("Target") or ""
+            for m in r.get("Misconfigurations") or []:
+                if (m.get("Status") or "FAIL").upper() != "FAIL":
+                    continue
+                mod = tf_module_of(target)
+                name = f"{cloud}/{mod}" if prefix else mod
+                c = chart_map.setdefault(name, {"name": name, "counts": sev_bucket(),
+                    "total": 0, "rules": {}, "findings": []})
+                sev = (m.get("Severity") or "UNKNOWN").upper()
+                c["counts"][sev] = c["counts"].get(sev, 0) + 1
+                c["total"] += 1
+                rid = m.get("ID") or m.get("AVDID") or "?"
+                c["rules"][rid] = c["rules"].get(rid, 0) + 1
+                line = ((m.get("CauseMetadata") or {}).get("StartLine")) or ""
+                fpath = tf_repo_path(cloud, target)
+                c["findings"].append({"rule": rid, "title": m.get("Title") or "",
+                    "severity": sev, "file": fpath or target, "line": line})
+                rec = rule_index.setdefault(rid, {"id": rid, "title": m.get("Title") or "",
+                    "severity": sev, "resolution": m.get("Resolution") or "",
+                    "charts": set(), "locations": []})
+                rec["charts"].add(name)
+                if len(rec["locations"]) < 60:
+                    rec["locations"].append({"chart": name, "file": fpath or target, "line": line})
+            for s in r.get("Secrets") or []:
+                secrets.append({"domain": "terraform", "where": tf_repo_path(cloud, target) or target,
+                    "rule": s.get("RuleID") or s.get("Category") or "secret",
+                    "severity": (s.get("Severity") or "").upper(),
+                    "title": s.get("Title") or "", "location": f"line {s.get('StartLine','?')}"})
+    charts = []
+    for c in chart_map.values():
+        top = sorted(c["rules"].items(), key=lambda kv: -kv[1])
+        c["top_rule"] = top[0][0] if top else ""
+        del c["rules"]
+        c["findings"].sort(key=lambda f: rank(f["severity"]))
+        c["findings"] = c["findings"][:1000]
+        charts.append(c)
+    rules = []
+    for r in rule_index.values():
+        r["count"] = len(r["charts"]); r["charts"] = sorted(r["charts"]); rules.append(r)
+    rules.sort(key=lambda r: (rank(r["severity"]), -r["count"]))
+    charts.sort(key=lambda r: (-r["counts"]["CRITICAL"], -r["counts"]["HIGH"], -r["total"]))
+    totals = domain_totals(charts, len(secrets))
+    return {"domain": "terraform", "charts": charts, "rules": rules[:2000],
+            "secrets": secrets, "totals": totals, "asset_count": len(charts),
+            "trivy_version": trivy_version or "", "scanned_at": iso_ts(created or "")}
+
+
 def score_of(t, assets=0):
     """Severity-weighted posture score, 0-10 (10 = clean).
 
@@ -337,6 +433,108 @@ def build_domain(args):
           f"CRIT={t['CRITICAL']} HIGH={t['HIGH']} score={score_of(t, model['asset_count'])}/10 runs={len(runs)})")
 
 
+def _render_page(site_sub, domain, model, meta, repo, labels, root, scanned_at,
+                 actor, branch, max_runs=20):
+    """Archive one run and render a dash.html page for a (terraform) sub-site."""
+    t = model["totals"]
+    rid = run_id(branch or domain, scanned_at)
+    entry = {"id": rid, "branch": branch, "scanned_at": scanned_at, "actor": actor or "",
+             "occ": t["total"], "critical": t["CRITICAL"], "high": t["HIGH"],
+             "assets": model["asset_count"], "score": score_of(t, model["asset_count"])}
+    model["meta"] = meta
+    runs_dir = os.path.join(site_sub, "data", "runs")
+    os.makedirs(runs_dir, exist_ok=True)
+    json.dump({**model, "meta": meta, "run": entry},
+              open(os.path.join(runs_dir, rid + ".json"), "w"), ensure_ascii=False)
+    runs = update_manifest(runs_dir, entry, max_runs)
+    for r in runs:
+        r["latest"] = (r["id"] == runs[0]["id"])
+    boot = {"domain": domain, "kind": "terraform", "labels": labels, "root": root,
+            "meta": meta, "repo": repo, "runs": runs, "current": rid}
+    os.makedirs(site_sub, exist_ok=True)
+    open(os.path.join(site_sub, "index.html"), "w").write(embed(read_tpl("dash.html"), boot))
+    json.dump({"domain": domain, "scanned_at": scanned_at, "branch": branch,
+               "actor": actor or "", "score": score_of(t, model["asset_count"]),
+               "totals": t, "asset_count": model["asset_count"], "run_count": len(runs)},
+              open(os.path.join(site_sub, "summary.json"), "w"), ensure_ascii=False)
+    return entry
+
+
+def build_terraform(args):
+    """Scan JSON lives per cloud at <data>/<cloud>.json. Builds a per-cloud
+    dashboard at terraform/<cloud>/ and a combined overview at terraform/."""
+    site_tf = os.path.join(args.site, "terraform")
+    scanned_at = iso_ts(args.scanned_at) or \
+        datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
+    gen_at = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
+    branch = args.branch or "master"
+
+    def repo_for(prefix):
+        if not args.repo_url:
+            return None
+        return {"url": args.repo_url.rstrip("/"), "ref": (args.ref or branch), "helm_prefix": prefix}
+
+    cloud_reports, per_cloud = {}, {}
+    for cloud in TF_CLOUDS:
+        p = os.path.join(args.data, cloud + ".json")
+        cloud_reports[cloud] = load_reports([p]) if os.path.exists(p) else []
+
+    # ---- per-cloud dashboards ----
+    for cloud in TF_CLOUDS:
+        model = aggregate_tf(cloud_reports[cloud], cloud, prefix=False)
+        t = model["totals"]
+        meta = {"domain": "terraform-" + cloud, "generated_at": gen_at, "scanned_at": scanned_at,
+                "branch": branch, "actor": args.actor or "", "trivy_version": model["trivy_version"],
+                "asset_count": model["asset_count"], "tag_count": 0,
+                "score": score_of(t, model["asset_count"]), "repo": repo_for("")}
+        labels = {"tag": TF_CLOUD_LABEL[cloud], "title": TF_CLOUD_LABEL[cloud] + " Terraform ",
+                  "brandSub": TF_CLOUD_LABEL[cloud] + " Terraform · Trivy",
+                  "doc": TF_CLOUD_LABEL[cloud] + " Terraform · Trivy · DIGIT", "cloud": cloud}
+        _render_page(os.path.join(site_tf, cloud), "terraform-" + cloud, model, meta,
+                     repo_for(""), labels, "../../", scanned_at, args.actor or "", branch)
+        per_cloud[cloud] = {"cloud": cloud, "label": TF_CLOUD_LABEL[cloud],
+                            "totals": t, "asset_count": model["asset_count"],
+                            "score": score_of(t, model["asset_count"])}
+        print(f"  terraform/{cloud}: modules={model['asset_count']} "
+              f"CRIT={t['CRITICAL']} HIGH={t['HIGH']} total={t['total']}")
+
+    # ---- combined overview (assets prefixed by cloud -> Excel per-cloud sheets) ----
+    all_reports = [(cloud, data) for cloud in TF_CLOUDS for _, data in cloud_reports[cloud]]
+    ov = {"domain": "terraform", "charts": [], "rules": [], "secrets": [],
+          "totals": sev_bucket(), "asset_count": 0, "trivy_version": "", "scanned_at": scanned_at}
+    merged = {"charts": [], "rule_index": {}, "secrets": []}
+    for cloud in TF_CLOUDS:
+        cm = aggregate_tf(cloud_reports[cloud], cloud, prefix=True)
+        ov["trivy_version"] = ov["trivy_version"] or cm["trivy_version"]
+        merged["charts"].extend(cm["charts"])
+        merged["secrets"].extend(cm["secrets"])
+        for r in cm["rules"]:
+            ex = merged["rule_index"].get(r["id"])
+            if not ex:
+                merged["rule_index"][r["id"]] = {**r, "charts": list(r["charts"])}
+            else:
+                ex["count"] += r["count"]
+                ex["charts"] = sorted(set(ex["charts"]) | set(r["charts"]))
+                ex["locations"] = (ex.get("locations") or []) + (r.get("locations") or [])
+    merged["charts"].sort(key=lambda r: (-r["counts"]["CRITICAL"], -r["counts"]["HIGH"], -r["total"]))
+    rules = sorted(merged["rule_index"].values(), key=lambda r: (rank(r["severity"]), -r["count"]))
+    ov.update({"charts": merged["charts"], "rules": rules, "secrets": merged["secrets"],
+               "asset_count": len(merged["charts"]),
+               "totals": domain_totals(merged["charts"], len(merged["secrets"]))})
+    t = ov["totals"]
+    meta = {"domain": "terraform", "generated_at": gen_at, "scanned_at": scanned_at,
+            "branch": branch, "actor": args.actor or "", "trivy_version": ov["trivy_version"],
+            "asset_count": ov["asset_count"], "tag_count": 0,
+            "score": score_of(t, ov["asset_count"]), "repo": repo_for(""),
+            "clouds": [per_cloud[c] for c in TF_CLOUDS]}
+    labels = {"tag": "Terraform", "title": "Terraform ", "brandSub": "Terraform IaC · Trivy",
+              "doc": "Terraform · Trivy · DIGIT", "cloud": ""}
+    _render_page(site_tf, "terraform", ov, meta, repo_for(""), labels, "../",
+                 scanned_at, args.actor or "", branch)
+    print(f"  terraform (all): modules={ov['asset_count']} "
+          f"CRIT={t['CRITICAL']} HIGH={t['HIGH']} total={t['total']} score={meta['score']}/10")
+
+
 def build_landing(args):
     def load_summary(dom):
         p = os.path.join(args.site, dom, "summary.json")
@@ -346,9 +544,19 @@ def build_landing(args):
             except Exception:
                 return None
         return None
+    tf = load_summary("terraform")
+    if tf:
+        tf_clouds = []
+        for c in TF_CLOUDS:
+            s = load_summary(os.path.join("terraform", c))
+            if s:
+                s["cloud"] = c
+                s["label"] = TF_CLOUD_LABEL[c]
+                tf_clouds.append(s)
+        tf["clouds"] = tf_clouds
     model = {"generated_at":
              datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat(),
-             "docker": load_summary("docker"), "helm": load_summary("helm")}
+             "docker": load_summary("docker"), "helm": load_summary("helm"), "terraform": tf}
     page = embed(read_tpl("landing.html"), model)
     open(os.path.join(args.site, "index.html"), "w").write(page)
     print(f"wrote {os.path.join(args.site, 'index.html')} (landing)")
@@ -369,12 +577,23 @@ def main():
     d.add_argument("--ref", default="")
     d.add_argument("--helm-prefix", default="deploy-as-code/helm/charts", dest="helm_prefix")
 
+    tf = sub.add_parser("terraform")
+    tf.add_argument("--data", required=True, help="dir with <cloud>.json (aws/azure/gcp)")
+    tf.add_argument("--site", required=True, help="site root (…/security/trivy)")
+    tf.add_argument("--branch", default="")
+    tf.add_argument("--actor", default="")
+    tf.add_argument("--scanned-at", default="", dest="scanned_at")
+    tf.add_argument("--repo-url", default="", dest="repo_url")
+    tf.add_argument("--ref", default="")
+
     l = sub.add_parser("landing")
     l.add_argument("--site", required=True)
 
     args = ap.parse_args()
     if args.mode == "domain":
         build_domain(args)
+    elif args.mode == "terraform":
+        build_terraform(args)
     else:
         build_landing(args)
 

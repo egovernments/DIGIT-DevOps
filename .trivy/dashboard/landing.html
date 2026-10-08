@@ -83,13 +83,13 @@
 <div class="wrap">
   <div class="top">
     <span class="logo" id="logo"></span>
-    <div><b>Trivy · DIGIT</b><span>Container &amp; Helm chart security</span></div>
+    <div><b>Trivy · DIGIT</b><span>Container, Helm &amp; Terraform security</span></div>
     <button class="theme" id="theme" title="Toggle theme">◐</button>
   </div>
 
   <div class="hero">
     <h1>Security posture</h1>
-    <p>Continuous Trivy scanning of DIGIT container images and Helm charts. Report-only — findings are surfaced here for triage; nothing is blocked. Open a dashboard below for the full breakdown, run history and fixes.</p>
+    <p>Continuous Trivy scanning of DIGIT container images, Helm charts and Terraform IaC (AWS, Azure, GCP). Report-only — findings are surfaced here for triage; nothing is blocked. Open a dashboard below for the full breakdown, run history and fixes.</p>
     <div class="hrow" id="hrow"></div>
   </div>
 
@@ -106,18 +106,23 @@ const fmtLocal=v=>{if(!v)return "never";const d=new Date(v);if(isNaN(d))return v
 const esc=s=>{const d=document.createElement("div");d.textContent=s==null?"":String(s);return d.innerHTML;};
 const LOGO='<svg viewBox="0 0 48 48" width="46" height="46" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gv" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4c1d95"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs><path d="M24 3.2C24 3.2 32.5 8 39.6 8.6 40.2 8.65 40.6 9.1 40.6 9.7V22c0 10.6-6.8 17.9-15.9 21.6-.45.2-.95.2-1.4 0C14.2 39.9 7.4 32.6 7.4 22V9.7c0-.6.4-1.05 1-1.1C15.5 8 24 3.2 24 3.2Z" fill="url(#gv)"/><path d="M24 6.4C24 6.4 31.6 10.6 37.9 11.2V22c0 9-5.9 15.5-13.9 18.9C16 37.5 10.1 31 10.1 22V11.2C16.4 10.6 24 6.4 24 6.4Z" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="1.1"/><circle cx="18.7" cy="16.2" r="2.35" fill="#F2A23C"/><rect x="23.5" y="13.85" width="8.7" height="4.8" rx="2.4" fill="#F2A23C"/><circle cx="18.5" cy="23.7" r="2.95" fill="#3B7DD8"/><circle cx="26" cy="23.7" r="2.95" fill="#3B7DD8"/><circle cx="22.25" cy="30.9" r="2.95" fill="#54AE5A"/></svg>';
 const ICON={docker:'<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/>',
-  helm:'<path d="M12 3 3 8l9 5 9-5-9-5zM3 16l9 5 9-5M3 12l9 5 9-5"/>'};
+  helm:'<path d="M12 3 3 8l9 5 9-5-9-5zM3 16l9 5 9-5M3 12l9 5 9-5"/>',
+  terraform:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>'};
 function gauge(score){const R=44,C=2*Math.PI*R,off=C*(1-score/10);const band=score<=3?"--crit":score<=6?"--med":"--good";const col=cssv(band);
   return {band,html:`<div class="gauge"><svg width="104" height="104" viewBox="0 0 104 104"><circle cx="52" cy="52" r="${R}" fill="none" stroke="var(--surface-3)" stroke-width="10"/><circle cx="52" cy="52" r="${R}" fill="none" stroke="${col}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}" transform="rotate(-90 52 52)"/></svg><div class="lab"><div><b style="color:${col}">${score}<sub>/10</sub></b></div></div></div>`};}
 const CRIT='<svg class="sev-ic" viewBox="0 0 24 24" fill="none" stroke="var(--crit)" stroke-width="2.2" stroke-linecap="round"><path d="M12 2 2 20h20L12 2z"/><path d="M12 9v5"/><path d="M12 17.5v.01"/></svg>';
 const HIGH='<svg class="sev-ic" viewBox="0 0 24 24" fill="none" stroke="var(--high)" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4.5"/><path d="M12 16v.01"/></svg>';
 
 function card(dom,s){
-  const title=dom==="docker"?"Container images":"Helm charts";
+  const title=dom==="docker"?"Container images":dom==="terraform"?"Terraform IaC":"Helm charts";
   const sub=dom==="docker"?"Trivy image · vulnerabilities":"Trivy config · misconfigurations";
   if(!s){return `<a class="card" href="${dom}/"><div class="ch"><span class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[dom]}</svg></span><div><b>${title}</b><span>${sub}</span></div><span class="go">Open →</span></div><div class="none">Not scanned yet.</div></a>`;}
   const g=gauge(s.score),t=s.totals;
-  const assetLine=dom==="docker"?`<span class="cp"><b>${fmt(s.asset_count)}</b> images</span><span class="cp"><b>${fmt(s.tag_count)}</b> tags</span>`:`<span class="cp"><b>${fmt(s.asset_count)}</b> charts</span><span class="cp">branch <b>${esc(s.branch||"—")}</b></span>`;
+  const assetLine=dom==="docker"
+    ?`<span class="cp"><b>${fmt(s.asset_count)}</b> images</span><span class="cp"><b>${fmt(s.tag_count)}</b> tags</span>`
+    :dom==="terraform"
+    ?`<span class="cp"><b>${fmt(s.asset_count)}</b> modules</span>`+(s.clouds||[]).map(c=>`<span class="cp">${esc(c.label)} <b>${fmt((c.totals||{}).total||0)}</b></span>`).join("")
+    :`<span class="cp"><b>${fmt(s.asset_count)}</b> charts</span><span class="cp">branch <b>${esc(s.branch||"—")}</b></span>`;
   return `<a class="card" href="${dom}/" style="--band:var(${g.band})">
     <div class="ch"><span class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[dom]}</svg></span>
       <div><b>${title}</b><span>${sub}</span></div><span class="go">Open →</span></div>
@@ -132,11 +137,11 @@ function card(dom,s){
   </a>`;
 }
 function hero(){
-  const d=DATA.docker,h=DATA.helm;
-  const C=(d?d.totals.CRITICAL:0)+(h?h.totals.CRITICAL:0);
-  const H=(d?d.totals.HIGH:0)+(h?h.totals.HIGH:0);
-  const T=(d?d.totals.total:0)+(h?h.totals.total:0);
-  const A=(d?d.asset_count:0)+(h?h.asset_count:0);
+  const doms=[DATA.docker,DATA.helm,DATA.terraform].filter(Boolean);
+  const C=doms.reduce((a,x)=>a+(x.totals.CRITICAL||0),0);
+  const H=doms.reduce((a,x)=>a+(x.totals.HIGH||0),0);
+  const T=doms.reduce((a,x)=>a+(x.totals.total||0),0);
+  const A=doms.reduce((a,x)=>a+(x.asset_count||0),0);
   document.getElementById("hrow").innerHTML=`
     <div class="hstat c"><b>${fmt(C)}</b><span>Critical</span></div>
     <div class="hstat h"><b>${fmt(H)}</b><span>High</span></div>
@@ -147,7 +152,7 @@ function hero(){
   const p=new URLSearchParams(location.search);if(p.get("theme")==="dark")document.documentElement.dataset.theme="dark";
   document.getElementById("logo").innerHTML=LOGO;
   hero();
-  document.getElementById("cards").innerHTML=card("docker",DATA.docker)+card("helm",DATA.helm);
+  document.getElementById("cards").innerHTML=card("docker",DATA.docker)+card("helm",DATA.helm)+card("terraform",DATA.terraform);
   document.getElementById("foot").innerHTML=`Generated ${fmtLocal(DATA.generated_at)} · Trivy security scanning · report-only`;
   document.getElementById("theme").onclick=()=>{const d=document.documentElement;d.dataset.theme=d.dataset.theme==="dark"?"light":"dark";};
 })();

@@ -1,0 +1,167 @@
+# Trivy Terraform (IaC) security scan — misconfig + secret over the EKS/AKS/GKE
+# Terraform modules, one scan per cloud. The root modules carry <placeholder>
+# tokens (invalid HCL until the init helper substitutes them from the committed
+# sample input.yaml), so each cloud is substituted first, then scanned, so Trivy
+# parses the root module and the ../modules it references.
+name: Trivy · Terraform IaC security scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to scan'
+        required: true
+        default: 'master'
+      severity:
+        description: 'Severities to report'
+        required: false
+        default: 'CRITICAL,HIGH,MEDIUM'
+      publish-dashboard:
+        description: 'Publish results to the GitHub Pages dashboard (gh-pages)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        cloud: [aws, azure, gcp]
+    env:
+      TRIVY_CONFIG_DATA: .trivy/rego-data
+      TF_DIR: infra-as-code/terraform/${{ matrix.cloud }}
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.inputs.branch }}
+
+      # Scan policy (trivy.yaml + .trivyignore.yaml) lives with this workflow's
+      # ref, not the scanned branch — stage it so config is consistent everywhere.
+      - name: Fetch Trivy scan config (from this workflow's ref)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          sparse-checkout: .trivy
+          sparse-checkout-cone-mode: false
+          path: .scan-config
+      - name: Stage Trivy scan config
+        run: |
+          rm -rf .trivy
+          cp -R .scan-config/.trivy .trivy
+
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        with:
+          go-version: 'stable'
+
+      # Substitute the <placeholder> tokens with the committed sample input.yaml
+      # so the root module is valid HCL; Trivy then follows ../modules too.
+      - name: Render Terraform (init helper)
+        run: |
+          cd "$TF_DIR"
+          go run ../scripts/init.go
+          echo "leftover placeholders:"; grep -rn "<[A-Za-z_]*>" *.tf || echo "  none"
+
+      - name: Trivy misconfig + secret scan (table → logs)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ env.TF_DIR }}
+          scanners: 'misconfig,secret'
+          format: table
+          exit-code: '0'
+          hide-progress: true
+          trivy-config: .trivy/trivy.yaml
+
+      - name: Trivy misconfig + secret scan (SARIF → Security tab)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ env.TF_DIR }}
+          scanners: 'misconfig,secret'
+          format: sarif
+          output: trivy-terraform-${{ matrix.cloud }}.sarif
+          hide-progress: true
+          trivy-config: .trivy/trivy.yaml
+          skip-setup-trivy: true
+
+      - name: Trivy misconfig + secret scan (JSON → dashboard)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ env.TF_DIR }}
+          scanners: 'misconfig,secret'
+          format: json
+          output: ${{ matrix.cloud }}.json
+          hide-progress: true
+          trivy-config: .trivy/trivy.yaml
+          skip-setup-trivy: true
+
+      - name: Upload SARIF to Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@faaca9a8f6edddba5725ffe5adefdab6669a2eca # v3.38.0
+        with:
+          sarif_file: trivy-terraform-${{ matrix.cloud }}.sarif
+          category: trivy-terraform-${{ matrix.cloud }}
+
+      - name: Upload results (JSON)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: trivy-terraform-${{ matrix.cloud }}
+          path: ${{ matrix.cloud }}.json
+          retention-days: 7
+
+  # --- aggregate the 3 cloud results into the GitHub Pages dashboard ---------
+  dashboard:
+    needs: scan
+    if: ${{ always() && github.event.inputs.publish-dashboard != 'false' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # push to gh-pages
+    # serialize with the image/helm dashboard jobs so concurrent runs don't
+    # clobber each other's gh-pages update
+    concurrency:
+      group: security-dashboard-gh-pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Download cloud results (aws/azure/gcp .json)
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: trivy-terraform-*
+          merge-multiple: true
+          path: results
+
+      - name: Check out existing gh-pages (keeps the other sections)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: pages
+
+      - name: Build dashboard (Terraform IaC)
+        env:
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          REF: ${{ github.event.inputs.branch }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          mkdir -p pages
+          bash .trivy/dashboard/build-dashboard.sh terraform results pages "$REPO_URL" "$REF"
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: pages
+          publish_branch: gh-pages
+          commit_message: "Update security dashboard (Terraform scan)"

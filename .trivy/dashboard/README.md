@@ -1,11 +1,19 @@
 # Security dashboard
 
 Trivy scan results published to **GitHub Pages** (`gh-pages` branch) under
-`security/trivy/` as two separate, shareable dashboards plus a landing page:
+`security/trivy/` as separate, shareable dashboards plus a landing page:
 
-    https://<org>.github.io/<repo>/security/trivy/          landing (both domains)
-    https://<org>.github.io/<repo>/security/trivy/docker/   container images
-    https://<org>.github.io/<repo>/security/trivy/helm/     Helm charts
+    https://<org>.github.io/<repo>/security/trivy/              landing (all domains)
+    https://<org>.github.io/<repo>/security/trivy/docker/       container images
+    https://<org>.github.io/<repo>/security/trivy/helm/         Helm charts
+    https://<org>.github.io/<repo>/security/trivy/terraform/    Terraform IaC — all clouds
+    https://<org>.github.io/<repo>/security/trivy/terraform/aws/    AWS Terraform
+    https://<org>.github.io/<repo>/security/trivy/terraform/azure/  Azure Terraform
+    https://<org>.github.io/<repo>/security/trivy/terraform/gcp/    GCP Terraform
+
+The Terraform overview aggregates all three clouds (assets prefixed by cloud),
+and its Excel export carries a Summary sheet plus one worksheet per cloud; each
+per-cloud page is the same dashboard scoped to that cloud.
 
 Both dashboards render scan timestamps in the **viewer's local timezone** and
 carry a run picker (recent runs). The Helm dashboard adds a **branch picker**
@@ -17,6 +25,8 @@ carry a run picker (recent runs). The Helm dashboard adds a **branch picker**
   - `domain --domain <docker|helm> --data <raw-json-dir> --site <site>` → one
     dashboard page (a light bootstrap of run metadata; the heavy per-run model is
     fetched from `data/runs/<id>.json` on load and on run switch).
+  - `terraform --data <dir with aws.json/azure.json/gcp.json> --site <site>` →
+    the `terraform/` overview plus `terraform/<cloud>/` per-cloud dashboards.
   - `landing --site <site>` → the landing page, from each domain's `summary.json`.
 - `dash.html` — the single-domain dashboard UI (overview with score ring + charts,
   asset table with drill-down, findings table). Parametrised by the embedded domain.

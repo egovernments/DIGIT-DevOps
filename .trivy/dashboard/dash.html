@@ -251,9 +251,7 @@
     <nav class="nav" id="nav"></nav>
     <div class="switch">
       <div class="sw-l">Dashboards</div>
-      <a id="lk-docker" href="../docker/"><svg class="di" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>Container images</a>
-      <a id="lk-helm" href="../helm/"><svg class="di" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5zM3 16l9 5 9-5M3 12l9 5 9-5"/></svg>Helm charts</a>
-      <a href=".."><svg class="di" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>Overview home</a>
+      <div id="swlinks"></div>
     </div>
     <div class="sb-foot" id="sb-foot">—</div>
   </aside>
@@ -322,7 +320,25 @@
 <script>
 const DATA=/*__DATA__*/{};
 const DOMAIN=DATA.domain;
-const IS_DOCKER=DOMAIN==="docker";
+const KIND=DATA.kind||(DOMAIN==="docker"?"docker":"helm");
+const IS_DOCKER=KIND==="docker";
+const IS_TF=KIND==="terraform";
+const ROOT=DATA.root||"../";               // relative path from this page to the site root
+function _defLbl(){
+  if(IS_DOCKER)return{tag:"Docker",title:"Container images ",brandSub:"Container images · Trivy",
+    doc:"Docker · Trivy · DIGIT",assetP:"images",assetS:"image",assetTitle:"Container images",assetCol:"Image · repo",
+    findingTitle:"Vulnerabilities",findingNoun:"vulnerabilities",mostAffected:"Most affected images",
+    searchAsset:"Search image…",searchFinding:"Search CVE, package…",xlsKind:"Container Image"};
+  if(IS_TF)return{tag:"Terraform",title:"Terraform ",brandSub:"Terraform IaC · Trivy",
+    doc:"Terraform · Trivy · DIGIT",assetP:"modules",assetS:"module",assetTitle:"Terraform modules",assetCol:"Module",
+    findingTitle:"Misconfigurations",findingNoun:"misconfigurations",mostAffected:"Most affected modules",
+    searchAsset:"Search module…",searchFinding:"Search rule, title…",xlsKind:"Terraform"};
+  return{tag:"Helm",title:"Helm charts ",brandSub:"Helm charts · Trivy",
+    doc:"Helm · Trivy · DIGIT",assetP:"charts",assetS:"chart",assetTitle:"Helm charts",assetCol:"Chart",
+    findingTitle:"Misconfigurations",findingNoun:"misconfigurations",mostAffected:"Most affected charts",
+    searchAsset:"Search chart…",searchFinding:"Search rule, title…",xlsKind:"Helm Chart"};
+}
+const LBL=Object.assign(_defLbl(),DATA.labels||{});
 const SEVS=["CRITICAL","HIGH","MEDIUM","LOW","UNKNOWN"];
 const SEVVAR={CRITICAL:"--crit",HIGH:"--high",MEDIUM:"--med",LOW:"--low",UNKNOWN:"--unknown"};
 const LOGO='<svg viewBox="0 0 48 48" width="38" height="38" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gv" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4c1d95"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs><path d="M24 3.2C24 3.2 32.5 8 39.6 8.6 40.2 8.65 40.6 9.1 40.6 9.7V22c0 10.6-6.8 17.9-15.9 21.6-.45.2-.95.2-1.4 0C14.2 39.9 7.4 32.6 7.4 22V9.7c0-.6.4-1.05 1-1.1C15.5 8 24 3.2 24 3.2Z" fill="url(#gv)"/><path d="M24 6.4C24 6.4 31.6 10.6 37.9 11.2V22c0 9-5.9 15.5-13.9 18.9C16 37.5 10.1 31 10.1 22V11.2C16.4 10.6 24 6.4 24 6.4Z" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="1.1"/><circle cx="18.7" cy="16.2" r="2.35" fill="#F2A23C"/><rect x="23.5" y="13.85" width="8.7" height="4.8" rx="2.4" fill="#F2A23C"/><circle cx="18.5" cy="23.7" r="2.95" fill="#3B7DD8"/><circle cx="26" cy="23.7" r="2.95" fill="#3B7DD8"/><circle cx="22.25" cy="30.9" r="2.95" fill="#54AE5A"/></svg>';
@@ -373,27 +389,43 @@ const scopedTotal=t=>activeSevs().reduce((a,s)=>a+(t[s]||0),0);
 /* ---------------- head / chrome ---------------- */
 function initChrome(){
   document.getElementById("brand-logo").innerHTML=LOGO;
-  document.getElementById("brand-sub").textContent=IS_DOCKER?"Container images · Trivy":"Helm charts · Trivy";
-  document.getElementById("title").firstChild.textContent=(IS_DOCKER?"Container images ":"Helm charts ");
-  document.getElementById("tag").textContent=IS_DOCKER?"Docker":"Helm";
-  document.title=(IS_DOCKER?"Docker · ":"Helm · ")+"Trivy · DIGIT";
-  document.getElementById("lk-"+DOMAIN).classList.add("cur");
+  document.getElementById("brand-sub").textContent=LBL.brandSub;
+  document.getElementById("title").firstChild.textContent=LBL.title;
+  document.getElementById("tag").textContent=LBL.tag;
+  document.title=LBL.doc;
+  const favi=document.querySelector('link[rel="icon"]'); if(favi)favi.href=ROOT+"logo.svg";
+  const curlk=document.getElementById("lk-"+(IS_TF?"terraform":DOMAIN)); if(curlk)curlk.classList.add("cur");
   const nav=[["overview","Overview",'<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',""],
-    ["assets",IS_DOCKER?"Container images":"Helm charts",IS_DOCKER?'<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/>':'<path d="M12 3 3 8l9 5 9-5-9-5zM3 16l9 5 9-5M3 12l9 5 9-5"/>',"a"],
-    ["findings",IS_DOCKER?"Vulnerabilities":"Misconfigurations",IS_DOCKER?'<path d="M10.3 3.5 2.5 17a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.7 3.5a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9v4M12 17h.01"/>':'<path d="M4 4h16v4H4zM4 12h16v8H4z"/><path d="M8 6h.01M8 16h.01"/>',"f"]];
+    ["assets",LBL.assetTitle,IS_DOCKER?'<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/>':'<path d="M12 3 3 8l9 5 9-5-9-5zM3 16l9 5 9-5M3 12l9 5 9-5"/>',"a"],
+    ["findings",LBL.findingTitle,IS_DOCKER?'<path d="M10.3 3.5 2.5 17a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.7 3.5a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9v4M12 17h.01"/>':'<path d="M4 4h16v4H4zM4 12h16v8H4z"/><path d="M8 6h.01M8 16h.01"/>',"f"]];
   document.getElementById("nav").innerHTML=nav.map(([v,l,ic])=>`<a data-v="${v}" class="${v==="overview"?"on":""}"><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ic}</svg>${l}<span class="badge" data-b="${v}"></span></a>`).join("");
   document.querySelectorAll("#nav a").forEach(a=>a.onclick=()=>{state.view=a.dataset.v;render();});
+  // dashboard switcher (depth-aware via ROOT; adds Terraform)
+  const SWI={docker:'<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/>',
+    helm:'<path d="M12 3 3 8l9 5 9-5-9-5zM3 16l9 5 9-5M3 12l9 5 9-5"/>',
+    terraform:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+    home:'<path d="M3 12l9-9 9 9M5 10v10h14V10"/>'};
+  const sw=[["docker","Container images","docker/"],["helm","Helm charts","helm/"],["terraform","Terraform","terraform/"],["home","Overview home",""]];
+  document.getElementById("swlinks").innerHTML=sw.map(([k,l,p])=>{
+    const on=(k==="docker"&&IS_DOCKER)||(k==="helm"&&KIND==="helm")||(k==="terraform"&&IS_TF);
+    return `<a id="lk-${k}" href="${ROOT}${p}" class="${on?'cur':''}"><svg class="di" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SWI[k]}</svg>${esc(l)}</a>`;
+  }).join("");
 }
 function initBadges(){
   document.querySelector('[data-b="assets"]').textContent=fmt(assets().length);
   document.querySelector('[data-b="findings"]').textContent=fmt(findings().length);
-  const m=MODEL.meta;
-  document.getElementById("sub").textContent=IS_DOCKER
-    ? `${fmt(m.asset_count)} images · ${fmt(m.tag_count)} tags scanned · Trivy ${m.trivy_version||""}`
-    : `${fmt(m.asset_count)} charts · branch ${esc(m.branch||"—")} · Trivy ${m.trivy_version||""}`;
-  document.getElementById("sb-foot").innerHTML=IS_DOCKER
-    ? `${fmt(m.asset_count)} images · ${fmt(m.tag_count)} tags<br>Trivy ${m.trivy_version||""}`
-    : `${fmt(m.asset_count)} charts<br>branch ${esc(m.branch||"—")} · Trivy ${m.trivy_version||""}`;
+  const m=MODEL.meta, trv=`Trivy ${m.trivy_version||""}`;
+  if(IS_DOCKER){
+    document.getElementById("sub").textContent=`${fmt(m.asset_count)} images · ${fmt(m.tag_count)} tags scanned · ${trv}`;
+    document.getElementById("sb-foot").innerHTML=`${fmt(m.asset_count)} images · ${fmt(m.tag_count)} tags<br>${trv}`;
+  }else if(IS_TF){
+    const scope=LBL.cloud?`${LBL.tag} terraform`:"all clouds";
+    document.getElementById("sub").textContent=`${fmt(m.asset_count)} modules · ${scope} · ${trv}`;
+    document.getElementById("sb-foot").innerHTML=`${fmt(m.asset_count)} modules · ${esc(scope)}<br>${trv}`;
+  }else{
+    document.getElementById("sub").textContent=`${fmt(m.asset_count)} charts · branch ${esc(m.branch||"—")} · ${trv}`;
+    document.getElementById("sb-foot").innerHTML=`${fmt(m.asset_count)} charts<br>branch ${esc(m.branch||"—")} · ${trv}`;
+  }
 }
 
 /* ---------------- branch + report selectors ---------------- */
@@ -419,7 +451,7 @@ function initSelector(){
   rmenu.innerHTML=`<div class="msec">Recent runs (${rl.length})</div>
     <div class="runlist">${rl.map(x=>`<div class="rrow ${x.id===state.run?"on":""}" data-run="${escAttr(x.id)}">
       <div class="t"><b>${fmtRun(x.scanned_at)}</b>${x.latest?'<span class="lt">LATEST</span>':""}</div>
-      <div class="m"><span class="oc">${fmt(x.occ)} occ</span><span class="dot"></span>${fmt(x.assets)} ${IS_DOCKER?"repos":"charts"}<span class="dot"></span>score ${x.score}/10</div>
+      <div class="m"><span class="oc">${fmt(x.occ)} occ</span><span class="dot"></span>${fmt(x.assets)} ${IS_DOCKER?"repos":LBL.assetP}<span class="dot"></span>score ${x.score}/10</div>
     </div>`).join("")||`<div class="rrow n0">No runs on this branch.</div>`}</div>`;
   // ---- open/close state ----
   document.getElementById("bbtn").classList.toggle("open",state.menu==="branch");
@@ -464,7 +496,7 @@ function posture(){
   const o=MODEL.totals,ch=o.CRITICAL,hi=o.HIGH,score=MODEL.meta.score;
   const band=score<=3?"--crit":score<=6?"--med":"--good";const col=cssv(band);
   let verdict,desc;
-  const noun=IS_DOCKER?"images":"charts";
+  const noun=IS_DOCKER?"images":LBL.assetP;
   // Verdict follows the weighted posture score (severity + density across all
   // findings), so it stays in step with the ring colour; the counts that remain
   // are carried in the description.
@@ -495,10 +527,10 @@ function posture(){
 function statStrip(){
   const o=MODEL.totals;
   const tiles=[
-    {lab:sevLab("CRITICAL"),val:o.CRITICAL,vcls:"c",foot:IS_DOCKER?"vulnerabilities":"misconfigurations"},
-    {lab:sevLab("HIGH"),val:o.HIGH,vcls:"h",foot:IS_DOCKER?"vulnerabilities":"misconfigurations"},
+    {lab:sevLab("CRITICAL"),val:o.CRITICAL,vcls:"c",foot:IS_DOCKER?"vulnerabilities":LBL.findingNoun},
+    {lab:sevLab("HIGH"),val:o.HIGH,vcls:"h",foot:IS_DOCKER?"vulnerabilities":LBL.findingNoun},
     {lab:"Secrets",val:o.secrets,foot:"hard-coded"},
-    {lab:IS_DOCKER?"Images scanned":"Charts scanned",val:MODEL.meta.asset_count,foot:IS_DOCKER?`${fmt(MODEL.meta.tag_count)} tags`:"this run"}];
+    {lab:IS_DOCKER?"Images scanned":cap(LBL.assetP)+" scanned",val:MODEL.meta.asset_count,foot:IS_DOCKER?`${fmt(MODEL.meta.tag_count)} tags`:"this run"}];
   document.getElementById("statstrip").innerHTML=tiles.map(t=>`<div class="tile"><div class="lab">${t.lab}</div><div class="val ${t.vcls||''}">${fmt(t.val)}</div><div class="foot">${t.foot}</div></div>`).join("");
 }
 function donut(){
@@ -509,11 +541,11 @@ function donut(){
     return `<circle cx="88" cy="88" r="${R}" fill="none" stroke="${sevColor(x.s)}" stroke-width="${SW}" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${off}" transform="rotate(-90 88 88)" data-tip="${x.s}|${x.v}|${(frac*100).toFixed(1)}% of findings"></circle>`;}).join("");
   document.getElementById("donut").innerHTML=`<svg width="176" height="176" viewBox="0 0 176 176"><circle cx="88" cy="88" r="${R}" fill="none" stroke="var(--surface-3)" stroke-width="${SW}"/>${rings}</svg><div class="ctr"><div><b>${fmt(tot)}</b><span>findings</span></div></div>`;
   document.getElementById("donut-legend").innerHTML=segs.map(x=>`<div class="li"><span class="sw" style="background:${sevColor(x.s)}"></span><span class="ln">${cap(x.s)}</span><span class="lv">${fmt(x.v)}</span><span class="lp">${(x.v/tot*100).toFixed(0)}%</span></div>`).join("")||`<div class="li ln">No findings for this filter.</div>`;
-  document.getElementById("donut-aux").textContent=IS_DOCKER?"container vulnerabilities":"chart misconfigurations";
+  document.getElementById("donut-aux").textContent=IS_DOCKER?"container vulnerabilities":(LBL.assetS+" "+LBL.findingNoun);
   document.querySelectorAll("#donut circle[data-tip]").forEach(bindTip);
 }
 function byArea(){
-  document.getElementById("top-h").textContent=IS_DOCKER?"Most affected images":"Most affected charts";
+  document.getElementById("top-h").textContent=LBL.mostAffected;
   const rows=assets().map(a=>({k:IS_DOCKER?a.repo:a.name,disp:IS_DOCKER?shortRepo(a.repo):a.name,v:a.counts,
       t:(state.sev.has("CRITICAL")?a.counts.CRITICAL:0)+(state.sev.has("HIGH")?a.counts.HIGH:0)}))
     .filter(r=>r.t>0).sort((a,b)=>b.t-a.t).slice(0,8);
@@ -533,7 +565,7 @@ function priorities(){
       if(SR(v.severity)<SR(p.sev))p.sev=v.severity;const f=(v.fixed||"").split(",")[0].trim();if(f&&f>p.fix)p.fix=f;});
     Object.values(byPkg).forEach(p=>items.push({sev:p.sev,title:`Upgrade ${p.pkg}`,sub:`${p.crit?p.crit+" critical, ":""}${p.cves} CVE${p.cves>1?"s":""} · ${p.imgs.size} image${p.imgs.size>1?"s":""}${p.fix?" · → "+p.fix:""}`,weight:(p.sev==="CRITICAL"?1e7:1e4)+p.crit*100+p.imgs.size}));
   }else{
-    (MODEL.rules||[]).filter(r=>state.sev.has(r.severity)).forEach(r=>items.push({sev:r.severity,title:r.title||r.id,sub:`${r.id} · ${r.count} chart${r.count>1?"s":""}`,weight:(r.severity==="CRITICAL"?9e6:9e3)+r.count}));
+    (MODEL.rules||[]).filter(r=>state.sev.has(r.severity)).forEach(r=>items.push({sev:r.severity,title:r.title||r.id,sub:`${r.id} · ${r.count} ${LBL.assetS}${r.count>1?"s":""}`,weight:(r.severity==="CRITICAL"?9e6:9e3)+r.count}));
   }
   const top=items.sort((a,b)=>b.weight-a.weight).slice(0,6);
   document.getElementById("prio").innerHTML=top.map((i,ix)=>`<div class="pr"><span class="ptag" style="background:${sevColor(i.sev)}">P${Math.min(ix,3)}</span><div><div class="pt">${esc(i.title)}</div><div class="ps">${esc(i.sub)}</div></div><div class="pn" style="color:${sevColor(i.sev)}">${sevLab(i.sev)}</div></div>`).join("")||`<div class="empty">Nothing outstanding for this filter.</div>`;
@@ -543,7 +575,7 @@ function priorities(){
 function kpis(){
   const t=MODEL.totals;
   const tiles=[
-    {lab:'<svg class="sev-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Open Crit + High',val:t.CRITICAL+t.HIGH,foot:IS_DOCKER?"container images":"helm charts"},
+    {lab:'<svg class="sev-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Open Crit + High',val:t.CRITICAL+t.HIGH,foot:IS_DOCKER?"container images":LBL.assetTitle.toLowerCase()},
     {lab:sevLab("CRITICAL"),val:t.CRITICAL,vcls:"c",foot:"findings"},
     {lab:sevLab("HIGH"),val:t.HIGH,vcls:"h",foot:"findings"},
     {lab:"Secrets",val:t.secrets,foot:"hard-coded"},
@@ -607,7 +639,7 @@ function detailTag(t){
       ${x.title?`<div class="ftitle">${esc(x.title)}</div>`:""}</div>`).join("")}</div>`;
 }
 function tCharts(){
-  const cols=[["name","Chart",0],["CRITICAL","Crit",1],["HIGH","High",1],["total","Total",1],["top_rule","Top rule",0],["bar","Severity mix",0]];
+  const cols=[["name",LBL.assetCol,0],["CRITICAL","Crit",1],["HIGH","High",1],["total","Total",1],["top_rule","Top rule",0],["bar","Severity mix",0]];
   let rows=(MODEL.charts||[]).filter(r=>rowMatch(r.name)&&sevRowMatch(r.counts));
   rows=sortRows(rows,"charts");
   const body=rows.map(r=>{
@@ -618,7 +650,7 @@ function tCharts(){
   const t=document.getElementById("t-assets");t.innerHTML=headHtml(cols,"charts")+`<tbody>${body}</tbody>`;
   wireSort(t,"charts",["name","top_rule"]);
   t.querySelectorAll("tr.drow[data-chart]").forEach(tr=>tr.onclick=e=>{if(e.target.closest("a"))return;const c=tr.dataset.chart;state.repo=state.repo===c?null:c;render();});
-  document.getElementById("c-assets").textContent=rows.length+" of "+(MODEL.charts||[]).length+" charts with findings";
+  document.getElementById("c-assets").textContent=rows.length+" of "+(MODEL.charts||[]).length+" "+LBL.assetP+" with findings";
 }
 function detailChart(r){
   const f=(r.findings||[]).filter(x=>state.sev.has(x.severity));
@@ -648,7 +680,7 @@ function detailVuln(r){
     ${r.fixed?`<p class="dh" style="margin-top:12px">Fix</p><div class="tagrow"><span class="tag">upgrade ${esc(r.pkg)} → ${esc(r.fixed.split(",")[0].trim())}</span></div>`:""}`;
 }
 function tRules(){
-  const cols=[["id","ID",0],["severity","Severity",0],["title","Misconfiguration",0],["count","Charts",1]];
+  const cols=[["id","ID",0],["severity","Severity",0],["title","Misconfiguration",0],["count",cap(LBL.assetP),1]];
   let rows=(MODEL.rules||[]).filter(r=>rowMatch(r.id+" "+r.title)&&state.sev.has(r.severity));
   rows=sortRows(rows,"rules");
   const body=rows.map((r,ix)=>{const k="r:"+(r.id||ix);const isOpen=!!state.open[k];
@@ -663,7 +695,7 @@ function tRules(){
 function detailRule(r){
   const locs=(r.locations||[]);
   return `${r.resolution?`<div class="why"><b>Why / how to fix:</b> ${esc(r.resolution)}</div>`:""}
-    <p class="dh">Where — affected charts (${r.charts.length})</p>
+    <p class="dh">Where — affected ${esc(LBL.assetP)} (${r.charts.length})</p>
     <div class="tagrow">${r.charts.map(c=>`<span class="tag">${esc(c)}</span>`).join("")}</div>
     ${locs.length?`<p class="dh" style="margin-top:12px">Example locations</p><div class="flist">${locs.slice(0,20).map(l=>`<div class="fli"><span class="fp">${esc(l.chart)}</span><span></span><span class="fx">${fileCell(l.file,l.line)}</span></div>`).join("")}</div>`:""}`;
 }
@@ -817,8 +849,8 @@ function exportExcel(){
   if(!MODEL)return;
   _xUsed=new Set();
   const m=MODEL.meta,t=MODEL.totals,sheets=[];
-  const kind=IS_DOCKER?"Container Image":"Helm Chart";
-  const sub=`${m.branch?("branch "+m.branch+"  ·  "):""}scanned ${fmtLocal(m.scanned_at)}  ·  Trivy ${m.trivy_version||"-"}  ·  ${fmt(m.asset_count)} ${IS_DOCKER?"images":"charts"}`;
+  const kind=LBL.xlsKind;
+  const sub=`${m.branch?("branch "+m.branch+"  ·  "):""}scanned ${fmtLocal(m.scanned_at)}  ·  Trivy ${m.trivy_version||"-"}  ·  ${fmt(m.asset_count)} ${IS_DOCKER?"images":LBL.assetP}`;
 
   /* ---------- Summary ---------- */
   const SW=IS_DOCKER?5:5;
@@ -827,9 +859,9 @@ function exportExcel(){
   srows.push({h:22,cells:[S(sub,2)]});
   srows.push({cells:[]});
   srows.push({cells:[S("Scan details",3)]});
-  const det=[["Dashboard",IS_DOCKER?"Container images":"Helm charts"],["Branch",m.branch||"-"],
+  const det=[["Dashboard",IS_TF?("Terraform"+(LBL.cloud?" · "+LBL.tag:" · all clouds")):(IS_DOCKER?"Container images":"Helm charts")],["Branch",m.branch||"-"],
     ["Scanned at",fmtLocal(m.scanned_at)],["Report generated",fmtLocal(m.generated_at)],
-    ["Trivy version",m.trivy_version||"-"],[IS_DOCKER?"Images scanned":"Charts scanned",String(m.asset_count)]];
+    ["Trivy version",m.trivy_version||"-"],[IS_DOCKER?"Images scanned":cap(LBL.assetP)+" scanned",String(m.asset_count)]];
   if(IS_DOCKER)det.push(["Image tags scanned",String(m.tag_count)]);
   det.push(["Posture score",m.score+" / 10"]);
   det.forEach(([k,v])=>srows.push({cells:[S(k,4),S(v,5)]}));
@@ -849,8 +881,9 @@ function exportExcel(){
     srows.push({cells:[S("Rule ID",6),S("Severity",6),S("Title",6),S("Charts",6)]});
     (MODEL.rules||[]).forEach(r=>srows.push({cells:[S(r.id,7),S(cap(r.severity),_sevXf[r.severity]||17),S(r.title,7),N(r.count,11)]}));
     srows.push({cells:[]});
-    srows.push({cells:[S("Findings by directory",3)]});
-    srows.push({cells:[S("Directory",6),S("Charts",6),S("Critical",6),S("High",6),S("Total",6)]});
+    const _dl=IS_TF?(LBL.cloud?"module area":"cloud"):"directory";
+    srows.push({cells:[S("Findings by "+_dl,3)]});
+    srows.push({cells:[S(cap(_dl),6),S(cap(LBL.assetP),6),S("Critical",6),S("High",6),S("Total",6)]});
     dirs.forEach(d=>{let cr=0,hi=0,tt=0;byDir[d].forEach(c=>{cr+=c.counts.CRITICAL;hi+=c.counts.HIGH;tt+=c.total;});
       srows.push({cells:[S(d,7),N(byDir[d].length,11),N(cr,11),N(hi,11),N(tt,11)]});});
     sheets.push({name:xName("Summary"),cols:[26,12,12,46,12],freeze:2,merges:["A1:E1","A2:E2"],rows:srows});
@@ -858,9 +891,10 @@ function exportExcel(){
     dirs.forEach(d=>{
       let n=0; byDir[d].forEach(c=>n+=(c.findings||[]).length);
       const rows=[];
-      rows.push({h:30,cells:[S(`${d}  ·  ${d==="other"?"":"charts/"}${d}`,1)]});
-      rows.push({h:20,cells:[S(`${n} finding${n!==1?"s":""}  ·  ${byDir[d].length} chart${byDir[d].length!==1?"s":""}  ·  branch ${m.branch||"-"}`,2)]});
-      rows.push({cells:[S("Chart",6),S("Rule ID",6),S("Severity",6),S("Title",6),S("File location",6),S("Line",6)]});
+      const dpfx=KIND==="helm"?(d==="other"?"":"charts/"):"";
+      rows.push({h:30,cells:[S(`${d}  ·  ${dpfx}${d}`,1)]});
+      rows.push({h:20,cells:[S(`${n} finding${n!==1?"s":""}  ·  ${byDir[d].length} ${LBL.assetS}${byDir[d].length!==1?"s":""}  ·  branch ${m.branch||"-"}`,2)]});
+      rows.push({cells:[S(LBL.assetCol,6),S("Rule ID",6),S("Severity",6),S("Title",6),S("File location",6),S("Line",6)]});
       let z=0;
       byDir[d].forEach(c=>(c.findings||[]).forEach(f=>{
         const zt=z%2?8:7, zl=z%2?10:9, zn=z%2?12:11; z++;
@@ -911,15 +945,15 @@ function render(){
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.v===state.view));
   document.querySelectorAll(".view").forEach(v=>v.classList.remove("on"));
   document.getElementById("view-"+state.view).classList.add("on");
-  document.getElementById("q").placeholder=state.view==="findings"?(IS_DOCKER?"Search CVE, package…":"Search rule, title…"):(IS_DOCKER?"Search image…":"Search chart…");
+  document.getElementById("q").placeholder=state.view==="findings"?LBL.searchFinding:LBL.searchAsset;
   const vh=document.getElementById("vhint");
   vh.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg> Report-only · nothing is blocked`;
   initSelector();
   if(state.view==="overview"){posture();statStrip();donut();byArea();priorities();}
-  else if(state.view==="assets"){document.getElementById("assets-h").textContent=IS_DOCKER?"Container images":"Helm charts";kpis();IS_DOCKER?tImages():tCharts();}
+  else if(state.view==="assets"){document.getElementById("assets-h").textContent=LBL.assetTitle;kpis();IS_DOCKER?tImages():tCharts();}
   else if(state.view==="findings"){
-    document.getElementById("findings-h").textContent=IS_DOCKER?"Vulnerabilities":"Misconfigurations";
-    document.getElementById("findings-sub").textContent=IS_DOCKER?"click a row for affected images + fix":"click a row for the why + affected charts";
+    document.getElementById("findings-h").textContent=LBL.findingTitle;
+    document.getElementById("findings-sub").textContent=IS_DOCKER?"click a row for affected images + fix":("click a row for the why + affected "+LBL.assetP);
     IS_DOCKER?tVulns():tRules();}
 }
 
@@ -935,6 +969,7 @@ function render(){
   initChrome();initFilters();initSelector();
   document.getElementById("q").addEventListener("input",e=>{state.q=e.target.value.trim().toLowerCase();if(MODEL)render();});
   document.getElementById("theme").onclick=()=>{const d=document.documentElement;d.dataset.theme=d.dataset.theme==="dark"?"light":"dark";if(MODEL)render();};
+  if(IS_TF){const bp=document.getElementById("bpick");if(bp)bp.style.display="none";}
   document.getElementById("print").onclick=()=>window.print();
   document.getElementById("xls").onclick=()=>{ if(MODEL) exportExcel(); };
   document.getElementById("bbtn").onclick=e=>{e.stopPropagation();state.menu=state.menu==="branch"?null:"branch";state.bq="";initSelector();};

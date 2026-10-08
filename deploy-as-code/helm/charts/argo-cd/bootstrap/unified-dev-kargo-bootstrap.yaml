@@ -1,0 +1,45 @@
+## Secondary app-of-apps for unified-dev -- Kargo + the core-test harness ONLY.
+##
+## Purpose: pick up the Kargo definitions (control plane + pipelines app-set) and
+## the temporary core-test app-set/project from the `unified-dev` branch, while the
+## main `unified-dev-bootstrap` keeps managing everything else from unified-env-lts.
+##
+## This pairs with an EXCLUDE added to the main bootstrap for the same two dirs, so
+## the two app-of-apps never fight over the kargo/ and core-test/ resources.
+##
+## Apply by hand (cluster write; not self-managed):
+##   kubectl apply -f unified-dev-kargo-bootstrap.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: unified-dev-kargo-bootstrap
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: unified-dev
+    path: deploy-as-code/helm/charts/argo-cd/unified-dev
+    directory:
+      recurse: true
+      ## only the Kargo dir and the temporary core-test harness come from unified-dev
+      include: '{kargo/*.yaml,core-test/*.yaml}'
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

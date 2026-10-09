@@ -119,9 +119,8 @@ EOF
   note "encrypted in place"
 fi
 
-# Domain is NOT stamped into the base env file: each shape overlay
-# (environments/azure-k3s-<shape>.yaml) owns its own global.domain, layered by
-# that shape's helmfile. If your VM's domain differs from the overlay's, edit
-# the overlay — the base azure-k3s.yaml stays shape-neutral.
+# Domain is NOT stamped into any env file: deploy.sh passes the VM's domain from
+# scripts/.env as global.domain to every release, so the base azure-k3s.yaml and
+# the shape overlays stay domain-neutral in effect.
 
 next "./03-backbone.sh"

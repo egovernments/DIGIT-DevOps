@@ -32,18 +32,18 @@ OTEL export (no collector on the VMs).
 |---|---|
 | `lnp-helmfile.yaml` | the 11 releases; `needs:` orders walt → vc → license-certificate → UIs |
 | `environments/azure-k3s-lnp-tags.yaml` | image tags, **generated** by `scripts/lnp-tags.sh` from the LnP team's `test-lts.yaml` on `origin/digit-lts` (they move daily — re-run, review, commit) |
-| `environments/azure-k3s-lnp.yaml.gotmpl` | every URL from `DOMAIN`; catalogue hosts looked up in the shape overlay's `egov-service-host` map (`DIGIT_SHAPE`), so idgen resolves to `idgen`, `dev-bundle` or `admin-bundle` as the shape dictates |
+| `environments/azure-k3s-lnp.yaml.gotmpl` | every URL from `DOMAIN`; catalogue hosts looked up in the shape's generated `egov-service-host` map (`environments/generated/<DIGIT_SHAPE>-service-hosts.yaml`), so idgen resolves to `idgen`, `dev-bundle` or `admin-bundle` as the shape dictates |
 | `lnp/kong-routes.json` | the 12 Kong routes (exported from test-lts); replayed by digit3's `kong/setup.py` via `KONG_EXTRA_ROUTES` — `/license`, `/calculator`, `/pdf-v3`, `/schema`, `/credential` carry `dynamic-jwt`+`header-enrichment`, `/mdms-v2` the full chain, the regex routes are public |
 | `lnp/exports/` | the phase-0 captures (tags, routes, realm diff, BASETENANT master rows) — reference and fallback, not applied |
 | `scripts/09-lnp.sh` | the phase script (below) |
 
 ## What 09-lnp.sh does
 1. **Secrets** — adds `cluster-configs.secrets.license-certificate` (OTP bypass code, Keycloak client secret) to this environment's sops file if absent (`02-secrets.sh` writes it for new environments), re-syncs `cluster-configs` through the shape's helmfile so the Secret exists.
-2. **Master tenant** — `07-seed.sh "Base Tenant" <email>` → code **`BASETENANT`**, the schema LnP's master catalogue expects (`MASTER_TENANT_SCHEMA`). The admin password is printed once by 07 and captured to `~/lnp-seed-<domain>.log` (mode 600): store it, then `shred -u` it. The realm's `auth-server` client secret is read from Keycloak into sops (never printed).
+2. **Master tenant** — `07-seed.sh "BASETENANT" <email>` → code **`BASETENANT`** (name == code: the LnP UIs look the tenant up by name), the schema LnP's master catalogue expects (`MASTER_TENANT_SCHEMA`). The admin password is printed once by 07 and captured to `~/lnp-seed-<domain>.log` (mode 600): store it, then `shred -u` it. The realm's `auth-server` client secret is read from Keycloak into sops (never printed).
 3. **Overlay** — `DOMAIN=… DIGIT_SHAPE=… ./deploy.sh -f lnp-helmfile.yaml sync`, then waits for the 11 rollouts.
 4. **Kong** — `setup.py` with `KONG_EXTRA_ROUTES`; the catalogue routes are re-applied as a no-op.
 5. **Onboarding** — `POST /license/onboarding/_onboard-tenant` as the BASETENANT admin. LnP provisions its own master data (certificate types, calculator rules, schemas, PDF templates, MDMS theme/access data, localisation, idgen formats, VC tenant) and `_inflate`s its sibling services — the services' own seeding path; the SQL in `lnp/exports/db/` is only a reference for diffing. Read the `steps` map it prints.
-6. **Smoke** — `/license/certificate-types` through Kong, the four UIs through the ingress.
+6. **Smoke** — `/license/certificate-types` through Kong (the run fails unless it answers 200), the four UIs through the ingress.
 
 Re-running is safe: 07 reports "tenant already exists", the overlay converges, routes are PUT by
 name. A re-run after the capture was shredded needs `LNP_ADMIN_PASSWORD=<the one 07 printed>`.
@@ -56,10 +56,22 @@ citizen/employee flows hit exactly those. digit3 branch `feat/modulith-lnp-overl
 change in `account/realm_config.json`; deploy the shape with an image tag built from it (`lnp/exports/realm-policy-summary.txt`).
 
 ## Custom groupings
-`09-lnp.sh` follows `scripts/.last-shape` and needs the matching `<shape>-helmfile.yaml` for the
-`cluster-configs` re-sync and the host map. For a custom grouping (CUSTOM-BUNDLING.md) point
-`DIGIT_SHAPE` at an `environments/azure-k3s-<name>.yaml` that carries the full `egov-service-host`
-map and run the steps by hand.
+`09-lnp.sh` follows `scripts/.last-shape`, so a custom grouping installed with
+`install.sh --shape <path>/<name>.package.yaml` (CUSTOM-BUNDLING.md) works as is: it uses the generated
+`<name>-helmfile.yaml` and `environments/generated/<name>-service-hosts.yaml`, and programs Kong from
+`<digit3>/src/bundles/<name>.package.yaml` — it stops before deploying anything if that manifest is
+missing from the digit3 checkout passed to it.
+
+## Testing
+`lnp/test/` (test-only, never part of the overlay):
+- `mk-employees.sh` — the four officers through LnP's own `_provision-employees` (verifier
+  `priya.verma`, inspector `arjun.rao`, approver `meera.nair`, counter `ravi.kumar`, all
+  `@<domain>`) plus the citizen `lnp-citizen@<domain>`; passwords go to the users file, never printed.
+- `scenario.sh` — the end-to-end API scenario (59 checks) as those users; Business License applies
+  without a category (the taxonomy is off).
+- `ui/build-ui.sh` + `ui/deploy-local-ui.sh` — the published UI images compile in uat-lts's Keycloak
+  URL, so officer/admin sign-in on any other VM needs per-VM images: build them for the domain and
+  import them after every install (a later `lnp-helmfile.yaml` sync reverts to the published tags).
 
 ## Gotchas seen so far
 | Symptom | Cause / fix |
@@ -88,9 +100,9 @@ map and run the steps by hand.
 | after redeploying at a new tag, tenant calls fail with `BadSqlGrammarException` / `column … does not exist` (workflow `is_active`, billing `bills.filestore_id`), while public works | the init containers migrate only `public`; existing tenant schemas are migrated only when a tenant-created event arrives, so new migrations never reach them. Per service with new migrations and per existing tenant: `curl -XPOST http://localhost:8080/<svc>/internal/migrate -H 'X-Tenant-ID: <TENANT>' -d '{"tenantId":"<TENANT>"}'` (from inside the pod). A platform-level upgrade step is still missing |
 | redeploy init container fails Flyway validate with a checksum mismatch on workflow `V20250909143{1,3,4,6,7}00` / registry `V2025103000{2..5}` | those shipped migrations were edited (now byte-identical to master). On a database migrated before that, update `checksum` in every `<schema>.workflow_schema` / `registry_schema` row to the new Flyway checksum (CRC32 over lines) — what `flyway repair` does; fresh databases are unaffected |
 | `deploy.sh … sync` → `UPGRADE FAILED: conflict … with "kubectl-set"` | a test-only `kubectl set env/image` (SMS/SMTP sinks on notification, local UI images) owns those fields and Helm's server-side apply refuses to take them. Remove the env (`kubectl set env … NAME-`) or drop the `kubectl-set` entry from `.metadata.managedFields`, sync, then re-apply the test-only change |
-| after `06-deploy.sh` re-runs on a VM that already has the overlay, LnP calls get Kong `404 no Route matched` (`/individuals`, `/accounts`, the public workflow read) | 06 re-programs Kong from the platform catalogue only, which drops the overlay's extra routes. Re-run `09-lnp.sh` (or just its step 4: `setup.py` with `KONG_EXTRA_ROUTES=lnp/kong-routes.json`) after every 06 |
+| after `06-deploy.sh` re-runs on a VM that already has the overlay, LnP calls get Kong `404 no Route matched` (`/individuals`, `/accounts`, the public workflow read) | fixed: 06 now re-applies `lnp/kong-routes.json` itself when `license-certificate` is deployed, with the in-cluster proxy hostnames. With an older checkout, re-run `09-lnp.sh` step 4 (`setup.py` with `KONG_EXTRA_ROUTES=lnp/kong-routes.json`) after every 06 |
 | bundle shapes: in-bundle tenant migration | one `POST http://localhost:8080/internal/migrate` (no service prefix) migrates every bundled member for that tenant |
-| single-container / domain-bundles: UI login → Keycloak "Invalid parameter: redirect_uri"; realm clients allow only `https://modulith.digit.org/*` | the account chart hardcodes `CLIENT_REDIRECT_URL` / `FIRST_LOGIN_URLS` for modulith.digit.org and the bundle overlays did not restate them; both overlays now set them per domain. A realm created before the fix keeps the wrong URIs — update its admin/citizen/employee clients (`redirectUris`, `webOrigins`, `post.logout.redirect.uris`) |
+| single-container / domain-bundles: UI login → Keycloak "Invalid parameter: redirect_uri"; realm clients allow only `https://modulith.digit.org/*` | the account chart hardcoded `CLIENT_REDIRECT_URL` / `FIRST_LOGIN_URLS` for modulith.digit.org (per-service too); it now takes them from `global.domain`. A realm created before the fix keeps the wrong URIs — update its admin/citizen/employee clients (`redirectUris`, `webOrigins`, `post.logout.redirect.uris`) |
 | bundle shapes: `_provision-employees` → every employee `DOWNSTREAM_ERROR: failed to validate individual ID` | the charts set `INDIVIDUAL_ENABLED=true`, but the bundle manifests had no loopback for `employee.individual.host`, so employee called the standalone default `localhost:8086`. Both manifests now loop it back — fixed in bundle images from digit3 `d555d07` (verified on mx-test and mx-split). Older bundle images need `INDIVIDUAL_HOST=http://localhost:8080/` on the bundle |
 | bundle shapes: bill PDF deferred / receipt PDF skipped with `Bad authority` | the billing chart's relative filestore paths were harvested into the bundle chart while the bundle host has no trailing slash (`http://localhost:8080filestore/…`). `bundler/merge-rules.yaml` now pins `BILLING_FILESTORE_{UPLOAD,DOWNLOAD}_PATH` to billing's leading-slash form, like its idgen/apportion paths |
 | fresh tenant: employee-portal menus `SCHEMA_DEFINITION_NOT_FOUND_ERR` | the menu step ran before access control created the mdms `access.*` schemas; `09-lnp.sh` now seeds `data` before 5c and `menus` after it (5d) |
@@ -98,6 +110,6 @@ map and run the steps by hand.
 | any rollout on a node with no CPU-request headroom never finishes (`exceeded its progress deadline`, old and new pod both held) | the shared chart pins `maxUnavailable: 0` for single-replica Deployments, so the new pod must schedule before the old one stops. One-time unblock: delete the Deployment's old ReplicaSets (`kubectl delete rs <old>`; the new ReplicaSet stays). Hit on mx-split for the LnP releases and for `notification-bundle` (500m) after a `kubectl set env` |
 | with a real SMTP provider, every admin login ends in "Invalid username or password" although the OTP mail arrives seconds later; Keycloak logs `OTP generate failed HTTP 503 … request timed out` | the e-mail/SMS OTP authenticator calls otp → notification → provider synchronously (`NOTIFY_ASYNC=false`) and a Gmail send measures 5-7s, longer than Keycloak's `HTTP_CLIENT_REQUEST_TIMEOUT_MS=5000`. The keycloak chart now sets 14000 (below otp's own 15s notify timeout) |
 | test-lts logins accept `123456` | test-lts sets `OTP_EMAIL_DEFAULT_OTP`, `OTP_SMS_DEFAULT_OTP` and `OTP_REGISTRATION_DEFAULT_OTP` on Keycloak. The SPI accepts that code at verification for any user ("Default OTP bypass accepted") — a master code, not a fallback for failed sends. Deliberately NOT set on the modulith VMs; a demo-only decision if ever enabled |
-| citizen app shows `LPMS_CIT_UNABLE_TO_LOAD_TENANT … (404)` right after a `06-deploy.sh` run | the `/accounts` alias route is gone until the LnP Kong step re-runs (same cause as the row above about 06 dropping overlay routes) |
+| citizen app shows `LPMS_CIT_UNABLE_TO_LOAD_TENANT … (404)` right after a `06-deploy.sh` run | the `/accounts` alias route is gone until the LnP Kong step re-runs (same cause as the row above about 06 dropping overlay routes — fixed the same way) |
 | SMS OTPs never arrive although notification logs `SMSCountry response: SMS message(s) sent` | India's DLT rules: the operator delivers only the registered template text. The seeded `sms-otp-login` / `sms-otp-generic` wording was not it; both templates must carry the approved text exactly — `Dear Citizen, Your Login OTP is {{.otp}}` + two line breaks + `EGOVS` (07-seed and seed-master-data now create it so). Changing an existing template: `PUT` only adds a new version while otp always requests `v1`, so delete every version (`DELETE …?templateId=&version=`) and `POST` again; check with `POST /notification/v3/template/preview`. Verified delivered to a real handset on 2026-10-03 |
 | citizen online payment (Stripe) — what is needed for it to work | pg-service must read `STRIPE_SECRET_KEY` from the `egov-pg-service` secret (chart fix) with a Stripe **test-mode** key in sops; the citizen must be a Keycloak user whose username is the mobile number (UI registration) with the profile step done; the application must be at Pending Payment. Verified 2026-10-03 on single-container: Pay Now → Stripe Checkout (sandbox, card 4242…) → callback → `PAYMENT_CREATE` event → `PAY_LICENSE_FEE` → Pending Issuance, receipt PDF on the application |

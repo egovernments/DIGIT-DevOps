@@ -130,8 +130,8 @@ report echoes:
 `resolve:` documents every real cross-service disagreement and the choice
 made: `PUBSUB_TYPE=kafka` (account said redis — but account-migration must
 reach the in-JVM tenant-migration consumer, which follows
-`tracer.pubsub.type`), `KEYCLOAK_BASE_URL` in-cluster (employee pointed at
-the public digit-lts URL), `LOG_LEVEL=info` (workflow info vs account
+`tracer.pubsub.type`), `KEYCLOAK_BASE_URL` in-cluster (employee's chart then pointed at
+the public digit-lts URL; it now defaults in-cluster too), `LOG_LEVEL=info` (workflow info vs account
 DEBUG), `VAULT_HOST` from the service-host configmap (otp hardcoded a
 namespace URL).
 
@@ -176,14 +176,23 @@ environment file can only replace *wholesale*. A YAML **map** deep-merges
 through Helm's value layering, so an environment can override exactly one
 variable — or delete one by setting it to `null`:
 
+Settings every bundle of every shape gets live in `environments/bundle-defaults.yaml`
+(`common:` / `byMember:`) — the DevOps Kubernetes-env layer, not the manifest's
+`bundleDefaults:` (Spring properties). It is rendered into
+`environments/generated/<shape>-bundles.yaml.gotmpl`, which the shape's helmfile layers
+**last**, so it wins for every key it sets. A one-off override of a key it does not set
+can still go in the shape overlay's `<bundle>:` block:
+
 ```yaml
-# environments/azure-k3s.yaml
+# environments/azure-k3s-single-container.yaml
 dev-bundle:
   env:
     LOG_LEVEL: {value: debug}            # override one var
-    VAULT_ENABLED: {value: "false"}      # override another
+    JAVA_OPTS: {value: "-Xmx1g"}         # override another
     SOME_VAR: null                       # remove entirely
 ```
+
+(`VAULT_ENABLED` is set by `bundle-defaults.yaml` → `byMember.individual`, so change it there.)
 
 The deployment template iterates the map and emits `value:` or `valueFrom:`
 per entry; `JAVA_OPTS` and `SERVER_PORT` are not in the map — they render
@@ -258,10 +267,11 @@ generator; symptom was helm's "error validating data: apiVersion not set".)
 
 ### 3.5 `env-block.sample.yaml`
 
-A ready-to-paste starter for `environments/<env>.yaml`: the `dev-bundle:`
-block skeleton with the image tag placeholders and one `dbMigrations` entry
-per service. The real azure-k3s block grew from this plus the overrides in
-INSTALL.md §3.3.
+A ready-to-paste starter for an environment's `dev-bundle:` block: the
+skeleton with the image tag placeholders and one `dbMigrations` entry per
+service. On this install the block is generated
+(`environments/generated/<shape>-bundles.yaml.gotmpl` from `bundle-defaults.yaml`),
+so the starter is for environments that don't use the generator.
 
 ---
 
@@ -309,9 +319,10 @@ manifest helm: ───┤→ generate_bundle_chart.py → charts/bundles/dev-b
 ```
 
 The helmfile release (`single-container-helmfile.yaml`) points at
-`../bundles/dev-bundle` and passes the secrets + environment files; the
-`common.name` helper merges the environment's `dev-bundle:` block over the
-generated values with highest precedence. Maps (env, dbMigrations) deep-merge
+`../bundles/dev-bundle` and passes the secrets + environment files and, last,
+`environments/generated/single-container-bundles.yaml.gotmpl`; the
+`common.name` helper merges the resulting `dev-bundle:` block over the
+chart's generated values with highest precedence. Maps (env, dbMigrations) deep-merge
 per key; scalars and **lists** (dbMigrationOrder) replace — that asymmetry is
 what makes both the single-var override and the combined-init-container
 switch possible from the environment file alone.
@@ -320,8 +331,9 @@ switch possible from the environment file alone.
 
 | Change | Do |
 |---|---|
-| Bundle composition changed (manifest) | re-run the generator; review the report; update kong + service-host per reminders |
+| Bundle composition changed (manifest) | re-run `06-deploy.sh` with the manifest — it regenerates the charts, helmfile, bundle values and service-host map, and programs kong |
 | A member chart's env/init config changed | re-run the generator (it re-renders the charts); diff `values.yaml` |
-| Env var wrong for one environment | don't regenerate — override in that environment's `dev-bundle:` block |
+| Env var wrong for every bundle/shape | change `environments/bundle-defaults.yaml`, re-run 06 |
+| Env var wrong for one environment | don't regenerate — override in that shape overlay's `<bundle>:` block (only keys `bundle-defaults.yaml` doesn't set) |
 | Var should never be harvested | add a `drop:` (or `resolve:`/`contractEnv:`) entry in merge-rules.yaml, regenerate |
 | Anything under `charts/bundles/dev-bundle/` | never hand-edit — generator-owned |

@@ -14,7 +14,7 @@ protocol) — collect the inputs in §1, then run it and monitor:
 cd deploy-as-code/helm/charts/digit3/scripts
 ./install.sh --key <key> --domain <domain> [--vm-user <user>] --digit3 <path> \
   --shape single-container|domain-bundles|per-service|<path>/<name>.package.yaml --tag modulith-<sha> \
-  --tenant "Name" --email <email> [--skip-vault]
+  --tenant "Name" --email <email> [--skip-vault] [--local-images]
 # Docker Hub creds: lib.sh sources ~/.config/digit3/dockerhub.env (DOCKERHUB_USER=/DOCKERHUB_TOKEN=) or the
 # env vars by itself — pass --hub-user/--hub-token only when neither exists (the flag is visible in `ps`).
 ```
@@ -47,7 +47,9 @@ missing — do not guess:
   `environments/bundle-defaults.yaml`), the `egov-service-host` map and the Kong
   routes — and `06-deploy.sh` writes a domain-only overlay if none exists. The
   only precondition is that every bundle and `<bundle>-db` image is published at
-  the tag (install.sh preflights them from the manifest); tell the user to
+  the tag (install.sh preflights them from the manifest) — or built locally as
+  `egovio/<bundle>{,-db}:<tag>` and installed with `--local-images`, which
+  preflights the local docker and loads them into the node after 01; tell the user to
   commit the manifest's generated `environments/generated/*` and overlay files.
 - **image tag**: the `modulith-<sha>` tag of the GitHub Actions builds — the
   normal path. Local `05-build.sh` (bundle shapes only) is the fallback when
@@ -173,6 +175,10 @@ Do not retry blindly and do not improvise cluster surgery:
    this safe.
 3. If the symptom is not in the table, stop and report to the user with the
    error, the phase, and your best diagnosis.
+4. `06` stopping with "secrets mismatch — nothing deployed" means this
+   checkout's secrets file is not the one the VM was installed from. Stop and
+   ask the user which file is right; never set `ALLOW_SECRET_CHANGES=1` on
+   your own — it overwrites working credentials (e.g. the Vault AppRole).
 
 Standing rules: never print secret values (the scripts keep credentials off
 screen, except 07's one-time admin password — see §3; keep it that way in any

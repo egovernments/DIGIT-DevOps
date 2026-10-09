@@ -79,18 +79,20 @@ then creates the Keycloak database **and** role from the `kc-db` secret:
 file, never onto disk), unseals, enables transit + AppRole (reconciling stored
 credentials against the live role), and re-renders the `vault-approle` k8s
 secret. Skip if you don't want PII encryption (then set `VAULT_ENABLED: "false"`
-in the shape's env blocks first):
+first — `environments/bundle-defaults.yaml` → `byMember.individual` for the bundle shapes, `vault-enabled` in `azure-k3s.yaml` for per-service):
 
 ```bash
 ./04-vault.sh
 ```
 
-**8. Deploy** — `06` regenerates the shape's bundle charts, syncs the
-shape's helmfile with the image tag supplied as
-`DIGIT_TAG`, and programs Kong (waiting for its Admin API). The shape's domain
-and `egov-service-host` keys come from `environments/azure-k3s-<shape>.yaml`,
-layered by the helmfile — no env file is mutated. Positional args:
-`<digit3-path> <shape> <tag>`:
+**8. Deploy** — `06` regenerates everything shape-specific from the manifest
+(bundle charts, `<shape>-helmfile.yaml`, `environments/generated/<shape>-bundles.yaml.gotmpl`
+and `<shape>-service-hosts.yaml`), stops if the local secrets file would change the
+cluster's Secrets (`ALLOW_SECRET_CHANGES=1` for an intended rotation), syncs the
+shape's helmfile with the image tag supplied as `DIGIT_TAG`, and programs Kong
+(waiting for its Admin API) with the domain and its in-cluster hostnames. It
+records `.last-shape` and `.last-owners` for 07/09. Positional args:
+`<digit3-path> <shape|path/name.package.yaml> <tag>`:
 
 ```bash
 ./06-deploy.sh ~/Documents/digit3 single-container <tag>   # or domain-bundles | per-service

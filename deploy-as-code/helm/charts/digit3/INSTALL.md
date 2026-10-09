@@ -25,9 +25,10 @@ localization, workflow, registry, filestore, boundary). See
 [BUNDLING.md](./BUNDLING.md) for how a bundle works internally, and
 [CUSTOM-BUNDLING.md](./CUSTOM-BUNDLING.md) for a non-stock grouping.
 
-Each shape's domain and `egov-service-host` keys come from its overlay
-(`environments/azure-k3s-<shape>.yaml`), layered by its helmfile; image tags
-come from `DIGIT_TAG`. All three sit on the **same foundation** (Section 1);
+Each shape's `egov-service-host` map is generated from its manifest into
+`environments/generated/<shape>-service-hosts.yaml` and layered by its helmfile;
+`global.domain` is set by `deploy.sh` from `scripts/.env`; image tags come from
+`DIGIT_TAG`. All three sit on the **same foundation** (Section 1);
 deploy exactly ONE at a time (they share ingress paths and kong prefixes) —
 switching is Section 6. (The pre-rename names `dev-bundle` / `domain-split` /
 `services` are still accepted as shape synonyms.)
@@ -111,8 +112,11 @@ kubectl get nodes
 Keep this kubeconfig in its **own file** (not merged into `~/.kube/config`)
 so mutating commands can never accidentally target another cluster.
 
-Record the connection settings once — `deploy.sh` reads `DOMAIN` to pick the
-per-environment secrets file (§1.4), and every `scripts/*.sh` (e.g. §1.8's
+Record the connection settings once — `deploy.sh` targets `KUBECONFIG_PATH`
+(and refuses to run without it or an explicit `KUBECONFIG` — never the default
+kube context), reads `DOMAIN` to pick the per-environment secrets file (§1.4),
+exports it for the generated bundle values and passes `--set
+global.domain=$DOMAIN` to every release; every `scripts/*.sh` (e.g. §1.8's
 `04-vault.sh`) reads all three. On the scripted path `01-cluster.sh` writes it:
 
 ```bash
@@ -188,9 +192,10 @@ Two layers, both already present on this branch:
   `environments/generated/<shape>-bundles.yaml.gotmpl` (`VAULT_ENABLED` for any bundle holding individual).
 - `environments/azure-k3s-<shape>.yaml` — the **per-shape overlay**
   (`per-service`, `single-container`, `domain-bundles`), layered by that
-  shape's helmfile: **`global.domain` — set your domain HERE**, plus the
-  shape's `egov-service-host` map (which Service answers for each of the 13
-  merged services).
+  shape's helmfile: only real environment choices. Its `global.domain` is
+  overridden by `deploy.sh`; the `egov-service-host` map (which Service answers
+  for each of the 13 merged services) is generated into
+  `environments/generated/<shape>-service-hosts.yaml`.
 
 Image tags live in **neither** file: every digit3 image (services, bundles and
 their `-db` init images) is tagged from the `DIGIT_TAG` environment variable
@@ -402,9 +407,9 @@ Already present on this branch (nothing to edit for the stock shape):
   filestore), the login URLs (it holds account); `dbMigrationOrder: [combined]` with one
   `dbMigrations.combined` entry (`dev-bundle-db`) whose `DB_URL` points at the default `postgres` database;
   image tags from `DIGIT_TAG`.
-- `environments/azure-k3s-single-container.yaml` — the overlay:
-  `global.domain` and the **`egov-service-host`** keys of the 13 merged
-  services → `http://dev-bundle.egov.svc.cluster.local:8080/`.
+- `environments/generated/single-container-service-hosts.yaml` — generated from
+  the manifest: the **`egov-service-host`** keys of the 13 merged services →
+  `http://dev-bundle.egov.svc.cluster.local:8080/`.
 
 Image tags are in neither file — both images are
 `egovio/dev-bundle{,-db}:$DIGIT_TAG` (§1.5). Switching shape = syncing the
@@ -426,7 +431,7 @@ kubectl rollout status deploy/kong-kong -n egov --timeout=600s
 # kong must be Running first (the §3.4 rollout wait) — setup.py retries transient errors for ~10 s only
 kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 &
 cd digit3/src/services/kong
-KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS=<domain> python3 setup.py
+KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS=<domain>,kong-kong-proxy.egov.svc.cluster.local,kong-kong-proxy.egov python3 setup.py
 # check: every bundled service's upstream host is the bundle
 curl -s http://localhost:18001/services | python3 -c \
   'import sys,json; [print(s["name"], "->", s["host"]) for s in json.load(sys.stdin)["data"]]'
@@ -485,7 +490,8 @@ gateway token for the tenant admin (§7).
 
 One release per service (idgen, billing, …, 16 in all) plus keycloak and
 gateway-kong, from its own helmfile — `per-service-helmfile.yaml` — which
-layers `environments/azure-k3s-per-service.yaml` (domain + the 13 per-service
+layers `environments/azure-k3s-per-service.yaml` (domain only) and
+`environments/generated/per-service-service-hosts.yaml` (the 13 per-service
 `egov-service-host` keys) and takes its image tags from `DIGIT_TAG`, like the
 other shapes. Every service entry is the same pattern:
 
@@ -529,7 +535,7 @@ behind a valid token). With `none`, upstreams are the per-service k8s Services
 ```bash
 kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 &
 cd digit3/src/services/kong
-KONG_BUNDLE_MANIFESTS=none KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS=<domain> python3 setup.py
+KONG_BUNDLE_MANIFESTS=none KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS=<domain>,kong-kong-proxy.egov.svc.cluster.local,kong-kong-proxy.egov python3 setup.py
 curl -s http://localhost:18001/services | python3 -c \
   'import sys,json; [print(s["name"], "->", s["host"]) for s in json.load(sys.stdin)["data"]]'   # <svc>.egov.svc…
 ```
@@ -599,7 +605,7 @@ kubectl rollout status deploy/kong-kong -n egov --timeout=600s
 kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 &
 cd digit3/src/services/kong
 KONG_BUNDLE_MANIFESTS=<digit3>/src/bundles/domain-split.package.yaml \
-  KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS=<domain> python3 setup.py
+  KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS=<domain>,kong-kong-proxy.egov.svc.cluster.local,kong-kong-proxy.egov python3 setup.py
 # check: 16 services spread over exactly four hosts (admin 6, identity 4, billing 3, notification 3)
 curl -s http://localhost:18001/services | python3 -c \
   'import sys,json,collections; c=collections.Counter(s["host"] for s in json.load(sys.stdin)["data"]); [print(n, h) for h,n in c.items()]'
@@ -656,8 +662,12 @@ accepts any partition of the catalog:
     database the bundle uses (its data lives there), and
     **`TENANT_MIGRATION_ENABLED: "true"`** (standalone it must consume tenant
     events itself);
-  - re-add its helmfile release, and set its `egov-service-host` key back to
-    per-service DNS in the shape overlay (`azure-k3s-<shape>.yaml`);
+  - drop it from the manifest's `include:` and re-run `06-deploy.sh`: the
+    generated service-host map then points its key at its own Service. The
+    generated helmfile carries bundles only (and is rewritten on every 06
+    run), so deploy the standalone release from the per-service helmfile:
+    `DIGIT_TAG=<tag> ./deploy.sh -f per-service-helmfile.yaml -l name=<service> sync`
+    — a later shape sync leaves it in place;
   - **sync the bundle BEFORE the standalone service** (the ingress admission
     webhook rejects a duplicate path while the old bundle Ingress still owns
     it; helmfile syncs concurrently — use `-l` selectors), and rollout-restart
@@ -742,6 +752,8 @@ that migrates every member.
 
 | Symptom | Cause / fix |
 |---|---|
+| 06 stops: "secrets mismatch — nothing deployed" | this checkout's secrets file is not the one the VM was installed from → deploy from that checkout, or `ALLOW_SECRET_CHANGES=1` for an intended rotation |
+| `deploy.sh`: "refusing to use the default kube context" | no `scripts/.env` `KUBECONFIG_PATH` and no `KUBECONFIG` → run `01-cluster.sh` or export `KUBECONFIG` |
 | `helmfile apply` → "unknown command diff" | helm-diff broken on helm v4 → use `sync` |
 | Services helmfile installs nothing, URL-encoded chart path | helmfile v1 templates only `*.gotmpl` → explicit chart paths |
 | Secret lands in only one namespace | `---` must be *inside* `{{- range $ns }}` in cluster-configs secret templates |

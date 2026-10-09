@@ -7,7 +7,7 @@
 # What it does, in order:
 #   1. secrets  — `license-certificate` entry in this environment's sops file (older files lack it),
 #                 then cluster-configs re-sync so the Secret exists
-#   2. tenant   — "Base Tenant" → code BASETENANT (LnP's master-tenant schema) via 07-seed.sh;
+#   2. tenant   — "BASETENANT" (name == code) → code BASETENANT (LnP's master-tenant schema) via 07-seed.sh;
 #                 its auth-server client secret → sops → cluster-configs
 #   3. overlay  — DOMAIN/DIGIT_SHAPE ./deploy.sh -f lnp-helmfile.yaml sync, rollouts
 #   4. kong     — setup.py with KONG_EXTRA_ROUTES=lnp/kong-routes.json (catalogue routes re-applied, no-op)

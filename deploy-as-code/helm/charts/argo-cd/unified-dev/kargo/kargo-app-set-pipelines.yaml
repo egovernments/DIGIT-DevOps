@@ -56,7 +56,14 @@ spec:
           # namespaces are created + labeled by cluster-configs
           - CreateNamespace=false
           - ServerSideApply=true
-          - RespectIgnoreDifferences=true
+          # RespectIgnoreDifferences deliberately NOT set. It strips ignored
+          # paths from the manifest before applying, and because the rule below
+          # is a jqPathExpression over an ARRAY (.spec.subscriptions[]), it
+          # removes the whole subscriptions array -- so edits to
+          # allowTagsRegexes were silently never applied and the Application sat
+          # OutOfSync while every sync reported Succeeded.
+          # ignoreDifferences still suppresses the operator-defaulted
+          # strictSemvers for DIFFING, which is all that was wanted.
         retry:
           limit: 10
           backoff:

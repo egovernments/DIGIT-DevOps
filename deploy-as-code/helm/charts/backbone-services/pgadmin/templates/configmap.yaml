@@ -33,6 +33,27 @@ data:
           "SSLMode": "prefer",
           "MaintenanceDB": "{{ index .Values "maintenance-db-name" }}"
         }
+{{- /*
+  Named per-person servers, appended after the shared WRITE/READ pair.
+  Each needs its own database role: pgAdmin only stores the connection,
+  it neither creates the role nor grants anything. Giving individuals
+  their own entry keeps query history unshared and makes activity
+  attributable to a person rather than to a shared "readonly" login.
+
+  Indices continue from 2 -- pgAdmin keys this object by a string index
+  and silently drops duplicates.
+*/}}
+{{- range $i, $srv := (.Values.extraServers | default list) }}
+        ,"{{ add $i 3 }}": {
+          "Name": {{ $srv.name | quote }},
+          "Group": {{ $srv.group | default $.Values.environment | quote }},
+          "Port": {{ $.Values.dbPort }},
+          "Username": {{ $srv.username | quote }},
+          "Host": {{ $srv.host | default $.Values.dbUrl | quote }},
+          "SSLMode": {{ $srv.sslmode | default "prefer" | quote }},
+          "MaintenanceDB": {{ $srv.maintenanceDb | default (index $.Values "maintenance-db-name") | quote }}
+        }
+{{- end }}
       }
     }
   config_local.py: |

@@ -1,0 +1,85 @@
+## AppProject for the shared platform services (Keycloak, Vault) on the
+## Azure AKS digit-lts (test-lts.digit.org) environment.
+##
+## WHY A SEPARATE PROJECT
+## Neither service can join an existing project:
+##   - egov-project permits only the `egov` namespace, and Keycloak runs in
+##     `keycloak`.
+##   - backbone-project permits only `backbone`, and Vault runs in `vault-new`.
+## An Application targeting a namespace the project does not list is rejected
+## at spec-validation with "application destination is not permitted in
+## project", before any sync is attempted.
+##
+## READ platform/README.md BEFORE ENABLING AUTOMATED SYNC ON EITHER APP.
+## Both workloads already exist in this cluster and were NOT created by Argo
+## CD. The Applications in applications/ are deliberately manual-sync so that
+## committing and applying them changes nothing at all. Syncing them as the
+## charts currently stand WOULD cause an outage -- the specifics are in the
+## README.
+##
+## ORDERING: a namespace must appear in destinations BEFORE an Application
+## targeting it is added.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-project
+  namespace: argocd
+spec:
+  description: Shared platform services (Keycloak, Vault) -- adoption in progress
+
+  sourceRepos:
+    ## Argo matches these strings verbatim, so the https and git@ forms of the
+    ## same repo are two distinct entries. Whatever an Application puts in
+    ## source.repoURL must appear here or it fails with "application repo ...
+    ## is not permitted in project". Both forms are listed because appsets in
+    ## this repo have historically shipped either.
+    - https://github.com/egovernments/DIGIT-DevOps.git
+    - git@github.com:egovernments/DIGIT-DevOps.git
+
+  destinations:
+    - namespace: keycloak
+      server: https://kubernetes.default.svc
+
+    ## `vault-new`, NOT `vault`. The namespace `vault` does not exist in this
+    ## cluster; the live Vault has been in vault-new for 81 days and
+    ## charts/backbone-services/vault/values.yaml already targets it.
+    - namespace: vault-new
+      server: https://kubernetes.default.svc
+
+  ## Vault's chart renders four cluster-scoped objects. Keycloak's renders
+  ## none (Service, Deployment, Ingress, ServiceMonitor only), so nothing here
+  ## is on Keycloak's behalf.
+  ##
+  ## Listed by specific kind rather than the group:'*' kind:'*' wildcard that
+  ## egov-project carries, so this project cannot be used to create arbitrary
+  ## cluster-scoped resources.
+  clusterResourceWhitelist:
+    ## vault-agent-injector-clusterrole -- the injector needs to read pods and
+    ## mutate them across namespaces, which is inherent to how the Vault Agent
+    ## sidecar injector works.
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+
+    ## vault-agent-injector-binding and vault-server-binding.
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+
+    ## vault-agent-injector-cfg.
+    ##
+    ## TREAT THIS ONE WITH CARE. A MutatingWebhookConfiguration is cluster-wide
+    ## and sits in the admission path for pod creation. If it is applied with a
+    ## bad caBundle or a failurePolicy of Fail while the injector is
+    ## unavailable, POD CREATION BREAKS ACROSS EVERY NAMESPACE IT SELECTS, not
+    ## just vault-new. This cluster has already been bitten by a webhook with
+    ## no healthy endpoints -- see the cert-manager incident, where a Service
+    ## selector mismatch left the cert-manager webhook with zero endpoints and
+    ## blocked unrelated Applications.
+    ##
+    ## Check webhook.namespaceSelector and failurePolicy in the rendered output
+    ## before the first sync.
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

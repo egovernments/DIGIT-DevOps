@@ -1,0 +1,181 @@
+## Keycloak -- digit-lts (test-lts.digit.org), namespace `keycloak`.
+##
+## ADOPTION OF AN EXISTING WORKLOAD. The values below are deliberately written
+## to reproduce WHAT IS ALREADY RUNNING, so that syncing this Application is a
+## no-op rather than a change. Keycloak backs DIGIT authentication cluster-wide
+## (oauth2-proxy, and every license UI redirect to
+## https://test-lts.digit.org/keycloak), so a surprise rollout here is an
+## outage.
+##
+## Deployment/keycloak was NOT created by Argo CD: no tracking-id, no
+## app.kubernetes.io/instance label, no meta.helm.sh release annotations, and
+## 11 ReplicaSets' worth of imperative edits. Everything in the `values:` block
+## below was read back off the live object.
+##
+## WHY THE OVERRIDES EXIST -- each one is a real difference between the chart
+## defaults and the live Deployment. Without them a sync would:
+##
+##   1. (FIXED AT SOURCE -- kept here for the record.) The chart default
+##      KC_DB_URL used to point at postgresql-lts.egov, the instance being
+##      decommissioned, while live runs postgres.egov. That was an auth outage
+##      waiting to happen. charts/core-services/keycloak/values.yaml has since
+##      been corrected to postgres.egov, so the chart and live now agree and
+##      the KC_DB_URL line below merely restates it. The env list still has to
+##      be given in full because of points 2 and 3.
+##
+##   2. DROP 7 env vars that exist only on the live object -- KC_HOSTNAME and
+##      KC_HOSTNAME_STRICT (losing these breaks issuer URLs and redirects),
+##      plus the five OTP_*_DEFAULT_OTP / OTP_REGISTRATION_* settings.
+##
+##   3. FAIL TO APPLY AT ALL on OTP_HOST. env lists strategic-merge by name,
+##      and the chart uses a configMapKeyRef where live uses a literal value,
+##      so the merged entry carries both keys and the API server rejects it:
+##        "env[29].valueFrom: Invalid value: may not be specified when
+##         `value` is not empty"
+##      Verified with kubectl diff before these overrides were written.
+##
+##   4. Add 14 tracing/metrics env vars and flip OTEL_TRACES_EXPORTER from
+##      none to otlp, restarting the pod.
+##
+## IF YOU WANT TRACING/METRICS ON, do it as a deliberate, separate change:
+## drop the tracing-enabled/metrics-enabled overrides and the matching env
+## entries, and expect a Keycloak rollout. Do not fold it into adoption.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-keycloak
+  namespace: argocd
+
+  ## NO resources-finalizer.argocd.argoproj.io, deliberately.
+  ## With the finalizer, deleting this Application would cascade-delete the
+  ## live Keycloak -- a workload Argo CD did not create. That is exactly how
+  ## the backbone elasticsearch StatefulSets were lost. Without it, deleting
+  ## the Application merely stops tracking.
+  finalizers: []
+
+spec:
+  project: platform-project
+
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: digit-lts
+    path: deploy-as-code/helm/charts/core-services/keycloak
+    helm:
+      ## Must be `keycloak`: the chart has no fullnameOverride, so the release
+      ## name decides the Deployment/Service names, and they must match the
+      ## live objects or Argo CD creates a second set alongside them.
+      releaseName: keycloak
+
+      valueFiles:
+        - values.yaml
+        ## test-lts.yaml, NOT digit-lts.yaml. Only test-lts matches this live
+        ## cluster (domain test-lts.digit.org, db-host postgres.egov). The
+        ## backbone appset uses digit-lts.yaml, which is the likelier cause of
+        ## its OutOfSync Applications than anything in those charts.
+        - ../../../environments/test-lts.yaml
+
+      ## Inline, so wiring Keycloak into Argo CD touches only charts/argo-cd/.
+      ## Argo CD applies `values` AFTER valueFiles, so these win over both the
+      ## chart defaults and the keycloak block in test-lts.yaml.
+      values: |
+        keycloak:
+          ## REQUIRED TO RENDER AT ALL: the common library helper does
+          ##   required "Tag is mandatory" .tag
+          ## and test-lts.yaml sets no image tag for keycloak, so without this
+          ## the Application fails with a ComparisonError rather than merely
+          ## showing drift.
+          ##
+          ## This is the tag the live pod runs -- a CUSTOM eGov SPI build, not
+          ## upstream Keycloak. Pinning it keeps the rendered image identical
+          ## to live (egovio/keycloak:<tag>); any stock tag would drop the
+          ## custom register-citizen-listener event listener SPI.
+          image:
+            tag: keycloak-spi-custom-build-aardhya-78019f9
+
+          ## Live has NO tracing/metrics env and NO ServiceMonitor in the
+          ## keycloak namespace. test-lts.yaml turns all three on, which is why
+          ## they are forced back off here -- see "IF YOU WANT TRACING" above.
+          ##
+          ## BOOLEAN false, NOT THE STRING "false" -- this is load-bearing.
+          ## The common chart gates the Jaeger block on
+          ##   {{- if or (index .Values "global" "tracing-enabled")
+          ##             (index .Values "tracing-enabled") }}
+          ## and in Helm a non-empty string is TRUTHY, so "false" would still
+          ## inject JAEGER_SERVICE_NAME, JAEGER_SAMPLER_TYPE, JAEGER_AGENT_HOST,
+          ## JAEGER_AGENT_PORT, JAEGER_SAMPLER_MANAGER_HOST_PORT and
+          ## TRACER_OPENTRACING_ENABLED=true -- six env vars the live pod does
+          ## not have, i.e. a guaranteed rollout. Confirmed by rendering both
+          ## ways. (The chart's own values.yaml uses the string form, which is
+          ## why its default renders Jaeger even when "disabled".)
+          ## global.tracing-enabled is unset in test-lts.yaml, so the boolean
+          ## here is sufficient to make the whole `or` false.
+          tracing-enabled: false
+          metrics-enabled: false
+          serviceMonitor:
+            enabled: false
+
+          ## Match the live container resources. The chart defaults are lower
+          ## (250m/512Mi requests, 500m/1024Mi limits); applying them would
+          ## halve Keycloak's memory limit and restart the pod.
+          cpu_requests: "500m"
+          memory_requests: "1Gi"
+          cpu_limits: "1"
+          memory_limits: "2Gi"
+
+          ## Matches the live KC_EVENTS_LISTENERS value.
+          events-listeners: "jboss-logging,register-citizen-listener"
+
+          ## NOTE: `env` is deliberately NOT overridden here.
+          ##
+          ## It used to be. The chart stores env as a SCALAR STRING (env: |),
+          ## and Helm REPLACES scalars rather than merging them -- so an
+          ## override substituted the entire block. Anything a colleague later
+          ## added to the chart values was silently discarded: no error, no
+          ## effect. Measured before the fix: 42 env vars rendered from the
+          ## chart, 34 after the override, the new one gone.
+          ##
+          ## The chart itself now reproduces the live env exactly (34 entries,
+          ## same order, same values -- verified against the running pod), so
+          ## no override is needed and future additions to
+          ## charts/core-services/keycloak/values.yaml flow through normally.
+          ##
+          ## Keep it that way. If this Application ever needs an env change,
+          ## make it in the chart or add a narrowly-scoped value -- do not
+          ## reintroduce a wholesale `env:` block here.
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keycloak
+
+  ## NO `automated` block yet, on purpose. Confirm `kubectl diff` is clean and
+  ## the Application shows Synced after a manual sync before enabling
+  ## automation -- adopting a hand-managed workload is the one case where
+  ## selfHeal can cause the very outage it is meant to prevent.
+  syncPolicy:
+    syncOptions:
+      ## The keycloak namespace already exists; this is only a safety net.
+      - CreateNamespace=true
+      ## Never delete live objects that drop out of the chart.
+      - ApplyOutOfSyncOnly=true
+
+  ignoreDifferences:
+    ## replicas is owned by manual scaling / HPA, not by git.
+    ##
+    ## deployment-timestamp is a marker injected at deploy time by eGov's
+    ## pipeline (live value "20260810113221"), not something the chart
+    ## renders. It is the LAST remaining difference between this Application
+    ## and the live Deployment -- with it ignored, `kubectl diff` is empty.
+    ##
+    ## Ignored rather than hard-coded into the values on purpose: pinning a
+    ## stale timestamp in git would be meaningless, and would fight the
+    ## pipeline every time it redeploys. Because it is ignored the resource
+    ## computes as Synced, so with ApplyOutOfSyncOnly=true Argo CD does not
+    ## apply the Deployment at all and the annotation survives untouched.
+    ## Were it NOT ignored, a sync would strip the annotation, change the pod
+    ## template hash and roll Keycloak -- the exact outage this file exists to
+    ## avoid.
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+        - /spec/template/metadata/annotations/deployment-timestamp

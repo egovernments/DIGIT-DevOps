@@ -1,0 +1,194 @@
+## Vault -- digit-lts (test-lts.digit.org), namespace `vault-new`.
+##
+## ADOPTION OF AN EXISTING WORKLOAD. As with Keycloak, the values below are
+## written to reproduce WHAT IS ALREADY RUNNING so that syncing is a no-op.
+##
+## Vault has been up 81 days (StatefulSet vault, 2/2). It was not created by
+## Argo CD -- no tracking-id -- and although the objects carry
+## app.kubernetes.io/managed-by: Helm, no Helm release Secret survives in
+## vault-new, so the release metadata is gone. The chart in this repo is
+## nonetheless the right one: chart version 0.29.1 matches the live
+## `helm.sh/chart: vault-0.29.1` label, and the images already match exactly
+## (hashicorp/vault:1.18.1, hashicorp/vault-k8s:1.6.2).
+##
+## WHY THE OVERRIDES EXIST -- without them a sync would:
+##
+##   1. REPLACE A WORKING INGRESS WITH ONE FOR THE WRONG ENVIRONMENT.
+##      charts/backbone-services/vault/values.yaml hard-codes the host:
+##        chart default -> digit-lts.digit.org  + tls digit-lts.digit.org-tls-certs
+##        live          -> test-lts.digit.org   + tls test-lts.digit.org-tls-certs
+##      Syncing unfixed would break Vault's UI/API through the ingress and
+##      prompt cert-manager into an HTTP01 challenge for a hostname that does
+##      not resolve here -- failures there burn Let's Encrypt rate limit.
+##
+##   2. REWRITE THE VAULT SERVER CONFIG. The chart's server.ha.raft.config
+##      adds two telemetry stanzas the live ConfigMap does not have (a
+##      `telemetry` block inside listener "tcp", and a top-level `telemetry`
+##      block). Changing vault-config is not cosmetic: it is Vault's own
+##      configuration file.
+##
+## ON THE IMMUTABLE-SELECTOR PROBLEM (already solved below, do not undo it):
+## the live release was installed under the literal Helm release name
+## "release-name", so both workloads carry
+## app.kubernetes.io/instance: release-name in their IMMUTABLE spec.selector.
+## Rendering with any other release name produces
+##   "Deployment/vault-agent-injector is invalid: spec.selector: field is
+##    immutable"
+## and adopting it would require deleting and recreating the StatefulSet.
+## `releaseName: release-name` below makes the rendered selectors match live,
+## which is what makes this adoption possible at all. This is the same
+## pathology that broke cert-manager on this cluster and the reason the
+## backbone appset deliberately omits kafka.
+##
+## SEAL / RESTART RISK -- less severe than it first appears, but know it:
+## live Vault uses Azure Key Vault AUTO-UNSEAL, not Shamir --
+##   seal "azurekeyvault" { vault_name = "digit-lts-vault-unseal"
+##                          key_name   = "vault-unseal-key" }
+## so a restarted pod unseals itself provided the Azure identity still has
+## access to that key. There are no manual unseal keys to hold. A restart is
+## still a brief outage for every consumer, so it should be deliberate.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-vault
+  namespace: argocd
+
+  ## NO resources-finalizer.argocd.argoproj.io, deliberately -- deleting this
+  ## Application must never cascade-delete a live Vault and its raft storage.
+  finalizers: []
+
+spec:
+  project: platform-project
+
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: digit-lts
+    path: deploy-as-code/helm/charts/backbone-services/vault
+    helm:
+      ## `release-name` is NOT a placeholder left in by mistake -- it is the
+      ## literal release name the live objects were installed under, and
+      ## matching it is what keeps spec.selector unchanged. See the header.
+      releaseName: release-name
+
+      valueFiles:
+        - values.yaml
+        ## test-lts.yaml matches this cluster; digit-lts.yaml does not.
+        ## Note the HashiCorp chart does not use the `common` library, so the
+        ## `vault:` block in test-lts.yaml is NOT merged into these values --
+        ## it is simply ignored. Everything real has to be set below.
+        - ../../../environments/test-lts.yaml
+
+      ## Inline, so wiring Vault into Argo CD touches only charts/argo-cd/.
+      values: |
+        server:
+          ingress:
+            ## Override the chart's hard-coded digit-lts.digit.org. Lists are
+            ## REPLACED by Helm, not merged, so these fully supersede the
+            ## chart's hosts/tls entries rather than appending to them.
+            hosts:
+              - host: test-lts.digit.org
+                paths: [/ui]
+            tls:
+              - secretName: test-lts.digit.org-tls-certs
+                hosts:
+                  - test-lts.digit.org
+
+          ha:
+            raft:
+              ## Byte-for-byte the live vault-config, with the chart's two
+              ## telemetry stanzas removed. The seal conditionals are kept in
+              ## their templated form (the chart tpl-renders this string), so
+              ## server.seal.type continues to drive the seal stanza and the
+              ## cloud-agnostic design of the chart is preserved.
+              ##
+              ## IF YOU ENABLE TELEMETRY LATER: re-adding these stanzas
+              ## rewrites vault-config, and Vault only reads its config at
+              ## startup -- so it needs a pod restart to take effect. Plan it.
+              ##
+              ## TWO RULES FOR EDITING THE STRING BELOW:
+              ##  1. Do NOT add comments inside it. Whatever is in this string
+              ##     becomes the literal contents of the vault-config
+              ##     ConfigMap, so even an HCL `#` comment shows up as drift
+              ##     against the live object.
+              ##  2. Do NOT write Go-template syntax in it except the seal
+              ##     conditionals that are already here. The chart runs this
+              ##     string through `tpl`, so a stray {{ ... }} referencing a
+              ##     chart-internal variable fails the whole render with
+              ##     "undefined variable".
+              ##
+              ## It deliberately ends at the seal `end`: the chart appends
+              ## "disable_mlock = true" itself in _helpers.tpl (around line
+              ## 1098). Repeating it here renders it twice.
+              config: |
+                ui = true
+
+                listener "tcp" {
+                  tls_disable = true
+                  address = "0.0.0.0:8200"
+                  cluster_address = "0.0.0.0:8201"
+                }
+
+                storage "raft" {
+                  path = "/vault/data"
+                }
+
+                service_registration "kubernetes" {}
+                {{- if eq .Values.server.seal.type "awskms" }}
+
+                seal "awskms" {
+                  region = "{{ .Values.server.seal.awskms.region }}"
+                  kms_key_id = "{{ .Values.server.seal.awskms.kmsKeyId }}"
+                }
+                {{- else if eq .Values.server.seal.type "azurekeyvault" }}
+
+                seal "azurekeyvault" {
+                  tenant_id  = "{{ .Values.server.seal.azurekeyvault.tenantId }}"
+                  vault_name = "{{ .Values.server.seal.azurekeyvault.vaultName }}"
+                  key_name   = "{{ .Values.server.seal.azurekeyvault.keyName }}"
+                }
+                {{- else if eq .Values.server.seal.type "gcpckms" }}
+
+                seal "gcpckms" {
+                  project    = "{{ .Values.server.seal.gcpckms.project }}"
+                  region     = "{{ .Values.server.seal.gcpckms.region }}"
+                  key_ring   = "{{ .Values.server.seal.gcpckms.keyRing }}"
+                  crypto_key = "{{ .Values.server.seal.gcpckms.cryptoKey }}"
+                }
+                {{- end }}
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vault-new
+
+  ## NO `automated` block yet, on purpose. Confirm `kubectl diff` is empty and
+  ## a manual sync reports Synced before enabling automation. selfHeal against
+  ## a stateful service that only reads its config at startup deserves an
+  ## explicit decision, not a default.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      ## Never prune. Vault's PVCs and raft storage must not be removable by a
+      ## rendering mistake.
+      - ApplyOutOfSyncOnly=true
+
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/replicas
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+
+    ## The injector writes its own caBundle into the webhook at runtime; the
+    ## chart renders it empty. Without this the Application shows permanent
+    ## drift AND a sync would overwrite a valid caBundle with "", which breaks
+    ## POD ADMISSION in every namespace the webhook selects -- not just
+    ## vault-new. This cluster has already lost a webhook that way once
+    ## (cert-manager, zero endpoints). Verified: live caBundle is populated,
+    ## rendered is empty.
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jsonPointers:
+        - /webhooks/0/clientConfig/caBundle

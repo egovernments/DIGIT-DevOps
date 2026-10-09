@@ -14,8 +14,8 @@ ingress:
 image:
   repository: "keycloak"
 replicas: "1"
-tracing-enabled: "false"
-metrics-enabled: "false"
+tracing-enabled: "true"
+metrics-enabled: "true"
 events-listeners: "jboss-logging,register-citizen-listener"
 cpu_requests: "250m"
 memory_requests: "512Mi"
@@ -46,8 +46,12 @@ env: |
     value: "edge"
   - name: KC_HTTP_RELATIVE_PATH
     value: "/keycloak"
+  ## postgres.egov, NOT postgresql-lts.egov. postgresql-lts is being
+  ## decommissioned; this default previously pointed at it, so rendering this
+  ## chart produced a Keycloak aimed at a database that is going away.
+  ## Matches what the live digit-lts Keycloak actually runs with.
   - name: KC_DB_URL
-    value: "jdbc:postgresql://postgresql-lts.egov:5432/new_keycloak"
+    value: "jdbc:postgresql://postgres.egov:5432/new_keycloak"
   - name: KC_DB
     value: "postgres"
   - name: DB_PORT
@@ -83,9 +87,20 @@ env: |
         key: kafka-brokers
   - name: KC_FEATURES
     value: "token-exchange,admin-fine-grained-authz"   
-  # OpenTelemetry Tracing & Metrics
+  # OpenTelemetry Tracing & Metrics.
+  #
+  # The whole block is GATED, so a deployment with tracing and metrics off
+  # gets none of these variables rather than a set of them reading "false".
+  # That matters for adopting existing deployments: an ungated block renders
+  # 8 env vars the running pod does not have, and the resulting pod-template
+  # change rolls the service.
+  #
+  # Use a real boolean in the environment file -- `tracing-enabled: false`,
+  # not "false". In Helm a non-empty string is TRUTHY, so the string "false"
+  # would satisfy these conditionals and switch tracing on.
+  {{- if index .Values "tracing-enabled" }}
   - name: KC_TRACING_ENABLED
-    value: {{ index .Values "tracing-enabled" | default "false" | quote }}
+    value: "true"
   - name: KC_TELEMETRY_ENDPOINT
     value: "http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4317"
   - name: KC_TELEMETRY_PROTOCOL
@@ -94,21 +109,36 @@ env: |
     value: "keycloak"
   - name: KC_TELEMETRY_SAMPLER_TYPE
     value: "parentbased_always_on"
+  {{- end }}
+  {{- if index .Values "metrics-enabled" }}
   - name: KC_METRICS_ENABLED
-    value: {{ index .Values "metrics-enabled" | default "false" | quote }}
+    value: "true"
+  {{- end }}
+  {{- if index .Values "tracing-enabled" }}
   - name: OTEL_SERVICE_NAME
     value: "keycloak"
+  {{- end }}
+  # Always emitted: Keycloak reads OTEL_TRACES_EXPORTER unconditionally, and
+  # the running pod has it set to "none".
   - name: OTEL_TRACES_EXPORTER
-    value: {{ if eq (index .Values "tracing-enabled" | default "false" | toString) "true" }}"otlp"{{ else }}"none"{{ end }}
+    value: {{ if index .Values "tracing-enabled" }}"otlp"{{ else }}"none"{{ end }}
+  {{- if index .Values "tracing-enabled" }}
   - name: OTEL_EXPORTER_OTLP_ENDPOINT
     value: "http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4317"
+  {{- end }}
   - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
     value: "org.postgresql.Driver"  
+  # A literal value, NOT a configMapKeyRef on egov-service-host/otp.
+  #
+  # Two reasons. First, that ConfigMap key resolves to http://otp.egov:8080/
+  # and the `otp` Service has NO ENDPOINTS on digit-lts -- the working backend
+  # is otp-java. Second, env lists strategic-merge BY NAME, so a chart using
+  # valueFrom against a live object using value produces an entry carrying
+  # both keys, and the API server rejects the apply outright with
+  #   env[N].valueFrom: may not be specified when `value` is not empty
+  # Override per environment with `otp-host` if the service name differs.
   - name: OTP_HOST
-    valueFrom:
-      configMapKeyRef:
-        name: egov-service-host
-        key: otp
+    value: {{ index .Values "otp-host" | default "http://otp-java.egov:8080/" | quote }}
   - name: OTP_GENERATE_PATH
     value: "otp/v3/generate"
   - name: OTP_RESEND_PATH
@@ -121,6 +151,24 @@ env: |
     value: "login"
   - name: OTP_SMS_PURPOSE
     value: "login"
+  # Citizen self-registration via OTP. These were missing from the chart but
+  # present on every running deployment, so rendering without them silently
+  # removed registration support.
+  #
+  # The *_DEFAULT_OTP values are a NON-PRODUCTION convenience -- they let a
+  # fixed code be accepted instead of a generated one. The default below is
+  # what digit-lts runs today. Override `otp-default` per environment, and do
+  # not carry a fixed OTP into a production-facing deployment.
+  - name: OTP_EMAIL_DEFAULT_OTP
+    value: {{ index .Values "otp-default" | default "123456" | quote }}
+  - name: OTP_SMS_DEFAULT_OTP
+    value: {{ index .Values "otp-default" | default "123456" | quote }}
+  - name: OTP_REGISTRATION_PURPOSE
+    value: "registration"
+  - name: OTP_REGISTRATION_DEFAULT_OTP
+    value: {{ index .Values "otp-default" | default "123456" | quote }}
+  - name: OTP_REGISTRATION_ROLES
+    value: {{ index .Values "otp-registration-roles" | default "CITIZEN" | quote }}
   - name: KEYCLOAK_EMAIL_DESTINATION_ATTRIBUTE
     value: "email"
   - name: KEYCLOAK_SMS_DESTINATION_ATTRIBUTE
@@ -129,6 +177,14 @@ env: |
     value: "3000"
   - name: HTTP_CLIENT_REQUEST_TIMEOUT_MS
     value: "5000"
+  # Keycloak builds issuer URLs and redirects from KC_HOSTNAME. Without these
+  # two it derives them from the request, which breaks OIDC discovery behind
+  # the ingress. Derived from global.domain so it is correct per environment
+  # rather than pinned to one host.
+  - name: KC_HOSTNAME
+    value: "https://{{ .Values.global.domain }}/keycloak"
+  - name: KC_HOSTNAME_STRICT
+    value: {{ index .Values "hostname-strict" | default "true" | quote }}
 
 serviceMonitor:
   enabled: false

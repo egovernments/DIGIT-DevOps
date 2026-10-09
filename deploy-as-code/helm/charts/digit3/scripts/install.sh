@@ -121,7 +121,7 @@ fi
 run "02 secrets"  "$HERE/02-secrets.sh"
 run "03 backbone" "$HERE/03-backbone.sh"
 if $SKIP_VAULT; then
-  note "── phase: 04 vault — SKIPPED (--skip-vault; ensure the env blocks set VAULT_ENABLED=false) ──"
+  note "── phase: 04 vault — SKIPPED (--skip-vault; set VAULT_ENABLED=false first — bundle-defaults.yaml byMember.individual / per-service vault-enabled) ──"
 else
   run "04 vault"  "$HERE/04-vault.sh"
 fi

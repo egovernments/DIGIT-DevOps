@@ -26,11 +26,10 @@ if [ -z "${ACCOUNT_SVC:-}" ] && [ -f "$SCRIPT_DIR/.last-owners" ]; then
   set -a; . "$SCRIPT_DIR/.last-owners"; set +a
 fi
 if [ -n "${ACCOUNT_SVC:-}" ]; then
-  # Custom grouping (CUSTOM-BUNDLING.md §8): name the k8s Service that owns each seeded
+  # Explicit override (CUSTOM-BUNDLING.md §4): name the k8s Service that owns each seeded
   # endpoint and the shape file is not consulted. Unset ones default to ACCOUNT_SVC (one
   # bundle holding everything). Deployment names are the Service names for bundles.
-  # Report the shape by its real name when 06-deploy.sh or CUSTOM-BUNDLING.md §6
-  # recorded one; "custom" is only a fallback label for the log line.
+  # Report the shape by its real name when 06-deploy.sh recorded one; "custom" is only a fallback label for the log line.
   SHAPE=$(cat "$SCRIPT_DIR/.last-shape" 2>/dev/null || true); SHAPE=${SHAPE:-custom}
   IDGEN_SVC=${IDGEN_SVC:-$ACCOUNT_SVC}; INDIVIDUAL_SVC=${INDIVIDUAL_SVC:-$ACCOUNT_SVC}
   NOTIFICATION_SVC=${NOTIFICATION_SVC:-$ACCOUNT_SVC}; OTP_SVC=${OTP_SVC:-$ACCOUNT_SVC}

@@ -520,8 +520,8 @@ def print_report(report, services, missing_migrations, context_mismatches,
                 print(f"    ignored ({ig['service']}): {json.dumps(ig['spec'])}")
     print("\nreminders:")
     print("  - remove the merged services from the Argo CD ApplicationSet and add the bundle entry")
-    print("  - repoint egov-service-host keys for merged services at the bundle Service")
-    print("  - Kong routes for the merged prefixes must target the bundle Service")
+    print("  - the egov-service-host map and the shape helmfile are written above; 06-deploy.sh")
+    print("    deploys them and programs Kong from this same manifest")
 
 
 # ── main ─────────────────────────────────────────────────────────────────────

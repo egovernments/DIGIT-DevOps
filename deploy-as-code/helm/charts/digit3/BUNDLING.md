@@ -351,7 +351,9 @@ independently-tagged images can.
 ### 5.3 Chart-side: `generate_bundle_chart.py` (this repo)
 
 A second generator (`deploy-as-code/helm/bundler/`) consumes the **same
-manifest** and produces `charts/bundles/dev-bundle/`: it `helm template`s
+manifest** and produces `charts/bundles/dev-bundle/` (plus the shape's
+`<shape>-helmfile.yaml`, `environments/generated/<shape>-bundles.yaml.gotmpl` and
+`environments/generated/<shape>-service-hosts.yaml`): it `helm template`s
 each member service's existing chart, harvests the fully-resolved container
 env and db-migration init-container config, merges them under
 `merge-rules.yaml` (drops per-service `SERVER_PORT`/`JAVA_OPTS`/datasource

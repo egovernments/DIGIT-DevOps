@@ -99,13 +99,14 @@ rather than hanging on a prompt):
 |---|---|---|
 | `--key` | SSH private key for the VM | yes |
 | `--domain` | VM hostname (no `user@`) | yes |
-| `--shape` | `single-container` \| `domain-bundles` \| `per-service` | yes (3-way menu) |
+| `--shape` | `single-container` \| `domain-bundles` \| `per-service` \| `<path>/<name>.package.yaml` (custom grouping, CUSTOM-BUNDLING.md) | yes (3-way menu) |
 | `--tag` | published image tag (`modulith-<sha>`) — preflighted against Docker Hub | yes |
 | `--digit3` | path to the digit3 checkout | yes |
 | `--tenant` | tenant name to seed (code derives UPPERCASE) | yes |
 | `--email` | tenant admin email | yes |
 | `--vm-user` | SSH user | no (default `azureuser`) |
-| `--skip-vault` | skip Vault (PII stored plaintext; set `VAULT_ENABLED: "false"` in the shape's env blocks first) | no |
+| `--skip-vault` | skip Vault (PII stored plaintext; set `VAULT_ENABLED: "false"` first — `environments/bundle-defaults.yaml` → `byMember.individual` for the bundle shapes, `vault-enabled` in `azure-k3s.yaml` for per-service) | no |
+| `--local-images` | the images were built on this machine, not published: the preflight checks the local docker, and after 01 every image and its `-db` pair is loaded into the node's containerd | no |
 | `--hub-user` / `--hub-token` | any Docker Hub account + **read-only** access token → the VM pulls authenticated. Prefer `~/.config/digit3/dockerhub.env` (`DOCKERHUB_USER=`/`DOCKERHUB_TOKEN=` lines, sourced automatically) or the env vars — a token passed as a flag is visible in `ps` to every user on the workstation for the whole install. Without it pulls are anonymous: 100/h per IP, and a per-service install needs 42 — a repeat within the hour fails with 429 | no |
 
 The pre-rename names `dev-bundle` / `domain-split` / `services` are still
@@ -126,7 +127,7 @@ Deploy exactly one shape at a time (they publish the same ingress paths).
 ## 5. What it runs
 
 ```
-preflight    verify every image the shape needs exists on Docker Hub at --tag
+preflight    verify every image the shape needs exists on Docker Hub at --tag (local docker with --local-images)
 01-cluster   k3s install + SSH tunnel + kubeconfig
 02-secrets   age key, sops rule, encrypted secrets (fresh random passwords)
 03-backbone  backbone sync (self-heals the cert-manager webhook race) + keycloak DB/role + minio bucket
@@ -137,9 +138,11 @@ preflight    verify every image the shape needs exists on Docker Hub at --tag
 
 `05-build.sh` is **not** run by `install.sh` — it is the optional path for
 building images from your own digit3 tree; the stock shapes pull the published
-`--tag` images. Each shape's domain and `egov-service-host` keys come from its
-overlay (`environments/azure-k3s-<shape>.yaml`), layered by its helmfile; image
-tags come solely from `DIGIT_TAG`. No tracked file is mutated at deploy time.
+`--tag` images. 06 generates each shape's helmfile, bundle
+charts, bundle values and `egov-service-host` map from its manifest (output is
+stable, so a stock shape leaves the tree unchanged; a custom grouping also gets
+a domain-only overlay); `global.domain` comes from `scripts/.env` via
+`deploy.sh`; image tags come solely from `DIGIT_TAG`.
 
 On success it prints:
 - the **tenant admin's one-time password** — store it (SMTP is a placeholder,

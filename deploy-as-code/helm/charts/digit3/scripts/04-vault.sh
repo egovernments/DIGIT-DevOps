@@ -86,8 +86,7 @@ else
   # service's host to its per-service DNS name and point cross-bundle calls at
   # pods that do not exist. Before any shape is deployed the base values are
   # correct; afterwards, re-sync through that shape's own helmfile.
-  # 06-deploy.sh records the shape; a custom grouping writes .last-shape itself
-  # (CUSTOM-BUNDLING.md §6).
+  # 06-deploy.sh records the shape (stock or custom grouping — CUSTOM-BUNDLING.md §3).
   CC_HELMFILE=backboneservices-helmfile.yaml
   LAST_SHAPE=$(cat "$SCRIPT_DIR/.last-shape" 2>/dev/null || true)
   if [ -n "$LAST_SHAPE" ] && [ -f "$CHART_DIR/$LAST_SHAPE-helmfile.yaml" ]; then

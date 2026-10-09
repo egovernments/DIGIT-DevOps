@@ -194,8 +194,10 @@ To change what every bundle gets — a new env var, a different MinIO endpoint, 
 **Commit** the manifest (digit3) and, in DevOps, `environments/generated/<yourshape>-*`, the helmfile,
 `charts/bundles/<bundle>/` and the overlay, so the next deploy and code review see the same thing.
 
-A service in **no** bundle is not deployed by the generated helmfile. Add its per-service release to the
-helmfile by hand (copy it from `per-service-helmfile.yaml`), or put it in a bundle.
+A service in **no** bundle is not deployed by the generated helmfile (bundles only, rewritten on every 06
+run — hand edits there are lost). Deploy its release from the per-service helmfile instead —
+`DIGIT_TAG=<tag> ./deploy.sh -f per-service-helmfile.yaml -l name=<service> sync`; a later shape sync
+leaves it in place — or put it in a bundle.
 
 ## 4. Seed + verify
 

@@ -2,9 +2,10 @@
 # Deploy ONE shape declaratively: pick the shape's helmfile (which layers its
 # environments/azure-k3s-<shape>.yaml overlay), pass the image tag as the
 # single DIGIT_TAG input, and program kong from the same manifest that built
-# the images. No environment file is mutated — switching shape later is just
-# re-running this with the other shape (same domain = same overlay caveat:
-# each shape's overlay pins its own domain; see INSTALL.md §4).
+# the images. Everything shape-specific (charts, helmfile, bundle values,
+# service-host map) is regenerated from the manifest first; the domain comes
+# from scripts/.env via deploy.sh. Switching shape later is just re-running
+# this with the other shape.
 #
 #   ./06-deploy.sh <path-to-digit3-repo> <single-container|domain-bundles|per-service|<path>/<name>.package.yaml> [tag]
 #

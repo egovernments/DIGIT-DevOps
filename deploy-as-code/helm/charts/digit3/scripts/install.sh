@@ -7,7 +7,7 @@
 # against Docker Hub before deploying), and no tracked file is mutated.
 #
 #   ./install.sh --key <ssh-key> --domain <domain> --digit3 <path> \
-#                --shape single-container|domain-bundles|per-service --tag modulith-<sha> \
+#                --shape single-container|domain-bundles|per-service|<path>/<name>.package.yaml --tag modulith-<sha> \
 #                --tenant "Name" --email admin@org [--vm-user azureuser] [--skip-vault] \
 #                [--hub-user <dockerhub-user> --hub-token <read-only-token>]
 #
@@ -60,13 +60,6 @@ if [ -z "$SHAPE" ] && [ -t 0 ]; then
   case "${c:-1}" in 1) SHAPE=single-container ;; 2) SHAPE=domain-bundles ;; 3) SHAPE=per-service ;; *) die "invalid choice '$c'" ;;
   esac
 fi
-# accept the pre-rename shape names as synonyms
-case "$SHAPE" in
-  dev-bundle)   SHAPE=single-container ;;
-  domain-split) SHAPE=domain-bundles ;;
-  services)     SHAPE=per-service ;;
-esac
-case "$SHAPE" in single-container|domain-bundles|per-service) ;; *) die "unknown shape '$SHAPE'" ;; esac
 ask DIGIT3 "path to the digit3 repo checkout"
 ask TAG    "image tag (published Actions build, modulith-<sha>)"
 ask TENANT "tenant name to seed"  "Demo Tenant"
@@ -75,13 +68,14 @@ VMUSER="${VMUSER:-azureuser}"
 [ -f "$KEY" ]    || die "ssh key not found: $KEY"
 [ -d "$DIGIT3" ] || die "digit3 path not found: $DIGIT3"
 DIGIT3="$(cd "$DIGIT3" && pwd)"
+SHAPE_ARG=$SHAPE                       # stock name or <path>/<name>.package.yaml, passed on to 06-deploy.sh
+resolve_shape "$DIGIT3" "$SHAPE_ARG"   # → SHAPE, MANIFEST, BUNDLES (old names accepted)
 
 # ── preflight: every image this shape deploys must exist on Docker Hub ────────
 hub_has() { curl -sfm 10 "https://hub.docker.com/v2/repositories/egovio/$1/tags/$2" >/dev/null 2>&1; }
 case "$SHAPE" in
   per-service)  IMAGES="idgen template-config billing apportion url-shortener pg-service otp notification employee individual workflow registry filestore localization account boundary" ;;
-  single-container) IMAGES="dev-bundle" ;;
-  domain-bundles) IMAGES="identity-bundle notification-bundle billing-bundle admin-bundle" ;;
+  *)            IMAGES="$BUNDLES" ;;   # every bundle in the manifest (stock or custom)
 esac
 note "preflight: verifying egovio images at :$TAG on Docker Hub"
 MISSING=""
@@ -113,7 +107,7 @@ if $SKIP_VAULT; then
 else
   run "04 vault"  "$HERE/04-vault.sh"
 fi
-run "06 deploy"   "$HERE/06-deploy.sh" "$DIGIT3" "$SHAPE" "$TAG"
+run "06 deploy"   "$HERE/06-deploy.sh" "$DIGIT3" "$SHAPE_ARG" "$TAG"
 if $SKIP_VAULT; then
   run "07 seed"   "$HERE/07-seed.sh" "$TENANT" "$EMAIL"
 else

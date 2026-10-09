@@ -1,0 +1,82 @@
+# Bundle settings, written ONCE for every bundle of every shape. The chart generator
+# (bundler/generate_bundle_chart.py) reads this file and writes each shape's per-bundle values into
+# environments/generated/<shape>-bundles.yaml.gotmpl — do not restate bundle blocks in azure-k3s.yaml
+# or the shape overlays.
+#
+# Tokens, replaced per bundle at generation / deploy time:
+#   ${BUNDLE}   the bundle's name (e.g. admin-bundle)
+#   ${DOMAIN}   the VM's public domain   (deploy-time: DOMAIN, exported by deploy.sh)
+#   ${TAG}      the image tag            (deploy-time: DIGIT_TAG, as digit-tag.yaml.gotmpl)
+
+# Every bundle gets this block.
+common:
+  namespace: egov
+  image:
+    repository: ${BUNDLE}
+    pullPolicy: IfNotPresent
+    tag: ${TAG}
+  env:
+    TENANT_MIGRATION_ENABLED:
+      value: 'true'
+    KEYCLOAK_PUBLIC_BASE_URL:
+      value: https://${DOMAIN}/keycloak
+    URL_SHORTENER_HOST_NAME:
+      value: https://${DOMAIN}
+  dbMigrationOrder:
+    - combined
+  dbMigrations:
+    combined:
+      enabled: true
+      image:
+        repository: ${BUNDLE}-db
+        pullPolicy: IfNotPresent
+        tag: ${TAG}
+      env:
+        DB_URL:
+          value: jdbc:postgresql://postgresql-lts.egov:5432/postgres
+        FLYWAY_USER:
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        FLYWAY_PASSWORD:
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+
+# A bundle that includes one of these building blocks also gets its block (deep-merged).
+byMember:
+  # Filestore: chart defaults point at AWS S3 + the egov-filestore secret (not present here); use the
+  # in-cluster MinIO, and store files there (the generated bundle properties pin source=local otherwise).
+  filestore:
+    env:
+      S3_ACCESS_KEY:
+        valueFrom:
+          secretKeyRef:
+            name: minio
+            key: accesskey
+      S3_SECRET_KEY:
+        valueFrom:
+          secretKeyRef:
+            name: minio
+            key: secretkey
+      S3_ENDPOINT:
+        value: minio.backbone.svc.cluster.local:9000
+      S3_USE_SSL:
+        value: 'false'
+      FILESTORE_S3_SOURCE:
+        value: s3
+  # PII encryption: individual (and otp) AppRole-login to Vault at boot (scripts/04-vault.sh provisions it).
+  individual:
+    env:
+      VAULT_ENABLED:
+        value: 'true'
+  # account's realm clients (redirect + post-logout URIs) and first-login links — the account chart
+  # hardcodes a domain, so every shape states its own.
+  account:
+    env:
+      CLIENT_REDIRECT_URL:
+        value: https://${DOMAIN}/*
+      FIRST_LOGIN_URLS:
+        value: admin=https://${DOMAIN}/license/admin/{realm},employee=https://${DOMAIN}/license/employee/{realm},citizen=https://${DOMAIN}/license/citizen/{realm}

@@ -182,9 +182,10 @@ Two layers, both already present on this branch:
   playground]`; `egov-config` data — `db-host` must be **host only**, kong
   reads it as `KONG_PG_HOST`; `db-url` the full JDBC URL; `kafka-brokers:
   release-name-kafka-controller-headless.backbone:9092`; root-ingress →
-  `kong-kong-proxy:8000`) and one env block per service/bundle (Vault is ON
-  here — `vault-enabled: "true"` for otp/individual, `VAULT_ENABLED` for the
-  bundles; see §1.8).
+  `kong-kong-proxy:8000`) and one env block per **per-service** release (Vault is ON
+  here — `vault-enabled: "true"` for otp/individual; see §1.8). Bundle blocks are not in this file:
+  they are generated from the manifest + `environments/bundle-defaults.yaml` into
+  `environments/generated/<shape>-bundles.yaml.gotmpl` (`VAULT_ENABLED` for any bundle holding individual).
 - `environments/azure-k3s-<shape>.yaml` — the **per-shape overlay**
   (`per-service`, `single-container`, `domain-bundles`), layered by that
   shape's helmfile: **`global.domain` — set your domain HERE**, plus the
@@ -250,7 +251,8 @@ Services with PII (otp, individual) encrypt fields via Vault's **Transit**
 engine — stored as `vault:v1:…` ciphertext with a keyed HMAC blind index for
 search, one transit key **per tenant** (auto-created on first encrypt). The
 shipped environment has Vault **ON** (`vault-enabled: "true"` on otp and
-individual, `VAULT_ENABLED` on the dev-bundle and identity-bundle blocks; the
+individual, `VAULT_ENABLED` on every bundle holding individual — `byMember.individual` in
+`environments/bundle-defaults.yaml`; the
 charts carry the `vault-approle` / `hmac-secret` secretKeyRefs, rendered by
 cluster-configs from the sops file). This step is therefore optional **only
 if you first set those to `"false"`** — with them on and no Vault deployed,
@@ -392,15 +394,14 @@ schema, not by database.
 
 Already present on this branch (nothing to edit for the stock shape):
 
-- `environments/azure-k3s.yaml` — the **`dev-bundle:` block**:
-  `pullPolicy: IfNotPresent`; env overrides `TENANT_MIGRATION_ENABLED: "true"`,
-  `VAULT_ENABLED: "true"` (set `"false"` only if you skipped §1.8),
-  `KEYCLOAK_PUBLIC_BASE_URL`, `URL_SHORTENER_HOST_NAME` (the generated chart
-  bakes the harvest-time host), minio-backed S3 (`S3_ACCESS_KEY`/`S3_SECRET_KEY`
-  from the `minio` secret, `S3_ENDPOINT: minio.backbone.svc.cluster.local:9000`,
-  `S3_USE_SSL: "false"`); `dbMigrationOrder: [combined]` with one
-  `dbMigrations.combined` entry (`dev-bundle-db`) whose `DB_URL` points at the
-  default `postgres` database.
+- `environments/generated/single-container-bundles.yaml.gotmpl` — the **`dev-bundle:` block**, generated
+  by `06-deploy.sh` from `dev-bundle.package.yaml` + `environments/bundle-defaults.yaml`: `pullPolicy:
+  IfNotPresent`; env `TENANT_MIGRATION_ENABLED: "true"`, `VAULT_ENABLED: "true"` (it holds individual;
+  set `"false"` in `bundle-defaults.yaml` only if you skipped §1.8), `KEYCLOAK_PUBLIC_BASE_URL` and
+  `URL_SHORTENER_HOST_NAME` from the domain, minio-backed S3 and `FILESTORE_S3_SOURCE: s3` (it holds
+  filestore), the login URLs (it holds account); `dbMigrationOrder: [combined]` with one
+  `dbMigrations.combined` entry (`dev-bundle-db`) whose `DB_URL` points at the default `postgres` database;
+  image tags from `DIGIT_TAG`.
 - `environments/azure-k3s-single-container.yaml` — the overlay:
   `global.domain` and the **`egov-service-host`** keys of the 13 merged
   services → `http://dev-bundle.egov.svc.cluster.local:8080/`.
@@ -571,8 +572,8 @@ What differs from single-container:
 - **Charts**: `generate_bundle_chart.py --manifest domain-split.package.yaml`
   regenerates all four in ONE run (no per-bundle flag) → four charts under
   `charts/bundles/`. `domain-bundles-helmfile.yaml` already lists the four
-  releases; `azure-k3s-domain-bundles.yaml` carries their env blocks and the
-  service-host map.
+  releases. Their values (`environments/generated/domain-bundles-bundles.yaml.gotmpl`), the
+  service-host map and the helmfile itself are generated from the manifest in the same run.
 - **Every bundle runs `TENANT_MIGRATION_ENABLED: "true"`** — each consumes the
   tenant-create event under its own consumer group and migrates only its own
   services' tables; a tenant is complete only when all four have consumed it.

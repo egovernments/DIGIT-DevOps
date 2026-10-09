@@ -20,6 +20,11 @@ for a in "$@"; do [ "$a" = "--verify" ] && VERIFY=true || ARGS+=("$a"); done
 NAME="${ARGS[0]}" EMAIL="${ARGS[1]}" PHONE="${ARGS[2]:-+919999999999}"
 
 svc_ip() { kubectl get svc "$1" -n egov -o jsonpath='{.spec.clusterIP}'; }
+# Which Service answers account/idgen/individual/notification/otp: 06-deploy.sh records it from the
+# manifest in scripts/.last-owners (any shape, stock or custom); explicit *_SVC env still wins.
+if [ -z "${ACCOUNT_SVC:-}" ] && [ -f "$SCRIPT_DIR/.last-owners" ]; then
+  set -a; . "$SCRIPT_DIR/.last-owners"; set +a
+fi
 if [ -n "${ACCOUNT_SVC:-}" ]; then
   # Custom grouping (CUSTOM-BUNDLING.md §8): name the k8s Service that owns each seeded
   # endpoint and the shape file is not consulted. Unset ones default to ACCOUNT_SVC (one

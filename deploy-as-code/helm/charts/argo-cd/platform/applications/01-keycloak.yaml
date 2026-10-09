@@ -97,27 +97,59 @@ spec:
           image:
             tag: keycloak-spi-custom-build-aardhya-78019f9
 
-          ## Live has NO tracing/metrics env and NO ServiceMonitor in the
-          ## keycloak namespace. test-lts.yaml turns all three on, which is why
-          ## they are forced back off here -- see "IF YOU WANT TRACING" above.
+          ## TRACING AND METRICS ARE ENABLED -- deliberately, and they are
+          ## NOT overridden here. The values come from the keycloak block in
+          ## environments/test-lts.yaml:
+          ##   tracing-enabled: "true"
+          ##   metrics-enabled: "true"
+          ##   serviceMonitor: {enabled: true}
           ##
-          ## BOOLEAN false, NOT THE STRING "false" -- this is load-bearing.
-          ## The common chart gates the Jaeger block on
-          ##   {{- if or (index .Values "global" "tracing-enabled")
-          ##             (index .Values "tracing-enabled") }}
-          ## and in Helm a non-empty string is TRUTHY, so "false" would still
-          ## inject JAEGER_SERVICE_NAME, JAEGER_SAMPLER_TYPE, JAEGER_AGENT_HOST,
-          ## JAEGER_AGENT_PORT, JAEGER_SAMPLER_MANAGER_HOST_PORT and
-          ## TRACER_OPENTRACING_ENABLED=true -- six env vars the live pod does
-          ## not have, i.e. a guaranteed rollout. Confirmed by rendering both
-          ## ways. (The chart's own values.yaml uses the string form, which is
-          ## why its default renders Jaeger even when "disabled".)
-          ## global.tracing-enabled is unset in test-lts.yaml, so the boolean
-          ## here is sufficient to make the whole `or` false.
-          tracing-enabled: false
-          metrics-enabled: false
-          serviceMonitor:
-            enabled: false
+          ## An earlier revision of this file forced all three to boolean
+          ## false so that adopting the running Keycloak was a pure no-op.
+          ## That is no longer wanted: turning tracing on is the point.
+          ##
+          ## CONSEQUENCE, so it is not a surprise: this ADDS 14 env vars to
+          ## the pod (KC_TRACING_ENABLED, the four KC_TELEMETRY_*,
+          ## KC_METRICS_ENABLED, OTEL_SERVICE_NAME, OTEL_EXPORTER_OTLP_ENDPOINT,
+          ## the five JAEGER_*/TRACER_OPENTRACING_ENABLED from the common
+          ## chart) and flips OTEL_TRACES_EXPORTER from none to otlp. That is
+          ## a pod-template change, so the FIRST SYNC ROLLS KEYCLOAK. With
+          ## replicas=1, maxUnavailable=0 and maxSurge 25% (-> 1) the new pod
+          ## is created before the old one goes, so there should be no gap --
+          ## but it is a restart of cluster-wide auth, so sync it knowingly.
+          ##
+          ## Backends verified present before enabling:
+          ##   open-telemetry-opentelemetry-collector.monitoring:4317 -> 10.0.1.179
+          ##   jaeger.monitoring                                      -> 10.0.0.168
+          ##
+          ## NOTE ON THE STRING "true": test-lts.yaml sets these as quoted
+          ## strings, which are TRUTHY in Helm, so the gates fire correctly.
+          ## Beware the inverse -- "false" is ALSO truthy, so tracing cannot be
+          ## switched back off by quoting false. Use a real boolean for that.
+
+          ## KNOWN LIMITATION, intentionally NOT worked around here.
+          ##
+          ## test-lts.yaml also sets serviceMonitor.enabled: true, so a
+          ## ServiceMonitor/keycloak is created -- but this cluster's
+          ## Prometheus will NOT scrape it. It selects by label
+          ##   serviceMonitorSelector: matchLabels {release: kube-prometheus-stack}
+          ## (namespaceSelector {}, so all namespaces), and the shared
+          ## common.servicemonitor template emits only the app/group labels.
+          ## It also pins the endpoint to port http with no path, while
+          ## Keycloak serves metrics under KC_HTTP_RELATIVE_PATH (/keycloak).
+          ##
+          ## Fixing that means editing charts/common/templates/_servicemonitor.yaml,
+          ## which every core-service chart shares -- out of scope here, and
+          ## deliberately avoided so this change cannot affect other services.
+          ## (The per-chart wrapper reads the merged env values only to decide
+          ## WHETHER to render; common.servicemonitor then reads top-level
+          ## .Values.serviceMonitor, so a keycloak.serviceMonitor.* override in
+          ## this file would not reach it either -- verified by rendering.)
+          ##
+          ## Consequence: the object is inert. It affects nothing, scrapes
+          ## nothing, and TRACES ARE UNAFFECTED -- they go straight to the OTel
+          ## collector over OTLP and do not involve Prometheus at all. Track
+          ## the metrics gap separately if you want Keycloak metrics scraped.
 
           ## Match the live container resources. The chart defaults are lower
           ## (250m/512Mi requests, 500m/1024Mi limits); applying them would

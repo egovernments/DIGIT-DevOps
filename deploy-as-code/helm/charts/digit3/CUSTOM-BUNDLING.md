@@ -37,6 +37,9 @@ cd charts/digit3/scripts
   --shape <digit3>/src/bundles/<yourshape>.package.yaml --tag <tag> --tenant "My Tenant" --email admin@example.org
 ```
 
+Built the images locally instead of publishing them (§2)? Add `--local-images`: the preflight then checks
+the local docker, and the images are loaded into the node right after phase 01 — no manual import step.
+
 or phase by phase:
 
 ```bash

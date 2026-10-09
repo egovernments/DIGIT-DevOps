@@ -9,7 +9,11 @@
 #   ./install.sh --key <ssh-key> --domain <domain> --digit3 <path> \
 #                --shape single-container|domain-bundles|per-service|<path>/<name>.package.yaml --tag modulith-<sha> \
 #                --tenant "Name" --email admin@org [--vm-user azureuser] [--skip-vault] \
-#                [--hub-user <dockerhub-user> --hub-token <read-only-token>]
+#                [--hub-user <dockerhub-user> --hub-token <read-only-token>] [--local-images]
+#
+# --local-images: the images were built on this machine (CUSTOM-BUNDLING.md §2, "build locally") rather
+# than published — the preflight checks the local docker instead of Docker Hub, and right after phase 01
+# every image (and its -db pair) is loaded into the node's containerd, so a custom grouping is one command too.
 #
 # --hub-user/--hub-token (or DOCKERHUB_USER/DOCKERHUB_TOKEN in the environment,
 # or ~/.config/digit3/dockerhub.env) make the VM's image pulls authenticated:
@@ -20,7 +24,7 @@
 # exact resume command; every phase converges to a no-op when re-run.
 source "$(dirname "$0")/lib.sh"
 
-KEY="" DOM="" VMUSER="" DIGIT3="" SHAPE="" TAG="" TENANT="" EMAIL="" SKIP_VAULT=false
+KEY="" DOM="" VMUSER="" DIGIT3="" SHAPE="" TAG="" TENANT="" EMAIL="" SKIP_VAULT=false LOCAL_IMAGES=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --key)        KEY="$2"; shift 2 ;;
@@ -32,6 +36,7 @@ while [ $# -gt 0 ]; do
     --tenant)     TENANT="$2"; shift 2 ;;
     --email)      EMAIL="$2"; shift 2 ;;
     --skip-vault) SKIP_VAULT=true; shift ;;
+    --local-images) LOCAL_IMAGES=true; shift ;;
     --hub-user)   export DOCKERHUB_USER="$2"; shift 2 ;;
     --hub-token)  export DOCKERHUB_TOKEN="$2"; shift 2 ;;
     -h|--help)    sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -77,11 +82,14 @@ case "$SHAPE" in
   per-service)  IMAGES="idgen template-config billing apportion url-shortener pg-service otp notification employee individual workflow registry filestore localization account boundary" ;;
   *)            IMAGES="$BUNDLES" ;;   # every bundle in the manifest (stock or custom)
 esac
-note "preflight: verifying egovio images at :$TAG on Docker Hub"
+local_has() { docker image inspect "egovio/$1:$2" >/dev/null 2>&1; }
+if $LOCAL_IMAGES; then HAS=local_has WHERE="in the local docker"; else HAS=hub_has WHERE="on Docker Hub"; fi
+note "preflight: verifying egovio images at :$TAG $WHERE"
 MISSING=""
 for i in $IMAGES; do
-  for r in "$i" "$i-db"; do hub_has "$r" "$TAG" || MISSING="$MISSING $r"; done
+  for r in "$i" "$i-db"; do $HAS "$r" "$TAG" || MISSING="$MISSING $r"; done
 done
+$LOCAL_IMAGES && { [ -z "$MISSING" ] || die "not in the local docker at :$TAG:$MISSING — build them first (CUSTOM-BUNDLING.md §2)"; }
 [ -z "$MISSING" ] || die "not on the hub at :$TAG:$MISSING — pick a published tag (dispatch the Actions builds first)"
 echo "    all $(echo $IMAGES | wc -w) image pairs published"
 
@@ -100,6 +108,16 @@ run() { # phase-label command...
 }
 
 run "01 cluster"  "$HERE/01-cluster.sh" "$KEY" "$DOM" "$VMUSER"
+if $LOCAL_IMAGES; then
+  note "── loading local images into the node's containerd ──"
+  for i in $IMAGES; do
+    for r in "$i" "$i-db"; do
+      docker save "egovio/$r:$TAG" | SSH_KEY="$KEY" DOMAIN="$DOM" VM_USER="$VMUSER" vm_ssh 'sudo k3s ctr images import -' >/dev/null \
+        || die "could not load egovio/$r:$TAG into the node — re-run the same command"
+      echo "    egovio/$r:$TAG"
+    done
+  done
+fi
 run "02 secrets"  "$HERE/02-secrets.sh"
 run "03 backbone" "$HERE/03-backbone.sh"
 if $SKIP_VAULT; then

@@ -129,3 +129,35 @@ psql_exec() { kubectl exec -i -n egov postgresql-lts-0 -- psql -U postgres "$@";
 # curl a ClusterIP URL from the VM (kubectl port-forward over the tunnel is
 # unreliable for data transfer — see INSTALL.md).
 vm_curl() { vm_ssh "curl -s $*"; }
+
+# secrets_drift_check <helmfile> — before a sync, compare the Secrets cluster-configs would render from the
+# LOCAL sops file with the ones in the cluster, key by key, by sha256 only (no value is printed or stored).
+# A mismatch usually means this checkout's secrets file is not the one the VM was installed from; syncing
+# would overwrite working credentials (e.g. Vault AppRole → otp/individual crash-loop). Returns 1 on any
+# mismatch unless ALLOW_SECRET_CHANGES=1 (an intended rotation). Secrets absent from the cluster are fine.
+secrets_drift_check() {
+  local hf=$1 out rc
+  out=$(DIGIT_TAG="${DIGIT_TAG:-check}" "$DEPLOY" -f "$hf" -l name=cluster-configs template --skip-deps 2>/dev/null | python3 -c '
+import sys, json, base64, hashlib, subprocess, yaml
+def h(b): return hashlib.sha256(b).hexdigest()
+bad = []
+for d in yaml.safe_load_all(sys.stdin):
+    if not d or d.get("kind") != "Secret": continue
+    ns, name = d["metadata"].get("namespace", "egov"), d["metadata"]["name"]
+    want = {k: h(base64.b64decode(v or "")) for k, v in (d.get("data") or {}).items()}
+    want.update({k: h(str(v).encode()) for k, v in (d.get("stringData") or {}).items()})
+    r = subprocess.run(["kubectl", "get", "secret", name, "-n", ns, "-o", "json"], capture_output=True, text=True)
+    if r.returncode != 0: continue                      # not in the cluster yet: nothing to protect
+    have = {k: h(base64.b64decode(v or "")) for k, v in (json.loads(r.stdout).get("data") or {}).items()}
+    bad += [f"{ns}/{name}: {k}" for k in sorted(want) if k in have and want[k] != have[k]]
+print("\n".join(bad))
+')
+  rc=$?
+  [ $rc -eq 0 ] || { echo "    (secrets check could not render cluster-configs — skipped)"; return 0; }
+  [ -z "$out" ] && { echo "    secrets: local file matches the cluster"; return 0; }
+  echo "    secrets that would CHANGE (sha256 differs; values not shown):"; echo "$out" | sed 's/^/      /'
+  if [ "${ALLOW_SECRET_CHANGES:-}" = 1 ]; then echo "    ALLOW_SECRET_CHANGES=1 — continuing"; return 0; fi
+  echo "    Stop: this checkout's secrets file does not match the cluster. Deploy from the checkout the VM was"
+  echo "    installed from, or re-run with ALLOW_SECRET_CHANGES=1 if the change is intended."
+  return 1
+}

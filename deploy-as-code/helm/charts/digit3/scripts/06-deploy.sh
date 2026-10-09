@@ -42,6 +42,9 @@ if [ -n "$MANIFEST" ]; then
   python3 "$HELM_DIR/bundler/generate_bundle_chart.py" --manifest "$MANIFEST" | tail -1
 fi
 
+note "checking secrets: local file vs cluster (cluster-configs)"
+DIGIT_TAG="$TAG" secrets_drift_check "$HELMFILE" || die "secrets mismatch — nothing deployed"
+
 note "deploying shape '$SHAPE' with DIGIT_TAG=$TAG"
 DIGIT_TAG="$TAG" "$DEPLOY" -f "$HELMFILE" sync
 for d in $ROLLOUT; do
@@ -73,8 +76,20 @@ esac
 # `env` (not bare assignments): a ${VAR:+X=Y} expansion is NOT parsed as an
 # assignment by bash — it becomes a command word and the line dies with
 # "KONG_BUNDLE_MANIFESTS=none: command not found".
+# Hosts: the public domain AND kong's in-cluster names. Re-programming the routes with the public
+# domain only would strand anything that calls back into kong from inside the cluster — e.g. the LnP
+# overlay's /individuals and /accounts aliases, which loop through kong-kong-proxy.egov.
+KONG_HOSTS="$DOMAIN,kong-kong-proxy.egov.svc.cluster.local,kong-kong-proxy.egov"
+# The LnP overlay's own routes (09-lnp.sh step 4) are re-applied whenever LnP is installed, so a
+# platform redeploy never leaves its extra routes or aliases half-programmed.
+KONG_EXTRA=""
+if kubectl get deploy license-certificate -n egov >/dev/null 2>&1; then
+  KONG_EXTRA="$SCRIPT_DIR/../lnp/kong-routes.json"
+  note "LnP is installed — re-applying its kong routes too ($(basename "$KONG_EXTRA"))"
+fi
 (cd "$DIGIT3/src/services/kong" && \
-  env KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS="$DOMAIN" \
+  env KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS="$KONG_HOSTS" \
+  ${KONG_EXTRA:+KONG_EXTRA_ROUTES="$KONG_EXTRA"} \
   ${KONG_BUNDLES:+KONG_BUNDLE_MANIFESTS="$KONG_BUNDLES"} python3 setup.py)
 
 echo "$SHAPE" > "$SCRIPT_DIR/.last-shape"

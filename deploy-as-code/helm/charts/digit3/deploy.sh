@@ -11,10 +11,21 @@
 #   DIGIT_TAG=<tag> ./deploy.sh -f single-container-helmfile.yaml apply   # then a shape
 #   DIGIT_TAG=<tag> ./deploy.sh -f single-container-helmfile.yaml -l name=keycloak diff
 #
-# Set KUBECONFIG to the target cluster before running, e.g.:
-#   export KUBECONFIG=~/Documents/modulith-deployment/modulith-kubeconfig.yaml
+# Target cluster: the kubeconfig recorded in scripts/.env (KUBECONFIG_PATH, written by
+# 01-cluster.sh) — the same VM the numbered phase scripts target. Without scripts/.env, KUBECONFIG
+# must be set explicitly; the default ~/.kube/config context is never used, because it can point at
+# an unrelated shared cluster.
 set -euo pipefail
 cd "$(dirname "$0")"
+
+if [ -f scripts/.env ] && KCP=$(sed -n 's/^KUBECONFIG_PATH="\(.*\)"$/\1/p' scripts/.env) && [ -n "$KCP" ]; then
+  [ -f "$KCP" ] || { echo "ERROR: scripts/.env names KUBECONFIG_PATH=$KCP but the file does not exist" >&2; exit 1; }
+  export KUBECONFIG="$KCP"
+elif [ -z "${KUBECONFIG:-}" ]; then
+  echo "ERROR: no scripts/.env KUBECONFIG_PATH and KUBECONFIG is unset — refusing to use the default kube context" >&2
+  exit 1
+fi
+echo "cluster: $(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null) (KUBECONFIG=$KUBECONFIG)" >&2
 
 # Per-environment secrets: when scripts/.env names a DOMAIN and a matching
 # per-env file exists (environments/azure-k3s-secrets.<domain>.yaml), use it;

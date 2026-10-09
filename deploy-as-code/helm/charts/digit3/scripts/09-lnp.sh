@@ -31,6 +31,15 @@ SHAPE=$(cat "$SCRIPT_DIR/.last-shape" 2>/dev/null || true)
 [ -n "$SHAPE" ] || die "scripts/.last-shape missing — run 06-deploy.sh first (the overlay follows the deployed shape)"
 [ -f "$CHART_DIR/$SHAPE-helmfile.yaml" ] || die "no $SHAPE-helmfile.yaml — custom groupings: deploy the overlay by hand (LNP.md §custom)"
 export DOMAIN DIGIT_SHAPE="$SHAPE"
+# Kong routes each service to the bundle the shape put it in, so a custom grouping needs its manifest
+# (the stock names map to theirs) — checked now, before anything is deployed.
+case "$SHAPE" in
+  per-service)      KONG_BUNDLES="none" ;;
+  single-container) KONG_BUNDLES="" ;;            # setup.py default manifest
+  domain-bundles)   KONG_BUNDLES="$DIGIT3/src/bundles/domain-split.package.yaml" ;;
+  *)                KONG_BUNDLES="$DIGIT3/src/bundles/$SHAPE.package.yaml"
+                    [ -f "$KONG_BUNDLES" ] || die "custom shape '$SHAPE': manifest not found at $KONG_BUNDLES" ;;
+esac
 LNP_DIR="$CHART_DIR/lnp"
 
 # ---- 1. secrets ---------------------------------------------------------------------------------
@@ -100,11 +109,6 @@ note "4/6 kong: catalogue routes (+ in-cluster proxy hostnames) + lnp/kong-route
 kubectl port-forward -n egov svc/kong-kong-admin 18001:8001 >/dev/null 2>&1 &
 PF_PID=$!; trap 'kill $PF_PID 2>/dev/null || true' EXIT
 for _ in $(seq 1 30); do curl -sfm 2 -o /dev/null http://localhost:18001/status && break; sleep 2; done
-case "$SHAPE" in
-  per-service)      KONG_BUNDLES="none" ;;
-  single-container) KONG_BUNDLES="" ;;
-  domain-bundles)   KONG_BUNDLES="$DIGIT3/src/bundles/domain-split.package.yaml" ;;
-esac
 (cd "$DIGIT3/src/services/kong" && \
   env KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS="$DOMAIN,kong-kong-proxy.egov.svc.cluster.local,kong-kong-proxy.egov" KONG_EXTRA_ROUTES="$LNP_DIR/kong-routes.json" \
       ${KONG_BUNDLES:+KONG_BUNDLE_MANIFESTS="$KONG_BUNDLES"} python3 setup.py | grep -E "^Extra routes|✓ route .*(license|calculator|pdf|schema|credential|mdms)|Done")
@@ -165,6 +169,7 @@ note "5d/6 employee-portal menus (needs the mdms access.* schemas that 5c provis
 note "6/6 smoke"
 CT=$(printf '%s\n' "$TOKEN" | vm_ssh "read -r T; curl -s -o /dev/null -w '%{http_code}' -H 'Host: $DOMAIN' -H 'X-Tenant-ID: $TENANT' -H 'X-User-Id: 09-lnp' -H \"Authorization: Bearer \$T\" http://$KGIP:8000/license/certificate-types"); unset TOKEN
 echo "    GET /license/certificate-types via kong -> HTTP $CT"
+[ "$CT" = 200 ] || die "smoke: the licence API through kong answered HTTP $CT, not 200 — check kong's service hosts (step 4)"
 for u in license/admin license/citizen license/employee license/validator; do
   printf '    https://%s/%s -> HTTP %s\n' "$DOMAIN" "$u" "$(curl -sk -o /dev/null -m 15 -w '%{http_code}' "https://$DOMAIN/$u/")"
 done

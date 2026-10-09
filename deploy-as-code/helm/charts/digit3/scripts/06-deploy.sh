@@ -6,40 +6,32 @@
 # re-running this with the other shape (same domain = same overlay caveat:
 # each shape's overlay pins its own domain; see INSTALL.md §4).
 #
-#   ./06-deploy.sh <path-to-digit3-repo> <single-container|domain-bundles|per-service> [tag]
+#   ./06-deploy.sh <path-to-digit3-repo> <single-container|domain-bundles|per-service|<path>/<name>.package.yaml> [tag]
 #
 # tag defaults to scripts/.last-build-tag (written by 05-build.sh); for the
 # Actions-built images pass it explicitly, e.g. modulith-39f619d.
 source "$(dirname "$0")/lib.sh"
 load_env
 ensure_tunnel
-[ $# -ge 2 ] || die "usage: $0 <path-to-digit3-repo> <single-container|domain-bundles|per-service> [image-tag]"
+[ $# -ge 2 ] || die "usage: $0 <path-to-digit3-repo> <single-container|domain-bundles|per-service|<path>/<name>.package.yaml> [image-tag]"
 DIGIT3="$(cd "$1" && pwd)"
-SHAPE="$2"
-case "$SHAPE" in dev-bundle) SHAPE=single-container ;; domain-split) SHAPE=domain-bundles ;; services) SHAPE=per-service ;; esac
+resolve_shape "$DIGIT3" "$2"
 TAG="${3:-$(cat "$SCRIPT_DIR/.last-build-tag" 2>/dev/null || true)}"
 [ -n "$TAG" ] || die "no tag given and scripts/.last-build-tag missing — pass the Actions tag (modulith-<sha>) or run 05-build.sh"
-
-case "$SHAPE" in
-  per-service)
-    HELMFILE=per-service-helmfile.yaml
-    MANIFEST=""                                   # kong: per-service upstreams
-    ROLLOUT="idgen account boundary" ;;           # spot-check three; the rest follow
-  single-container)
-    HELMFILE=single-container-helmfile.yaml
-    MANIFEST="$DIGIT3/src/bundles/dev-bundle.package.yaml"
-    ROLLOUT="dev-bundle" ;;
-  domain-bundles)
-    HELMFILE=domain-bundles-helmfile.yaml
-    MANIFEST="$DIGIT3/src/bundles/domain-split.package.yaml"
-    ROLLOUT="identity-bundle notification-bundle billing-bundle admin-bundle" ;;
-  *) die "unknown shape '$SHAPE' (single-container|domain-bundles|per-service)" ;;
-esac
+ROLLOUT=${BUNDLES:-"idgen account boundary"}      # per-service: spot-check three; the rest follow
 
 if [ -n "$MANIFEST" ]; then
-  [ -f "$MANIFEST" ] || die "manifest not found: $MANIFEST"
-  note "generating the bundle chart(s) from the manifest"
-  python3 "$HELM_DIR/bundler/generate_bundle_chart.py" --manifest "$MANIFEST" | tail -1
+  # one run writes the bundle charts AND this shape's helmfile, bundle values and service-host map
+  note "generating the bundle charts, helmfile and shape values from $(basename "$MANIFEST")"
+  python3 "$HELM_DIR/bundler/generate_bundle_chart.py" --manifest "$MANIFEST" | grep -E '^wrote (environments|charts/digit3)|WARNING'
+  OVERLAY="$HELM_DIR/environments/azure-k3s-$SHAPE.yaml"
+  if [ ! -f "$OVERLAY" ]; then   # custom grouping: the overlay only carries the domain + real environment choices
+    printf '# Shape overlay for %s — domain and real environment choices only; bundle values, the\n# service-host map and the helmfile are generated from the manifest.\nglobal:\n  domain: %s\n' "$SHAPE" "$DOMAIN" > "$OVERLAY"
+    note "wrote $(basename "$OVERLAY") (domain only) — commit it with the manifest"
+  fi
+  owner_of_services "$MANIFEST" > "$SCRIPT_DIR/.last-owners"
+else
+  printf 'ACCOUNT_SVC=account\nIDGEN_SVC=idgen\nINDIVIDUAL_SVC=individual\nNOTIFICATION_SVC=notification\nOTP_SVC=otp\n' > "$SCRIPT_DIR/.last-owners"
 fi
 
 note "checking secrets: local file vs cluster (cluster-configs)"
@@ -69,9 +61,9 @@ for _ in $(seq 1 45); do
 done
 $KONG_UP || die "kong Admin API not answering after 3 min — check: kubectl get pods -n egov -l app.kubernetes.io/name=kong"
 case "$SHAPE" in
-  per-service)  KONG_BUNDLES="none" ;;
+  per-service)      KONG_BUNDLES="none" ;;
   single-container) KONG_BUNDLES="" ;;            # setup.py default manifest
-  domain-bundles) KONG_BUNDLES="$MANIFEST" ;;
+  *)                KONG_BUNDLES="$MANIFEST" ;;   # domain-bundles and any custom grouping
 esac
 # `env` (not bare assignments): a ${VAR:+X=Y} expansion is NOT parsed as an
 # assignment by bash — it becomes a command word and the line dies with

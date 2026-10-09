@@ -130,6 +130,42 @@ psql_exec() { kubectl exec -i -n egov postgresql-lts-0 -- psql -U postgres "$@";
 # unreliable for data transfer — see INSTALL.md).
 vm_curl() { vm_ssh "curl -s $*"; }
 
+# resolve_shape <digit3> <shape> — one of single-container | domain-bundles | per-service (old names
+# dev-bundle | domain-split | services accepted), or a path to any <name>.package.yaml (custom grouping).
+# Sets SHAPE, MANIFEST (empty for per-service), HELMFILE and BUNDLES (bundle names, empty for per-service).
+resolve_shape() {
+  local d=$1 s=$2
+  case "$s" in dev-bundle) s=single-container ;; domain-split) s=domain-bundles ;; services) s=per-service ;; esac
+  MANIFEST=""; BUNDLES=""
+  case "$s" in
+    per-service)      SHAPE=per-service ;;
+    single-container) MANIFEST="$d/src/bundles/dev-bundle.package.yaml" ;;
+    domain-bundles)   MANIFEST="$d/src/bundles/domain-split.package.yaml" ;;
+    *.package.yaml)   [ -f "$s" ] || die "manifest not found: $s"
+                      MANIFEST="$(cd "$(dirname "$s")" && pwd)/$(basename "$s")" ;;
+    *) die "unknown shape '$s' (single-container | domain-bundles | per-service | <path>/<name>.package.yaml)" ;;
+  esac
+  if [ -n "$MANIFEST" ]; then
+    [ -f "$MANIFEST" ] || die "manifest not found: $MANIFEST"
+    local stem; stem=$(basename "$MANIFEST" .package.yaml)
+    case "$stem" in dev-bundle) SHAPE=single-container ;; domain-split) SHAPE=domain-bundles ;; *) SHAPE=$stem ;; esac
+    BUNDLES=$(python3 -c 'import sys,yaml; print(" ".join(b["name"] for b in yaml.safe_load(open(sys.argv[1]))["bundles"]))' "$MANIFEST")
+  fi
+  HELMFILE="$SHAPE-helmfile.yaml"
+}
+
+# owner_of_services <manifest> — prints ACCOUNT_SVC=… IDGEN_SVC=… INDIVIDUAL_SVC=… NOTIFICATION_SVC=… OTP_SVC=…:
+# the k8s Service answering each seeded endpoint (its bundle, or its own name when left standalone).
+owner_of_services() {
+  python3 - "$1" <<'PY'
+import sys, yaml
+m = yaml.safe_load(open(sys.argv[1]))
+owner = {s: b["name"] for b in m["bundles"] for s in b["include"]}
+for svc in ("account", "idgen", "individual", "notification", "otp"):
+    print(f"{svc.upper()}_SVC={owner.get(svc, svc)}")
+PY
+}
+
 # secrets_drift_check <helmfile> — before a sync, compare the Secrets cluster-configs would render from the
 # LOCAL sops file with the ones in the cluster, key by key, by sha256 only (no value is printed or stored).
 # A mismatch usually means this checkout's secrets file is not the one the VM was installed from; syncing

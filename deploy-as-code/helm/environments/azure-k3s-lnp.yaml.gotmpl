@@ -3,11 +3,11 @@
        DOMAIN       the VM's public domain (scripts/.env)        → every browser-facing URL
        DIGIT_SHAPE  per-service | single-container | domain-bundles (scripts/.last-shape)
      Catalogue-service hosts are NOT written here: they are looked up in the shape overlay's
-     egov-service-host map (environments/azure-k3s-<shape>.yaml), so the overlay follows whichever
+     egov-service-host map (environments/generated/<shape>-service-hosts.yaml, generated from the manifest), so the overlay follows whichever
      Service answers for idgen/billing/… in that shape. Image tags come from azure-k3s-lnp-tags.yaml. */}}
 {{ $domain := requiredEnv "DOMAIN" }}
 {{ $shape := requiredEnv "DIGIT_SHAPE" }}
-{{ $shapeFile := printf "azure-k3s-%s.yaml" $shape }}
+{{ $shapeFile := printf "generated/%s-service-hosts.yaml" $shape }}
 {{ $hosts := index (readFile $shapeFile | fromYaml) "cluster-configs" "configmaps" "egov-service-host" "data" }}
 {{ $idgen := index $hosts "idgen" | trimSuffix "/" }}
 {{ $workflow := index $hosts "workflow" | trimSuffix "/" }}

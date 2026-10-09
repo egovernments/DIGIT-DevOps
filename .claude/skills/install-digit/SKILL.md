@@ -1,6 +1,6 @@
 ---
 name: install-digit
-description: Install DIGIT 3 on a single-node k3s VM in any deployment shape (single-container | domain-bundles | per-service), with Vault PII encryption on by default, using the phase scripts in deploy-as-code/helm/charts/digit3/scripts. Use when asked to install or deploy DIGIT to a VM/cluster. Needs an SSH key for the VM, a domain pointing at it, a digit3 source checkout, an image tag, and (recommended) Docker Hub credentials for authenticated pulls.
+description: Install DIGIT 3 on a single-node k3s VM in any deployment shape (single-container | domain-bundles | per-service, or a custom grouping given as a digit3 <name>.package.yaml), with Vault PII encryption on by default, using the phase scripts in deploy-as-code/helm/charts/digit3/scripts. Use when asked to install or deploy DIGIT to a VM/cluster. Needs an SSH key for the VM, a domain pointing at it, a digit3 source checkout, an image tag, and (recommended) Docker Hub credentials for authenticated pulls.
 argument-hint: <ssh-key-path> <domain> [vm-user]
 ---
 
@@ -13,7 +13,7 @@ protocol) — collect the inputs in §1, then run it and monitor:
 ```bash
 cd deploy-as-code/helm/charts/digit3/scripts
 ./install.sh --key <key> --domain <domain> [--vm-user <user>] --digit3 <path> \
-  --shape single-container|domain-bundles|per-service --tag modulith-<sha> \
+  --shape single-container|domain-bundles|per-service|<path>/<name>.package.yaml --tag modulith-<sha> \
   --tenant "Name" --email <email> [--skip-vault]
 # Docker Hub creds: lib.sh sources ~/.config/digit3/dockerhub.env (DOCKERHUB_USER=/DOCKERHUB_TOKEN=) or the
 # env vars by itself — pass --hub-user/--hub-token only when neither exists (the flag is visible in `ps`).
@@ -40,6 +40,15 @@ missing — do not guess:
   `single-container` as recommended; that is a hint for humans, not a default
   for you). The pre-rename names `dev-bundle` / `domain-split` /
   `services` are accepted as synonyms if the user says them.
+  A **custom grouping** is also a valid shape: pass the path to its manifest
+  (`<digit3>/src/bundles/<name>.package.yaml`, written with the digit3
+  `bundle-manifest` skill). Everything shape-specific is generated from it at
+  deploy time — bundle charts, the shape helmfile, each bundle's values (from
+  `environments/bundle-defaults.yaml`), the `egov-service-host` map and the Kong
+  routes — and `06-deploy.sh` writes a domain-only overlay if none exists. The
+  only precondition is that every bundle and `<bundle>-db` image is published at
+  the tag (install.sh preflights them from the manifest); tell the user to
+  commit the manifest's generated `environments/generated/*` and overlay files.
 - **image tag**: the `modulith-<sha>` tag of the GitHub Actions builds — the
   normal path. Local `05-build.sh` (bundle shapes only) is the fallback when
   the user wants images from their working tree; then the tag is derived.
@@ -52,10 +61,12 @@ missing — do not guess:
   them automatically, no flags needed. Pass `--hub-user/--hub-token` only
   when neither exists (a token on the command line is visible in `ps` for the
   whole install); never echo the token.
-- **Vault**: on by default (the shipped env blocks have `vault-enabled` /
-  `VAULT_ENABLED` true). Only if the user explicitly declines PII encryption:
-  `--skip-vault`, and `VAULT_ENABLED` must be `"false"` in the shape's env
-  blocks before deploying (check, don't assume) — otherwise otp/individual
+- **Vault**: on by default (`VAULT_ENABLED` true for any bundle holding
+  individual, set in `environments/bundle-defaults.yaml` → `byMember.individual`;
+  per-service charts carry `vault-enabled`). Only if the user explicitly declines PII encryption:
+  `--skip-vault`, and `VAULT_ENABLED` must be `"false"` in
+  `environments/bundle-defaults.yaml` (bundle shapes) or the per-service env blocks before deploying
+  (check, don't assume) — otherwise otp/individual
   crash-loop.
 - **digit3 repo path**: needed by phases 05–07. First search for an existing
   checkout (e.g. `find ~/Documents ~ -maxdepth 4 -name dev-bundle.package.yaml

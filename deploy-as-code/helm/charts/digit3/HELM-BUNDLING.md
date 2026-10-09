@@ -270,11 +270,11 @@ INSTALL.md §3.3.
 The generator ends with a report; it is the merge's audit trail:
 
 - **services merged** and any **missing db-migration** charts;
-- **overlay drift** — the shape overlay `environments/azure-k3s-<shape>.yaml`
-  is compared key by key against the composition (`dev-bundle` → `single-container`,
-  `domain-split` → `domain-bundles`; any other manifest is matched by its own
-  stem, so a custom overlay must be named after its manifest or it is not
-  checked), and `azure-k3s-per-service.yaml` is checked against per-service DNS;
+- **shape files written** — `environments/generated/<shape>-service-hosts.yaml` (the `egov-service-host`
+  map), `environments/generated/<shape>-bundles.yaml.gotmpl` (every bundle's values, from
+  `environments/bundle-defaults.yaml`) and `charts/digit3/<shape>-helmfile.yaml` (`dev-bundle` →
+  `single-container`, `domain-split` → `domain-bundles`, any other manifest by its own stem). A WARNING
+  still flags an overlay that restates a service-host key pointing at the wrong bundle;
 - **EXTERNAL PATH CHANGES** — chart context vs manifest prefix (kong/client
   action required);
 - **dropped env vars** — every var, which services carried it, and the rule
@@ -300,8 +300,10 @@ merge-rules.yaml ─┐
 manifest helm: ───┤→ generate_bundle_chart.py → charts/bundles/dev-bundle (values: env map, defaults)
 16 member charts ─┘                                      │ helm value layering (helmfile release):
                                                          │   azure-k3s-secrets.dec.yaml
-                                                         │   azure-k3s.yaml  ← dev-bundle: block deep-merges env,
-                                                         │                     replaces dbMigrationOrder, pins tags
+                                                         │   azure-k3s.yaml, azure-k3s-<shape>.yaml (domain only)
+                                                         │   generated/<shape>-bundles.yaml.gotmpl ← dev-bundle: block
+                                                         │     (bundle-defaults.yaml) deep-merges env, replaces
+                                                         │     dbMigrationOrder, pins tags from DIGIT_TAG
                                                          ▼
                                             rendered Deployment/Service/Ingress
 ```

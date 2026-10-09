@@ -194,6 +194,16 @@ spec:
       - CreateNamespace=true
       ## Never delete live objects that drop out of the chart.
       - ApplyOutOfSyncOnly=true
+      ## Make ignoreDifferences apply to the SYNC, not just the diff.
+      ##
+      ## Without this, ignored fields are still pushed by the apply. That is
+      ## not theoretical: the first sync of this Application removed the
+      ## deployment-timestamp pod annotation even though it is listed in
+      ## ignoreDifferences below. Harmless in that instance -- it is a marker
+      ## the eGov pipeline re-adds on its next deploy, and the pod was rolling
+      ## for the tracing change regardless -- but the behaviour would matter
+      ## for any field that must survive a sync.
+      - RespectIgnoreDifferences=true
 
   ignoreDifferences:
     ## replicas is owned by manual scaling / HPA, not by git.

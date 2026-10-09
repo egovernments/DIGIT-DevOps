@@ -173,6 +173,23 @@ spec:
       ## Never prune. Vault's PVCs and raft storage must not be removable by a
       ## rendering mistake.
       - ApplyOutOfSyncOnly=true
+      ## MANDATORY HERE -- ignoreDifferences alone is NOT enough.
+      ##
+      ## ignoreDifferences only affects how Argo CD COMPUTES the diff. Without
+      ## this option a sync still applies the full desired manifest, ignored
+      ## fields included. Demonstrated on the sibling app: platform-keycloak
+      ## ignored /spec/template/metadata/annotations/deployment-timestamp, and
+      ## its first sync removed that annotation from the live Deployment
+      ## anyway.
+      ##
+      ## For Vault the same behaviour is destructive. The chart renders
+      ##   webhooks[0].clientConfig.caBundle: ""
+      ## while the live webhook holds a real 2276-character bundle that the
+      ## injector writes at runtime. Applying the empty value would break
+      ## Vault Agent sidecar injection. failurePolicy is Ignore, so pod
+      ## creation would NOT fail -- injection would just silently stop
+      ## working, which is harder to notice than an outright error.
+      - RespectIgnoreDifferences=true
 
   ignoreDifferences:
     - group: apps

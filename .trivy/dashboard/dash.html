@@ -137,13 +137,13 @@
   .pmeta .mp{font-size:11.5px;color:var(--muted);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:5px 10px;display:flex;align-items:center;gap:6px}
   .pmeta .mp b{color:var(--ink);font-weight:640}
 
-  .statstrip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
-  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:22px}
+  .statstrip{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px}
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:22px}
   .tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px 17px 15px;box-shadow:var(--sh);min-width:0}
   .tile .lab{font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:6px;font-weight:520}
   .tile .val{font-size:30px;font-weight:740;letter-spacing:-.02em;margin-top:8px;line-height:1}
   .tile .foot{font-size:11.5px;color:var(--muted);margin-top:8px}
-  .tile .val.c{color:var(--crit)}.tile .val.h{color:var(--high)}
+  .tile .val.c{color:var(--crit)}.tile .val.h{color:var(--high)}.tile .val.m{color:var(--med)}
   .sev-ic{width:14px;height:14px;flex:none}
 
   .grid-3-2{display:grid;grid-template-columns:1.35fr 1fr;gap:18px;margin-bottom:18px;align-items:start}
@@ -529,6 +529,7 @@ function statStrip(){
   const tiles=[
     {lab:sevLab("CRITICAL"),val:o.CRITICAL,vcls:"c",foot:IS_DOCKER?"vulnerabilities":LBL.findingNoun},
     {lab:sevLab("HIGH"),val:o.HIGH,vcls:"h",foot:IS_DOCKER?"vulnerabilities":LBL.findingNoun},
+    {lab:sevLab("MEDIUM"),val:o.MEDIUM,vcls:"m",foot:IS_DOCKER?"vulnerabilities":LBL.findingNoun},
     {lab:"Secrets",val:o.secrets,foot:"hard-coded"},
     {lab:IS_DOCKER?"Images scanned":cap(LBL.assetP)+" scanned",val:MODEL.meta.asset_count,foot:IS_DOCKER?`${fmt(MODEL.meta.tag_count)} tags`:"this run"}];
   document.getElementById("statstrip").innerHTML=tiles.map(t=>`<div class="tile"><div class="lab">${t.lab}</div><div class="val ${t.vcls||''}">${fmt(t.val)}</div><div class="foot">${t.foot}</div></div>`).join("");
@@ -578,6 +579,7 @@ function kpis(){
     {lab:'<svg class="sev-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Open Crit + High',val:t.CRITICAL+t.HIGH,foot:IS_DOCKER?"container images":LBL.assetTitle.toLowerCase()},
     {lab:sevLab("CRITICAL"),val:t.CRITICAL,vcls:"c",foot:"findings"},
     {lab:sevLab("HIGH"),val:t.HIGH,vcls:"h",foot:"findings"},
+    {lab:sevLab("MEDIUM"),val:t.MEDIUM,vcls:"m",foot:"findings"},
     {lab:"Secrets",val:t.secrets,foot:"hard-coded"},
     {lab:"Total findings",val:t.total,foot:"all severities"}];
   document.getElementById("kpi-assets").innerHTML=tiles.map(x=>`<div class="tile"><div class="lab">${x.lab}</div><div class="val ${x.vcls||''}">${fmt(x.val)}</div><div class="foot">${x.foot}</div></div>`).join("");
@@ -594,13 +596,13 @@ function headHtml(cols,key){const st=SORT[key]||{};return `<thead><tr>${cols.map
 function wireSort(t,key,strcols){t.querySelectorAll("th[data-col]").forEach(th=>th.onclick=()=>{const col=th.dataset.col,cur=SORT[key]||{};SORT[key]=cur.col===col?{col,dir:-cur.dir}:{col,dir:(strcols.includes(col)?1:-1)};render();});}
 
 function tImages(){
-  const cols=[["repo","Image · repo",0],["tag_count","Tags",1],["CRITICAL","Crit",1],["HIGH","High",1],["total","Total",1],["secrets","Secrets",1],["bar","Latest severity",0]];
+  const cols=[["repo","Image · repo",0],["tag_count","Tags",1],["CRITICAL","Crit",1],["HIGH","High",1],["MEDIUM","Med",1],["total","Total",1],["secrets","Secrets",1],["bar","Latest severity",0]];
   let rows=(MODEL.images||[]).filter(r=>rowMatch(r.repo+" "+r.os+" "+r.tags.map(t=>t.tag).join(" "))&&sevRowMatch(r.counts));
   rows=sortRows(rows,"images");
   const body=rows.map(r=>{
     const isOpen=state.repo===r.repo;
     let h=`<tr class="drow ${isOpen?'open':''}" data-repo="${escAttr(r.repo)}"><td class="name" title="${escAttr(r.repo)}">${CHEV}${esc(shortRepo(r.repo))}<small>latest ${esc(r.latest_tag)}${r.os?" · "+esc(r.os):""}</small></td>
-      <td class="num">${r.tag_count}</td>${numCell(r.counts.CRITICAL,"CRITICAL")}${numCell(r.counts.HIGH,"HIGH")}<td class="num"><b>${fmt(r.total)}</b></td>${r.secrets?`<td class="num" style="color:${sevColor('CRITICAL')};font-weight:640">${r.secrets}</td>`:`<td class="num n0">0</td>`}<td>${minibar(r.counts)}</td></tr>`;
+      <td class="num">${r.tag_count}</td>${numCell(r.counts.CRITICAL,"CRITICAL")}${numCell(r.counts.HIGH,"HIGH")}${numCell(r.counts.MEDIUM,"MEDIUM")}<td class="num"><b>${fmt(r.total)}</b></td>${r.secrets?`<td class="num" style="color:${sevColor('CRITICAL')};font-weight:640">${r.secrets}</td>`:`<td class="num n0">0</td>`}<td>${minibar(r.counts)}</td></tr>`;
     if(isOpen)h+=`<tr class="det"><td colspan="${cols.length}"><div class="box">${detailRepo(r)}</div></td></tr>`;
     return h;}).join("")||`<tr><td class="empty" colspan="${cols.length}">Nothing matches this filter.</td></tr>`;
   const t=document.getElementById("t-assets");t.innerHTML=headHtml(cols,"images")+`<tbody>${body}</tbody>`;
@@ -639,12 +641,12 @@ function detailTag(t){
       ${x.title?`<div class="ftitle">${esc(x.title)}</div>`:""}</div>`).join("")}</div>`;
 }
 function tCharts(){
-  const cols=[["name",LBL.assetCol,0],["CRITICAL","Crit",1],["HIGH","High",1],["total","Total",1],["top_rule","Top rule",0],["bar","Severity mix",0]];
+  const cols=[["name",LBL.assetCol,0],["CRITICAL","Crit",1],["HIGH","High",1],["MEDIUM","Med",1],["total","Total",1],["top_rule","Top rule",0],["bar","Severity mix",0]];
   let rows=(MODEL.charts||[]).filter(r=>rowMatch(r.name)&&sevRowMatch(r.counts));
   rows=sortRows(rows,"charts");
   const body=rows.map(r=>{
     const isOpen=state.repo===r.name;
-    let h=`<tr class="drow ${isOpen?'open':''}" data-chart="${escAttr(r.name)}"><td class="name">${CHEV}${esc(r.name)}</td>${numCell(r.counts.CRITICAL,"CRITICAL")}${numCell(r.counts.HIGH,"HIGH")}<td class="num"><b>${fmt(r.total)}</b></td><td class="mono">${esc(r.top_rule)}</td><td>${minibar(r.counts)}</td></tr>`;
+    let h=`<tr class="drow ${isOpen?'open':''}" data-chart="${escAttr(r.name)}"><td class="name">${CHEV}${esc(r.name)}</td>${numCell(r.counts.CRITICAL,"CRITICAL")}${numCell(r.counts.HIGH,"HIGH")}${numCell(r.counts.MEDIUM,"MEDIUM")}<td class="num"><b>${fmt(r.total)}</b></td><td class="mono">${esc(r.top_rule)}</td><td>${minibar(r.counts)}</td></tr>`;
     if(isOpen)h+=`<tr class="det"><td colspan="${cols.length}"><div class="box">${detailChart(r)}</div></td></tr>`;
     return h;}).join("")||`<tr><td class="empty" colspan="${cols.length}">Nothing matches this filter.</td></tr>`;
   const t=document.getElementById("t-assets");t.innerHTML=headHtml(cols,"charts")+`<tbody>${body}</tbody>`;
@@ -883,10 +885,10 @@ function exportExcel(){
     srows.push({cells:[]});
     const _dl=IS_TF?(LBL.cloud?"module area":"cloud"):"directory";
     srows.push({cells:[S("Findings by "+_dl,3)]});
-    srows.push({cells:[S(cap(_dl),6),S(cap(LBL.assetP),6),S("Critical",6),S("High",6),S("Total",6)]});
-    dirs.forEach(d=>{let cr=0,hi=0,tt=0;byDir[d].forEach(c=>{cr+=c.counts.CRITICAL;hi+=c.counts.HIGH;tt+=c.total;});
-      srows.push({cells:[S(d,7),N(byDir[d].length,11),N(cr,11),N(hi,11),N(tt,11)]});});
-    sheets.push({name:xName("Summary"),cols:[26,12,12,46,12],freeze:2,merges:["A1:E1","A2:E2"],rows:srows});
+    srows.push({cells:[S(cap(_dl),6),S(cap(LBL.assetP),6),S("Critical",6),S("High",6),S("Medium",6),S("Total",6)]});
+    dirs.forEach(d=>{let cr=0,hi=0,me=0,tt=0;byDir[d].forEach(c=>{cr+=c.counts.CRITICAL;hi+=c.counts.HIGH;me+=c.counts.MEDIUM;tt+=c.total;});
+      srows.push({cells:[S(d,7),N(byDir[d].length,11),N(cr,11),N(hi,11),N(me,11),N(tt,11)]});});
+    sheets.push({name:xName("Summary"),cols:[26,12,12,46,12,12],freeze:2,merges:["A1:F1","A2:F2"],rows:srows});
     // per-directory sheets
     dirs.forEach(d=>{
       let n=0; byDir[d].forEach(c=>n+=(c.findings||[]).length);

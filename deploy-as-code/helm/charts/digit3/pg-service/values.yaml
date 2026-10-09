@@ -226,8 +226,14 @@ env: |
     value: "true"
   - name: STRIPE_CURRENCY
     value: "inr"
+  # from egov-pg-service (cluster-configs.secrets.egov-pg-service.stripe-secret-key in sops); optional, so a
+  # cluster without the key still starts and Stripe simply fails at checkout
   - name: STRIPE_SECRET_KEY
-    value: ""
+    valueFrom:
+      secretKeyRef:
+        name: egov-pg-service
+        key: stripe-secret-key
+        optional: true
   {{- else }}
   - name: STRIPE_ACTIVE
     value: "false"

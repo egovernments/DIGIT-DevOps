@@ -13,7 +13,19 @@ This directory provisions the Azure infrastructure required for a DIGIT environm
 - Provisions AKS through `../modules/kubernetes/azure`.
 - Provisions PostgreSQL Flexible Server through `../modules/db/azure`.
 - Adds private DNS zone wiring for PostgreSQL.
+- Provisions a dedicated **egov-filestore** blob Storage Account with a private `filestore` container and a public (anonymous blob) `public-assets` container, and creates the in-cluster `egov-filestore` secret (`account-name`/`account-key`) the chart consumes — the Azure analogue of the AWS S3 filestore bucket + IAM user + k8s secret.
 - Adds validation for Azure environment, resource group, database user, and database password inputs.
+
+## egov-filestore blob storage
+
+The main package provisions blob storage for the egov-filestore service, mirroring the AWS pattern:
+
+- `azurerm_storage_account.filestore` — a **separate** account from the private Terraform-state account (`filestore_storage_account_name`). Public blob access is enabled at the account level so the public container can serve anonymous reads.
+- `azurerm_storage_container.filestore` — **private** container egov-filestore reads/writes (maps to the chart's `FIXED_CONTAINER_NAME`).
+- `azurerm_storage_container.public_assets` — **public** (anonymous blob read) container for public assets.
+- `kubernetes_secret.egov_filestore` — Opaque secret `egov-filestore` in the `filestore_namespace` (default `egov`) with keys `account-name` and `account-key`, created via a `kubernetes` provider authenticated to the AKS cluster. This is exactly what the egov-filestore chart expects (`is-azure-enabled: true`, `AZURE_ACCOUNTNAME`/`AZURE_ACCOUNTKEY` via `secretKeyRef`).
+
+Switching clouds is a flag change in the egov-filestore chart: `is-azure-enabled: true` for Azure, or `is-s3-enabled: true` for AWS S3 / any S3-compatible store (e.g. GCS via HMAC keys, by pointing `aws.s3.url` at the endpoint).
 
 ## What's New in Kubernetes 1.35
 
@@ -70,8 +82,9 @@ Required values:
 - `subscription_id`: Azure subscription ID.
 - `storage_account_name`: Globally-unique Azure Storage Account that holds the Terraform state. The init helper substitutes it into both the remote-state module and the backend block in `main.tf`, so they always match (no manual copy step).
 - `db_user`: PostgreSQL admin user.
+- `filestore_storage_account_name`: Globally-unique Azure Storage Account for egov-filestore blob storage (separate from the state account; same 3-24 char lowercase-alphanumeric rules).
 
-These values are validated against the relevant Azure naming rules (environment/AKS name, resource group, storage account, DB user) when you run `terraform plan`, so a bad value fails fast with a clear message. The exact constraints and examples are documented inline in `input.yaml`. `db_password` must be 6 to 16 characters, start with a lowercase letter, and use only letters, numbers and `@` or `#`.
+These values are validated against the relevant Azure naming rules (environment/AKS name, resource group, storage account, filestore storage account, DB user) when you run `terraform plan`, so a bad value fails fast with a clear message. The exact constraints and examples are documented inline in `input.yaml`. `db_password` must be 6 to 16 characters, start with a lowercase letter, and use only letters, numbers and `@` or `#`.
 
 Review `variables.tf` for version and sizing defaults before applying:
 

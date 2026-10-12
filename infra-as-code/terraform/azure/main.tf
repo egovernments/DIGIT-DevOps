@@ -3,6 +3,13 @@ provider "azurerm" {
   subscription_id = "<subscription_id>"
 }
 
+provider "kubernetes" {
+  host                   = module.kubernetes.host
+  client_certificate     = base64decode(module.kubernetes.client_certificate)
+  client_key             = base64decode(module.kubernetes.client_key)
+  cluster_ca_certificate = base64decode(module.kubernetes.cluster_ca_certificate)
+}
+
 terraform {
   required_version = ">= 1.3.0"
 
@@ -10,6 +17,10 @@ terraform {
     azurerm = {
       source  = "hashicorp/azurerm"
       version = "~> 5.0"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.0"
     }
   }
 
@@ -158,4 +169,48 @@ module "postgres-db" {
   db_version             = var.db_version
   delegated_subnet_id    = azurerm_subnet.postgres.id
   private_dns_zone_id    = azurerm_private_dns_zone.db.id
+}
+# egov-filestore blob storage
+resource "azurerm_storage_account" "filestore" {
+  name                            = var.filestore_storage_account_name
+  resource_group_name             = var.resource_group
+  location                        = var.location
+  account_tier                    = "Standard"
+  account_replication_type        = "LRS"
+  allow_nested_items_to_be_public = true
+
+  tags = {
+    environment = var.environment
+  }
+}
+
+resource "azurerm_storage_container" "filestore" {
+  name                  = var.filestore_container_name
+  storage_account_id    = azurerm_storage_account.filestore.id
+  container_access_type = "private"
+}
+
+resource "azurerm_storage_container" "public_assets" {
+  name                  = var.public_assets_container_name
+  storage_account_id    = azurerm_storage_account.filestore.id
+  container_access_type = "blob"
+}
+
+resource "kubernetes_namespace" "filestore" {
+  metadata {
+    name = var.filestore_namespace
+  }
+}
+
+resource "kubernetes_secret" "egov_filestore" {
+  depends_on = [kubernetes_namespace.filestore]
+  metadata {
+    name      = "egov-filestore"
+    namespace = var.filestore_namespace
+  }
+  data = {
+    account-name = azurerm_storage_account.filestore.name
+    account-key  = azurerm_storage_account.filestore.primary_access_key
+  }
+  type = "Opaque"
 }

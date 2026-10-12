@@ -77,6 +77,7 @@ env: |
   # setting is-s3-enabled=false removed the variable instead of setting it false.
   - name: ISS3ENABLED
     value: {{ index .Values "is-s3-enabled" | default false | quote }}
+  {{- if index .Values "is-s3-enabled" }}
   {{- if index .Values "minio-enabled" }}
   - name: AWS_KEY
     valueFrom:
@@ -88,6 +89,25 @@ env: |
       secretKeyRef:
         key: secretkey
         name: minio
+  {{- else }}
+  # Real AWS S3, or any S3-compatible store (e.g. GCS via HMAC keys). Credentials
+  # come from the egov-filestore secret (same awskey/awssecretkey the AWS Terraform
+  # and cluster-configs set). For non-AWS S3, point aws.s3.url at the endpoint.
+  - name: AWS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-filestore
+        key: awskey
+  - name: AWS_SECRETKEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-filestore
+        key: awssecretkey
+  {{- end }}
+  {{- if index .Values "aws.s3.url" }}
+  - name: AWS_S3_URL
+    value: {{ index .Values "aws.s3.url" | quote }}
+  {{- end }}
   {{- end }}
   {{- if index .Values "is-azure-enabled" }}
   - name: ISAZURESTORAGEENABLED

@@ -28,11 +28,32 @@ healthChecks:
 
 # Additional Container Envs
 env: |
-  # Internal Kong gateway (service port 80 -> kong 8000). The UI nginx preserves
-  # `Host: $host` (digit-lts.digit.org) when proxying, so Kong's host-based routes still
-  # match — this avoids hairpinning the public ELB, which caused flaky/alternating responses.
-  - name: API_PROXY_TARGET
-    value: "http://kong-kong-proxy.egov"
+  - name: VITE_TENANT_ID
+    value: {{ index .Values "vite-tenant-id" | quote }}
+  - name: VITE_API_PROXY_TARGET
+    value: {{ index .Values "vite-api-proxy-target" | quote }}
+  - name: VITE_FILESTORE_DOCUMENT_MODULE
+    value: {{ index .Values "vite-filestore-document-module" | quote }}
+  - name: VITE_ACCESS_ACTION_MASTER
+    value: {{ index .Values "vite-access-action-master" | quote }}
+  - name: VITE_KEYCLOAK_URL
+    value: {{ index .Values "vite-keycloak-url" | quote }}
+  - name: VITE_KEYCLOAK_DIRECT_URL
+    value: {{ index .Values "vite-keycloak-direct-url" | quote }}
+  - name: VITE_KEYCLOAK_REALM
+    value: {{ index .Values "vite-keycloak-realm" | quote }}
+  - name: VITE_KEYCLOAK_CLIENT_ID
+    value: {{ index .Values "vite-keycloak-client-id" | quote }}
+  - name: VITE_POSTHOG_KEY
+    valueFrom:
+      secretKeyRef:
+        name: posthog-secret
+        key: posthog-key
+  - name: VITE_POSTHOG_HOST
+    valueFrom:
+      secretKeyRef:
+        name: posthog-secret
+        key: posthog-host
 
 resources: |
   requests:

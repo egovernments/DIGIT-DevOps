@@ -86,7 +86,7 @@ env: |
         name: egov-config
         key: kafka-brokers
   - name: KC_FEATURES
-    value: "token-exchange,admin-fine-grained-authz"   
+    value: {{ if index .Values "features" }}{{ index .Values "features" | quote }}{{ else }}"token-exchange,admin-fine-grained-authz{{ if index .Values "tracing-enabled" }},opentelemetry{{ end }}"{{ end }}   
   # OpenTelemetry Tracing & Metrics.
   #
   # The whole block is GATED, so a deployment with tracing and metrics off
@@ -113,6 +113,8 @@ env: |
   {{- if index .Values "metrics-enabled" }}
   - name: KC_METRICS_ENABLED
     value: "true"
+  - name: KC_HTTP_MANAGEMENT_PORT
+    value: "8080"
   {{- end }}
   {{- if index .Values "tracing-enabled" }}
   - name: OTEL_SERVICE_NAME

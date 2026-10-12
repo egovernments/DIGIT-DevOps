@@ -33,7 +33,7 @@ Official release notes: https://kubernetes.io/blog/2025/12/17/kubernetes-v1-35-r
 Code/config changes made for the 1.34 → 1.35 upgrade:
 
 - `gke_version` default bumped from `1.34.8-gke.1000000` to `1.35.8-gke.1225000` in `variables.tf` (the GKE Regular channel default for 1.35 as of this change; a patch version must be used, not a bare `1.35`).
-- The version is passed through to the GKE module as `k8s_version`, which sets `min_master_version` on the `google_container_cluster` resource. Node pools follow the control-plane version.
+- The version is passed through to the GKE module as `k8s_version`, which sets `min_master_version` on the `google_container_cluster` resource **and** `version` on the managed `google_container_node_pool`. A single `gke_version` bump therefore upgrades both the control plane and the nodes in one `terraform apply` (control plane first, then an in-place surge upgrade of the node pool). Node auto-upgrade is kept off (`management.auto_upgrade = false`) so Terraform owns the version.
 - Confirm the exact patch is still offered in your zones before applying; GKE rolls patch versions out over several days. Pick the current Regular channel 1.35 patch from the release notes if `1.35.8-gke.1225000` is no longer available.
 
 ## Upgrading from 1.34 to 1.35
@@ -47,7 +47,7 @@ Code/config changes made for the 1.34 → 1.35 upgrade:
    terraform plan  -var='db_password=<password>'
    terraform apply -var='db_password=<password>'
    ```
-3. **Upgrade the node pool(s)** — after `min_master_version` is raised, roll the managed node pool to the matching 1.35 node version.
+3. **Node pool upgrade is automatic** — the node pool `version` tracks `gke_version`, so the same `terraform apply` rolls the nodes to 1.35 (in-place surge upgrade) right after the control plane. No separate manual node-pool roll is needed.
 4. **Validate**
    ```bash
    kubectl get nodes     # every node reports v1.35.x

@@ -26,6 +26,13 @@ resource "google_container_node_pool" "primary_nodes" {
   cluster    = google_container_cluster.gke_cluster.name
   location   = var.zone
 
+  version = var.k8s_version
+
+  management {
+    auto_repair  = true
+    auto_upgrade = false
+  }
+
   node_config {
     machine_type = var.node_machine_type
     oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]

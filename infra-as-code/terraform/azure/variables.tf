@@ -55,7 +55,7 @@ variable "db_version" {
 
 variable "kubernetes_version" {
   description = "AKS version"
-  default     = "1.34"
+  default     = "1.35"
 }
 
 variable "db_user" {
@@ -196,6 +196,44 @@ variable "schedule_week_days" {
   description = "Days the scale up/down schedules run on. Defaults to weekdays so nodes stay down all weekend"
   type        = list(string)
   default     = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+}
+
+# ---- egov-filestore blob storage ----
+variable "filestore_storage_account_name" {
+  description = "Globally-unique Azure Storage Account name for egov-filestore blob storage (separate from the Terraform-state account). Holds the private 'filestore' container and the public 'public-assets' container."
+  type        = string
+  default     = "<filestore_storage_account_name>"
+  validation {
+    condition = (
+      length(var.filestore_storage_account_name) >= 3 &&
+      length(var.filestore_storage_account_name) <= 24 &&
+      can(regex("^[a-z0-9]+$", var.filestore_storage_account_name))
+    )
+    error_message = <<EOT
+Filestore storage account name must follow Azure naming rules:
+- Be 3 to 24 characters long
+- Contain only lowercase letters and numbers (no hyphens, underscores or uppercase)
+- Be globally unique across all of Azure
+EOT
+  }
+}
+
+variable "filestore_namespace" {
+  description = "Kubernetes namespace the egov-filestore secret is created in"
+  type        = string
+  default     = "egov"
+}
+
+variable "filestore_container_name" {
+  description = "Private blob container egov-filestore reads/writes (maps to FIXED_CONTAINER_NAME in the chart)"
+  type        = string
+  default     = "filestore"
+}
+
+variable "public_assets_container_name" {
+  description = "Public (anonymous blob read) container for public assets"
+  type        = string
+  default     = "public-assets"
 }
 
 

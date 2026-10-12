@@ -64,10 +64,9 @@ env: |
   - name: SOURCE_DISK
     value: "diskStorage"
   {{- end }}
-  {{- if index .Values "is-s3-enabled" }}
   - name: ISS3ENABLED
-    value: "true"
-  {{- end }}  
+    value: {{ index .Values "is-s3-enabled" | default false | quote }}
+  {{- if index .Values "is-s3-enabled" }}
   {{- if index .Values "minio-enabled" }}
   - name: AWS_KEY
     valueFrom:
@@ -79,7 +78,7 @@ env: |
       secretKeyRef:
         key: secretkey
         name: minio
-  {{else}}
+  {{- else }}
   - name: AWS_KEY
     valueFrom:
       secretKeyRef:
@@ -90,6 +89,31 @@ env: |
       secretKeyRef:
         name: egov-filestore
         key: awssecretkey
+  {{- end }}
+  {{- if index .Values "aws.s3.url" }}
+  - name: AWS_S3_URL
+    value: {{ index .Values "aws.s3.url" | quote }}
+  {{- end }}
+  {{- end }}
+  {{- if index .Values "is-azure-enabled" }}
+  - name: ISAZURESTORAGEENABLED
+    value: {{ index .Values "is-azure-enabled" | quote }}
+  - name: AZURE_ACCOUNTNAME
+    valueFrom:
+      secretKeyRef:
+        name: egov-filestore
+        key: account-name
+  - name: AZURE_ACCOUNTKEY
+    valueFrom:
+      secretKeyRef:
+        name: egov-filestore
+        key: account-key
+  {{- if index .Values "fixed-bucketname" }}
+  - name: FIXED_CONTAINER_NAME
+    value: {{ index .Values "fixed-bucketname" | quote }}
+  {{- end }}
+  - name: AZURE_DEFAULTENDPOINTSPROTOCOL
+    value: https
   {{- end }}
   {{- if index .Values "is-bucket-fixed" }}
   - name: IS_BUCKET_FIXED

@@ -19,6 +19,17 @@ kargo:
     - name: egov-notification-mail
       namespace: egov
       freightCreationPolicy: Manual
+      # CONFIG PROMOTION (reference implementation -- this is the only service
+      # with it so far). The chart directory joins the image in Freight, so a
+      # promotion carries both and qa/uat receive the config dev was tested with.
+      #
+      # Consequence: env vars that must be the SAME in every environment belong
+      # in this chart's values.yaml `env:` block, where they already are. Env
+      # vars that must DIFFER per environment stay in
+      # environments/unified-<env>.yaml under egov-notification-mail.extraEnv.app
+      # -- common.deployment concatenates extraEnv.app last and dedupes by name
+      # keeping the last entry, so those still win.
+      configPath: deploy-as-code/helm/charts/core-services/egov-notification-mail
       # master (project default) + sandbox / base-docker-upgrade families.
       # These extra families reach dev/qa; uat stays master-only (see stages).
       extraAllowTags: '^(sandbox|base-docker-upgrade)-.*[0-9a-f]{7,}$'

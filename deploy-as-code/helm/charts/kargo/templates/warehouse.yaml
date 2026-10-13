@@ -25,4 +25,24 @@ spec:
         {{- end }}
         cacheByTag: {{ $svc.cacheByTag | default false }}
         discoveryLimit: {{ $svc.discoveryLimit | default 10 }}
+    {{- if $svc.configPath }}
+    # Config artifact. Makes the service's chart directory part of Freight, so a
+    # promotion carries the image tag AND the config it was tested with, pinned
+    # together. This is Kargo's "Common Case": one Warehouse subscribing to an
+    # image repo *and* a git repo.
+    #
+    # includePaths entries are EXACT paths by default (a directory implicitly
+    # selects everything under it) -- no glob:/regex: prefix wanted here.
+    #
+    # It is also what prevents a feedback loop: the dev Stage pushes its own
+    # promotion commits to this same branch, but those touch the env file under
+    # environments/, not this path, so they create no new Freight.
+    - git:
+        repoURL: {{ $k.git.repoURL }}
+        branch: {{ $k.configBranch | default (index $k.stages 0).branch }}
+        commitSelectionStrategy: NewestFromBranch
+        includePaths:
+          - {{ $svc.configPath | quote }}
+        discoveryLimit: {{ $svc.discoveryLimit | default 10 }}
+    {{- end }}
 {{- end }}

@@ -2,6 +2,11 @@
 {{- range $svc := $k.services }}
 {{- $repo := $svc.repo | default $svc.name }}
 {{- range $stage := $k.stages }}
+{{- /* Config promotion is only meaningful on a stage that has an upstream. The
+       first stage IS the authoring branch -- its ArgoCD already auto-syncs that
+       branch, so copying there is at best a no-op and at worst reverts an edit
+       made after the Freight was assembled. */}}
+{{- $promoteConfig := and $svc.configPath $stage.from }}
 {{- $masterOnly := has $stage.name ($k.masterOnlyStages | default list) }}
 {{- $masterGuard := printf "${{ imageFrom(\"%s/%s\").Tag matches '^master-' }}" $k.registry $repo }}
 {{- /* Loud reject for master-only stages: on a NON-master tag this expression
@@ -59,8 +64,25 @@ spec:
           config:
             repoURL: {{ $k.git.repoURL }}
             checkout:
+              {{- if $promoteConfig }}
+              # The config revision PINNED IN THIS FREIGHT -- deliberately not the
+              # upstream branch HEAD, so what QA tested is what UAT receives.
+              - commit: {{ printf "${{ commitFrom(\"%s\").ID }}" $k.git.repoURL | quote }}
+                path: ./src
+              {{- end }}
               - branch: {{ $stage.branch }}
                 path: ./repo
+      {{- if $promoteConfig }}
+        # Overlay the Freight's config onto this env's branch. NOTE: copy does not
+        # prune -- a file deleted at the source is not deleted downstream.
+        - uses: copy
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            inPath: ./src/{{ $svc.configPath }}
+            outPath: ./repo/{{ $svc.configPath }}
+      {{- end }}
         - uses: yaml-update
           {{- if $masterOnly }}
           # Only master-* builds may be written to this stage's env file.

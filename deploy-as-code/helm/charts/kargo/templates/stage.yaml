@@ -6,7 +6,13 @@
        first stage IS the authoring branch -- its ArgoCD already auto-syncs that
        branch, so copying there is at best a no-op and at worst reverts an edit
        made after the Freight was assembled. */}}
-{{- $promoteConfig := and $svc.configPath $stage.from }}
+{{- /* releasePath mode (opt-in, needs configPath) changes that: configPath is then
+       a source Argo CD never reads, and every stage -- the first one included --
+       gets the Freight's config written to releasePath on its own branch, merged
+       with that stage's stages/<stage>.yaml. Kargo is then the only writer of what
+       Argo CD deploys for the service. */}}
+{{- $release := and $svc.configPath $svc.releasePath }}
+{{- $promoteConfig := and $svc.configPath (or $stage.from $release) }}
 {{- $masterOnly := has $stage.name ($k.masterOnlyStages | default list) }}
 {{- $masterGuard := printf "${{ imageFrom(\"%s/%s\").Tag matches '^master-' }}" $k.registry $repo }}
 {{- /* Loud reject for master-only stages: on a NON-master tag this expression
@@ -72,7 +78,38 @@ spec:
               {{- end }}
               - branch: {{ $stage.branch }}
                 path: ./repo
-      {{- if $promoteConfig }}
+      {{- if $release }}
+        # Replace the release directory wholesale: delete first, because copy does
+        # not prune and a template removed at the source must disappear here too.
+        - uses: delete
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            path: ./repo/{{ $svc.releasePath }}
+        - uses: copy
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            inPath: ./src/{{ $svc.configPath }}
+            outPath: ./repo/{{ $svc.releasePath }}
+            # per-env overlays are merged below, not shipped
+            ignore: |
+              stages/
+        # values.yaml (shared) + stages/<stage>.yaml (this env only). Maps merge
+        # key by key; strings and lists replace. A missing stage file is fine.
+        - uses: yaml-merge
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            inFiles:
+              - ./src/{{ $svc.configPath }}/values.yaml
+              - ./src/{{ $svc.configPath }}/stages/{{ $stage.name }}.yaml
+            outFile: ./repo/{{ $svc.releasePath }}/values.yaml
+            ignoreMissingFiles: true
+      {{- else if $promoteConfig }}
         # Overlay the Freight's config onto this env's branch. NOTE: copy does not
         # prune -- a file deleted at the source is not deleted downstream.
         - uses: copy
@@ -89,12 +126,18 @@ spec:
           if: {{ $masterGuard | quote }}
           {{- end }}
           config:
+            {{- if $release }}
+            # the release's own values.yaml: chart-level keys, no <service>: prefix
+            path: ./repo/{{ $svc.releasePath }}/values.yaml
+            {{- else }}
             path: ./repo/{{ $stage.envFile }}
+            {{- end }}
+            {{- $keyPrefix := ternary "" (printf "%s." $svc.name) (not (not $release)) }}
             updates:
-              - key: {{ $svc.name }}.image.tag
+              - key: {{ $keyPrefix }}image.tag
                 value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
               {{- if $svc.dbMigration }}
-              - key: {{ $svc.name }}.initContainers.dbMigration.image.tag
+              - key: {{ $keyPrefix }}initContainers.dbMigration.image.tag
                 value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
               {{- end }}
         - uses: git-commit

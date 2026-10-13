@@ -1,0 +1,44 @@
+# pilot-resources -- Kargo config-promotion pilot: replicas and CPU/memory per env.
+#
+# This is the SOURCE chart. Argo CD never reads this directory. A Kargo promotion
+# copies it to charts/releases/pilot-resources on the target env branch and writes
+# values.yaml there as: this file + stages/<env>.yaml + the promoted image tag.
+#
+#   values.yaml          shared by every environment
+#   stages/<env>.yaml    only what DIFFERS in that environment
+name: pilot-resources
+namespace: pilot
+labels:
+  app: pilot-resources
+  group: kargo-pilot
+
+image:
+  repository: ghcr.io/stefanprodan/podinfo
+  # tag: written by Kargo at promotion time; never set it here.
+
+replicas: "1"
+httpPort: 9898
+
+healthChecks:
+  enabled: true
+  livenessProbePath: /healthz
+  readinessProbePath: /readyz
+
+args: |
+  - ./podinfo
+  - --port={{ .Values.httpPort }}
+  - --level=info
+
+env: |
+  - name: PODINFO_UI_LOGO
+    value: ""
+
+# `resources` is a string block in these charts: a stage file that overrides it
+# must restate requests AND limits -- it replaces the block, it does not merge.
+resources: |
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi

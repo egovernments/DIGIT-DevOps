@@ -1,0 +1,71 @@
+# pilot-config -- Kargo config-promotion pilot: env vars + a mounted config file.
+#
+# This is the SOURCE chart. Argo CD never reads this directory. A Kargo promotion
+# copies it to charts/releases/pilot-config on the target env branch and writes
+# values.yaml there as: this file + stages/<env>.yaml + the promoted image tag.
+#
+#   values.yaml          shared by every environment
+#   stages/<env>.yaml    only what DIFFERS in that environment
+#
+# Both reach an environment only when a Freight carrying this commit is promoted
+# to it, so a change made here is inert until promotion.
+name: pilot-config
+namespace: pilot
+labels:
+  app: pilot-config
+  group: kargo-pilot
+
+image:
+  repository: ghcr.io/stefanprodan/podinfo
+  # tag: written by Kargo at promotion time; never set it here.
+
+replicas: "1"
+httpPort: 9898
+
+healthChecks:
+  enabled: true
+  livenessProbePath: /healthz
+  readinessProbePath: /readyz
+
+# podinfo's image has no ENTRYPOINT (CMD is ./podinfo), so args must name the binary.
+args: |
+  - ./podinfo
+  - --port={{ .Values.httpPort }}
+  - --level=info
+  - --config-path=/configs
+  - --config=podinfo.yaml
+
+# Env vars identical in every environment. `env` is a string block, so an
+# override REPLACES it whole -- per-env vars go in extraEnv.app (stages/<env>.yaml),
+# which common.deployment applies last, deduping by name (last wins).
+env: |
+  - name: PODINFO_UI_LOGO
+    value: ""
+
+# Mounted at /configs. Map of file name -> content, so a stage file can replace
+# one file without restating the others.
+configFiles:
+  podinfo.yaml: |
+    ui-message: "pilot-config (base value -- should be overridden per env)"
+
+extraVolumes: |
+  - name: config-files
+    configMap:
+      name: {{ .Values.name }}-files
+extraVolumeMounts: |
+  - name: config-files
+    mountPath: /configs
+    readOnly: true
+
+# A ConfigMap content change does not alter the pod spec, so without this the
+# pods would keep the old file until something else restarted them.
+additionalAnnotations: |
+  checksum/config-files: {{ toJson .Values.configFiles | sha256sum }}
+
+resources: |
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi

@@ -1,0 +1,73 @@
+# unified-pilot Kargo pipeline: PILOT for promoting config together with the image,
+# with per-environment values, DEV -> QA -> UAT. Two podinfo services in the `pilot`
+# namespace on each cluster; nothing here touches any other project or namespace.
+#
+#   people edit  charts/pilot-services/<svc>/{values.yaml, stages/<env>.yaml}  (unified-dev)
+#   Kargo writes charts/releases/<svc>/                         (each env's own branch)
+#   Argo CD reads charts/releases/<svc>/ only
+#
+# so a merged config change deploys nowhere until its Freight is promoted.
+kargo:
+  project: unified-pilot
+  # podinfo is public on ghcr.io; no image credential needed.
+  registry: ghcr.io/stefanprodan
+  # Argo CD apps are named after the service (pilot-config, not pilot-pilot-config).
+  argocdAppPrefix: ""
+  git:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+  # podinfo publishes plain semver tags (6.15.0), never master-*.
+  allowTags: '^[0-9]+\.[0-9]+\.[0-9]+$'
+  # Pilot only: no master-only rule, or podinfo could never reach uat.
+  masterOnlyStages: []
+  verify:
+    enabled: true
+    namespace: pilot
+
+  services:
+    # Demo: env vars + a mounted config file, different per env.
+    - name: pilot-config
+      repo: podinfo
+      namespace: pilot
+      # Automatic so a merged config commit shows up as new Freight on its own.
+      freightCreationPolicy: Automatic
+      imageSelectionStrategy: SemVer
+      discoveryLimit: 10
+      configPath: deploy-as-code/helm/charts/pilot-services/pilot-config
+      releasePath: deploy-as-code/helm/charts/releases/pilot-config
+    # Demo: replicas + CPU/memory, different per env.
+    - name: pilot-resources
+      repo: podinfo
+      namespace: pilot
+      freightCreationPolicy: Automatic
+      imageSelectionStrategy: SemVer
+      discoveryLimit: 10
+      configPath: deploy-as-code/helm/charts/pilot-services/pilot-resources
+      releasePath: deploy-as-code/helm/charts/releases/pilot-resources
+
+  # envFile is unused in releasePath mode (the tag goes into the release's own
+  # values.yaml), so the stages only name their branch.
+  stages:
+    - name: dev
+      color: "#3BA9C2"
+      branch: unified-dev
+      autoPromotion: false
+      argocdUpdate: true
+      argocdNamespace: argocd
+      verifyKubeconfigSecret: verify-kubeconfig-dev
+    - name: qa
+      color: "#D64550"
+      from: dev
+      branch: unified-qa
+      autoPromotion: false
+      verifyKubeconfigSecret: verify-kubeconfig-qa
+    - name: uat
+      color: "#F2C230"
+      from: qa
+      branch: unified-uat
+      autoPromotion: false
+      verifyKubeconfigSecret: verify-kubeconfig-uat
+
+  teams:
+    - name: devops
+      role: admin
+      groups: [egovernments:micro-service-devops]

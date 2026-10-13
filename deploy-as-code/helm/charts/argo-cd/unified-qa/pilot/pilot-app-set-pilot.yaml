@@ -1,0 +1,57 @@
+## Kargo config-promotion pilot.
+##
+## Deploys charts/releases/<service> ONLY -- the directory Kargo writes on promotion
+## (chart + values.yaml merged from values.yaml + stages/qa.yaml + image tag).
+## The source charts under charts/pilot-services/ are never read here, so a merged
+## config change reaches unified-qa only when Kargo promotes it.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-qa-pilot-appset
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: pilot-config
+          - name: pilot-resources
+
+  template:
+    metadata:
+      name: '{{name}}'
+
+    spec:
+      project: pilot-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: unified-qa
+        path: deploy-as-code/helm/charts/releases/{{name}}
+        helm:
+          # values.yaml (Kargo-written) loads implicitly; the env-wide file adds
+          # global: only -- never put a pilot-* key in it, it would override Kargo.
+          valueFiles:
+            - ../../../environments/unified-qa.yaml
+          parameters:
+            - name: namespace
+              value: pilot
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'pilot'
+
+      # No ignoreDifferences on /spec/replicas (unlike the other appsets): there is
+      # no HPA here and replicas per env is one of the things being promoted.
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s

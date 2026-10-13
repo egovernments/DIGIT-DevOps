@@ -111,10 +111,19 @@ env: |
     value: "parentbased_always_on"
   {{- end }}
   {{- if index .Values "metrics-enabled" }}
+  # KC_HTTP_MANAGEMENT_PORT is deliberately NOT set, so the management
+  # interface stays on its default port 9000 (metrics at /keycloak/metrics,
+  # reached through the keycloak-management Service).
+  #
+  # It used to be pinned to 8080 so the existing Service could reach it. That
+  # puts two HTTP servers on one port, and new connections are spread across
+  # both: about one connection in four landed on the management server and
+  # got "404 Resource not found" for every Keycloak URL -- admin console,
+  # OIDC discovery, token calls -- while scrapes succeeded only when they
+  # happened to land there. It also served /keycloak/metrics to the internet
+  # through the ingress.
   - name: KC_METRICS_ENABLED
     value: "true"
-  - name: KC_HTTP_MANAGEMENT_PORT
-    value: "8080"
   {{- end }}
   {{- if index .Values "tracing-enabled" }}
   - name: OTEL_SERVICE_NAME

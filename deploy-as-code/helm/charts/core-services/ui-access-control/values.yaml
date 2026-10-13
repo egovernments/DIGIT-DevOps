@@ -1,0 +1,60 @@
+# Common Labels
+labels:
+  app: "ui-access-control"
+  group: "rainmaker"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "ui-access-control"
+
+# Container Configs
+image:
+  repository: "ui-access-control"
+replicas: "1"
+appType: "java-spring"
+heap: "-Xmx1012m -Xms512m"
+memory_limits: 1500Mi
+memory_requests: 768Mi
+tracing-export-enabled: "false"
+metrics-export-enabled: "false"
+healthChecks:
+  enabled: true
+  livenessProbePath: "/ui-access-control/v3/health"
+  readinessProbePath: "/ui-access-control/v3/health"
+  livenessProbe: |
+    httpGet:
+      path: "{{ .Values.healthChecks.livenessProbePath }}"
+      port: {{ .Values.httpPort }}
+    initialDelaySeconds: 90
+    timeoutSeconds: 5
+    periodSeconds: 30
+    successThreshold: 1
+    failureThreshold: 5
+  readinessProbe: |
+    httpGet:
+      path: "{{ .Values.healthChecks.readinessProbePath }}"
+      port: {{ .Values.httpPort }}
+    initialDelaySeconds: 90
+    timeoutSeconds: 5
+    periodSeconds: 15
+    successThreshold: 1
+    failureThreshold: 5
+
+# Additional Container Envs
+env: |
+  - name: MDMS_HOST
+    value: "https://test-lts.digit.org"
+  - name: MDMS_CLIENT_ID
+    value: "ui-access-control"
+  - name: KEYCLOAK_HOST
+    value: "https://test-lts.digit.org"
+  - name: KEYCLOAK_AUDIENCE
+    value: "auth-server"
+  - name: KEYCLOAK_SUPER_USER_ROLES
+    value: "SUPERUSER"
+  - name: REDIS_HOST
+    value: "redis.backbone"
+  - name: REDIS_PORT
+    value: "6379"

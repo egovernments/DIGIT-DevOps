@@ -5,7 +5,7 @@ and a Stage always holds one of each:
 
 | Freight | Warehouse | Contains | Promoted to |
 |---|---|---|---|
-| **Release** | `<service>` | app image tag (`docker.io/egovio/<service>`, `master-*` / `flyway-branch-*`), chart version (`helm.digit.org/digit3/core/<chart>`, one Helm repo per chart), commit of `Chart.yaml` + `values.yaml` | dev → qa → uat, **or** straight to any stage |
+| **Release** | `<service>` | app image tag (`docker.io/egovio/<service>`, `master-*` / `flyway-branch-*`), chart version (shared repo `helm.digit.org/digit3/core`, only this chart's entries, newest first), commit of `Chart.yaml` + `values.yaml` | dev → qa → uat, **or** straight to any stage |
 | **Env config** | `<service>-<env>-config` | commit of `stages/<env>.yaml` only | that one env, directly |
 
 Promoting either one re-renders `releases/digit3-core/<service>` on the env's
@@ -44,7 +44,7 @@ DIGIT 2.x keys (`billing:`, `boundary:`, …) would be applied to the 3.0 charts
 
 ## Current state
 
-- `helm.digit.org/digit3/core/<chart>/index.yaml` is not published yet, so release
+- `helm.digit.org/digit3/core/index.yaml` is not published yet, so release
   Warehouses discover no chart and no release Freight can be assembled until it is. A Stage needs a
   release Freight before its env-config Freight can be promoted.
 - App images are not yet built with `flyway-branch-*` tags (only `-db` images are).

@@ -7,7 +7,7 @@
 #   <service>              RELEASE Freight -- promoted dev -> qa -> uat, or
 #                          straight to any stage (qa/uat set `direct: true`)
 #     image  docker.io/egovio/<service>   app tag, ALSO written to <service>-db
-#     chart  helm.digit.org/digit3/core/<chart>   packaged chart version
+#     chart  helm.digit.org/digit3/core, entry <chart>   packaged chart version
 #     git    digit3-core/<service>/{Chart.yaml,values.yaml}   shared config
 #
 #   <service>-dev-config   ENV CONFIG Freight -- git digit3-core/<service>/stages/dev.yaml
@@ -34,11 +34,13 @@ kargo:
   argocdAppPrefix: digit3-
   git:
     repoURL: https://github.com/egovernments/DIGIT-DevOps.git
-  # One Helm repo PER CHART: https://helm.digit.org/digit3/core/<chart>/index.yaml.
-  # Work in progress: none is published yet, so the chart subscriptions discover
-  # nothing and no release Freight can be assembled until they are.
+  # One shared Helm repo: https://helm.digit.org/digit3/core/index.yaml holds every
+  # chart. Each release Warehouse subscribes with its own `chart:` name, so Kargo
+  # reads only that chart's entries, sorted newest -> oldest semver, keeping the
+  # latest `discoveryLimit` of them.
+  # Work in progress: index.yaml is not published yet, so the chart subscriptions
+  # discover nothing and no release Freight can be assembled until it is.
   chartRepo: https://helm.digit.org/digit3/core
-  chartRepoPerChart: true
   # App images drive: mainline and the flyway-branch builds. Anchored on the
   # trailing sha so the -amd64/-arm64 children stay out of Freight.
   allowTags: '^(master|flyway-branch)-.*[0-9a-f]{7,}$'

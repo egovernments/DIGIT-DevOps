@@ -18,7 +18,8 @@
        that dependency to the Freight's chart version, and the image tags are written
        under the dependency's key, since an umbrella nests subchart values there. */}}
 {{- $chartMode := and $release $svc.chart }}
-{{- $chartRepo := $svc.chartRepo | default $k.chartRepo }}
+{{- /* chartRepoPerChart: every chart is its own Helm repo, <chartRepo>/<chart>/index.yaml */}}
+{{- $chartRepo := $svc.chartRepo | default (ternary (printf "%s/%s" $k.chartRepo $svc.chart) $k.chartRepo (not (not $k.chartRepoPerChart))) }}
 {{- /* envConfig mode: the Stage also requests Freight from its own per-stage config
        Warehouse (<svc>-<stage>-config, stages/<stage>.yaml only), always direct.
        Both commits come from the same repo, so each commitFrom names its Warehouse.

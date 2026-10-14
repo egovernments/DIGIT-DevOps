@@ -4,6 +4,8 @@
        this Warehouse and gets one Warehouse per stage (below), so a per-env change
        is promoted straight to that env without touching any other. */}}
 {{- $envConfig := and $svc.configPath $svc.releasePath (or $svc.envConfig $k.envConfig) }}
+{{- /* chartRepoPerChart: every chart is its own Helm repo, <chartRepo>/<chart>/index.yaml */}}
+{{- $chartRepo := $svc.chartRepo | default (ternary (printf "%s/%s" $k.chartRepo $svc.chart) $k.chartRepo (not (not $k.chartRepoPerChart))) }}
 ---
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Warehouse
@@ -33,7 +35,7 @@ spec:
     # Packaged Helm chart artifact: the chart VERSION joins the image tag in
     # Freight, so a promotion pins which chart release renders this build.
     - chart:
-        repoURL: {{ $svc.chartRepo | default $k.chartRepo }}
+        repoURL: {{ $chartRepo }}
         name: {{ $svc.chart }}
         {{- with ($svc.chartSemver | default $k.chartSemver) }}
         semverConstraint: {{ . | quote }}

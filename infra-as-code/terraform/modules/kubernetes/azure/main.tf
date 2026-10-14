@@ -19,6 +19,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     node_count                  = var.system_node_count
     max_pods                    = 100
     vm_size                     = var.system_vm_size
+    orchestrator_version        = var.kubernetes_version
     vnet_subnet_id              = var.vnet_subnet_id
     node_public_ip_enabled      = false
     temporary_name_for_rotation = "tempsyspool"

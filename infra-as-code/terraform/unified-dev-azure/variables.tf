@@ -142,7 +142,7 @@ variable "jenkins_vm_size" {
 
 variable "jenkins_node_count" {
   description = "Number of nodes in the dedicated Jenkins pool. 0 disables the pool entirely."
-  default     = 1
+  default     = 2
 }
 
 variable "os_disk_size_gb" {

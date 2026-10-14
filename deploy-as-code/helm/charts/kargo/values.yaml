@@ -14,6 +14,28 @@ kargo:
   # (the authoring environment), which is correct for every project here.
   configBranch: ""
 
+  # Per service, opt-in, requires configPath:
+  #   releasePath: <dir>   e.g. deploy-as-code/helm/charts/releases/<service>
+  # configPath becomes a SOURCE that no Argo CD Application reads. Every stage,
+  # the first included, replaces releasePath on its own branch with the Freight's
+  # copy of configPath (minus stages/), writes releasePath/values.yaml as
+  # values.yaml + stages/<stage>.yaml, and sets image.tag in it. Argo CD deploys
+  # releasePath, so nothing reaches any environment except by promotion. Without
+  # releasePath, configPath keeps its copy-to-downstream-stages behaviour.
+  #
+  # Packaged charts (per service, opt-in, with releasePath):
+  #   chart: <name>        chart name in the Helm repo below. Adds a chart
+  #                        subscription to the Warehouse, so Freight pins
+  #                        (image tag, chart version, config commit). configPath
+  #                        is then a thin umbrella chart depending on it;
+  #                        promotion pins the dependency to the Freight's version
+  #                        and writes image tags under `<chart>.`.
+  #   chartRepo / chartSemver   per-service overrides of the two keys below.
+  #   deployment: <name>   Deployment the verification checks, when the chart
+  #                        names it differently from the service (default: name).
+  chartRepo: ""
+  chartSemver: ""
+
   # Stage names whose promotion only accepts master-* Freight. On these stages the
   # mutating promotion steps are guarded with an `if` on the image tag, so a non
   # master build is a no-op (nothing is written to the env file). Lets feature/ticket

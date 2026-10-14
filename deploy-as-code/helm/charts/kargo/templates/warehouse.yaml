@@ -25,6 +25,17 @@ spec:
         {{- end }}
         cacheByTag: {{ $svc.cacheByTag | default false }}
         discoveryLimit: {{ $svc.discoveryLimit | default 10 }}
+    {{- if $svc.chart }}
+    # Packaged Helm chart artifact: the chart VERSION joins the image tag in
+    # Freight, so a promotion pins which chart release renders this build.
+    - chart:
+        repoURL: {{ $svc.chartRepo | default $k.chartRepo }}
+        name: {{ $svc.chart }}
+        {{- with ($svc.chartSemver | default $k.chartSemver) }}
+        semverConstraint: {{ . | quote }}
+        {{- end }}
+        discoveryLimit: {{ $svc.discoveryLimit | default 10 }}
+    {{- end }}
     {{- if $svc.configPath }}
     # Config artifact. Makes the service's chart directory part of Freight, so a
     # promotion carries the image tag AND the config it was tested with, pinned

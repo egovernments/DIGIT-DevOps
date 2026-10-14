@@ -26,8 +26,16 @@ spec:
           labels:
           {{- include "common.labels" . | nindent 12 }}              
         spec:
-        {{- if .Values.extraVolumes }}     
-          volumes:      
+        {{- if .Values.hardened }}
+          {{- /* Pod-level context so the cron pod spec is non-default (KSV-0118). */}}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.runAsUser | default 1000 }}
+            seccompProfile:
+              type: RuntimeDefault
+        {{- end }}
+        {{- if .Values.extraVolumes }}
+          volumes:
           {{- with .Values.extraVolumes }}
             {{- tpl . $ | nindent 12 }}
           {{- end }}     
@@ -39,7 +47,18 @@ spec:
           - name: {{ template "common.name" . }}
             image: {{ template "common.image" (dict "Values" $.Values "repository" .Values.image.repository "tag" .Values.image.tag) }}
             imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- if .Values.command }}  
+            securityContext:
+            {{- if hasKey .Values "containerSecurityContext" }}
+              {{- toYaml .Values.containerSecurityContext | nindent 14 }}
+            {{- else }}
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                  - ALL
+              seccompProfile:
+                type: RuntimeDefault
+            {{- end }}
+          {{- if .Values.command }}
             command:
                 {{- toYaml .Values.command  | nindent 12 }} 
           {{- end }}

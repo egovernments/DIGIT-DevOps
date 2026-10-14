@@ -1,0 +1,78 @@
+## DIGIT 3.0 core services, promoted by Kargo (project digit-core3-0).
+##
+## Deploys deploy-as-code/helm/releases/digit3-core/<service> ONLY: the umbrella
+## Kargo writes on promotion (packaged chart pinned to the Freight's version, plus
+## values merged from values.yaml + stages/dev.yaml, plus the image tags). The
+## sources under deploy-as-code/helm/digit3-core/ are never read here, so a merged
+## change reaches the cluster only through a promotion.
+##
+## Until a service's first promotion to dev its directory does not exist, and its
+## Application shows "app path does not exist" -- expected.
+##
+## No environments/unified-dev.yaml in valueFiles: in an umbrella its top-level
+## 2.x keys (billing:, boundary:, ...) would be applied to the 3.0 charts.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-dev-digit3-core-appset
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: idgen
+          - name: localization
+          - name: url-shortener
+          - name: notification
+          - name: template-config
+          - name: workflow
+          - name: account
+          - name: boundary
+          - name: filestore
+          - name: registry
+          - name: individual
+          - name: employee
+          - name: otp
+          - name: billing
+          - name: apportion
+          - name: pg-service
+          - name: mdms-v2
+
+  template:
+    metadata:
+      name: 'digit3-{{name}}'
+      # Lets the Kargo dev Stage run argocd-update on this app.
+      annotations:
+        kargo.akuity.io/authorized-stage: 'digit-core3-0:{{name}}-dev'
+
+    spec:
+      project: digit3-core-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: unified-dev
+        path: deploy-as-code/helm/releases/digit3-core/{{name}}
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'digit3'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

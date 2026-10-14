@@ -18,7 +18,19 @@
        that dependency to the Freight's chart version, and the image tags are written
        under the dependency's key, since an umbrella nests subchart values there. */}}
 {{- $chartMode := and $release $svc.chart }}
-{{- $chartRepo := $svc.chartRepo | default $k.chartRepo }}
+{{- /* chartRepoPerChart: every chart is its own Helm repo, <chartRepo>/<chart>/index.yaml */}}
+{{- $chartRepo := $svc.chartRepo | default (ternary (printf "%s/%s" $k.chartRepo $svc.chart) $k.chartRepo (not (not $k.chartRepoPerChart))) }}
+{{- /* envConfig mode: the Stage also requests Freight from its own per-stage config
+       Warehouse (<svc>-<stage>-config, stages/<stage>.yaml only), always direct.
+       Both commits come from the same repo, so each commitFrom names its Warehouse.
+       Promoting either Freight re-renders the release from both: a new build keeps
+       this env's config, and a config change keeps this env's build. */}}
+{{- $envConfig := and $release (or $svc.envConfig $k.envConfig) }}
+{{- $cfgWarehouse := printf "%s-%s-config" $svc.name $stage.name }}
+{{- $srcCommit := printf "${{ commitFrom(\"%s\").ID }}" $k.git.repoURL }}
+{{- if $envConfig }}
+{{- $srcCommit = printf "${{ commitFrom(\"%s\", warehouse(\"%s\")).ID }}" $k.git.repoURL $svc.name }}
+{{- end }}
 {{- $masterOnly := has $stage.name ($k.masterOnlyStages | default list) }}
 {{- $masterGuard := printf "${{ imageFrom(\"%s/%s\").Tag matches '^master-' }}" $k.registry $repo }}
 {{- /* Loud reject for master-only stages: on a NON-master tag this expression
@@ -45,11 +57,22 @@ spec:
         name: {{ $svc.name }}
       sources:
       {{- if $stage.from }}
+        {{- if $stage.direct }}
+        # also straight from the Warehouse: promotion may skip {{ $stage.from }}
+        direct: true
+        {{- end }}
         stages:
           - {{ $svc.name }}-{{ $stage.from }}
       {{- else }}
         direct: true
       {{- end }}
+    {{- if $envConfig }}
+    - origin:
+        kind: Warehouse
+        name: {{ $cfgWarehouse }}
+      sources:
+        direct: true
+    {{- end }}
   {{- if and $k.verify.enabled $stage.verifyKubeconfigSecret }}
   verification:
     analysisTemplates:
@@ -79,8 +102,13 @@ spec:
               {{- if $promoteConfig }}
               # The config revision PINNED IN THIS FREIGHT -- deliberately not the
               # upstream branch HEAD, so what QA tested is what UAT receives.
-              - commit: {{ printf "${{ commitFrom(\"%s\").ID }}" $k.git.repoURL | quote }}
+              - commit: {{ $srcCommit | quote }}
                 path: ./src
+              {{- end }}
+              {{- if $envConfig }}
+              # this env's stages/<stage>.yaml, from its own config Freight
+              - commit: {{ printf "${{ commitFrom(\"%s\", warehouse(\"%s\")).ID }}" $k.git.repoURL $cfgWarehouse | quote }}
+                path: ./src-env
               {{- end }}
               - branch: {{ $stage.branch }}
                 path: ./repo
@@ -112,7 +140,7 @@ spec:
           config:
             inFiles:
               - ./src/{{ $svc.configPath }}/values.yaml
-              - ./src/{{ $svc.configPath }}/stages/{{ $stage.name }}.yaml
+              - ./{{ ternary "src-env" "src" (not (not $envConfig)) }}/{{ $svc.configPath }}/stages/{{ $stage.name }}.yaml
             outFile: ./repo/{{ $svc.releasePath }}/values.yaml
             ignoreMissingFiles: true
       {{- if $chartMode }}

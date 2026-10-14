@@ -35,6 +35,23 @@ kargo:
   #                        names it differently from the service (default: name).
   chartRepo: ""
   chartSemver: ""
+  # true: each chart is its own Helm repo at <chartRepo>/<chart> (its own
+  # index.yaml) instead of all charts sharing <chartRepo>/index.yaml.
+  chartRepoPerChart: false
+
+  # Per-environment config Warehouses (project-wide, or per service as
+  # `envConfig: true`; needs configPath + releasePath). The service Warehouse then
+  # watches only <configPath>/{Chart.yaml,values.yaml}, and each stage gets
+  # <service>-<stage>-config watching only <configPath>/stages/<stage>.yaml. Each
+  # Stage requests both; the config one is always direct, so a per-env change is
+  # promoted to that env alone. Freight creation follows the service's
+  # freightCreationPolicy for all four Warehouses.
+  envConfig: false
+
+  # Per stage (in `stages:`), optional:
+  #   direct: true   with `from`, the stage ALSO accepts the service's Freight
+  #                  straight from its Warehouse, so a promotion may skip the
+  #                  upstream stage. masterOnlyStages still applies.
 
   # Stage names whose promotion only accepts master-* Freight. On these stages the
   # mutating promotion steps are guarded with an `if` on the image tag, so a non

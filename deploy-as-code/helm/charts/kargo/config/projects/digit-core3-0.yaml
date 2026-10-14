@@ -2,17 +2,30 @@
 # (Project name is "digit-core3.0" with the dot replaced: a Kargo Project is a
 # Kubernetes namespace, and namespace names cannot contain ".")
 #
-# Freight per service pins three artifacts:
-#   image   docker.io/egovio/<service>           app image; its tag is ALSO written
-#                                                to the <service>-db migration image
-#   chart   helm.digit.org/digit3/core <chart>   packaged chart version
-#   git     deploy-as-code/helm/digit3-core/<service>   umbrella + per-env values
+# Each service has FOUR Warehouses (envConfig mode):
 #
-# Promotion writes deploy-as-code/helm/releases/digit3-core/<service> on the
-# stage's branch: the umbrella pinned to the chart version, values.yaml merged
-# from values.yaml + stages/<stage>.yaml, and the image tags. Only unified-dev has
-# an Argo CD consumer (namespace digit3); qa/uat promotions write their branches
-# but deploy nothing until those appsets exist.
+#   <service>              RELEASE Freight -- promoted dev -> qa -> uat, or
+#                          straight to any stage (qa/uat set `direct: true`)
+#     image  docker.io/egovio/<service>   app tag, ALSO written to <service>-db
+#     chart  helm.digit.org/digit3/core/<chart>   packaged chart version
+#     git    digit3-core/<service>/{Chart.yaml,values.yaml}   shared config
+#
+#   <service>-dev-config   ENV CONFIG Freight -- git digit3-core/<service>/stages/dev.yaml
+#   <service>-qa-config      only, promoted straight to that one stage; never
+#   <service>-uat-config     reaches any other environment
+#
+# A Stage holds one release Freight and one env-config Freight. Promoting either
+# re-renders deploy-as-code/helm/releases/digit3-core/<service> on the stage's
+# branch from both: umbrella pinned to the chart version, values.yaml +
+# stages/<stage>.yaml, and the image tags. A new build keeps the env's config; a
+# config change keeps the env's build.
+#
+# NOTHING IS AUTOMATIC: every Warehouse uses freightCreationPolicy: Manual
+# (Freight is assembled by a person) and every stage has autoPromotion: false.
+# uat accepts only master-* builds, whichever way the Freight arrives.
+#
+# Only unified-dev has an Argo CD consumer (namespace digit3); qa/uat promotions
+# write their branches but deploy nothing until those appsets exist.
 #
 # notify and boundary-management are left out: no DIGIT 3.0 chart exists yet.
 kargo:
@@ -21,9 +34,11 @@ kargo:
   argocdAppPrefix: digit3-
   git:
     repoURL: https://github.com/egovernments/DIGIT-DevOps.git
-  # Work in progress: this repo has no index.yaml yet, so the chart subscription
-  # discovers nothing and no Freight can be assembled until charts are published.
+  # One Helm repo PER CHART: https://helm.digit.org/digit3/core/<chart>/index.yaml.
+  # Work in progress: none is published yet, so the chart subscriptions discover
+  # nothing and no release Freight can be assembled until they are.
   chartRepo: https://helm.digit.org/digit3/core
+  chartRepoPerChart: true
   # App images drive: mainline and the flyway-branch builds. Anchored on the
   # trailing sha so the -amd64/-arm64 children stay out of Freight.
   allowTags: '^(master|flyway-branch)-.*[0-9a-f]{7,}$'
@@ -33,6 +48,8 @@ kargo:
   verify:
     enabled: false
     namespace: digit3
+  # Per-stage config Warehouses for every service below (see header).
+  envConfig: true
 
   services:
     - name: idgen
@@ -191,8 +208,7 @@ kargo:
       releasePath: deploy-as-code/helm/releases/digit3-core/billing
     - name: apportion
       namespace: digit3
-      chart: egov-apportion-service
-      deployment: egov-apportion-service
+      chart: apportion
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
@@ -236,11 +252,16 @@ kargo:
     - name: qa
       color: "#D64550"
       from: dev
+      # release Freight may also come straight from the Warehouse, skipping dev
+      direct: true
       branch: unified-qa
       autoPromotion: false
     - name: uat
       color: "#F2C230"
       from: qa
+      # release Freight may also come straight from the Warehouse, skipping dev
+      # and qa -- still master-* only, still a manual promotion
+      direct: true
       branch: unified-uat
       autoPromotion: false
 

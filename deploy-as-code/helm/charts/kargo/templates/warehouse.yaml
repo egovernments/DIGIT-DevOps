@@ -1,5 +1,9 @@
 {{- $k := .Values.kargo }}
 {{- range $svc := $k.services }}
+{{- /* envConfig mode (needs configPath + releasePath): stages/<stage>.yaml leaves
+       this Warehouse and gets one Warehouse per stage (below), so a per-env change
+       is promoted straight to that env without touching any other. */}}
+{{- $envConfig := and $svc.configPath $svc.releasePath (or $svc.envConfig $k.envConfig) }}
 ---
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Warehouse
@@ -53,7 +57,38 @@ spec:
         branch: {{ $k.configBranch | default (index $k.stages 0).branch }}
         commitSelectionStrategy: NewestFromBranch
         includePaths:
+          {{- if $envConfig }}
+          # shared config only; stages/ belongs to the per-stage Warehouses
+          - {{ printf "%s/Chart.yaml" $svc.configPath | quote }}
+          - {{ printf "%s/values.yaml" $svc.configPath | quote }}
+          {{- else }}
           - {{ $svc.configPath | quote }}
+          {{- end }}
         discoveryLimit: {{ $svc.discoveryLimit | default 10 }}
     {{- end }}
+{{- if $envConfig }}
+{{- range $stage := $k.stages }}
+---
+# Per-environment config for {{ $svc.name }} in {{ $stage.name }}: only
+# stages/{{ $stage.name }}.yaml. Feeds Stage {{ $svc.name }}-{{ $stage.name }} alone.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: {{ $svc.name }}-{{ $stage.name }}-config
+  namespace: {{ $k.project }}
+spec:
+  freightCreationPolicy: {{ $svc.freightCreationPolicy | default "Automatic" }}
+  {{- if $svc.interval }}
+  interval: {{ $svc.interval }}
+  {{- end }}
+  subscriptions:
+    - git:
+        repoURL: {{ $k.git.repoURL }}
+        branch: {{ $k.configBranch | default (index $k.stages 0).branch }}
+        commitSelectionStrategy: NewestFromBranch
+        includePaths:
+          - {{ printf "%s/stages/%s.yaml" $svc.configPath $stage.name | quote }}
+        discoveryLimit: {{ $svc.discoveryLimit | default 10 }}
+{{- end }}
+{{- end }}
 {{- end }}

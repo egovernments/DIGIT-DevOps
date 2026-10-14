@@ -33,13 +33,17 @@
 {{- end }}
 {{- $masterOnly := has $stage.name ($k.masterOnlyStages | default list) }}
 {{- $masterGuard := printf "${{ imageFrom(\"%s/%s\").Tag matches '^master-' }}" $k.registry $repo }}
-{{- /* Loud reject for master-only stages: on a NON-master tag this expression
-       evaluates to a STRING (non-boolean), which Kargo treats as a step failure, so
-       the whole Promotion is marked Failed. $masterGuard (boolean) only SKIPS steps,
-       and Kargo reports an all-skipped Promotion as Succeeded -- misleading. We put
-       $masterAssert on git-clone so a bad tag fails before any mutation; the mutating
-       steps keep $masterGuard as defence-in-depth in case the expr semantics change. */}}
-{{- $masterAssert := printf "${{ imageFrom(\"%s/%s\").Tag matches '^master-' || 'REJECTED: only master-* images may be promoted to %s' }}" $k.registry $repo $stage.name }}
+{{- /* Loud reject for master-only stages, as a ternary:
+         master tag     -> true   (boolean)  -> the step runs normally
+         non-master tag -> a STRING (non-boolean) -> Kargo treats a non-boolean `if`
+                           result as a step failure, so the whole Promotion is Errored.
+       Must NOT be written as `<bool> || '<string>'`: expr evaluates that as an invalid
+       operation ("mismatched types bool and string") for EVERY tag, master included,
+       which blocked all uat promotions (the bug this replaces). $masterGuard (plain
+       boolean) only SKIPS steps -- an all-skipped Promotion reports Succeeded, which is
+       misleading -- so git-clone carries $masterAssert to fail loudly before any
+       mutation, while the mutating steps keep $masterGuard as defence-in-depth. */}}
+{{- $masterAssert := printf "${{ imageFrom(\"%s/%s\").Tag matches '^master-' ? true : 'REJECTED: only master-* images may be promoted to %s' }}" $k.registry $repo $stage.name }}
 ---
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage

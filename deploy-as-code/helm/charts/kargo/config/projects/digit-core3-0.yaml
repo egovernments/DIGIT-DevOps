@@ -1,270 +1,89 @@
-# digit-core3-0 Kargo pipeline: DIGIT 3.0 core services, DEV -> QA -> UAT.
+# digit-core3-0 Kargo pipeline: DIGIT 3.0 core module, DEV -> QA -> UAT.
 # (Project name is "digit-core3.0" with the dot replaced: a Kargo Project is a
 # Kubernetes namespace, and namespace names cannot contain ".")
 #
-# Each service has FOUR Warehouses (envConfig mode):
+# Freight per service = image tag + packaged Helm chart version. No git artifact.
+# Promotion writes them into the module's values file on the stage's branch:
 #
-#   <service>              RELEASE Freight -- promoted dev -> qa -> uat, or
-#                          straight to any stage (qa/uat set `direct: true`)
-#     image  docker.io/egovio/<service>   app tag, ALSO written to <service>-db
-#     chart  helm.digit.org/digit3/core, entry <chart>   packaged chart version
-#     git    digit3-core/<service>/{Chart.yaml,values.yaml}   shared config
+#   deploy-as-code/helm/digit3/core.yaml
+#     <service>.chart-version                              <- chart (Freight)
+#     <service>.image.tag                                  <- image (Freight)
+#     <service>.initContainers.dbMigration.image.tag       <- same tag, <service>-db image
+#     cluster-configs.chart-version                        <- chart (Freight)
 #
-#   <service>-dev-config   ENV CONFIG Freight -- git digit3-core/<service>/stages/dev.yaml
-#   <service>-qa-config      only, promoted straight to that one stage; never
-#   <service>-uat-config     reaches any other environment
+# Argo CD (charts/argo-cd/unified-dev/digit3-core/) reads chart-version from that file
+# and installs the chart from the Helm repo with the file's values. Every key above
+# must be seeded in core.yaml: yaml-update only replaces existing keys.
 #
-# A Stage holds one release Freight and one env-config Freight. Promoting either
-# re-renders deploy-as-code/helm/releases/digit3-core/<service> on the stage's
-# branch from both: umbrella pinned to the chart version, values.yaml +
-# stages/<stage>.yaml, and the image tags. A new build keeps the env's config; a
-# config change keeps the env's build.
-#
-# NOTHING IS AUTOMATIC: every Warehouse uses freightCreationPolicy: Manual
-# (Freight is assembled by a person) and every stage has autoPromotion: false.
-# uat accepts only master-* builds, whichever way the Freight arrives.
-#
-# Only unified-dev has an Argo CD consumer (namespace digit3); qa/uat promotions
-# write their branches but deploy nothing until those appsets exist.
-#
-# notify and boundary-management are left out: no DIGIT 3.0 chart exists yet.
+# NOTHING IS AUTOMATIC: Freight is assembled by hand (freightCreationPolicy: Manual)
+# and every promotion is clicked by a person (autoPromotion: false). qa and uat also
+# accept Freight straight from the Warehouse (direct); uat still takes master-* only.
 kargo:
   project: digit-core3-0
   registry: docker.io/egovio
   argocdAppPrefix: digit3-
   git:
     repoURL: https://github.com/egovernments/DIGIT-DevOps.git
-  # One shared Helm repo: https://helm.digit.org/digit3/core/index.yaml holds every
-  # chart. Each release Warehouse subscribes with its own `chart:` name, so Kargo
-  # reads only that chart's entries, sorted newest -> oldest semver, keeping the
-  # latest `discoveryLimit` of them.
-  # Work in progress: index.yaml is not published yet, so the chart subscriptions
-  # discover nothing and no release Freight can be assembled until it is.
+  # Service charts. https://helm.digit.org/digit3/core/index.yaml holds every core
+  # chart; each Warehouse subscribes by name, so it lists only its own versions,
+  # newest first.
   chartRepo: https://helm.digit.org/digit3/core
-  # App images drive: mainline and the flyway-branch builds. Anchored on the
-  # trailing sha so the -amd64/-arm64 children stay out of Freight.
+  # mainline and flyway-branch builds; anchored on the trailing sha so the
+  # -amd64/-arm64 children stay out of Freight.
   allowTags: '^(master|flyway-branch)-.*[0-9a-f]{7,}$'
   # masterOnlyStages: [uat] (chart default) -- flyway-branch builds reach dev/qa only.
-  # Off until DIGIT 3.0's DB/secrets are wired in namespace digit3: the check needs
-  # a Ready pod, so a failing dev rollout would block every promotion to qa.
   verify:
     enabled: false
-    namespace: digit3
-  # Per-stage config Warehouses for every service below (see header).
-  envConfig: true
 
   services:
-    - name: idgen
-      namespace: digit3
-      chart: idgen
-      freightCreationPolicy: Manual
-      imageSelectionStrategy: NewestBuild
-      cacheByTag: true
-      discoveryLimit: 20
-      interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/idgen
-      releasePath: deploy-as-code/helm/releases/digit3-core/idgen
     - name: localization
-      namespace: digit3
       chart: localization
+      dbMigration: true
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
       discoveryLimit: 20
       interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/localization
-      releasePath: deploy-as-code/helm/releases/digit3-core/localization
-    - name: url-shortener
-      namespace: digit3
-      chart: url-shortener
-      freightCreationPolicy: Manual
-      imageSelectionStrategy: NewestBuild
-      cacheByTag: true
-      discoveryLimit: 20
-      interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/url-shortener
-      releasePath: deploy-as-code/helm/releases/digit3-core/url-shortener
-    - name: notification
-      namespace: digit3
-      chart: notification
-      freightCreationPolicy: Manual
-      imageSelectionStrategy: NewestBuild
-      cacheByTag: true
-      discoveryLimit: 20
-      interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/notification
-      releasePath: deploy-as-code/helm/releases/digit3-core/notification
-    - name: template-config
-      namespace: digit3
-      chart: template-config
-      freightCreationPolicy: Manual
-      imageSelectionStrategy: NewestBuild
-      cacheByTag: true
-      discoveryLimit: 20
-      interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/template-config
-      releasePath: deploy-as-code/helm/releases/digit3-core/template-config
-    - name: workflow
-      namespace: digit3
-      chart: workflow
-      freightCreationPolicy: Manual
-      imageSelectionStrategy: NewestBuild
-      cacheByTag: true
-      discoveryLimit: 20
-      interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/workflow
-      releasePath: deploy-as-code/helm/releases/digit3-core/workflow
-    - name: account
-      namespace: digit3
-      chart: account
-      freightCreationPolicy: Manual
-      imageSelectionStrategy: NewestBuild
-      cacheByTag: true
-      discoveryLimit: 20
-      interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/account
-      releasePath: deploy-as-code/helm/releases/digit3-core/account
-    - name: boundary
-      namespace: digit3
-      chart: boundary
-      freightCreationPolicy: Manual
-      imageSelectionStrategy: NewestBuild
-      cacheByTag: true
-      discoveryLimit: 20
-      interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/boundary
-      releasePath: deploy-as-code/helm/releases/digit3-core/boundary
     - name: filestore
-      namespace: digit3
       chart: filestore
+      dbMigration: true
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
       discoveryLimit: 20
       interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/filestore
-      releasePath: deploy-as-code/helm/releases/digit3-core/filestore
-    - name: registry
-      namespace: digit3
-      chart: registry
+    # The module's namespace-scoped ConfigMaps/Secrets (digit3-core-cluster-configs).
+    # Chart only: Freight carries just the chart version.
+    - name: cluster-configs
+      image: false
+      chart: cluster-configs
+      chartRepo: https://helm.digit.org/digit3/cluster-configs
+      valuesKey: cluster-configs
       freightCreationPolicy: Manual
-      imageSelectionStrategy: NewestBuild
-      cacheByTag: true
       discoveryLimit: 20
       interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/registry
-      releasePath: deploy-as-code/helm/releases/digit3-core/registry
-    - name: individual
-      namespace: digit3
-      chart: individual
-      freightCreationPolicy: Manual
-      imageSelectionStrategy: NewestBuild
-      cacheByTag: true
-      discoveryLimit: 20
-      interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/individual
-      releasePath: deploy-as-code/helm/releases/digit3-core/individual
-    - name: employee
-      namespace: digit3
-      chart: employee
-      freightCreationPolicy: Manual
-      imageSelectionStrategy: NewestBuild
-      cacheByTag: true
-      discoveryLimit: 20
-      interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/employee
-      releasePath: deploy-as-code/helm/releases/digit3-core/employee
-    - name: otp
-      namespace: digit3
-      chart: otp
-      freightCreationPolicy: Manual
-      imageSelectionStrategy: NewestBuild
-      cacheByTag: true
-      discoveryLimit: 20
-      interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/otp
-      releasePath: deploy-as-code/helm/releases/digit3-core/otp
-    - name: billing
-      namespace: digit3
-      chart: billing
-      freightCreationPolicy: Manual
-      imageSelectionStrategy: NewestBuild
-      cacheByTag: true
-      discoveryLimit: 20
-      interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/billing
-      releasePath: deploy-as-code/helm/releases/digit3-core/billing
-    - name: apportion
-      namespace: digit3
-      chart: apportion
-      freightCreationPolicy: Manual
-      imageSelectionStrategy: NewestBuild
-      cacheByTag: true
-      discoveryLimit: 20
-      interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/apportion
-      releasePath: deploy-as-code/helm/releases/digit3-core/apportion
-    - name: pg-service
-      namespace: digit3
-      chart: pg-service
-      freightCreationPolicy: Manual
-      imageSelectionStrategy: NewestBuild
-      cacheByTag: true
-      discoveryLimit: 20
-      interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/pg-service
-      releasePath: deploy-as-code/helm/releases/digit3-core/pg-service
-    - name: mdms-v2
-      namespace: digit3
-      chart: mdms-v2
-      freightCreationPolicy: Manual
-      imageSelectionStrategy: NewestBuild
-      cacheByTag: true
-      discoveryLimit: 20
-      interval: 30m0s
-      dbMigration: true
-      configPath: deploy-as-code/helm/digit3-core/mdms-v2
-      releasePath: deploy-as-code/helm/releases/digit3-core/mdms-v2
 
-  # envFile is unused in releasePath mode; each stage only names its branch.
   stages:
     - name: dev
       color: "#3BA9C2"
       branch: unified-dev
+      envFile: deploy-as-code/helm/digit3/core.yaml
       autoPromotion: false
-      argocdUpdate: true
-      argocdNamespace: argocd
-      verifyKubeconfigSecret: verify-kubeconfig-dev
     - name: qa
       color: "#D64550"
       from: dev
-      # release Freight may also come straight from the Warehouse, skipping dev
+      # also straight from the Warehouse, skipping dev
       direct: true
       branch: unified-qa
+      envFile: deploy-as-code/helm/digit3/core.yaml
       autoPromotion: false
     - name: uat
       color: "#F2C230"
       from: qa
-      # release Freight may also come straight from the Warehouse, skipping dev
-      # and qa -- still master-* only, still a manual promotion
+      # also straight from the Warehouse, skipping dev and qa -- still master-* only
       direct: true
       branch: unified-uat
+      envFile: deploy-as-code/helm/digit3/core.yaml
       autoPromotion: false
 
   teams:

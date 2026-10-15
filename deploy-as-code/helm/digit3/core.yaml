@@ -1,0 +1,72 @@
+# DIGIT 3.0 core module -- unified-dev.
+#
+# One values file per module per environment branch (unified-qa / unified-uat get
+# their own copy of this path). Argo CD deploys, from this file only:
+#   digit3-<service>              chart <service> from https://helm.digit.org/digit3/core
+#                                 at <service>.chart-version, values {global, <service>}
+#   digit3-core-cluster-configs   chart cluster-configs from https://helm.digit.org/digit3/cluster-configs
+#                                 at cluster-configs.chart-version, values = this file + core-secrets.yaml
+#
+# Kargo (project digit-core3-0) writes the keys marked "Kargo" on promotion. They must
+# stay present: Kargo's yaml-update only replaces existing keys. Everything else is
+# edited by PR.
+
+global:
+  # The common chart puts every object in this namespace.
+  namespace: digit3
+  domain: unified-dev.digit.org
+
+localization:
+  chart-version: "1.0.0"                       # Kargo (Freight: chart)
+  image:
+    tag: flyway-branch-18c74fe                 # Kargo (Freight: image) -> egovio/localization
+  initContainers:
+    dbMigration:
+      enabled: true
+      image:
+        tag: flyway-branch-18c74fe             # Kargo (same tag)       -> egovio/localization-db
+  replicas: 1
+  ingress:
+    enabled: false                             # no route on the shared unified-dev host
+
+filestore:
+  chart-version: "1.0.0"                       # Kargo (Freight: chart)
+  image:
+    tag: flyway-branch-18c74fe                 # Kargo (Freight: image) -> egovio/filestore
+  initContainers:
+    dbMigration:
+      enabled: true
+      image:
+        tag: flyway-branch-18c74fe             # Kargo (same tag)       -> egovio/filestore-db
+  replicas: 1
+  ingress:
+    enabled: false
+
+# Namespace-scoped ConfigMaps/Secrets for this module, rendered by the cluster-configs
+# chart (app digit3-core-cluster-configs). Every object pins namespace: [digit3] --
+# the chart's defaults point at shared namespaces (egov, health, ...), and the
+# digit3-core AppProject only permits digit3, so a missing namespace fails the sync
+# instead of touching another module. Secret VALUES live in core-secrets.yaml (SOPS).
+cluster-configs:
+  chart-version: "1.0.2"                       # Kargo (Freight: chart)
+  namespaces:
+    create: false                              # digit3 is created by cluster-configs-unified-dev
+  configmaps:
+    egov-config:
+      namespace: [digit3]
+      data:
+        # DIGIT 3.0 uses its own PostgreSQL 18 (CloudNativePG, backbone/postgresql-18),
+        # database coredb -- never the DIGIT 2.x unified-dev-db.
+        db-host: postgresql-18-rw.backbone
+        db-name: coredb
+        db-url: jdbc:postgresql://postgresql-18-rw.backbone:5432/coredb
+        flyway-locations: filesystem:/flyway/sql,filesystem:/flyway/seed,filesystem:/flyway/qa
+        kafka-brokers: kafka-kraft-controller-headless.backbone:9092
+        timezone: Asia/Kolkata
+  secrets:
+    db:
+      namespace: [digit3]                      # username/password/flyway-* in core-secrets.yaml
+    minio:
+      namespace: [digit3]                      # accesskey/secretkey in core-secrets.yaml
+    docker-registry-secret:
+      namespace: [digit3]                      # dockerconfigjson in core-secrets.yaml

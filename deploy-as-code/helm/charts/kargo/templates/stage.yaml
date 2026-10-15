@@ -94,6 +94,17 @@ spec:
   promotionTemplate:
     spec:
       steps:
+      {{- if $envConfig }}
+        # A Promotion carries ONE Freight, and rendering needs this stage's release
+        # (build tag, chart version, shared config). So an env-config Freight cannot
+        # be the first thing promoted here: stop with a readable reason instead of
+        # an expression error further down (and before the uat master-only check,
+        # which reads the release image too).
+        - uses: fail
+          if: {{ printf "${{ commitFrom(\"%s\", warehouse(\"%s\"))?.ID == nil }}" $k.git.repoURL $svc.name | quote }}
+          config:
+            message: {{ printf "%s-%s has no release Freight yet: promote a %s release Freight to it first" $svc.name $stage.name $svc.name | quote }}
+      {{- end }}
         - uses: git-clone
           {{- if $masterOnly }}
           # Master-only stage guard: a non-master tag makes this a non-boolean expr,
@@ -110,8 +121,11 @@ spec:
                 path: ./src
               {{- end }}
               {{- if $envConfig }}
-              # this env's stages/<stage>.yaml, from its own config Freight
-              - commit: {{ printf "${{ commitFrom(\"%s\", warehouse(\"%s\")).ID }}" $k.git.repoURL $cfgWarehouse | quote }}
+              # this env's stages/<stage>.yaml, from its own config Freight. Until one
+              # has been promoted here (e.g. the stage's very first promotion, which
+              # is a release), fall back to the release commit -- it carries the
+              # stages/<stage>.yaml that was current when the release was built.
+              - commit: {{ printf "${{ (commitFrom(\"%s\", warehouse(\"%s\")) ?? commitFrom(\"%s\", warehouse(\"%s\"))).ID }}" $k.git.repoURL $cfgWarehouse $k.git.repoURL $svc.name | quote }}
                 path: ./src-env
               {{- end }}
               - branch: {{ $stage.branch }}

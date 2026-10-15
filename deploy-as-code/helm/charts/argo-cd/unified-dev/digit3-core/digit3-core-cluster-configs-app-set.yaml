@@ -1,0 +1,62 @@
+## DIGIT 3.0 core module: its namespace-scoped ConfigMaps/Secrets, as one Application
+## digit3-core-cluster-configs.
+##   chart   cluster-configs from https://helm.digit.org/digit3/cluster-configs
+##   version cluster-configs.chart-version in deploy-as-code/helm/digit3/core.yaml (Kargo)
+##   values  core.yaml + core-secrets.yaml (SOPS) from git
+##
+## Two sources because the secret values are SOPS-encrypted in git: they are passed as
+## `$values/...` value files (Argo CD resolves `$ref` only at the start of a path, so
+## `secrets://$values/...` would NOT work), and the repo-server's helm-secrets wrapper
+## (HELM_SECRETS_WRAPPER_ENABLED=true) decrypts any SOPS-encrypted -f file and passes
+## plain files through unchanged. ignoreMissingValueFiles: the ConfigMaps still deploy
+## before core-secrets.yaml exists; each Secret renders only when its values are set.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-dev-digit3-core-cluster-configs
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        revision: unified-dev
+        files:
+          - path: deploy-as-code/helm/digit3/core.yaml
+        requeueAfterSeconds: 60
+
+  template:
+    metadata:
+      name: digit3-core-cluster-configs
+    spec:
+      project: digit3-core-project
+      sources:
+        - repoURL: https://helm.digit.org/digit3/cluster-configs
+          chart: cluster-configs
+          targetRevision: '{{ index . "cluster-configs" "chart-version" }}'
+          helm:
+            releaseName: digit3-core-cluster-configs
+            ignoreMissingValueFiles: true
+            valueFiles:
+              - $values/deploy-as-code/helm/digit3/core.yaml
+              - $values/deploy-as-code/helm/digit3/core-secrets.yaml
+        - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+          targetRevision: unified-dev
+          ref: values
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: digit3
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s

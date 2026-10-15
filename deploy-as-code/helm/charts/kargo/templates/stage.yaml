@@ -1,37 +1,22 @@
 {{- $k := .Values.kargo }}
 {{- range $svc := $k.services }}
 {{- $repo := $svc.repo | default $svc.name }}
+{{- /* A service tracks an image unless it sets `image: false` (a chart-only service,
+       e.g. cluster-configs). The image drives the master-only guard, so a chart-only
+       service has no guard. */}}
+{{- $hasImage := ne (toString $svc.image) "false" }}
+{{- /* Packaged chart: a Freight also carries the chart version, written to
+       <valuesKey>.<chartVersionKey> in the stage's env file next to the image tags. */}}
+{{- $chartRepo := $svc.chartRepo | default $k.chartRepo }}
+{{- $valuesKey := $svc.valuesKey | default $svc.name }}
+{{- $chartVersionKey := $k.chartVersionKey | default "chart-version" }}
 {{- range $stage := $k.stages }}
 {{- /* Config promotion is only meaningful on a stage that has an upstream. The
        first stage IS the authoring branch -- its ArgoCD already auto-syncs that
        branch, so copying there is at best a no-op and at worst reverts an edit
        made after the Freight was assembled. */}}
-{{- /* releasePath mode (opt-in, needs configPath) changes that: configPath is then
-       a source Argo CD never reads, and every stage -- the first one included --
-       gets the Freight's config written to releasePath on its own branch, merged
-       with that stage's stages/<stage>.yaml. Kargo is then the only writer of what
-       Argo CD deploys for the service. */}}
-{{- $release := and $svc.configPath $svc.releasePath }}
-{{- $promoteConfig := and $svc.configPath (or $stage.from $release) }}
-{{- /* Packaged-chart mode (releasePath + chart): configPath is a thin umbrella
-       chart whose only dependency is $svc.chart from the chart repo. Promotion pins
-       that dependency to the Freight's chart version, and the image tags are written
-       under the dependency's key, since an umbrella nests subchart values there. */}}
-{{- $chartMode := and $release $svc.chart }}
-{{- /* chartRepoPerChart: every chart is its own Helm repo, <chartRepo>/<chart>/index.yaml */}}
-{{- $chartRepo := $svc.chartRepo | default (ternary (printf "%s/%s" $k.chartRepo $svc.chart) $k.chartRepo (not (not $k.chartRepoPerChart))) }}
-{{- /* envConfig mode: the Stage also requests Freight from its own per-stage config
-       Warehouse (<svc>-<stage>-config, stages/<stage>.yaml only), always direct.
-       Both commits come from the same repo, so each commitFrom names its Warehouse.
-       Promoting either Freight re-renders the release from both: a new build keeps
-       this env's config, and a config change keeps this env's build. */}}
-{{- $envConfig := and $release (or $svc.envConfig $k.envConfig) }}
-{{- $cfgWarehouse := printf "%s-%s-config" $svc.name $stage.name }}
-{{- $srcCommit := printf "${{ commitFrom(\"%s\").ID }}" $k.git.repoURL }}
-{{- if $envConfig }}
-{{- $srcCommit = printf "${{ commitFrom(\"%s\", warehouse(\"%s\")).ID }}" $k.git.repoURL $svc.name }}
-{{- end }}
-{{- $masterOnly := has $stage.name ($k.masterOnlyStages | default list) }}
+{{- $promoteConfig := and $svc.configPath $stage.from }}
+{{- $masterOnly := and $hasImage (has $stage.name ($k.masterOnlyStages | default list)) }}
 {{- $masterGuard := printf "${{ imageFrom(\"%s/%s\").Tag matches '^master-' }}" $k.registry $repo }}
 {{- /* Loud reject for master-only stages, as a ternary:
          master tag     -> true   (boolean)  -> the step runs normally
@@ -70,14 +55,7 @@ spec:
       {{- else }}
         direct: true
       {{- end }}
-    {{- if $envConfig }}
-    - origin:
-        kind: Warehouse
-        name: {{ $cfgWarehouse }}
-      sources:
-        direct: true
-    {{- end }}
-  {{- if and $k.verify.enabled $stage.verifyKubeconfigSecret }}
+  {{- if and $k.verify.enabled $stage.verifyKubeconfigSecret $hasImage }}
   verification:
     analysisTemplates:
       - name: deploy-state-check
@@ -87,24 +65,13 @@ spec:
       - name: namespace
         value: {{ $svc.namespace | default $k.verify.namespace | quote }}
       - name: deployment
-        value: {{ $svc.deployment | default $svc.name | quote }}
+        value: {{ $svc.name | quote }}
       - name: expectedTag
         value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
   {{- end }}
   promotionTemplate:
     spec:
       steps:
-      {{- if $envConfig }}
-        # A Promotion carries ONE Freight, and rendering needs this stage's release
-        # (build tag, chart version, shared config). So an env-config Freight cannot
-        # be the first thing promoted here: stop with a readable reason instead of
-        # an expression error further down (and before the uat master-only check,
-        # which reads the release image too).
-        - uses: fail
-          if: {{ printf "${{ commitFrom(\"%s\", warehouse(\"%s\"))?.ID == nil }}" $k.git.repoURL $svc.name | quote }}
-          config:
-            message: {{ printf "%s-%s has no release Freight yet: promote a %s release Freight to it first" $svc.name $stage.name $svc.name | quote }}
-      {{- end }}
         - uses: git-clone
           {{- if $masterOnly }}
           # Master-only stage guard: a non-master tag makes this a non-boolean expr,
@@ -117,65 +84,12 @@ spec:
               {{- if $promoteConfig }}
               # The config revision PINNED IN THIS FREIGHT -- deliberately not the
               # upstream branch HEAD, so what QA tested is what UAT receives.
-              - commit: {{ $srcCommit | quote }}
+              - commit: {{ printf "${{ commitFrom(\"%s\").ID }}" $k.git.repoURL | quote }}
                 path: ./src
-              {{- end }}
-              {{- if $envConfig }}
-              # this env's stages/<stage>.yaml, from its own config Freight. Until one
-              # has been promoted here (e.g. the stage's very first promotion, which
-              # is a release), fall back to the release commit -- it carries the
-              # stages/<stage>.yaml that was current when the release was built.
-              - commit: {{ printf "${{ (commitFrom(\"%s\", warehouse(\"%s\")) ?? commitFrom(\"%s\", warehouse(\"%s\"))).ID }}" $k.git.repoURL $cfgWarehouse $k.git.repoURL $svc.name | quote }}
-                path: ./src-env
               {{- end }}
               - branch: {{ $stage.branch }}
                 path: ./repo
-      {{- if $release }}
-        # Replace the release directory wholesale: delete first, because copy does
-        # not prune and a template removed at the source must disappear here too.
-        - uses: delete
-          {{- if $masterOnly }}
-          if: {{ $masterGuard | quote }}
-          {{- end }}
-          config:
-            path: ./repo/{{ $svc.releasePath }}
-        - uses: copy
-          {{- if $masterOnly }}
-          if: {{ $masterGuard | quote }}
-          {{- end }}
-          config:
-            inPath: ./src/{{ $svc.configPath }}
-            outPath: ./repo/{{ $svc.releasePath }}
-            # per-env overlays are merged below, not shipped
-            ignore: |
-              stages/
-        # values.yaml (shared) + stages/<stage>.yaml (this env only). Maps merge
-        # key by key; strings and lists replace. A missing stage file is fine.
-        - uses: yaml-merge
-          {{- if $masterOnly }}
-          if: {{ $masterGuard | quote }}
-          {{- end }}
-          config:
-            inFiles:
-              - ./src/{{ $svc.configPath }}/values.yaml
-              - ./{{ ternary "src-env" "src" (not (not $envConfig)) }}/{{ $svc.configPath }}/stages/{{ $stage.name }}.yaml
-            outFile: ./repo/{{ $svc.releasePath }}/values.yaml
-            ignoreMissingFiles: true
-      {{- if $chartMode }}
-        # Pin the packaged chart to the version in this Freight (also refreshes
-        # Chart.lock; the downloaded .tgz is gitignored and never committed).
-        - uses: helm-update-chart
-          {{- if $masterOnly }}
-          if: {{ $masterGuard | quote }}
-          {{- end }}
-          config:
-            path: ./repo/{{ $svc.releasePath }}
-            charts:
-              - repository: {{ $chartRepo }}
-                name: {{ $svc.chart }}
-                version: {{ printf "${{ chartFrom(\"%s\", \"%s\").Version }}" $chartRepo $svc.chart | quote }}
-      {{- end }}
-      {{- else if $promoteConfig }}
+      {{- if $promoteConfig }}
         # Overlay the Freight's config onto this env's branch. NOTE: copy does not
         # prune -- a file deleted at the source is not deleted downstream.
         - uses: copy
@@ -186,30 +100,27 @@ spec:
             inPath: ./src/{{ $svc.configPath }}
             outPath: ./repo/{{ $svc.configPath }}
       {{- end }}
+      {{- /* yaml-update only replaces keys that already exist: every key below must
+             be seeded in the env file before the first promotion. */}}
         - uses: yaml-update
           {{- if $masterOnly }}
           # Only master-* builds may be written to this stage's env file.
           if: {{ $masterGuard | quote }}
           {{- end }}
           config:
-            {{- $keyPrefix := printf "%s." $svc.name }}
-            {{- if $chartMode }}
-            # umbrella values.yaml: subchart values nest under the dependency name
-            path: ./repo/{{ $svc.releasePath }}/values.yaml
-            {{- $keyPrefix = printf "%s." $svc.chart }}
-            {{- else if $release }}
-            # the release's own values.yaml: chart-level keys, no <service>: prefix
-            path: ./repo/{{ $svc.releasePath }}/values.yaml
-            {{- $keyPrefix = "" }}
-            {{- else }}
             path: ./repo/{{ $stage.envFile }}
-            {{- end }}
             updates:
-              - key: {{ $keyPrefix }}image.tag
+              {{- if $hasImage }}
+              - key: {{ $valuesKey }}.image.tag
                 value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
               {{- if $svc.dbMigration }}
-              - key: {{ $keyPrefix }}initContainers.dbMigration.image.tag
+              - key: {{ $valuesKey }}.initContainers.dbMigration.image.tag
                 value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
+              {{- end }}
+              {{- end }}
+              {{- if $svc.chart }}
+              - key: {{ $valuesKey }}.{{ $chartVersionKey }}
+                value: {{ printf "${{ chartFrom(\"%s\", \"%s\").Version }}" $chartRepo $svc.chart | quote }}
               {{- end }}
         - uses: git-commit
           {{- if $masterOnly }}

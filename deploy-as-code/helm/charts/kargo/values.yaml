@@ -14,39 +14,22 @@ kargo:
   # (the authoring environment), which is correct for every project here.
   configBranch: ""
 
-  # Per service, opt-in, requires configPath:
-  #   releasePath: <dir>   e.g. deploy-as-code/helm/charts/releases/<service>
-  # configPath becomes a SOURCE that no Argo CD Application reads. Every stage,
-  # the first included, replaces releasePath on its own branch with the Freight's
-  # copy of configPath (minus stages/), writes releasePath/values.yaml as
-  # values.yaml + stages/<stage>.yaml, and sets image.tag in it. Argo CD deploys
-  # releasePath, so nothing reaches any environment except by promotion. Without
-  # releasePath, configPath keeps its copy-to-downstream-stages behaviour.
-  #
-  # Packaged charts (per service, opt-in, with releasePath):
-  #   chart: <name>        chart name in the Helm repo below. Adds a chart
-  #                        subscription to the Warehouse, so Freight pins
-  #                        (image tag, chart version, config commit). configPath
-  #                        is then a thin umbrella chart depending on it;
-  #                        promotion pins the dependency to the Freight's version
-  #                        and writes image tags under `<chart>.`.
-  #   chartRepo / chartSemver   per-service overrides of the two keys below.
-  #   deployment: <name>   Deployment the verification checks, when the chart
-  #                        names it differently from the service (default: name).
+  # Packaged Helm charts (per service, opt-in):
+  #   chart: <name>       chart name in the Helm repo. Adds a chart subscription to
+  #                       the Warehouse, so Freight pins the chart version next to
+  #                       the image tag; promotion writes it to
+  #                       <valuesKey>.<chartVersionKey> in the stage's envFile.
+  #   chartRepo / chartSemver   per-service overrides of the project keys below.
+  #   image: false        chart-only service (e.g. cluster-configs): no image
+  #                       subscription, no image keys, no master-only guard.
+  #   valuesKey: <key>    env-file section the keys are written under (default:
+  #                       the service name).
+  # yaml-update only REPLACES keys, so every key a promotion writes
+  # (image.tag, initContainers.dbMigration.image.tag, <chartVersionKey>) must be
+  # seeded in the env file first.
   chartRepo: ""
   chartSemver: ""
-  # true: each chart is its own Helm repo at <chartRepo>/<chart> (its own
-  # index.yaml) instead of all charts sharing <chartRepo>/index.yaml.
-  chartRepoPerChart: false
-
-  # Per-environment config Warehouses (project-wide, or per service as
-  # `envConfig: true`; needs configPath + releasePath). The service Warehouse then
-  # watches only <configPath>/{Chart.yaml,values.yaml}, and each stage gets
-  # <service>-<stage>-config watching only <configPath>/stages/<stage>.yaml. Each
-  # Stage requests both; the config one is always direct, so a per-env change is
-  # promoted to that env alone. Freight creation follows the service's
-  # freightCreationPolicy for all four Warehouses.
-  envConfig: false
+  chartVersionKey: chart-version
 
   # Per stage (in `stages:`), optional:
   #   direct: true   with `from`, the stage ALSO accepts the service's Freight

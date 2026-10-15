@@ -149,8 +149,33 @@ spec:
             # per-env overlays are merged below, not shipped
             ignore: |
               stages/
-        # values.yaml (shared) + stages/<stage>.yaml (this env only). Maps merge
-        # key by key; strings and lists replace. A missing stage file is fine.
+        # The Freight's image tags as a values overlay, merged LAST below. yaml-update
+        # cannot be used here: it only replaces keys that already exist, and the
+        # source values.yaml deliberately carries no tags. Written outside ./repo,
+        # so it is never committed. Single-quoted so a tag such as 1.10 stays a string.
+        {{- $tagExpr := printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo }}
+        {{- $ind := ternary "  " "" (not (not $chartMode)) }}
+        - uses: file-write
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            path: ./kargo-image-tags.yaml
+            overwrite: true
+            contents: |
+              {{- if $chartMode }}
+              {{ $svc.chart }}:
+              {{- end }}
+              {{ $ind }}image:
+              {{ $ind }}  tag: '{{ $tagExpr }}'
+              {{- if $svc.dbMigration }}
+              {{ $ind }}initContainers:
+              {{ $ind }}  dbMigration:
+              {{ $ind }}    image:
+              {{ $ind }}      tag: '{{ $tagExpr }}'
+              {{- end }}
+        # values.yaml (shared) + stages/<stage>.yaml (this env only) + the tags above.
+        # Maps merge key by key; strings and lists replace. A missing stage file is fine.
         - uses: yaml-merge
           {{- if $masterOnly }}
           if: {{ $masterGuard | quote }}
@@ -159,6 +184,7 @@ spec:
             inFiles:
               - ./src/{{ $svc.configPath }}/values.yaml
               - ./{{ ternary "src-env" "src" (not (not $envConfig)) }}/{{ $svc.configPath }}/stages/{{ $stage.name }}.yaml
+              - ./kargo-image-tags.yaml
             outFile: ./repo/{{ $svc.releasePath }}/values.yaml
             ignoreMissingFiles: true
       {{- if $chartMode }}
@@ -186,31 +212,22 @@ spec:
             inPath: ./src/{{ $svc.configPath }}
             outPath: ./repo/{{ $svc.configPath }}
       {{- end }}
+      {{- if not $release }}
         - uses: yaml-update
           {{- if $masterOnly }}
           # Only master-* builds may be written to this stage's env file.
           if: {{ $masterGuard | quote }}
           {{- end }}
           config:
-            {{- $keyPrefix := printf "%s." $svc.name }}
-            {{- if $chartMode }}
-            # umbrella values.yaml: subchart values nest under the dependency name
-            path: ./repo/{{ $svc.releasePath }}/values.yaml
-            {{- $keyPrefix = printf "%s." $svc.chart }}
-            {{- else if $release }}
-            # the release's own values.yaml: chart-level keys, no <service>: prefix
-            path: ./repo/{{ $svc.releasePath }}/values.yaml
-            {{- $keyPrefix = "" }}
-            {{- else }}
             path: ./repo/{{ $stage.envFile }}
-            {{- end }}
             updates:
-              - key: {{ $keyPrefix }}image.tag
+              - key: {{ $svc.name }}.image.tag
                 value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
               {{- if $svc.dbMigration }}
-              - key: {{ $keyPrefix }}initContainers.dbMigration.image.tag
+              - key: {{ $svc.name }}.initContainers.dbMigration.image.tag
                 value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
               {{- end }}
+      {{- end }}
         - uses: git-commit
           {{- if $masterOnly }}
           if: {{ $masterGuard | quote }}

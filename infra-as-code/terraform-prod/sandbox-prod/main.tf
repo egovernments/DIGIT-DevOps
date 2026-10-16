@@ -210,22 +210,49 @@ data "aws_iam_openid_connect_provider" "oidc_arn" {
   url = data.aws_eks_cluster.cluster.identity.0.oidc.0.issuer
 }
 
+# Resolve the latest add-on version compatible with the target cluster version so
+# the managed add-ons follow the control plane on a version bump. Without a pinned
+# addon_version these standalone add-ons only pick a version at create time and then
+# lag behind (kube-proxy was stuck on v1.30.x while the control plane moved to 1.34).
+data "aws_eks_addon_version" "kube_proxy" {
+  addon_name         = "kube-proxy"
+  kubernetes_version = var.kubernetes_version
+  most_recent        = true
+}
+
+data "aws_eks_addon_version" "core_dns" {
+  addon_name         = "coredns"
+  kubernetes_version = var.kubernetes_version
+  most_recent        = true
+}
+
+data "aws_eks_addon_version" "aws_ebs_csi_driver" {
+  addon_name         = "aws-ebs-csi-driver"
+  kubernetes_version = var.kubernetes_version
+  most_recent        = true
+}
+
 resource "aws_eks_addon" "kube_proxy" {
   depends_on = [module.eks_managed_node_group]
   cluster_name      = var.cluster_name
   addon_name        = "kube-proxy"
+  addon_version               = data.aws_eks_addon_version.kube_proxy.version
   resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 }
 resource "aws_eks_addon" "core_dns" {
   depends_on = [module.eks_managed_node_group]
   cluster_name      = var.cluster_name
   addon_name        = "coredns"
+  addon_version               = data.aws_eks_addon_version.core_dns.version
   resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 }
 resource "aws_eks_addon" "aws_ebs_csi_driver" {
   depends_on = [module.eks_managed_node_group]
   cluster_name      = var.cluster_name
   addon_name        = "aws-ebs-csi-driver"
+  addon_version               = data.aws_eks_addon_version.aws_ebs_csi_driver.version
   service_account_role_arn = module.ebs_csi_irsa.arn
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"

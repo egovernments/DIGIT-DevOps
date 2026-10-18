@@ -1,0 +1,203 @@
+# Common Labels
+labels:
+  app: "employee-onboarding"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "employee-onboarding"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "employee_onboarding_schema"
+    image:
+      repository: "employee-onboarding-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
+
+# Container Configs
+image:
+  repository: "employee-onboarding"
+# One replica: job tokens and in-flight uploads are held in memory.
+replicas: 1
+appType: "java"
+tracing-export-enabled: "false"
+tracing-enabled: false
+heap: "-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=75.0"
+healthChecks:
+  enabled: false
+  livenessProbePath: "/employee-onboarding/actuator/health/liveness"
+  readinessProbePath: "/employee-onboarding/actuator/health/readiness"
+resources: |
+  requests:
+    cpu: "150m"
+    memory: "768Mi"
+  limits:
+    cpu: "1"
+    memory: "2Gi"
+
+# Additional Container Envs
+env: |
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: /employee-onboarding
+
+  - name: DB_HOST
+    value: postgres.egov
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_SSL_MODE
+    value: disable
+  - name: DB_NAME
+    value: postgres
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+
+  # Downstream services: hosts end with "/", paths have no leading "/".
+  - name: KEYCLOAK_BASE_URL
+    value: http://keycloak.keycloak.svc.cluster.local:8080/keycloak/
+  - name: INDIVIDUAL_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: individual-java
+        name: egov-service-host
+  - name: INDIVIDUAL_PATH
+    value: individuals/v3/individuals
+  - name: INDIVIDUAL_CONFIG_PATH
+    value: individuals/v3/configs
+  - name: EMPLOYEE_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: employee-java
+        name: egov-service-host
+  - name: EMPLOYEE_PATH
+    value: employee/v3/employees
+  - name: BOUNDARY_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: boundary-java
+        name: egov-service-host
+  - name: BOUNDARY_RELATIONSHIP_PATH
+    value: boundary/v3/relationship
+  - name: BOUNDARY_HIERARCHY_PATH
+    value: boundary/v3/hierarchy
+  - name: IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: idgen-java
+        name: egov-service-host
+  - name: IDGEN_TEMPLATE_PATH
+    value: idgen/v3/template
+  - name: IDGEN_TEMPLATE_CODE
+    value: EmployeeCode
+
+  # Row PII (mobile, email, alternate number, password) is encrypted with Vault transit, tenant key.
+  - name: VAULT_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: vault
+        name: egov-service-host
+  - name: VAULT_ROLE_ID
+    valueFrom:
+      secretKeyRef:
+        name: vault-approle
+        key: role-id
+  - name: VAULT_SECRET_ID
+    valueFrom:
+      secretKeyRef:
+        name: vault-approle
+        key: secret-id
+  - name: VAULT_ENABLED
+    value: "true"
+  - name: HMAC_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: hmac-secret
+        key: hmac-secret
+
+  # Limits
+  - name: EMPLOYEE_ONBOARDING_MAX_FILE_BYTES
+    value: "10485760"
+  - name: EMPLOYEE_ONBOARDING_MAX_ROWS
+    value: "100000"
+  - name: EMPLOYEE_ONBOARDING_PASSWORD_MIN_LENGTH
+    value: "8"
+  - name: EMPLOYEE_ONBOARDING_DENIED_ROLES
+    value: SUPERUSER
+
+  # Validation and creation
+  - name: EMPLOYEE_ONBOARDING_VALIDATION_CONCURRENCY
+    value: "10"
+  - name: EMPLOYEE_ONBOARDING_KC_SCAN_MAX_USERS
+    value: "50000"
+  - name: EMPLOYEE_ONBOARDING_CHUNK_SIZE
+    value: "100"
+  - name: EMPLOYEE_ONBOARDING_WORKERS
+    value: "4"
+  - name: EMPLOYEE_ONBOARDING_ROW_CONCURRENCY
+    value: "10"
+
+  # Pub/sub is unused by this service; the tracer still needs a backend configured.
+  - name: PUBSUB_TYPE
+    value: redis
+  - name: REDIS_HOST
+    value: redis.backbone.svc.cluster.local
+  - name: REDIS_PORT
+    value: "6379"
+  - name: KAFKA_BROKERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+
+  - name: TENANT_MIGRATION_ENABLED
+    value: "false"
+  - name: TENANT_MIGRATION_SCHEMA_TABLE
+    value: employee_onboarding_schema
+  - name: TENANT_MIGRATION_CONSUMER_GROUP
+    value: employee-onboarding
+
+  - name: MANAGEMENT_TRACING_EXPORT_ENABLED
+    value: {{ index .Values "tracing-export-enabled" | quote }}
+  - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
+    value: http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/traces

@@ -13,47 +13,59 @@ This directory provisions the Azure infrastructure required for a DIGIT environm
 - Provisions AKS through `../modules/kubernetes/azure`.
 - Provisions PostgreSQL Flexible Server through `../modules/db/azure`.
 - Adds private DNS zone wiring for PostgreSQL.
+- Provisions a dedicated **egov-filestore** blob Storage Account with a private `filestore` container and a public (anonymous blob) `public-assets` container, and creates the in-cluster `egov-filestore` secret (`account-name`/`account-key`) the chart consumes — the Azure analogue of the AWS S3 filestore bucket + IAM user + k8s secret.
 - Adds validation for Azure environment, resource group, database user, and database password inputs.
 
-## What's New in Kubernetes 1.34
+## egov-filestore blob storage
 
-Upstream highlights relevant to DIGIT workloads (verify feature availability against the AKS 1.34 support matrix before relying on any of them):
+The main package provisions blob storage for the egov-filestore service, mirroring the AWS pattern:
 
-- **Dynamic Resource Allocation (DRA) core is GA** — standardized requesting and sharing of GPUs and other specialized devices.
-- **In-place Pod vertical resource resize** continues to mature — adjust container CPU/memory without a restart.
-- **Pod-level resource requests and limits** — resources can be declared at the Pod scope, not only per container.
-- **Structured authentication configuration** graduated — cleaner multi-issuer / OIDC auth.
-- **Ordered (orderly) namespace deletion** — safer teardown order for namespaced objects.
-- **Fine-grained SupplementalGroups control** for Pod security.
-- **KYAML** — a stricter, safer YAML output format available in `kubectl`.
-- **`.kuberc`** — user-level `kubectl` preferences file.
-- Continued API deprecations/removals; the in-tree cloud provider is no longer used (external cloud controllers are standard).
+- `azurerm_storage_account.filestore` — a **separate** account from the private Terraform-state account (`filestore_storage_account_name`). Public blob access is enabled at the account level so the public container can serve anonymous reads.
+- `azurerm_storage_container.filestore` — **private** container egov-filestore reads/writes (maps to the chart's `FIXED_CONTAINER_NAME`).
+- `azurerm_storage_container.public_assets` — **public** (anonymous blob read) container for public assets.
+- `kubernetes_secret.egov_filestore` — Opaque secret `egov-filestore` in the `filestore_namespace` (default `egov`) with keys `account-name` and `account-key`, created via a `kubernetes` provider authenticated to the AKS cluster. This is exactly what the egov-filestore chart expects (`is-azure-enabled: true`, `AZURE_ACCOUNTNAME`/`AZURE_ACCOUNTKEY` via `secretKeyRef`).
 
-Official release notes: https://kubernetes.io/blog/2025/08/27/kubernetes-v1-34-release/ · CHANGELOG: https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.34.md
+Switching clouds is a flag change in the egov-filestore chart: `is-azure-enabled: true` for Azure, or `is-s3-enabled: true` for AWS S3 / any S3-compatible store (e.g. GCS via HMAC keys, by pointing `aws.s3.url` at the endpoint).
 
-## Kubernetes 1.34 — Code Changes (AKS 1.33 → 1.34)
+## What's New in Kubernetes 1.35
 
-Code/config changes made for the 1.33 → 1.34 upgrade:
+Kubernetes 1.35 ("Timbernetes") upstream highlights relevant to DIGIT workloads (verify feature availability against the AKS 1.35 support matrix before relying on any of them):
 
-- `kubernetes_version` default set to `1.34` in `variables.tf`.
+- **cgroup v1 support removed**: nodes must run cgroup v2. AKS satisfies this because upgrading to 1.35 or higher automatically migrates Ubuntu node pools to Ubuntu 24.04, which uses cgroup v2.
+- **In-place Pod resource resize is GA**: adjust container CPU/memory without restarting the Pod.
+- **PreferSameNode / PreferSameZone traffic distribution**: Services can prefer local endpoints first, reducing latency and cross-zone data cost.
+- **kube-proxy IPVS mode deprecated**: nftables is the long-term replacement. The default AKS kube-proxy configuration is unaffected.
+- **kubeadm v1beta3 config API removed**: not used by the AKS managed control plane.
+- **DRAResourceHealth v1alpha1 deprecated** (removal targeted for 1.40).
+- Note: ingress-nginx receives best-effort maintenance only until March 2026; plan a migration path if DIGIT ingress relies on it.
+
+AKS added 1.35 in preview in February 2026 and reached GA in March 2026 (it is also an AKS LTS version); confirm it is available in your region and offering before upgrading.
+
+Official release notes: https://kubernetes.io/blog/2025/12/17/kubernetes-v1-35-release/ · CHANGELOG: https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-1.35.md · AKS supported versions: https://learn.microsoft.com/en-us/azure/aks/supported-kubernetes-versions
+
+## Kubernetes 1.35 — Code Changes (AKS 1.34 → 1.35)
+
+Code/config changes made for the 1.34 → 1.35 upgrade:
+
+- `kubernetes_version` default set to `1.35` in `variables.tf`.
 - The version is applied on the `azurerm_kubernetes_cluster` resource via `kubernetes_version = var.kubernetes_version`, which upgrades the AKS control plane.
-- The default node pool tracks the control-plane version; keep its `orchestrator_version` aligned with `kubernetes_version` (AKS upgrades the control plane first, then node pools).
+- The `mainpool` user node pool tracks the control-plane version through `orchestrator_version = var.kubernetes_version`, so it rolls to 1.35 after the control plane. Expect the Ubuntu node image to migrate to Ubuntu 24.04 during this roll.
 
-## Upgrading from 1.33 to 1.34
+## Upgrading from 1.34 to 1.35
 
-> AKS upgrades one minor version at a time. The cluster must already be on **1.33** before upgrading to **1.34**.
+> AKS upgrades one minor version at a time. The cluster must already be on **1.34** before upgrading to **1.35**.
 
-1. **Bump the version** — `kubernetes_version = "1.34"` (already the default in `variables.tf`).
+1. **Bump the version** — `kubernetes_version = "1.35"` (already the default in `variables.tf`).
 2. **Upgrade the control plane**
    ```bash
    terraform init
    terraform plan  -var='db_password=<password>'
    terraform apply -var='db_password=<password>'
    ```
-3. **Upgrade the node pool(s)** — ensure the default node pool `orchestrator_version` is set to 1.34 so nodes roll to the new version after the control plane.
+3. **Upgrade the node pool(s)** — the node pool `orchestrator_version` follows `kubernetes_version`, so nodes roll to 1.35 (and to the Ubuntu 24.04 node image) after the control plane. Drain/surge happens one node at a time.
 4. **Validate**
    ```bash
-   kubectl get nodes     # every node reports v1.34.x
+   kubectl get nodes     # every node reports v1.35.x
    kubectl version
    kubectl get pods -A
    ```
@@ -68,11 +80,15 @@ Required values:
 - `resource_group`: Azure resource group name.
 - `location`: Azure region.
 - `subscription_id`: Azure subscription ID.
+- `storage_account_name`: Globally-unique Azure Storage Account that holds the Terraform state. The init helper substitutes it into both the remote-state module and the backend block in `main.tf`, so they always match (no manual copy step).
 - `db_user`: PostgreSQL admin user.
+- `filestore_storage_account_name`: Globally-unique Azure Storage Account for egov-filestore blob storage (separate from the state account; same 3-24 char lowercase-alphanumeric rules).
+
+These values are validated against the relevant Azure naming rules (environment/AKS name, resource group, storage account, filestore storage account, DB user) when you run `terraform plan`, so a bad value fails fast with a clear message. The exact constraints and examples are documented inline in `input.yaml`. `db_password` must be 6 to 16 characters, start with a lowercase letter, and use only letters, numbers and `@` or `#`.
 
 Review `variables.tf` for version and sizing defaults before applying:
 
-- `kubernetes_version` defaults to `1.34`.
+- `kubernetes_version` defaults to `1.35`.
 - `db_version` defaults to `15`.
 - `vm_size` defaults to `standard_e2s_v3`.
 - `node_count` defaults to `3`.
@@ -99,7 +115,7 @@ terraform plan
 terraform apply
 ```
 
-Use the generated storage account name from the remote-state output or Azure portal to update the backend placeholder in `main.tf` if needed, then provision the Azure infrastructure:
+The storage account is created from the `storage_account_name` you set in `input.yaml`, and the init helper substitutes that same value into the backend block in `main.tf`, so no manual copy step is needed. Provision the Azure infrastructure:
 
 ```bash
 cd ..

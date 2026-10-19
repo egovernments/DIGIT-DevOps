@@ -9,6 +9,14 @@ terraform {
     encrypt = true
   }
   required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 6.0"
+    }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.0"
+    }
     kubectl = {
       source  = "alekc/kubectl"
       version = ">= 2.0.2"
@@ -310,23 +318,44 @@ data "aws_eks_cluster_auth" "cluster" {
   name = var.cluster_name
 }
 
+data "aws_eks_addon_version" "kube_proxy" {
+  addon_name         = "kube-proxy"
+  kubernetes_version = var.kubernetes_version
+  most_recent        = true
+}
+data "aws_eks_addon_version" "core_dns" {
+  addon_name         = "coredns"
+  kubernetes_version = var.kubernetes_version
+  most_recent        = true
+}
+data "aws_eks_addon_version" "aws_ebs_csi_driver" {
+  addon_name         = "aws-ebs-csi-driver"
+  kubernetes_version = var.kubernetes_version
+  most_recent        = true
+}
+
 resource "aws_eks_addon" "kube_proxy" {
   depends_on = [module.eks_managed_node_group]
   cluster_name      = var.cluster_name
   addon_name        = "kube-proxy"
+  addon_version               = data.aws_eks_addon_version.kube_proxy.version
   resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 }
 resource "aws_eks_addon" "core_dns" {
   depends_on = [module.eks_managed_node_group]
   cluster_name      = var.cluster_name
   addon_name        = "coredns"
+  addon_version               = data.aws_eks_addon_version.core_dns.version
   resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 }
 resource "aws_eks_addon" "aws_ebs_csi_driver" {
   depends_on = [module.eks_managed_node_group]
   cluster_name      = var.cluster_name
   addon_name        = "aws-ebs-csi-driver"
   service_account_role_arn = module.ebs_csi_irsa.arn
+  addon_version               = data.aws_eks_addon_version.aws_ebs_csi_driver.version
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
 }
@@ -337,6 +366,7 @@ resource "aws_eks_addon" "eks-pod-identity-agent" {
   cluster_name      = var.cluster_name
   addon_name        = "eks-pod-identity-agent"
   resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
 }
 
 provider "kubernetes" {

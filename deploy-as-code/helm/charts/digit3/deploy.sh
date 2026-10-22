@@ -34,7 +34,7 @@ echo "cluster: $(kubectl config view --minify -o jsonpath='{.clusters[0].cluster
 SRC=../../environments/azure-k3s-secrets.yaml
 if [ -f scripts/.env ]; then
   DOMAIN=$(sed -n 's/^DOMAIN="\(.*\)"$/\1/p' scripts/.env)
-  export DOMAIN   # *.yaml.gotmpl env files (the LnP overlay) read it with requiredEnv
+  export DOMAIN   # *.yaml.gotmpl env files (the generated bundle values, the LnP overlay) read it with requiredEnv
   if [ -n "$DOMAIN" ] && [ -f "../../environments/azure-k3s-secrets.$DOMAIN.yaml" ]; then
     SRC="../../environments/azure-k3s-secrets.$DOMAIN.yaml"
     echo "secrets: $SRC" >&2

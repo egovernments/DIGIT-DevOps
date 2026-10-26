@@ -9,6 +9,12 @@
        <valuesKey>.<chartVersionKey> in the stage's env file next to the image tags. */}}
 {{- $chartRepo := $svc.chartRepo | default $k.chartRepo }}
 {{- $valuesKey := $svc.valuesKey | default $svc.name }}
+{{- /* envFileWrite: merge -- write the Freight's keys by merging a generated file into
+       the env file (yaml-merge CREATES missing keys), so nothing has to be seeded.
+       Default (update) uses yaml-update, which only replaces existing keys. */}}
+{{- $mergeWrite := eq ($k.envFileWrite | default "update") "merge" }}
+{{- $imageTag := printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo }}
+{{- $chartVersion := printf "${{ chartFrom(\"%s\", \"%s\").Version }}" $chartRepo $svc.chart }}
 {{- $chartVersionKey := $k.chartVersionKey | default "chart-version" }}
 {{- range $stage := $k.stages }}
 {{- /* Config promotion is only meaningful on a stage that has an upstream. The
@@ -100,6 +106,42 @@ spec:
             inPath: ./src/{{ $svc.configPath }}
             outPath: ./repo/{{ $svc.configPath }}
       {{- end }}
+      {{- if $mergeWrite }}
+        {{- /* The keys under <valuesKey> as a YAML document. Values are single-quoted so
+               a tag or version always stays a string. Written to the workspace root,
+               outside ./repo, so it is never committed. */}}
+        - uses: file-write
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            path: ./kargo-promoted-values.yaml
+            overwrite: true
+            contents: |
+              {{ $valuesKey }}:
+              {{- if $hasImage }}
+                image:
+                  tag: {{ squote $imageTag }}
+              {{- if $svc.dbMigration }}
+                initContainers:
+                  dbMigration:
+                    image:
+                      tag: {{ squote $imageTag }}
+              {{- end }}
+              {{- end }}
+              {{- if $svc.chart }}
+                {{ $chartVersionKey }}: {{ squote $chartVersion }}
+              {{- end }}
+        - uses: yaml-merge
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            inFiles:
+              - ./repo/{{ $stage.envFile }}
+              - ./kargo-promoted-values.yaml
+            outFile: ./repo/{{ $stage.envFile }}
+      {{- else }}
       {{- /* yaml-update only replaces keys that already exist: every key below must
              be seeded in the env file before the first promotion. */}}
         - uses: yaml-update
@@ -122,6 +164,7 @@ spec:
               - key: {{ $valuesKey }}.{{ $chartVersionKey }}
                 value: {{ printf "${{ chartFrom(\"%s\", \"%s\").Version }}" $chartRepo $svc.chart | quote }}
               {{- end }}
+      {{- end }}
         - uses: git-commit
           {{- if $masterOnly }}
           if: {{ $masterGuard | quote }}

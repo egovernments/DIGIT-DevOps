@@ -2,17 +2,18 @@
 ##
 ## One Application per service, digit3-<service>:
 ##   chart   <service> from https://helm.digit.org/digit3/core
-##   version <service>.chart-version   in deploy-as-code/helm/digit3/core.yaml
+##   version <service>.chart-version   in deploy-as-code/helm/environments/unified-digit3-core-dev.yaml
 ##   values  {global, <service>}       from the same file
 ##
-## The version and the values come from ONE read of core.yaml (git files generator),
+## The version and the values come from ONE read of the env file (git files generator),
 ## so a Kargo commit that changes the chart version and the image tags together is
 ## deployed together. Equivalent to:
 ##   helm upgrade --install <service> digit3-core/<service> --version <chart-version> \
-##     -n digit3-core -f core.yaml        (the common chart merges .Values.<service> itself)
+##     -n digit3-core -f unified-digit3-core-dev.yaml   (the common chart merges .Values.<service>)
 ##
-## Add a service: a section in core.yaml (keys: chart-version, image.tag,
-## initContainers.dbMigration.image.tag) + an element below + a Kargo service.
+## Add a service: promote it once in Kargo (merges <service>.chart-version and the image
+## tags into the env file), then add an element below. missingkey=error fails generation
+## for a listed service that has no chart-version yet.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -32,7 +33,7 @@ spec:
               repoURL: https://github.com/egovernments/DIGIT-DevOps.git
               revision: unified-dev
               files:
-                - path: deploy-as-code/helm/digit3/core.yaml
+                - path: deploy-as-code/helm/environments/unified-digit3-core-dev.yaml
               # Kargo's commit reaches the cluster within a minute (default is 3).
               requeueAfterSeconds: 60
 

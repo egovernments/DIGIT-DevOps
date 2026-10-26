@@ -3,17 +3,20 @@
 # Kubernetes namespace, and namespace names cannot contain ".")
 #
 # Freight per service = image tag + packaged Helm chart version. No git artifact.
-# Promotion writes them into the module's values file on the stage's branch:
+# Promotion MERGES them into the module's own env file on the stage's branch,
+# creating the keys if absent (nothing is seeded):
 #
-#   deploy-as-code/helm/digit3/core.yaml
-#     <service>.chart-version                              <- chart (Freight)
-#     <service>.image.tag                                  <- image (Freight)
-#     <service>.initContainers.dbMigration.image.tag       <- same tag, <service>-db image
-#     cluster-configs.chart-version                        <- chart (Freight)
+#   deploy-as-code/helm/environments/unified-digit3-core-<env>.yaml
+#     <service>.chart-version                             <- chart (Freight)
+#     <service>.image.tag                                 <- image (Freight)
+#     <service>.initContainers.dbMigration.image.tag      <- same tag, <service>-db image
+#     cluster-configs.chart-version                       <- chart (Freight)
 #
-# Argo CD (charts/argo-cd/unified-dev/digit3-core/) reads chart-version from that file
-# and installs the chart from the Helm repo with the file's values. Every key above
-# must be seeded in core.yaml: yaml-update only replaces existing keys.
+# A separate file, not environments/unified-<env>.yaml: the DIGIT 2.x charts share
+# these names and read that file's top-level <name>: sections.
+#
+# Argo CD (charts/argo-cd/unified-dev/digit3-core/) installs chart <service> at
+# <service>.chart-version with that file's values.
 #
 # NOTHING IS AUTOMATIC: Freight is assembled by hand (freightCreationPolicy: Manual)
 # and every promotion is clicked by a person (autoPromotion: false). Promotion is
@@ -23,6 +26,8 @@ kargo:
   project: digit-core3-0
   registry: docker.io/egovio
   argocdAppPrefix: digit3-
+  # Write promoted keys by merge -- creates them in the env file, no seeding needed.
+  envFileWrite: merge
   git:
     repoURL: https://github.com/egovernments/DIGIT-DevOps.git
   # Service charts. https://helm.digit.org/digit3/core/index.yaml holds every core
@@ -36,7 +41,18 @@ kargo:
   verify:
     enabled: false
 
+  # Every service: Freight = egovio/<service> image tag (written to the app AND the
+  # <service>-db migration image) + chart <service> from chartRepo. Warehouses re-scan
+  # Docker Hub and the Helm repo every 5 minutes (interval).
   services:
+    - name: idgen
+      chart: idgen
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
     - name: localization
       chart: localization
       dbMigration: true
@@ -44,7 +60,55 @@ kargo:
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
       discoveryLimit: 20
-      interval: 30m0s
+      interval: 5m0s
+    - name: url-shortener
+      chart: url-shortener
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: notification
+      chart: notification
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: template-config
+      chart: template-config
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: workflow
+      chart: workflow
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: account
+      chart: account
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: boundary
+      chart: boundary
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
     - name: filestore
       chart: filestore
       dbMigration: true
@@ -52,7 +116,87 @@ kargo:
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
       discoveryLimit: 20
-      interval: 30m0s
+      interval: 5m0s
+    - name: registry
+      chart: registry
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: individual
+      chart: individual
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: employee
+      chart: employee
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: otp
+      chart: otp
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: billing
+      chart: billing
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: apportion
+      chart: apportion
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: pg-service
+      chart: pg-service
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: notify
+      chart: notify
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: boundary-management
+      chart: boundary-management
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: mdms-v2
+      chart: mdms-v2
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
     # The module's namespace-scoped ConfigMaps/Secrets (digit3-core-cluster-configs).
     # Chart only: Freight carries just the chart version.
     - name: cluster-configs
@@ -62,25 +206,25 @@ kargo:
       valuesKey: cluster-configs
       freightCreationPolicy: Manual
       discoveryLimit: 20
-      interval: 30m0s
+      interval: 5m0s
 
   stages:
     - name: dev
       color: "#3BA9C2"
       branch: unified-dev
-      envFile: deploy-as-code/helm/digit3/core.yaml
+      envFile: deploy-as-code/helm/environments/unified-digit3-core-dev.yaml
       autoPromotion: false
     - name: qa
       color: "#D64550"
       from: dev
       branch: unified-qa
-      envFile: deploy-as-code/helm/digit3/core.yaml
+      envFile: deploy-as-code/helm/environments/unified-digit3-core-qa.yaml
       autoPromotion: false
     - name: uat
       color: "#F2C230"
       from: qa
       branch: unified-uat
-      envFile: deploy-as-code/helm/digit3/core.yaml
+      envFile: deploy-as-code/helm/environments/unified-digit3-core-uat.yaml
       autoPromotion: false
 
   teams:

@@ -55,7 +55,7 @@ variable "db_version" {
 
 variable "kubernetes_version" {
   description = "AKS version"
-  default     = "1.34"
+  default     = "1.35"
 }
 
 variable "db_user" {

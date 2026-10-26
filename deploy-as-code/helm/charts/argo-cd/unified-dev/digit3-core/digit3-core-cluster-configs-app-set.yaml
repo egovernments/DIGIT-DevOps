@@ -2,14 +2,16 @@
 ## digit3-core-cluster-configs.
 ##   chart   cluster-configs from https://helm.digit.org/digit3/cluster-configs
 ##   version cluster-configs.chart-version in deploy-as-code/helm/environments/unified-digit3-core-dev.yaml (Kargo)
-##   values  unified-digit3-core-dev.yaml + digit3/core-secrets.yaml (SOPS) from git
+##   values  unified-digit3-core-dev.yaml + unified-digit3-core-dev-secrets.yaml (SOPS) from git
 ##
 ## Two sources because the secret values are SOPS-encrypted in git: they are passed as
 ## `$values/...` value files (Argo CD resolves `$ref` only at the start of a path, so
 ## `secrets://$values/...` would NOT work), and the repo-server's helm-secrets wrapper
 ## (HELM_SECRETS_WRAPPER_ENABLED=true) decrypts any SOPS-encrypted -f file and passes
-## plain files through unchanged. ignoreMissingValueFiles: the ConfigMaps still deploy
-## before core-secrets.yaml exists; each Secret renders only when its values are set.
+## plain files through unchanged. The secrets file is encrypted with the unified-dev Azure
+## Key Vault (unified-dev-sops-kv/sops); the repo-server reaches it via workload identity
+## argocd-sops-unified-dev (Key Vault Crypto User). ignoreMissingValueFiles: the ConfigMaps still deploy
+## before the secrets file exists; each Secret renders only when its values are set.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -40,7 +42,7 @@ spec:
             ignoreMissingValueFiles: true
             valueFiles:
               - $values/deploy-as-code/helm/environments/unified-digit3-core-dev.yaml
-              - $values/deploy-as-code/helm/digit3/core-secrets.yaml
+              - $values/deploy-as-code/helm/environments/unified-digit3-core-dev-secrets.yaml
         - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
           targetRevision: unified-dev
           ref: values

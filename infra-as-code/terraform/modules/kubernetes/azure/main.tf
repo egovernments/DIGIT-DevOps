@@ -22,6 +22,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     vnet_subnet_id              = var.vnet_subnet_id
     node_public_ip_enabled      = false
     temporary_name_for_rotation = "tempsyspool"
+    orchestrator_version        = var.kubernetes_version
     os_disk_size_gb             = var.os_disk_size_gb
 
     # Pinned to the live AKS defaults so Terraform does not churn this block to

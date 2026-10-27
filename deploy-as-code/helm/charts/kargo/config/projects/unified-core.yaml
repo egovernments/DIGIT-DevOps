@@ -1,4 +1,5 @@
-# unified-core Kargo pipeline: notification, boundary and user services, DEV -> QA -> UAT.
+# unified-core Kargo pipeline: notification, boundary, user and accesscontrol
+# services, DEV -> QA -> UAT.
 kargo:
   project: unified-core
   registry: docker.io/egovio
@@ -68,13 +69,29 @@ kargo:
       dbMigration: true
       # master (project default, the only family uat accepts) + every feature-*
       # branch (feature-sso-impl, -multitenant, -multitenant-test, ...) +
-      # feat-cicd-906-immutable-artifacts + user-bulk-upgrade, which is the family
-      # ALREADY deployed to dev/qa/uat (user-bulk-upgrade-960226f) -- without it the
-      # first promotion would move the service off its running tag.
+      # feat-cicd-906-immutable-artifacts + user-bulk-upgrade + the SQLi fix
+      # branch fix-sqli-user-accesscontrol, which is the family ALREADY deployed
+      # to dev/qa -- without it the first promotion would move the service off
+      # its running tag, and the Warehouse would not discover the build at all.
       # user-bulk-upgrade.* covers the -sso branch; the HCMPRE-*-prefixed
       # variants are excluded by the ^ anchor. Sha-anchored to keep the
       # -amd64 / -arm64 manifest children out of Freight.
-      extraAllowTags: '^(feature|feat-cicd-906-immutable-artifacts|user-bulk-upgrade)-.*[0-9a-f]{7,}$'
+      extraAllowTags: '^(feature|feat-cicd-906-immutable-artifacts|user-bulk-upgrade|fix-sqli-user-accesscontrol)-.*[0-9a-f]{7,}$'
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 30m0s
+    - name: egov-accesscontrol
+      namespace: egov
+      freightCreationPolicy: Manual
+      # NOT a DB-migration service here: egov-accesscontrol-db is published, but
+      # the chart ships `initContainers: {}` and the init container is
+      # deliberately off in both env files, so there is no dbMigration tag key
+      # for a promotion to write.
+      # master (project default, the only family uat accepts) + the SQLi fix
+      # branch, which is the family ALREADY deployed to dev/qa. Sha-anchored to
+      # keep the -amd64 / -arm64 manifest children out of Freight.
+      extraAllowTags: '^fix-sqli-user-accesscontrol-.*[0-9a-f]{7,}$'
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
       discoveryLimit: 20

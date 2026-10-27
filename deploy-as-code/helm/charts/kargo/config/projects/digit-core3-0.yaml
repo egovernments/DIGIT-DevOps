@@ -11,7 +11,7 @@
 #     <service>.image.tag                                 <- image (Freight)
 #     <service>.initContainers.dbMigration.image.tag      <- same tag, <service>-db image
 #     kong.chart-version, kong.image.tag                  <- chart, image (Freight)
-#     keycloak.image.tag                                  <- image (Freight)
+#     keycloak.chart-version, keycloak.image.tag          <- chart, image (Freight)
 #     vault.chart-version                                 <- chart (Freight)
 #     cluster-configs.chart-version                       <- chart (Freight)
 #
@@ -210,19 +210,20 @@ kargo:
       cacheByTag: true
       discoveryLimit: 20
       interval: 5m0s
-    # Identity (account, employee, Kong plugins). The chart lives in git
-    # (charts/digit3/keycloak), so Freight = the egovio/keycloak image tag only. Its
-    # builds are keycloak-spi-custom-build-<sha>, never master-*: own tag filter, and
-    # exempt from the uat master-only rule.
+    # Identity (account, employee, Kong plugins). Freight = egovio/keycloak image tag +
+    # chart keycloak (published from charts/digit3/keycloak). Same tag filter and uat
+    # master-only rule as every service: no Freight until master/flyway-branch builds
+    # exist (today's tags are keycloak-spi-custom-build-*). No -db image: the chart's
+    # db-init container creates its database.
     - name: keycloak
-      allowTags: '^keycloak-spi-custom-build-.*[0-9a-f]{7,}$'
-      masterOnly: false
+      chart: keycloak
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
       discoveryLimit: 20
       interval: 5m0s
-    # Secrets engine (otp, individual, registry). Chart only.
+    # Secrets engine (otp, individual, registry). Chart only: the HashiCorp image comes
+    # from the chart (there is no egovio/vault build yet).
     - name: vault
       image: false
       chart: vault

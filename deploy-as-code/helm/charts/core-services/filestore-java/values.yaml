@@ -45,6 +45,14 @@ ingress:
   enabled: true
   zuul: true
   context: "filestore"
+  # nginx's default client_max_body_size is 1m and the ingress-nginx controller
+  # ConfigMap sets no proxy-body-size, so uploads over 1 MiB are rejected at the
+  # edge with nginx's own 413 before they ever reach Kong or this service.
+  # Kong and the filestore app both accept well beyond this already.
+  # Set per-ingress rather than raising it globally, which would change
+  # behaviour for every DIGIT service -- same approach as inji-ingress.
+  additionalAnnotations: |
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
 
 # Container Configs
 image:

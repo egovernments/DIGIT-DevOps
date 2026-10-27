@@ -242,6 +242,41 @@ mdms-v2:
     # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
+# API gateway (chart kong, app digit3-kong). Unlike the DIGIT service charts it reads
+# ROOT values, so the digit3-core-kong app set passes this section, minus chart-version,
+# as the chart's values. Kargo merges kong.chart-version and kong.image.tag.
+kong:
+  chart-version: 3.0.0
+  # Service kong-kong-proxy: the backend of every zuul: true ingress.
+  fullnameOverride: kong-kong
+  namespace: digit3-core
+# Keycloak (chart keycloak, app digit3-keycloak), a common-chart service like the ones
+# above: it lands in global.namespace. Database URL from egov-config keycloak-db-url;
+# the chart's db-init container creates that database and the kc-db role (as postgres,
+# db/superuserPassword). Kargo merges keycloak.chart-version and keycloak.image.tag; the
+# app set creates the Application only once chart-version exists.
+keycloak:
+  replicas: 1
+  ingress:
+    enabled: true
+    zuul: false
+    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+# Vault (chart vault, app digit3-vault) in its own namespace, vault -- egov-service-host's
+# vault key points at vault.vault:8200. The HashiCorp chart reads ROOT values, so the
+# digit3-core-vault app set passes this section, minus chart-version, as the chart's
+# values. Kargo merges vault.chart-version; the app set waits for it like keycloak.
+vault:
+  global:
+    namespace: vault
+  server:
+    # The auth-delegator ClusterRoleBinding is only for Kubernetes auth; services use
+    # AppRole, and the digit3-core AppProject allows no cluster-scoped objects.
+    authDelegator:
+      enabled: false
+    ha:
+      replicas: 1
 # Namespace-scoped ConfigMaps/Secrets for this module, rendered by the cluster-configs
 # chart (app digit3-core-cluster-configs). Every object pins namespace: [digit3-core] --
 # the chart's defaults point at shared namespaces (egov, health, ...), and the
@@ -264,6 +299,37 @@ cluster-configs:
         flyway-locations: filesystem:/flyway/sql,filesystem:/flyway/seed,filesystem:/flyway/qa
         kafka-brokers: kafka-kraft-controller-headless.backbone:9092
         timezone: Asia/Kolkata
+        egov-services-fqdn-name: https://digit3.digit.org/
+        # Keycloak's own database on the same server; its db-init container creates
+        # it (and the kc-db role) before Keycloak starts.
+        keycloak-db-url: jdbc:postgresql://postgresql-18-rw.backbone:5432/keycloak
+        # mdms-v2 (same values as DIGIT 2.x on unified-dev)
+        server-tomcat-max-connections: "500"
+        server-tomcat-max-threads: "10"
+        spring-datasource-tomcat-initialSize: "1"
+        spring-datasource-tomcat-max-active: "2"
+        spring-jpa-show-sql: "true"
+    # Internal service URLs. Every DIGIT 3.0 service is <name>:8080 in digit3-core; the
+    # *-java keys (boundary-management) point at the DIGIT 3.0 services of that name.
+    egov-service-host:
+      namespace: [digit3-core]
+      data:
+        apportion: http://apportion.digit3-core:8080/
+        billing: http://billing.digit3-core:8080/
+        boundary: http://boundary.digit3-core:8080/
+        boundary-java: http://boundary.digit3-core:8080/
+        filestore: http://filestore.digit3-core:8080/
+        filestore-java: http://filestore.digit3-core:8080/
+        idgen: http://idgen.digit3-core:8080/
+        individual: http://individual.digit3-core:8080/
+        localization-java: http://localization.digit3-core:8080/
+        mdms-v2: http://mdms-v2.digit3-core:8080/
+        notification: http://notification.digit3-core:8080/
+        otp: http://otp.digit3-core:8080/
+        registry: http://registry.digit3-core:8080/
+        template-config: http://template-config.digit3-core:8080/
+        # Vault is not deployed on unified-dev yet (individual, otp need the key).
+        vault: http://vault.vault:8200/
   secrets:
     db:
       namespace: [digit3-core] # username/password/flyway-*/superuserPassword
@@ -275,3 +341,12 @@ cluster-configs:
       namespace: [digit3-core] # mailsenderusername/-password (account, notification)
     egov-notification-sms:
       namespace: [digit3-core] # username/password (notification)
+    # Keycloak: admin account and the clients account/employee use.
+    kc-admin:
+      namespace: [digit3-core] # username/password (account, keycloak)
+    kc-db:
+      namespace: [digit3-core] # username/password: keycloak's role on postgresql-18
+    employee-iam-secret:
+      namespace: [digit3-core] # employee-iam-client-secret (account, employee)
+    citizen-broker-secret:
+      namespace: [digit3-core] # citizen-broker-client-secret (account)

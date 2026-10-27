@@ -1,0 +1,65 @@
+## DIGIT 3.0 core module API gateway, as one Application digit3-kong (Kargo service kong).
+##   chart   kong from https://helm.digit.org/digit3/core
+##   version kong.chart-version in deploy-as-code/helm/environments/unified-digit3-core-dev.yaml (Kargo)
+##   values  that file's kong: section, minus chart-version, AS THE ROOT values
+##
+## Separate from digit3-core-app-set: the kong chart is not built on the DIGIT common
+## chart, so it reads root values (image, env, fullnameOverride, namespace, ...) instead
+## of .Values.kong. fullnameOverride kong-kong names the proxy Service kong-kong-proxy,
+## the backend of every zuul: true ingress. Kong runs its migrations (init container)
+## against egov-config db-host/db-name with the db Secret.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-dev-digit3-core-kong
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        revision: unified-dev
+        files:
+          - path: deploy-as-code/helm/environments/unified-digit3-core-dev.yaml
+        requeueAfterSeconds: 60
+
+  template:
+    metadata:
+      name: digit3-kong
+    spec:
+      project: digit3-core-project
+      source:
+        repoURL: https://helm.digit.org/digit3/core
+        chart: kong
+        targetRevision: '{{ index . "kong" "chart-version" }}'
+        helm:
+          releaseName: kong
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: digit3-core
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+
+  # toJson keeps every value a literal (no template injection from the file's contents).
+  templatePatch: |
+    spec:
+      source:
+        helm:
+          valuesObject: {{ toJson (omit (index . "kong") "chart-version") }}

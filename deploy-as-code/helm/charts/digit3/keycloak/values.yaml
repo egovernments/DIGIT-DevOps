@@ -1,0 +1,272 @@
+# Common Labels
+labels:
+  app: "keycloak"
+  group: "keycloak"
+# global.namespace (the env file) takes precedence.
+namespace: digit3-core
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: false
+  context: "keycloak"
+
+# Container Configs
+image:
+  repository: "keycloak"
+  # Kargo (digit-core3-0) writes keycloak.image.tag in the env file.
+  tag: "keycloak-spi-custom-build-aardhya-78019f9"
+replicas: "1"
+tracing-enabled: "true"
+metrics-enabled: "true"
+events-listeners: "jboss-logging,register-citizen-listener"
+cpu_requests: "250m"
+memory_requests: "512Mi"
+cpu_limits: "500m"
+memory_limits: "1024Mi"
+
+resources: |
+  requests:
+    {{- if index .Values "cpu_requests" }} 
+    cpu: {{ index .Values "cpu_requests" | quote }}
+    {{- end }}
+    {{- if index .Values "memory_requests" }} 
+    memory: {{ .Values.memory_requests | quote }}
+    {{- end }}
+  limits:
+    {{- if index .Values "cpu_limits" }} 
+    cpu: {{ index .Values "cpu_limits" | quote }}
+    {{- end }}
+    {{- if index .Values "memory_limits" }}
+    memory: {{ .Values.memory_limits | quote }}
+    {{- end }}
+
+# Additional Container Envs
+env: |  
+  - name: SERVER_PORT
+    value: "8080"
+  - name: KC_PROXY
+    value: "edge"
+  - name: KC_HTTP_RELATIVE_PATH
+    value: "/keycloak"
+  # From egov-config (key dbInit.urlKey, default keycloak-db-url), not hard-coded, so
+  # each environment points Keycloak at its own server/database. db-init creates
+  # that database before this container starts.
+  - name: KC_DB_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: {{ .Values.dbInit.urlKey | quote }}
+  - name: KC_DB
+    value: "postgres"
+  - name: DB_PORT
+    value: "5432"
+  - name: KC_DB_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: kc-db
+        key: username
+  - name: KC_DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: kc-db
+        key: password
+  - name: KEYCLOAK_ADMIN
+    valueFrom:
+      secretKeyRef:
+        name: kc-admin
+        key: username
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: kc-admin
+        key: password
+  - name: KC_EVENTS_LISTENERS
+    value: {{ index .Values "events-listeners" | quote }}
+  - name: KC_SPI_EVENTS_LISTENER_REGISTER_CITIZEN_LISTENER_ENABLED
+    value: "true"
+  - name: KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: KC_FEATURES
+    value: "token-exchange,admin-fine-grained-authz"   
+  # OpenTelemetry Tracing & Metrics.
+  #
+  # The whole block is GATED, so a deployment with tracing and metrics off
+  # gets none of these variables rather than a set of them reading "false".
+  # That matters for adopting existing deployments: an ungated block renders
+  # 8 env vars the running pod does not have, and the resulting pod-template
+  # change rolls the service.
+  #
+  # Use a real boolean in the environment file -- `tracing-enabled: false`,
+  # not "false". In Helm a non-empty string is TRUTHY, so the string "false"
+  # would satisfy these conditionals and switch tracing on.
+  {{- if index .Values "tracing-enabled" }}
+  - name: KC_TRACING_ENABLED
+    value: "true"
+  - name: KC_TELEMETRY_ENDPOINT
+    value: "http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4317"
+  - name: KC_TELEMETRY_PROTOCOL
+    value: "grpc"
+  - name: KC_TELEMETRY_SERVICE_NAME
+    value: "keycloak"
+  - name: KC_TELEMETRY_SAMPLER_TYPE
+    value: "parentbased_always_on"
+  {{- end }}
+  {{- if index .Values "metrics-enabled" }}
+  # KC_HTTP_MANAGEMENT_PORT is deliberately NOT set, so the management
+  # interface stays on its default port 9000 (metrics at /keycloak/metrics,
+  # reached through the keycloak-management Service).
+  #
+  # It used to be pinned to 8080 so the existing Service could reach it. That
+  # puts two HTTP servers on one port, and new connections are spread across
+  # both: about one connection in four landed on the management server and
+  # got "404 Resource not found" for every Keycloak URL -- admin console,
+  # OIDC discovery, token calls -- while scrapes succeeded only when they
+  # happened to land there. It also served /keycloak/metrics to the internet
+  # through the ingress.
+  - name: KC_METRICS_ENABLED
+    value: "true"
+  {{- end }}
+  {{- if index .Values "tracing-enabled" }}
+  - name: OTEL_SERVICE_NAME
+    value: "keycloak"
+  {{- end }}
+  # Always emitted: Keycloak reads OTEL_TRACES_EXPORTER unconditionally, and
+  # the running pod has it set to "none".
+  - name: OTEL_TRACES_EXPORTER
+    value: {{ if index .Values "tracing-enabled" }}"otlp"{{ else }}"none"{{ end }}
+  {{- if index .Values "tracing-enabled" }}
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: "http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4317"
+  {{- end }}
+  - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
+    value: "org.postgresql.Driver"  
+  # DIGIT 3.0 otp in the same namespace. Override per environment with `otp-host`.
+  - name: OTP_HOST
+    value: {{ index .Values "otp-host" | default "http://otp:8080/" | quote }}
+  - name: OTP_GENERATE_PATH
+    value: "otp/v3/generate"
+  - name: OTP_RESEND_PATH
+    value: "otp/v3/resend"
+  - name: OTP_VERIFY_PATH
+    value: "otp/v3/verify"
+  - name: OTP_INVALIDATE_PATH
+    value: "otp/v3/invalidate"
+  - name: OTP_EMAIL_PURPOSE
+    value: "login"
+  - name: OTP_SMS_PURPOSE
+    value: "login"
+  # Citizen self-registration via OTP. These were missing from the chart but
+  # present on every running deployment, so rendering without them silently
+  # removed registration support.
+  #
+  # The *_DEFAULT_OTP values are a NON-PRODUCTION convenience -- they let a
+  # fixed code be accepted instead of a generated one. The default below is
+  # what digit-lts runs today. Override `otp-default` per environment, and do
+  # not carry a fixed OTP into a production-facing deployment.
+  - name: OTP_EMAIL_DEFAULT_OTP
+    value: {{ index .Values "otp-default" | default "123456" | quote }}
+  - name: OTP_SMS_DEFAULT_OTP
+    value: {{ index .Values "otp-default" | default "123456" | quote }}
+  - name: OTP_REGISTRATION_PURPOSE
+    value: "registration"
+  - name: OTP_REGISTRATION_DEFAULT_OTP
+    value: {{ index .Values "otp-default" | default "123456" | quote }}
+  - name: OTP_REGISTRATION_ROLES
+    value: {{ index .Values "otp-registration-roles" | default "CITIZEN" | quote }}
+  - name: KEYCLOAK_EMAIL_DESTINATION_ATTRIBUTE
+    value: "email"
+  - name: KEYCLOAK_SMS_DESTINATION_ATTRIBUTE
+    value: "mobileNumber"
+  - name: HTTP_CLIENT_CONNECT_TIMEOUT_MS
+    value: "3000"
+  - name: HTTP_CLIENT_REQUEST_TIMEOUT_MS
+    value: "5000"
+  # Keycloak builds issuer URLs and redirects from KC_HOSTNAME. Without these
+  # two it derives them from the request, which breaks OIDC discovery behind
+  # the ingress. Derived from global.domain so it is correct per environment
+  # rather than pinned to one host.
+  - name: KC_HOSTNAME
+    value: "https://{{ .Values.global.domain }}/keycloak"
+  - name: KC_HOSTNAME_STRICT
+    value: {{ index .Values "hostname-strict" | default "true" | quote }}
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  honorLabels: true
+
+
+# Database bootstrap. Before Keycloak starts, the db-init init container (postgres
+# client image) reads the JDBC URL from egov-config/<urlKey>, takes host, port and
+# database name from it, waits for the server, and -- as the admin user -- creates the
+# kc-db role (or resets its password to the Secret's) and the database owned by it.
+# Idempotent: re-runs on every pod start and changes nothing that already matches.
+dbInit:
+  enabled: true
+  urlKey: keycloak-db-url
+  image: "postgres:17-alpine"   # psql >= 15 (\getenv); any PostgreSQL server version
+  adminUser: postgres
+  adminSecret:                  # admin password; the role needs CREATEROLE + CREATEDB
+    name: db
+    key: superuserPassword
+
+initContainers:
+  extraInitContainers: |
+    {{- if .Values.dbInit.enabled }}
+    - name: db-init
+      image: {{ .Values.dbInit.image | quote }}
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: KC_DB_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: {{ .Values.dbInit.urlKey | quote }}
+        - name: KC_DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: kc-db
+              key: username
+        - name: KC_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: kc-db
+              key: password
+        - name: PGUSER
+          value: {{ .Values.dbInit.adminUser | quote }}
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.dbInit.adminSecret.name | quote }}
+              key: {{ .Values.dbInit.adminSecret.key | quote }}
+      command: ["/bin/sh", "-ec"]
+      args:
+        - |
+          # jdbc:postgresql://host[:port]/database[?params]
+          url="${KC_DB_URL#jdbc:postgresql://}"
+          hostport="${url%%/*}"
+          rest="${url#*/}"
+          export KC_DB_NAME="${rest%%\?*}"
+          export PGHOST="${hostport%%:*}"
+          PGPORT="${hostport##*:}"
+          [ "$PGPORT" = "$hostport" ] && PGPORT=5432
+          export PGPORT
+          echo "db-init: ${PGHOST}:${PGPORT} database ${KC_DB_NAME} role ${KC_DB_USERNAME}"
+          until pg_isready -q -d postgres; do echo "db-init: waiting for ${PGHOST}:${PGPORT}"; sleep 3; done
+          psql -X -q -v ON_ERROR_STOP=1 -d postgres <<'SQL'
+          \getenv kc_user KC_DB_USERNAME
+          \getenv kc_pass KC_DB_PASSWORD
+          \getenv kc_db KC_DB_NAME
+          SELECT format('CREATE ROLE %I LOGIN PASSWORD %L', :'kc_user', :'kc_pass')
+            WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'kc_user') \gexec
+          SELECT format('ALTER ROLE %I WITH LOGIN PASSWORD %L', :'kc_user', :'kc_pass') \gexec
+          SELECT format('CREATE DATABASE %I OWNER %I', :'kc_db', :'kc_user')
+            WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'kc_db') \gexec
+          SELECT format('ALTER DATABASE %I OWNER TO %I', :'kc_db', :'kc_user') \gexec
+          SQL
+          echo "db-init: ready"
+    {{- end }}

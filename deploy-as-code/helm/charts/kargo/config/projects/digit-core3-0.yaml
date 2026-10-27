@@ -10,6 +10,9 @@
 #     <service>.chart-version                             <- chart (Freight)
 #     <service>.image.tag                                 <- image (Freight)
 #     <service>.initContainers.dbMigration.image.tag      <- same tag, <service>-db image
+#     kong.chart-version, kong.image.tag                  <- chart, image (Freight)
+#     keycloak.chart-version, keycloak.image.tag          <- chart, image (Freight)
+#     vault.chart-version                                 <- chart (Freight)
 #     cluster-configs.chart-version                       <- chart (Freight)
 #
 # A separate file, not environments/unified-<env>.yaml: the DIGIT 2.x charts share
@@ -195,6 +198,36 @@ kargo:
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    # API gateway: the zuul: true ingresses route to kong-kong-proxy (app digit3-kong).
+    # Freight = egovio/kong image tag + chart kong. No -db image: Kong runs its own
+    # migrations (init container) in the module database.
+    - name: kong
+      chart: kong
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    # Identity (account, employee, Kong plugins). Freight = egovio/keycloak image tag +
+    # chart keycloak (published from charts/digit3/keycloak). Same tag filter and uat
+    # master-only rule as every service: no Freight until master/flyway-branch builds
+    # exist (today's tags are keycloak-spi-custom-build-*). No -db image: the chart's
+    # db-init container creates its database.
+    - name: keycloak
+      chart: keycloak
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    # Secrets engine (otp, individual, registry). Chart only: the HashiCorp image comes
+    # from the chart (there is no egovio/vault build yet).
+    - name: vault
+      image: false
+      chart: vault
+      freightCreationPolicy: Manual
       discoveryLimit: 20
       interval: 5m0s
     # The module's namespace-scoped ConfigMaps/Secrets (digit3-core-cluster-configs).

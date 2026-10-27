@@ -1,0 +1,65 @@
+## DIGIT 3.0 core module secrets engine, as one Application digit3-vault (Kargo service
+## vault), in namespace vault.
+##   chart   vault from https://helm.digit.org/digit3/core (HashiCorp chart)
+##   version vault.chart-version in deploy-as-code/helm/environments/unified-digit3-core-dev.yaml (Kargo)
+##   values  that file's vault: section, minus chart-version, AS THE ROOT values
+##
+## One-time after the first sync: initialise and unseal, enable Transit and the AppRole
+## (charts/digit3 scripts/04-vault.sh); the AppRole role-id/secret-id and the HMAC key
+## go in unified-digit3-core-dev-secrets.yaml (vault-approle, hmac-secret).
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-dev-digit3-core-vault
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        revision: unified-dev
+        files:
+          - path: deploy-as-code/helm/environments/unified-digit3-core-dev.yaml
+        requeueAfterSeconds: 60
+      # No Application until Kargo's first promotion merges vault.chart-version
+      # (the chart is not published yet); missingkey=error would fail generation instead.
+      selector:
+        matchExpressions:
+          - key: vault.chart-version
+            operator: Exists
+
+  template:
+    metadata:
+      name: digit3-vault
+    spec:
+      project: digit3-core-project
+      source:
+        repoURL: https://helm.digit.org/digit3/core
+        chart: vault
+        targetRevision: '{{ index . "vault" "chart-version" }}'
+        helm:
+          releaseName: vault
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: vault
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+  # toJson keeps every value a literal (no template injection from the file's contents).
+  templatePatch: |
+    spec:
+      source:
+        helm:
+          valuesObject: {{ toJson (omit (index . "vault") "chart-version") }}

@@ -11,6 +11,7 @@
 #     <service>.image.tag                                 <- image (Freight)
 #     <service>.initContainers.dbMigration.image.tag      <- same tag, <service>-db image
 #     kong.chart-version, kong.image.tag                  <- chart, image (Freight)
+#     keycloak.chart-version, vault.chart-version         <- chart (Freight)
 #     cluster-configs.chart-version                       <- chart (Freight)
 #
 # A separate file, not environments/unified-<env>.yaml: the DIGIT 2.x charts share
@@ -206,6 +207,21 @@ kargo:
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    # Identity (account, employee, Kong plugins) and secrets engine (otp, individual,
+    # registry). Chart only: the image tag is the chart default, overridable in the env
+    # file (keycloak's custom build tags do not match allowTags).
+    - name: keycloak
+      image: false
+      chart: keycloak
+      freightCreationPolicy: Manual
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: vault
+      image: false
+      chart: vault
+      freightCreationPolicy: Manual
       discoveryLimit: 20
       interval: 5m0s
     # The module's namespace-scoped ConfigMaps/Secrets (digit3-core-cluster-configs).

@@ -250,6 +250,32 @@ kong:
   # Service kong-kong-proxy: the backend of every zuul: true ingress.
   fullnameOverride: kong-kong
   namespace: digit3-core
+# Keycloak (chart keycloak, app digit3-keycloak), a common-chart service like the ones
+# above: it lands in global.namespace. Its database and role (kc-db) must exist on
+# postgresql-18 first. Kargo merges keycloak.chart-version; the app set creates the
+# Application only once that key exists.
+keycloak:
+  replicas: 1
+  ingress:
+    enabled: true
+    zuul: false
+    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+# Vault (chart vault, app digit3-vault) in its own namespace, vault -- egov-service-host's
+# vault key points at vault.vault:8200. The HashiCorp chart reads ROOT values, so the
+# digit3-core-vault app set passes this section, minus chart-version, as the chart's
+# values. Kargo merges vault.chart-version; the app set waits for it like keycloak.
+vault:
+  global:
+    namespace: vault
+  server:
+    # The auth-delegator ClusterRoleBinding is only for Kubernetes auth; services use
+    # AppRole, and the digit3-core AppProject allows no cluster-scoped objects.
+    authDelegator:
+      enabled: false
+    ha:
+      replicas: 1
 # Namespace-scoped ConfigMaps/Secrets for this module, rendered by the cluster-configs
 # chart (app digit3-core-cluster-configs). Every object pins namespace: [digit3-core] --
 # the chart's defaults point at shared namespaces (egov, health, ...), and the
@@ -311,9 +337,11 @@ cluster-configs:
       namespace: [digit3-core] # mailsenderusername/-password (account, notification)
     egov-notification-sms:
       namespace: [digit3-core] # username/password (notification)
-    # Keycloak (not deployed on unified-dev yet): set these when its realm is configured.
+    # Keycloak: admin account and the clients account/employee use.
     kc-admin:
-      namespace: [digit3-core] # username/password (account)
+      namespace: [digit3-core] # username/password (account, keycloak)
+    kc-db:
+      namespace: [digit3-core] # username/password: keycloak's role on postgresql-18
     employee-iam-secret:
       namespace: [digit3-core] # employee-iam-client-secret (account, employee)
     citizen-broker-secret:

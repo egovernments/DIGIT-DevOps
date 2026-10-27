@@ -749,12 +749,13 @@ keycloak:
   otp-default-otp: "123456"
 
 egov-user:
-  ## SQLi fix, commit 2cd1a6f1adf3126fbe4a2961bdcbc96ca1b9c27a. Digest-pinned:
-  ## the tag is kept alongside it for readability, the digest is what resolves.
+  ## SQLi fix: app from commit 2cd1a6f1, db-migration from the later 34c5aec.
+  ## Digest-pinned -- the tag is kept alongside for readability, but the digest
+  ## is what resolves, so the deployed bits cannot drift if a tag is moved.
   initContainers:
     dbMigration:
       image:
-        tag: "fix-sqli-user-accesscontrol-2cd1a6f@sha256:99f72af8c948ac33b7f637fc71fd8d88e017961a2c921a4e3dd11f4df15a70d1"
+        tag: "fix-sqli-user-accesscontrol-34c5aec@sha256:c318cb91fdc6293bf7cceea0f4c68625b143d1fce96bd2d056a03c1a9eda23e6"
   image:
     tag: "fix-sqli-user-accesscontrol-2cd1a6f@sha256:126bf8fe59f2c9ec7df9e3f7a616c99afdcef31d266f41483dddc80b5f8f8994"
   central-instance-name: egov
@@ -1743,8 +1744,18 @@ egf-instrument:
         tag: "v1.1.4-72f8a8f87b-4"
 
 egov-accesscontrol:
-  ## SQLi fix, commit 2cd1a6f1adf3126fbe4a2961bdcbc96ca1b9c27a. Digest-pinned:
-  ## the tag is kept alongside it for readability, the digest is what resolves.
+  ## SQLi fix: app from commit 2cd1a6f1, db-migration from the later 34c5aec.
+  ## Digest-pinned -- the tag is kept alongside for readability, but the digest
+  ## is what resolves, so the deployed bits cannot drift if a tag is moved.
+  ## The chart ships `initContainers: {}`, so the db-migration init container is
+  ## turned on here rather than in values.yaml -- keeping it scoped to this env.
+  initContainers:
+    dbMigration:
+      enabled: true
+      schemaTable: "egov_accesscontrol_schema"
+      image:
+        repository: "egov-accesscontrol-db"
+        tag: "fix-sqli-user-accesscontrol-34c5aec@sha256:3762eee8181429920ed19597adb925c8254135660a11195bd92e78ac9c976d58"
   image:
     tag: "fix-sqli-user-accesscontrol-2cd1a6f@sha256:e7968cf1f78fecd0f6a7e9dcf9a15694fd7b176ac5fc9156dd52f461bf430f16"
 

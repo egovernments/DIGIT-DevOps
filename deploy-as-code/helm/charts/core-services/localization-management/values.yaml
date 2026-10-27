@@ -1,0 +1,125 @@
+labels:
+  app: "localization-management"
+  group: "core"
+
+ingress:
+  enabled: true
+  zuul: true
+  context: "localization-management"
+
+# Runs the Flyway image before the application starts. The utility deliberately
+# disables in-process Flyway and uses the standard DIGIT database credentials.
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "localization_management_schema"
+    image:
+      repository: "localization-management-db"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: "FLYWAY_SCHEMAS"
+          value: {{ .Values.dbSchema | quote }}
+        - name: "FLYWAY_DEFAULT_SCHEMA"
+          value: {{ .Values.dbSchema | quote }}
+
+image:
+  repository: "localization-management"
+
+# Background imports run in this pod and are not backed by a durable queue.
+replicas: 1
+appType: "java"
+tracing-enabled: false
+heap: "-XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=70.0"
+
+healthChecks:
+  enabled: true
+  livenessProbePath: "/localization-management/actuator/health/liveness"
+  readinessProbePath: "/localization-management/actuator/health/readiness"
+
+resources: |
+  requests:
+    cpu: "100m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+dbSchema: "public"
+dbHost: "postgres.egov"
+filestoreModule: "localization-management"
+batchSize: "100"
+maxRows: "50000"
+maxFileBytes: "26214400"
+
+env: |
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_CONTEXT_PATH
+    value: "/localization-management"
+
+  - name: DB_HOST
+    # egov-config.db-host includes :5432, while Spring's JDBC URL appends DB_PORT.
+    value: {{ .Values.dbHost | quote }}
+  - name: DB_PORT
+    value: "5432"
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: DB_SSL_MODE
+    value: "disable"
+
+  - name: EGOV_FILESTORE_SERVICE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: filestore-java
+  - name: EGOV_LOCALIZATION_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: localization-java
+  - name: FILESTORE_MODULE
+    value: {{ .Values.filestoreModule | quote }}
+  - name: DIGIT_CLIENT_ID
+    value: "localization-management"
+  - name: LOCALIZATION_BATCH_SIZE
+    value: {{ .Values.batchSize | quote }}
+  - name: LOCALIZATION_MAX_ROWS
+    value: {{ .Values.maxRows | quote }}
+  - name: LOCALIZATION_MAX_FILE_BYTES
+    value: {{ .Values.maxFileBytes | quote }}

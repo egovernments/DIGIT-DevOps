@@ -1,6 +1,6 @@
-# grafana — uat-saas (Azure AKS) overlay
+# grafana — k3s-deployment (single-node k3s) overlay
 #
-# Materialises the `grafana:` block from environments/uat-saas.yaml plus the
+# Materialises the `grafana:` block from environments/k3s-deployment.yaml plus the
 # ingress/persistence settings the helmfile used to supply via `set:`.
 
 ingress:
@@ -9,23 +9,25 @@ ingress:
   path: /monitoring
   pathType: Prefix
   hosts:
-    - uat-saas.digit.org
+    - k3s-deployment.digit.org
   tls:
-    - secretName: uat-saas.digit.org-tls-certs
+    - secretName: k3s-deployment.digit.org-tls-certs
       hosts:
-        - uat-saas.digit.org
+        - k3s-deployment.digit.org
 
 persistence:
   enabled: true
   type: pvc
-  size: 8Gi
-  storageClassName: default
+  size: 2Gi
+  storageClassName: local-path
   accessModes: ["ReadWriteOnce"]
 
-# The PVC above is ReadWriteOnce -- an Azure disk attaches to one node at a
-# time -- and this Deployment runs a single replica. Under the chart's default
-# RollingUpdate, maxUnavailable rounds down to 0 for one replica, so Kubernetes
-# starts the replacement pod before stopping the old one. If the two land on
+# The PVC above is ReadWriteOnce -- a local-path volume is pinned to the node
+# that created it -- and this Deployment runs a single replica. (Inherited from
+# the multi-node AKS setup; on the single k3s node the deadlock below cannot
+# occur, but Recreate is still harmless and keeps the overlays in step.)
+# Under the chart's default RollingUpdate, maxUnavailable rounds down to 0 for
+# one replica, so Kubernetes starts the replacement pod before stopping the old one. If the two land on
 # different nodes the new pod cannot attach the disk and waits on the old one,
 # which the Deployment will not remove until the new one is Ready: a deadlock
 # that needs a manual scale to 0 to clear (seen on the Kong dashboard rollout,
@@ -50,8 +52,8 @@ admin:
 
 grafana.ini:
   server:
-    domain: uat-saas.digit.org
-    root_url: https://uat-saas.digit.org/monitoring
+    domain: k3s-deployment.digit.org
+    root_url: https://k3s-deployment.digit.org/monitoring
     serve_from_sub_path: true
   auth.github:
     enabled: true

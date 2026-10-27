@@ -12,6 +12,13 @@ spec:
   template:
     metadata:
       name: 'egov-{{name}}'
+      # Authorize the matching Kargo Stage to run argocd-update on this app.
+      # Without it Argo rejects the promotion's final step, which lands AFTER the
+      # tag has already been committed and pushed to unified-dev. Stage names are
+      # '<service>-dev' in project unified-core; only the dev stage sets
+      # argocdUpdate, so only that stage needs authorizing.
+      annotations:
+        kargo.akuity.io/authorized-stage: 'unified-core:{{name}}-dev'
 
     spec:
       project: egov-project

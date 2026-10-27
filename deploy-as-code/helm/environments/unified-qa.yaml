@@ -1204,18 +1204,13 @@ digit-user-preferences-service:
     tag: whatsapp_design_final-1a8e552
 
 egov-accesscontrol:
-  ## SQLi fix: app from commit 2cd1a6f1, db-migration from the later 34c5aec.
-  ## Digest-pinned -- the tag is kept alongside for readability, but the digest
-  ## is what resolves, so the deployed bits cannot drift if a tag is moved.
-  ## The chart ships `initContainers: {}`, so the db-migration init container is
-  ## turned on here rather than in values.yaml -- keeping it scoped to this env.
-  initContainers:
-    dbMigration:
-      enabled: true
-      schemaTable: "egov_accesscontrol_schema"
-      image:
-        repository: "egov-accesscontrol-db"
-        tag: "fix-sqli-user-accesscontrol-34c5aec@sha256:3762eee8181429920ed19597adb925c8254135660a11195bd92e78ac9c976d58"
+  ## SQLi fix, commit 2cd1a6f1. Digest-pinned -- the tag is kept alongside for
+  ## readability, but the digest is what resolves, so the deployed bits cannot
+  ## drift if a tag is moved.
+  ## No db-migration init container: the chart ships `initContainers: {}` and
+  ## this service's schema is not managed by flyway here. An
+  ## egov-accesscontrol-db image is published, but enabling it would run every
+  ## migration from scratch against a database that has no flyway history table.
   image:
     tag: "fix-sqli-user-accesscontrol-2cd1a6f@sha256:e7968cf1f78fecd0f6a7e9dcf9a15694fd7b176ac5fc9156dd52f461bf430f16"
 

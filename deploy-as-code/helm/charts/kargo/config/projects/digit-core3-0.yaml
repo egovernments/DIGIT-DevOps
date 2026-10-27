@@ -18,8 +18,10 @@
 # A separate file, not environments/unified-<env>.yaml: the DIGIT 2.x charts share
 # these names and read that file's top-level <name>: sections.
 #
-# Argo CD (charts/argo-cd/unified-dev/digit3-core/) installs chart <service> at
-# <service>.chart-version with that file's values.
+# Argo CD creates the Applications from this file's kargo.argocd and each service's
+# deploy (charts/argo-cd/unified-dev/kargo-managed/): Application digit3-<service>
+# installs chart <service> at <service>.chart-version with that file's values, once
+# the first promotion has merged chart-version. Adding a service here is all it takes.
 #
 # NOTHING IS AUTOMATIC: Freight is assembled by hand (freightCreationPolicy: Manual)
 # and every promotion is clicked by a person (autoPromotion: false). Promotion is
@@ -29,6 +31,21 @@ kargo:
   project: digit-core3-0
   registry: docker.io/egovio
   argocdAppPrefix: digit3-
+  # Argo CD side, read by the kargo-managed ApplicationSets (one per layout):
+  #   Application  <argocdAppPrefix><service>  (deploy.app overrides)
+  #   project      argocd.project
+  #   namespace    deploy.namespace, else argocd.namespace
+  #   layout       deploy.layout, else argocd.layout -- how the chart takes its values:
+  #                  common   DIGIT common chart: {global, <service>} from the env file
+  #                  root     the <service> section (minus chart-version) as root values
+  #                  configs  the env file + its -secrets.yaml (cluster-configs chart)
+  # namespaces must match digit3-core-project's destinations; templates/argocd-deploy.yaml
+  # fails the render for a layout or namespace outside them.
+  argocd:
+    project: digit3-core-project
+    namespace: digit3-core
+    namespaces: [digit3-core, vault]
+    layout: common
   # Write promoted keys by merge -- creates them in the env file, no seeding needed.
   envFileWrite: merge
   git:
@@ -205,6 +222,8 @@ kargo:
     # migrations (init container) in the module database.
     - name: kong
       chart: kong
+      deploy:
+        layout: root
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
@@ -227,6 +246,9 @@ kargo:
     - name: vault
       image: false
       chart: vault
+      deploy:
+        layout: root
+        namespace: vault
       freightCreationPolicy: Manual
       discoveryLimit: 20
       interval: 5m0s
@@ -237,6 +259,10 @@ kargo:
       chart: cluster-configs
       chartRepo: https://helm.digit.org/digit3/cluster-configs
       valuesKey: cluster-configs
+      deploy:
+        layout: configs
+        app: digit3-core-cluster-configs
+        releaseName: digit3-core-cluster-configs
       freightCreationPolicy: Manual
       discoveryLimit: 20
       interval: 5m0s

@@ -1,0 +1,19 @@
+{{- /* Renders nothing. For a project with kargo.argocd (read by the kargo-managed
+       ApplicationSets in charts/argo-cd/unified-dev/kargo-managed/), fail the render on
+       a deploy setting no Application could use, so a typo fails this project's Kargo
+       sync with a message instead of an Application that never appears or never syncs. */}}
+{{- $k := .Values.kargo }}
+{{- with $k.argocd }}
+{{- $layouts := list "common" "root" "configs" }}
+{{- range $svc := $k.services }}
+{{- $d := $svc.deploy | default dict }}
+{{- $layout := $d.layout | default $k.argocd.layout | default "common" }}
+{{- if not (has $layout $layouts) }}
+{{- fail (printf "kargo.services[%s].deploy.layout %q: must be one of %s" $svc.name $layout (join ", " $layouts)) }}
+{{- end }}
+{{- $ns := $d.namespace | default $k.argocd.namespace }}
+{{- if not (has $ns ($k.argocd.namespaces | default list)) }}
+{{- fail (printf "kargo.services[%s]: namespace %q is not in kargo.argocd.namespaces %v (the AppProject's destinations)" $svc.name $ns $k.argocd.namespaces) }}
+{{- end }}
+{{- end }}
+{{- end }}

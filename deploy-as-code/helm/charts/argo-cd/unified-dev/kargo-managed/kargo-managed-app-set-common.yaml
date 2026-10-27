@@ -1,0 +1,108 @@
+## Kargo-managed services, layout "common": charts built on the DIGIT common chart.
+## One Application per service of every opted-in Kargo project; see README.md.
+##
+##   chart   <chart> from <chartRepo> at <valuesKey>.chart-version in the stage's env file
+##   values  {global, <valuesKey>} from that env file -- equivalent to
+##           helm upgrade --install <service> <chartRepo>/<chart> --version <chart-version> \
+##             -n <namespace> -f <env file>   (the common chart merges .Values.<valuesKey>)
+##
+## A service gets its Application once Kargo's first promotion merges its chart-version.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-dev-kargo-managed-appset-common
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          - matrix:
+              generators:
+                # Every Kargo project that declares kargo.argocd.
+                - git:
+                    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+                    revision: unified-dev
+                    files:
+                      - path: deploy-as-code/helm/charts/kargo/config/projects/*.yaml
+                    requeueAfterSeconds: 60
+                  selector:
+                    matchExpressions:
+                      - key: kargo.argocd.project
+                        operator: Exists
+                # That project's env file for this cluster's stage (dev), on the stage's branch.
+                - git:
+                    repoURL: '{{ .kargo.git.repoURL }}'
+                    revision: '{{ range .kargo.stages }}{{ if eq .name "dev" }}{{ .branch }}{{ end }}{{ end }}'
+                    files:
+                      - path: '{{ range .kargo.stages }}{{ if eq .name "dev" }}{{ .envFile }}{{ end }}{{ end }}'
+                    pathParamPrefix: env
+                    requeueAfterSeconds: 60
+          # One element per service with this layout whose chart-version is in the env file.
+          - list:
+              elementsYaml: |
+                {{- $layout := "common" }}
+                {{- $p := . }}
+                {{- $k := .kargo }}
+                {{- $a := $k.argocd }}
+                {{- $cv := get $k "chartVersionKey" | default "chart-version" }}
+                {{- $out := list }}
+                {{- range $svc := $k.services }}
+                {{- $d := get $svc "deploy" | default dict }}
+                {{- $key := get $svc "valuesKey" | default $svc.name }}
+                {{- $vals := get $p $key }}
+                {{- if and (eq (get $d "layout" | default (get $a "layout") | default "common") $layout) (kindIs "map" $vals) (hasKey $vals $cv) }}
+                {{- $app := dict "project" $a.project }}
+                {{- $_ := set $app "name" (get $d "app" | default (printf "%s%s" (get $k "argocdAppPrefix") $svc.name)) }}
+                {{- $_ := set $app "releaseName" (get $d "releaseName" | default $svc.name) }}
+                {{- $_ := set $app "namespace" (get $d "namespace" | default $a.namespace) }}
+                {{- $_ := set $app "chartRepo" (get $svc "chartRepo" | default (get $k "chartRepo")) }}
+                {{- $_ := set $app "chart" (get $svc "chart" | default $svc.name) }}
+                {{- $_ := set $app "chartVersion" (toString (get $vals $cv)) }}
+                {{- $_ := set $app "values" (dict "global" (get $p "global" | default dict) $key $vals) }}
+                {{- $out = append $out (dict "argocdApp" $app) }}
+                {{- end }}
+                {{- end }}
+                {{- toJson $out }}
+
+  template:
+    metadata:
+      name: '{{ .argocdApp.name }}'
+    spec:
+      project: '{{ .argocdApp.project }}'
+      source:
+        repoURL: '{{ .argocdApp.chartRepo }}'
+        chart: '{{ .argocdApp.chart }}'
+        targetRevision: '{{ .argocdApp.chartVersion }}'
+        helm:
+          releaseName: '{{ .argocdApp.releaseName }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .argocdApp.namespace }}'
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+
+  # Values as an object; toJson keeps every value a literal (no template injection
+  # from the env file's contents).
+  templatePatch: |
+    spec:
+      source:
+        helm:
+          valuesObject: {{ toJson .argocdApp.values }}

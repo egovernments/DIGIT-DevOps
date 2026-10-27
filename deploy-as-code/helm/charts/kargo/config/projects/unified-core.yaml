@@ -74,7 +74,41 @@ kargo:
       # user-bulk-upgrade.* covers the -sso branch; the HCMPRE-*-prefixed
       # variants are excluded by the ^ anchor. Sha-anchored to keep the
       # -amd64 / -arm64 manifest children out of Freight.
-      extraAllowTags: '^(feature|feat-cicd-906-immutable-artifacts|user-bulk-upgrade)-.*[0-9a-f]{7,}$'
+      #
+      # `fix` is a FAMILY, not a branch, exactly as `feature` is above:
+      # build.yaml maps '/' to '-' when it derives the tag, so every fix/* branch
+      # arrives as fix-<slug>-<sha> and is discovered without another edit here.
+      # The literal '-' after the group keeps this to fix/* alone (fixup-* does
+      # not match). fix/* reaches dev and qa only -- the stage template's
+      # ^master- guard blocks it from uat.
+      #
+      # NB: as of unified-dev 26ba5c073 the RUNNING family here is fix, not
+      # user-bulk-upgrade; the latter is retained above as the rollback target.
+      extraAllowTags: '^(feature|feat-cicd-906-immutable-artifacts|fix|user-bulk-upgrade)-.*[0-9a-f]{7,}$'
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 30m0s
+    - name: egov-accesscontrol
+      namespace: egov
+      freightCreationPolicy: Manual
+      # DB-migration service, but unlike egov-user the init container is NOT in
+      # the chart -- core-services/egov-accesscontrol ships `initContainers: {}`,
+      # so unified-dev 26ba5c073 enables it per-environment. The key that
+      # yaml-update rewrites (initContainers.dbMigration.image.tag) therefore
+      # exists in unified-dev.yaml but NOT in the qa/uat env files, which must be
+      # seeded before this service can be promoted past dev.
+      dbMigration: true
+      # The running family is fix (fix-sqli-user-accesscontrol-*, digest-pinned in
+      # unified-dev.yaml); base-docker-upgrade is kept as the rollback target --
+      # base-docker-upgrade-0aec2ff is what the service ran before. Sha-anchored
+      # to keep the -amd64 / -arm64 manifest children out of Freight.
+      #
+      # NB: the env file pins tag@sha256 digests. yaml-update writes a PLAIN tag,
+      # so the first promotion drops the digest pin on both this service and
+      # egov-user. Freight still records the digest, but the env file stops
+      # asserting it.
+      extraAllowTags: '^(base-docker-upgrade|fix)-.*[0-9a-f]{7,}$'
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
       discoveryLimit: 20

@@ -1,0 +1,54 @@
+#cloud-config
+# Bootstraps a single-node k3s cluster sized for a DIGIT core deployment.
+#
+# k3s is used instead of a managed control plane because this box only has to
+# accept the same manifests as EKS/AKS -- Deployments, StatefulSets and PVCs --
+# not survive node loss. There is deliberately no autoscaler and no second node.
+
+package_update: true
+packages:
+  - curl
+  - apt-transport-https
+  - jq
+  - unzip
+
+write_files:
+  # Elasticsearch refuses to start when mmap counts are at the kernel default of
+  # 65530, and DIGIT core runs ES. On EKS the AMI already ships a raised value;
+  # a stock Ubuntu image does not, so set it here or the ES pods CrashLoop.
+  - path: /etc/sysctl.d/99-digit-k3s.conf
+    permissions: "0644"
+    content: |
+      vm.max_map_count=262144
+      # ~20 Java services plus operators means a lot of config/secret watches.
+      fs.inotify.max_user_watches=524288
+      fs.inotify.max_user_instances=512
+      # Kafka and ES are latency sensitive; avoid swapping them out.
+      vm.swappiness=10
+
+runcmd:
+  - sysctl --system
+
+  # --disable traefik: DIGIT brings its own ingress-nginx, and two controllers
+  #   fighting over :80/:443 is a confusing failure mode.
+  # ServiceLB (klipper) is left ENABLED on purpose -- it is what makes a
+  #   type=LoadBalancer Service resolve to the node IP, so the same manifests
+  #   that expect an ELB on EKS still get an address here.
+  # local-path is k3s's default StorageClass and handles the PVCs that
+  #   StatefulSets create, which is the storage behaviour being verified.
+  - |
+    curl -sfL https://get.k3s.io | \
+      INSTALL_K3S_CHANNEL=${k3s_channel} \
+      INSTALL_K3S_EXEC="server --disable traefik --write-kubeconfig-mode 644 --tls-san ${public_ip}" \
+      sh -
+  - until kubectl get node >/dev/null 2>&1; do sleep 5; done
+
+  # Let the shared login use kubectl without sudo.
+  - mkdir -p /home/${admin_username}/.kube
+  - cp /etc/rancher/k3s/k3s.yaml /home/${admin_username}/.kube/config
+  - chown -R ${admin_username}:${admin_username} /home/${admin_username}/.kube
+  - chmod 600 /home/${admin_username}/.kube/config
+  - echo 'export KUBECONFIG=$HOME/.kube/config' >> /home/${admin_username}/.bashrc
+
+  - curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  - touch /var/log/k3s-bootstrap-complete

@@ -35,6 +35,11 @@ spec:
         targetRevision: '{{ index . "kong" "chart-version" }}'
         helm:
           releaseName: kong
+          # The kong chart ships Kong's CRDs in crds/ (9, cluster-scoped). They are only
+          # for the ingress controller, which is disabled (Kong runs DB-mode, routes in
+          # its database), and digit3-core-project allows no cluster-scoped objects --
+          # with them the whole sync is rejected ("not permitted in project").
+          skipCrds: true
       destination:
         server: https://kubernetes.default.svc
         namespace: digit3-core

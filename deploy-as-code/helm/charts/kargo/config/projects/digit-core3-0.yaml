@@ -10,6 +10,7 @@
 #     <service>.chart-version                             <- chart (Freight)
 #     <service>.image.tag                                 <- image (Freight)
 #     <service>.initContainers.dbMigration.image.tag      <- same tag, <service>-db image
+#     kong.chart-version, kong.image.tag                  <- chart, image (Freight)
 #     cluster-configs.chart-version                       <- chart (Freight)
 #
 # A separate file, not environments/unified-<env>.yaml: the DIGIT 2.x charts share
@@ -192,6 +193,16 @@ kargo:
     - name: mdms-v2
       chart: mdms-v2
       dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    # API gateway: the zuul: true ingresses route to kong-kong-proxy (app digit3-kong).
+    # Freight = egovio/kong image tag + chart kong. No -db image: Kong runs its own
+    # migrations (init container) in the module database.
+    - name: kong
+      chart: kong
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
       cacheByTag: true

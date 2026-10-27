@@ -11,7 +11,8 @@
 #     <service>.image.tag                                 <- image (Freight)
 #     <service>.initContainers.dbMigration.image.tag      <- same tag, <service>-db image
 #     kong.chart-version, kong.image.tag                  <- chart, image (Freight)
-#     keycloak.chart-version, vault.chart-version         <- chart (Freight)
+#     keycloak.image.tag                                  <- image (Freight)
+#     vault.chart-version                                 <- chart (Freight)
 #     cluster-configs.chart-version                       <- chart (Freight)
 #
 # A separate file, not environments/unified-<env>.yaml: the DIGIT 2.x charts share
@@ -209,15 +210,19 @@ kargo:
       cacheByTag: true
       discoveryLimit: 20
       interval: 5m0s
-    # Identity (account, employee, Kong plugins) and secrets engine (otp, individual,
-    # registry). Chart only: the image tag is the chart default, overridable in the env
-    # file (keycloak's custom build tags do not match allowTags).
+    # Identity (account, employee, Kong plugins). The chart lives in git
+    # (charts/digit3/keycloak), so Freight = the egovio/keycloak image tag only. Its
+    # builds are keycloak-spi-custom-build-<sha>, never master-*: own tag filter, and
+    # exempt from the uat master-only rule.
     - name: keycloak
-      image: false
-      chart: keycloak
+      allowTags: '^keycloak-spi-custom-build-.*[0-9a-f]{7,}$'
+      masterOnly: false
       freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
       discoveryLimit: 20
       interval: 5m0s
+    # Secrets engine (otp, individual, registry). Chart only.
     - name: vault
       image: false
       chart: vault

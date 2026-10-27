@@ -1,9 +1,12 @@
 ## DIGIT 3.0 core module identity provider, as one Application digit3-keycloak (Kargo
 ## service keycloak).
-##   chart   keycloak from https://helm.digit.org/digit3/core
-##   version keycloak.chart-version in deploy-as-code/helm/environments/unified-digit3-core-dev.yaml (Kargo)
-##   values  {global, keycloak} from the same file -- a common-chart service like
-##           digit3-core-app-set's, kept apart only so it can wait for its chart-version.
+##   chart   deploy-as-code/helm/charts/digit3/keycloak on unified-dev (git; based on the
+##           digit-lts core-services/keycloak chart, which 2.x egov-keycloak does not use)
+##   values  {global, keycloak} from deploy-as-code/helm/environments/unified-digit3-core-dev.yaml
+##           -- keycloak.image.tag is written by Kargo
+##
+## Before Keycloak starts, the chart's db-init init container creates the database named
+## in egov-config keycloak-db-url and the kc-db role on that server.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -19,12 +22,6 @@ spec:
         files:
           - path: deploy-as-code/helm/environments/unified-digit3-core-dev.yaml
         requeueAfterSeconds: 60
-      # No Application until Kargo's first promotion merges keycloak.chart-version
-      # (the chart is not published yet); missingkey=error would fail generation instead.
-      selector:
-        matchExpressions:
-          - key: keycloak.chart-version
-            operator: Exists
 
   template:
     metadata:
@@ -32,9 +29,9 @@ spec:
     spec:
       project: digit3-core-project
       source:
-        repoURL: https://helm.digit.org/digit3/core
-        chart: keycloak
-        targetRevision: '{{ index . "keycloak" "chart-version" }}'
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: unified-dev
+        path: deploy-as-code/helm/charts/digit3/keycloak
         helm:
           releaseName: keycloak
       destination:

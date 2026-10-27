@@ -250,10 +250,10 @@ kong:
   # Service kong-kong-proxy: the backend of every zuul: true ingress.
   fullnameOverride: kong-kong
   namespace: digit3-core
-# Keycloak (chart keycloak, app digit3-keycloak), a common-chart service like the ones
-# above: it lands in global.namespace. Its database and role (kc-db) must exist on
-# postgresql-18 first. Kargo merges keycloak.chart-version; the app set creates the
-# Application only once that key exists.
+# Keycloak (chart charts/digit3/keycloak in git, app digit3-keycloak), a common-chart
+# service like the ones above: it lands in global.namespace. Database URL from
+# egov-config keycloak-db-url; the chart's db-init container creates that database and
+# the kc-db role (as postgres, db/superuserPassword). Kargo merges keycloak.image.tag.
 keycloak:
   replicas: 1
   ingress:
@@ -299,6 +299,9 @@ cluster-configs:
         kafka-brokers: kafka-kraft-controller-headless.backbone:9092
         timezone: Asia/Kolkata
         egov-services-fqdn-name: https://digit3.digit.org/
+        # Keycloak's own database on the same server; its db-init container creates
+        # it (and the kc-db role) before Keycloak starts.
+        keycloak-db-url: jdbc:postgresql://postgresql-18-rw.backbone:5432/keycloak
         # mdms-v2 (same values as DIGIT 2.x on unified-dev)
         server-tomcat-max-connections: "500"
         server-tomcat-max-threads: "10"

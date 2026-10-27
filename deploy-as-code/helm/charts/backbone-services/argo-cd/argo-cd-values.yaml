@@ -1,0 +1,97 @@
+# k3s-deployment overlay: swaps the AWS KMS + manual OIDC federation wiring in
+# values.yaml's repoServer section for a plain SOPS age key.
+#
+# The k3s sandbox VM has neither EKS IRSA nor AKS Workload Identity, so there is
+# no ambient cloud identity for sops to use. Instead the age private key lives
+# in a Kubernetes Secret and is mounted into argocd-repo-server; sops finds it
+# through SOPS_AGE_KEY_FILE.
+#
+# Picked up automatically by the deployer -- `go run main.go deploy -e <env>
+# argo-cd` appends <chart-dir>/argo-cd-values.yaml after the env file (see
+# deployer/pkg/cmd/deployer/deployer.go). Helm replaces lists wholesale, so the
+# env/volumes/volumeMounts below fully replace the AWS ones in values.yaml.
+#
+# Prerequisites (not created by this chart):
+#   1. An age keypair:  age-keygen -o k3s-deployment.agekey
+#      environments/k3s-deployment-secrets.yaml is encrypted to its public key
+#      (sops -e --age <age1...>; there is no .sops.yaml rule for it, the key is
+#      shared out of band). Never commit the private key.
+#   2. The private key as a Secret in the argocd namespace:
+#        kubectl -n argocd create secret generic sops-age \
+#          --from-file=keys.txt=k3s-deployment.agekey
+
+repoServer:
+  # -- Environment variables to pass to repo server
+  ## helm-secrets/sops wiring: the plugin and sops binary are installed into the
+  ## shared gitops-tools emptyDir by the download-tools initContainer below.
+  ## No AWS_ROLE_ARN / AWS_WEB_IDENTITY_TOKEN_FILE here -- sops decrypts with the
+  ## age key mounted from the sops-age Secret.
+  env:
+    - name: HELM_PLUGINS
+      value: /gitops-tools/helm-plugins/
+    - name: HELM_SECRETS_SOPS_PATH
+      value: /gitops-tools/sops
+    - name: HELM_SECRETS_BACKEND
+      value: sops
+    - name: HELM_SECRETS_VALUES_ALLOW_SYMLINKS
+      value: "false"
+    - name: HELM_SECRETS_VALUES_ALLOW_ABSOLUTE_PATH
+      value: "true"
+    - name: HELM_SECRETS_VALUES_ALLOW_PATH_TRAVERSAL
+      value: "true"
+    - name: HELM_SECRETS_WRAPPER_ENABLED
+      value: "true"
+    - name: HELM_SECRETS_DECRYPT_SECRETS_IN_TMP_DIR
+      value: "true"
+    - name: HELM_SECRETS_HELM_PATH
+      value: /usr/local/bin/helm
+    - name: SOPS_AGE_KEY_FILE
+      value: /sops-age/keys.txt
+
+  # -- Init containers to add to the repo server pods
+  ## Same sops + helm-secrets download as the AWS overlay.
+  initContainers:
+    - name: download-tools
+      image: alpine:latest
+      imagePullPolicy: IfNotPresent
+      command: [sh, -euc]
+      env:
+        - name: HELM_SECRETS_VERSION
+          value: "4.7.7"
+        - name: SOPS_VERSION
+          value: "3.9.3"
+        - name: HELM_PLUGINS
+          value: /gitops-tools/helm-plugins/
+        - name: HELM_SECRETS_SOPS_PATH
+          value: /gitops-tools/sops
+      args:
+        - |
+          mkdir -p "${HELM_PLUGINS}"
+          export GO_ARCH=$(uname -m | sed -e 's/x86_64/amd64/' -e 's/\(arm\)\(64\)?\.\*/\1\2/' -e 's/aarch64$/arm64/')
+          wget -qO "${HELM_SECRETS_SOPS_PATH}" https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.${GO_ARCH}
+          wget -qO- https://github.com/jkroepke/helm-secrets/releases/download/v${HELM_SECRETS_VERSION}/helm-secrets.tar.gz | tar -C "${HELM_PLUGINS}" -xzf-
+          chmod +x "${HELM_SECRETS_SOPS_PATH}"
+          cp "${HELM_PLUGINS}/helm-secrets/scripts/wrapper/helm.sh" /gitops-tools/helm
+      volumeMounts:
+        - mountPath: /gitops-tools
+          name: gitops-tools
+
+  # -- Additional volumeMounts to the repo server main container
+  ## No AWS token mount here -- the age key is mounted read-only instead.
+  volumeMounts:
+    - mountPath: /gitops-tools
+      name: gitops-tools
+    - mountPath: /usr/local/sbin/helm
+      subPath: helm
+      name: gitops-tools
+    - mountPath: /sops-age
+      name: sops-age
+      readOnly: true
+
+  # -- Additional volumes to the repo server pod
+  volumes:
+    - name: gitops-tools
+      emptyDir: {}
+    - name: sops-age
+      secret:
+        secretName: sops-age

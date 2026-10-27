@@ -1,5 +1,5 @@
 global:
-   domain: uat-saas.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
+   domain: k3s-deployment.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
    setup: fullsetup
 
 cluster-configs:
@@ -18,8 +18,8 @@ cluster-configs:
                 db-url: "jdbc:postgresql://postgres.egov:5432/postgres" ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
                 db-otel-url: "jdbc:otel:postgresql://postgres.egov:5432/postgres" ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
                 db-pgbouncer-url: "jdbc:postgresql://pgbouncer.egov:5432/postgres" ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
-                domain: uat-saas.digit.org ## Add your Domain Name    
-                egov-services-fqdn-name: https://uat-saas.digit.org/ ## Add your Domain Name
+                domain: k3s-deployment.digit.org ## Add your Domain Name    
+                egov-services-fqdn-name: https://k3s-deployment.digit.org/ ## Add your Domain Name
                 health-db-url: jdbc:postgresql://postgres.egov:5432/postgres?currentSchema=health
                 egov-state-level-tenant-id: "pg" 
                 s3-assets-bucket: "(pg-egov-assets|egov-playground-assets)"
@@ -258,7 +258,7 @@ egov-filestore:
   allowed-file-formats: "jpg,jpeg,png,doc,docx,pdf,odt,ods,text,dxf,xls,xlsx,csv,shp,shx,dbf,prj,cpg,sbn,sbx,qix,xml"
 
   filestore-url-validity: 3600
-  fixed-bucketname: uat-saas-bucket-s3  ## PLACEHOLDER: dedicated bucket for uat-saas - create it and confirm this name before deploying
+  fixed-bucketname: k3s-deployment-bucket-s3  ## PLACEHOLDER: dedicated bucket for k3s-deployment - create it and confirm this name before deploying
 
 egov-enc-service:
   heap: "-Xmx256m -Xms256m"
@@ -782,12 +782,12 @@ license-certificate:
     # Repository contains "/" so common.image uses it verbatim (skips global.containerRegistry)
     repository: "egovio/license-certificate"
     tag: dev-b7ad8ee-75
-  domain: "https://uat-saas.digit.org/"
+  domain: "https://k3s-deployment.digit.org/"
   tracing-export-enabled: "true"
   metrics-export-enabled: "true"
-  keycloak-host: "https://uat-saas.digit.org/keycloak"
+  keycloak-host: "https://k3s-deployment.digit.org/keycloak"
   keycloak-client-id: "auth-server"
-  metabase-host: "https://uat-saas.digit.org/metabase"
+  metabase-host: "https://k3s-deployment.digit.org/metabase"
   master-tenant-schema: "ESMAGICO7"
   certificate-master-tenant-schema: "ESMAGICO7"
   idgen-host: "http://idgen:8080"
@@ -839,7 +839,7 @@ license-citizen:
     # Keycloak host the browser is redirected to for login; read at container
     # start by nginx (env-config.js) — see license-certificate-ui feat/runtime-keycloak-url.
     - name: KEYCLOAK_URL
-      value: "https://uat-saas.digit.org/keycloak"
+      value: "https://k3s-deployment.digit.org/keycloak"
 
 license-employee:
   image:
@@ -852,7 +852,7 @@ license-employee:
     # Keycloak host the browser is redirected to for login; read at container
     # start by nginx (env-config.js) — see license-certificate-ui PR #83.
     - name: KEYCLOAK_DIRECT_URL
-      value: "https://uat-saas.digit.org/keycloak"
+      value: "https://k3s-deployment.digit.org/keycloak"
 
 license-validator:
   image:
@@ -875,7 +875,7 @@ calculator:
   image:
     tag: dev-012afac-15
   egov-billing-host: "http://billing:8080"
-  cors-allowed-origins: "https://uat-saas.digit.org/license/citizen, https://uat-saas.digit.org/license/employee, https://uat-saas.digit.org/license/admin"
+  cors-allowed-origins: "https://k3s-deployment.digit.org/license/citizen, https://k3s-deployment.digit.org/license/employee, https://k3s-deployment.digit.org/license/admin"
   initContainers:
     dbMigration:
       image:
@@ -1170,7 +1170,7 @@ es-curator:
 grafana:
   github:
     allowed_organizations: ["egovernments"]
-    role_attribute_path: contains(groups[*], '@egovernments/uat-saas-monitoring') && 'Viewer'
+    role_attribute_path: contains(groups[*], '@egovernments/k3s-deployment-monitoring') && 'Viewer'
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 ### Prometheus & Alertmanager >>>>>>>>>>>>>>>>>>>>
@@ -1178,7 +1178,7 @@ prometheus:
   alertmanager:
     enabled: true
   externalLabels:
-    cluster: uat-saas
+    cluster: k3s-deployment
   additionalScrapeConfigs:
     - job_name: 'nginx-ingress-metrics'
       static_configs:
@@ -1189,7 +1189,7 @@ prometheus:
         module: [ http_2xx ]
       static_configs:
         - targets:
-            - https://uat-saas.digit.org
+            - https://k3s-deployment.digit.org
       relabel_configs:
         - source_labels: [ __address__ ]
           target_label: __param_target
@@ -1210,12 +1210,12 @@ prometheus:
 ### loki-stack >>>>>>>>>>>>>>>>>>>>
 loki:
   persistence:
-    size: 50Gi  # MODIFY: set according to expected log volume for this environment
+    size: 20Gi  # MODIFY: set according to expected log volume for this environment
   serviceAccount:
     annotations: { }
   schemaConfig:
     configs:
-      # Fresh Loki 3.x install for uat-saas -- no existing boltdb-shipper data,
+      # Fresh Loki 3.x install for k3s-deployment -- no existing boltdb-shipper data,
       # so the legacy schema block is omitted. 'from' is the deployment date.
       - from: "2026-08-31"
         store: tsdb
@@ -1237,13 +1237,13 @@ loki:
 ## (admin-email / admin-password, created by cluster-configs) already lives.
 pgadmin:
   ## Dynamic provisioning: no persistence.azureCsi/aws/... backend is set, so only a
-  ## PVC is rendered and the AKS `default` StorageClass (disk.csi.azure.com) creates
-  ## the managed disk. pgadmin keeps its SQLite config db under /var/lib/pgadmin, so
+  ## PVC is rendered and the k3s `local-path` StorageClass creates a hostPath volume
+  ## on the node's OS disk. pgadmin keeps its SQLite config db under /var/lib/pgadmin, so
   ## this must be a real volume -- the Deployment mounts pgadmin-data
   ## unconditionally, and with persistence disabled the pod stays Pending.
   persistence:
     enabled: true
-    storageClassName: default
+    storageClassName: local-path
     dataDirSize: 2Gi
     accessMode: ReadWriteOnce
     volumeMode: Filesystem

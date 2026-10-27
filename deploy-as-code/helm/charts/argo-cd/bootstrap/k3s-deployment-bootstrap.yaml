@@ -1,21 +1,21 @@
-## Root "app-of-apps" for uat-saas.
+## Root "app-of-apps" for k3s-deployment.
 ##
 ## Purpose: stop hand-applying the AppProjects, ApplicationSets and
 ## Applications under charts/argo-cd/. This Application syncs that directory,
-## so a push to the uat-saas branch is enough -- no kubectl apply step, and no
+## so a push to the k3s-deployment branch is enough -- no kubectl apply step, and no
 ## more cases where the repo and the cluster silently disagree because someone
 ## pushed an appset change but never applied it.
 ##
 ## WHAT THIS GIVES YOU FOR "a new service is added"
 ##   Adding a service is an edit to a list generator in one of the
-##   uat-saas-egov-appset-* files. Today that edit reaches git but not the
+##   k3s-deployment-egov-appset-* files. Today that edit reaches git but not the
 ##   cluster until someone applies it. With this root app the chain is fully
 ##   automatic:
 ##     push -> root app syncs the appset -> the ApplicationSet controller
 ##     generates the new Application -> that Application syncs itself.
 ##
 ## BOOTSTRAP (once per cluster, the only manual step that remains):
-##   kubectl apply -f uat-saas-bootstrap.yaml
+##   kubectl apply -f k3s-deployment-bootstrap.yaml
 ##
 ## Adoption: the existing objects were applied by hand and carry no argocd
 ## tracking-id. ServerSideApply lets Argo adopt them in place -- they are not
@@ -23,7 +23,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: uat-saas-bootstrap
+  name: k3s-deployment-bootstrap
   namespace: argocd
 spec:
   ## 'default' on purpose. It is permissive and, critically, is NOT one of the
@@ -33,7 +33,7 @@ spec:
 
   source:
     repoURL: https://github.com/egovernments/DIGIT-DevOps.git
-    targetRevision: uat-saas
+    targetRevision: k3s-deployment
     ## Like digit-lts and unlike the unified clusters, there is no
     ## per-environment subdirectory on this branch.
     path: deploy-as-code/helm/charts/argo-cd
@@ -55,7 +55,7 @@ spec:
       ## into this cluster. They were deleted from this branch (they remain on
       ## origin/digit-lts, which is where they are actually used), so the
       ## exclude no longer needs to name them. If an appset whose name does
-      ## not start with uat-saas- ever reappears under egov/, that is the bug.
+      ## not start with k3s-deployment- ever reappears under egov/, that is the bug.
       exclude: 'bootstrap/*'
 
   destination:

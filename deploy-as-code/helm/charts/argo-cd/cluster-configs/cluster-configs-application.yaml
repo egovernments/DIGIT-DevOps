@@ -1,30 +1,32 @@
-## Deploys the cluster-configs Helm chart onto the uat-saas AKS cluster.
+## Deploys the cluster-configs Helm chart onto the k3s-deployment single-node
+## k3s cluster.
 ##
 ## The third valueFiles entry uses the secrets:// scheme, which requires
-## argocd-repo-server to decrypt via SOPS/Azure Key Vault -- that wiring lives
-## in deploy-as-code/helm/charts/backbone-services/argo-cd/values-azure-keyvault-sops.yaml
-## (Azure AD Workload Identity, not the AWS KMS wiring digit-lts/test-lts use).
+## argocd-repo-server to decrypt via SOPS with an age key -- that wiring lives
+## in deploy-as-code/helm/charts/backbone-services/argo-cd/argo-cd-values.yaml
+## (k3s has no cloud workload identity, so neither the AWS KMS wiring
+## digit-lts/test-lts use nor uat-saas's Azure Key Vault wiring applies).
 ##
 ## valueFiles paths resolve relative to spec.sources[].path, i.e.
-##   ../../environments/uat-saas.yaml
-##     -> deploy-as-code/helm/environments/uat-saas.yaml          (plain values)
-##   secrets://../../environments/uat-saas-secrets.yaml
-##     -> deploy-as-code/helm/environments/uat-saas-secrets.yaml  (SOPS-encrypted)
+##   ../../environments/k3s-deployment.yaml
+##     -> deploy-as-code/helm/environments/k3s-deployment.yaml          (plain values)
+##   secrets://../../environments/k3s-deployment-secrets.yaml
+##     -> deploy-as-code/helm/environments/k3s-deployment-secrets.yaml  (SOPS-encrypted)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: uat-saas-cluster-configs
+  name: k3s-deployment-cluster-configs
   namespace: argocd
 spec:
   project: cluster-configs-project
   sources:
     - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
-      targetRevision: uat-saas
+      targetRevision: k3s-deployment
       path: "deploy-as-code/helm/charts/cluster-configs"
       helm:
         valueFiles:
           - values.yaml
-          - ../../environments/uat-saas.yaml
-          - secrets://../../environments/uat-saas-secrets.yaml
+          - ../../environments/k3s-deployment.yaml
+          - secrets://../../environments/k3s-deployment-secrets.yaml
   destination:
     server: https://kubernetes.default.svc

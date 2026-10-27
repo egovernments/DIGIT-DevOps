@@ -1,7 +1,7 @@
-# loki — uat-saas (Azure AKS) overlay
+# loki — k3s-deployment (single-node k3s) overlay
 #
 # Targets the grafana/loki chart (6.x), matching this branch's convention --
-# NOT loki-stack. Materialises the `loki:` block from environments/uat-saas.yaml.
+# NOT loki-stack. Materialises the `loki:` block from environments/k3s-deployment.yaml.
 
 loki:
   # env: loki.limitsConfig
@@ -59,7 +59,12 @@ loki:
   # env: loki.compactor
   compactor:
     compaction_interval: 10m
-  # env: loki.schemaConfig — uat-saas declares a single tsdb/v13 schema from
+    # Without these the compactor only compacts and limits_config.retention_period
+    # is never applied -- logs would grow until the k3s node's shared OS disk
+    # (which also backs every other local-path PVC) is full.
+    retention_enabled: true
+    delete_request_store: filesystem
+  # env: loki.schemaConfig — k3s-deployment declares a single tsdb/v13 schema from
   # 2026-08-31. Unlike test-lts there is no earlier boltdb-shipper period,
   # because this cluster has no pre-existing Loki data to stay compatible with.
   schemaConfig:
@@ -76,5 +81,8 @@ singleBinary:
   persistence:
     enabled: true
     # env: loki.persistence.size
-    size: 50Gi
-    storageClass: default
+    # local-path does not enforce this -- the volume is a directory on the
+    # node's 128 GiB OS disk. Kept honest to the budget for that disk; the real
+    # cap is retention_period above.
+    size: 20Gi
+    storageClass: local-path

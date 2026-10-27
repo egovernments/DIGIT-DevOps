@@ -6,11 +6,14 @@
 # Top-level keys are chart names -- the common chart reads .Values.<chart-name> -- so
 # this is exactly `helm ... -f unified-digit3-core-dev.yaml`.
 #
-# Argo CD (charts/argo-cd/unified-dev/digit3-core/) deploys from this file:
+# Argo CD (charts/argo-cd/unified-dev/kargo-managed/) deploys from this file, one
+# Application per service of the Kargo project (its config sets the layout), once
+# Kargo has merged the service's chart-version:
 #   digit3-<service>              chart <service> from https://helm.digit.org/digit3/core
 #                                 at <service>.chart-version, values {global, <service>}
+#   digit3-kong, digit3-vault     same chart source, values = the section as root values
 #   digit3-core-cluster-configs   chart cluster-configs at cluster-configs.chart-version,
-#                                 values cluster-configs + unified-digit3-core-dev-secrets.yaml (SOPS)
+#                                 values this file + unified-digit3-core-dev-secrets.yaml (SOPS)
 #
 # Kargo MERGES <service>.chart-version, <service>.image.tag and
 # <service>.initContainers.dbMigration.image.tag on promotion, creating them if absent.
@@ -248,8 +251,8 @@ mdms-v2:
   image:
     tag: 'master-8ea5702'
 # API gateway (chart kong, app digit3-kong). Unlike the DIGIT service charts it reads
-# ROOT values, so the digit3-core-kong app set passes this section, minus chart-version,
-# as the chart's values. Kargo merges kong.chart-version and kong.image.tag.
+# ROOT values, so Argo CD passes this section, minus chart-version, as the chart's
+# values (layout root in the Kargo config). Kargo merges kong.chart-version and kong.image.tag.
 kong:
   chart-version: 3.0.0
   # Service kong-kong-proxy: the backend of every zuul: true ingress.
@@ -259,7 +262,7 @@ kong:
 # above: it lands in global.namespace. Database URL from egov-config keycloak-db-url;
 # the chart's db-init container creates that database and the kc-db role (as postgres,
 # db/superuserPassword). Kargo merges keycloak.chart-version and keycloak.image.tag; the
-# app set creates the Application only once chart-version exists.
+# Application appears once chart-version exists.
 keycloak:
   replicas: 1
   ingress:
@@ -269,9 +272,10 @@ keycloak:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 # Vault (chart vault, app digit3-vault) in its own namespace, vault -- egov-service-host's
-# vault key points at vault.vault:8200. The HashiCorp chart reads ROOT values, so the
-# digit3-core-vault app set passes this section, minus chart-version, as the chart's
-# values. Kargo merges vault.chart-version; the app set waits for it like keycloak.
+# vault key points at vault.vault:8200. The HashiCorp chart reads ROOT values, so Argo CD
+# passes this section, minus chart-version, as the chart's values (layout root, namespace
+# vault in the Kargo config). Kargo merges vault.chart-version; the Application waits for
+# it like keycloak.
 vault:
   global:
     namespace: vault

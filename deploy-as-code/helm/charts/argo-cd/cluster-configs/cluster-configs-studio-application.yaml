@@ -1,0 +1,41 @@
+## Studio's ConfigMaps and Secrets on digit-lts: namespace studio, egov-config,
+## egov-service-host, db, github-config -- and nothing outside studio.
+##
+## Its own Application, never layered onto digit-lts-cluster-configs: the studio
+## egov-config would replace egov's. digit-studio-lts.yaml turns off what this chart
+## renders by default for the whole cluster (cluster-roles, root-ingress, and the
+## defaults whose values live only in test-lts-secrets.yaml).
+##
+## secrets:// is decrypted by argocd-repo-server via SOPS/AWS KMS, as for
+## digit-lts-cluster-configs (same key, see deploy-as-code/helm/.sops.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: digit-lts-cluster-configs-studio
+  namespace: argocd
+spec:
+  project: cluster-configs-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      path: "deploy-as-code/helm/charts/cluster-configs"
+      helm:
+        valueFiles:
+          - values.yaml
+          - ../../environments/digit-studio-lts.yaml
+          - secrets://../../environments/digit-studio-lts-secrets.yaml
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s

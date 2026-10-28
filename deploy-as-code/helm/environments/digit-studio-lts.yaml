@@ -30,8 +30,11 @@ cluster-configs:
     values: [ studio ]
       
   configmaps:
+    # Also in health: the Studio dependencies beneficiary-idgen and
+    # health-service-request run there. (Namespace health itself belongs to
+    # digit-lts-cluster-configs, so namespaces.values stays [ studio ].)
     egov-config:
-      namespace: [ studio ]
+      namespace: [ studio, health ]
       data:
         # digit-lts database (same server and database as test-lts.yaml); studio tables
         # live in schema studio.
@@ -41,6 +44,7 @@ cluster-configs:
         db-url-no-schema: "jdbc:postgresql://postgres.egov:5432/postgres"
         studio-db-url: jdbc:postgresql://postgres.egov:5432/postgres?currentSchema=studio
         studio-db-url-no-schema: "jdbc:postgresql://postgres.egov:5432/postgres"
+        health-db-url: jdbc:postgresql://postgres.egov:5432/postgres?currentSchema=health
         domain: "https://test-lts.digit.org"
         egov-services-fqdn-name: "https://test-lts.digit.org/"
         state-level-tenantid-length: "2"
@@ -72,7 +76,7 @@ cluster-configs:
         egov-internal-microservice-user-uuid: 4fef6612-07a8-4751-97e9-0e0ac0687ebe
 
     egov-service-host:
-      namespace: [ studio ]
+      namespace: [ studio, health ]
       data:
         studio-pdf-helper-service: "http://studio-pdf-helper-service.studio:8080/"
         asset-services: "http://asset-services:8080/"
@@ -214,6 +218,8 @@ cluster-configs:
     wordpress: null
     kafka-kraft: null
     hmac-secret: null
+    # health/db comes from digit-lts-cluster-configs (test-lts.yaml lists egov, health,
+    # inji), so it is not repeated here.
     db:
       namespace: [ studio ]
       name: db
@@ -383,3 +389,82 @@ studio-user-otp:
   memory_limits: "512Mi"
   cpu_limits: "200m"
   tracing-enabled: true
+
+# Health services Studio depends on (namespace health, ApplicationSet
+# digit-lts-studio-appset-health). From unified-health-qa.yaml (unified-qa branch);
+# mdms path for digit-lts mdms-v2 (/mdms-v2).
+beneficiary-idgen:
+  namespace: health
+  image:
+    tag: master-perf-2d35084
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-perf-2d35084
+  idformat-from-mdms: "true"
+  java-args: -Dspring.profiles.active=monitoring
+  autocreate-new-seq: "true"
+  egov-mdms-service-host-key: "mdms-service-v2"
+  egov-mdms-service-endpoint-key: "mdms-v2/v1/_search"
+  redis-ttl-in-days: 1
+  java-enable-debug: true
+  limit-id-user-device-per-day-enabled: "true"
+  limit-id-user-device-per-day: 100
+  limit-id-user-device-total: 6000
+  limit-id-user-device-per-day-expire-days: 10
+  limit-id-user-device-total-expire-days: 30
+  id-pool-generation-max-records-per-persist-batch: 100
+  id-pool-generation-max-size: 20000
+  id-dispatch-retrieval-limit-to-today-enabled: "true"
+  kafka-topics-consumer-bulk-update-topic: "beneficiary-id-gen-bulk-update-health-topic"
+  kafka-topics-consumer-bulk-create-topic: "beneficiary-id-gen-bulk-create-health-topic"
+  kafka:
+    topics:
+      saveInIdPool: "save-in-id-pool"
+      updateIdPoolStatus: "update-id-pool-status"
+      saveInDispatchLog: "save-dispatch-id-log"
+  spring:
+    redis:
+      host: "redis.backbone"
+      port: 6379
+      cache:
+        type: "redis"
+        timeToLive: 86400
+        autoExpiry: true
+  redisson:
+    redis:
+      host: "redis.backbone"
+      port: 6379
+      timeout: 10000
+      connectionPoolSize: 20
+      connectionMinimumIdleSize: 10
+      threads: 4
+      nettyThreads: 4
+  idPool:
+    validation:
+      enabled: true
+    create:
+      maxBatchSize: 500
+  idgen:
+    pool:
+      seqCode: "id.pool.number.random"
+    random:
+      buffer: 5
+  heap: "-Xmx768m -Xms256m"
+  memory_limits: "1Gi"
+  cpu_limits: "300m"
+
+health-service-request:
+  namespace: health
+  image:
+    tag: master-product-2.2-d6ca977
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-product-2.2-d6ca977
+  central-instance-name: health
+  central-instance-build: true
+  central-instance-enabled: false
+  db-schema-names: "kano,kebbi"
+  heap: "-Xmx512m -Xms512m"
+  memory_limits: 1024Mi

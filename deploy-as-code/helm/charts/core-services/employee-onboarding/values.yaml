@@ -53,6 +53,10 @@ appType: "java"
 tracing-export-enabled: "false"
 tracing-enabled: false
 heap: "-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=75.0"
+# Welcome message to each created employee, through notify's topic. Each tenant needs the
+# employee-onboarding-welcome template in notify (account's seed-defaults.sh <notify> <tenant>).
+notification-enabled: "false"
+notification-login-url: "https://test-lts.digit.org/license/employee/{tenantId}"
 healthChecks:
   enabled: false
   livenessProbePath: "/employee-onboarding/actuator/health/liveness"
@@ -176,10 +180,41 @@ env: |
     value: "4"
   - name: EMPLOYEE_ONBOARDING_ROW_CONCURRENCY
     value: "10"
+  # Delays before each automatic retry after a dependency outage.
+  - name: EMPLOYEE_ONBOARDING_RETRY_DELAYS_SECONDS
+    value: "60,120,300,600,900,900,900,900"
 
-  # Pub/sub is unused by this service; the tracer still needs a backend configured.
+  # ?wait on JSON uploads: at most this many rows, for at most this many seconds.
+  - name: EMPLOYEE_ONBOARDING_WAIT_MAX_ROWS
+    value: "50"
+  - name: EMPLOYEE_ONBOARDING_WAIT_MAX_SECONDS
+    value: "25"
+
+  # Retention
+  - name: EMPLOYEE_ONBOARDING_UNSTARTED_RETENTION_DAYS
+    value: "7"
+  - name: EMPLOYEE_ONBOARDING_PAUSED_RETENTION_DAYS
+    value: "7"
+  - name: EMPLOYEE_ONBOARDING_ROW_PII_RETENTION_DAYS
+    value: "7"
+  - name: EMPLOYEE_ONBOARDING_RESULT_RETENTION_DAYS
+    value: "90"
+  - name: EMPLOYEE_ONBOARDING_JOB_RETENTION_DAYS
+    value: "365"
+
+  # Welcome message, published on notify's send topic; notify must consume it (NOTIFY_TOPIC_SEND_ENABLED).
+  - name: EMPLOYEE_ONBOARDING_NOTIFY_ENABLED
+    value: {{ index .Values "notification-enabled" | quote }}
+  - name: EMPLOYEE_ONBOARDING_NOTIFY_TOPIC
+    value: notify-send
+  - name: EMPLOYEE_ONBOARDING_NOTIFY_TEMPLATE_CODE
+    value: employee-onboarding-welcome
+  - name: EMPLOYEE_ONBOARDING_NOTIFY_LOGIN_URL
+    value: {{ index .Values "notification-login-url" | quote }}
+
+  # Kafka, like notify: welcome messages are published to notify's send topic.
   - name: PUBSUB_TYPE
-    value: redis
+    value: kafka
   - name: REDIS_HOST
     value: redis.backbone.svc.cluster.local
   - name: REDIS_PORT

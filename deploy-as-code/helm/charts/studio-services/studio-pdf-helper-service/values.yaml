@@ -1,0 +1,100 @@
+# Common Labels
+labels:
+  app: "studio-pdf-helper-service"
+  group: "rainmaker"
+
+namespace: egov
+# Ingress Configs
+ingress:
+  enabled: true
+  namespace: egov
+  zuul: true
+  context: "studio-pdf-helper-service"
+
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "studio_pdf_helper_service_schema"
+    image:
+      repository: "studio-pdf-helper-service-db"
+# Container Configs
+image:
+  repository: "studio-pdf-helper-service"
+replicas: "1"
+memory_limits: "512Mi"
+cpu_limits: "300m"
+
+# Additional Container Envs
+env: |
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-host
+  - name: DB_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-name
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  - name: DB_PORT
+    value: "5432"
+  - name: KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: GITHUB_OWNER
+    value: "egovernments"
+  - name: GITHUB_CONFIG_REPO
+    value: "configs"
+  - name: GITHUB_CONFIG_BRANCH
+    value: {{ index .Values "github-config-branch" | quote }}
+  - name: GITHUB_CONFIG_BASE_PATH
+    value: "pdf-service"
+  - name: KUBE_API_URL
+    valueFrom:
+      secretKeyRef:
+        name: github-config
+        key: kubeapiurl
+  - name: KUBE_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: github-config
+        key: kubeToken
+  - name: KUBERNETES_NAMESPACE
+    value: "egov"
+  - name: SAVE_PDF_QR_GENERATOR
+    value: "save-pdf-qr-generator"
+  - name: GITHUB_APP_ID
+    valueFrom:
+      secretKeyRef:
+        name: github-config
+        key: gitAppId
+  - name: GITHUB_APP_INSTALLATION_ID
+    valueFrom:
+      secretKeyRef:
+        name: github-config
+        key: gitAppInstallationId
+  - name: GITHUB_APP_PRIVATE_KEY
+    valueFrom:
+      secretKeyRef:
+        name: github-config
+        key: gitAppPrivateKey
+  - name: GITHUB_DEVOPS_OWNER
+    value: "egovernments"
+  - name: GITHUB_DEVOPS_REPO
+    value: "DIGIT-DevOps"
+  - name: GITHUB_DEVOPS_BRANCH
+    value: {{ index .Values "github-devops-branch" | quote }}
+  - name: GITHUB_DEVOPS_FILE_PATH
+    value: {{ index .Values "github-devops-file-path" | quote }}

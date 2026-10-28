@@ -230,12 +230,14 @@ kargo:
       discoveryLimit: 20
       interval: 5m0s
     # Identity (account, employee, Kong plugins). Freight = egovio/keycloak image tag +
-    # chart keycloak (published from charts/digit3/keycloak). Same tag filter and uat
-    # master-only rule as every service: no Freight until master/flyway-branch builds
-    # exist (today's tags are keycloak-spi-custom-build-*). No -db image: the chart's
+    # chart keycloak (published from charts/digit3/keycloak). No -db image: the chart's
     # db-init container creates its database.
+    # master/flyway-branch (project default) + the keycloak-spi-custom-build family,
+    # today's only Keycloak builds. Sha-anchored to keep the -amd64 / -arm64 manifest
+    # children out of Freight. These reach dev/qa; uat stays master-only.
     - name: keycloak
       chart: keycloak
+      extraAllowTags: '^keycloak-spi-custom-build-.*[0-9a-f]{7,}$'
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
       cacheByTag: true

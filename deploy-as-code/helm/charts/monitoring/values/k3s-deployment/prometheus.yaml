@@ -6,33 +6,18 @@
 
 alertmanager:
   # env: prometheus.alertmanager.enabled
-  enabled: true
-  alertmanagerSpec:
-    # Use the SOPS-backed Secret rendered by cluster-configs from
-    # cluster-configs.secrets.alertmanager, rather than the config the chart
-    # generates from the shared values/prometheus.yaml.
-    #
-    # This is not just about keeping the Slack webhook out of git: the shared
-    # base config is itself invalid -- its route sets `receiver: default` while
-    # `receivers:` only defines slack-notification and email-notification, so
-    # the operator refuses it with
-    #     provision alertmanager configuration: failed to initialize from
-    #     secret: undefined receiver "default" used in route
-    # and never creates the StatefulSet. Pointing at configSecret makes the
-    # operator ignore the generated config entirely.
-    #
-    # The referenced Secret must be self-consistent in the same way: every
-    # receiver named by route.receiver and by each nested route must appear in
-    # its `receivers:` list.
-    configSecret: alertmanager-main
-    storage:
-      volumeClaimTemplate:
-        spec:
-          storageClassName: local-path
-          accessModes: ["ReadWriteOnce"]
-          resources:
-            requests:
-              storage: 2Gi
+  #
+  # Disabled: k3s-deployment is a test sandbox with no alert routing, and its
+  # secrets file deliberately carries no cluster-configs.secrets.alertmanager
+  # block, so cluster-configs renders no alertmanager-main Secret.
+  #
+  # Do NOT just flip this back to true. The chart's generated config from the
+  # shared values/prometheus.yaml is invalid (route uses `receiver: default`,
+  # which is not in `receivers:`), and the operator then never creates the
+  # StatefulSet. To re-enable, restore the alertmanager block in
+  # environments/k3s-deployment-secrets.yaml and point
+  # alertmanagerSpec.configSecret at alertmanager-main, as uat-saas does.
+  enabled: false
 
 prometheus:
   prometheusSpec:

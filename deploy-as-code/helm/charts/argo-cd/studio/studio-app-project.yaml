@@ -1,0 +1,33 @@
+## AppProject for DIGIT Studio on the Azure AKS digit-lts (test-lts.digit.org)
+## environment. Values: environments/digit-studio-lts.yaml.
+##
+## Destinations are studio AND egov: the Studio API charts render their Ingress into
+## ingress.namespace (egov), because on digit-lts an Ingress must sit next to the
+## Service it targets -- kong-kong-proxy, in egov. Only digit-studio's Ingress (its
+## own Service) lands in studio. Studio renders no cluster-scoped objects, and only
+## these kinds: Deployment, Service, ConfigMap (studio), Ingress (studio, egov).
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: studio-project
+  namespace: argocd
+spec:
+  description: DIGIT Studio services for the Azure AKS digit-lts environment
+  sourceRepos:
+    - https://github.com/egovernments/DIGIT-DevOps.git
+
+  destinations:
+    - namespace: 'studio'
+      server: https://kubernetes.default.svc
+    - namespace: 'egov'
+      server: https://kubernetes.default.svc
+
+  namespaceResourceWhitelist:
+    - group: apps
+      kind: Deployment
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ConfigMap
+    - group: networking.k8s.io
+      kind: Ingress

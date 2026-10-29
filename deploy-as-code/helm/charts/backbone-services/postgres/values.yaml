@@ -5,7 +5,14 @@ labels:
 
 # Resource name. Defaults to the chart name ("postgres") if unset.
 # Set to match the in-cluster StatefulSet/Services the DIGIT services connect to.
-name: postgresql-lts
+#
+# "postgres", NOT "postgresql-lts", on this branch. The name drives the Service
+# name via common.name, and every consumer in environments/k3s-deployment.yaml
+# addresses the database as postgres.egov -- db-host, db-url, db-otel-url,
+# health-db-url, and the KC_DB_URL baked into the keycloak chart. Leaving the
+# digit-lts value here renders Service/postgresql-lts, which nothing resolves,
+# so each service fails at connection time rather than at render time.
+name: postgres
 
 namespace: egov
 
@@ -82,7 +89,11 @@ persistence:
   #   Azure (AKS): managed-csi   (or default / managed-premium)
   #   GCP (GKE):   standard-rwo  (or premium-rwo)
   storageClass: ""
-  size: 100Gi
+  # 20Gi, not the 100Gi used on managed clusters: this environment is a single
+  # k3s node with a 128 GiB OS disk, and local-path carves PVCs out of that same
+  # disk. The claim is not a reservation, but sizing it near the whole disk is
+  # misleading next to the container images, Elasticsearch and Kafka that share it.
+  size: 20Gi
   accessModes:
     - ReadWriteOnce
   retentionPolicy:

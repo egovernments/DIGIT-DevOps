@@ -1,0 +1,99 @@
+# Platform dependencies for the k3s-deployment sandbox: the datastore, the
+# identity provider and the API gateway that DIGIT core sits on top of.
+#
+# Kept as a SEPARATE appset rather than folded into -core for two reasons:
+#
+#   1. These span two chart groups. gateway-kong and keycloak live under
+#      core-services, postgres under backbone-services, so a single hardcoded
+#      path (as -core uses) cannot cover them. Each element carries its own
+#      `path` relative to deploy-as-code/helm/charts.
+#
+#   2. They do not share a namespace. keycloak renders into `keycloak`, the
+#      other two into `egov`, so the template needs {{namespace}} rather than
+#      the fixed `egov` that -core hardcodes. Every namespace used here must
+#      also appear in egov-app-project.yaml's destinations or the Application
+#      is rejected with "application destination is not permitted in project".
+#
+# Ordering note: nothing here enforces that postgres is ready before keycloak
+# starts. Keycloak will CrashLoop until the database answers, then recover on
+# its own -- acceptable for a sandbox, but it is why a first sync looks noisy.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: k3s-deployment-egov-appset-platform
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          # The database every DIGIT service addresses as postgres.egov.
+          # charts/backbone-services/postgres sets name: postgres on this
+          # branch so the rendered Service matches that hostname.
+          - name: postgres
+            path: backbone-services/postgres
+            namespace: egov
+
+          # Identity provider. Image tag comes from the keycloak block in
+          # environments/k3s-deployment.yaml -- the chart will not render
+          # without it.
+          - name: keycloak
+            path: core-services/keycloak
+            namespace: keycloak
+
+          # API gateway fronting the core services.
+          - name: gateway-kong
+            path: core-services/gateway-kong
+            namespace: egov
+
+  template:
+    metadata:
+      name: '{{name}}'
+
+    spec:
+      project: egov-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: k3s-deployment
+        path: deploy-as-code/helm/charts/{{path}}
+        helm:
+          # releaseName is pinned to the element name so the rendered object
+          # names are stable and independent of the generated Application name.
+          releaseName: '{{name}}'
+          valueFiles:
+            - values.yaml
+            - ../../../environments/k3s-deployment.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+
+      syncPolicy:
+        automated:
+          # prune:false so a rendering mistake cannot delete the database.
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+          # keycloak's namespace does not exist on a fresh cluster.
+          - CreateNamespace=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+            # Stamped from .Release.Time by common/_deployment.yaml, so it
+            # changes on every render and would otherwise show permanent drift.
+            - /spec/template/metadata/annotations/deployment-timestamp
+        - group: apps
+          kind: StatefulSet
+          jsonPointers:
+            - /spec/replicas

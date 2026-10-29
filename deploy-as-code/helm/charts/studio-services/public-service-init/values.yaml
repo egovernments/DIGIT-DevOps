@@ -183,6 +183,25 @@ env: |
       configMapKeyRef:
         name: egov-service-host
         key: studio-pdf-helper-service
+  # DIGIT 3.0 builds: Keycloak base URL (without /keycloak), for Keycloak roles on publish.
+  - name: KEYCLOAK_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: keycloak
+        optional: true
+  # Schema per tenant (DIGIT 3.0 tenant-migration); off keeps every table in the public schema.
+  - name: TENANT_MIGRATION_ENABLED
+    value: {{ index .Values "tenant-migration-enabled" | default false | quote }}
+  # Studio's service account in each tenant realm (Keycloak roles on publish).
+  {{- with index .Values "keycloak-client-secret" }}
+  - name: STUDIO_KEYCLOAK_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: {{ .name }}
+        key: {{ .key }}
+        optional: true
+  {{- end }}
   {{- if index .Values "heap" }}
   - name: JAVA_OPTS
     value: {{ index .Values "heap" | quote }}

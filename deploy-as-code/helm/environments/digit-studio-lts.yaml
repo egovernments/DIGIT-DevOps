@@ -79,6 +79,7 @@ cluster-configs:
       namespace: [ studio, health ]
       data:
         studio-pdf-helper-service: "http://studio-pdf-helper-service.studio:8080/"
+        keycloak: "http://keycloak.keycloak:8080/"
         asset-services: "http://asset-services:8080/"
         asset-services-maha: "http://asset-services-maha:8080/"
         audit-service: 'http://audit-service.egov:8080/'
@@ -223,9 +224,14 @@ cluster-configs:
     db:
       namespace: [ studio ]
       name: db
-    github-config: 
+    github-config:
       namespace: [ studio ]
       name: github-config
+    # Secret of Studio's Keycloak client (studio-service) in realm STUDIO, read by
+    # public-service-init; value in digit-studio-lts-secrets.yaml.
+    studio-keycloak:
+      namespace: [ studio ]
+      name: studio-keycloak
   
       
 digit-studio:
@@ -279,14 +285,25 @@ public-service-init:
   mdms-v2-search-endpoint: "mdms-v2/v2/_search"
   mdms-v2-create-endpoint: "mdms-v2/v2/_create"
   mdms-service-host: "http://mdms-v2.egov:8080/"
-  mdms-v2-update-endpoint: "mdms-v2/v2/_update" 
+  mdms-v2-update-endpoint: "mdms-v2/v2/_update"
+  # Schema per tenant (as notify on digit-lts): a tenant's schema is created and
+  # migrated when account-java publishes account-migration. Tenants that existed
+  # before this (e.g. STUDIO) need one in-cluster POST /internal/migrate each.
+  tenant-migration-enabled: true
+  keycloak-client-secret:
+    name: studio-keycloak
+    key: client-secret
+  healthChecks:
+    enabled: true
+    livenessProbePath: /actuator/health/liveness
+    readinessProbePath: /actuator/health/readiness
 
   image:
-    tag: studio-java-migration-4ae788c
+    tag: studio-digit3-migration-078addb
   initContainers:
     dbMigration:
       image:
-        tag: studio-java-migration-4ae788c
+        tag: studio-digit3-migration-078addb
 studio-pdf:
   namespace: studio
   resources: |

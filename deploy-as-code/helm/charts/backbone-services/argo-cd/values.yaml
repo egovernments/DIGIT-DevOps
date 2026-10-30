@@ -3085,13 +3085,23 @@ repoServer:
   ## limit was throttling manifest generation badly enough that the repo
   ## server missed its liveness probe and crash-looped continuously,
   ## blocking ArgoCD syncs cluster-wide.
+  ##
+  ## That fix raised the LIMIT but left requests at 50m, and the crash loop came
+  ## back: 207 restarts, all liveness kills. Requests are what the scheduler
+  ## guarantees - a 50m request means 50m of CPU under contention no matter how
+  ## high the ceiling is, so manifest generation was still starved. Requests now
+  ## match the old limit, and the ceiling has room above it for the heaviest
+  ## renders (the CloudNativePG chart ships 11 large CRDs).
+  ##
+  ## Raise these together with repoServer.livenessProbe.timeoutSeconds below -
+  ## resources alone did not hold last time.
   resources:
    limits:
-     cpu: 500m
-     memory: 1Gi
+     cpu: 2
+     memory: 2Gi
    requests:
-     cpu: 50m
-     memory: 64Mi
+     cpu: 500m
+     memory: 512Mi
 
   # Repo server container ports
   containerPorts:
@@ -3137,10 +3147,16 @@ repoServer:
     timeoutSeconds: 1
 
   livenessProbe:
+    ## The probe hits /healthz?full=true, which does real work rather than
+    ## returning a constant. At the upstream default of timeoutSeconds 1 and
+    ## failureThreshold 3, three slow seconds during a large Helm render are
+    ## enough to kill the pod - which is how this accumulated 207 restarts.
+    ## Generous values here cost nothing: a genuinely wedged repo server is
+    ## still restarted, just not one that is merely busy.
     # -- Enable Kubernetes liveness probe for Repo Server
     enabled: true
     # -- Minimum consecutive failures for the [probe] to be considered failed after having succeeded
-    failureThreshold: 3
+    failureThreshold: 5
     # -- Number of seconds after the container has started before [probe] is initiated
     initialDelaySeconds: 10
     # -- How often (in seconds) to perform the [probe]
@@ -3148,7 +3164,7 @@ repoServer:
     # -- Minimum consecutive successes for the [probe] to be considered successful after having failed
     successThreshold: 1
     # -- Number of seconds after which the [probe] times out
-    timeoutSeconds: 1
+    timeoutSeconds: 10
 
   # -- terminationGracePeriodSeconds for container lifecycle hook
   terminationGracePeriodSeconds: 30

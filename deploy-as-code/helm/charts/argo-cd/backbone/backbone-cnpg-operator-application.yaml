@@ -1,0 +1,50 @@
+## CloudNativePG operator on digit-lts.
+##
+## Prerequisite for backbone-postgresql: that chart renders a postgresql.cnpg.io
+## Cluster, which is an inert custom resource until this operator owns the CRD and
+## reconciles it. Sync this first -- Argo has no cross-Application ordering, so a
+## Cluster applied before the CRD exists fails with "no matches for kind".
+##
+## Upstream chart, taken as-is rather than vendored: it is the operator itself, it
+## carries no DIGIT configuration, and tracking upstream directly keeps the CRDs in
+## step with the operator binary. The chart version is pinned, not floating, so a new
+## upstream release never syncs itself in unannounced.
+##
+## Cluster-scoped: CRDs, the controller's ClusterRole/Binding, and the admission
+## webhooks. backbone-project's clusterResourceWhitelist was added for exactly this.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backbone-cnpg-operator
+  namespace: argocd
+spec:
+  project: backbone-project
+
+  source:
+    repoURL: https://cloudnative-pg.github.io/charts
+    chart: cloudnative-pg
+    # Operator 1.30.1. Supports PostgreSQL 18, which is what backbone-postgresql runs.
+    targetRevision: 0.29.1
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      # The operator's own namespace is not in the chart.
+      - CreateNamespace=true
+      # The CRDs are large enough to blow the 262144-byte annotation limit that
+      # client-side apply writes into last-applied-configuration.
+      - Replace=false
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

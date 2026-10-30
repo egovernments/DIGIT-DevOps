@@ -41,14 +41,21 @@ cluster-configs:
       name: egov-config
       namespace: [ crest ]
       data:
-        # Same server and database as test-lts.yaml; CREST's tables live in schema crest,
-        # not public - its table names (users, project) are too generic to share the
-        # platform schema, which already holds over 9,000 tables. Same approach as the
-        # studio and health schemas.
-        db-host: postgres.egov
+        # The PostgreSQL 18 cluster in backbone, NOT the 15.8 server in egov: CREST's
+        # migrations use uuidv7(), a built-in that only exists from 18. Every other
+        # service stays on postgres.egov - only CREST is pointed here.
+        #
+        # postgresql.backbone is an ExternalName the postgresql chart renders onto the
+        # operator's postgresql-rw Service, so a failover does not change this value.
+        #
+        # db-name is also what the chart's reconciler reads to decide which database
+        # to create, so this names CREST's own database rather than a shared one.
+        # No currentSchema: CREST owns the whole database and uses public, which is
+        # what its own docker-compose and test containers do.
+        db-host: postgresql.backbone
         db-port: "5432"
-        db-name: postgres
-        db-url: jdbc:postgresql://postgres.egov:5432/postgres?currentSchema=crest
+        db-name: crest
+        db-url: jdbc:postgresql://postgresql.backbone:5432/crest
         db-pool-max-size: "10"
         db-pool-min-idle: "2"
         db-pool-connection-timeout-ms: "5000"
@@ -66,8 +73,10 @@ cluster-configs:
     hcm-moz-impl: null
 
   secrets:
-    # Values live in crest-lts-secrets.yaml (SOPS). Same Postgres credentials as the
-    # egov db Secret - the schema, not the login, is what separates CREST's data.
+    # Values live in crest-lts-secrets.yaml (SOPS). A dedicated "crest" role on the
+    # new cluster, not the platform superuser: the postgresql chart's reconciler
+    # creates the role from this Secret, and reusing "postgres" would collide with
+    # CloudNativePG's own superuser.
     db:
       name: db
       namespace: [ crest ]
@@ -80,3 +89,13 @@ cluster-configs:
     hmac-secret: null
     minio: null
     vault-approle: null
+
+# ── crest chart override ────────────────────────────────────────────────────────
+# The published chart defaults Flyway to a dedicated "crest" schema, which is what
+# sharing the platform database required. On its own PostgreSQL 18 database that
+# split is redundant, and public is what CREST's docker-compose and Testcontainers
+# use - so migrations run against the same schema in every environment.
+crest:
+  initContainers:
+    dbMigration:
+      dbSchema: "public"

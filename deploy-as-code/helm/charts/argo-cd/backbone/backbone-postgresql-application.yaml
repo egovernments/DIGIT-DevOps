@@ -1,0 +1,66 @@
+## PostgreSQL 18 on digit-lts, in namespace backbone.
+##
+## Shared platform database, not a CREST-private one: CREST is simply its first
+## tenant, because its migrations need uuidv7(), a PostgreSQL 18 built-in that the
+## existing 15.8 server does not have. Other services are expected to migrate onto
+## this over time, which is why it sits in backbone alongside the other datastores
+## rather than in an application namespace.
+##
+## Requires backbone-cnpg-operator to be synced first: a Cluster resource is inert
+## without the operator, and applying it before the CRD exists fails outright.
+##
+## Multi-source, like the crest Applications: the chart comes from the registry, and
+## this repo is carried as ref "values" so valueFiles can reach postgresql-lts.yaml
+## with the $values prefix. A Helm-repo source cannot read a values file out of a git
+## repo any other way.
+##
+## Consumers connect to postgresql.backbone:5432 -- an ExternalName the chart renders
+## onto the operator's postgresql-rw Service, so a failover or a rename of the
+## underlying cluster does not change the name applications are configured with.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backbone-postgresql
+  namespace: argocd
+spec:
+  project: backbone-project
+
+  sources:
+    - repoURL: https://helm.digit.org/digit3/backbone
+      chart: postgresql
+      targetRevision: 3.0.1
+      helm:
+        valueFiles:
+          - $values/deploy-as-code/helm/environments/postgresql-lts.yaml
+
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: backbone
+
+  syncPolicy:
+    automated:
+      # prune stays false: this owns a database. Removing the file from git must
+      # never be what deletes the Cluster and its PersistentVolumeClaims.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+
+  ignoreDifferences:
+    # The operator writes status and rotates its own generated Secrets; neither is
+    # ours to reconcile, and both otherwise keep the Application permanently OutOfSync.
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      jsonPointers:
+        - /status

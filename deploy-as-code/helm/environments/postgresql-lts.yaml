@@ -1,0 +1,35 @@
+# PostgreSQL 18 (CloudNativePG) on the digit-lts AKS cluster, namespace backbone.
+# Read by Application backbone-postgresql.
+#
+# Shared platform database. CREST is its first tenant because its migrations need
+# uuidv7(), built into PostgreSQL 18 and absent from the 15.8 server in egov. Other
+# services are expected to move onto this, so nothing here is CREST-specific beyond
+# the one namespace the reconciler currently reads.
+#
+# Consumers connect to postgresql.backbone:5432 - an ExternalName the chart renders
+# onto the operator's postgresql-rw Service.
+
+cluster:
+  # Single instance, matching the existing egov/postgres-0. Raise to 3 for a
+  # replicated cluster with automatic failover once this carries more than CREST.
+  instances: 1
+
+  storage:
+    # The 8Gi chart default is a starter value. egov/postgres-0 sits on 100Gi; 50Gi
+    # is a sensible start for a shared database with one tenant, and the default
+    # storage class (disk.csi.azure.com) allows volume expansion, so it grows in place.
+    size: 50Gi
+    # Left empty to take the cluster's default StorageClass, as the chart intends.
+    storageClass: ""
+
+# ── Application DB reconciler ───────────────────────────────────────────────────
+# After the cluster is Ready, a Job in backbone connects as the CNPG superuser and
+# ensures the application role and database exist, reading both from the APP
+# namespace: the database name from egov-config/db-name, the role credentials from
+# the db Secret. The chart renders the Role + RoleBinding that allow it to read them.
+#
+# Pointed at crest, so it provisions database "crest" owned by role "crest".
+# A second tenant needs its own reconciler, not another namespace here.
+custom_config:
+  enabled: true
+  namespace: crest

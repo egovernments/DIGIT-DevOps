@@ -26,7 +26,35 @@ spec:
     # git@ forms of the same repo are two different entries.
     - https://github.com/egovernments/DIGIT-DevOps.git
     - git@github.com:egovernments/DIGIT-DevOps.git
+    # PostgreSQL 18: the operator from upstream, the Cluster chart from the registry.
+    - https://cloudnative-pg.github.io/charts
+    - https://helm.digit.org/digit3/backbone
 
   destinations:
     - namespace: backbone
       server: https://kubernetes.default.svc
+    # The CloudNativePG operator installs here.
+    - namespace: cnpg-system
+      server: https://kubernetes.default.svc
+    # The postgresql chart renders a Role + RoleBinding into the APP namespace so
+    # its reconciler can read that namespace's egov-config and db Secret. Add a
+    # destination here for every app namespace the reconciler is pointed at.
+    - namespace: crest
+      server: https://kubernetes.default.svc
+
+  ## Added for the CloudNativePG operator, which is cluster-scoped: it owns the
+  ## postgresql.cnpg.io CRDs, the RBAC its controller runs under, and the webhooks
+  ## that validate Cluster resources. With no clusterResourceWhitelist an AppProject
+  ## permits NONE of them and the sync fails with "one or more synchronization tasks
+  ## are not valid". The Cluster objects themselves are namespaced and need nothing here.
+  clusterResourceWhitelist:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration

@@ -1,0 +1,44 @@
+## CREST's namespace, ConfigMap and Secret on digit-lts: namespace crest,
+## egov-config, db -- and nothing outside crest.
+##
+## Its own Application, never layered onto digit-lts-cluster-configs: the crest
+## egov-config would replace egov's. crest-lts.yaml turns off what this chart renders
+## by default for the whole cluster (cluster-roles, root-ingress, the egov db Service)
+## and every secret whose values live only in test-lts-secrets.yaml.
+##
+## Unlike the service Applications, this one uses the in-repo cluster-configs chart:
+## only the two CREST service charts come from helm.digit.org.
+##
+## secrets:// is decrypted by argocd-repo-server via SOPS/AWS KMS, as for
+## digit-lts-cluster-configs (same key, see deploy-as-code/helm/.sops.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: digit-lts-cluster-configs-crest
+  namespace: argocd
+spec:
+  project: cluster-configs-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: digit-lts
+      path: "deploy-as-code/helm/charts/cluster-configs"
+      helm:
+        valueFiles:
+          - values.yaml
+          - ../../environments/crest-lts.yaml
+          - secrets://../../environments/crest-lts-secrets.yaml
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s

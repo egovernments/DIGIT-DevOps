@@ -52,25 +52,19 @@ cluster-configs:
         # to create, so this names CREST's own database rather than a shared one.
         # No currentSchema: CREST owns the whole database and uses public, which is
         # what its own docker-compose and test containers do.
-        db-host: postgresql.backbone
-        db-port: "5432"
+        # Only the three keys something actually reads. chart 3.0.1 sets appType ""
+        # (CREST's application.yml owns the Hikari pool and conflicts with the
+        # injected one), so common injects no shared datasource, Tomcat, timezone or
+        # Kafka env here - the keys feeding that block were dead weight and are gone.
+        # Re-add them alongside any move back to appType "java".
+        #
+        # db-name  -> read by the postgresql chart's reconciler, to decide which
+        #             database to create; also names CREST's own database.
+        # db-url   -> CREST_DB_URL for the app, DB_URL for the flyway init container.
         db-name: crest
         db-url: jdbc:postgresql://postgresql.backbone:5432/crest
         # The crest-db image ships its migrations at /flyway/sql.
         flyway-locations: "filesystem:/flyway/sql"
-        # Everything below is read by nobody today and kept only so this file still
-        # describes the environment if CREST later opts back into the shared block.
-        # chart 3.0.1 sets appType "" (its application.yml owns the Hikari pool and
-        # conflicts with the injected one), so common injects no datasource, Tomcat,
-        # timezone or Kafka env. CREST itself publishes nothing to Kafka.
-        db-pool-max-size: "10"
-        db-pool-min-idle: "2"
-        db-pool-connection-timeout-ms: "5000"
-        timezone: "Asia/Kolkata"
-        spring-jpa-show-sql: "false"
-        server-tomcat-threads-max: "200"
-        server-tomcat-max-connections: "8192"
-        kafka-brokers: "kafka-controller-headless.backbone:9092"
     # Not used by CREST: it calls no other platform service.
     egov-service-host: null
     hcm-moz-impl: null

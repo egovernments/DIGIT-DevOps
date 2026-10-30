@@ -1,0 +1,69 @@
+## CREST services (namespace crest), one Application crest-<name> each. Their
+## ConfigMaps and Secrets come from Application digit-lts-cluster-configs-crest.
+##
+## The charts come from the registry, not this repo, so each Application is
+## multi-source:
+##   - the chart itself from https://helm.digit.org/digit3/crest, pinned by
+##     targetRevision (the CHART version, 3.0.0 at first publish - not the image tag,
+##     which is the chart's appVersion)
+##   - this repo, carrying ref "values", so valueFiles can reach crest-lts.yaml with
+##     the $values prefix. A Helm-repo source cannot read a values file out of a git
+##     repo any other way.
+## Bumping a service therefore means publishing a new chart version and moving
+## targetRevision here, rather than editing a tag in an environment file.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: digit-lts-crest-appset-crest
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: crest
+            version: "3.0.0"
+          - name: crest-ui
+            version: "3.0.0"
+
+  template:
+    metadata:
+      name: 'crest-{{name}}'
+
+    spec:
+      project: crest-project
+
+      sources:
+        - repoURL: https://helm.digit.org/digit3/crest
+          chart: '{{name}}'
+          targetRevision: '{{version}}'
+          helm:
+            valueFiles:
+              - $values/deploy-as-code/helm/environments/crest-lts.yaml
+
+        - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+          targetRevision: digit-lts
+          ref: values
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'crest'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

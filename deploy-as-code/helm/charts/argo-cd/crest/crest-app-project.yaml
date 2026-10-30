@@ -1,0 +1,36 @@
+## AppProject for CREST on the Azure AKS digit-lts (test-lts.digit.org) environment.
+## Values: environments/crest-lts.yaml.
+##
+## Unlike every other project here, the charts are NOT in this repo: they are pulled
+## from the published registry, so sourceRepos lists the Helm module alongside the git
+## repo that supplies the values file. Both are needed - the Applications are
+## multi-source (chart from helm.digit.org, values from this repo via $values).
+##
+## One destination, crest. CREST does not sit behind kong, so its Ingresses back onto
+## its own Services and stay in its own namespace - no egov destination is needed, as
+## it is for studio. Nothing here renders cluster-scoped objects.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: crest-project
+  namespace: argocd
+spec:
+  description: CREST services for the Azure AKS digit-lts environment
+
+  sourceRepos:
+    - https://github.com/egovernments/DIGIT-DevOps.git
+    - https://helm.digit.org/digit3/crest
+
+  destinations:
+    - namespace: 'crest'
+      server: https://kubernetes.default.svc
+
+  namespaceResourceWhitelist:
+    - group: apps
+      kind: Deployment
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ConfigMap
+    - group: networking.k8s.io
+      kind: Ingress

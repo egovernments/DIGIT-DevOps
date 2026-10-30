@@ -1,0 +1,82 @@
+# CREST on the digit-lts AKS cluster, namespace crest, host crest.test-lts.digit.org.
+#
+# Read by two Applications:
+#   digit-lts-cluster-configs-crest  - this file + the cluster-configs chart values,
+#                                      renders the namespace, egov-config and the db Secret
+#   crest-<service>                  - this file as the values override for the charts
+#                                      pulled from helm.digit.org/digit3/crest
+#
+# Never layered onto test-lts.yaml: egov-config here would replace egov's.
+#
+# The charts are published, not in this repo. Anything environment-specific belongs
+# here; the charts carry only platform-neutral defaults.
+
+global:
+  # Both charts render their Ingress against this. crest-ui takes "/" and crest takes
+  # "/api" on the same host, because the UI bundle fetches same-origin /api/v1.
+  # *.test-lts.digit.org already resolves (wildcard A record), so no DNS change is needed;
+  # cert-manager issues crest.test-lts.digit.org-tls-certs on first sync.
+  domain: crest.test-lts.digit.org
+  setup: fullsetup
+  namespace: crest
+  containerRegistry: egovio
+  mode: prod
+
+cluster-configs:
+  # Everything this renders must land in namespace crest: crest-project allows no other
+  # destination. The cluster-wide RBAC, the root ingress and the egov db Service belong
+  # to digit-lts-cluster-configs, so they are switched off here.
+  cluster-roles:
+    enabled: false
+  root-ingress: null
+  db: null
+  nginx-errors: null
+
+  namespaces:
+    create: true
+    values: [ crest ]
+
+  configmaps:
+    egov-config:
+      name: egov-config
+      namespace: [ crest ]
+      data:
+        # Same server and database as test-lts.yaml; CREST's tables live in schema crest,
+        # not public - its table names (users, project) are too generic to share the
+        # platform schema, which already holds over 9,000 tables. Same approach as the
+        # studio and health schemas.
+        db-host: postgres.egov
+        db-port: "5432"
+        db-name: postgres
+        db-url: jdbc:postgresql://postgres.egov:5432/postgres?currentSchema=crest
+        db-pool-max-size: "10"
+        db-pool-min-idle: "2"
+        db-pool-connection-timeout-ms: "5000"
+        # The crest-db image ships its migrations at /flyway/sql.
+        flyway-locations: "filesystem:/flyway/sql"
+        timezone: "Asia/Kolkata"
+        spring-jpa-show-sql: "false"
+        server-tomcat-threads-max: "200"
+        server-tomcat-max-connections: "8192"
+        # CREST publishes nothing to Kafka yet; the key exists because appType "java"
+        # injects SPRING_KAFKA_BOOTSTRAP_SERVERS into every service.
+        kafka-brokers: "kafka-controller-headless.backbone:9092"
+    # Not used by CREST: it calls no other platform service.
+    egov-service-host: null
+    hcm-moz-impl: null
+
+  secrets:
+    # Values live in crest-lts-secrets.yaml (SOPS). Same Postgres credentials as the
+    # egov db Secret - the schema, not the login, is what separates CREST's data.
+    db:
+      name: db
+      namespace: [ crest ]
+    kc-db: null
+    kc-admin: null
+    egov-notification-sms: null
+    egov-notification-mail: null
+    wordpress: null
+    kafka-kraft: null
+    hmac-secret: null
+    minio: null
+    vault-approle: null

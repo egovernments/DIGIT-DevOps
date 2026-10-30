@@ -56,17 +56,20 @@ cluster-configs:
         db-port: "5432"
         db-name: crest
         db-url: jdbc:postgresql://postgresql.backbone:5432/crest
+        # The crest-db image ships its migrations at /flyway/sql.
+        flyway-locations: "filesystem:/flyway/sql"
+        # Everything below is read by nobody today and kept only so this file still
+        # describes the environment if CREST later opts back into the shared block.
+        # chart 3.0.1 sets appType "" (its application.yml owns the Hikari pool and
+        # conflicts with the injected one), so common injects no datasource, Tomcat,
+        # timezone or Kafka env. CREST itself publishes nothing to Kafka.
         db-pool-max-size: "10"
         db-pool-min-idle: "2"
         db-pool-connection-timeout-ms: "5000"
-        # The crest-db image ships its migrations at /flyway/sql.
-        flyway-locations: "filesystem:/flyway/sql"
         timezone: "Asia/Kolkata"
         spring-jpa-show-sql: "false"
         server-tomcat-threads-max: "200"
         server-tomcat-max-connections: "8192"
-        # CREST publishes nothing to Kafka yet; the key exists because appType "java"
-        # injects SPRING_KAFKA_BOOTSTRAP_SERVERS into every service.
         kafka-brokers: "kafka-controller-headless.backbone:9092"
     # Not used by CREST: it calls no other platform service.
     egov-service-host: null
@@ -89,13 +92,3 @@ cluster-configs:
     hmac-secret: null
     minio: null
     vault-approle: null
-
-# ── crest chart override ────────────────────────────────────────────────────────
-# The published chart defaults Flyway to a dedicated "crest" schema, which is what
-# sharing the platform database required. On its own PostgreSQL 18 database that
-# split is redundant, and public is what CREST's docker-compose and Testcontainers
-# use - so migrations run against the same schema in every environment.
-crest:
-  initContainers:
-    dbMigration:
-      dbSchema: "public"

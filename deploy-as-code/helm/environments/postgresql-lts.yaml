@@ -33,3 +33,16 @@ cluster:
 custom_config:
   enabled: true
   namespace: crest
+
+reconciler:
+  images:
+    # The chart defaults to bitnami/kubectl:1.31, which no longer exists - Bitnami
+    # withdrew their public Docker Hub images, so the init container dies on
+    #   failed to pull docker.io/bitnami/kubectl:1.31: not found
+    # and the reconciler never creates the database.
+    #
+    # registry.k8s.io/kubectl is published by the Kubernetes project itself: no
+    # Docker Hub rate limits, and not something a vendor can withdraw. v1.34 matches
+    # this cluster's 1.34.9 API server. The init container only runs kubectl get
+    # configmap/secret, so the version is not sensitive beyond the usual skew.
+    kubectl: registry.k8s.io/kubectl:v1.34.1

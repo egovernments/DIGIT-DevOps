@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: unified-dev-sdip-appset
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - name: sdip-backend
+            valuesFile: unified-sdip-backend-dev.yaml
+          - name: sdip-frontend
+            valuesFile: unified-sdip-frontend-dev.yaml
+
+  template:
+    metadata:
+      name: '{{ .name }}'
+    spec:
+      project: sdip-project
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: unified-dev
+        path: 'deploy-as-code/helm/charts/sdip-services/{{ .name }}'
+        helm:
+          releaseName: '{{ .name }}'
+          valueFiles:
+            - values.yaml
+            - '../../../environments/{{ .valuesFile }}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: sdip
+
+      syncPolicy:
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true

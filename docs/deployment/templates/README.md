@@ -1,5 +1,7 @@
 # Templates
 
+<sub>**Deployment Guide** · [Contents](../README.md)</sub>
+
 Ready-to-copy files for the approach described in this guide. Replace every `<placeholder>` (see the [placeholder table](../README.md#placeholders)). Comments in each file explain the choices it encodes.
 
 ## Argo CD

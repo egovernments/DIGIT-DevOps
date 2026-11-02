@@ -1,4 +1,6 @@
-# 05 Argo CD Guide
+# Argo CD Guide
+
+<sub>**Deployment Guide** · Part 5 of 11 · [Contents](README.md) · Next: [Configuration and Secrets](06-configuration-and-secrets.md)</sub>
 
 How Argo CD deploys packaged charts from the environment branches, how a chart version in an env file becomes a running Deployment, and how to onboard applications and modules. Applies to **both** adoption models.
 
@@ -209,3 +211,7 @@ ignoreDifferences:
 | Two ApplicationSets generate the same Application name | The second fails with "already owned by another ApplicationSet"; hand ownership over as in [08](08-operations-runbook.md) |
 | An ApplicationSet is deleted | Its Applications are deleted too, unless deleted with `--cascade=orphan` |
 | A release must be undone | Promote the previous Freight (Kargo), or revert the commit |
+
+---
+
+<sub>← Previous: [Kargo Guide](04-kargo-guide.md) &nbsp;|&nbsp; [Contents](README.md) &nbsp;|&nbsp; Next: [Configuration and Secrets](06-configuration-and-secrets.md) →</sub>

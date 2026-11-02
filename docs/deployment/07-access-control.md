@@ -1,4 +1,6 @@
-# 07 Access Control
+# Access Control
+
+<sub>**Deployment Guide** · Part 7 of 11 · [Contents](README.md) · Next: [Operations Runbook](08-operations-runbook.md)</sub>
 
 Access is granted per layer, always with the least privilege that does the job.
 
@@ -79,3 +81,7 @@ GRANT pg_read_all_data TO <readonly_user>;
 - **Verify** that it can `SELECT`, and that `CREATE TABLE` and `UPDATE` are refused.
 - **Store the password** in your secrets store; never in git or in messages.
 - **Database UIs** (for example pgAdmin): point the *read* server entry at `<readonly_user>`. If the UI's server list is generated from git, change it there, otherwise self-heal reverts the edit. Give the team a UI login that can see **only** the read server.
+
+---
+
+<sub>← Previous: [Configuration and Secrets](06-configuration-and-secrets.md) &nbsp;|&nbsp; [Contents](README.md) &nbsp;|&nbsp; Next: [Operations Runbook](08-operations-runbook.md) →</sub>

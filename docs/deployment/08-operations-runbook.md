@@ -1,4 +1,6 @@
-# 08 Operations Runbook
+# Operations Runbook
+
+<sub>**Deployment Guide** · Part 8 of 11 · [Contents](README.md) · Next: [SOP and Guardrails](09-sop-and-guardrails.md)</sub>
 
 Step-by-step procedures for routine operations. Each assumes the rules in [09 SOP and Guardrails](09-sop-and-guardrails.md).
 
@@ -117,3 +119,7 @@ For master data or configuration rows that must match another environment:
 4. **Dry run first** (end with `ROLLBACK`), then run for real.
 5. **Verify on both sides** with row counts and a hash over the rows (for example `md5(string_agg(md5(row::text), '' ORDER BY <key>))`).
 6. Record what was copied, from where, and the verification result.
+
+---
+
+<sub>← Previous: [Access Control](07-access-control.md) &nbsp;|&nbsp; [Contents](README.md) &nbsp;|&nbsp; Next: [SOP and Guardrails](09-sop-and-guardrails.md) →</sub>

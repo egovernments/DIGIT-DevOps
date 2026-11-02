@@ -1,4 +1,6 @@
-# 10 Troubleshooting
+# Troubleshooting
+
+<sub>**Deployment Guide** · Part 10 of 11 · [Contents](README.md) · Next: [Glossary](11-glossary.md)</sub>
 
 Find the symptom, confirm the cause, apply the fix through git unless stated otherwise. Commands for checking state are in [08 Operations Runbook](08-operations-runbook.md#check-a-deployment-after-a-change).
 
@@ -39,3 +41,7 @@ Find the symptom, confirm the cause, apply the fix through git unless stated oth
 | `UnknownHostException` for a dependency | The service-host address names a service that does not exist | Point the key at the running service, or give the application its own key |
 | Liveness/readiness probes fail with 404 | The probe path repeats the context path | Make the probe path relative to the context |
 | Requests return 404 through the gateway | No route for the path in the API gateway | Add the route |
+
+---
+
+<sub>← Previous: [SOP and Guardrails](09-sop-and-guardrails.md) &nbsp;|&nbsp; [Contents](README.md) &nbsp;|&nbsp; Next: [Glossary](11-glossary.md) →</sub>

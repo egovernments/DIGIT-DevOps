@@ -1,4 +1,6 @@
-# 01 Overview
+# Overview
+
+<sub>**Deployment Guide** · Part 1 of 11 · [Contents](README.md) · Next: [Prerequisites and Installation](02-prerequisites-and-installation.md)</sub>
 
 ## Purpose
 
@@ -95,3 +97,7 @@ Argo CD deploys packaged charts exactly as above, but **engineers write the char
 | Mainline-only for production-like stages | Only reviewed, merged code is released beyond test environments |
 | Automated sync with self-heal, without pruning | The cluster always matches git; removals stay a deliberate, reviewed action |
 | Secrets encrypted in git (SOPS) | One source of truth without exposing values |
+
+---
+
+<sub>[Contents](README.md) &nbsp;|&nbsp; Next: [Prerequisites and Installation](02-prerequisites-and-installation.md) →</sub>

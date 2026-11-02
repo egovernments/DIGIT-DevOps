@@ -1,4 +1,6 @@
-# 04 Kargo Guide
+# Kargo Guide
+
+<sub>**Deployment Guide** · Part 4 of 11 · [Contents](README.md) · Next: [Argo CD Guide](05-argocd-guide.md)</sub>
 
 How Kargo discovers builds, bundles them into releases and promotes them through environments, and how to onboard an application or a project. Applies to the **Kargo + Argo CD** model.
 
@@ -231,3 +233,7 @@ Promote to qa and uat later, in order.
 | `argocdUpdate`, `argocdNamespace` | Ask a same-cluster Argo CD to sync immediately after the push |
 | `color` | UI colour |
 | `verifyKubeconfigSecret` | Enables post-promotion verification for the stage |
+
+---
+
+<sub>← Previous: [Repository Layout and Conventions](03-repository-layout-and-conventions.md) &nbsp;|&nbsp; [Contents](README.md) &nbsp;|&nbsp; Next: [Argo CD Guide](05-argocd-guide.md) →</sub>

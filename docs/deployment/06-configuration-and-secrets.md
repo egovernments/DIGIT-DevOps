@@ -1,4 +1,6 @@
-# 06 Configuration and Secrets
+# Configuration and Secrets
+
+<sub>**Deployment Guide** · Part 6 of 11 · [Contents](README.md) · Next: [Access Control](07-access-control.md)</sub>
 
 ## Where each value belongs
 
@@ -107,3 +109,7 @@ Never use a plain editor: it breaks the file's integrity check, and the repo-ser
 - Never copy one environment's cluster credentials (API endpoints, tokens) into another environment.
 - Share credentials through a password manager or another secure channel.
 - Rotate a secret at its source first, then update the encrypted file by pull request.
+
+---
+
+<sub>← Previous: [Argo CD Guide](05-argocd-guide.md) &nbsp;|&nbsp; [Contents](README.md) &nbsp;|&nbsp; Next: [Access Control](07-access-control.md) →</sub>

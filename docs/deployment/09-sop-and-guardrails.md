@@ -1,4 +1,6 @@
-# 09 SOP and Guardrails
+# SOP and Guardrails
+
+<sub>**Deployment Guide** · Part 9 of 11 · [Contents](README.md) · Next: [Troubleshooting](10-troubleshooting.md)</sub>
 
 The standard operating procedure for every change made through Kargo, Argo CD, or both. **MUST** and **MUST NOT** are mandatory. **SHOULD** is the default; departing from it needs a stated reason in the pull request. When a situation is not covered, apply the principles below and stop for review rather than improvising.
 
@@ -210,3 +212,7 @@ The rules above apply unchanged, with these differences:
 
 - Engineers write `chart-version`, `image.tag` and the migration tag by pull request, one environment branch at a time, in order dev → qa → uat, with mainline builds only in uat.
 - Applications come from the module's hand-listed ApplicationSet. Add an element only when its version is in the env file, or use the selector ([05](05-argocd-guide.md#hand-listed-applicationset-argo-cd-only)).
+
+---
+
+<sub>← Previous: [Operations Runbook](08-operations-runbook.md) &nbsp;|&nbsp; [Contents](README.md) &nbsp;|&nbsp; Next: [Troubleshooting](10-troubleshooting.md) →</sub>

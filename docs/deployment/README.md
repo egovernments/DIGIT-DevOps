@@ -1,4 +1,6 @@
-# Deployment Guide: Packaged Helm Charts with Kargo and Argo CD
+# Deployment Guide
+
+<sub>Packaged Helm charts · Kargo · Argo CD</sub>
 
 This guide describes how applications are **released**, **promoted** and **deployed** across environments using:
 

@@ -1,4 +1,6 @@
-# 11 Glossary
+# Glossary
+
+<sub>**Deployment Guide** · Part 11 of 11 · [Contents](README.md)</sub>
 
 | Term | Definition |
 |---|---|
@@ -25,3 +27,7 @@
 | **SOPS** | Tool encrypting secret values in git with a cloud key (Azure Key Vault or AWS KMS). |
 | **Stage** | Kargo object for one service in one environment; holds the Freight running there. |
 | **Warehouse** | Kargo object discovering a service's images and chart versions. |
+
+---
+
+<sub>← Previous: [Troubleshooting](10-troubleshooting.md) &nbsp;|&nbsp; [Contents](README.md)</sub>

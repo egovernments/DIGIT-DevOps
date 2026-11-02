@@ -1,4 +1,6 @@
-# 02 Prerequisites and Installation
+# Prerequisites and Installation
+
+<sub>**Deployment Guide** · Part 2 of 11 · [Contents](README.md) · Next: [Repository Layout and Conventions](03-repository-layout-and-conventions.md)</sub>
 
 What must exist before applications can be onboarded, and how each piece is installed. Steps marked **(Kargo)** are needed only for the Kargo + Argo CD model.
 
@@ -83,3 +85,7 @@ On the cluster chosen for Kargo:
 - Onboard applications: [04 Kargo Guide](04-kargo-guide.md), [05 Argo CD Guide](05-argocd-guide.md).
 - Configure module settings and secrets: [06 Configuration and Secrets](06-configuration-and-secrets.md).
 - Grant access: [07 Access Control](07-access-control.md).
+
+---
+
+<sub>← Previous: [Overview](01-overview.md) &nbsp;|&nbsp; [Contents](README.md) &nbsp;|&nbsp; Next: [Repository Layout and Conventions](03-repository-layout-and-conventions.md) →</sub>

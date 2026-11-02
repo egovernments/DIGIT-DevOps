@@ -1,4 +1,6 @@
-# 03 Repository Layout and Conventions
+# Repository Layout and Conventions
+
+<sub>**Deployment Guide** · Part 3 of 11 · [Contents](README.md) · Next: [Kargo Guide](04-kargo-guide.md)</sub>
 
 ## Branches
 
@@ -91,3 +93,7 @@ Rules:
 |---|---|
 | Kargo promotion | `kargo: promote <service> to <env>` (generated) |
 | Pull requests | `<type>(<scope>): <summary>`, for example `feat(payments): onboard invoice-service` |
+
+---
+
+<sub>← Previous: [Prerequisites and Installation](02-prerequisites-and-installation.md) &nbsp;|&nbsp; [Contents](README.md) &nbsp;|&nbsp; Next: [Kargo Guide](04-kargo-guide.md) →</sub>

@@ -29,6 +29,7 @@ inherited by every caller on its next run.
 | `platforms` | no | `linux/amd64,linux/arm64` | buildx target platforms |
 | `default_dockerfile` | no | `build/maven/Dockerfile` | Dockerfile when the config entry sets none |
 | `runs_on` | no | `ubuntu-latest` | Runner label |
+| `push` | no | `true` | Set `false` for build-only validation (no registry push) |
 
 Secrets (required): `DOCKER_USERNAME`, `DOCKER_ACCESS_TOKEN`.
 Outputs: `docker_image`, `db_image`.

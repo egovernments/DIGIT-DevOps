@@ -40,6 +40,11 @@ on:
         required: false
         type: string
         default: "ubuntu-latest"
+      push:
+        description: "Push images to the registry (false = build-only validation)"
+        required: false
+        type: boolean
+        default: true
     secrets:
       DOCKER_USERNAME:
         required: true
@@ -116,7 +121,7 @@ jobs:
           context: .
           file: ${{ steps.cfg.outputs.app_dockerfile }}
           platforms: ${{ inputs.platforms }}
-          push: true
+          push: ${{ inputs.push }}
           tags: ${{ inputs.registry_namespace }}/${{ inputs.service }}:${{ steps.tag.outputs.tag }}
           build-args: WORK_DIR=${{ steps.cfg.outputs.app_work_dir }}
           cache-from: type=gha,scope=${{ inputs.service }}
@@ -129,7 +134,7 @@ jobs:
           context: ${{ steps.cfg.outputs.db_work_dir }}
           file: ${{ steps.cfg.outputs.db_dockerfile }}
           platforms: ${{ inputs.platforms }}
-          push: true
+          push: ${{ inputs.push }}
           tags: ${{ inputs.registry_namespace }}/${{ inputs.service }}-db:${{ steps.tag.outputs.tag }}
           cache-from: type=gha,scope=${{ inputs.service }}-db
           cache-to: type=gha,mode=max,scope=${{ inputs.service }}-db

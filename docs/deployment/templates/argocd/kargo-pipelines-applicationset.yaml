@@ -1,0 +1,38 @@
+## Kargo + Argo CD only. Installs each Kargo project's objects (Project, Warehouses,
+## Stages, RBAC) by rendering the pipeline chart with that project's config file.
+## One list element per Kargo project. Runs on the cluster that hosts Kargo.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: <env>-kargo-appset-pipelines
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: <project>
+            branch: <config-branch>
+  template:
+    metadata:
+      name: 'kargo-{{name}}'
+    spec:
+      project: kargo-project
+      source:
+        repoURL: https://github.com/<org>/<repo>.git
+        targetRevision: '{{branch}}'
+        path: <kargo-pipeline-chart-path>
+        helm:
+          valueFiles:
+            - values.yaml
+            - config/projects/{{name}}.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{name}}'
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          # The Kargo Project object creates its own namespace; do not let Argo CD
+          # create it as well (pre-create it in your cluster config if you label it).
+          - CreateNamespace=false

@@ -1,0 +1,93 @@
+## Kargo project config: the values file the pipeline chart renders into a Project,
+## one Warehouse per service, one Stage per service per stage, and team RBAC.
+## Copy to <kargo-pipeline-chart-path>/config/projects/<project>.yaml.
+## Field reference: 04-kargo-guide.md, section "Field reference".
+kargo:
+  project: <project>                       # lower case, digits, dashes (becomes a namespace)
+  registry: docker.io/<registry-org>       # images are <registry>/<service or repo>
+  argocdAppPrefix: <app-prefix>            # Argo CD app names: <app-prefix><service>; unique per project
+  envFileWrite: merge                      # promotions create missing keys; no seeding needed
+  git:
+    repoURL: https://github.com/<org>/<repo>.git
+  chartRepo: https://helm.digit.org        # add the sub-path if your charts are published under one
+  # Tags that can become Freight. Anchored on the trailing commit hash so the
+  # per-architecture children (-amd64, -arm64) never match.
+  allowTags: '^(master|<release-prefix>)-.*[0-9a-f]{7,}$'
+  # masterOnlyStages: [uat]               # default: uat accepts master-* builds only
+
+  # Kargo-managed Applications (optional; omit to keep your own ApplicationSets).
+  # Read by the applicationset-kargo-managed-*.yaml templates.
+  argocd:
+    project: <module>-project              # AppProject used by the Applications
+    namespace: <namespace>                 # default destination namespace
+    namespaces: [<namespace>]              # MUST equal the AppProject's destinations
+    layout: common                         # default values layout: common | root | configs
+
+  services:
+    # A typical service: image + packaged chart (+ a migration image <service>-db).
+    - name: <service>
+      chart: <service>                     # chart name in chartRepo
+      dbMigration: true                    # only if <service>-db exists with the same tags
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+      # extraAllowTags: '^<branch-prefix>-.*[0-9a-f]{7,}$'   # extra build family, this service only
+
+    # A third-party style chart that reads root values, deployed to another namespace.
+    - name: <gateway-service>
+      chart: <gateway-chart>
+      deploy:
+        layout: root
+        namespace: <other-namespace>       # must be listed in argocd.namespaces
+      freightCreationPolicy: Manual
+      discoveryLimit: 20
+      interval: 5m0s
+
+    # The module's ConfigMaps/Secrets chart: chart only (no image).
+    - name: <config-service>
+      image: false
+      chart: <config-chart>
+      deploy:
+        layout: configs
+      freightCreationPolicy: Manual
+      discoveryLimit: 20
+      interval: 5m0s
+
+  stages:
+    - name: dev
+      color: "#3BA9C2"
+      branch: <dev-branch>
+      envFile: <environments-dir>/<module>-dev.yaml
+      autoPromotion: false
+    - name: qa
+      color: "#D64550"
+      from: dev
+      branch: <qa-branch>
+      envFile: <environments-dir>/<module>-qa.yaml
+      autoPromotion: false
+    - name: uat
+      color: "#F2C230"
+      from: qa
+      branch: <uat-branch>
+      envFile: <environments-dir>/<module>-uat.yaml
+      autoPromotion: false
+
+  # Access (single source of truth). role: admin | promoter | viewer.
+  teams:
+    - name: platform
+      role: admin
+      groups: ["<github-org>:<platform-team>"]
+    - name: developers
+      role: viewer
+      groups: ["<github-org>:<developer-team>"]
+    - name: dev-promoters
+      role: promoter
+      promoteStages: [dev]                 # may promote to dev only
+      manageFreight: true                  # assembles Freight
+      groups: ["<github-org>:<release-team>"]
+    - name: uat-promoters
+      role: promoter
+      promoteStages: [qa, uat]
+      emails: ["<person>@<domain>"]

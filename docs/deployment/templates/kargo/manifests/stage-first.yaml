@@ -1,0 +1,54 @@
+## First stage (dev): takes Freight straight from the Warehouse. A promotion writes
+## the Freight's chart version and image tag into the stage's env file and pushes.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: <service>-dev
+  namespace: <project>
+  annotations:
+    kargo.akuity.io/color: "#3BA9C2"
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: <service>
+      sources:
+        direct: true
+  promotionTemplate:
+    spec:
+      steps:
+        - uses: git-clone
+          config:
+            repoURL: https://github.com/<org>/<repo>.git
+            checkout:
+              - branch: <dev-branch>
+                path: ./repo
+        # The keys to write, as a YAML document outside ./repo (never committed).
+        - uses: file-write
+          config:
+            path: ./kargo-promoted-values.yaml
+            overwrite: true
+            contents: |
+              <service>:
+                image:
+                  tag: '${{ imageFrom("docker.io/<registry-org>/<service>").Tag }}'
+                initContainers:
+                  dbMigration:
+                    image:
+                      tag: '${{ imageFrom("docker.io/<registry-org>/<service>").Tag }}'
+                chart-version: '${{ chartFrom("https://helm.digit.org", "<service>").Version }}'
+        # Merge creates missing keys and leaves every other value untouched.
+        - uses: yaml-merge
+          config:
+            inFiles:
+              - ./repo/<environments-dir>/<module>-dev.yaml
+              - ./kargo-promoted-values.yaml
+            outFile: ./repo/<environments-dir>/<module>-dev.yaml
+        - uses: git-commit
+          config:
+            path: ./repo
+            message: "kargo: promote <service> to dev"
+        - uses: git-push
+          config:
+            path: ./repo
+            targetBranch: <dev-branch>

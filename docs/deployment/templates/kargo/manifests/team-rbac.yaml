@@ -1,0 +1,78 @@
+## Stage-scoped promotion for a team signed in through SSO (OIDC groups claim).
+## Kargo maps a user to a ServiceAccount by the rbac.kargo.akuity.io/claim.* annotation.
+## Read access for everyone else: bind the stock kargo-viewer Role the same way.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: team-<team>
+  namespace: <project>
+  annotations:
+    rbac.kargo.akuity.io/claim.groups: "<github-org>:<team-slug>"
+---
+## Login + project list (cluster scope). The ServiceAccount must live in a namespace
+## listed in the Kargo API server's GLOBAL_SERVICE_ACCOUNT_NAMESPACES (default: kargo).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: <project>-<team>
+  namespace: kargo
+  annotations:
+    rbac.kargo.akuity.io/claim.groups: "<github-org>:<team-slug>"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kargo-user-<project>-team-<team>
+subjects:
+  - kind: ServiceAccount
+    name: <project>-<team>
+    namespace: kargo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kargo-user
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: team-<team>
+  namespace: <project>
+rules:
+  # read the project
+  - apiGroups: [""]
+    resources: [configmaps, events, serviceaccounts]
+    verbs: [get, list, watch]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [rolebindings, roles]
+    verbs: [get, list, watch]
+  - apiGroups: [kargo.akuity.io]
+    resources: [freights, stages, warehouses, projectconfigs]
+    verbs: [get, list, watch]
+  - apiGroups: [argoproj.io]
+    resources: [analysisruns, analysistemplates]
+    verbs: [get, list, watch]
+  # promote, to these Stages only
+  - apiGroups: [kargo.akuity.io]
+    resources: [stages]
+    resourceNames: [<service>-dev]
+    verbs: [promote]
+  - apiGroups: [kargo.akuity.io]
+    resources: [promotions]
+    verbs: [create, get, list, watch]
+  - apiGroups: [kargo.akuity.io]
+    resources: [freights/status]
+    verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: team-<team>
+  namespace: <project>
+subjects:
+  - kind: ServiceAccount
+    name: team-<team>
+    namespace: <project>
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: team-<team>

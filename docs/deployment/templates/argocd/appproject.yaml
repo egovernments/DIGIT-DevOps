@@ -1,0 +1,24 @@
+## One AppProject per module: the security boundary for its Applications.
+## - sourceRepos: EVERY repository an Application uses, Helm repositories included.
+## - destinations: the only namespaces its Applications may write to. Anything rendered
+##   elsewhere fails the whole sync instead of touching another module.
+## - No clusterResourceWhitelist: application charts get no cluster-scoped kinds.
+##   Add a kind only when a chart cannot work without it, with a comment saying why.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: <module>-project
+  namespace: argocd
+spec:
+  description: <module> services on <env>
+  sourceRepos:
+    - https://github.com/<org>/<repo>.git     # env files (values)
+    - https://helm.digit.org                  # packaged charts (add the sub-path if your charts are published under one)
+  destinations:
+    - namespace: '<namespace>'
+      server: https://kubernetes.default.svc
+    # - namespace: '<second-namespace>'       # add in the same PR as its first Application
+    #   server: https://kubernetes.default.svc
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

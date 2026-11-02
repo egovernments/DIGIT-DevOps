@@ -1,0 +1,64 @@
+## Argo CD only (no Kargo): packaged charts, one Application per listed service.
+## People set <service>.chart-version and <service>.image.tag in the env file by PR.
+##
+## missingkey=error: a listed service without chart-version in the env file stops
+## generation for the whole ApplicationSet. Add an element only once its version is
+## in the env file, or keep the selector below, which skips such services.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: <env>-<module>-appset
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          - list:
+              elements:
+                - name: <service-a>
+                - name: <service-b>
+          - git:
+              repoURL: https://github.com/<org>/<repo>.git
+              revision: <env-branch>
+              files:
+                - path: <environments-dir>/<module>-<env>.yaml
+              requeueAfterSeconds: 60
+  template:
+    metadata:
+      name: '<app-prefix>{{ .name }}'
+    spec:
+      project: <module>-project
+      source:
+        repoURL: https://helm.digit.org
+        chart: '{{ .name }}'
+        targetRevision: '{{ index . .name "chart-version" }}'
+        helm:
+          releaseName: '{{ .name }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: <namespace>
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff: { duration: 5s, factor: 2, maxDuration: 3m0s }
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+  # Values as an object; toJson keeps every value a literal.
+  templatePatch: |
+    spec:
+      source:
+        helm:
+          valuesObject:
+            global: {{ toJson .global }}
+            {{ .name }}: {{ toJson (index . .name) }}

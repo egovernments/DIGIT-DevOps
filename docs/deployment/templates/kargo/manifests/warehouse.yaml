@@ -1,0 +1,22 @@
+## One Warehouse per service. Freight = one image tag + one chart version.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: <service>
+  namespace: <project>
+spec:
+  freightCreationPolicy: Manual         # Freight is assembled by a person
+  interval: 5m0s                        # re-scan registry and Helm repo
+  subscriptions:
+    - image:
+        repoURL: docker.io/<registry-org>/<service>
+        imageSelectionStrategy: NewestBuild
+        allowTagsRegexes:
+          # anchored on the commit hash: -amd64 / -arm64 children never match
+          - "^(master|<release-prefix>)-.*[0-9a-f]{7,}$"
+        cacheByTag: true
+        discoveryLimit: 20
+    - chart:
+        repoURL: https://helm.digit.org
+        name: <service>
+        discoveryLimit: 20

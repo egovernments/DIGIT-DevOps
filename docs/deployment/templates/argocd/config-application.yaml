@@ -1,0 +1,38 @@
+## A module's ConfigMaps and Secrets (the config chart), as its OWN Application.
+## Never layer this env file onto another module's config Application: a ConfigMap
+## with the same name would replace the other module's.
+##
+## The env file must keep everything in the module's namespaces: switch off the
+## chart's cluster-wide defaults there (cluster roles, root ingress, default secrets
+## of other namespaces). See 06-configuration-and-secrets.md.
+##
+## secrets:// is decrypted by the Argo CD repo-server (SOPS); the key comes from the
+## matching rule in .sops.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: <env>-<module>-config
+  namespace: argocd
+spec:
+  project: <config-project>          # an AppProject that allows the module namespaces and Namespace objects
+  source:
+    repoURL: https://github.com/<org>/<repo>.git
+    targetRevision: <env-branch>
+    path: <config-chart-path>
+    helm:
+      valueFiles:
+        - values.yaml
+        - <relative-path-to>/<module>-<env>.yaml
+        - secrets://<relative-path-to>/<module>-<env>-secrets.yaml
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff: { duration: 5s, factor: 2, maxDuration: 3m0s }

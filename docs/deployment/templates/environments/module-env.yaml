@@ -1,0 +1,56 @@
+## Env file for one module in one environment:
+##   <environments-dir>/<module>-<env>.yaml   on branch <env-branch>
+##
+## Ownership:
+##   <service>.chart-version, <service>.image.tag,
+##   <service>.initContainers.dbMigration.image.tag  -> written by Kargo promotions
+##                                                      (by PR in Argo CD only mode)
+##   everything else                                  -> written by people, by PR
+##
+## Sections are keyed by CHART NAME: the shared library chart merges
+## .Values.<chart-name> over the chart's defaults. Any other key is ignored.
+## Helm REPLACES lists: when overriding a list, restate every item.
+
+global:
+  namespace: <namespace>
+  domain: <domain>                  # e.g. app.example.org; ingress hosts and TLS secret derive from it
+  # Charts on a library chart with an image-tag mode: "dev" honours <service>.image.tag,
+  # "prod" always uses the chart's appVersion. Use "dev" where Kargo promotes image tags.
+  mode: dev
+
+# Module ConfigMaps/Secrets (rendered by the module's config Application only).
+cluster-configs:
+  chart-version: '<x.y.z>'          # Kargo-owned when the config chart is a Kargo service
+  namespaces:
+    create: false                   # true only if THIS Application should own the Namespace object
+    values: [<namespace>]
+  configmaps:
+    egov-config:                    # shared settings read by every service
+      namespace: [<namespace>]
+      data:
+        db-host: <db-host>
+        db-name: <db-name>
+        db-url: jdbc:postgresql://<db-host>:5432/<db-name>
+        kafka-brokers: <kafka-host>:9092
+        timezone: <tz>
+        egov-services-fqdn-name: https://<domain>/
+    egov-service-host:              # addresses of the services this module calls
+      namespace: [<namespace>]
+      data:
+        <service>: http://<service>.<namespace>:8080/
+  secrets:                          # declarations only: VALUES live in <module>-<env>-secrets.yaml
+    db:
+      namespace: [<namespace>]
+
+# One section per service, keyed by its chart name.
+<service>:
+  replicas: 1
+  ingress:
+    enabled: true
+  initContainers:
+    dbMigration:
+      enabled: true
+  # Written by Kargo on promotion -- do not add by hand:
+  # chart-version: '<x.y.z>'
+  # image:
+  #   tag: '<tag>'

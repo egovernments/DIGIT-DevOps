@@ -1,0 +1,34 @@
+## Applied ONCE per cluster by hand (kubectl apply -f). Syncs every manifest under
+## <argocd-dir>/<env>/ recursively: adding a file there creates the object.
+##
+## prune is false on purpose: deleting a file does NOT delete the object. Remove
+## retired AppProjects/ApplicationSets by hand (see 08-operations-runbook.md).
+## It runs in project "default", which it does not manage, so it can never prune
+## the project it runs under.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: <env>-bootstrap
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/<org>/<repo>.git
+    targetRevision: <env-branch>
+    path: <argocd-dir>/<env>
+    directory:
+      recurse: true
+      include: '*.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd          # AppProjects and ApplicationSets live in argocd
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff: { duration: 15s, factor: 2, maxDuration: 5m }

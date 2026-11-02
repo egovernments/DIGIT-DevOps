@@ -37,6 +37,30 @@ resources: |
     {{- end }}
 
 # Additional Container Envs
+# Name of the Keycloak database. Referenced by KC_DB_URL below and created by
+# templates/db-create-job.yaml, which runs as a PreSync hook.
+dbName: "new_keycloak"
+
+dbCreateJob:
+  enabled: true
+  # Any image carrying psql/pg_isready. Pinned to match the postgres chart.
+  image: "postgres:15-alpine"
+  host: "postgres.egov"
+  port: 5432
+  # Database to connect to in order to issue CREATE DATABASE.
+  maintenanceDb: "postgres"
+  # Superuser secret -- needs CREATEDB, which the kc-db role does not have.
+  # cluster-configs must publish this secret into the keycloak namespace.
+  secretName: "db"
+  backoffLimit: 6
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
 env: |  
   - name: SERVER_PORT
     value: "8080"

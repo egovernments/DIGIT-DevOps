@@ -5,10 +5,17 @@ global:
 cluster-configs:
     namespaces:  
       create: true
-      values: [ backbone, cert-manager, egov, es-cluster, kafka-cluster, logging, monitoring, playground, zookeeper-cluster, health ]
+      values: [ backbone, cert-manager, egov, es-cluster, kafka-cluster, keycloak, logging, monitoring, playground, zookeeper-cluster, health ]
       
     root-ingress:
       cert-issuer: letsencrypt-prod
+    secrets:
+        # keycloak added so the keycloak chart's PreSync job can reach the
+        # superuser credentials it needs to CREATE DATABASE new_keycloak.
+        # Lists replace rather than merge, so the full set is restated here.
+        db:
+            namespace: [ egov, health, keycloak ]
+            name: db
     configmaps:
         egov-config:
             namespace: [ egov, monitoring, keycloak ]

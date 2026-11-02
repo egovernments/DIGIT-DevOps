@@ -131,7 +131,22 @@ initContainers:
 # e.g. setting pg_user here will override the value normally set when postgresql.enabled
 # is set below. In general, you should not set values here if they are set elsewhere.
 env:
-  database: "off"
+  database: "postgres"
+  pg_host: "postgres.egov"
+  pg_port: "5432"
+  pg_database: "postgres"
+  pg_user:
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  pg_password:
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  # DIGIT custom plugins, matching the uat-saas proxy container.
+  plugins: "bundled,dynamic-jwt,header-enrichment,keycloak-rbac,metadata-enrichment,token-revocation"
   # the chart uses the traditional router (for Kong 3.x+) because the ingress
   # controller generates traditional routes. if you do not use the controller,
   # you may set this to "traditional_compatible" or "expressions" to use the new
@@ -171,8 +186,15 @@ extraLabels: {}
 
 # Specify Kong's Docker image and repository details here
 image:
-  repository: kong
-  tag: "3.5"
+  # Fully qualified on purpose. The chart has two image helpers: kong.image
+  # prefixes global.containerRegistry, but kong.getRepoTag (used by the
+  # wait-for-db init container) does not, so a bare "kong" repository renders
+  # that container as upstream kong:<tag>, which has no such tag. A repository
+  # containing "/" is taken verbatim by both helpers.
+  repository: egovio/kong
+  # egovio/kong:3.5 does not exist on Docker Hub. master-9b942c2 is the tag
+  # uat-saas runs and is the build that carries the DIGIT custom plugins.
+  tag: "master-9b942c2"
   # Kong Enterprise
   # repository: kong/kong-gateway
   # tag: "3.5"

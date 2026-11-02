@@ -1,0 +1,85 @@
+# db-create-job.yaml
+#
+# Keycloak points KC_DB_URL at the database named in .dbName, but nothing in
+# the repo ever created it -- the postgres chart only honours auth.database on
+# a *first* init of an empty data directory, and it is left empty so a cluster
+# comes up with just 'postgres'. On uat-saas new_keycloak was created by hand,
+# which is why a fresh cluster has no equivalent and Keycloak cannot start.
+#
+# Runs as an Argo CD PreSync hook (and a Helm pre-install/pre-upgrade hook) so
+# it lands before the Deployment rolls. CREATE DATABASE has no IF NOT EXISTS,
+# so existence is checked first and the create skipped when already present --
+# safe to re-run on every sync.
+#
+# This is not a "common" template, so it does not get the chart-name override
+# merge that common.* helpers perform. The same merge is replicated here so
+# that environments/<env>.yaml can override these values under the `keycloak:`
+# key exactly like the rest of the chart.
+{{- $overrides := default dict (index .Values (default .Chart.Name .Values.name)) -}}
+{{- $v := mustMergeOverwrite (deepCopy .Values) $overrides -}}
+{{- if $v.dbCreateJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ default .Chart.Name $v.name }}-db-create
+  namespace: {{ $v.namespace }}
+  labels:
+    app: {{ default .Chart.Name $v.name }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ $v.dbCreateJob.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        app: {{ default .Chart.Name $v.name }}-db-create
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: create-db
+          image: {{ $v.dbCreateJob.image }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGHOST
+              value: {{ $v.dbCreateJob.host | quote }}
+            - name: PGPORT
+              value: {{ $v.dbCreateJob.port | quote }}
+            # Connect to an existing database to issue CREATE DATABASE from.
+            - name: PGDATABASE
+              value: {{ $v.dbCreateJob.maintenanceDb | quote }}
+            # Needs a role with CREATEDB; kc-db is the Keycloak login role and
+            # does not have it, so the postgres superuser secret is used.
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $v.dbCreateJob.secretName }}
+                  key: username
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $v.dbCreateJob.secretName }}
+                  key: password
+            - name: TARGET_DB
+              value: {{ $v.dbName | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              until pg_isready -q; do
+                echo "waiting for ${PGHOST}:${PGPORT}"
+                sleep 2
+              done
+              if [ "$(psql -tAc "select 1 from pg_database where datname = '${TARGET_DB}'")" = "1" ]; then
+                echo "database ${TARGET_DB} already exists, nothing to do"
+              else
+                echo "creating database ${TARGET_DB}"
+                psql -c "CREATE DATABASE \"${TARGET_DB}\""
+              fi
+          resources:
+{{ toYaml $v.dbCreateJob.resources | indent 12 }}
+{{- end }}

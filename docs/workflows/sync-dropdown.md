@@ -12,6 +12,8 @@
   `code-build.yml`, as an **additive union**: new entries are added, existing ones
   are kept. Nothing is removed (the scaffold `placeholder` seed is the one
   exception). A service removed from the config stays selectable until pruned by hand.
+- Changes are delivered as a **`chore: sync Code Build dropdowns` PR** (updated in
+  place on re-runs), never pushed to a protected branch.
 
 ## Trigger
 
@@ -37,7 +39,7 @@ jobs:
 | `config_path` | `build/build-config.yml` | Build config to read |
 | `workflow_file` | `.github/workflows/code-build.yml` | Workflow whose options are synced |
 
-Secret: `WORKFLOWS_TOKEN` (Contents:write + Workflows:write).
+Secret: `WORKFLOWS_TOKEN` (Contents + Workflows + Pull requests write).
 
 ## Per-branch behaviour
 

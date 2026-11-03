@@ -1,14 +1,17 @@
 # Setup workflow
 
 `reusable-setup.yml` provisions a consumer repo in one run: it scaffolds the
-Code Build caller, the sync-dropdown workflow, the Trivy dashboard toolkit and
-the `/pipelines` UI, creates `gh-pages`, then syncs the dropdowns.
+Code Build caller (with dropdowns already populated), the sync-dropdown workflow,
+the Trivy dashboard toolkit and the `/pipelines` UI, and **opens a PR** with it
+all. It also creates `gh-pages` (a new branch, pushed directly).
+
+> It never pushes to a protected branch — all file changes land in a PR you review.
 
 ## 1. Create the `WORKFLOWS_TOKEN`
 
 The automatic `GITHUB_TOKEN` **cannot write files under `.github/workflows/`**, so
-setup and sync need a token with `Workflows:write`. GitHub has no API to mint a
-token — create it in the browser:
+setup and sync need a dedicated token. GitHub has no API to mint one — create it
+in the browser:
 
 **Settings → Developer settings → Fine-grained tokens → Generate new token**
 (<https://github.com/settings/personal-access-tokens/new>)
@@ -19,6 +22,7 @@ token — create it in the browser:
 | Repository access | Only select repositories → the consumer repo |
 | **Contents** | Read and write |
 | **Workflows** | Read and write |
+| **Pull requests** | Read and write |
 | **Pages** | Read and write *(optional — lets setup auto-enable Pages)* |
 | Expiration | per policy |
 
@@ -46,9 +50,10 @@ jobs:
       WORKFLOWS_TOKEN: ${{ secrets.WORKFLOWS_TOKEN }}
 ```
 
-Run it from the Actions tab. When it finishes the repo has `code-build.yml`,
-`sync-dropdown.yml`, `.trivy/dashboard/`, `pipelines/` and a `gh-pages` branch,
-and the dropdowns are populated from `build-config.yml`.
+Run it from the Actions tab. It opens a **`ci: set up Code Build`** PR containing
+`code-build.yml` (dropdowns populated from `build-config.yml`), `sync-dropdown.yml`,
+`.trivy/dashboard/` and `pipelines/`, and creates the `gh-pages` branch. Review and
+merge the PR to finish.
 
 ## 3. Build prerequisites
 

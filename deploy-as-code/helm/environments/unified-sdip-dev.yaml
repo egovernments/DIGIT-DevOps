@@ -22,3 +22,17 @@ sdip-ui:
     tag: "sdip-phase2-import-c93a6dc"
 
   replicas: 1
+
+  # SDIP needs its own host: this Ingress claims "/" for the SPA, and "/" on
+  # unified-dev.digit.org already redirects to the DIGIT 2.x /citizen/ UI.
+  # sdip.unified-dev.digit.org resolves to the shared nginx ingress LB.
+  # This single Ingress also routes /api/v1 to sdip-backend, so disabling
+  # sdip-ui removes the backend route with it.
+  ingress:
+    enabled: true
+    className: nginx
+    host: sdip.unified-dev.digit.org
+    tlsSecretName: sdip.unified-dev.digit.org-tls-certs
+    annotations:
+      # HTTP-01; the host must already resolve or issuance fails and retries.
+      cert-manager.io/cluster-issuer: letsencrypt-prod

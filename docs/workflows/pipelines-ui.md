@@ -14,7 +14,7 @@ static host — talking straight to `api.github.com`.
 | GitHub-native Run workflow | github.com session | synced `choice` lists |
 | `/pipelines` UI | fine-grained PAT | live, cascading, branch-driven |
 
-Both dispatch the same `code-build.yml`.
+Both dispatch the same `code-build.yaml`.
 
 ## Authentication
 
@@ -35,7 +35,7 @@ and dispatches builds — it cannot write code or workflows.
 
 1. **Read** branches, then the branch's `build-config.yml`.
 2. **Cascade** module → service (filtered), with a resolved image/dockerfile/db preview.
-3. **Dispatch** `workflow_dispatch` to `code-build.yml` with `ref` + `service`.
+3. **Dispatch** `workflow_dispatch` to `code-build.yaml` with `ref` + `service`.
 4. **Watch** the run (polled) with a link.
 
 ## Security tab

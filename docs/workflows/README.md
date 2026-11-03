@@ -7,14 +7,14 @@ caller; everything else is provisioned from here and upgraded centrally.
 
 | Workflow | Purpose |
 |---|---|
-| [`reusable-build.yml`](build.md) | Build + push images, with Trivy code + image scans (CRITICAL blocks the push) |
-| [`reusable-setup.yml`](setup.md) | One-shot scaffold of a consumer repo (Code Build caller, sync, Trivy toolkit, `/pipelines` UI, gh-pages) |
-| [`reusable-sync-dropdown.yml`](sync-dropdown.md) | Keep the Code Build dropdowns current with `build-config.yml` (additive) |
+| [`reusable-build.yaml`](build.md) | Build + push images, with Trivy code + image scans (CRITICAL blocks the push) |
+| [`reusable-setup.yaml`](setup.md) | One-shot scaffold of a consumer repo (Code Build caller, sync, Trivy toolkit, `/pipelines` UI, gh-pages) |
+| [`reusable-sync-dropdown.yaml`](sync-dropdown.md) | Keep the Code Build dropdowns current with `build-config.yml` (additive) |
 
 ## What a consumer ends up with
 
-- `.github/workflows/code-build.yml` — build caller with **module/service dropdowns**, synced from `build-config.yml`.
-- `.github/workflows/sync-dropdown.yml` — refreshes those dropdowns on config change.
+- `.github/workflows/code-build.yaml` — build caller with **module/service dropdowns**, synced from `build-config.yml`.
+- `.github/workflows/sync-dropdown.yaml` — refreshes those dropdowns on config change.
 - `.trivy/dashboard/` — Trivy report generator, published to `gh-pages/security/trivy`.
 - `pipelines/index.html` — the [`/pipelines` dispatcher UI](pipelines-ui.md) (cascading branch → module → service).
 

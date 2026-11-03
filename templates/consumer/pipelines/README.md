@@ -43,7 +43,7 @@ Nothing else is needed. The token cannot read code, secrets, or any other repo.
 4. **Watch** — the page polls the run and links to it.
 
 The build itself runs the central engine in
-`egovernments/DIGIT-DevOps/.github/workflows/reusable-build.yml`.
+`egovernments/DIGIT-DevOps/.github/workflows/reusable-build.yaml`.
 
 ## Two front doors
 

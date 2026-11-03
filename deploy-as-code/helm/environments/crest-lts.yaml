@@ -20,7 +20,9 @@ global:
   setup: fullsetup
   namespace: crest
   containerRegistry: egovio
-  mode: prod
+  # dev: each service runs the image.tag pinned in its section below, instead of the
+  # chart's appVersion. Lets a UI/backend image be updated without a new chart version.
+  mode: dev
 
 cluster-configs:
   # Everything this renders must land in namespace crest: crest-project allows no other
@@ -92,3 +94,23 @@ cluster-configs:
     hmac-secret: null
     minio: null
     vault-approle: null
+
+# Per-service values, one section per chart. The ApplicationSet gives each service
+# `global` plus its own section as the chart's root values (the charts read plain root
+# values: .Values.image.tag, .Values.global). chart-version pins the published chart;
+# image.tag is the running build (global.mode: dev makes the chart honour it).
+# Keep BOTH services here -- one env file per environment, never a file per service.
+crest:
+  chart-version: "3.0.1"
+  image:
+    tag: "main-693f8a8"
+  # dev mode defaults the migration image to "latest"; pin it to the backend build.
+  initContainers:
+    dbMigration:
+      image:
+        tag: "main-693f8a8"
+
+crest-ui:
+  chart-version: "3.0.0"
+  image:
+    tag: "main-526b436"

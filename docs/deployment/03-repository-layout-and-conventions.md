@@ -71,12 +71,17 @@ cluster-configs:             # module ConfigMaps and Secret declarations (config
   configmaps: { … }
   secrets: { … }
 
-<service>:                   # one section per service, keyed by CHART NAME
+<service-a>:                 # one section per service, keyed by CHART NAME
   replicas: 1
   ingress: { enabled: true }
   chart-version: '<x.y.z>'   # Kargo-owned
   image:
     tag: '<tag>'             # Kargo-owned
+
+<service-b>:                 # every service of the module is a section in THIS file -
+  chart-version: '<x.y.z>'   #   never a separate per-service file
+  image:
+    tag: '<tag>'
 ```
 
 Rules:
@@ -85,7 +90,7 @@ Rules:
 - **Kargo-owned keys** (`chart-version`, `image.tag`, `initContainers.dbMigration.image.tag`) are written only by promotions, or by pull request in the Argo CD only model.
 - **Lists are replaced, not merged.** When overriding a list from the chart defaults, restate every item.
 - **No secrets.** Values that must be secret go in the secrets file.
-- **One module per file.** Never put one module's services in another module's env file.
+- **One env file per environment per module** (plus its one `-secrets.yaml`). Every service of the module is a **section** in that one file. Never split a module across a **file per service**, and never put one module's services in another module's file. When several services' charts read **root** values, give each a section and use the `root` layout, not a value file per service (see [05 Values layouts](05-argocd-guide.md#values-layouts)).
 
 ## Commit messages
 

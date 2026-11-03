@@ -107,6 +107,7 @@ The standard operating procedure for every change made through Kargo, Argo CD, o
 
 ## Charts and values
 
+- **MUST** keep **one env file per environment per module** (plus its one `-secrets.yaml`). Every service of the module is a **section** in that file. **MUST NOT** create a value file per service, or split a module across multiple env files. Several services whose charts read root values use the `root` layout (a section each), never a layered per-service value file ([05 Values layouts](05-argocd-guide.md#several-root-layout-services-share-one-env-file)).
 - **MUST** key a service's env-file section by its chart name.
 - **MUST** restate the whole list when overriding a list (Helm replaces lists).
 - **MUST** check rendered Deployments for duplicate env var names. Server-side apply rejects the whole Deployment.

@@ -1,7 +1,8 @@
 # One-shot setup for a consumer repo. Scaffolds the Code Build caller,
-# the sync-dropdown workflow, the Trivy dashboard toolkit and the /pipelines
-# UI from DIGIT-DevOps, populates the dropdowns, and opens a PR with it all.
-# gh-pages is created directly (new branch, not protected).
+# the sync-dropdown workflow and the Trivy dashboard toolkit from DIGIT-DevOps,
+# populates the dropdowns, and opens a PR with them. The /pipelines UI is Pages
+# content, so it is published straight to the gh-pages branch (which Pages
+# serves), not committed to the source tree. gh-pages is pushed directly (not protected).
 # Needs repo secret WORKFLOWS_TOKEN:
 #   Contents:write + Workflows:write + Pull requests:write (+ Pages:write optional).
 # Docs: docs/workflows/setup.md
@@ -48,11 +49,16 @@ jobs:
       - name: Scaffold files and populate dropdowns
         env:
           CONFIG: build/build-config.yml
-          WF: .github/workflows/code-build.yml
+          WF: .github/workflows/code-build.yaml
         run: |
           set -euo pipefail
           cp -R _devops/templates/consumer/. ./
           rm -rf _devops
+          # The /pipelines UI is GitHub Pages content: it is published to the
+          # gh-pages branch (served by Pages), not committed to the source tree.
+          # Stash it for the gh-pages step and keep it out of the setup PR.
+          rm -rf "$RUNNER_TEMP/pipelines"
+          mv pipelines "$RUNNER_TEMP/pipelines"
           # Populate the Code Build dropdowns from this repo's build-config.
           if [ -f "$CONFIG" ]; then
             SVC=$(yq eval '.config[].build[]."image-name"' "$CONFIG" | grep -vE -- '-db$' | grep -vxF placeholder | sort -u)
@@ -80,28 +86,40 @@ jobs:
           if [ -z "$(gh pr list --head "$BRANCH" --state open --json number -q '.[].number')" ]; then
             gh pr create --base "$BASE" --head "$BRANCH" \
               --title "ci: set up Code Build" \
-              --body "Provisioned by DIGIT-DevOps reusable-setup: code-build.yml (synced dropdowns), sync-dropdown.yml, .trivy/dashboard, pipelines/ UI."
+              --body "Provisioned by DIGIT-DevOps reusable-setup: code-build.yaml (synced dropdowns), sync-dropdown.yaml, .trivy/dashboard. The /pipelines UI is published separately to the gh-pages branch."
           fi
           echo "PR_URL=$(gh pr list --head "$BRANCH" --state open --json url -q '.[0].url')" >> "$GITHUB_ENV"
 
-      - name: Ensure gh-pages exists
+      - name: Publish /pipelines UI to gh-pages
         env:
           GH_TOKEN: ${{ secrets.WORKFLOWS_TOKEN }}
         run: |
           set -euo pipefail
-          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
-            echo "gh-pages already exists."; exit 0
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          tmp="$(mktemp -d)"
+          # Reuse the existing gh-pages tree (keeps /security/trivy and any other
+          # published content); create it as an orphan branch on first run.
+          if git clone --quiet --depth 1 --branch gh-pages "$REMOTE" "$tmp" 2>/dev/null; then
+            echo "gh-pages exists; refreshing the /pipelines UI."
+          else
+            rm -rf "$tmp"; mkdir -p "$tmp"; cd "$tmp"
+            git init -q
+            git checkout -q --orphan gh-pages
+            : > .nojekyll
+            printf '<!doctype html><meta charset=utf8><title>%s</title><meta http-equiv=refresh content="0; url=security/trivy/">\n' "$GITHUB_REPOSITORY" > index.html
+            echo "Initialized gh-pages."
           fi
-          tmp="$(mktemp -d)"; cd "$tmp"
-          git init -q
-          git checkout -q --orphan gh-pages
-          : > .nojekyll
-          printf '<!doctype html><meta charset=utf8><title>%s</title><meta http-equiv=refresh content="0; url=security/trivy/">\n' "$GITHUB_REPOSITORY" > index.html
+          cd "$tmp"
+          touch .nojekyll
+          rm -rf pipelines
+          cp -R "$RUNNER_TEMP/pipelines" pipelines
           git add -A
-          git -c user.email="github-actions[bot]@users.noreply.github.com" \
-              -c user.name="github-actions[bot]" commit -qm "chore: initialize gh-pages"
-          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
-          echo "Created gh-pages."
+          if ! git -c user.email="github-actions[bot]@users.noreply.github.com" \
+                  -c user.name="github-actions[bot]" commit -qm "chore: publish /pipelines UI to gh-pages"; then
+            echo "gh-pages already up to date."; exit 0
+          fi
+          git push -q "$REMOTE" HEAD:gh-pages
+          echo "Published /pipelines to gh-pages."
 
       - name: Enable Pages (best effort)
         if: ${{ inputs.enable_pages }}
@@ -118,6 +136,7 @@ jobs:
           {
             echo "### Code Build setup"
             echo "- Review & merge the setup PR: ${PR_URL:-'(no changes — already scaffolded)'}"
+            echo "- /pipelines UI → published to gh-pages (\`/pipelines/\`)"
             echo "- Trivy dashboard → gh-pages \`/security/trivy\`"
             echo "- Ensure repo has \`DOCKER_USERNAME\` (var) + \`DOCKER_ACCESS_TOKEN\` (secret)."
           } >> "$GITHUB_STEP_SUMMARY"

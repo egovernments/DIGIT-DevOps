@@ -1,6 +1,6 @@
 # Build workflow
 
-`reusable-build.yml` builds and pushes a service image, gated by Trivy.
+`reusable-build.yaml` builds and pushes a service image, gated by Trivy.
 
 ## Pipeline
 

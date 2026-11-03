@@ -5,7 +5,7 @@ thin workflow that only defines their service menu and delegate the build to thi
 one. Upgrades made here (action versions, yq, buildx, cache, security gates) are
 inherited by every caller on its next run.
 
-- Engine: `.github/workflows/reusable-build.yml` (`on: workflow_call`)
+- Engine: `.github/workflows/reusable-build.yaml` (`on: workflow_call`)
 - Pin tag for callers: `@reusable-build-v1` (moving major), or `@reusable-build-v1.x.y` (immutable)
 
 ## What it does
@@ -39,7 +39,7 @@ Outputs: `docker_image`, `db_image`.
 ```yaml
 jobs:
   build:
-    uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-build.yml@reusable-build-v1
+    uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-build.yaml@reusable-build-v1
     with:
       service: ${{ inputs.service }}
       service_folder: ${{ inputs.service_folder }}
@@ -50,7 +50,7 @@ jobs:
 
 ## Upgrade procedure (maintainers)
 
-1. Change `reusable-build.yml` on a feature branch, open a PR, merge to `master`.
+1. Change `reusable-build.yaml` on a feature branch, open a PR, merge to `master`.
 2. Move the major tag to the merge commit and cut an immutable patch tag:
    ```sh
    git tag -f reusable-build-v1 <sha>

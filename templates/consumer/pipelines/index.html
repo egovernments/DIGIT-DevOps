@@ -539,7 +539,7 @@ async function pollRuns(branch){
   if(pollTimer) clearInterval(pollTimer);
   const tick = async () => {
     try{
-      const r = await api("/repos/"+OWNER+"/"+REPO+"/actions/workflows/code-build.yml/runs?branch="+encodeURIComponent(branch)+"&per_page=8");
+      const r = await api("/repos/"+OWNER+"/"+REPO+"/actions/workflows/code-build.yaml/runs?branch="+encodeURIComponent(branch)+"&per_page=8");
       if(!r.ok){ renderRuns(null, r.status===404 ? "Code Build has no runs on this branch yet." : null); return; }
       const data = await r.json();
       const runs = data.workflow_runs || [];
@@ -577,7 +577,7 @@ runBtn.addEventListener("click", () => {
     '<div class="hd"><h3>Dispatch Code Build</h3><button class="xbtn" data-close aria-label="Close">×</button></div>'
     + '<div class="bd">'
     + '<p class="hint" style="margin:0 0 12px">This is the exact request the page will send.</p>'
-    + '<pre>POST /repos/'+esc(OWNER)+'/'+esc(REPO)+'/actions/workflows/<span class="mt">code-build.yml</span>/dispatches\n\n'+body+'</pre>'
+    + '<pre>POST /repos/'+esc(OWNER)+'/'+esc(REPO)+'/actions/workflows/<span class="mt">code-build.yaml</span>/dispatches\n\n'+body+'</pre>'
     + '<div class="foot">'
     + '<button class="btn" id="confirmBtn">▶ Confirm dispatch</button>'
     + '<span class="note hint" id="dispatchMsg" style="display:inline"></span>'
@@ -589,7 +589,7 @@ async function fireDispatch(payload){
   const btn = $("confirmBtn"), msg = $("dispatchMsg");
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Dispatching';
   try{
-    const r = await api("/repos/"+OWNER+"/"+REPO+"/actions/workflows/code-build.yml/dispatches", {
+    const r = await api("/repos/"+OWNER+"/"+REPO+"/actions/workflows/code-build.yaml/dispatches", {
       method: "POST",
       body: JSON.stringify(payload)
     });
@@ -599,7 +599,7 @@ async function fireDispatch(payload){
     } else if(r.status === 403){
       resetBtn(); msg.style.color="var(--crit)"; msg.textContent = "Forbidden (403) — token needs Actions: write";
     } else if(r.status === 422){
-      resetBtn(); msg.style.color="var(--crit)"; msg.textContent = "Rejected (422) — branch must exist and carry code-build.yml";
+      resetBtn(); msg.style.color="var(--crit)"; msg.textContent = "Rejected (422) — branch must exist and carry code-build.yaml";
     } else {
       resetBtn(); msg.style.color="var(--crit)"; msg.textContent = "GitHub returned " + r.status;
     }

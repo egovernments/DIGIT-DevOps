@@ -1,6 +1,6 @@
 # Setup workflow
 
-`reusable-setup.yml` provisions a consumer repo in one run: it scaffolds the
+`reusable-setup.yaml` provisions a consumer repo in one run: it scaffolds the
 Code Build caller (with dropdowns already populated), the sync-dropdown workflow,
 the Trivy dashboard toolkit and the `/pipelines` UI, and **opens a PR** with it
 all. It also creates `gh-pages` (a new branch, pushed directly).
@@ -45,13 +45,13 @@ on:
   workflow_dispatch:
 jobs:
   setup:
-    uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-setup.yml@reusable-build-v1
+    uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-setup.yaml@reusable-build-v1
     secrets:
       WORKFLOWS_TOKEN: ${{ secrets.WORKFLOWS_TOKEN }}
 ```
 
 Run it from the Actions tab. It opens a **`ci: set up Code Build`** PR containing
-`code-build.yml` (dropdowns populated from `build-config.yml`), `sync-dropdown.yml`,
+`code-build.yaml` (dropdowns populated from `build-config.yml`), `sync-dropdown.yaml`,
 `.trivy/dashboard/` and `pipelines/`, and creates the `gh-pages` branch. Review and
 merge the PR to finish.
 

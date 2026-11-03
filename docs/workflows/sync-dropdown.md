@@ -1,6 +1,6 @@
 # Sync-dropdown workflow
 
-`reusable-sync-dropdown.yml` keeps the **Code Build** dropdowns in step with
+`reusable-sync-dropdown.yaml` keeps the **Code Build** dropdowns in step with
 `build-config.yml`.
 
 ## What it does
@@ -9,7 +9,7 @@
 - **Modules** = the 3rd path segment of each job `name`
   (`builds/<repo>/<module>/<service>`).
 - It writes these into the `module` and `service` `choice` option lists of
-  `code-build.yml`, as an **additive union**: new entries are added, existing ones
+  `code-build.yaml`, as an **additive union**: new entries are added, existing ones
   are kept. Nothing is removed (the scaffold `placeholder` seed is the one
   exception). A service removed from the config stays selectable until pruned by hand.
 - Changes are delivered as a **`chore: sync Code Build dropdowns` PR** (updated in
@@ -17,7 +17,7 @@
 
 ## Trigger
 
-The consumer's `sync-dropdown.yml` runs it on push to `build/build-config.yml`
+The consumer's `sync-dropdown.yaml` runs it on push to `build/build-config.yml`
 and on demand:
 
 ```yaml
@@ -27,7 +27,7 @@ on:
   workflow_dispatch:
 jobs:
   sync:
-    uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-sync-dropdown.yml@reusable-build-v1
+    uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-sync-dropdown.yaml@reusable-build-v1
     secrets:
       WORKFLOWS_TOKEN: ${{ secrets.WORKFLOWS_TOKEN }}
 ```
@@ -37,7 +37,7 @@ jobs:
 | Input | Default | Purpose |
 |---|---|---|
 | `config_path` | `build/build-config.yml` | Build config to read |
-| `workflow_file` | `.github/workflows/code-build.yml` | Workflow whose options are synced |
+| `workflow_file` | `.github/workflows/code-build.yaml` | Workflow whose options are synced |
 
 Secret: `WORKFLOWS_TOKEN` (Contents + Workflows + Pull requests write).
 
@@ -46,5 +46,5 @@ Secret: `WORKFLOWS_TOKEN` (Contents + Workflows + Pull requests write).
 The sync commits to the branch that changed the config, and `workflow_dispatch`
 reads inputs from the selected branch — so a service added on a feature branch
 appears in that branch's dropdowns (and becomes dispatchable from the UI) once the
-sync has run there. No loop: the sync edits `code-build.yml`, which is not a
+sync has run there. No loop: the sync edits `code-build.yaml`, which is not a
 trigger path.

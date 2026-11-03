@@ -3,14 +3,12 @@
 ##
 ## The charts come from the registry, not this repo, so each Application is
 ## multi-source:
-##   - the chart itself from https://helm.digit.org/digit3/crest, pinned by
-##     targetRevision (the CHART version, 3.0.0 at first publish - not the image tag,
-##     which is the chart's appVersion)
-##   - this repo, carrying ref "values", so valueFiles can reach crest-lts.yaml with
-##     the $values prefix. A Helm-repo source cannot read a values file out of a git
-##     repo any other way.
-## Bumping a service therefore means publishing a new chart version and moving
-## targetRevision here, rather than editing a tag in an environment file.
+##   - a chart from https://helm.digit.org/digit3/crest, pinned by targetRevision
+##   - this repo, carrying ref "values", supplies shared and per-service values.
+## Each service selects dev-mode image tags in crest-lts-<name>.yaml, so an image
+## release only needs a values change. Pin the backend and its db-migration image
+## separately; in dev mode the common chart's migration default is "latest".
+## Update the chart version here when the chart templates themselves change.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -39,6 +37,7 @@ spec:
           helm:
             valueFiles:
               - $values/deploy-as-code/helm/environments/crest-lts.yaml
+              - $values/deploy-as-code/helm/environments/crest-lts-{{name}}.yaml
 
         - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
           targetRevision: digit-lts

@@ -1,0 +1,43 @@
+{{- $cfg := mergeOverwrite (deepCopy .Values) (get .Values .Chart.Name | default dict) -}}
+{{- if $cfg.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sdip
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  {{- with $cfg.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $cfg.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- with $cfg.ingress.tlsSecretName }}
+  tls:
+    - hosts:
+        - {{ $cfg.ingress.host | quote }}
+      secretName: {{ . | quote }}
+  {{- end }}
+  rules:
+    - host: {{ $cfg.ingress.host | quote }}
+      http:
+        paths:
+          - path: /api/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: sdip-backend
+                port:
+                  number: 8080
+
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sdip-ui
+                port:
+                  number: 8080
+{{- end }}

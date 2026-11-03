@@ -1,0 +1,18 @@
+{{- $cfg := mergeOverwrite (deepCopy .Values) (get .Values .Chart.Name | default dict) -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: {{ $cfg.service.type }}
+  selector:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: {{ $cfg.service.port }}
+      targetPort: http
+      protocol: TCP

@@ -27,7 +27,7 @@ on:
   workflow_dispatch:
 jobs:
   sync:
-    uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-sync-dropdown.yml@feature/reusable-build-workflow
+    uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-sync-dropdown.yml@reusable-build-v1
     secrets:
       WORKFLOWS_TOKEN: ${{ secrets.WORKFLOWS_TOKEN }}
 ```

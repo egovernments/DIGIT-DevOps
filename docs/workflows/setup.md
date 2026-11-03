@@ -45,7 +45,7 @@ on:
   workflow_dispatch:
 jobs:
   setup:
-    uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-setup.yml@feature/reusable-build-workflow
+    uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-setup.yml@reusable-build-v1
     secrets:
       WORKFLOWS_TOKEN: ${{ secrets.WORKFLOWS_TOKEN }}
 ```

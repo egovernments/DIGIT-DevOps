@@ -32,4 +32,4 @@ Two ways to run a build afterwards:
 ## Versioning
 
 Callers pin a moving major tag `@reusable-build-v1` (or an immutable `@reusable-build-v1.x.y`).
-Until the first tag is cut, templates reference `@feature/reusable-build-workflow`.
+Move the major tag to a new release commit to roll it out to every consumer.

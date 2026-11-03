@@ -1,47 +1,50 @@
 ## CREST services (namespace crest), one Application crest-<name> each. Their
 ## ConfigMaps and Secrets come from Application digit-lts-cluster-configs-crest.
 ##
-## The charts come from the registry, not this repo, so each Application is
-## multi-source:
-##   - a chart from https://helm.digit.org/digit3/crest, pinned by targetRevision
-##   - this repo, carrying ref "values", supplies shared and per-service values.
-## Each service selects dev-mode image tags in crest-lts-<name>.yaml, so an image
-## release only needs a values change. Pin the backend and its db-migration image
-## separately; in dev mode the common chart's migration default is "latest".
-## Update the chart version here when the chart templates themselves change.
+## Argo CD only (no Kargo): people set each service's chart-version and image.tag in
+## the SINGLE env file environments/crest-lts.yaml, by PR. One env file per
+## environment -- never a file per service.
+##
+## The charts come from https://helm.digit.org/digit3/crest and read plain ROOT values
+## (.Values.image.tag, .Values.global). A git files generator reads crest-lts.yaml, and
+## templatePatch hands each service `global` plus its own section as the root values
+## (the "root" layout, same shape as kargo-managed-app-set-root). chart-version pins the
+## published chart; image.tag is the running build (global.mode: dev honours it).
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
   name: digit-lts-crest-appset-crest
   namespace: argocd
 spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
   generators:
-    - list:
-        elements:
-          - name: crest
-            version: "3.0.1"
-          - name: crest-ui
-            version: "3.0.0"
+    - matrix:
+        generators:
+          - list:
+              elements:
+                - name: crest
+                - name: crest-ui
+          - git:
+              repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+              revision: digit-lts
+              files:
+                - path: deploy-as-code/helm/environments/crest-lts.yaml
+              requeueAfterSeconds: 60
 
   template:
     metadata:
-      name: 'crest-{{name}}'
+      name: 'crest-{{ .name }}'
 
     spec:
       project: crest-project
 
-      sources:
-        - repoURL: https://helm.digit.org/digit3/crest
-          chart: '{{name}}'
-          targetRevision: '{{version}}'
-          helm:
-            valueFiles:
-              - $values/deploy-as-code/helm/environments/crest-lts.yaml
-              - $values/deploy-as-code/helm/environments/crest-lts-{{name}}.yaml
-
-        - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
-          targetRevision: digit-lts
-          ref: values
+      source:
+        repoURL: https://helm.digit.org/digit3/crest
+        chart: '{{ .name }}'
+        targetRevision: '{{ index . .name "chart-version" }}'
+        helm:
+          releaseName: '{{ .name }}'
 
       destination:
         server: https://kubernetes.default.svc
@@ -66,3 +69,14 @@ spec:
           kind: Deployment
           jsonPointers:
             - /spec/replicas
+
+  # Values as an object: `global` plus this service's section (minus chart-version) as
+  # the chart's ROOT values. toJson keeps every value a literal (no template injection
+  # from the env file's contents).
+  templatePatch: |
+    {{- $v := omit (index . .name) "chart-version" -}}
+    {{- $_ := set $v "global" .global -}}
+    spec:
+      source:
+        helm:
+          valuesObject: {{ toJson $v }}

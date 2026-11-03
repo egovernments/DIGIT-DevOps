@@ -1,0 +1,96 @@
+# One-shot setup for a consumer repo. Scaffolds the Code Build caller,
+# the sync-dropdown workflow, the Trivy dashboard toolkit and the /pipelines
+# UI from DIGIT-DevOps, creates gh-pages, then syncs the dropdowns.
+# Needs repo secret WORKFLOWS_TOKEN (Contents:write + Workflows:write; add
+# Pages:write to auto-enable Pages).
+# Docs: docs/workflows/setup.md
+name: Reusable Setup
+
+on:
+  workflow_call:
+    inputs:
+      enable_pages:
+        description: "Attempt to enable GitHub Pages on gh-pages (best effort)"
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      WORKFLOWS_TOKEN:
+        description: "Token with Contents:write + Workflows:write (+ Pages:write to auto-enable Pages)"
+        required: true
+
+jobs:
+  scaffold:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout consumer repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.WORKFLOWS_TOKEN }}
+
+      - name: Checkout DIGIT-DevOps templates
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: egovernments/DIGIT-DevOps
+          ref: feature/reusable-build-workflow
+          path: _devops
+
+      - name: Scaffold files from templates
+        run: |
+          set -euo pipefail
+          cp -R _devops/templates/consumer/. ./
+          rm -rf _devops
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to scaffold (already present)."
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -m "chore: scaffold Code Build from DIGIT-DevOps"
+            git push
+          fi
+
+      - name: Ensure gh-pages exists
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOWS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            echo "gh-pages already exists."; exit 0
+          fi
+          tmp="$(mktemp -d)"; cd "$tmp"
+          git init -q
+          git checkout -q --orphan gh-pages
+          : > .nojekyll
+          printf '<!doctype html><meta charset=utf8><title>%s</title><meta http-equiv=refresh content="0; url=security/trivy/">\n' "$GITHUB_REPOSITORY" > index.html
+          git add -A
+          git -c user.email="github-actions[bot]@users.noreply.github.com" \
+              -c user.name="github-actions[bot]" commit -qm "chore: initialize gh-pages"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+          echo "Created gh-pages."
+
+      - name: Enable Pages (best effort)
+        if: ${{ inputs.enable_pages }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOWS_TOKEN }}
+        run: |
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/pages" -f "source[branch]=gh-pages" -f "source[path]=/" \
+            || gh api -X PUT "repos/${GITHUB_REPOSITORY}/pages" -f "source[branch]=gh-pages" -f "source[path]=/" \
+            || echo "::warning::Enable Pages manually (Settings > Pages > branch gh-pages) — token may lack Pages:write."
+
+      - name: Summary
+        run: |
+          {
+            echo "### Code Build setup complete"
+            echo "- Workflows: \`code-build.yml\`, \`sync-dropdown.yml\`"
+            echo "- Trivy dashboard: \`.trivy/dashboard\` → gh-pages \`/security/trivy\`"
+            echo "- Dispatcher UI: \`pipelines/index.html\`"
+            echo "- Next: ensure repo has \`DOCKER_USERNAME\` (var) + \`DOCKER_ACCESS_TOKEN\` (secret)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  sync-dropdowns:
+    needs: scaffold
+    uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-sync-dropdown.yml@feature/reusable-build-workflow
+    secrets:
+      WORKFLOWS_TOKEN: ${{ secrets.WORKFLOWS_TOKEN }}

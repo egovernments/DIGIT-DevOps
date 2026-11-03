@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HCM - Code Scan</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<style>
+  :root{
+    color-scheme:light;
+    --bg:#eef1f7; --surface:#ffffff; --surface-2:#f6f8fc; --surface-3:#eef2f9;
+    --ink:#0f1b2e; --ink-2:#42506a; --muted:#697689; --faint:#98a2b5;
+    --line:#e5eaf3; --line-2:#d6ddea;
+    --accent:#7c3aed; --link:#6d28d9;
+    --crit:#b31d33; --high:#e06a2c; --med:#c58a12; --low:#2f6fed; --unknown:#8a94a6; --good:#0f8a3c;
+    --sh-sm:0 1px 2px rgba(16,27,46,.05);
+    --sh:0 1px 2px rgba(16,27,46,.05),0 12px 30px -16px rgba(16,27,46,.22);
+    --sh-lg:0 30px 70px -34px rgba(76,29,149,.45);
+    --r:20px; --font:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,sans-serif;
+    --grad:linear-gradient(140deg,#4c1d95,#7c3aed 65%,#9d5cf5);
+  }
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#0b0f18; --surface:#141b26; --surface-2:#1a2230; --surface-3:#212b3b;
+    --ink:#e8edf6; --ink-2:#c1cad9; --muted:#8a94a5; --faint:#6a7484;
+    --line:#27313f; --line-2:#333e4e;
+    --accent:#a78bfa; --link:#c4b5fd;
+    --crit:#e0566d; --high:#ef8a5c; --med:#e2ab43; --low:#5b93f2; --unknown:#7b8698; --good:#3ec46b;
+    --sh-sm:0 1px 2px rgba(0,0,0,.4);
+    --sh:0 1px 2px rgba(0,0,0,.35),0 12px 30px -16px rgba(0,0,0,.7);
+    --sh-lg:0 32px 80px -34px rgba(0,0,0,.9);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1180px;margin:0 auto;padding:34px 26px 80px}
+  .top{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+  .top .logo{width:46px;height:46px;filter:drop-shadow(0 6px 16px rgba(124,58,237,.4))}
+  .top b{font-size:22px;font-weight:800;letter-spacing:-.02em;display:block}
+  .top span{font-size:13px;color:var(--muted)}
+  .top .theme{margin-left:auto;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);width:38px;height:38px;border-radius:11px;cursor:pointer;font-size:15px}
+
+  .hero{position:relative;overflow:hidden;background:var(--grad);color:#fff;border-radius:var(--r);padding:30px 32px;margin:20px 0 22px;box-shadow:var(--sh-lg)}
+  .hero::after{content:"";position:absolute;right:-60px;top:-60px;width:280px;height:280px;background:radial-gradient(circle,rgba(255,255,255,.16),transparent 70%)}
+  .hero h1{margin:0 0 6px;font-size:25px;font-weight:800;letter-spacing:-.02em}
+  .hero p{margin:0;font-size:14px;color:rgba(255,255,255,.85);max-width:72ch}
+  .hero ul.hlist{margin:12px 0 12px;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px;position:relative;z-index:1;max-width:76ch}
+  .hero ul.hlist li{font-size:13.5px;color:rgba(255,255,255,.9);padding-left:20px;position:relative}
+  .hero ul.hlist li::before{content:"";position:absolute;left:3px;top:8px;width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.7)}
+  .hero ul.hlist li b{color:#fff;font-weight:700}
+  .hero .hsub{font-size:13px;color:rgba(255,255,255,.72);margin:0;position:relative;z-index:1}
+  .hero .hrow{display:flex;gap:26px;margin-top:20px;flex-wrap:wrap;position:relative;z-index:1}
+  .hstat b{display:block;font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .hstat span{font-size:11.5px;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:.06em}
+  .hstat.c b{color:#ffd7dd}.hstat.h b{color:#ffe4cf}
+
+  .toolbar{display:flex;align-items:center;gap:12px;margin:0 0 20px;flex-wrap:wrap}
+  .search{position:relative;flex:1;min-width:220px}
+  .search input{width:100%;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);border-radius:12px;padding:11px 14px 11px 40px;font:inherit;font-size:14px;box-shadow:var(--sh-sm)}
+  .search input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
+  .search svg{position:absolute;left:13px;top:12px;color:var(--faint)}
+  .count{font-size:12.5px;color:var(--muted);white-space:nowrap}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:20px}
+  .card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px 22px 18px;box-shadow:var(--sh);display:block;transition:transform .13s,box-shadow .13s,border-color .13s}
+  .card:hover{transform:translateY(-3px);box-shadow:var(--sh-lg);border-color:var(--line-2)}
+  .card::before{content:"";position:absolute;left:0;top:20px;bottom:20px;width:5px;border-radius:0 4px 4px 0;background:var(--band,var(--accent))}
+  .ch{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .ch .ci{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;color:#fff;background:var(--grad);flex:none}
+  .ch .ci svg{width:21px;height:21px}
+  .ch .nm{min-width:0}
+  .ch b{font-size:15.5px;font-weight:740;letter-spacing:-.01em;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ch .nm span{font-size:11.5px;color:var(--muted)}
+  .ch .go{margin-left:auto;color:var(--accent);font-weight:640;font-size:12.5px;display:flex;align-items:center;gap:4px;flex:none}
+  .stchip{font-size:10.5px;font-weight:700;letter-spacing:.02em;border-radius:7px;padding:3px 9px;white-space:nowrap;flex:none}
+  .st-complete{color:var(--good);background:color-mix(in srgb,var(--good) 14%,transparent)}
+  .st-pending{color:var(--med);background:color-mix(in srgb,var(--med) 15%,transparent)}
+  .st-fail{color:var(--crit);background:color-mix(in srgb,var(--crit) 14%,transparent)}
+
+  .cbody{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center}
+  .gauge{position:relative;width:96px;height:96px;flex:none}
+  .gauge .lab{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+  .gauge .lab b{font-size:31px;font-weight:800;letter-spacing:-.03em;color:var(--band,var(--ink));line-height:1}
+  .gauge .lab b sub{font-size:13px;font-weight:650;color:var(--faint)}
+  .gauge .lab small{display:block;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-top:3px}
+
+  .scans{display:flex;flex-direction:column;gap:9px;min-width:0}
+  .scan{background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:9px 12px}
+  .scan .sl{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:720;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2);margin-bottom:6px}
+  .scan .sl svg{width:13px;height:13px;color:var(--muted)}
+  .scan .sl .sc{margin-left:auto;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:0;text-transform:none}
+  .svs{display:flex;gap:14px}
+  .sv{display:flex;align-items:baseline;gap:5px}
+  .sv .n{font-size:18px;font-weight:770;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+  .sv .k{font-size:10.5px;color:var(--muted);font-weight:600}
+  .sv.c .n{color:var(--crit)}.sv.h .n{color:var(--high)}.sv.m .n{color:var(--med)}
+  .sv .n.z{color:var(--faint)}
+  .scan.blocked{background:color-mix(in srgb,var(--crit) 8%,transparent);border-color:color-mix(in srgb,var(--crit) 25%,transparent)}
+  .scan.blocked .bmsg{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--crit);font-weight:600}
+  .scan.blocked .bmsg svg{width:15px;height:15px;flex:none}
+  .scan.na{opacity:.7}.scan.na .nam{font-size:12px;color:var(--muted);font-style:italic}
+
+  .cfoot{margin-top:15px;padding-top:12px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:7px}
+  .cfoot .cp{background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:3px 8px}
+  .cfoot .cp b{color:var(--ink-2);font-weight:640}
+  .empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:50px;font-size:14px}
+  .foot{margin-top:30px;text-align:center;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <span class="logo" id="logo"></span>
+    <div><b>Health Campaign Services</b><span>Per-service code &amp; image vulnerability scanning</span></div>
+    <button class="theme" id="theme" title="Toggle theme">◐</button>
+  </div>
+
+  <div class="hero">
+    <h1>Security posture</h1>
+    <ul class="hlist">
+      <li><b>Code scan</b> runs first on the source - dependencies &amp; secrets - before the image is built.</li>
+      <li><b>Image scan</b> runs on the built image - OS &amp; app packages - before it is pushed.</li>
+      <li>A <b>critical</b> finding at either stage blocks the build.</li>
+    </ul>
+    <p class="hsub">Open a service for the full breakdown, per-build history and the fix.</p>
+    <div class="hrow" id="hrow"></div>
+  </div>
+
+  <div class="toolbar">
+    <label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="q" type="search" placeholder="Search services… (partial match)" autocomplete="off"></label>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="grid" id="cards"></div>
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+const DATA=/*__DATA__*/{};
+const SERVICES=DATA.services||[];
+const cssv=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmt=n=>(n||0).toLocaleString();
+const _p2=n=>String(n).padStart(2,"0");
+const fmtLocal=v=>{if(!v)return "never";const d=new Date(v);if(isNaN(d))return v;return `${d.getFullYear()}-${_p2(d.getMonth()+1)}-${_p2(d.getDate())} ${_p2(d.getHours())}:${_p2(d.getMinutes())}`;};
+const esc=s=>{const d=document.createElement("div");d.textContent=s==null?"":String(s);return d.innerHTML;};
+const LOGO='<svg viewBox="0 0 48 48" width="46" height="46" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gv" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4c1d95"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs><path d="M24 3.2C24 3.2 32.5 8 39.6 8.6 40.2 8.65 40.6 9.1 40.6 9.7V22c0 10.6-6.8 17.9-15.9 21.6-.45.2-.95.2-1.4 0C14.2 39.9 7.4 32.6 7.4 22V9.7c0-.6.4-1.05 1-1.1C15.5 8 24 3.2 24 3.2Z" fill="url(#gv)"/><circle cx="18.7" cy="16.2" r="2.35" fill="#F2A23C"/><rect x="23.5" y="13.85" width="8.7" height="4.8" rx="2.4" fill="#F2A23C"/><circle cx="18.5" cy="23.7" r="2.95" fill="#3B7DD8"/><circle cx="26" cy="23.7" r="2.95" fill="#3B7DD8"/><circle cx="22.25" cy="30.9" r="2.95" fill="#54AE5A"/></svg>';
+const CODE_IC='<path d="m8 6-6 6 6 6M16 6l6 6-6 6"/>';
+const IMG_IC='<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/>';
+const BLOCK_IC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/></svg>';
+function gauge(score){const R=40,C=2*Math.PI*R,off=C*(1-score/10);const band=score<=3?"--crit":score<=6?"--med":"--good";const col=cssv(band);
+  return {band,html:`<div class="gauge"><svg width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="${R}" fill="none" stroke="var(--surface-3)" stroke-width="9"/><circle cx="48" cy="48" r="${R}" fill="none" stroke="${col}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}" transform="rotate(-90 48 48)"/></svg><div class="lab"><div><b style="color:${col}">${score}<sub>/10</sub></b><small>score</small></div></div></div>`};}
+
+function svblock(c){
+  const z=n=>n>0?"":" z";
+  return `<div class="svs">
+    <div class="sv c"><span class="n${z(c.critical)}">${fmt(c.critical)}</span><span class="k">Crit</span></div>
+    <div class="sv h"><span class="n${z(c.high)}">${fmt(c.high)}</span><span class="k">High</span></div>
+    <div class="sv m"><span class="n${z(c.medium)}">${fmt(c.medium)}</span><span class="k">Med</span></div>
+  </div>`;
+}
+function scanRow(label,ic,m,blocked){
+  if(blocked)return `<div class="scan blocked"><div class="bmsg">${BLOCK_IC} Code scan failed - build aborted on a critical</div></div>`;
+  if(!m)return `<div class="scan na"><div class="sl">${svg(ic)} ${label}</div><div class="nam">Not scanned - build did not reach this stage</div></div>`;
+  const gate=m.gate==="fail"?`<span class="sc" style="color:var(--crit)">blocked</span>`:`<span class="sc">score ${m.score}/10</span>`;
+  return `<div class="scan"><div class="sl">${svg(ic)} ${label} ${gate}</div>${svblock(m)}</div>`;
+}
+const svg=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+
+function statusChip(s){
+  if(s.status==="code-failed")return `<span class="stchip st-fail">code failed</span>`;
+  if(s.status==="image-failed")return `<span class="stchip st-fail">image blocked</span>`;
+  if(s.status==="image-pending")return `<span class="stchip st-pending">image pending</span>`;
+  return `<span class="stchip st-complete">passing</span>`;
+}
+function card(s){
+  const g=gauge(s.score);
+  const codeFailed=s.status==="code-failed";
+  const imageBlocked=s.status==="image-failed";
+  const codeRow=scanRow("Code",CODE_IC,s.code,false);
+  const imageRow=codeFailed?scanRow("",IMG_IC,null,true):scanRow("Image",IMG_IC,s.image,false);
+  return `<a class="card" href="${encodeURIComponent(s.service)}/" style="--band:var(${g.band})" data-name="${esc(s.service).toLowerCase()}">
+    <div class="ch"><span class="ci">${svg('<path d="M20 7h-9M14 17H5M20 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM10 17a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>')}</span>
+      <div class="nm"><b title="${esc(s.service)}">${esc(s.service)}</b><span>${s.commit?("commit "+esc(String(s.commit).slice(0,7))):"—"}</span></div>
+      ${statusChip(s)}</div>
+    <div class="cbody">${g.html}<div class="scans">${codeRow}${imageRow}</div></div>
+    <div class="cfoot"><span class="cp">scanned <b>${fmtLocal(s.scanned_at)}</b></span>${s.branch?`<span class="cp">branch <b>${esc(s.branch)}</b></span>`:""}${s.build_count>1?`<span class="cp"><b>${s.build_count}</b> builds</span>`:""}</div>
+  </a>`;
+}
+function hero(){
+  let C=0,H=0,blocked=0,passing=0;
+  SERVICES.forEach(s=>{
+    C+=((s.code||{}).critical||0)+((s.image||{}).critical||0);
+    H+=((s.code||{}).high||0)+((s.image||{}).high||0);
+    if(s.status==="code-failed"||s.status==="image-failed")blocked++;else passing++;
+  });
+  document.getElementById("hrow").innerHTML=`
+    <div class="hstat"><b>${fmt(SERVICES.length)}</b><span>Services</span></div>
+    <div class="hstat c"><b>${fmt(C)}</b><span>Critical</span></div>
+    <div class="hstat h"><b>${fmt(H)}</b><span>High</span></div>
+    <div class="hstat"><b>${fmt(blocked)}</b><span>Builds blocked</span></div>`;
+}
+let Q="";
+function draw(){
+  const list=SERVICES.filter(s=>!Q||s.service.toLowerCase().includes(Q));
+  document.getElementById("cards").innerHTML=list.map(card).join("")||`<div class="empty">No service matches “${esc(Q)}”.</div>`;
+  document.getElementById("count").textContent=`${list.length} of ${SERVICES.length} service${SERVICES.length!==1?"s":""}`;
+}
+(function(){
+  const p=new URLSearchParams(location.search);if(p.get("theme")==="dark")document.documentElement.dataset.theme="dark";
+  document.getElementById("logo").innerHTML=LOGO;
+  hero();draw();
+  document.getElementById("foot").innerHTML=`Generated ${fmtLocal(DATA.generated_at)} · Trivy security scanning · a critical finding blocks the build`;
+  document.getElementById("q").addEventListener("input",e=>{Q=e.target.value.trim().toLowerCase();draw();});
+  document.getElementById("theme").onclick=()=>{const d=document.documentElement;d.dataset.theme=d.dataset.theme==="dark"?"light":"dark";draw();};
+})();
+</script>
+</body>
+</html>

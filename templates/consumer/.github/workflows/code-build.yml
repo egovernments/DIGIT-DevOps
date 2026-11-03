@@ -1,0 +1,32 @@
+# Code Build — provisioned by DIGIT-DevOps reusable-setup; do not edit the
+# option lists by hand: they are synced from build-config.yml by sync-dropdown.
+# Delegates the build (+ Trivy) to the central engine in DIGIT-DevOps.
+name: Code Build
+run-name: Code Build · ${{ inputs.service }} (${{ github.ref_name }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      module:
+        description: "Module (context only; the engine resolves by service)"
+        required: true
+        type: choice
+        options:
+          - placeholder
+      service:
+        description: "Service image to build (from build-config.yml)"
+        required: true
+        type: choice
+        options:
+          - placeholder
+
+jobs:
+  build:
+    # Pilot ref: flip to @reusable-build-v1 once the engine is tagged.
+    uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-build.yml@feature/reusable-build-workflow
+    with:
+      service: ${{ inputs.service }}
+      enable_trivy: true
+    secrets:
+      DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+      DOCKER_ACCESS_TOKEN: ${{ secrets.DOCKER_ACCESS_TOKEN }}

@@ -1,0 +1,160 @@
+# Telemetry forwarder. Same layout as core-services/billing (DIGIT common chart 0.0.5).
+# Environment-specific values go in environments/<env>.yaml. No secret of its own: the PostHog address and
+# project key are read from the existing "license-ui" secret (the one the licence UIs use), see posthogSecret.
+
+# Common Labels
+labels:
+  app: "digit-telemetry-forwarder"
+  group: "telemetry"
+
+# No ingress: the service only reads Kafka and calls PostHog / the gateway.
+ingress:
+  enabled: false
+
+# No database, so no migration init container.
+initContainers:
+  dbMigration:
+    enabled: false
+
+# Container Configs
+image:
+  repository: "digit-telemetry-forwarder"
+replicas: "1"
+httpPort: 8080
+# Not "java-spring" (see the cleaner chart): no database, probes at /actuator/health/...
+appType: ""
+healthChecks:
+  enabled: true
+  livenessProbePath: "/actuator/health/liveness"
+  readinessProbePath: "/actuator/health/readiness"
+resources: |
+  requests:
+    cpu: "100m"
+    memory: "384Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+# Settings of the service (all are environment variables of the image; see install/forwarder.env.example).
+telemetry:
+  enabled: "true"
+  partnerId: ""
+  instanceId: ""
+  # production, uat or sandbox
+  environment: ""
+  productVersion: "unknown"
+  topicOut: "digit-product-telemetry"
+  groupId: "digit-telemetry-forwarder"
+  # PostHog base address (events go to <address>/i/v0/e/) and project key (phc_..., public by design).
+  # Leave both empty to take them from posthogSecret below; set them to override with plain values.
+  destinationUrl: ""
+  projectKey: ""
+  keyCheck: "true"
+  # Gateway login (Keycloak client credentials). Empty token URL = no login (direct PostHog host).
+  # When set, the client secret comes from authSecret below.
+  authTokenUrl: ""
+  authClientId: ""
+  authScope: ""
+  # Retry delays in ms, comma-separated, one retry topic per delay. Empty = 5 min, 1 h, 2 h, 10 h.
+  retryScheduleMs: ""
+  retryMaxWaitMs: "300000"
+  heartbeatMs: "300000"
+  # Kafka security: empty = PLAINTEXT (as inside the cluster). For SASL also mechanism and username;
+  # the password comes from kafkaSecret below.
+  kafkaSecurityProtocol: ""
+  kafkaSaslMechanism: ""
+  kafkaSaslUsername: ""
+
+# Existing cluster-configs secret with the PostHog host and key (same keys license-admin/citizen/employee use).
+posthogSecret:
+  name: "license-ui"
+  hostKey: "vite_posthog_host"
+  projectKeyKey: "vite_posthog_key"
+# Existing secret with the Keycloak client secret; only referenced when telemetry.authTokenUrl is set.
+authSecret:
+  name: "license-certificate"
+  key: "egov-keycloak-client-secret"
+# Secret with the Kafka SASL password; only referenced when telemetry.kafkaSaslMechanism is set.
+kafkaSecret:
+  name: ""
+  key: "kafka-password"
+
+# Additional Container Envs
+env: |
+  - name: KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: FORWARDER_PORT
+    value: {{ .Values.httpPort | quote }}
+  - name: TELEMETRY_ENABLED
+    value: {{ .Values.telemetry.enabled | quote }}
+  - name: TELEMETRY_PARTNER_ID
+    value: {{ required "telemetry.partnerId is required" .Values.telemetry.partnerId | quote }}
+  - name: TELEMETRY_INSTANCE_ID
+    value: {{ required "telemetry.instanceId is required" .Values.telemetry.instanceId | quote }}
+  - name: TELEMETRY_ENVIRONMENT
+    value: {{ required "telemetry.environment is required" .Values.telemetry.environment | quote }}
+  - name: TELEMETRY_PRODUCT_VERSION
+    value: {{ .Values.telemetry.productVersion | quote }}
+  - name: TELEMETRY_TOPIC_OUT
+    value: {{ .Values.telemetry.topicOut | quote }}
+  - name: TELEMETRY_GROUP_ID
+    value: {{ .Values.telemetry.groupId | quote }}
+  - name: TELEMETRY_DESTINATION_URL
+  {{- if .Values.telemetry.destinationUrl }}
+    value: {{ .Values.telemetry.destinationUrl | quote }}
+  {{- else }}
+    valueFrom:
+      secretKeyRef:
+        name: {{ required "telemetry.destinationUrl or posthogSecret.name is required" .Values.posthogSecret.name }}
+        key: {{ .Values.posthogSecret.hostKey }}
+  {{- end }}
+  - name: TELEMETRY_PROJECT_KEY
+  {{- if .Values.telemetry.projectKey }}
+    value: {{ .Values.telemetry.projectKey | quote }}
+  {{- else }}
+    valueFrom:
+      secretKeyRef:
+        name: {{ required "telemetry.projectKey or posthogSecret.name is required" .Values.posthogSecret.name }}
+        key: {{ .Values.posthogSecret.projectKeyKey }}
+  {{- end }}
+  - name: TELEMETRY_KEY_CHECK
+    value: {{ .Values.telemetry.keyCheck | quote }}
+  - name: TELEMETRY_RETRY_SCHEDULE_MS
+    value: {{ .Values.telemetry.retryScheduleMs | quote }}
+  - name: TELEMETRY_RETRY_MAX_WAIT_MS
+    value: {{ .Values.telemetry.retryMaxWaitMs | quote }}
+  - name: TELEMETRY_HEARTBEAT_MS
+    value: {{ .Values.telemetry.heartbeatMs | quote }}
+  {{- if .Values.telemetry.authTokenUrl }}
+  - name: TELEMETRY_AUTH_TOKEN_URL
+    value: {{ .Values.telemetry.authTokenUrl | quote }}
+  - name: TELEMETRY_AUTH_CLIENT_ID
+    value: {{ required "telemetry.authClientId is required with authTokenUrl" .Values.telemetry.authClientId | quote }}
+  - name: TELEMETRY_AUTH_SCOPE
+    value: {{ .Values.telemetry.authScope | quote }}
+  - name: TELEMETRY_AUTH_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: {{ required "authSecret.name is required with authTokenUrl" .Values.authSecret.name }}
+        key: {{ .Values.authSecret.key }}
+  {{- end }}
+  {{- if .Values.telemetry.kafkaSecurityProtocol }}
+  - name: KAFKA_SECURITY_PROTOCOL
+    value: {{ .Values.telemetry.kafkaSecurityProtocol | quote }}
+  {{- end }}
+  {{- if .Values.telemetry.kafkaSaslMechanism }}
+  - name: KAFKA_SASL_MECHANISM
+    value: {{ .Values.telemetry.kafkaSaslMechanism | quote }}
+  - name: KAFKA_SASL_USERNAME
+    value: {{ .Values.telemetry.kafkaSaslUsername | quote }}
+  - name: KAFKA_SASL_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: {{ required "kafkaSecret.name is required with kafkaSaslMechanism" .Values.kafkaSecret.name }}
+        key: {{ .Values.kafkaSecret.key }}
+  {{- end }}
+  - name: JAVA_OPTS
+    value: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"

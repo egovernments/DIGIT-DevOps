@@ -150,6 +150,36 @@ Charts expect values in different shapes. A **layout** is how an Application han
 - **Layout and namespace are independent.** Two services in one layout can deploy to different namespaces.
 - **New layouts are rare.** Add one only for a chart none of the three can serve; it then serves every project.
 
+### Several `root`-layout services share one env file
+
+`root`-layout charts read values at the root (`.Values.image.tag`, `.Values.global`), so two of them cannot both hold a root `image.tag` in the same file if the file is layered in as-is. Keep them as **sections** in the one module env file, and let the ApplicationSet hand each service **its own section** as the root values:
+
+```yaml
+# <module>-<env>.yaml  (ONE file for the whole module)
+global:
+  mode: dev
+service-a:                 # section keyed by chart name
+  chart-version: '3.0.1'
+  image: { tag: 'main-aaaaaaa' }
+service-b:
+  chart-version: '3.0.0'
+  image: { tag: 'main-bbbbbbb' }
+```
+
+```yaml
+# ApplicationSet: git files generator reads the env file; templatePatch gives each
+# service `global` + its own section as the chart's ROOT values.
+templatePatch: |
+  {{- $v := omit (index . .name) "chart-version" -}}
+  {{- $_ := set $v "global" .global -}}
+  spec:
+    source:
+      helm:
+        valuesObject: {{ toJson $v }}
+```
+
+**Anti-pattern:** do **not** create a value file per service (`<module>-<env>-<service>.yaml`) and layer them onto the module file. That re-introduces a file per service, which [03](03-repository-layout-and-conventions.md#the-env-file) and [09](09-sop-and-guardrails.md#charts-and-values) forbid. One env file per environment, one section per service.
+
 ## Onboard an application
 
 ### Kargo + Argo CD

@@ -1,0 +1,127 @@
+# Telemetry cleaner. Same layout as core-services/billing (DIGIT common chart 0.0.5).
+# Environment-specific values (image tag, identity, topics) go in environments/<env>.yaml. No secret of its own:
+# the instance secret is read from the existing "hmac-secret" (the one otp-java / individual-java use), see
+# instanceSecret below.
+
+# Common Labels
+labels:
+  app: "digit-telemetry-cleaner"
+  group: "telemetry"
+
+# No ingress: the service only talks to Kafka. Health and counters stay inside the cluster.
+ingress:
+  enabled: false
+
+# No database, so no migration init container.
+initContainers:
+  dbMigration:
+    enabled: false
+
+# Container Configs
+image:
+  repository: "digit-telemetry-cleaner"
+replicas: "1"
+httpPort: 8080
+# Not "java-spring": that adds the DIGIT database settings and moves the actuator to "/", which this service
+# does not use (it has no database, and its probes are at /actuator/health/...).
+appType: ""
+healthChecks:
+  enabled: true
+  # Liveness does not include Kafka (a Kafka problem must not cause a restart loop); readiness does.
+  livenessProbePath: "/actuator/health/liveness"
+  readinessProbePath: "/actuator/health/readiness"
+resources: |
+  requests:
+    cpu: "100m"
+    memory: "512Mi"
+  limits:
+    cpu: "500m"
+    memory: "768Mi"
+
+# Settings of the service (all are environment variables of the image; see install/cleaner.env.example).
+telemetry:
+  enabled: "true"
+  partnerId: ""
+  instanceId: ""
+  # production, uat or sandbox
+  environment: ""
+  productVersion: "unknown"
+  topicCertificate: "certificate-lifecycle-events"
+  topicPayment: "billing-create-payment"
+  # The account service's topics, comma-separated; empty = account events skipped.
+  topicAccount: "account-create-tenant,account-update-tenant,account-delete-tenant"
+  topicOut: "digit-product-telemetry"
+  applicationId: "digit-telemetry-cleaner"
+  # Billing business services counted as licence payments, comma-separated (set by eGov).
+  licenceBusinessServices: ""
+  # Kafka security: empty = PLAINTEXT (as inside the cluster today). For SASL also set mechanism and username;
+  # the password comes from kafkaSecret below.
+  kafkaSecurityProtocol: ""
+  kafkaSaslMechanism: ""
+  kafkaSaslUsername: ""
+
+# Existing cluster-configs secret used as TELEMETRY_INSTANCE_SECRET (set once, never changed: the one-way
+# application keys are derived from it). Same secret/key otp-java, individual-java and employee-onboarding use.
+instanceSecret:
+  name: "hmac-secret"
+  key: "hmac-secret"
+# Secret with the Kafka SASL password; only referenced when telemetry.kafkaSaslMechanism is set.
+kafkaSecret:
+  name: ""
+  key: "kafka-password"
+
+# Additional Container Envs
+env: |
+  - name: KAFKA_BOOTSTRAP_SERVERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: CLEANER_PORT
+    value: {{ .Values.httpPort | quote }}
+  - name: TELEMETRY_ENABLED
+    value: {{ .Values.telemetry.enabled | quote }}
+  - name: TELEMETRY_PARTNER_ID
+    value: {{ required "telemetry.partnerId is required" .Values.telemetry.partnerId | quote }}
+  - name: TELEMETRY_INSTANCE_ID
+    value: {{ required "telemetry.instanceId is required" .Values.telemetry.instanceId | quote }}
+  - name: TELEMETRY_ENVIRONMENT
+    value: {{ required "telemetry.environment is required" .Values.telemetry.environment | quote }}
+  - name: TELEMETRY_PRODUCT_VERSION
+    value: {{ .Values.telemetry.productVersion | quote }}
+  - name: TELEMETRY_TOPIC_CERTIFICATE
+    value: {{ .Values.telemetry.topicCertificate | quote }}
+  - name: TELEMETRY_TOPIC_PAYMENT
+    value: {{ .Values.telemetry.topicPayment | quote }}
+  - name: TELEMETRY_TOPIC_ACCOUNT
+    value: {{ .Values.telemetry.topicAccount | quote }}
+  - name: TELEMETRY_TOPIC_OUT
+    value: {{ .Values.telemetry.topicOut | quote }}
+  - name: TELEMETRY_APPLICATION_ID
+    value: {{ .Values.telemetry.applicationId | quote }}
+  - name: TELEMETRY_LICENCE_BUSINESS_SERVICES
+    value: {{ .Values.telemetry.licenceBusinessServices | quote }}
+  - name: TELEMETRY_STATE_DIR
+    value: "/tmp/digit-telemetry-cleaner"
+  - name: TELEMETRY_INSTANCE_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: {{ required "instanceSecret.name is required" .Values.instanceSecret.name }}
+        key: {{ .Values.instanceSecret.key }}
+  {{- if .Values.telemetry.kafkaSecurityProtocol }}
+  - name: KAFKA_SECURITY_PROTOCOL
+    value: {{ .Values.telemetry.kafkaSecurityProtocol | quote }}
+  {{- end }}
+  {{- if .Values.telemetry.kafkaSaslMechanism }}
+  - name: KAFKA_SASL_MECHANISM
+    value: {{ .Values.telemetry.kafkaSaslMechanism | quote }}
+  - name: KAFKA_SASL_USERNAME
+    value: {{ .Values.telemetry.kafkaSaslUsername | quote }}
+  - name: KAFKA_SASL_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: {{ required "kafkaSecret.name is required with kafkaSaslMechanism" .Values.kafkaSecret.name }}
+        key: {{ .Values.kafkaSecret.key }}
+  {{- end }}
+  - name: JAVA_OPTS
+    value: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"

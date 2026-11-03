@@ -1,0 +1,55 @@
+## Product telemetry services (cleaner + forwarder) on test-lts.
+## Charts live under deploy-as-code/helm/charts/telemetry-services/; they only
+## need Kafka (egov-config kafka-brokers) and the cluster-configs secret
+## "digit-telemetry". Same template as the other egov appsets.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: digit-lts-egov-appset-telemetry
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: digit-telemetry-cleaner
+          - name: digit-telemetry-forwarder
+
+  template:
+    metadata:
+      name: 'egov-{{name}}'
+
+    spec:
+      project: egov-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: digit-lts
+        path: deploy-as-code/helm/charts/telemetry-services/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/test-lts.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'egov'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

@@ -332,6 +332,35 @@ billing-java:
         repository: "varunkumar704/billing-db"
         tag: "billing-bill-pdf-filestore-9858216-payment-event"
 
+## Product telemetry (charts/telemetry-services). No DB, no ingress; Kafka from egov-config kafka-brokers.
+## No secret of their own: the forwarder reads the PostHog host/key from the existing license-ui secret and the
+## cleaner reads its instance secret from hmac-secret (both already in test-lts-secrets.yaml).
+## Topics are NOT created by the charts: digit-product-telemetry, digit-product-telemetry-retry-0..3,
+## digit-product-telemetry-dlt, digit-product-telemetry-4xx-dlt must exist before the pods go ready.
+digit-telemetry-cleaner:
+  image:
+    # Repository contains "/" so common.image uses it verbatim (skips global.containerRegistry)
+    repository: "easeac/digit-telemetry-cleaner"
+    tag: "0.1.0"
+  telemetry:
+    partnerId: "egov"
+    instanceId: "test-lts"
+    environment: "uat"
+    licenceBusinessServices: ""   ## REPLACE if needed: billing business services that are licences, comma-separated (empty = none)
+
+digit-telemetry-forwarder:
+  image:
+    # Repository contains "/" so common.image uses it verbatim (skips global.containerRegistry)
+    repository: "easeac/digit-telemetry-forwarder"
+    tag: "0.1.0"
+  telemetry:
+    partnerId: "egov"          # must match the cleaner
+    instanceId: "test-lts"     # must match the cleaner
+    environment: "uat"         # must match the cleaner
+    # destinationUrl / projectKey left empty: taken from secret license-ui (vite_posthog_host / vite_posthog_key),
+    # i.e. the same PostHog the licence UIs send to. No gateway login (authTokenUrl empty).
+    retryScheduleMs: ""        # empty = 5 min, 1 h, 2 h, 10 h -> retry topics -retry-0 .. -retry-3
+
 accesscontrol-java:
   tracing-export-enabled: "true"
 

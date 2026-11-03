@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.github.com; img-src 'self' data: https://avatars.githubusercontent.com; base-uri 'none'; form-action 'none'">
+<title>Code Build</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+<style>
+  /* A dispatcher control room: build on the left, live runs + security on the right; one column on phone. */
+  :root{
+    --bg:#f5f7fa; --surface:#ffffff; --surface-2:#eef1f6; --inset:#f8fafc;
+    --border:#e2e7ef; --border-strong:#cfd7e3;
+    --fg:#192230; --muted:#5a6678; --faint:#8a94a4;
+    --accent:#2f4bd8; --accent-weak:#e7ebfd; --accent-fg:#ffffff;
+    --ok:#15834b; --ok-bg:#e2f3e9; --warn:#9a6300; --warn-bg:#faeed2; --crit:#c8322f; --crit-bg:#fae3e2;
+    --shadow:0 1px 2px rgba(20,30,50,.06), 0 6px 20px rgba(20,30,50,.06);
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    --r:12px; --r-sm:8px;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0d1017; --surface:#141922; --surface-2:#1b222e; --inset:#10151d;
+    --border:#263040; --border-strong:#33415a;
+    --fg:#e7ecf3; --muted:#9aa6b8; --faint:#6b7889;
+    --accent:#6f86ff; --accent-weak:#1c2438; --accent-fg:#0d1017;
+    --ok:#4ec488; --ok-bg:#13291f; --warn:#e0a52e; --warn-bg:#2e2410; --crit:#f0756f; --crit-bg:#2e1715;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    color-scheme:dark;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0d1017; --surface:#141922; --surface-2:#1b222e; --inset:#10151d;
+    --border:#263040; --border-strong:#33415a;
+    --fg:#e7ecf3; --muted:#9aa6b8; --faint:#6b7889;
+    --accent:#6f86ff; --accent-weak:#1c2438; --accent-fg:#0d1017;
+    --ok:#4ec488; --ok-bg:#13291f; --warn:#e0a52e; --warn-bg:#2e2410; --crit:#f0756f; --crit-bg:#2e1715;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--fg);font-family:var(--sans);line-height:1.5;
+    -webkit-font-smoothing:antialiased;letter-spacing:.1px;
+    padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  h1,h2,h3{margin:0;text-wrap:balance;letter-spacing:-.2px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .mono{font-family:var(--mono)}
+  button{font-family:inherit}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+  [hidden]{display:none!important}
+
+  header{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--border)}
+  body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:21;background:var(--surface)}
+  .bar{display:flex;align-items:center;gap:14px;padding-block:12px;
+    padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));
+    max-width:1180px;margin:0 auto}
+  .brand{display:flex;align-items:center;gap:11px;min-width:0}
+  .glyph{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;
+    background:linear-gradient(145deg,var(--accent),color-mix(in srgb,var(--accent) 55%, #1a2a8c));
+    color:#fff;font-weight:700;font-size:14px;font-family:var(--mono)}
+  .brand b{font-weight:600;font-size:15px}
+  .brand .sub{color:var(--faint);font-size:12.5px;font-weight:500}
+  .bar .spacer{flex:1}
+  .ghost{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border-strong);
+    background:var(--surface);color:var(--fg);border-radius:var(--r-sm);padding:6px 11px;font-size:13px;font-weight:500;cursor:pointer}
+  .ghost:hover{background:var(--surface-2)}
+  .who{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+  .avatar{width:24px;height:24px;border-radius:50%;background:var(--accent-weak);color:var(--accent);
+    display:grid;place-items:center;font-size:11px;font-weight:700;overflow:hidden}
+  .avatar img{width:100%;height:100%;object-fit:cover}
+
+  nav{border-bottom:1px solid var(--border);background:var(--surface)}
+  .tabs{display:flex;gap:4px;max-width:1180px;margin:0 auto;
+    padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+  .tab{appearance:none;border:0;background:none;color:var(--muted);font-size:13.5px;font-weight:500;
+    padding:12px 6px;margin-right:16px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+
+  main{max-width:1180px;margin:0 auto;padding-block:22px 48px;
+    padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+
+  .grid{display:grid;grid-template-columns:1.35fr .95fr;gap:20px;align-items:start}
+  @media (max-width:860px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow)}
+  .card>.hd{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+  .hd h2{font-size:14.5px;font-weight:600}
+  .hd .tag{margin-left:auto;font-size:11px;color:var(--faint);font-weight:500;letter-spacing:.3px;text-transform:uppercase}
+  .bd{padding:18px}
+
+  /* connect gate */
+  .connect{max-width:560px;margin:0 auto}
+  .connect .lead{color:var(--muted);font-size:13.5px;margin:6px 0 2px;line-height:1.55}
+  .tokrow{display:flex;gap:10px;margin-top:14px}
+  @media (max-width:520px){.tokrow{flex-direction:column}}
+  input[type=password],input[type=text]{width:100%;background:var(--inset);color:var(--fg);
+    border:1px solid var(--border-strong);border-radius:var(--r-sm);padding:11px 12px;font-size:14px;font-family:var(--mono)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+  .two label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px}
+  .scopes{margin-top:16px;background:var(--inset);border:1px solid var(--border);border-radius:var(--r-sm);padding:13px 15px;font-size:12.5px;color:var(--muted);line-height:1.6}
+  .scopes b{color:var(--fg);font-weight:600}
+  .scopes .mono{color:var(--accent)}
+  .err{margin-top:12px;background:var(--crit-bg);color:var(--crit);border:1px solid color-mix(in srgb,var(--crit) 30%,transparent);
+    border-radius:var(--r-sm);padding:10px 13px;font-size:13px}
+
+  .field{margin-bottom:16px}
+  .field:last-child{margin-bottom:0}
+  label.lbl{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+  .step{width:17px;height:17px;border-radius:50%;background:var(--accent-weak);color:var(--accent);
+    font-size:10.5px;font-weight:700;display:grid;place-items:center;flex:none}
+  select{width:100%;appearance:none;background:var(--inset);color:var(--fg);border:1px solid var(--border-strong);
+    border-radius:var(--r-sm);padding:11px 36px 11px 12px;font-size:14px;font-family:inherit;cursor:pointer;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235a6678' stroke-width='2.2' stroke-linecap='round'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat:no-repeat;background-position:right 11px center}
+  select:disabled{opacity:.5;cursor:not-allowed}
+  .hint{font-size:11.5px;color:var(--faint);margin-top:6px}
+
+  .resolved{background:var(--inset);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-top:4px}
+  .resolved .empty{color:var(--faint);font-size:13px;text-align:center;padding:10px 0}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px;margin:0}
+  .kv dt{color:var(--muted)}
+  .kv dd{margin:0;text-align:right;font-family:var(--mono);font-size:12.5px;word-break:break-all;min-width:0}
+  .kv dd .y{color:var(--ok);font-weight:600}.kv dd .n{color:var(--faint)}
+  .mapnote{margin-top:10px;font-size:11.5px;color:var(--warn);background:var(--warn-bg);border-radius:6px;padding:7px 9px;line-height:1.45}
+
+  .run{margin-top:18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:var(--accent-fg);
+    border:0;border-radius:var(--r-sm);padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer}
+  .btn:hover{filter:brightness(1.05)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+  .run .note{font-size:12px;color:var(--faint)}
+
+  .rail{display:flex;flex-direction:column;gap:20px}
+  .run-row{display:flex;align-items:center;gap:11px;padding:11px 0;border-top:1px solid var(--border)}
+  .run-row:first-of-type{border-top:0}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .dot.ok{background:var(--ok)}.dot.run{background:var(--accent)}.dot.fail{background:var(--crit)}.dot.queue{background:var(--faint)}
+  .run-row .meta{min-width:0;flex:1}
+  .run-row .svc{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .run-row .t{font-size:11.5px;color:var(--faint);font-family:var(--mono)}
+  .chip{font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:3px 8px;border-radius:999px;flex:none}
+  .chip.ok{background:var(--ok-bg);color:var(--ok)}.chip.run{background:var(--accent-weak);color:var(--accent)}
+  .chip.fail{background:var(--crit-bg);color:var(--crit)}.chip.queue{background:var(--surface-2);color:var(--muted)}
+
+  .spin{width:15px;height:15px;border:2px solid var(--border-strong);border-top-color:var(--accent);border-radius:50%;
+    display:inline-block;animation:sp .7s linear infinite;vertical-align:-2px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  .scrim{position:fixed;inset:0;background:rgba(10,15,25,.55);display:grid;place-items:center;padding:20px;z-index:40}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);
+    width:min(600px,100%);max-height:85vh;overflow:auto}
+  .modal .hd{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+  .modal .hd h3{font-size:15px}
+  .modal .bd{padding:18px}
+  .xbtn{margin-left:auto;appearance:none;border:0;background:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1}
+  pre{margin:0;background:var(--inset);border:1px solid var(--border);border-radius:var(--r-sm);
+    padding:14px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--fg);white-space:pre-wrap;word-break:break-word}
+  pre .mt{color:var(--accent);font-weight:600}
+  .modal .foot{display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap}
+
+  .sec-card .bd p{font-size:13.5px;color:var(--muted);line-height:1.6;margin:0 0 12px}
+  .sec-card .bd p:last-child{margin-bottom:0}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.3px;padding:3px 9px;border-radius:999px;background:var(--surface-2);color:var(--muted)}
+  .steps{list-style:none;padding:0;margin:4px 0 0;counter-reset:s}
+  .steps li{position:relative;padding:10px 0 10px 34px;border-top:1px solid var(--border);font-size:13px;color:var(--fg);counter-increment:s}
+  .steps li:first-child{border-top:0}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:9px;width:22px;height:22px;border-radius:50%;
+    background:var(--accent-weak);color:var(--accent);font-size:11px;font-weight:700;display:grid;place-items:center}
+  .steps li b{font-weight:600}
+
+  .how{margin-top:28px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r)}
+  .how summary{cursor:pointer;padding:15px 18px;font-size:13.5px;font-weight:600;list-style:none;display:flex;align-items:center;gap:9px}
+  .how summary::-webkit-details-marker{display:none}
+  .how .chev{transition:transform .2s}.how[open] .chev{transform:rotate(90deg)}
+  .how .body{padding:0 18px 18px}
+  .flow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:6px 0 16px}
+  @media (max-width:640px){.flow{grid-template-columns:1fr 1fr}}
+  .node{background:var(--inset);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px}
+  .node .n{font-size:11px;color:var(--accent);font-weight:700;font-family:var(--mono)}
+  .node .d{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+  .how p{font-size:13px;color:var(--muted);margin:8px 0}
+  .how code{font-family:var(--mono);font-size:12px;background:var(--surface-2);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand">
+      <div class="glyph">CB</div>
+      <div style="min-width:0">
+        <b>Code Build</b>
+        <div class="sub mono" id="brandSub">egovernments/DIGIT-Studio</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <button class="ghost" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">◐</button>
+    <span class="who" id="whoArea" hidden>
+      <span class="avatar" id="whoAvatar"></span>
+      <span id="whoName" class="mono"></span>
+      <button class="ghost" id="disconnectBtn" title="Clear token from memory">Disconnect</button>
+    </span>
+  </div>
+  <nav>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-view="build">Run a build</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="security">Security</button>
+    </div>
+  </nav>
+</header>
+
+<main>
+  <!-- CONNECT GATE -->
+  <section id="view-connect">
+    <div class="card connect">
+      <div class="hd"><h2>Connect to GitHub</h2><span class="tag">token · memory only</span></div>
+      <div class="bd">
+        <p class="lead">Paste a <b>fine-grained personal access token</b> scoped to this repo. It is held in memory for this tab only &mdash; never written to storage, never sent anywhere but <span class="mono">api.github.com</span>.</p>
+        <div class="two">
+          <div><label for="inOwner">Owner</label><input type="text" id="inOwner" spellcheck="false" autocapitalize="off"></div>
+          <div><label for="inRepo">Repository</label><input type="text" id="inRepo" spellcheck="false" autocapitalize="off"></div>
+        </div>
+        <div class="tokrow">
+          <input type="password" id="inToken" placeholder="github_pat_…" autocomplete="off" spellcheck="false">
+          <button class="btn" id="connectBtn" style="flex:none"><span id="connectLabel">Connect</span></button>
+        </div>
+        <div class="scopes">
+          <b>Minimum scope</b> &mdash; one repository, two permissions:
+          <span class="mono">Contents: Read</span> (read branches + build-config.yml) and
+          <span class="mono">Actions: Read and write</span> (dispatch + watch runs).
+          Short expiry recommended. <a id="patLink" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a token ↗</a>
+        </div>
+        <div class="err" id="connectErr" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BUILD VIEW -->
+  <section id="view-build" hidden>
+    <div class="grid">
+      <div class="card">
+        <div class="hd"><h2>Trigger a build</h2><span class="tag">workflow_dispatch</span></div>
+        <div class="bd">
+          <div class="field">
+            <label class="lbl" for="selBranch"><span class="step">1</span>Branch</label>
+            <select id="selBranch"></select>
+            <div class="hint">Modules and services are read live from this branch's <span class="mono">build/build-config.yml</span>.</div>
+          </div>
+          <div class="field">
+            <label class="lbl" for="selModule"><span class="step">2</span>Module</label>
+            <select id="selModule" disabled></select>
+          </div>
+          <div class="field">
+            <label class="lbl" for="selService"><span class="step">3</span>Service</label>
+            <select id="selService" disabled></select>
+          </div>
+
+          <div class="resolved" id="resolved">
+            <div class="empty">Select a service to see what will be built.</div>
+          </div>
+
+          <div class="run">
+            <button class="btn" id="runBtn" disabled>▶ Run build</button>
+            <span class="note" id="runNote">Pick a branch, module and service</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rail">
+        <div class="card">
+          <div class="hd"><h2>Recent runs</h2><span class="tag" id="recentTag">this branch</span></div>
+          <div class="bd" id="recentRuns" style="padding-top:4px;padding-bottom:10px"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECURITY VIEW -->
+  <section id="view-security" hidden>
+    <div class="card sec-card">
+      <div class="hd"><h2>Trivy security gate</h2><span class="tag">gh-pages · /security/trivy</span></div>
+      <div class="bd">
+        <p><span class="pill">pattern · health-campaign-services</span></p>
+        <p>Every Code Build runs <span class="mono">aquasecurity/trivy-action</span> against the source tree and the built image. A <b>CRITICAL</b> finding blocks the gate; the report is published to <span class="mono">gh-pages</span> regardless, so history is never lost.</p>
+        <ol class="steps">
+          <li><b>Code scan</b> &mdash; filesystem scan of the service work-dir.</li>
+          <li><b>Image scan</b> &mdash; the pushed image is scanned for OS + library CVEs.</li>
+          <li><b>Gate</b> &mdash; CRITICAL aborts the build; HIGH and below are reported.</li>
+          <li><b>Publish</b> &mdash; results land on <span class="mono">gh-pages/security/trivy</span>.</li>
+        </ol>
+        <p style="margin-top:14px"><a id="trivyLink" href="#" target="_blank" rel="noopener">Open the published dashboard ↗</a> <span class="hint" style="display:inline">(available once the gh-pages dashboard is enabled)</span></p>
+      </div>
+    </div>
+  </section>
+
+  <details class="how" id="howBox" hidden>
+    <summary><span class="chev">›</span> How this page works</summary>
+    <div class="body">
+      <div class="flow">
+        <div class="node"><div class="n">1 · read</div><div class="d">The browser calls the GitHub REST API with your token for branches, then that branch's build-config.yml.</div></div>
+        <div class="node"><div class="n">2 · cascade</div><div class="d">Config is parsed into module → service → image-name. Each dropdown filters the next.</div></div>
+        <div class="node"><div class="n">3 · dispatch</div><div class="d">Run posts to the workflow_dispatch API with ref + service. Needs <code>Actions: write</code>.</div></div>
+        <div class="node"><div class="n">4 · watch</div><div class="d">The run executes the DIGIT-DevOps engine + Trivy; this page polls its status and links to it.</div></div>
+      </div>
+      <p>The token lives only in this tab's memory. It is never stored, and a strict Content-Security-Policy means it can only ever reach <code>api.github.com</code> &mdash; nothing on this page can send it elsewhere.</p>
+    </div>
+  </details>
+</main>
+
+<div id="modalHost"></div>
+
+<script>
+"use strict";
+/* ---------------- state (token is memory-only) ---------------- */
+let TOKEN = null;
+let OWNER = "egovernments", REPO = "DIGIT-Studio";
+let CFG = null;            // parsed config for the selected branch: { module: [services] }
+let DEFAULT_BRANCH = null;
+let pollTimer = null, idleTimer = null;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const lastSeg = b => b.split("/").pop();
+
+/* ---------------- target inference (self-targeting / portable) ---------------- */
+(function inferTarget(){
+  try{
+    const h = location.hostname, seg = location.pathname.split("/").filter(Boolean);
+    if(h.endsWith(".github.io")){ OWNER = h.split(".")[0] || OWNER; if(seg[0]) REPO = seg[0]; }
+  }catch(e){}
+  $("inOwner").value = OWNER; $("inRepo").value = REPO;
+  $("brandSub").textContent = OWNER + "/" + REPO;
+})();
+
+/* ---------------- GitHub API ---------------- */
+async function api(path, opts){
+  const res = await fetch("https://api.github.com" + path, Object.assign({
+    headers: {
+      "Authorization": "Bearer " + TOKEN,
+      "Accept": "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28"
+    }
+  }, opts || {}));
+  return res;
+}
+function b64utf8(b64){
+  const bin = atob((b64||"").replace(/\s/g,""));
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+function relTime(iso){
+  const s = Math.max(0,(Date.now()-new Date(iso).getTime())/1000);
+  if(s<60) return "just now";
+  if(s<3600) return Math.floor(s/60)+"m ago";
+  if(s<86400) return Math.floor(s/3600)+"h ago";
+  return Math.floor(s/86400)+"d ago";
+}
+
+/* ---------------- connect / disconnect ---------------- */
+async function connect(){
+  const token = $("inToken").value.trim();
+  OWNER = $("inOwner").value.trim() || OWNER;
+  REPO  = $("inRepo").value.trim()  || REPO;
+  if(!token){ showErr("Paste a token to connect."); return; }
+  TOKEN = token;
+  setConnecting(true); showErr("");
+  try{
+    const r = await api("/repos/" + OWNER + "/" + REPO);
+    if(r.status === 401){ fail("Token rejected (401). Check the token value."); return; }
+    if(r.status === 404){ fail("Repo not found or token lacks access to " + OWNER + "/" + REPO + "."); return; }
+    if(!r.ok){ fail("GitHub returned " + r.status + "."); return; }
+    const repo = await r.json();
+    DEFAULT_BRANCH = repo.default_branch;
+    const u = await api("/user");
+    const user = u.ok ? await u.json() : {login:"you"};
+    onConnected(user);
+  }catch(e){
+    fail("Network error reaching api.github.com.");
+  }
+  function fail(msg){ TOKEN = null; setConnecting(false); showErr(msg); }
+}
+function setConnecting(on){
+  $("connectBtn").disabled = on;
+  $("connectLabel").innerHTML = on ? '<span class="spin"></span>' : "Connect";
+}
+function showErr(msg){ const e=$("connectErr"); e.hidden=!msg; e.textContent=msg; }
+
+function onConnected(user){
+  $("inToken").value = "";            // drop the token out of the DOM immediately
+  setConnecting(false);
+  $("brandSub").textContent = OWNER + "/" + REPO;
+  $("trivyLink").href = "https://" + OWNER + ".github.io/" + REPO + "/security/trivy/";
+  const av = $("whoAvatar");
+  av.innerHTML = user.avatar_url ? '<img alt="" src="' + esc(user.avatar_url) + '">' : esc((user.login||"?").slice(0,2).toUpperCase());
+  $("whoName").textContent = "@" + (user.login || "you");
+  $("whoArea").hidden = false;
+  $("howBox").hidden = false;
+  route(location.hash.slice(1) || "build");
+  loadBranches();
+  armIdle();
+}
+function disconnect(){
+  TOKEN = null; CFG = null;
+  if(pollTimer) clearInterval(pollTimer);
+  if(idleTimer) clearTimeout(idleTimer);
+  $("whoArea").hidden = true; $("howBox").hidden = true;
+  showView("connect");
+  document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t.dataset.view==="build"));
+}
+/* clear the token after inactivity */
+function armIdle(){
+  if(idleTimer) clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { if(TOKEN){ disconnect(); showErr("Token cleared after inactivity. Reconnect to continue."); } }, 15*60*1000);
+}
+["click","keydown"].forEach(ev => document.addEventListener(ev, () => { if(TOKEN) armIdle(); }));
+
+/* ---------------- cascade: branch → module → service ---------------- */
+const selB=$("selBranch"), selM=$("selModule"), selS=$("selService");
+const resolved=$("resolved"), runBtn=$("runBtn"), runNote=$("runNote");
+function optEl(v,t){ const o=document.createElement("option"); o.value=v; o.textContent=t; return o; }
+function fill(sel, items, placeholder){
+  sel.innerHTML=""; sel.appendChild(optEl("", placeholder));
+  items.forEach(i => sel.appendChild(optEl(i.v, i.t)));
+}
+
+async function loadBranches(){
+  fill(selB, [], "Loading branches…"); selB.disabled = true;
+  try{
+    let page=1, all=[], more=true;
+    while(more && page<=5){
+      const r = await api("/repos/"+OWNER+"/"+REPO+"/branches?per_page=100&page="+page);
+      if(!r.ok) break;
+      const arr = await r.json();
+      all = all.concat(arr.map(b => b.name));
+      more = arr.length === 100; page++;
+    }
+    all.sort((a,b)=> a===DEFAULT_BRANCH ? -1 : b===DEFAULT_BRANCH ? 1 : a.localeCompare(b));
+    selB.disabled = false;
+    fill(selB, all.map(b => ({v:b, t: b===DEFAULT_BRANCH ? b+"  (default)" : b})), "Select branch…");
+  }catch(e){ fill(selB, [], "Failed to load branches"); }
+}
+
+function parseConfig(text){
+  const doc = jsyaml.load(text) || {};
+  const nodes = Array.isArray(doc.config) ? doc.config : [];
+  const byModule = {};
+  for(const node of nodes){
+    if(!node || !node.name) continue;
+    const parts = String(node.name).split("/");          // builds/DIGIT-Studio/<module>/<key>
+    const module = parts[2] || "other";
+    const key = parts[3] || "";
+    const builds = Array.isArray(node.build) ? node.build : [];
+    const app = builds.find(b => b && b["image-name"] && !/-db$/.test(b["image-name"])) || builds[0];
+    const db  = builds.find(b => b && b["image-name"] && /-db$/.test(b["image-name"]));
+    if(!app || !app["image-name"]) continue;
+    (byModule[module] = byModule[module] || []).push({
+      label: key || app["image-name"],
+      image: app["image-name"],
+      wd: app["work-dir"] || "",
+      df: app.dockerfile || "build/maven/Dockerfile (default)",
+      db: !!db,
+      dbImage: db ? db["image-name"] : null
+    });
+  }
+  return byModule;
+}
+
+async function loadConfig(branch){
+  CFG = null; selM.disabled = true; selS.disabled = true;
+  fill(selM, [], "Reading build-config.yml…"); fill(selS, [], "—"); clearResolved();
+  try{
+    const r = await api("/repos/"+OWNER+"/"+REPO+"/contents/build/build-config.yml?ref="+encodeURIComponent(branch));
+    if(!r.ok){ fill(selM, [], r.status===404 ? "No build-config.yml on this branch" : "Failed ("+r.status+")"); return; }
+    const data = await r.json();
+    CFG = parseConfig(b64utf8(data.content));
+    const mods = Object.keys(CFG);
+    if(!mods.length){ fill(selM, [], "No services found"); return; }
+    selM.disabled = false;
+    fill(selM, mods.map(m => ({v:m, t: m + "  (" + CFG[m].length + ")"})), "Select module…");
+    fill(selS, [], "Select module first");
+  }catch(e){ fill(selM, [], "Could not parse config"); }
+}
+
+selB.addEventListener("change", () => {
+  clearResolved();
+  if(!selB.value){ selM.disabled=true; selS.disabled=true; fill(selM,[],"—"); fill(selS,[],"—"); renderRuns([]); return; }
+  loadConfig(selB.value);
+  pollRuns(selB.value);
+});
+selM.addEventListener("change", () => {
+  clearResolved();
+  const list = CFG && CFG[selM.value];
+  selS.disabled = !list;
+  if(!list){ fill(selS, [], "—"); return; }
+  fill(selS, list.map(s => ({v:s.image, t: s.label + (s.label!==s.image ? "  → "+s.image : "")})), "Select service…");
+});
+selS.addEventListener("change", () => {
+  const list = (CFG && CFG[selM.value]) || [];
+  const s = list.find(x => x.image === selS.value);
+  s ? showResolved(s) : clearResolved();
+});
+
+function clearResolved(){
+  resolved.innerHTML = '<div class="empty">Select a service to see what will be built.</div>';
+  runBtn.disabled = true;
+  runNote.textContent = !selB.value ? "Pick a branch, module and service" : "Pick a module and service";
+}
+function showResolved(s){
+  const tag = lastSeg(selB.value) + "-<short-sha>";
+  const ns = "egovio/";
+  const map = s.label!==s.image
+    ? '<div class="mapnote">Folder <b>'+esc(s.label)+'</b> builds image <b>'+esc(s.image)+'</b> — the engine dispatches on the image-name.</div>' : "";
+  resolved.innerHTML =
+    '<dl class="kv">'
+    + '<dt>Image</dt><dd>'+esc(ns+s.image)+':'+esc(tag)+'</dd>'
+    + '<dt>Dockerfile</dt><dd>'+esc(s.df)+'</dd>'
+    + '<dt>Work dir</dt><dd>'+esc(s.wd)+'</dd>'
+    + '<dt>DB image</dt><dd>'+(s.db?'<span class="y">'+esc(ns+s.dbImage)+'</span>':'<span class="n">none</span>')+'</dd>'
+    + '</dl>' + map;
+  runBtn.disabled = false;
+  runNote.textContent = "Dispatches Code Build on " + selB.value;
+}
+
+/* ---------------- recent runs (live) ---------------- */
+function statusClass(run){
+  if(run.status!=="completed") return run.status==="queued" ? "queue" : "run";
+  return run.conclusion==="success" ? "ok" : (run.conclusion==="failure"||run.conclusion==="timed_out") ? "fail" : "queue";
+}
+function statusLabel(run){
+  if(run.status!=="completed") return run.status==="queued" ? "queued" : "running";
+  return run.conclusion || "done";
+}
+async function pollRuns(branch){
+  if(pollTimer) clearInterval(pollTimer);
+  const tick = async () => {
+    try{
+      const r = await api("/repos/"+OWNER+"/"+REPO+"/actions/workflows/code-build.yml/runs?branch="+encodeURIComponent(branch)+"&per_page=8");
+      if(!r.ok){ renderRuns(null, r.status===404 ? "Code Build has no runs on this branch yet." : null); return; }
+      const data = await r.json();
+      const runs = data.workflow_runs || [];
+      renderRuns(runs);
+      const active = runs.some(x => x.status!=="completed");
+      if(!active && pollTimer){ clearInterval(pollTimer); pollTimer=null; }
+    }catch(e){}
+  };
+  tick();
+  pollTimer = setInterval(tick, 6000);
+}
+function renderRuns(runs, emptyMsg){
+  const rr = $("recentRuns");
+  if(runs===null){ rr.innerHTML = '<div class="hint" style="padding:12px 0">'+esc(emptyMsg||"Could not load runs.")+'</div>'; return; }
+  if(!runs.length){ rr.innerHTML = '<div class="hint" style="padding:12px 0">No Code Build runs on this branch yet.</div>'; return; }
+  rr.innerHTML = runs.map(r => {
+    const cls = statusClass(r), title = r.display_title || r.name || "run";
+    return '<div class="run-row">'
+      + '<span class="dot '+cls+'"></span>'
+      + '<div class="meta"><div class="svc">'+esc(title)+'</div>'
+      + '<div class="t">'+esc(relTime(r.created_at))+' · '+esc((r.head_sha||"").slice(0,7))+'</div></div>'
+      + '<a class="chip '+cls+'" href="'+esc(r.html_url)+'" target="_blank" rel="noopener">'+esc(statusLabel(r))+'</a>'
+      + '</div>';
+  }).join("");
+}
+
+/* ---------------- dispatch ---------------- */
+runBtn.addEventListener("click", () => {
+  const list = (CFG && CFG[selM.value]) || [];
+  const s = list.find(x => x.image === selS.value);
+  if(!s) return;
+  const payload = { ref: selB.value, inputs: { service: s.image } };
+  const body = esc(JSON.stringify(payload, null, 2)).replace(/&quot;(ref|inputs|service)&quot;:/g, '&quot;<span class="mt">$1</span>&quot;:');
+  openModal(
+    '<div class="hd"><h3>Dispatch Code Build</h3><button class="xbtn" data-close aria-label="Close">×</button></div>'
+    + '<div class="bd">'
+    + '<p class="hint" style="margin:0 0 12px">This is the exact request the page will send.</p>'
+    + '<pre>POST /repos/'+esc(OWNER)+'/'+esc(REPO)+'/actions/workflows/<span class="mt">code-build.yml</span>/dispatches\n\n'+body+'</pre>'
+    + '<div class="foot">'
+    + '<button class="btn" id="confirmBtn">▶ Confirm dispatch</button>'
+    + '<span class="note hint" id="dispatchMsg" style="display:inline"></span>'
+    + '</div></div>'
+  );
+  $("confirmBtn").addEventListener("click", () => fireDispatch(payload));
+});
+async function fireDispatch(payload){
+  const btn = $("confirmBtn"), msg = $("dispatchMsg");
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Dispatching';
+  try{
+    const r = await api("/repos/"+OWNER+"/"+REPO+"/actions/workflows/code-build.yml/dispatches", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    if(r.status === 204){
+      msg.style.color = "var(--ok)"; msg.textContent = "Queued ✓ — watching Recent runs";
+      setTimeout(() => { closeModal(); pollRuns(payload.ref); }, 900);
+    } else if(r.status === 403){
+      resetBtn(); msg.style.color="var(--crit)"; msg.textContent = "Forbidden (403) — token needs Actions: write";
+    } else if(r.status === 422){
+      resetBtn(); msg.style.color="var(--crit)"; msg.textContent = "Rejected (422) — branch must exist and carry code-build.yml";
+    } else {
+      resetBtn(); msg.style.color="var(--crit)"; msg.textContent = "GitHub returned " + r.status;
+    }
+  }catch(e){ resetBtn(); msg.style.color="var(--crit)"; msg.textContent = "Network error."; }
+  function resetBtn(){ btn.disabled=false; btn.innerHTML="▶ Confirm dispatch"; }
+}
+
+/* ---------------- modal ---------------- */
+function openModal(html){
+  const h = $("modalHost");
+  h.innerHTML = '<div class="scrim"><div class="modal" role="dialog" aria-modal="true">'+html+'</div></div>';
+  h.querySelector(".scrim").addEventListener("click", e => { if(e.target===e.currentTarget) closeModal(); });
+  h.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", closeModal));
+}
+function closeModal(){ $("modalHost").innerHTML = ""; }
+
+/* ---------------- views / tabs / theme ---------------- */
+const views = { connect:$("view-connect"), build:$("view-build"), security:$("view-security") };
+function showView(v){ Object.entries(views).forEach(([k,el]) => el.hidden = (k!==v)); }
+function route(v){
+  if(!TOKEN){ showView("connect"); return; }
+  if(v!=="build" && v!=="security") v = "build";
+  showView(v);
+  document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t.dataset.view===v));
+}
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  if(!TOKEN) return;
+  location.hash = t.dataset.view;
+}));
+window.addEventListener("hashchange", () => route(location.hash.slice(1)));
+
+$("connectBtn").addEventListener("click", connect);
+$("inToken").addEventListener("keydown", e => { if(e.key==="Enter") connect(); });
+$("disconnectBtn").addEventListener("click", disconnect);
+
+const tb = $("themeBtn");
+function applyTheme(t){ if(t) document.documentElement.setAttribute("data-theme", t); }
+try{ applyTheme(localStorage.getItem("cb-theme")); }catch(e){}
+tb.addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const dark = cur ? cur==="dark" : matchMedia("(prefers-color-scheme:dark)").matches;
+  const next = dark ? "light" : "dark";
+  applyTheme(next);
+  try{ localStorage.setItem("cb-theme", next); }catch(e){}
+});
+
+showView("connect");
+</script>
+</body>
+</html>

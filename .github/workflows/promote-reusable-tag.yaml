@@ -1,0 +1,89 @@
+# Keep the moving tag reusable-build-v1 pointed at master.
+#
+# Consumers pin the reusable CI engine with @reusable-build-v1. Whenever the
+# reusable workflows or consumer templates change on master, move that tag to
+# the new master tip (and cut an immutable reusable-build-v1.0.<N> snapshot),
+# so merges propagate to consumers without a manual tag move.
+#
+# Runs in Actions with the default GITHUB_TOKEN (the DevOps tags are not
+# protected). A GITHUB_TOKEN push does not trigger other workflows, so there
+# is no loop.
+name: Promote reusable-build tag
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - ".github/workflows/reusable-build.yaml"
+      - ".github/workflows/reusable-setup.yaml"
+      - ".github/workflows/reusable-sync-dropdown.yaml"
+      - "templates/consumer/**"
+  workflow_dispatch:
+    inputs:
+      cut_immutable:
+        description: "Also cut the next immutable reusable-build-v1.0.<N> tag"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+# Serialise so two quick merges converge on the latest master tip, not an
+# out-of-order one.
+concurrency:
+  group: promote-reusable-tag
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history + tags)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Move reusable-build-v1 and cut the next patch tag
+        env:
+          CUT_IMMUTABLE: ${{ github.event_name != 'workflow_dispatch' && 'true' || inputs.cut_immutable }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Always target the current master tip (robust to out-of-order runs).
+          git fetch -q origin master
+          TARGET="$(git rev-parse origin/master)"
+
+          MOVING="reusable-build-v1"
+          CURRENT="$(git rev-parse -q --verify "refs/tags/${MOVING}" || true)"
+          if [ "$CURRENT" = "$TARGET" ]; then
+            echo "${MOVING} already at ${TARGET}; nothing to do."
+          else
+            git tag -f "$MOVING" "$TARGET"
+            git push -f origin "refs/tags/${MOVING}"
+            echo "Moved ${MOVING}: ${CURRENT:-<none>} -> ${TARGET}"
+          fi
+
+          NEXT=""
+          if [ "${CUT_IMMUTABLE}" = "true" ]; then
+            # Highest existing reusable-build-v1.0.<N>, then +1.
+            N="$(git tag -l 'reusable-build-v1.0.*' \
+                  | sed -n 's/^reusable-build-v1\.0\.\([0-9]\{1,\}\)$/\1/p' \
+                  | sort -n | tail -1)"
+            NEXT="reusable-build-v1.0.$(( ${N:--1} + 1 ))"
+            if git rev-parse -q --verify "refs/tags/${NEXT}" >/dev/null; then
+              echo "${NEXT} already exists; skipping immutable cut."
+              NEXT=""
+            else
+              git tag "$NEXT" "$TARGET"
+              git push origin "refs/tags/${NEXT}"
+              echo "Cut immutable ${NEXT} -> ${TARGET}"
+            fi
+          fi
+
+          {
+            echo "### Promoted reusable-build"
+            echo "- moving \`${MOVING}\` → \`${TARGET}\`"
+            [ -n "$NEXT" ] && echo "- immutable \`${NEXT}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

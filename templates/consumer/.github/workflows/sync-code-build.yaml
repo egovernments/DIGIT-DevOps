@@ -2,9 +2,9 @@
 # build-config.yml) and the Build-from-Branch list (from the repo's live
 # branches). Runs when the config changes, when a branch is created/deleted,
 # on a daily backstop, and on demand. Commits to the default branch via the App.
-# Needs repo secrets BUILD_APP_ID + BUILD_APP_PRIVATE_KEY (GitHub App with
+# Needs repo secrets BUILD_APP_CLIENT_ID + BUILD_APP_PRIVATE_KEY (GitHub App with
 # Contents:write + Workflows:write, on the default-branch ruleset bypass list).
-name: Sync Code Build
+name: Build — Sync
 
 on:
   push:
@@ -20,10 +20,12 @@ on:
   workflow_dispatch:
     inputs:
       sync_branch:
-        description: "Sync from Branch — also pull this branch's new services into the list (empty = default branch)"
+        description: "Sync from Branch — pull a feature branch's new services into the dropdown before it merges; leave on the default branch for a normal refresh"
         required: false
-        type: string
-        default: ""
+        type: choice
+        default: master
+        options:
+          - master
 
 # One sync at a time; the latest wins.
 concurrency:
@@ -36,5 +38,5 @@ jobs:
     with:
       sync_branch: ${{ inputs.sync_branch || '' }}
     secrets:
-      APP_ID: ${{ secrets.BUILD_APP_ID }}
+      APP_CLIENT_ID: ${{ secrets.BUILD_APP_CLIENT_ID }}
       APP_PRIVATE_KEY: ${{ secrets.BUILD_APP_PRIVATE_KEY }}

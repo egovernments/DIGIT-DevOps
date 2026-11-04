@@ -19,13 +19,14 @@ It runs with no server — talking straight to `api.github.com`.
 
 ### Two doors, one workflow
 
-| Door | Auth | Branch selection |
+| Door | Auth | Picker |
 |---|---|---|
-| GitHub-native Run workflow | github.com session | text field + "Use workflow from" |
-| `/actions` UI | fine-grained PAT | live branch **dropdown** |
+| GitHub-native Run workflow | github.com session | synced **dropdowns** (`build_branch` + `service`), kept current by sync-code-build |
+| `/actions` UI | fine-grained PAT | live branch **dropdown**; services read from the chosen branch |
 
-Both dispatch the same `code-build.yaml`. The UI is the nicer path when you want
-to pick a branch from a list rather than type it.
+Both dispatch the same `code-build.yaml`. The native dialog's lists are synced
+snapshots; the UI reads branches and each branch's services **live**, so it can
+also surface a service that exists only on a not-yet-merged feature branch.
 
 ### Authentication
 

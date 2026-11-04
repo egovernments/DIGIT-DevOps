@@ -3,6 +3,23 @@
 Central CI library for eGov service repositories. A consumer repo keeps one thin
 caller; everything else is provisioned from here and upgraded centrally.
 
+## How it fits together
+
+```
+DIGIT-DevOps (this repo)                      Consumer repo (e.g. DIGIT-Studio)
+  reusable-*.yaml ──── pinned @reusable-build-v1 ───▶ code-build.yaml  (thin caller)
+  templates/consumer/ ─────── run setup once ───────▶ sync-code-build.yaml, .trivy/
+  promote-reusable-tag.yaml                            gh-pages: /  /actions  /security/trivy
+    └ auto-moves the tag on every merge here
+```
+
+- **Engine** lives here; consumers call it by tag, so a change merged here ships to all of them.
+- **Setup** (run once per repo, authenticates as a GitHub App) scaffolds the caller, the sync workflow, the Trivy toolkit and the pages.
+- **Sync** keeps the Code Build dropdowns matching the repo's live branches and services.
+- **Build** runs the engine: Trivy-gated on the default branch, images cosign-signed.
+
+Auth model: **setup + sync** push straight to the default branch as a **GitHub App** (on the ruleset bypass list); the **`/actions` UI** dispatches builds with a viewer's scoped, in-memory **PAT**. No long-lived PAT is stored anywhere.
+
 ## Workflows
 
 | Workflow | Purpose |

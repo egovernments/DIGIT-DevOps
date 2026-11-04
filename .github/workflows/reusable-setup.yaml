@@ -1,8 +1,8 @@
 # One-shot setup for a consumer repo. Scaffolds the Code Build caller, the
-# sync-dropdown workflow and the Trivy dashboard toolkit from DIGIT-DevOps,
-# populates the service dropdown, and commits them straight to the default branch.
-# The /pipelines UI is Pages content, so it is published to the gh-pages branch
-# (which Pages serves), not committed to the source tree.
+# sync-code-build workflow and the Trivy dashboard toolkit from DIGIT-DevOps,
+# populates the service + branch dropdowns, and commits them straight to the
+# default branch. The landing page + /actions UI are Pages content, so they are
+# published to the gh-pages branch (which Pages serves), not committed to the tree.
 # Auth is a GitHub App token minted in-run from APP_ID + APP_PRIVATE_KEY. The App
 # needs Contents + Workflows + Pages write, must be installed on this repo, and
 # must be on the default-branch ruleset bypass list so it can push directly.
@@ -72,22 +72,32 @@ jobs:
         env:
           CONFIG: build/build-config.yml
           WF: .github/workflows/code-build.yaml
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           cp -R _devops/templates/consumer/. ./
           rm -rf _devops
+          # Drop the legacy single-purpose sync workflow (replaced by sync-code-build).
+          rm -f .github/workflows/sync-dropdown.yaml .github/workflows/sync-branches.yaml
           # The pages/ tree (landing page + /actions UI) is GitHub Pages content:
           # it is published to the gh-pages branch (served by Pages), not committed
           # to the source tree. Stash it for the gh-pages step and keep it out of
           # the setup commit.
           rm -rf "$RUNNER_TEMP/pages"
           mv pages "$RUNNER_TEMP/pages"
-          # Populate the Code Build service dropdown from this repo's build-config.
-          # (No module field — service is the only dropdown.)
+          # Seed the Code Build service dropdown from build-config (sync keeps it current).
           if [ -f "$CONFIG" ]; then
             SVC=$(yq eval '.config[].build[]."image-name"' "$CONFIG" | grep -vE -- '-db$' | grep -vxF placeholder | sort -u)
             SVC="$SVC" yq -i '.["on"].workflow_dispatch.inputs.service.options = (strenv(SVC) | split("\n"))' "$WF"
           fi
+          # Seed the Build-from-Branch dropdown from live branches (default first,
+          # dependabot/* excluded); sync-code-build keeps it current afterwards.
+          DEFAULT=$(gh api "repos/${GITHUB_REPOSITORY}" -q .default_branch)
+          OTHERS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/branches" -q '.[].name' \
+                    | grep -vE '^dependabot/' | grep -vxF "$DEFAULT" | grep -v '^$' | sort | head -n 199)
+          BR=$(printf '%s\n%s\n' "$DEFAULT" "$OTHERS" | grep -v '^$')
+          BR="$BR" yq -i '.["on"].workflow_dispatch.inputs.build_branch.options = (strenv(BR) | split("\n"))' "$WF"
+          DEFAULT="$DEFAULT" yq -i '.["on"].workflow_dispatch.inputs.build_branch.default = strenv(DEFAULT)' "$WF"
 
       - name: Commit scaffold to the default branch
         env:

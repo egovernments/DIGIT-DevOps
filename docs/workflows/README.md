@@ -9,13 +9,13 @@ caller; everything else is provisioned from here and upgraded centrally.
 |---|---|
 | [`reusable-build.yaml`](build.md) | Build + push images, with Trivy code + image scans (CRITICAL blocks the push) |
 | [`reusable-setup.yaml`](setup.md) | One-shot scaffold of a consumer repo (Code Build caller, sync, Trivy toolkit, gh-pages landing page + `/actions` UI) |
-| [`reusable-sync-dropdown.yaml`](sync-dropdown.md) | Keep the Code Build dropdowns current with `build-config.yml` (additive) |
+| [`reusable-code-build-sync.yaml`](sync-code-build.md) | Keep both Code Build dropdowns current — service (from `build-config.yml`) and branch (from live branches) |
 | `promote-reusable-tag.yaml` | Auto-move `reusable-build-v1` to master when the engine/templates change (not reusable; runs in this repo) |
 
 ## What a consumer ends up with
 
-- `.github/workflows/code-build.yaml` — build caller with a **service dropdown**, synced from `build-config.yml`, plus a **Build from Branch** input.
-- `.github/workflows/sync-dropdown.yaml` — refreshes that dropdown on config change.
+- `.github/workflows/code-build.yaml` — build caller with synced **service** and **Build-from-Branch** dropdowns.
+- `.github/workflows/sync-code-build.yaml` — refreshes the service **and** branch dropdowns (config change, branch create/delete, daily).
 - `.trivy/dashboard/` — Trivy report generator, published to `gh-pages/security/trivy` (scans gate the default branch only).
 - gh-pages **landing page** (`/`) + [`/actions` dispatcher UI](actions-ui.md) (live branch → service picker).
 

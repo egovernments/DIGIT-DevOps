@@ -2,42 +2,48 @@
 
 `reusable-setup.yaml` provisions a consumer repo in one run: it scaffolds the
 Code Build caller (with dropdowns already populated), the sync-dropdown workflow,
-the Trivy dashboard toolkit and the `/pipelines` UI, and **opens a PR** with it
-all. It also creates `gh-pages` (a new branch, pushed directly).
+the Trivy dashboard toolkit and the `/pipelines` UI, and **commits them straight
+to the default branch**. It also publishes the `/pipelines` UI to `gh-pages`
+(created if absent) and best-effort enables Pages.
 
-> It never pushes to a protected branch — all file changes land in a PR you review.
+> Setup and sync authenticate as a **GitHub App** and push directly to the
+> default branch. The App must be on that branch's ruleset **bypass** list.
 
-## 1. Create the `WORKFLOWS_TOKEN`
+## 1. Create the GitHub App
 
 The automatic `GITHUB_TOKEN` **cannot write files under `.github/workflows/`**, so
-setup and sync need a dedicated token. GitHub has no API to mint one — create it
-in the browser:
+setup and sync use a GitHub App token (minted in-run). Create one App for the org
+(reused across consumers):
 
-**Settings → Developer settings → Fine-grained tokens → Generate new token**
-(<https://github.com/settings/personal-access-tokens/new>)
+**Org → Settings → Developer settings → GitHub Apps → New GitHub App**
 
 | Setting | Value |
 |---|---|
-| Resource owner | `egovernments` |
-| Repository access | Only select repositories → the consumer repo |
-| **Contents** | Read and write |
-| **Workflows** | Read and write |
-| **Pull requests** | Read and write |
-| **Pages** | Read and write *(optional — lets setup auto-enable Pages)* |
-| Expiration | per policy |
+| Repository permission · **Contents** | Read and write |
+| Repository permission · **Workflows** | Read and write |
+| Repository permission · **Pages** | Read and write *(auto-enable Pages)* |
+| Repository permission · **Metadata** | Read-only *(mandatory, auto)* |
 
-Add it as a repo secret:
+No **Pull requests** permission is needed — the flow pushes directly, it never
+opens PRs.
+
+Then:
+
+1. **Install** the App on the consumer repo(s).
+2. Generate a **private key** (`.pem`).
+3. Add the App to the default branch's **ruleset bypass list**
+   (Settings → Rules → Rulesets → the active ruleset → *Bypass list* → add the
+   App → *Always*). Without this, protection blocks the App's push.
+4. Store the credentials as repo secrets:
 
 ```sh
-# run yourself so the token value never leaves your machine:
-gh secret set WORKFLOWS_TOKEN --repo <owner>/<repo>
+gh secret set BUILD_APP_ID          --repo <owner>/<repo> --body "<app-id>"
+gh secret set BUILD_APP_PRIVATE_KEY --repo <owner>/<repo> < private-key.pem
 ```
-
-> If the org requires approval for fine-grained tokens, an owner approves it once.
 
 ## 2. Add the caller and run it
 
-`.github/workflows/setup.yml` in the consumer:
+`.github/workflows/setup.yaml` in the consumer:
 
 ```yaml
 name: Setup Code Build
@@ -47,13 +53,14 @@ jobs:
   setup:
     uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-setup.yaml@reusable-build-v1
     secrets:
-      WORKFLOWS_TOKEN: ${{ secrets.WORKFLOWS_TOKEN }}
+      APP_ID: ${{ secrets.BUILD_APP_ID }}
+      APP_PRIVATE_KEY: ${{ secrets.BUILD_APP_PRIVATE_KEY }}
 ```
 
-Run it from the Actions tab. It opens a **`ci: set up Code Build`** PR containing
-`code-build.yaml` (dropdowns populated from `build-config.yml`), `sync-dropdown.yaml`,
-`.trivy/dashboard/` and `pipelines/`, and creates the `gh-pages` branch. Review and
-merge the PR to finish.
+Run it from the Actions tab (leave **Use workflow from** on the default branch —
+setup refuses any other). It commits `code-build.yaml` (dropdowns populated from
+`build-config.yml`), `sync-dropdown.yaml`, `.trivy/dashboard/` and `setup.yaml`
+directly to the default branch, and publishes `pipelines/` to `gh-pages`.
 
 ## 3. Build prerequisites
 
@@ -62,5 +69,6 @@ Ensure the consumer has `DOCKER_USERNAME` (Actions **variable**) and
 
 ## Notes
 
-- Re-running setup is safe; it only adds what is missing.
-- If the token lacks `Pages:write`, enable Pages manually (Settings → Pages → `gh-pages`).
+- Re-running setup is safe; it commits only what changed (nothing if in sync).
+- If the App lacks `Pages:write`, enable Pages manually (Settings → Pages → `gh-pages`).
+- If the push fails with a protection error, the App is not on the ruleset bypass list.

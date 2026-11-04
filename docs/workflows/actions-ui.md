@@ -29,8 +29,10 @@ to pick a branch from a list rather than type it.
 
 ### Authentication
 
-A **fine-grained PAT**, held **in memory for the tab only** — never stored, cleared
-after 15 min idle, and (via a strict CSP) only ever able to reach `api.github.com`.
+A **fine-grained PAT**, kept for **this browser tab only** (session storage) — it
+survives a refresh so you aren't re-prompted, clears when the tab closes or after
+15 min idle, never leaves your browser, and (via a strict CSP) can only ever reach
+`api.github.com`.
 
 | Setting | Value |
 |---|---|

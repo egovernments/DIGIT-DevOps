@@ -204,7 +204,7 @@
     <span class="who" id="whoArea" hidden>
       <span class="avatar" id="whoAvatar"></span>
       <span id="whoName" class="mono"></span>
-      <button class="ghost" id="disconnectBtn" title="Clear token from memory">Disconnect</button>
+      <button class="ghost" id="disconnectBtn" title="Clear token from this tab">Disconnect</button>
     </span>
   </div>
   <nav>
@@ -219,9 +219,9 @@
   <!-- CONNECT GATE -->
   <section id="view-connect">
     <div class="card connect">
-      <div class="hd"><h2>Connect to GitHub</h2><span class="tag">token · memory only</span></div>
+      <div class="hd"><h2>Connect to GitHub</h2><span class="tag">token · this tab</span></div>
       <div class="bd">
-        <p class="lead">Paste a <b>fine-grained personal access token</b> scoped to this repo. It is held in memory for this tab only &mdash; never written to storage, never sent anywhere but <span class="mono">api.github.com</span>.</p>
+        <p class="lead">Paste a <b>fine-grained personal access token</b> scoped to this repo. It is kept for <b>this browser tab</b> only &mdash; it survives a refresh, clears when you close the tab or after 15 min idle, is never shared with other tabs or devices, and (via a strict CSP) can only ever reach <span class="mono">api.github.com</span>.</p>
         <div class="two">
           <div><label for="inOwner">Owner</label><input type="text" id="inOwner" spellcheck="false" autocapitalize="off"></div>
           <div><label for="inRepo">Repository</label><input type="text" id="inRepo" spellcheck="false" autocapitalize="off"></div>
@@ -286,7 +286,7 @@
     <div class="card sec-card">
       <div class="hd"><h2>Trivy security gate</h2><span class="tag">gh-pages · /security/trivy</span></div>
       <div class="bd">
-        <p><span class="pill">pattern · health-campaign-services</span></p>
+        <p><span class="pill">pattern · DIGIT-DevOps reusable CI</span></p>
         <p>Every Code Build runs <span class="mono">aquasecurity/trivy-action</span> against the source tree and the built image. A <b>CRITICAL</b> finding blocks the gate; the report is published to <span class="mono">gh-pages</span> regardless, so history is never lost.</p>
         <ol class="steps">
           <li><b>Code scan</b> &mdash; filesystem scan of the service work-dir.</li>
@@ -308,7 +308,7 @@
         <div class="node"><div class="n">3 · dispatch</div><div class="d">Run posts to the workflow_dispatch API on the default branch with the chosen build_branch + service. Needs <code>Actions: write</code>.</div></div>
         <div class="node"><div class="n">4 · watch</div><div class="d">The run executes the DIGIT-DevOps engine + Trivy; this page polls its status and links to it.</div></div>
       </div>
-      <p>The token lives only in this tab's memory. It is never stored, and a strict Content-Security-Policy means it can only ever reach <code>api.github.com</code> &mdash; nothing on this page can send it elsewhere.</p>
+      <p>The token is kept for this browser tab only (session storage): it survives a refresh, is cleared when the tab closes or after 15 min idle, and never leaves your browser &mdash; a strict Content-Security-Policy means it can only ever reach <code>api.github.com</code>, and nothing on this page can send it elsewhere.</p>
     </div>
   </details>
 </main>
@@ -363,8 +363,9 @@ function relTime(iso){
 }
 
 /* ---------------- connect / disconnect ---------------- */
-async function connect(){
-  const token = $("inToken").value.trim();
+async function connect(presetToken){
+  const restoring = !!presetToken;
+  const token = presetToken || $("inToken").value.trim();
   OWNER = $("inOwner").value.trim() || OWNER;
   REPO  = $("inRepo").value.trim()  || REPO;
   if(!token){ showErr("Paste a token to connect."); return; }
@@ -383,7 +384,8 @@ async function connect(){
   }catch(e){
     fail("Network error reaching api.github.com.");
   }
-  function fail(msg){ TOKEN = null; setConnecting(false); showErr(msg); }
+  function fail(msg){ TOKEN = null; setConnecting(false); try{ sessionStorage.removeItem("cb-session"); }catch(e){}
+    if(restoring){ showView("connect"); showErr("Session expired — reconnect."); } else { showErr(msg); } }
 }
 function setConnecting(on){
   $("connectBtn").disabled = on;
@@ -394,6 +396,7 @@ function showErr(msg){ const e=$("connectErr"); e.hidden=!msg; e.textContent=msg
 function onConnected(user){
   $("inToken").value = "";            // drop the token out of the DOM immediately
   setConnecting(false);
+  try{ sessionStorage.setItem("cb-session", JSON.stringify({token:TOKEN, owner:OWNER, repo:REPO})); }catch(e){}
   $("brandSub").textContent = OWNER + "/" + REPO;
   $("trivyLink").href = "https://" + OWNER + ".github.io/" + REPO + "/security/trivy/";
   const av = $("whoAvatar");
@@ -407,6 +410,7 @@ function onConnected(user){
 }
 function disconnect(){
   TOKEN = null; CFG = null;
+  try{ sessionStorage.removeItem("cb-session"); }catch(e){}
   if(pollTimer) clearInterval(pollTimer);
   if(idleTimer) clearTimeout(idleTimer);
   $("whoArea").hidden = true; $("howBox").hidden = true;
@@ -650,7 +654,20 @@ tb.addEventListener("click", () => {
   try{ localStorage.setItem("cb-theme", next); }catch(e){}
 });
 
-showView("connect");
+/* Restore the session on load so a refresh doesn't drop back to the token screen.
+   sessionStorage is per-tab and cleared when the tab closes; the token is re-validated. */
+(function restore(){
+  let s=null; try{ s=JSON.parse(sessionStorage.getItem("cb-session")||"null"); }catch(e){}
+  if(s && s.token){
+    if(s.owner) OWNER=s.owner;
+    if(s.repo)  REPO=s.repo;
+    $("inOwner").value=OWNER; $("inRepo").value=REPO; $("brandSub").textContent=OWNER+"/"+REPO;
+    showView("connect");          // shown until re-validation resolves
+    connect(s.token);
+  } else {
+    showView("connect");
+  }
+})();
 </script>
 </body>
 </html>

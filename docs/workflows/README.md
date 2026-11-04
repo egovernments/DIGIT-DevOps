@@ -36,6 +36,8 @@ Auth model: **setup + sync** push straight to the default branch as a **GitHub A
 - `.trivy/dashboard/` — Trivy report generator, published to `gh-pages/security/trivy` (scans gate the default branch only).
 - gh-pages **landing page** (`/`) + [`/actions` dispatcher UI](actions-ui.md) (live branch → service picker).
 
+The `/actions` UI signs in with a PAT (default) or, optionally, **Sign in with GitHub** — see [oauth-worker.md](oauth-worker.md).
+
 ## Onboard a repo
 
 1. Create the GitHub App + its secrets (see [setup.md](setup.md)).

@@ -28,12 +28,16 @@ Both dispatch the same `code-build.yaml`. The native dialog's lists are synced
 snapshots; the UI reads branches and each branch's services **live**, so it can
 also surface a service that exists only on a not-yet-merged feature branch.
 
-### Authentication
+### Sign-in methods
 
-A **fine-grained PAT**, kept for **this browser tab only** (session storage) — it
-survives a refresh so you aren't re-prompted, clears when the tab closes or after
-15 min idle, never leaves your browser, and (via a strict CSP) can only ever reach
-`api.github.com`.
+The sign-in method is chosen **at Setup time** via the `auth_mode` input (default
+`pat`); Setup writes it into the page's `cb-auth-mode` meta. Either way the page acts
+**as the signed-in user**, so GitHub enforces each person's real repo role (view runs
+with read, run builds with write, no access → 404) — identical to the Actions tab.
+
+**`pat` (default)** — paste a **fine-grained PAT**, kept for **this browser tab only**
+(session storage): it survives a refresh, clears on tab close or after 15 min idle,
+never leaves your browser, and (via a strict CSP) can only ever reach `api.github.com`.
 
 | Setting | Value |
 |---|---|
@@ -42,8 +46,15 @@ survives a refresh so you aren't re-prompted, clears when the tab closes or afte
 | Actions | Read and write |
 | Expiration | short (7–30 days) |
 
-This is a **small, separate** token: it only reads config and dispatches builds —
-it cannot write code or workflows (unlike the setup GitHub App).
+It's a **small, separate** token: it only reads config and dispatches builds — it
+cannot write code or workflows (unlike the setup GitHub App).
+
+**`oauth`** — a **Sign in with GitHub** button. The page redirects to the shared
+broker Worker ([OAuth / broker Worker](oauth-worker.md)), which runs the
+OAuth code→token exchange (the client secret can't live in a static page) and returns
+a user token in the URL fragment. The token is held in session storage exactly like
+the PAT. No token to paste. Requires the OAuth App + Worker to be set up once; the
+Worker URL is baked into the page as `AUTH_BASE`.
 
 ### Flow
 

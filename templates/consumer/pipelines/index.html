@@ -273,7 +273,7 @@
 
       <div class="rail">
         <div class="card">
-          <div class="hd"><h2>Recent runs</h2><span class="tag" id="recentTag">this branch</span></div>
+          <div class="hd"><h2>Recent runs</h2><span class="tag" id="recentTag">Code Build</span></div>
           <div class="bd" id="recentRuns" style="padding-top:4px;padding-bottom:10px"></div>
         </div>
       </div>
@@ -304,7 +304,7 @@
       <div class="flow">
         <div class="node"><div class="n">1 · read</div><div class="d">The browser calls the GitHub REST API with your token for branches, then that branch's build-config.yml.</div></div>
         <div class="node"><div class="n">2 · cascade</div><div class="d">Config is parsed into module → service → image-name. Each dropdown filters the next.</div></div>
-        <div class="node"><div class="n">3 · dispatch</div><div class="d">Run posts to the workflow_dispatch API with ref + service. Needs <code>Actions: write</code>.</div></div>
+        <div class="node"><div class="n">3 · dispatch</div><div class="d">Run posts to the workflow_dispatch API on the default branch with the chosen build_branch + service. Needs <code>Actions: write</code>.</div></div>
         <div class="node"><div class="n">4 · watch</div><div class="d">The run executes the DIGIT-DevOps engine + Trivy; this page polls its status and links to it.</div></div>
       </div>
       <p>The token lives only in this tab's memory. It is never stored, and a strict Content-Security-Policy means it can only ever reach <code>api.github.com</code> &mdash; nothing on this page can send it elsewhere.</p>
@@ -539,8 +539,9 @@ async function pollRuns(branch){
   if(pollTimer) clearInterval(pollTimer);
   const tick = async () => {
     try{
-      const r = await api("/repos/"+OWNER+"/"+REPO+"/actions/workflows/code-build.yaml/runs?branch="+encodeURIComponent(branch)+"&per_page=8");
-      if(!r.ok){ renderRuns(null, r.status===404 ? "Code Build has no runs on this branch yet." : null); return; }
+      // Runs are dispatched on the default branch (the branch to build is an input).
+      const r = await api("/repos/"+OWNER+"/"+REPO+"/actions/workflows/code-build.yaml/runs?branch="+encodeURIComponent(DEFAULT_BRANCH||branch)+"&per_page=8");
+      if(!r.ok){ renderRuns(null, r.status===404 ? "Code Build has no runs yet." : null); return; }
       const data = await r.json();
       const runs = data.workflow_runs || [];
       renderRuns(runs);
@@ -554,7 +555,7 @@ async function pollRuns(branch){
 function renderRuns(runs, emptyMsg){
   const rr = $("recentRuns");
   if(runs===null){ rr.innerHTML = '<div class="hint" style="padding:12px 0">'+esc(emptyMsg||"Could not load runs.")+'</div>'; return; }
-  if(!runs.length){ rr.innerHTML = '<div class="hint" style="padding:12px 0">No Code Build runs on this branch yet.</div>'; return; }
+  if(!runs.length){ rr.innerHTML = '<div class="hint" style="padding:12px 0">No Code Build runs yet.</div>'; return; }
   rr.innerHTML = runs.map(r => {
     const cls = statusClass(r), title = r.display_title || r.name || "run";
     return '<div class="run-row">'
@@ -571,8 +572,10 @@ runBtn.addEventListener("click", () => {
   const list = (CFG && CFG[selM.value]) || [];
   const s = list.find(x => x.image === selS.value);
   if(!s) return;
-  const payload = { ref: selB.value, inputs: { service: s.image } };
-  const body = esc(JSON.stringify(payload, null, 2)).replace(/&quot;(ref|inputs|service)&quot;:/g, '&quot;<span class="mt">$1</span>&quot;:');
+  // The workflow lives only on the default branch; dispatch there and pass the
+  // chosen branch as build_branch so the engine checks out and builds it.
+  const payload = { ref: DEFAULT_BRANCH, inputs: { service: s.image, build_branch: selB.value } };
+  const body = esc(JSON.stringify(payload, null, 2)).replace(/&quot;(ref|inputs|service|build_branch)&quot;:/g, '&quot;<span class="mt">$1</span>&quot;:');
   openModal(
     '<div class="hd"><h3>Dispatch Code Build</h3><button class="xbtn" data-close aria-label="Close">×</button></div>'
     + '<div class="bd">'
@@ -599,7 +602,7 @@ async function fireDispatch(payload){
     } else if(r.status === 403){
       resetBtn(); msg.style.color="var(--crit)"; msg.textContent = "Forbidden (403) — token needs Actions: write";
     } else if(r.status === 422){
-      resetBtn(); msg.style.color="var(--crit)"; msg.textContent = "Rejected (422) — branch must exist and carry code-build.yaml";
+      resetBtn(); msg.style.color="var(--crit)"; msg.textContent = "Rejected (422) — service not in the synced list, or build branch invalid";
     } else {
       resetBtn(); msg.style.color="var(--crit)"; msg.textContent = "GitHub returned " + r.status;
     }

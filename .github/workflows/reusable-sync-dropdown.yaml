@@ -1,5 +1,5 @@
 # Sync the Code Build dropdowns from build-config.yml.
-# Modules and services are added/updated in the caller's code-build workflow
+# Service entries are added/updated in the caller's code-build workflow
 # choice lists; existing entries are never removed (additive union).
 # Opens/updates a PR (never pushes to a protected branch directly).
 # Needs a token with Contents + Workflows + Pull requests write.
@@ -15,7 +15,7 @@ on:
         type: string
         default: "build/build-config.yml"
       workflow_file:
-        description: "Workflow file whose module/service choice lists are synced"
+        description: "Workflow file whose service choice list is synced"
         required: false
         type: string
         default: ".github/workflows/code-build.yaml"
@@ -51,23 +51,18 @@ jobs:
           test -f "$CONFIG" || { echo "::error::config not found: $CONFIG"; exit 1; }
           test -f "$WF"     || { echo "::error::workflow not found: $WF"; exit 1; }
 
-          # New lists from the config: services = app image-names (drop -db),
-          # modules = 3rd path segment of each job name.
+          # New list from the config: services = app image-names (drop -db).
           NEW_SVC=$(yq eval '.config[].build[]."image-name"' "$CONFIG" | grep -vE -- '-db$' | sort -u)
-          NEW_MOD=$(yq eval '.config[].name' "$CONFIG" | awk -F/ 'NF>=3{print $3}' | sort -u)
 
           # Existing options (empty on first run).
           OLD_SVC=$(yq eval '.["on"].workflow_dispatch.inputs.service.options[]' "$WF" 2>/dev/null || true)
-          OLD_MOD=$(yq eval '.["on"].workflow_dispatch.inputs.module.options[]' "$WF" 2>/dev/null || true)
 
           # Additive union — never drop a real entry (the scaffold seed is dropped).
           SVC=$(printf '%s\n%s\n' "$OLD_SVC" "$NEW_SVC" | grep -v '^$' | grep -vxF placeholder | sort -u)
-          MOD=$(printf '%s\n%s\n' "$OLD_MOD" "$NEW_MOD" | grep -v '^$' | grep -vxF placeholder | sort -u)
 
           SVC="$SVC" yq -i '.["on"].workflow_dispatch.inputs.service.options = (strenv(SVC) | split("\n"))' "$WF"
-          MOD="$MOD" yq -i '.["on"].workflow_dispatch.inputs.module.options  = (strenv(MOD) | split("\n"))' "$WF"
 
-          echo "Services: $(echo "$SVC" | wc -l | tr -d ' ') · Modules: $(echo "$MOD" | wc -l | tr -d ' ')"
+          echo "Services: $(echo "$SVC" | wc -l | tr -d ' ')"
 
       - name: Open PR if changed
         env:
@@ -84,7 +79,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git add "$WF"
-          git commit -m "chore(code-build): sync module/service dropdowns from build-config"
+          git commit -m "chore(code-build): sync service dropdown from build-config"
           git push -f origin "$BRANCH"
           if [ -z "$(gh pr list --head "$BRANCH" --state open --json number -q '.[].number')" ]; then
             gh pr create --base "$BASE" --head "$BRANCH" \

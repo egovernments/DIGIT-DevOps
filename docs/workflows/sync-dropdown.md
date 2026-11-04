@@ -1,14 +1,12 @@
 # Sync-dropdown workflow
 
-`reusable-sync-dropdown.yaml` keeps the **Code Build** dropdowns in step with
+`reusable-sync-dropdown.yaml` keeps the **Code Build** service dropdown in step with
 `build-config.yml`.
 
 ## What it does
 
 - **Services** = every app `image-name` in the config (entries ending `-db` are excluded).
-- **Modules** = the 3rd path segment of each job `name`
-  (`builds/<repo>/<module>/<service>`).
-- It writes these into the `module` and `service` `choice` option lists of
+- It writes these into the `service` `choice` option list of
   `code-build.yaml`, as an **additive union**: new entries are added, existing ones
   are kept. Nothing is removed (the scaffold `placeholder` seed is the one
   exception). A service removed from the config stays selectable until pruned by hand.

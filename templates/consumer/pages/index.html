@@ -83,14 +83,11 @@
   .card{display:flex;flex-direction:column;gap:12px;background:var(--surface);border:1px solid var(--border);
     border-radius:var(--r);box-shadow:var(--shadow);padding:22px;position:relative;
     transition:transform .16s ease, border-color .16s ease}
-  /* The lift shadow lives on a pseudo-element faded in with OPACITY (compositor-only,
-     no repaint). Animating box-shadow itself — or promoting the card to its own layer
-     and painting a big blurred shadow on it — makes Chromium flash/hold a full-width
-     dark band under the row, so neither is done here. */
-  .card::after{content:"";position:absolute;inset:0;border-radius:inherit;z-index:-1;
-    box-shadow:var(--shadow-lift);opacity:0;transition:opacity .16s ease;pointer-events:none}
+  /* Hover lifts with transform + border only — both composite cheaply and repaint
+     nothing. The resting box-shadow stays constant (never animated), and there is no
+     promoted layer or negative-z-index pseudo shadow, so no card can flash a dark
+     band (a z-index:-1 pseudo-shadow banded under the first card in Chromium). */
   a.card:hover{transform:translateY(-2px);border-color:var(--border-strong)}
-  a.card:hover::after{opacity:1}
   .ico{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;flex:none;
     background:var(--accent-weak);color:var(--accent)}
   .ico svg{width:22px;height:22px}

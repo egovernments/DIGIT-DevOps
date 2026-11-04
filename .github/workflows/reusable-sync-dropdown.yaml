@@ -14,6 +14,11 @@ on:
         required: false
         type: string
         default: "build/build-config.yml"
+      sync_branch:
+        description: "Branch to read build-config.yml from (to pull another branch's new services into the default branch's list); empty = this branch"
+        required: false
+        type: string
+        default: ""
       workflow_file:
         description: "Workflow file whose service choice list is synced"
         required: false
@@ -58,13 +63,25 @@ jobs:
         env:
           CONFIG: ${{ inputs.config_path }}
           WF: ${{ inputs.workflow_file }}
+          SYNC_BRANCH: ${{ inputs.sync_branch }}
         run: |
           set -euo pipefail
-          test -f "$CONFIG" || { echo "::error::config not found: $CONFIG"; exit 1; }
-          test -f "$WF"     || { echo "::error::workflow not found: $WF"; exit 1; }
+          test -f "$WF" || { echo "::error::workflow not found: $WF"; exit 1; }
+
+          # Source config: another branch's build-config (to pull in its new
+          # services) when sync_branch is given, else this branch's file.
+          if [ -n "$SYNC_BRANCH" ] && [ "$SYNC_BRANCH" != "$GITHUB_REF_NAME" ]; then
+            git fetch -q --depth 1 origin "$SYNC_BRANCH" || { echo "::error::cannot fetch branch '$SYNC_BRANCH'"; exit 1; }
+            SRC="$(mktemp)"
+            git show "FETCH_HEAD:$CONFIG" > "$SRC" 2>/dev/null || { echo "::error::$CONFIG not found on '$SYNC_BRANCH'"; exit 1; }
+            echo "Reading services from branch '$SYNC_BRANCH'."
+          else
+            test -f "$CONFIG" || { echo "::error::config not found: $CONFIG"; exit 1; }
+            SRC="$CONFIG"
+          fi
 
           # New list from the config: services = app image-names (drop -db).
-          NEW_SVC=$(yq eval '.config[].build[]."image-name"' "$CONFIG" | grep -vE -- '-db$' | sort -u)
+          NEW_SVC=$(yq eval '.config[].build[]."image-name"' "$SRC" | grep -vE -- '-db$' | sort -u)
 
           # Existing options (empty on first run).
           OLD_SVC=$(yq eval '.["on"].workflow_dispatch.inputs.service.options[]' "$WF" 2>/dev/null || true)

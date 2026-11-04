@@ -1,0 +1,218 @@
+# OAuth sign-in for Code Build (the broker Worker)
+
+The `/actions` dispatcher can sign users in with their **own GitHub account** instead of
+a pasted token, when Setup is run with `auth_mode: oauth` (see [setup.md](setup.md)).
+A static page can't run the OAuth `code → token` exchange itself (it needs the client
+secret, and GitHub's token endpoint sends no CORS headers), so a tiny **Cloudflare
+Worker** does it. **One Worker serves every consumer repo.**
+
+- Live instance: `https://digit-ci-auth.egovernments.workers.dev` — baked into the page
+  as `AUTH_BASE` in `pages/actions/index.html`.
+- The source lives in this doc (below) so it stays versioned and reviewable; redeploy by
+  copying it into the Cloudflare editor or `wrangler deploy`.
+
+## Access model
+
+Signing in grants **no new access** — the page acts **as the signed-in user**, and
+GitHub enforces that user's real role on every call, per repository:
+
+| Person (on the repo) | View runs | Run a build |
+|---|---|---|
+| No access | 404 (repo invisible) | — |
+| Read-only | yes | 403 |
+| Write / Maintain / Admin | yes | yes |
+
+Identical to the native Actions tab. It does **not** work for everyone.
+
+> **OAuth App tradeoff:** a classic OAuth App has only coarse scopes, so the issued
+> token carries `repo` (or `public_repo`) across all of the user's repos — the page only
+> ever calls the one repo, but the token itself is broad. A GitHub App would be narrower;
+> an OAuth App is used here by choice.
+
+## 1. Create the OAuth App (org owner)
+
+**GitHub → Settings → Developer settings → OAuth Apps → New OAuth App**
+
+| Field | Value |
+|---|---|
+| Application name | e.g. `DIGIT Code Build` |
+| Homepage URL | `https://egovernments.github.io/DIGIT-Studio/` |
+| Authorization callback URL | `https://digit-ci-auth.egovernments.workers.dev/auth/callback` |
+
+Generate a **client secret**; note the **Client ID** (public). If the org restricts
+OAuth Apps, an owner must **approve** it once.
+
+## 2. Deploy the Worker
+
+**Dashboard (no CLI):** Workers & Pages → Create → Worker → paste `worker.js` → Deploy,
+then **Settings → Variables & Secrets**. **wrangler:** `wrangler deploy` from a dir
+holding the two files below, then `wrangler secret put …`.
+
+| Name | Kind | Value |
+|---|---|---|
+| `GITHUB_CLIENT_ID` | var | the OAuth App Client ID |
+| `GITHUB_CLIENT_SECRET` | secret | the OAuth App client secret |
+| `STATE_SECRET` | secret | `openssl rand -hex 32` |
+| `ALLOWED_ORIGINS` | var | `https://egovernments.github.io` |
+| `SCOPE` | var | `repo` (private repos) or `public_repo` |
+
+Confirm with `curl https://digit-ci-auth.egovernments.workers.dev/health` → `ci-auth-worker ok`.
+
+> The `workers.dev` subdomain (`egovernments`) is an **account-level**, set-once name;
+> change it only via the Cloudflare dashboard (or delete + re-create via the API).
+
+## Worker source
+
+`worker.js`:
+
+```js
+// GitHub OAuth broker for the Code Build dispatcher (the /actions page).
+//
+// One Worker serves EVERY consumer repo. The static dispatcher page cannot run an
+// OAuth code->token exchange itself (it needs the client secret, and GitHub's token
+// endpoint sends no CORS headers), so this Worker does it:
+//
+//   page  --/auth/login?redirect=<page>&n=<nonce>-->  Worker  --302-->  github.com/login/oauth/authorize
+//   github --code,state--> Worker /auth/callback --exchange--> <page>#token=<t>&state=<nonce>
+//
+// The page then uses that user token to talk to api.github.com AS THE SIGNED-IN USER,
+// so access stays exactly native: GitHub enforces each person's real repo role on
+// every call (dispatch needs write, viewing needs read; no access -> 404).
+//
+// Environment (Cloudflare dashboard -> the Worker -> Settings -> Variables & Secrets):
+//   GITHUB_CLIENT_ID      var     - OAuth App Client ID
+//   GITHUB_CLIENT_SECRET  secret  - OAuth App Client Secret
+//   STATE_SECRET          secret  - any long random string (e.g. `openssl rand -hex 32`)
+//   ALLOWED_ORIGINS       var     - comma-separated page origins allowed to log in,
+//                                   e.g. "https://egovernments.github.io"
+//   SCOPE                 var     - "repo" (private repos) or "public_repo" (public only)
+//
+// The OAuth App's "Authorization callback URL" must be exactly  https://<worker-host>/auth/callback
+
+const enc = new TextEncoder();
+const STATE_TTL_MS = 10 * 60 * 1000;   // a login attempt is valid for 10 minutes
+
+function b64url(bytes) {
+  let s = btoa(String.fromCharCode.apply(null, new Uint8Array(bytes)));
+  return s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function b64urlToStr(s) {
+  s = s.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  return atob(s);
+}
+async function hmac(secret, msg) {
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return b64url(await crypto.subtle.sign("HMAC", key, enc.encode(msg)));
+}
+async function signState(secret, obj) {
+  const body = b64url(enc.encode(JSON.stringify(obj)));
+  return body + "." + (await hmac(secret, body));
+}
+async function verifyState(secret, state) {
+  const dot = (state || "").indexOf(".");
+  if (dot < 1) return null;
+  const body = state.slice(0, dot), sig = state.slice(dot + 1);
+  const expect = await hmac(secret, body);
+  if (sig.length !== expect.length) return null;
+  let diff = 0;
+  for (let i = 0; i < sig.length; i++) diff |= sig.charCodeAt(i) ^ expect.charCodeAt(i);
+  if (diff !== 0) return null;
+  try { return JSON.parse(b64urlToStr(body)); } catch (e) { return null; }
+}
+function originOf(u) { try { return new URL(u).origin; } catch (e) { return ""; } }
+function allowed(env, redirect) {
+  return (env.ALLOWED_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean)
+    .includes(originOf(redirect));
+}
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    if (url.pathname === "/auth/login")    return login(url, env);
+    if (url.pathname === "/auth/callback") return callback(url, env);
+    if (url.pathname === "/" || url.pathname === "/health")
+      return new Response("ci-auth-worker ok", { status: 200, headers: { "content-type": "text/plain" } });
+    return new Response("Not found", { status: 404 });
+  }
+};
+
+async function login(url, env) {
+  const redirect = url.searchParams.get("redirect") || "";
+  const nonce = url.searchParams.get("n") || "";
+  if (!allowed(env, redirect)) return new Response("redirect origin not allowed", { status: 400 });
+  const state = await signState(env.STATE_SECRET, { r: redirect, n: nonce, t: Date.now() });
+  const gh = new URL("https://github.com/login/oauth/authorize");
+  gh.searchParams.set("client_id", env.GITHUB_CLIENT_ID);
+  gh.searchParams.set("redirect_uri", url.origin + "/auth/callback");
+  gh.searchParams.set("scope", env.SCOPE || "repo");
+  gh.searchParams.set("state", state);
+  gh.searchParams.set("allow_signup", "false");
+  return Response.redirect(gh.toString(), 302);
+}
+
+async function callback(url, env) {
+  const code = url.searchParams.get("code") || "";
+  const st = await verifyState(env.STATE_SECRET, url.searchParams.get("state") || "");
+  if (!code || !st) return new Response("bad or missing state", { status: 400 });
+  if (Date.now() - (st.t || 0) > STATE_TTL_MS) return new Response("login expired, try again", { status: 400 });
+  if (!allowed(env, st.r)) return new Response("redirect origin not allowed", { status: 400 });
+
+  let data = {};
+  try {
+    const res = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: { "Accept": "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: env.GITHUB_CLIENT_ID,
+        client_secret: env.GITHUB_CLIENT_SECRET,
+        code,
+        redirect_uri: url.origin + "/auth/callback"
+      })
+    });
+    data = await res.json();
+  } catch (e) { data = { error: "network_error" }; }
+
+  const back = new URL(st.r);
+  back.hash = data && data.access_token
+    ? "token=" + encodeURIComponent(data.access_token) + "&state=" + encodeURIComponent(st.n || "")
+    : "auth_error=" + encodeURIComponent((data && data.error) || "exchange_failed");
+  return Response.redirect(back.toString(), 302);
+}
+```
+
+`wrangler.toml`:
+
+```toml
+name = "digit-ci-auth"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# Non-secret vars can live here (or set them in the dashboard). Secrets must be set
+# with `wrangler secret put <NAME>` or in the dashboard — never commit them.
+#
+#   GITHUB_CLIENT_ID      -> var    (dashboard or `[vars]` below)
+#   GITHUB_CLIENT_SECRET  -> secret (`wrangler secret put GITHUB_CLIENT_SECRET`)
+#   STATE_SECRET          -> secret (`openssl rand -hex 32` then `wrangler secret put STATE_SECRET`)
+#
+[vars]
+ALLOWED_ORIGINS = "https://egovernments.github.io"
+SCOPE = "repo"
+# GITHUB_CLIENT_ID = "Iv1..."   # safe to set here (it is not secret), or set in the dashboard
+```
+
+## Flow & security notes
+
+- `/auth/login?redirect=<page>&n=<nonce>` → 302 to GitHub authorize. `state` is
+  HMAC-signed (`STATE_SECRET`) and carries the redirect + nonce + timestamp.
+- `/auth/callback` verifies the signature + 10-min freshness, checks the redirect origin
+  against `ALLOWED_ORIGINS`, exchanges the code, and 302s back to the page with the token
+  in the URL **fragment** (`#token=…`), which never reaches any server.
+- The page verifies `state` matches the nonce it stored, then holds the token in
+  `sessionStorage` (per-tab; cleared on tab close / 15-min idle / Disconnect) — the same
+  path as the PAT, so refresh-persistence and per-repo access apply identically.
+- The token appears briefly in the page URL fragment (and history); the page strips it
+  immediately. Rotate `GITHUB_CLIENT_SECRET` if it is ever exposed.
+- If the OAuth App has **"Expire user access tokens"** on, tokens last ~8h and the user
+  simply signs in again (the Worker does not yet use the refresh token).

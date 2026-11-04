@@ -73,7 +73,7 @@ UI to `gh-pages`.
 
 **`auth_mode`** picks how the `/actions` UI signs in: **`pat`** (default, paste a
 fine-grained token) or **`oauth`** ("Sign in with GitHub" via the shared broker
-Worker — see [`ci-auth-worker`](../../ci-auth-worker/README.md), which must be deployed
+Worker — see [OAuth / broker Worker](oauth-worker.md), which must be deployed
 once, with its URL baked into the page as `AUTH_BASE`). Re-run Setup to switch modes.
 Note: the first run after adopting this adds the `auth_mode` choice to the consumer's
 own `setup.yaml`, so picking `oauth` is available from the **second** run onward.

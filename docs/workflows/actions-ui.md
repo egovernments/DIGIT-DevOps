@@ -50,7 +50,7 @@ It's a **small, separate** token: it only reads config and dispatches builds —
 cannot write code or workflows (unlike the setup GitHub App).
 
 **`oauth`** — a **Sign in with GitHub** button. The page redirects to the shared
-broker Worker ([`ci-auth-worker`](../../ci-auth-worker/README.md)), which runs the
+broker Worker ([OAuth / broker Worker](oauth-worker.md)), which runs the
 OAuth code→token exchange (the client secret can't live in a static page) and returns
 a user token in the URL fragment. The token is held in session storage exactly like
 the PAT. No token to paste. Requires the OAuth App + Worker to be set up once; the

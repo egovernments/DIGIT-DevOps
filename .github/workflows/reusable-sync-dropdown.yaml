@@ -31,6 +31,18 @@ jobs:
       contents: write
       pull-requests: write
     steps:
+      - name: Guard — default branch only
+        env:
+          GH_TOKEN: ${{ secrets.WORKFLOWS_TOKEN }}
+        run: |
+          set -euo pipefail
+          DEFAULT=$(gh api "repos/${GITHUB_REPOSITORY}" -q .default_branch)
+          if [ "${GITHUB_REF_NAME}" != "$DEFAULT" ]; then
+            echo "::error::Sync runs only from the default branch ($DEFAULT); it was started from '${GITHUB_REF_NAME}'. Set 'Use workflow from' to $DEFAULT."
+            exit 1
+          fi
+          echo "On default branch ($DEFAULT) — proceeding."
+
       - name: Checkout caller repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:

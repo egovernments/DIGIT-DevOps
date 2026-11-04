@@ -1,10 +1,10 @@
 # Setup workflow
 
 `reusable-setup.yaml` provisions a consumer repo in one run: it scaffolds the
-Code Build caller (with dropdowns already populated), the sync-dropdown workflow,
-the Trivy dashboard toolkit and the `/pipelines` UI, and **commits them straight
-to the default branch**. It also publishes the `/pipelines` UI to `gh-pages`
-(created if absent) and best-effort enables Pages.
+Code Build caller (with the service + branch dropdowns already populated), the sync-code-build
+workflow and the Trivy dashboard toolkit, and **commits them straight to the
+default branch**. It also publishes a **landing page** and the `/actions`
+dispatcher UI to `gh-pages` (created if absent) and best-effort enables Pages.
 
 > Setup and sync authenticate as a **GitHub App** and push directly to the
 > default branch. The App must be on that branch's ruleset **bypass** list.
@@ -59,8 +59,9 @@ jobs:
 
 Run it from the Actions tab (leave **Use workflow from** on the default branch —
 setup refuses any other). It commits `code-build.yaml` (dropdowns populated from
-`build-config.yml`), `sync-dropdown.yaml`, `.trivy/dashboard/` and `setup.yaml`
-directly to the default branch, and publishes `pipelines/` to `gh-pages`.
+`build-config.yml`), `sync-code-build.yaml`, `.trivy/dashboard/` and `setup.yaml`
+directly to the default branch, and publishes the landing page (`/`) + `/actions`
+UI to `gh-pages`.
 
 ## 3. Build prerequisites
 

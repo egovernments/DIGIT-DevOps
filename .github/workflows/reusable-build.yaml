@@ -2,6 +2,7 @@
 # Pipeline: resolve-config -> code-scan -> image-scan -> build (push).
 # Trivy mirrors health-campaign-services: CRITICAL blocks the push; reports
 # publish to the caller's gh-pages /security/trivy via .trivy/dashboard.
+# The scan gate runs ONLY on the default branch; other branches build unscanned.
 # Docs: docs/workflows/build.md
 name: Reusable Build
 
@@ -53,7 +54,7 @@ on:
         type: boolean
         default: true
       enable_trivy:
-        description: "Run Trivy code + image scans and publish the dashboard (needs .trivy/dashboard in the caller)"
+        description: "Run Trivy code + image scans on the default branch only (CRITICAL blocks the push); other branches build unscanned"
         required: false
         type: boolean
         default: true
@@ -85,6 +86,7 @@ jobs:
       db_work_dir: ${{ steps.cfg.outputs.db_work_dir }}
       db_dockerfile: ${{ steps.cfg.outputs.db_dockerfile }}
       tag: ${{ steps.tag.outputs.tag }}
+      is_default: ${{ steps.policy.outputs.is_default }}
     steps:
       - name: Checkout caller repo
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -130,11 +132,28 @@ jobs:
           REF="${BUILD_BRANCH:-${GITHUB_REF##*/}}"
           echo "tag=${REF##*/}-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
+      # Scan policy: Trivy gates only the DEFAULT branch. Other branches build
+      # without scanning (the scan jobs are skipped, so the build runs normally).
+      - name: Determine scan policy
+        id: policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_BRANCH: ${{ inputs.build_branch }}
+        run: |
+          set -euo pipefail
+          DEFAULT=$(gh api "repos/${GITHUB_REPOSITORY}" -q .default_branch)
+          REF="${BUILD_BRANCH:-${GITHUB_REF_NAME}}"
+          REF="${REF##*/}"
+          if [ "$REF" = "$DEFAULT" ]; then IS=true; else IS=false; fi
+          echo "is_default=$IS" >> "$GITHUB_OUTPUT"
+          echo "Build ref '$REF' vs default '$DEFAULT' — scan gate: $IS"
+
   # Security gate 1 — scan the service SOURCE. CRITICAL aborts before any build.
   code-scan:
     name: Code scan · ${{ needs.resolve-config.outputs.image_name }}
     needs: resolve-config
-    if: ${{ inputs.enable_trivy }}
+    # Gate only the default branch; other branches skip the scan and build normally.
+    if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.is_default == 'true' }}
     runs-on: ${{ inputs.runs_on }}
     permissions:
       contents: write
@@ -184,7 +203,8 @@ jobs:
   image-scan:
     name: Image scan · ${{ needs.resolve-config.outputs.image_name }}
     needs: [resolve-config, code-scan]
-    if: ${{ inputs.enable_trivy }}
+    # Default branch only; other branches skip straight to the build.
+    if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.is_default == 'true' }}
     runs-on: ${{ inputs.runs_on }}
     permissions:
       contents: write

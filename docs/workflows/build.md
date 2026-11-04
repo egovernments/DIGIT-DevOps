@@ -5,8 +5,8 @@
 ## Pipeline
 
 ```
-resolve-config ─▶ code-scan ─▶ image-scan ─▶ build (push)
-                  (Trivy fs)    (Trivy image)   app + db, multi-arch
+resolve-config ─▶ code-scan ─▶ image-scan ─▶ build (push + sign)
+                  (Trivy fs)    (Trivy image)   app + db, multi-arch, cosign
 ```
 
 1. **resolve-config** — reads `build/build-config.yml`, resolves the app work-dir /
@@ -17,7 +17,10 @@ resolve-config ─▶ code-scan ─▶ image-scan ─▶ build (push)
 3. **image-scan** — builds the image locally (amd64) and Trivy-scans it. A
    **CRITICAL** finding fails the job, so the image is never pushed.
 4. **build** — multi-arch buildx push of the app image (and `<service>-db` when
-   present), with GitHub Actions layer cache.
+   present), with GitHub Actions layer cache. The pushed image digest(s) are then
+   signed with **cosign keyless** (GitHub OIDC → Fulcio certificate → Rekor
+   transparency log — no private key to manage). Signing is skipped when
+   `push: false` or `enable_cosign: false`.
 
 Every scan publishes to the caller's `gh-pages/security/trivy` via
 `.trivy/dashboard/publish.sh`, regardless of the gate result.
@@ -36,8 +39,30 @@ Every scan publishes to the caller's `gh-pages/security/trivy` via
 | `runs_on` | `ubuntu-latest` | Runner label |
 | `push` | `true` | `false` = build-only validation |
 | `enable_trivy` | `true` | Run scans; needs `.trivy/dashboard` in the caller |
+| `enable_cosign` | `true` | Sign pushed images with cosign keyless; needs `id-token: write` from the caller |
 
 Secrets: `DOCKER_USERNAME`, `DOCKER_ACCESS_TOKEN`.
+
+The caller job must grant `id-token: write` (for cosign keyless) and
+`contents: write` (for the Trivy gh-pages publish):
+
+```yaml
+jobs:
+  build:
+    permissions:
+      contents: write
+      id-token: write
+    uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-build.yaml@reusable-build-v1
+    ...
+```
+
+## Verifying a signature
+
+```bash
+cosign verify egovio/<service>:<tag> \
+  --certificate-identity-regexp 'https://github.com/<org>/<repo>/.github/workflows/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
 Outputs: `docker_image`, `db_image`.
 
 ## Disabling scans

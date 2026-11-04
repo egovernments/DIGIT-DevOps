@@ -57,6 +57,11 @@ on:
         required: false
         type: boolean
         default: true
+      enable_cosign:
+        description: "Sign the pushed images with cosign keyless (GitHub OIDC -> Fulcio -> Rekor); needs id-token:write from the caller"
+        required: false
+        type: boolean
+        default: true
     secrets:
       DOCKER_USERNAME:
         required: true
@@ -255,6 +260,9 @@ jobs:
       && (needs.code-scan.result == 'success' || needs.code-scan.result == 'skipped')
       && (needs.image-scan.result == 'success' || needs.image-scan.result == 'skipped') }}
     runs-on: ${{ inputs.runs_on }}
+    permissions:
+      contents: read
+      id-token: write          # cosign keyless signing (OIDC -> Fulcio)
     outputs:
       docker_image: ${{ steps.refs.outputs.app }}
       db_image: ${{ steps.refs.outputs.db }}
@@ -274,6 +282,7 @@ jobs:
           password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
 
       - name: Build and push application image
+        id: build_app
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
@@ -286,6 +295,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ inputs.service }}
 
       - name: Build and push database image
+        id: build_db
         if: ${{ needs.resolve-config.outputs.db_work_dir != '' }}
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
@@ -310,6 +320,36 @@ jobs:
           else
             echo "db=" >> "$GITHUB_OUTPUT"
           fi
+
+      # Supply-chain control: sign the pushed image(s) so consumers can verify
+      # provenance. Keyless — identity from the GitHub OIDC token, certificate
+      # from Fulcio, signature recorded in the public Rekor log; no key to manage.
+      # sigstore/cosign-installer ships no floating v4 tag, so pin it by exact tag.
+      - name: Install cosign
+        if: ${{ inputs.push && inputs.enable_cosign }}
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v3.1.3'   # pin the tool: a supply-chain control
+                                     # must not ride a floating version
+
+      - name: Sign images (cosign keyless)
+        if: ${{ inputs.push && inputs.enable_cosign }}
+        env:
+          APP_REPO: ${{ inputs.registry_namespace }}/${{ inputs.service }}
+          DB_REPO: ${{ inputs.registry_namespace }}/${{ inputs.service }}-db
+          APP_DIGEST: ${{ steps.build_app.outputs.digest }}
+          DB_DIGEST: ${{ steps.build_db.outputs.digest }}
+        run: |
+          set -euo pipefail
+          # Sign by digest (immutable content id), never by the mutable tag.
+          test -n "$APP_DIGEST" || { echo "::error::no application digest to sign"; exit 1; }
+          cosign sign --yes "${APP_REPO}@${APP_DIGEST}"
+          SIGNED="app"
+          if [ -n "${DB_DIGEST:-}" ]; then
+            cosign sign --yes "${DB_REPO}@${DB_DIGEST}"
+            SIGNED="app, db"
+          fi
+          echo "Signed (${SIGNED}) with cosign keyless — GitHub OIDC → Fulcio → Rekor." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summary
         env:

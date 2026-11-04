@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HCM - Code Scan</title>
+<script>try{var t=localStorage.getItem('trivy-theme');document.documentElement.dataset.theme=t||(window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}catch(e){}</script>
+<title>Security · Trivy</title>
 <link rel="icon" type="image/svg+xml" href="../logo.svg">
 <style>
   :root{
@@ -214,7 +215,7 @@
   <aside class="sidebar">
     <div class="sb-brand">
       <span class="logo" id="brand-logo"></span>
-      <div><b>HCM</b><span id="brand-sub">Service scan console</span></div>
+      <div><b id="brand">Security</b><span id="brand-sub">Service scan console</span></div>
     </div>
     <div class="sb-sec">Scans</div>
     <nav class="nav" id="nav"></nav>
@@ -326,7 +327,9 @@ function initChrome(){
   document.getElementById("brand-logo").innerHTML=LOGO;
   document.getElementById("title").firstChild.textContent=esc(SERVICE)+" ";
   document.getElementById("tag").textContent="Service";
-  document.title="HCM - Code Scan";
+  var repo="";try{var h=location.hostname,seg=location.pathname.split("/").filter(Boolean);if(h.endsWith(".github.io")&&seg[0])repo=seg[0];}catch(e){}
+  if(repo)document.getElementById("brand").textContent=repo;
+  document.title=(SERVICE?SERVICE+" · ":"")+(repo||"Security");
 }
 function renderNav(){
   const groups=["code","image"].map(kind=>{
@@ -659,7 +662,7 @@ function render(){
   if(bid&&BUILDS.some(b=>b.id===bid))state.build=bid;
   initChrome();initFilters();
   document.getElementById("q").addEventListener("input",e=>{state.q=e.target.value.trim().toLowerCase();if(MODEL)render();});
-  document.getElementById("theme").onclick=()=>{const d=document.documentElement;d.dataset.theme=d.dataset.theme==="dark"?"light":"dark";if(MODEL)render();};
+  document.getElementById("theme").onclick=()=>{const d=document.documentElement;const n=d.dataset.theme==="dark"?"light":"dark";d.dataset.theme=n;try{localStorage.setItem("trivy-theme",n);}catch(e){}if(MODEL)render();};
   document.getElementById("print").onclick=()=>window.print();
   document.getElementById("xls").onclick=()=>{if(MODEL)exportExcel();};
   document.getElementById("rbtn").onclick=e=>{e.stopPropagation();state.menu=!state.menu;initSelector();};

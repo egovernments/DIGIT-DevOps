@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.github.com; img-src 'self' data: https://avatars.githubusercontent.com; base-uri 'none'; form-action 'none'">
 <title>Code Build</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSdnJyB4MT0nMCcgeTE9JzAnIHgyPScxJyB5Mj0nMSc+PHN0b3Agb2Zmc2V0PScwJyBzdG9wLWNvbG9yPScjMmY0YmQ4Jy8+PHN0b3Agb2Zmc2V0PScxJyBzdG9wLWNvbG9yPScjMWEyYThjJy8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nOCcgZmlsbD0ndXJsKCNnKScvPjx0ZXh0IHg9JzE2JyB5PScyMicgZm9udC1mYW1pbHk9J3N5c3RlbS11aSxTZWdvZSBVSSxSb2JvdG8sc2Fucy1zZXJpZicgZm9udC1zaXplPScxNScgZm9udC13ZWlnaHQ9JzcwMCcgZmlsbD0nI2ZmZmZmZicgdGV4dC1hbmNob3I9J21pZGRsZSc+Q0I8L3RleHQ+PC9zdmc+">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
@@ -136,10 +137,11 @@
   .run .note{font-size:12px;color:var(--faint)}
 
   .rail{display:flex;flex-direction:column;gap:20px}
-  .run-row{display:flex;align-items:center;gap:11px;padding:11px 0;border-top:1px solid var(--border)}
+  .run-row{display:flex;align-items:center;gap:11px;padding:11px 8px;margin:0 -8px;border-top:1px solid var(--border);border-radius:8px;cursor:pointer;color:inherit;text-decoration:none;transition:background .12s ease}
   .run-row:first-of-type{border-top:0}
+  .run-row:hover{background:var(--surface-2)}
   .dot{width:9px;height:9px;border-radius:50%;flex:none}
-  .dot.ok{background:var(--ok)}.dot.run{background:var(--accent)}.dot.fail{background:var(--crit)}.dot.queue{background:var(--faint)}
+  .dot.ok{background:var(--ok)}.dot.run{background:var(--accent)}.dot.fail{background:var(--crit)}.dot.queue{background:var(--faint)}.dot.block{background:var(--warn)}
   .run-row .meta{min-width:0;flex:1}
   .run-row .svc{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .run-row .t{font-size:11.5px;color:var(--faint);font-family:var(--mono)}
@@ -204,7 +206,7 @@
     <span class="who" id="whoArea" hidden>
       <span class="avatar" id="whoAvatar"></span>
       <span id="whoName" class="mono"></span>
-      <button class="ghost" id="disconnectBtn" title="Clear token from memory">Disconnect</button>
+      <button class="ghost" id="disconnectBtn" title="Clear token from this tab">Disconnect</button>
     </span>
   </div>
   <nav>
@@ -219,9 +221,9 @@
   <!-- CONNECT GATE -->
   <section id="view-connect">
     <div class="card connect">
-      <div class="hd"><h2>Connect to GitHub</h2><span class="tag">token · memory only</span></div>
+      <div class="hd"><h2>Connect to GitHub</h2><span class="tag">token · this tab</span></div>
       <div class="bd">
-        <p class="lead">Paste a <b>fine-grained personal access token</b> scoped to this repo. It is held in memory for this tab only &mdash; never written to storage, never sent anywhere but <span class="mono">api.github.com</span>.</p>
+        <p class="lead">Paste a <b>fine-grained personal access token</b> scoped to this repo. It is kept for <b>this browser tab</b> only &mdash; it survives a refresh, clears when you close the tab or after 15 min idle, is never shared with other tabs or devices, and (via a strict CSP) can only ever reach <span class="mono">api.github.com</span>.</p>
         <div class="two">
           <div><label for="inOwner">Owner</label><input type="text" id="inOwner" spellcheck="false" autocapitalize="off"></div>
           <div><label for="inRepo">Repository</label><input type="text" id="inRepo" spellcheck="false" autocapitalize="off"></div>
@@ -286,7 +288,7 @@
     <div class="card sec-card">
       <div class="hd"><h2>Trivy security gate</h2><span class="tag">gh-pages · /security/trivy</span></div>
       <div class="bd">
-        <p><span class="pill">pattern · health-campaign-services</span></p>
+        <p><span class="pill">pattern · DIGIT-DevOps reusable CI</span></p>
         <p>Every Code Build runs <span class="mono">aquasecurity/trivy-action</span> against the source tree and the built image. A <b>CRITICAL</b> finding blocks the gate; the report is published to <span class="mono">gh-pages</span> regardless, so history is never lost.</p>
         <ol class="steps">
           <li><b>Code scan</b> &mdash; filesystem scan of the service work-dir.</li>
@@ -308,7 +310,7 @@
         <div class="node"><div class="n">3 · dispatch</div><div class="d">Run posts to the workflow_dispatch API on the default branch with the chosen build_branch + service. Needs <code>Actions: write</code>.</div></div>
         <div class="node"><div class="n">4 · watch</div><div class="d">The run executes the DIGIT-DevOps engine + Trivy; this page polls its status and links to it.</div></div>
       </div>
-      <p>The token lives only in this tab's memory. It is never stored, and a strict Content-Security-Policy means it can only ever reach <code>api.github.com</code> &mdash; nothing on this page can send it elsewhere.</p>
+      <p>The token is kept for this browser tab only (session storage): it survives a refresh, is cleared when the tab closes or after 15 min idle, and never leaves your browser &mdash; a strict Content-Security-Policy means it can only ever reach <code>api.github.com</code>, and nothing on this page can send it elsewhere.</p>
     </div>
   </details>
 </main>
@@ -323,6 +325,8 @@ let OWNER = "egovernments", REPO = "DIGIT-Studio";
 let CFG = null;            // parsed config for the selected branch: { module: [services] }
 let DEFAULT_BRANCH = null;
 let pollTimer = null, idleTimer = null;
+let pending = null, graceUntil = 0, lastRuns = [];   // recent-runs: optimistic row + poll window
+const jobCache = {};                                  // run id -> blocked-code | blocked-image | failure
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -363,8 +367,9 @@ function relTime(iso){
 }
 
 /* ---------------- connect / disconnect ---------------- */
-async function connect(){
-  const token = $("inToken").value.trim();
+async function connect(presetToken){
+  const restoring = !!presetToken;
+  const token = presetToken || $("inToken").value.trim();
   OWNER = $("inOwner").value.trim() || OWNER;
   REPO  = $("inRepo").value.trim()  || REPO;
   if(!token){ showErr("Paste a token to connect."); return; }
@@ -383,7 +388,8 @@ async function connect(){
   }catch(e){
     fail("Network error reaching api.github.com.");
   }
-  function fail(msg){ TOKEN = null; setConnecting(false); showErr(msg); }
+  function fail(msg){ TOKEN = null; setConnecting(false); try{ sessionStorage.removeItem("cb-session"); }catch(e){}
+    if(restoring){ showView("connect"); showErr("Session expired — reconnect."); } else { showErr(msg); } }
 }
 function setConnecting(on){
   $("connectBtn").disabled = on;
@@ -394,6 +400,7 @@ function showErr(msg){ const e=$("connectErr"); e.hidden=!msg; e.textContent=msg
 function onConnected(user){
   $("inToken").value = "";            // drop the token out of the DOM immediately
   setConnecting(false);
+  try{ sessionStorage.setItem("cb-session", JSON.stringify({token:TOKEN, owner:OWNER, repo:REPO})); }catch(e){}
   $("brandSub").textContent = OWNER + "/" + REPO;
   $("trivyLink").href = "https://" + OWNER + ".github.io/" + REPO + "/security/trivy/";
   const av = $("whoAvatar");
@@ -407,6 +414,8 @@ function onConnected(user){
 }
 function disconnect(){
   TOKEN = null; CFG = null;
+  pending = null; graceUntil = 0;
+  try{ sessionStorage.removeItem("cb-session"); }catch(e){}
   if(pollTimer) clearInterval(pollTimer);
   if(idleTimer) clearTimeout(idleTimer);
   $("whoArea").hidden = true; $("howBox").hidden = true;
@@ -528,13 +537,36 @@ function showResolved(s){
 }
 
 /* ---------------- recent runs (live) ---------------- */
-function statusClass(run){
-  if(run.status!=="completed") return run.status==="queued" ? "queue" : "run";
-  return run.conclusion==="success" ? "ok" : (run.conclusion==="failure"||run.conclusion==="timed_out") ? "fail" : "queue";
+// A Trivy gate block shows as "Blocked · Code/Image" (distinct from a genuine build
+// break, "Failure") by looking at WHICH job failed — the scan jobs are code-scan /
+// image-scan in the reusable engine.
+const RUN_LABEL = { queued:"Queued", running:"Running", success:"Success",
+  failure:"Failure", cancelled:"Cancelled", "blocked-code":"Blocked · Code",
+  "blocked-image":"Blocked · Image", done:"Done" };
+const RUN_CLS = { queued:"queue", running:"run", success:"ok", failure:"fail",
+  cancelled:"queue", "blocked-code":"block", "blocked-image":"block", done:"queue" };
+async function classifyFailed(run){
+  if(jobCache[run.id]) return jobCache[run.id];
+  let kind = "failure";
+  try{
+    const r = await api("/repos/"+OWNER+"/"+REPO+"/actions/runs/"+run.id+"/jobs?per_page=50");
+    if(r.ok){
+      const bad = ((await r.json()).jobs || [])
+        .filter(j => j.conclusion==="failure" || j.conclusion==="timed_out")
+        .map(j => (j.name||"").toLowerCase()).join(" ");
+      if(/code-scan/.test(bad)) kind = "blocked-code";
+      else if(/image-scan/.test(bad)) kind = "blocked-image";
+    }
+  }catch(e){}
+  jobCache[run.id] = kind;
+  return kind;
 }
-function statusLabel(run){
+function runKind(run){
   if(run.status!=="completed") return run.status==="queued" ? "queued" : "running";
-  return run.conclusion || "done";
+  if(run.conclusion==="success") return "success";
+  if(run.conclusion==="failure" || run.conclusion==="timed_out") return jobCache[run.id] || "failure";
+  if(run.conclusion==="cancelled") return "cancelled";
+  return "done";
 }
 async function pollRuns(branch){
   if(pollTimer) clearInterval(pollTimer);
@@ -543,29 +575,46 @@ async function pollRuns(branch){
       // Runs are dispatched on the default branch (the branch to build is an input).
       const r = await api("/repos/"+OWNER+"/"+REPO+"/actions/workflows/code-build.yaml/runs?branch="+encodeURIComponent(DEFAULT_BRANCH||branch)+"&per_page=8");
       if(!r.ok){ renderRuns(null, r.status===404 ? "Code Build has no runs yet." : null); return; }
-      const data = await r.json();
-      const runs = data.workflow_runs || [];
+      const runs = (await r.json()).workflow_runs || [];
+      // Resolve blocked-vs-failure for failed runs (cached — one fetch per run).
+      await Promise.all(runs
+        .filter(x => x.status==="completed" && (x.conclusion==="failure" || x.conclusion==="timed_out"))
+        .map(classifyFailed));
+      // Drop the optimistic row once our dispatched run appears in the list.
+      if(pending && runs.some(x => new Date(x.created_at).getTime() >= pending.at - 30000)) pending = null;
+      lastRuns = runs;
       renderRuns(runs);
+      // Keep polling while anything is active, or during the grace window after a
+      // dispatch (so the brand-new run is caught even before it is listed).
       const active = runs.some(x => x.status!=="completed");
-      if(!active && pollTimer){ clearInterval(pollTimer); pollTimer=null; }
+      if(!active && Date.now() > graceUntil && pollTimer){ clearInterval(pollTimer); pollTimer=null; }
     }catch(e){}
   };
   tick();
-  pollTimer = setInterval(tick, 6000);
+  pollTimer = setInterval(tick, 5000);
+}
+function runRow(cls, href, title, sub, label){
+  return '<a class="run-row" href="'+esc(href)+'" target="_blank" rel="noopener">'
+    + '<span class="dot '+cls+'"></span>'
+    + '<div class="meta"><div class="svc">'+esc(title)+'</div>'
+    + '<div class="t">'+esc(sub)+'</div></div>'
+    + '<span class="chip '+cls+'">'+esc(label)+'</span></a>';
 }
 function renderRuns(runs, emptyMsg){
   const rr = $("recentRuns");
   if(runs===null){ rr.innerHTML = '<div class="hint" style="padding:12px 0">'+esc(emptyMsg||"Could not load runs.")+'</div>'; return; }
-  if(!runs.length){ rr.innerHTML = '<div class="hint" style="padding:12px 0">No Code Build runs yet.</div>'; return; }
-  rr.innerHTML = runs.map(r => {
-    const cls = statusClass(r), title = r.display_title || r.name || "run";
-    return '<div class="run-row">'
-      + '<span class="dot '+cls+'"></span>'
-      + '<div class="meta"><div class="svc">'+esc(title)+'</div>'
-      + '<div class="t">'+esc(relTime(r.created_at))+' · '+esc((r.head_sha||"").slice(0,7))+'</div></div>'
-      + '<a class="chip '+cls+'" href="'+esc(r.html_url)+'" target="_blank" rel="noopener">'+esc(statusLabel(r))+'</a>'
-      + '</div>';
+  let html = "";
+  if(pending){   // optimistic row: show the just-dispatched build before GitHub lists it
+    html += runRow("queue", "https://github.com/"+OWNER+"/"+REPO+"/actions/workflows/code-build.yaml",
+      "Build — Code · "+pending.service+" ("+pending.branch+")", "just now · queued", "Queued");
+  }
+  if(!runs.length && !pending){ rr.innerHTML = '<div class="hint" style="padding:12px 0">No Code Build runs yet.</div>'; return; }
+  html += runs.map(r => {
+    const k = runKind(r);
+    return runRow(RUN_CLS[k]||"queue", r.html_url, (r.display_title || r.name || "run"),
+      relTime(r.created_at)+" · "+(r.head_sha||"").slice(0,7), RUN_LABEL[k]||k);
   }).join("");
+  rr.innerHTML = html;
 }
 
 /* ---------------- dispatch ---------------- */
@@ -599,7 +648,11 @@ async function fireDispatch(payload){
     });
     if(r.status === 204){
       msg.style.color = "var(--ok)"; msg.textContent = "Queued ✓ — watching Recent runs";
-      setTimeout(() => { closeModal(); pollRuns(payload.ref); }, 900);
+      pending = { service: payload.inputs.service, branch: payload.inputs.build_branch, at: Date.now() };
+      graceUntil = Date.now() + 180000;   // keep polling ~3 min so the new run is caught live
+      renderRuns(lastRuns);               // reflect the queued build immediately (no refresh)
+      pollRuns(payload.ref);
+      setTimeout(closeModal, 800);
     } else if(r.status === 403){
       resetBtn(); msg.style.color="var(--crit)"; msg.textContent = "Forbidden (403) — token needs Actions: write";
     } else if(r.status === 422){
@@ -650,7 +703,20 @@ tb.addEventListener("click", () => {
   try{ localStorage.setItem("cb-theme", next); }catch(e){}
 });
 
-showView("connect");
+/* Restore the session on load so a refresh doesn't drop back to the token screen.
+   sessionStorage is per-tab and cleared when the tab closes; the token is re-validated. */
+(function restore(){
+  let s=null; try{ s=JSON.parse(sessionStorage.getItem("cb-session")||"null"); }catch(e){}
+  if(s && s.token){
+    if(s.owner) OWNER=s.owner;
+    if(s.repo)  REPO=s.repo;
+    $("inOwner").value=OWNER; $("inRepo").value=REPO; $("brandSub").textContent=OWNER+"/"+REPO;
+    showView("connect");          // shown until re-validation resolves
+    connect(s.token);
+  } else {
+    showView("connect");
+  }
+})();
 </script>
 </body>
 </html>

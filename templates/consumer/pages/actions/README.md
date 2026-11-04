@@ -14,10 +14,11 @@ All GitHub calls go straight to `api.github.com` from your browser.
 
 ## Authentication
 
-The page uses a **fine-grained personal access token**, held **in memory for the tab
-only** — it is never written to `localStorage`, `sessionStorage`, cookies, or disk, and a
-strict Content-Security-Policy means it can only ever reach `api.github.com`. Close the
-tab (or stay idle 15 minutes) and the token is gone.
+The page uses a **fine-grained personal access token**, kept for **this browser tab
+only** (session storage) — it survives a refresh so you aren't re-prompted, is cleared
+when you close the tab or stay idle 15 minutes, is never shared with other tabs or
+devices, and a strict Content-Security-Policy means it can only ever reach
+`api.github.com`.
 
 Create one at **Settings → Developer settings → Fine-grained tokens**
 (<https://github.com/settings/personal-access-tokens/new>):

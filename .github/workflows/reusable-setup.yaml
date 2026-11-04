@@ -1,7 +1,6 @@
-# One-shot setup for a consumer repo. Scaffolds the Code Build caller and the
-# sync-dropdown workflow from DIGIT-DevOps, populates the service dropdown, and
-# commits them straight to the default branch. The Trivy dashboard tooling is NOT
-# scaffolded — it lives in the engine (trivy-dashboard/) and runs from there.
+# One-shot setup for a consumer repo. Scaffolds the Code Build caller, the
+# sync-dropdown workflow and the Trivy dashboard toolkit from DIGIT-DevOps,
+# populates the service dropdown, and commits them straight to the default branch.
 # The /pipelines UI is Pages content, so it is published to the gh-pages branch
 # (which Pages serves), not committed to the source tree.
 # Auth is a GitHub App token minted in-run from APP_ID + APP_PRIVATE_KEY. The App
@@ -77,11 +76,12 @@ jobs:
           set -euo pipefail
           cp -R _devops/templates/consumer/. ./
           rm -rf _devops
-          # The /pipelines UI is GitHub Pages content: it is published to the
-          # gh-pages branch (served by Pages), not committed to the source tree.
-          # Stash it for the gh-pages step and keep it out of the setup PR.
-          rm -rf "$RUNNER_TEMP/pipelines"
-          mv pipelines "$RUNNER_TEMP/pipelines"
+          # The pages/ tree (landing page + /actions UI) is GitHub Pages content:
+          # it is published to the gh-pages branch (served by Pages), not committed
+          # to the source tree. Stash it for the gh-pages step and keep it out of
+          # the setup commit.
+          rm -rf "$RUNNER_TEMP/pages"
+          mv pages "$RUNNER_TEMP/pages"
           # Populate the Code Build service dropdown from this repo's build-config.
           # (No module field — service is the only dropdown.)
           if [ -f "$CONFIG" ]; then
@@ -108,7 +108,7 @@ jobs:
           echo "Pushed scaffold directly to ${GITHUB_REF_NAME}."
           echo "SCAFFOLD=committed" >> "$GITHUB_ENV"
 
-      - name: Publish /pipelines UI to gh-pages
+      - name: Publish landing page + /actions UI to gh-pages
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
@@ -118,26 +118,27 @@ jobs:
           # Reuse the existing gh-pages tree (keeps /security/trivy and any other
           # published content); create it as an orphan branch on first run.
           if git clone --quiet --depth 1 --branch gh-pages "$REMOTE" "$tmp" 2>/dev/null; then
-            echo "gh-pages exists; refreshing the /pipelines UI."
+            echo "gh-pages exists; refreshing the landing page and /actions UI."
           else
             rm -rf "$tmp"; mkdir -p "$tmp"; cd "$tmp"
             git init -q
             git checkout -q --orphan gh-pages
             : > .nojekyll
-            printf '<!doctype html><meta charset=utf8><title>%s</title><meta http-equiv=refresh content="0; url=security/trivy/">\n' "$GITHUB_REPOSITORY" > index.html
             echo "Initialized gh-pages."
           fi
           cd "$tmp"
           touch .nojekyll
-          rm -rf pipelines
-          cp -R "$RUNNER_TEMP/pipelines" pipelines
+          # Landing page -> root index.html; dispatcher -> /actions. Drop the
+          # legacy /pipelines path. /security/trivy and everything else untouched.
+          rm -rf actions pipelines
+          cp -R "$RUNNER_TEMP/pages/." ./
           git add -A
           if ! git -c user.email="github-actions[bot]@users.noreply.github.com" \
-                  -c user.name="github-actions[bot]" commit -qm "chore: publish /pipelines UI to gh-pages"; then
+                  -c user.name="github-actions[bot]" commit -qm "chore: publish CI landing page + /actions UI to gh-pages"; then
             echo "gh-pages already up to date."; exit 0
           fi
           git push -q "$REMOTE" HEAD:gh-pages
-          echo "Published /pipelines to gh-pages."
+          echo "Published landing page + /actions to gh-pages."
 
       - name: Enable Pages (best effort)
         if: ${{ inputs.enable_pages }}
@@ -154,7 +155,7 @@ jobs:
           {
             echo "### Code Build setup"
             echo "- Scaffold → ${SCAFFOLD:-committed} on the default branch (direct push via the App)"
-            echo "- /pipelines UI → published to gh-pages (\`/pipelines/\`)"
+            echo "- Landing page → gh-pages \`/\`; Code Build dispatcher → \`/actions/\`"
             echo "- Trivy dashboard → gh-pages \`/security/trivy\`"
             echo "- Ensure repo has \`DOCKER_USERNAME\` (var) + \`DOCKER_ACCESS_TOKEN\` (secret)."
           } >> "$GITHUB_STEP_SUMMARY"

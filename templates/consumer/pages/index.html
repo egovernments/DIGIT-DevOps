@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>CI Home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  /* Landing page for the repo's CI surface: a grid of cards to each tool. Matches the Code Build dispatcher. */
+  :root{
+    --bg:#f5f7fa; --surface:#ffffff; --surface-2:#eef1f6; --inset:#f8fafc;
+    --border:#e2e7ef; --border-strong:#cfd7e3;
+    --fg:#192230; --muted:#5a6678; --faint:#8a94a4;
+    --accent:#2f4bd8; --accent-weak:#e7ebfd; --accent-fg:#ffffff;
+    --ok:#15834b; --warn:#9a6300; --crit:#c8322f;
+    --shadow:0 1px 2px rgba(20,30,50,.06), 0 6px 20px rgba(20,30,50,.06);
+    --shadow-lift:0 2px 4px rgba(20,30,50,.08), 0 14px 40px rgba(20,30,50,.12);
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    --r:14px; --r-sm:9px;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0d1017; --surface:#141922; --surface-2:#1b222e; --inset:#10151d;
+    --border:#263040; --border-strong:#33415a;
+    --fg:#e7ecf3; --muted:#9aa6b8; --faint:#6b7889;
+    --accent:#6f86ff; --accent-weak:#1c2438; --accent-fg:#0d1017;
+    --ok:#4ec488; --warn:#e0a52e; --crit:#f0756f;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    --shadow-lift:0 2px 6px rgba(0,0,0,.5), 0 16px 44px rgba(0,0,0,.5);
+    color-scheme:dark;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0d1017; --surface:#141922; --surface-2:#1b222e; --inset:#10151d;
+    --border:#263040; --border-strong:#33415a;
+    --fg:#e7ecf3; --muted:#9aa6b8; --faint:#6b7889;
+    --accent:#6f86ff; --accent-weak:#1c2438; --accent-fg:#0d1017;
+    --ok:#4ec488; --warn:#e0a52e; --crit:#f0756f;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    --shadow-lift:0 2px 6px rgba(0,0,0,.5), 0 16px 44px rgba(0,0,0,.5);
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--fg);font-family:var(--sans);line-height:1.5;
+    -webkit-font-smoothing:antialiased;letter-spacing:.1px;
+    padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  h1,h2,h3{margin:0;text-wrap:balance;letter-spacing:-.3px}
+  a{color:inherit;text-decoration:none}
+  .mono{font-family:var(--mono)}
+  button{font-family:inherit}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+
+  header{border-bottom:1px solid var(--border);background:var(--surface)}
+  body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:21;background:var(--surface)}
+  .bar{display:flex;align-items:center;gap:14px;padding-block:14px;
+    padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));
+    max-width:1060px;margin:0 auto}
+  .brand{display:flex;align-items:center;gap:12px;min-width:0}
+  .glyph{width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;
+    background:linear-gradient(145deg,var(--accent),color-mix(in srgb,var(--accent) 55%, #1a2a8c));
+    color:#fff;font-weight:700;font-size:14px;font-family:var(--mono)}
+  .brand b{font-weight:600;font-size:15.5px;display:block}
+  .brand .sub{color:var(--faint);font-size:12.5px;font-weight:500}
+  .spacer{flex:1}
+  .ghost{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border-strong);
+    background:var(--surface);color:var(--fg);border-radius:var(--r-sm);padding:7px 11px;font-size:13px;font-weight:500;cursor:pointer}
+  .ghost:hover{background:var(--surface-2)}
+
+  main{max-width:1060px;margin:0 auto;padding-block:40px 56px;
+    padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+  .hero{margin-bottom:30px}
+  .hero .eyebrow{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--accent)}
+  .hero h1{font-size:30px;font-weight:700;margin-top:8px}
+  .hero p{color:var(--muted);font-size:15px;margin:10px 0 0;max-width:60ch}
+
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+  @media (max-width:720px){.cards{grid-template-columns:1fr}}
+  .card{display:flex;flex-direction:column;gap:12px;background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--r);box-shadow:var(--shadow);padding:22px;position:relative;
+    transition:transform .14s ease, box-shadow .14s ease, border-color .14s ease}
+  a.card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift);border-color:var(--border-strong)}
+  .ico{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;flex:none;
+    background:var(--accent-weak);color:var(--accent)}
+  .ico svg{width:22px;height:22px}
+  .card h2{font-size:16.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .card p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.55}
+  .card .go{margin-top:auto;font-size:12.5px;font-weight:600;color:var(--accent);display:inline-flex;align-items:center;gap:5px}
+  .card .ext{position:absolute;top:20px;right:20px;color:var(--faint);font-size:12px}
+  .pill{font-size:10.5px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--faint);
+    border:1px solid var(--border);border-radius:999px;padding:3px 9px}
+
+  footer{max-width:1060px;margin:0 auto;padding:0 max(20px,env(safe-area-inset-left,0px)) 48px;
+    color:var(--faint);font-size:12.5px}
+  footer .mono{color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand">
+      <div class="glyph">CI</div>
+      <div>
+        <b>Continuous Integration</b>
+        <span class="sub mono" id="repoName">loading…</span>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <button class="ghost" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">◐</button>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="eyebrow">Build &amp; Security</div>
+    <h1>CI home</h1>
+    <p>Everything this repository publishes for building and securing its services. Pick a tool below.</p>
+  </div>
+
+  <div class="cards">
+    <a class="card" href="./actions/">
+      <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"/></svg></div>
+      <h2>Code Build</h2>
+      <p>Build and sign a service image from any branch, watch runs live, and jump to its scan report — a branch picker, no YAML.</p>
+      <span class="go">Open the dispatcher →</span>
+    </a>
+
+    <a class="card" href="./security/trivy/">
+      <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/></svg></div>
+      <h2>Security</h2>
+      <p>Trivy code and image scan reports per service. The default branch is gated — a CRITICAL blocks the push.</p>
+      <span class="go">View the dashboard →</span>
+    </a>
+
+    <a class="card" id="cardActionsTab" href="#" target="_blank" rel="noopener">
+      <span class="ext" aria-hidden="true">↗</span>
+      <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg></div>
+      <h2>Workflow runs</h2>
+      <p>Every GitHub Actions run for this repository — Code Build, sync, and the rest.</p>
+      <span class="go">Open the Actions tab →</span>
+    </a>
+
+    <a class="card" id="cardRepo" href="#" target="_blank" rel="noopener">
+      <span class="ext" aria-hidden="true">↗</span>
+      <div class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h11l5 5v13H4z"/><path d="M15 3v5h5"/></svg></div>
+      <h2>Repository</h2>
+      <p>Source code, build config and the workflow definitions that power this CI.</p>
+      <span class="go">Open on GitHub →</span>
+    </a>
+  </div>
+</main>
+
+<footer>
+  Provisioned by <span class="mono">DIGIT-DevOps</span> reusable CI · pages served from <span class="mono">gh-pages</span>
+</footer>
+
+<script>
+  // Derive owner/repo from the Pages URL (https://<owner>.github.io/<repo>/…),
+  // so this page stays generic across every consumer repo.
+  (function(){
+    try{
+      var host = location.hostname;                         // <owner>.github.io
+      var owner = host.endsWith(".github.io") ? host.slice(0, -".github.io".length) : "";
+      var seg = location.pathname.split("/").filter(Boolean);
+      var repo = seg.length ? seg[0] : "";
+      if(owner && repo){
+        var full = owner + "/" + repo;
+        document.getElementById("repoName").textContent = full;
+        var base = "https://github.com/" + full;
+        document.getElementById("cardActionsTab").href = base + "/actions";
+        document.getElementById("cardRepo").href = base;
+        document.title = repo + " · CI";
+      } else {
+        document.getElementById("repoName").textContent = "this repository";
+      }
+    }catch(e){ document.getElementById("repoName").textContent = "this repository"; }
+  })();
+
+  // Theme toggle (per-viewer; falls back cleanly if storage is blocked).
+  (function(){
+    var root = document.documentElement, KEY = "ci-theme";
+    try{ var s = localStorage.getItem(KEY); if(s) root.setAttribute("data-theme", s); }catch(e){}
+    document.getElementById("themeBtn").addEventListener("click", function(){
+      var cur = root.getAttribute("data-theme");
+      var dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+      var next = dark ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      try{ localStorage.setItem(KEY, next); }catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>

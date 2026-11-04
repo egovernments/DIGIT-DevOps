@@ -54,7 +54,7 @@ Workflows write, on the default-branch ruleset bypass list).
 Sync always runs **from the default branch** (enforced) and commits to it,
 but `sync_branch` ("Sync from Branch") lets it read `build-config.yml` from **another
 branch**. Use it to pull a feature branch's new services into the default branch's
-dropdown *before* that branch merges — so the `/pipelines` UI (which dispatches on
+dropdown *before* that branch merges — so the `/actions` UI (which dispatches on
 the default branch) can build the new service on its branch. The union is still
 additive: it only adds, never removes. No loop: the sync edits `code-build.yaml`,
 which is not a trigger path.

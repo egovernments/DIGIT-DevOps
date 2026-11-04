@@ -27,7 +27,7 @@ on:
     - cron: "17 3 * * *"          # daily backstop
   workflow_dispatch:
     inputs:
-      sync_branch: { type: string, default: "" }
+      sync_branch: { type: choice, default: master }   # synced branch dropdown
 jobs:
   sync:
     uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-code-build-sync.yaml@reusable-build-v1
@@ -58,8 +58,11 @@ Workflows write, on the default-branch ruleset bypass list).
 
 ## Sync from Branch
 
-`sync_branch` ("Sync from Branch") lets a manual run read `build-config.yml` from
-**another branch** and add its new **services** to the default branch's dropdown
-*before* that branch merges — so the `/actions` UI (which dispatches on the default
-branch, where `service` is validated) can build the new service on its branch. The
-service union stays additive: it only adds, never removes.
+`sync_branch` ("Sync from Branch") is a **synced branch dropdown** — the same list
+as Code Build's "Build from Branch", kept current by this workflow. On a manual
+run, pick a feature branch to read its `build-config.yml` and add its new
+**services** to the default branch's dropdown *before* that branch merges — so the
+`/actions` UI (which dispatches on the default branch, where `service` is
+validated) can build the new service on its branch. Leave it on the **default
+branch** for a normal refresh. The service union stays additive: it only adds,
+never removes.

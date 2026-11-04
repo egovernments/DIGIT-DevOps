@@ -98,6 +98,12 @@ jobs:
           BR=$(printf '%s\n%s\n' "$DEFAULT" "$OTHERS" | grep -v '^$')
           BR="$BR" yq -i '.["on"].workflow_dispatch.inputs.build_branch.options = (strenv(BR) | split("\n"))' "$WF"
           DEFAULT="$DEFAULT" yq -i '.["on"].workflow_dispatch.inputs.build_branch.default = strenv(DEFAULT)' "$WF"
+          # Same branch list seeds the Sync workflow's "Sync from Branch" picker.
+          SYNC_WF=.github/workflows/sync-code-build.yaml
+          if [ -f "$SYNC_WF" ]; then
+            BR="$BR" yq -i '.["on"].workflow_dispatch.inputs.sync_branch.options = (strenv(BR) | split("\n"))' "$SYNC_WF"
+            DEFAULT="$DEFAULT" yq -i '.["on"].workflow_dispatch.inputs.sync_branch.default = strenv(DEFAULT)' "$SYNC_WF"
+          fi
 
       - name: Commit scaffold to the default branch
         env:

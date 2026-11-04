@@ -22,10 +22,15 @@ on:
         type: string
         default: ""
       workflow_file:
-        description: "Workflow file whose choice lists are synced"
+        description: "Code Build workflow whose service + build_branch lists are synced"
         required: false
         type: string
         default: ".github/workflows/code-build.yaml"
+      sync_workflow_file:
+        description: "Sync workflow whose sync_branch picker is synced (empty/absent = skip)"
+        required: false
+        type: string
+        default: ".github/workflows/sync-code-build.yaml"
       branch_exclude:
         description: "ERE of branch names to leave OUT of the build_branch dropdown (empty = include all)"
         required: false
@@ -104,10 +109,11 @@ jobs:
           SVC="$SVC" yq -i '.["on"].workflow_dispatch.inputs.service.options = (strenv(SVC) | split("\n"))' "$WF"
           echo "Services: $(echo "$SVC" | wc -l | tr -d ' ')"
 
-      - name: Sync branch dropdown (from live branches)
+      - name: Sync branch dropdowns (from live branches)
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           WF: ${{ inputs.workflow_file }}
+          SYNC_WF: ${{ inputs.sync_workflow_file }}
           DEFAULT: ${{ steps.def.outputs.branch }}
           EXCLUDE: ${{ inputs.branch_exclude }}
           MAX: ${{ inputs.max_branches }}
@@ -121,23 +127,33 @@ jobs:
           fi
           OTHERS=$(printf '%s\n' "$ALL" | grep -vxF "$DEFAULT" | grep -v '^$' | sort | head -n "$((MAX-1))")
           OPTS=$(printf '%s\n%s\n' "$DEFAULT" "$OTHERS" | grep -v '^$')
+          # Code Build: the "Build from Branch" picker.
           OPTS="$OPTS" yq -i '.["on"].workflow_dispatch.inputs.build_branch.options = (strenv(OPTS) | split("\n"))' "$WF"
           DEFAULT="$DEFAULT" yq -i '.["on"].workflow_dispatch.inputs.build_branch.default = strenv(DEFAULT)' "$WF"
+          # Sync: the "Sync from Branch" picker (same list).
+          if [ -n "$SYNC_WF" ] && [ -f "$SYNC_WF" ]; then
+            OPTS="$OPTS" yq -i '.["on"].workflow_dispatch.inputs.sync_branch.options = (strenv(OPTS) | split("\n"))' "$SYNC_WF"
+            DEFAULT="$DEFAULT" yq -i '.["on"].workflow_dispatch.inputs.sync_branch.default = strenv(DEFAULT)' "$SYNC_WF"
+          fi
           echo "Branches: $(echo "$OPTS" | wc -l | tr -d ' ') (default: $DEFAULT)"
 
       - name: Commit if changed
         env:
           WF: ${{ inputs.workflow_file }}
+          SYNC_WF: ${{ inputs.sync_workflow_file }}
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           DEFAULT: ${{ steps.def.outputs.branch }}
         run: |
           set -euo pipefail
-          if git diff --quiet -- "$WF"; then
+          # The files we may have touched (sync workflow only if present).
+          FILES="$WF"
+          [ -n "$SYNC_WF" ] && [ -f "$SYNC_WF" ] && FILES="$FILES $SYNC_WF"
+          if git diff --quiet -- $FILES; then
             echo "Code Build dropdowns already up to date."; exit 0
           fi
           git config user.name  "digit-devops-workflows[bot]"
           git config user.email "digit-devops-workflows[bot]@users.noreply.github.com"
-          git add "$WF"
+          git add $FILES
           git commit -m "chore(code-build): sync service + branch dropdowns"
           # Direct push to the default branch; the App is on the ruleset bypass list.
           git push origin "HEAD:${DEFAULT}"

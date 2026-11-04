@@ -37,7 +37,8 @@ Then:
 4. Store the credentials as repo secrets:
 
 ```sh
-gh secret set BUILD_APP_ID          --repo <owner>/<repo> --body "<app-id>"
+# the App's Client ID (Iv..), from the App's settings page — not the numeric App ID
+gh secret set BUILD_APP_CLIENT_ID   --repo <owner>/<repo> --body "<client-id>"
 gh secret set BUILD_APP_PRIVATE_KEY --repo <owner>/<repo> < private-key.pem
 ```
 
@@ -46,14 +47,14 @@ gh secret set BUILD_APP_PRIVATE_KEY --repo <owner>/<repo> < private-key.pem
 `.github/workflows/setup.yaml` in the consumer:
 
 ```yaml
-name: Setup Code Build
+name: Build — Setup
 on:
   workflow_dispatch:
 jobs:
   setup:
     uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-setup.yaml@reusable-build-v1
     secrets:
-      APP_ID: ${{ secrets.BUILD_APP_ID }}
+      APP_CLIENT_ID: ${{ secrets.BUILD_APP_CLIENT_ID }}
       APP_PRIVATE_KEY: ${{ secrets.BUILD_APP_PRIVATE_KEY }}
 ```
 

@@ -34,7 +34,7 @@ jobs:
     with:
       sync_branch: ${{ inputs.sync_branch || '' }}
     secrets:
-      APP_ID: ${{ secrets.BUILD_APP_ID }}
+      APP_CLIENT_ID: ${{ secrets.BUILD_APP_CLIENT_ID }}
       APP_PRIVATE_KEY: ${{ secrets.BUILD_APP_PRIVATE_KEY }}
 ```
 
@@ -53,7 +53,7 @@ No loop: it edits `code-build.yaml`, which is not a trigger path.
 | `branch_exclude` | `^dependabot/` | ERE of branch names to leave out of the dropdown |
 | `max_branches` | `200` | Cap on listed branches (GitHub limits choice options) |
 
-Secrets: `BUILD_APP_ID` + `BUILD_APP_PRIVATE_KEY` (GitHub App with Contents +
+Secrets: `BUILD_APP_CLIENT_ID` + `BUILD_APP_PRIVATE_KEY` (GitHub App with Contents +
 Workflows write, on the default-branch ruleset bypass list).
 
 ## Sync from Branch

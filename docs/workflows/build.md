@@ -7,11 +7,12 @@
 ```
 resolve-config ─▶ code-scan ─▶ image-scan ─▶ build (push + sign)
                   (Trivy fs)    (Trivy image)   app + db, multi-arch, cosign
+                  └── default branch only ──┘
 ```
 
 1. **resolve-config** — reads `build/build-config.yml`, resolves the app work-dir /
    Dockerfile for `service` and any `<service>-db` entry, computes the tag
-   `<branch>-<short-sha>`.
+   `<branch>-<short-sha>`, and decides the **scan policy** (`is_default`).
 2. **code-scan** — Trivy filesystem scan of the work-dir. A **CRITICAL** finding
    fails the job and the build is skipped.
 3. **image-scan** — builds the image locally (amd64) and Trivy-scans it. A
@@ -22,11 +23,16 @@ resolve-config ─▶ code-scan ─▶ image-scan ─▶ build (push + sign)
    transparency log — no private key to manage). Signing is skipped when
    `push: false` or `enable_cosign: false`.
 
-Every scan publishes to the caller's `gh-pages/security/trivy` via the dashboard
-tooling, regardless of the gate result. That tooling lives **in the engine**
-(`trivy-dashboard/`) and is checked out at the engine's own commit
-(`github.job_workflow_sha`), so any `build_branch` is scanned without the branch
-needing to carry it.
+## Scan policy
+
+The Trivy gate runs **only when the build ref is the repo's default branch**
+(`build_branch`, or the triggering ref when empty). On any other branch, both
+scan jobs are **skipped** and the build runs normally — so feature-branch builds
+are fast and never blocked, while `master` is gated (a CRITICAL blocks the push).
+Set `enable_trivy: false` to disable scanning entirely.
+
+Each scan publishes to the caller's `gh-pages/security/trivy` via
+`.trivy/dashboard/publish.sh`, regardless of the gate result.
 
 ## Inputs
 
@@ -41,7 +47,7 @@ needing to carry it.
 | `default_dockerfile` | `build/maven/Dockerfile` | Dockerfile when the entry sets none |
 | `runs_on` | `ubuntu-latest` | Runner label |
 | `push` | `true` | `false` = build-only validation |
-| `enable_trivy` | `true` | Run scans; dashboard tooling is hosted in the engine (nothing needed on the branch) |
+| `enable_trivy` | `true` | Run the Trivy gate on the **default branch only**; other branches build unscanned |
 | `enable_cosign` | `true` | Sign pushed images with cosign keyless; needs `id-token: write` from the caller |
 
 Secrets: `DOCKER_USERNAME`, `DOCKER_ACCESS_TOKEN`.

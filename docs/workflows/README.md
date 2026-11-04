@@ -16,7 +16,7 @@ caller; everything else is provisioned from here and upgraded centrally.
 
 - `.github/workflows/code-build.yaml` — build caller with **module/service dropdowns**, synced from `build-config.yml`.
 - `.github/workflows/sync-dropdown.yaml` — refreshes those dropdowns on config change.
-- `.trivy/dashboard/` — Trivy report generator, published to `gh-pages/security/trivy`.
+- Trivy reports published to `gh-pages/security/trivy` — the generator lives in the engine (`trivy-dashboard/`), not in the consumer.
 - `pipelines/index.html` — the [`/pipelines` dispatcher UI](pipelines-ui.md) (cascading branch → module → service).
 
 ## Onboard a repo

@@ -1,7 +1,9 @@
 # Central, reusable Docker build engine for eGov service repos.
 # Pipeline: resolve-config -> code-scan -> image-scan -> build (push).
 # Trivy mirrors health-campaign-services: CRITICAL blocks the push; reports
-# publish to the caller's gh-pages /security/trivy via .trivy/dashboard.
+# publish to the caller's gh-pages /security/trivy. The dashboard tooling is
+# hosted IN this engine (trivy-dashboard/) and checked out at the engine's own
+# commit, so any build_branch is scanned without the caller needing it on the branch.
 # Docs: docs/workflows/build.md
 name: Reusable Build
 
@@ -53,7 +55,7 @@ on:
         type: boolean
         default: true
       enable_trivy:
-        description: "Run Trivy code + image scans and publish the dashboard (needs .trivy/dashboard in the caller)"
+        description: "Run Trivy code + image scans and publish the dashboard (tooling is hosted in the engine; nothing needed on the branch)"
         required: false
         type: boolean
         default: true
@@ -144,6 +146,16 @@ jobs:
         with:
           ref: ${{ inputs.build_branch }}
 
+      # Dashboard tooling from the engine itself, at this engine's exact commit
+      # (job_workflow_sha), so it never depends on the build_branch having it.
+      - name: Checkout dashboard tooling
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: egovernments/DIGIT-DevOps
+          ref: ${{ github.job_workflow_sha || 'reusable-build-v1' }}
+          path: _engine
+          sparse-checkout: trivy-dashboard
+
       - name: Trivy filesystem scan (code)
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         env:
@@ -167,7 +179,7 @@ jobs:
           SERVICE="${{ needs.resolve-config.outputs.image_name }}"
           CRIT=$(jq '[.Results[]? | (.Vulnerabilities[]?, .Secrets[]?) | select(.Severity=="CRITICAL")] | length' code-scan.json)
           GATE=pass; [ "$CRIT" -gt 0 ] && GATE=fail
-          URL=$(bash .trivy/dashboard/publish.sh code "$SERVICE" "${{ github.run_id }}" code-scan.json "$GATE")
+          URL=$(bash _engine/trivy-dashboard/publish.sh code "$SERVICE" "${{ github.run_id }}" code-scan.json "$GATE")
           {
             echo "### Trivy code scan · $SERVICE"
             echo ""
@@ -193,6 +205,14 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.build_branch }}
+
+      - name: Checkout dashboard tooling
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: egovernments/DIGIT-DevOps
+          ref: ${{ github.job_workflow_sha || 'reusable-build-v1' }}
+          path: _engine
+          sparse-checkout: trivy-dashboard
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
@@ -236,7 +256,7 @@ jobs:
           SERVICE="${{ needs.resolve-config.outputs.image_name }}"
           CRIT=$(jq '[.Results[]? | (.Vulnerabilities[]?, .Secrets[]?) | select(.Severity=="CRITICAL")] | length' image-scan.json)
           GATE=pass; [ "$CRIT" -gt 0 ] && GATE=fail
-          URL=$(bash .trivy/dashboard/publish.sh image "$SERVICE" "${{ github.run_id }}" image-scan.json "$GATE")
+          URL=$(bash _engine/trivy-dashboard/publish.sh image "$SERVICE" "${{ github.run_id }}" image-scan.json "$GATE")
           {
             echo "### Trivy image scan · $SERVICE"
             echo ""

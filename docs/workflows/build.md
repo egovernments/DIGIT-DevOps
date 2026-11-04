@@ -22,8 +22,11 @@ resolve-config ─▶ code-scan ─▶ image-scan ─▶ build (push + sign)
    transparency log — no private key to manage). Signing is skipped when
    `push: false` or `enable_cosign: false`.
 
-Every scan publishes to the caller's `gh-pages/security/trivy` via
-`.trivy/dashboard/publish.sh`, regardless of the gate result.
+Every scan publishes to the caller's `gh-pages/security/trivy` via the dashboard
+tooling, regardless of the gate result. That tooling lives **in the engine**
+(`trivy-dashboard/`) and is checked out at the engine's own commit
+(`github.job_workflow_sha`), so any `build_branch` is scanned without the branch
+needing to carry it.
 
 ## Inputs
 
@@ -38,7 +41,7 @@ Every scan publishes to the caller's `gh-pages/security/trivy` via
 | `default_dockerfile` | `build/maven/Dockerfile` | Dockerfile when the entry sets none |
 | `runs_on` | `ubuntu-latest` | Runner label |
 | `push` | `true` | `false` = build-only validation |
-| `enable_trivy` | `true` | Run scans; needs `.trivy/dashboard` in the caller |
+| `enable_trivy` | `true` | Run scans; dashboard tooling is hosted in the engine (nothing needed on the branch) |
 | `enable_cosign` | `true` | Sign pushed images with cosign keyless; needs `id-token: write` from the caller |
 
 Secrets: `DOCKER_USERNAME`, `DOCKER_ACCESS_TOKEN`.

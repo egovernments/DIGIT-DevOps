@@ -1,6 +1,7 @@
-# One-shot setup for a consumer repo. Scaffolds the Code Build caller,
-# the sync-dropdown workflow and the Trivy dashboard toolkit from DIGIT-DevOps,
-# populates the dropdowns, and commits them straight to the default branch.
+# One-shot setup for a consumer repo. Scaffolds the Code Build caller and the
+# sync-dropdown workflow from DIGIT-DevOps, populates the service dropdown, and
+# commits them straight to the default branch. The Trivy dashboard tooling is NOT
+# scaffolded — it lives in the engine (trivy-dashboard/) and runs from there.
 # The /pipelines UI is Pages content, so it is published to the gh-pages branch
 # (which Pages serves), not committed to the source tree.
 # Auth is a GitHub App token minted in-run from APP_ID + APP_PRIVATE_KEY. The App
@@ -81,12 +82,11 @@ jobs:
           # Stash it for the gh-pages step and keep it out of the setup PR.
           rm -rf "$RUNNER_TEMP/pipelines"
           mv pipelines "$RUNNER_TEMP/pipelines"
-          # Populate the Code Build dropdowns from this repo's build-config.
+          # Populate the Code Build service dropdown from this repo's build-config.
+          # (No module field — service is the only dropdown.)
           if [ -f "$CONFIG" ]; then
             SVC=$(yq eval '.config[].build[]."image-name"' "$CONFIG" | grep -vE -- '-db$' | grep -vxF placeholder | sort -u)
-            MOD=$(yq eval '.config[].name' "$CONFIG" | awk -F/ 'NF>=3{print $3}' | grep -vxF placeholder | sort -u)
             SVC="$SVC" yq -i '.["on"].workflow_dispatch.inputs.service.options = (strenv(SVC) | split("\n"))' "$WF"
-            MOD="$MOD" yq -i '.["on"].workflow_dispatch.inputs.module.options  = (strenv(MOD) | split("\n"))' "$WF"
           fi
 
       - name: Commit scaffold to the default branch

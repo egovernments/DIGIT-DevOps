@@ -35,7 +35,7 @@ and dispatches builds — it cannot write code or workflows.
 
 1. **Read** branches, then the branch's `build-config.yml`.
 2. **Cascade** module → service (filtered), with a resolved image/dockerfile/db preview.
-3. **Dispatch** `workflow_dispatch` to `code-build.yaml` with `ref` + `service`.
+3. **Dispatch** `workflow_dispatch` to `code-build.yaml` on the **default branch**, passing the chosen branch as `build_branch` + `service`. (The workflow lives only on the default branch; the engine checks out `build_branch` to build it.)
 4. **Watch** the run (polled) with a link.
 
 ## Security tab

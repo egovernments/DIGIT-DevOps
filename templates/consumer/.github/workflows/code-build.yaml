@@ -1,18 +1,19 @@
 # Code Build — provisioned by DIGIT-DevOps reusable-setup; do not edit the
-# option lists by hand: they are synced from build-config.yml by sync-dropdown.
+# service option list by hand: it is synced from build-config.yml by sync-dropdown.
+# This workflow lives only on the default branch; pick the branch to build with
+# "Build from Branch" (leave GitHub's "Use workflow from" on the default branch).
 # Delegates the build (+ Trivy) to the central engine in DIGIT-DevOps.
 name: Code Build
-run-name: Code Build · ${{ inputs.service }} (${{ github.ref_name }})
+run-name: Code Build · ${{ inputs.service }} (${{ inputs.build_branch }})
 
 on:
   workflow_dispatch:
     inputs:
-      module:
-        description: "Module (context only; the engine resolves by service)"
+      build_branch:
+        description: "Build from Branch — the branch/ref whose code is built"
         required: true
-        type: choice
-        options:
-          - placeholder
+        type: string
+        default: master
       service:
         description: "Service image to build (from build-config.yml)"
         required: true
@@ -26,6 +27,7 @@ jobs:
     uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-build.yaml@reusable-build-v1
     with:
       service: ${{ inputs.service }}
+      build_branch: ${{ inputs.build_branch }}
       enable_trivy: true
     secrets:
       DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}

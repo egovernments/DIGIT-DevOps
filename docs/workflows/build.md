@@ -27,6 +27,7 @@ Every scan publishes to the caller's `gh-pages/security/trivy` via
 | Input | Default | Purpose |
 |---|---|---|
 | `service` | — (required) | Image name; must match an `image-name` in the config |
+| `build_branch` | `""` | Branch/ref whose code is checked out and built; empty = the ref that triggered the run |
 | `service_folder` | `""` | WORK_DIR fallback when the config has no entry |
 | `config_path` | `build/build-config.yml` | Build config location |
 | `registry_namespace` | `egovio` | Image namespace |

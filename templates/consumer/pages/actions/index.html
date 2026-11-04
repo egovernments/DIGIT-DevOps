@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.github.com; img-src 'self' data: https://avatars.githubusercontent.com; base-uri 'none'; form-action 'none'">
 <title>Code Build</title>
+<meta name="cb-auth-mode" content="pat">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSdnJyB4MT0nMCcgeTE9JzAnIHgyPScxJyB5Mj0nMSc+PHN0b3Agb2Zmc2V0PScwJyBzdG9wLWNvbG9yPScjMmY0YmQ4Jy8+PHN0b3Agb2Zmc2V0PScxJyBzdG9wLWNvbG9yPScjMWEyYThjJy8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nOCcgZmlsbD0ndXJsKCNnKScvPjx0ZXh0IHg9JzE2JyB5PScyMicgZm9udC1mYW1pbHk9J3N5c3RlbS11aSxTZWdvZSBVSSxSb2JvdG8sc2Fucy1zZXJpZicgZm9udC1zaXplPScxNScgZm9udC13ZWlnaHQ9JzcwMCcgZmlsbD0nI2ZmZmZmZicgdGV4dC1hbmNob3I9J21pZGRsZSc+Q0I8L3RleHQ+PC9zdmc+">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -221,22 +222,33 @@
   <!-- CONNECT GATE -->
   <section id="view-connect">
     <div class="card connect">
-      <div class="hd"><h2>Connect to GitHub</h2><span class="tag">token · this tab</span></div>
+      <div class="hd"><h2>Connect to GitHub</h2><span class="tag" id="connectTag">token · this tab</span></div>
       <div class="bd">
-        <p class="lead">Paste a <b>fine-grained personal access token</b> scoped to this repo. It is kept for <b>this browser tab</b> only &mdash; it survives a refresh, clears when you close the tab or after 15 min idle, is never shared with other tabs or devices, and (via a strict CSP) can only ever reach <span class="mono">api.github.com</span>.</p>
-        <div class="two">
-          <div><label for="inOwner">Owner</label><input type="text" id="inOwner" spellcheck="false" autocapitalize="off"></div>
-          <div><label for="inRepo">Repository</label><input type="text" id="inRepo" spellcheck="false" autocapitalize="off"></div>
+        <!-- OAuth sign-in — shown when Setup selected auth_mode: oauth -->
+        <div id="ssoBlock" hidden>
+          <p class="lead">Sign in with your GitHub account to run builds. You get exactly the access you already have on this repository &mdash; the same as the Actions tab. Your session is kept for <b>this browser tab</b> only.</p>
+          <div class="tokrow">
+            <button class="btn" id="ssoBtn" style="flex:none"><span id="ssoLabel">Sign in with GitHub</span></button>
+          </div>
+          <div class="scopes">Access is enforced per repository by GitHub &mdash; you can view runs where you have read and run builds where you have write. No token to paste.</div>
         </div>
-        <div class="tokrow">
-          <input type="password" id="inToken" placeholder="github_pat_…" autocomplete="off" spellcheck="false">
-          <button class="btn" id="connectBtn" style="flex:none"><span id="connectLabel">Connect</span></button>
-        </div>
-        <div class="scopes">
-          <b>Minimum scope</b> &mdash; one repository, two permissions:
-          <span class="mono">Contents: Read</span> (read branches + build-config.yml) and
-          <span class="mono">Actions: Read and write</span> (dispatch + watch runs).
-          Short expiry recommended. <a id="patLink" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a token ↗</a>
+        <!-- Personal access token — the default sign-in method -->
+        <div id="patBlock">
+          <p class="lead">Paste a <b>fine-grained personal access token</b> scoped to this repo. It is kept for <b>this browser tab</b> only &mdash; it survives a refresh, clears when you close the tab or after 15 min idle, is never shared with other tabs or devices, and (via a strict CSP) can only ever reach <span class="mono">api.github.com</span>.</p>
+          <div class="two">
+            <div><label for="inOwner">Owner</label><input type="text" id="inOwner" spellcheck="false" autocapitalize="off"></div>
+            <div><label for="inRepo">Repository</label><input type="text" id="inRepo" spellcheck="false" autocapitalize="off"></div>
+          </div>
+          <div class="tokrow">
+            <input type="password" id="inToken" placeholder="github_pat_…" autocomplete="off" spellcheck="false">
+            <button class="btn" id="connectBtn" style="flex:none"><span id="connectLabel">Connect</span></button>
+          </div>
+          <div class="scopes">
+            <b>Minimum scope</b> &mdash; one repository, two permissions:
+            <span class="mono">Contents: Read</span> (read branches + build-config.yml) and
+            <span class="mono">Actions: Read and write</span> (dispatch + watch runs).
+            Short expiry recommended. <a id="patLink" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a token ↗</a>
+          </div>
         </div>
         <div class="err" id="connectErr" hidden></div>
       </div>
@@ -327,6 +339,10 @@ let DEFAULT_BRANCH = null;
 let pollTimer = null, idleTimer = null;
 let pending = null, graceUntil = 0, lastRuns = [];   // recent-runs: optimistic row + poll window
 const jobCache = {};                                  // run id -> blocked-code | blocked-image | failure
+/* Sign-in method is chosen at Setup time (default "pat"); Setup rewrites the meta.
+   AUTH_BASE is the shared OAuth broker Worker — the page only navigates to it. */
+const AUTH_MODE = ((document.querySelector('meta[name="cb-auth-mode"]')||{}).content || "pat").toLowerCase();
+const AUTH_BASE = "https://digit-ci-auth.egovernments.workers.dev";
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -367,8 +383,8 @@ function relTime(iso){
 }
 
 /* ---------------- connect / disconnect ---------------- */
-async function connect(presetToken){
-  const restoring = !!presetToken;
+async function connect(presetToken, silent){
+  const restoring = !!silent;    // silent = session restore (don't alarm); explicit sign-in shows errors
   const token = presetToken || $("inToken").value.trim();
   OWNER = $("inOwner").value.trim() || OWNER;
   REPO  = $("inRepo").value.trim()  || REPO;
@@ -426,6 +442,20 @@ function disconnect(){
 function armIdle(){
   if(idleTimer) clearTimeout(idleTimer);
   idleTimer = setTimeout(() => { if(TOKEN){ disconnect(); showErr("Token cleared after inactivity. Reconnect to continue."); } }, 15*60*1000);
+}
+/* ---------------- OAuth sign-in (via the broker Worker) ---------------- */
+function renderConnectMode(){
+  const oauth = AUTH_MODE === "oauth";
+  if($("ssoBlock")) $("ssoBlock").hidden = !oauth;
+  if($("patBlock")) $("patBlock").hidden = oauth;
+  if($("connectTag")) $("connectTag").textContent = oauth ? "GitHub · SSO" : "token · this tab";
+}
+function signIn(){
+  const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  try{ sessionStorage.setItem("cb-oauth-nonce", nonce); }catch(e){}
+  const btn = $("ssoBtn"); if(btn){ btn.disabled = true; if($("ssoLabel")) $("ssoLabel").innerHTML = '<span class="spin"></span>'; }
+  const back = location.origin + location.pathname;   // return to this page (no hash)
+  location.href = AUTH_BASE.replace(/\/+$/,"") + "/auth/login?redirect=" + encodeURIComponent(back) + "&n=" + encodeURIComponent(nonce);
 }
 ["click","keydown"].forEach(ev => document.addEventListener(ev, () => { if(TOKEN) armIdle(); }));
 
@@ -688,9 +718,10 @@ document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () =>
 }));
 window.addEventListener("hashchange", () => route(location.hash.slice(1)));
 
-$("connectBtn").addEventListener("click", connect);
+$("connectBtn").addEventListener("click", () => connect());   // () => so the click event isn't passed as the token
 $("inToken").addEventListener("keydown", e => { if(e.key==="Enter") connect(); });
 $("disconnectBtn").addEventListener("click", disconnect);
+if($("ssoBtn")) $("ssoBtn").addEventListener("click", signIn);
 
 const tb = $("themeBtn");
 function applyTheme(t){ if(t) document.documentElement.setAttribute("data-theme", t); }
@@ -703,19 +734,34 @@ tb.addEventListener("click", () => {
   try{ localStorage.setItem("cb-theme", next); }catch(e){}
 });
 
-/* Restore the session on load so a refresh doesn't drop back to the token screen.
-   sessionStorage is per-tab and cleared when the tab closes; the token is re-validated. */
-(function restore(){
+/* Boot: render the chosen sign-in mode, consume an OAuth return, or restore a
+   per-tab session so a refresh doesn't drop back to the sign-in screen. */
+(function boot(){
+  renderConnectMode();
+  // 1) Returning from the OAuth broker — token is in the URL fragment (never sent to a server).
+  const h = location.hash.slice(1);
+  if(/(^|&)token=/.test(h) || /(^|&)auth_error=/.test(h)){
+    const p = new URLSearchParams(h);
+    const token = p.get("token"), st = p.get("state"), err = p.get("auth_error");
+    let nonce=null; try{ nonce = sessionStorage.getItem("cb-oauth-nonce"); sessionStorage.removeItem("cb-oauth-nonce"); }catch(e){}
+    history.replaceState(null, "", location.pathname);   // strip the token from the URL + history
+    showView("connect");
+    if(token && st && nonce && st===nonce){ connect(token); }       // explicit sign-in: errors shown
+    else if(err){ showErr("Sign-in failed: " + err); }
+    else { showErr("Sign-in could not be verified — please try again."); }
+    return;
+  }
+  // 2) Existing per-tab session (both PAT and OAuth; token re-validated silently).
   let s=null; try{ s=JSON.parse(sessionStorage.getItem("cb-session")||"null"); }catch(e){}
   if(s && s.token){
     if(s.owner) OWNER=s.owner;
     if(s.repo)  REPO=s.repo;
     $("inOwner").value=OWNER; $("inRepo").value=REPO; $("brandSub").textContent=OWNER+"/"+REPO;
-    showView("connect");          // shown until re-validation resolves
-    connect(s.token);
-  } else {
     showView("connect");
+    connect(s.token, true);     // silent restore
+    return;
   }
+  showView("connect");
 })();
 </script>
 </body>

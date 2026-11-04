@@ -17,6 +17,11 @@ on:
         required: false
         type: boolean
         default: true
+      auth_mode:
+        description: "Code Build /actions sign-in: 'pat' (paste a token, default) or 'oauth' (Sign in with GitHub via the broker Worker)"
+        required: false
+        type: string
+        default: "pat"
     secrets:
       APP_CLIENT_ID:
         description: "GitHub App Client ID (Iv..; App has Contents+Workflows+Pages write, installed here, on the default-branch ruleset bypass list)"
@@ -127,6 +132,7 @@ jobs:
       - name: Publish landing page + /actions UI to gh-pages
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          AUTH_MODE: ${{ inputs.auth_mode }}
         run: |
           set -euo pipefail
           REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
@@ -148,6 +154,12 @@ jobs:
           # legacy /pipelines path. /security/trivy and everything else untouched.
           rm -rf actions pipelines
           cp -R "$RUNNER_TEMP/pages/." ./
+          # Set the Code Build sign-in method chosen at Setup (default pat).
+          MODE="${AUTH_MODE:-pat}"; [ "$MODE" = "oauth" ] || MODE="pat"
+          if [ -f actions/index.html ]; then
+            sed -i "s|<meta name=\"cb-auth-mode\" content=\"[^\"]*\">|<meta name=\"cb-auth-mode\" content=\"$MODE\">|" actions/index.html
+            echo "Code Build sign-in method: $MODE"
+          fi
           git add -A
           if ! git -c user.email="github-actions[bot]@users.noreply.github.com" \
                   -c user.name="github-actions[bot]" commit -qm "chore: publish CI landing page + /actions UI to gh-pages"; then

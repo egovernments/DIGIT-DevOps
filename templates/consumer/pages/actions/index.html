@@ -584,8 +584,10 @@ async function classifyFailed(run){
       const bad = ((await r.json()).jobs || [])
         .filter(j => j.conclusion==="failure" || j.conclusion==="timed_out")
         .map(j => (j.name||"").toLowerCase()).join(" ");
-      if(/code-scan/.test(bad)) kind = "blocked-code";
-      else if(/image-scan/.test(bad)) kind = "blocked-image";
+      // Match the engine's job display names ("Image scan · <svc>") and the job ids
+      // ("image-scan") — hyphen or space, any case (bad is already lower-cased).
+      if(/code[-\s]scan/.test(bad)) kind = "blocked-code";
+      else if(/image[-\s]scan/.test(bad)) kind = "blocked-image";
     }
   }catch(e){}
   jobCache[run.id] = kind;

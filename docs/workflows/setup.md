@@ -57,8 +57,8 @@ on:
     inputs:
       auth_mode:                 # Code Build /actions sign-in method
         type: choice
-        options: [pat, oauth]    # pat = paste a token (default); oauth = Sign in with GitHub
-        default: pat
+        options: [PAT, OAuth]    # PAT = paste a token (default); OAuth = Sign in with GitHub
+        default: PAT
 jobs:
   setup:
     uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-setup.yaml@reusable-build-v1
@@ -75,12 +75,14 @@ setup refuses any other). It commits `code-build.yaml` (dropdowns populated from
 directly to the default branch, and publishes the landing page (`/`) + `/actions`
 UI to `gh-pages`.
 
-**`auth_mode`** picks how the `/actions` UI signs in: **`pat`** (default, paste a
-fine-grained token) or **`oauth`** ("Sign in with GitHub" via the shared broker
+**`auth_mode`** picks how the `/actions` UI signs in: **`PAT`** (default, paste a
+fine-grained token) or **`OAuth`** ("Sign in with GitHub" via the shared broker
 Worker — see [OAuth / broker Worker](oauth-worker.md), which must be deployed
-once, with its URL baked into the page as `AUTH_BASE`). Re-run Setup to switch modes.
+once, with its URL baked into the page as `AUTH_BASE`). Setup **remembers your last
+pick** — it rewrites `default:` in this repo's own `setup.yaml` — so the dropdown
+pre-selects it next time. Re-run Setup to switch modes.
 Note: the first run after adopting this adds the `auth_mode` choice to the consumer's
-own `setup.yaml`, so picking `oauth` is available from the **second** run onward.
+own `setup.yaml`, so picking `OAuth` is available from the **second** run onward.
 
 ## 3. Build prerequisites
 

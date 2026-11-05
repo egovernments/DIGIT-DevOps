@@ -84,8 +84,8 @@ on:
     inputs:
       auth_mode:                 # Code Build /actions sign-in method
         type: choice
-        options: [pat, oauth]    # pat = paste a token (default); oauth = Sign in with GitHub
-        default: pat
+        options: [PAT, OAuth]    # PAT = paste a token (default); OAuth = Sign in with GitHub
+        default: PAT
 jobs:
   setup:
     uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-setup.yaml@reusable-build-v1

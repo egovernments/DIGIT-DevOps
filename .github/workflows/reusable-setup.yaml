@@ -78,6 +78,7 @@ jobs:
           CONFIG: build/build-config.yml
           WF: .github/workflows/code-build.yaml
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          AUTH_MODE: ${{ inputs.auth_mode }}
         run: |
           set -euo pipefail
           cp -R _devops/templates/consumer/. ./
@@ -108,6 +109,15 @@ jobs:
           if [ -f "$SYNC_WF" ]; then
             BR="$BR" yq -i '.["on"].workflow_dispatch.inputs.sync_branch.options = (strenv(BR) | split("\n"))' "$SYNC_WF"
             DEFAULT="$DEFAULT" yq -i '.["on"].workflow_dispatch.inputs.sync_branch.default = strenv(DEFAULT)' "$SYNC_WF"
+          fi
+          # Remember the chosen sign-in method as the default in this repo's own
+          # setup.yaml, so the next Setup run pre-selects the last pick (PAT/OAuth).
+          SETUP_WF=.github/workflows/setup.yaml
+          if [ -f "$SETUP_WF" ]; then
+            m=$(printf '%s' "${AUTH_MODE:-PAT}" | tr '[:upper:]' '[:lower:]')
+            case "$m" in oauth) DISP="OAuth";; *) DISP="PAT";; esac
+            DISP="$DISP" yq -i '.["on"].workflow_dispatch.inputs.auth_mode.default = strenv(DISP)' "$SETUP_WF"
+            echo "Remembered Code Build sign-in default: $DISP"
           fi
 
       - name: Commit scaffold to the default branch
@@ -155,7 +165,8 @@ jobs:
           rm -rf actions pipelines
           cp -R "$RUNNER_TEMP/pages/." ./
           # Set the Code Build sign-in method chosen at Setup (default pat).
-          MODE="${AUTH_MODE:-pat}"; [ "$MODE" = "oauth" ] || MODE="pat"
+          # auth_mode may arrive as PAT/OAuth (the choice labels) — canonicalise to lower.
+          MODE=$(printf '%s' "${AUTH_MODE:-pat}" | tr '[:upper:]' '[:lower:]'); [ "$MODE" = "oauth" ] || MODE="pat"
           if [ -f actions/index.html ]; then
             sed -i "s|<meta name=\"cb-auth-mode\" content=\"[^\"]*\">|<meta name=\"cb-auth-mode\" content=\"$MODE\">|" actions/index.html
             echo "Code Build sign-in method: $MODE"

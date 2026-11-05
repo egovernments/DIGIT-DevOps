@@ -79,9 +79,12 @@
   nav{border-bottom:1px solid var(--border);background:var(--surface)}
   .tabs{display:flex;gap:4px;max-width:1180px;margin:0 auto;
     padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
-  .tab{appearance:none;border:0;background:none;color:var(--muted);font-size:13.5px;font-weight:500;
+  .tab{appearance:none;border:0;background:none;color:var(--muted);font-size:13.5px;font-weight:500;white-space:nowrap;
     padding:12px 6px;margin-right:16px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
   .tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+  .tab .tic{display:inline-block;font-size:12px;margin-right:3px;font-weight:700}
+  .tab .tic.tplay{color:var(--ok)}   /* green play */
+  .tab .tic.tinfo{color:var(--accent)}  /* blue info */
 
   main{max-width:1180px;margin:0 auto;padding-block:22px 48px;
     padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
@@ -128,6 +131,9 @@
   .kv dt{color:var(--muted)}
   .kv dd{margin:0;text-align:right;font-family:var(--mono);font-size:12.5px;word-break:break-all;min-width:0}
   .kv dd .y{color:var(--ok);font-weight:600}.kv dd .n{color:var(--faint)}
+  /* colour code the resolved panel: green = images that get built & pushed; muted = source paths */
+  .kv dd.img{color:var(--ok);font-weight:600}
+  .kv dd.path{color:var(--muted)}
   .mapnote{margin-top:10px;font-size:11.5px;color:var(--warn);background:var(--warn-bg);border-radius:6px;padding:7px 9px;line-height:1.45}
 
   .run{margin-top:18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
@@ -149,6 +155,7 @@
   .chip{font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:3px 8px;border-radius:999px;flex:none}
   .chip.ok{background:var(--ok-bg);color:var(--ok)}.chip.run{background:var(--accent-weak);color:var(--accent)}
   .chip.fail{background:var(--crit-bg);color:var(--crit)}.chip.queue{background:var(--surface-2);color:var(--muted)}
+  .chip.block{background:var(--warn-bg);color:var(--warn)}  /* Trivy gate block — amber, distinct from a red Failure */
 
   .spin{width:15px;height:15px;border:2px solid var(--border-strong);border-top-color:var(--accent);border-radius:50%;
     display:inline-block;animation:sp .7s linear infinite;vertical-align:-2px}
@@ -176,14 +183,16 @@
   .steps li::before{content:counter(s);position:absolute;left:0;top:9px;width:22px;height:22px;border-radius:50%;
     background:var(--accent-weak);color:var(--accent);font-size:11px;font-weight:700;display:grid;place-items:center}
   .steps li b{font-weight:600}
+  .sec-card code{font-family:var(--mono);font-size:12px;background:var(--surface-2);padding:1px 5px;border-radius:4px;color:var(--fg)}
+  .sec-card .bd p.tiny{font-size:12px;color:var(--faint);line-height:1.55}
 
   .how{margin-top:28px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r)}
   .how summary{cursor:pointer;padding:15px 18px;font-size:13.5px;font-weight:600;list-style:none;display:flex;align-items:center;gap:9px}
   .how summary::-webkit-details-marker{display:none}
   .how .chev{transition:transform .2s}.how[open] .chev{transform:rotate(90deg)}
   .how .body{padding:0 18px 18px}
-  .flow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:6px 0 16px}
-  @media (max-width:640px){.flow{grid-template-columns:1fr 1fr}}
+  .flow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 14px}
+  @media (max-width:440px){.flow{grid-template-columns:1fr}}
   .node{background:var(--inset);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px}
   .node .n{font-size:11px;color:var(--accent);font-weight:700;font-family:var(--mono)}
   .node .d{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.45}
@@ -212,8 +221,8 @@
   </div>
   <nav>
     <div class="tabs" role="tablist">
-      <button class="tab" role="tab" aria-selected="true" data-view="build">Run a build</button>
-      <button class="tab" role="tab" aria-selected="false" data-view="security">Security</button>
+      <button class="tab" role="tab" aria-selected="true" data-view="build"><span class="tic tplay">▶</span>Run Build</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="howto"><span class="tic tinfo">ⓘ</span>How it works?</button>
     </div>
   </nav>
 </header>
@@ -295,36 +304,40 @@
     </div>
   </section>
 
-  <!-- SECURITY VIEW -->
-  <section id="view-security" hidden>
-    <div class="card sec-card">
-      <div class="hd"><h2>Trivy security gate</h2><span class="tag">gh-pages · /security/trivy</span></div>
-      <div class="bd">
-        <p><span class="pill">pattern · DIGIT-DevOps reusable CI</span></p>
-        <p>Every Code Build runs <span class="mono">aquasecurity/trivy-action</span> against the source tree and the built image. A <b>CRITICAL</b> finding blocks the gate; the report is published to <span class="mono">gh-pages</span> regardless, so history is never lost.</p>
-        <ol class="steps">
-          <li><b>Code scan</b> &mdash; filesystem scan of the service work-dir.</li>
-          <li><b>Image scan</b> &mdash; the pushed image is scanned for OS + library CVEs.</li>
-          <li><b>Gate</b> &mdash; CRITICAL aborts the build; HIGH and below are reported.</li>
-          <li><b>Publish</b> &mdash; results land on <span class="mono">gh-pages/security/trivy</span>.</li>
-        </ol>
-        <p style="margin-top:14px"><a id="trivyLink" href="#" target="_blank" rel="noopener">Open the published dashboard ↗</a> <span class="hint" style="display:inline">(available once the gh-pages dashboard is enabled)</span></p>
+  <!-- HOW IT WORKS VIEW (merges the old Security tab + the "how this page works" panel) -->
+  <section id="view-howto" hidden>
+    <div class="grid">
+      <div class="card sec-card">
+        <div class="hd"><h2>How this page works</h2><span class="tag">dispatch · live</span></div>
+        <div class="bd">
+          <p>A thin front-end over the GitHub REST API: it reads this repository with <b>your own</b> access and dispatches the <span class="mono">Code Build</span> workflow. No backend &mdash; everything runs in your browser, so you only ever see what GitHub already lets you see.</p>
+          <div class="flow">
+            <div class="node"><div class="n">1 · read</div><div class="d">Reads the repo's branches, then the chosen branch's <code>build/build-config.yml</code>, with your token.</div></div>
+            <div class="node"><div class="n">2 · cascade</div><div class="d">The config becomes branch → module → service; each dropdown filters the next.</div></div>
+            <div class="node"><div class="n">3 · dispatch</div><div class="d"><code>workflow_dispatch</code> on the default branch with your service + build branch. Needs <code>Actions: write</code>.</div></div>
+            <div class="node"><div class="n">4 · watch</div><div class="d">The DIGIT-DevOps engine builds, scans and pushes; <b>Recent runs</b> polls the status live.</div></div>
+          </div>
+          <p class="tiny">Your token stays in <b>this browser tab</b> only (session storage): it survives a refresh, clears when the tab closes or after 15 min idle, and a strict Content-Security-Policy means it is only ever sent to <code>api.github.com</code> &mdash; nothing here can send it elsewhere.</p>
+        </div>
+      </div>
+
+      <div class="card sec-card">
+        <div class="hd"><h2>Trivy security gate</h2><span class="tag">gh-pages · /security/trivy</span></div>
+        <div class="bd">
+          <p><span class="pill">pattern · DIGIT-DevOps reusable CI</span></p>
+          <p>Every build is scanned by <span class="mono">Trivy</span>. A <b>CRITICAL</b> finding blocks the pipeline; the report is published either way, so history is never lost.</p>
+          <ol class="steps">
+            <li><b>Code scan</b> &mdash; the source tree is scanned for vulnerable dependencies &amp; secrets, <b>before</b> the image is built.</li>
+            <li><b>Build</b> &mdash; the service image (and its DB image, if any) is built.</li>
+            <li><b>Image scan</b> &mdash; the built image is scanned for OS + library CVEs, <b>before</b> it is pushed.</li>
+            <li><b>Gate</b> &mdash; a CRITICAL at either scan aborts the run; HIGH and below are reported.</li>
+            <li><b>Publish</b> &mdash; results land on <span class="mono">gh-pages/security/trivy</span>.</li>
+          </ol>
+          <p style="margin-top:14px"><a id="trivyLink" href="#" target="_blank" rel="noopener">Open the published dashboard ↗</a> <span class="hint" style="display:inline">(once the gh-pages dashboard is enabled)</span></p>
+        </div>
       </div>
     </div>
   </section>
-
-  <details class="how" id="howBox" hidden>
-    <summary><span class="chev">›</span> How this page works</summary>
-    <div class="body">
-      <div class="flow">
-        <div class="node"><div class="n">1 · read</div><div class="d">The browser calls the GitHub REST API with your token for branches, then that branch's build-config.yml.</div></div>
-        <div class="node"><div class="n">2 · cascade</div><div class="d">Config is parsed into module → service → image-name. Each dropdown filters the next.</div></div>
-        <div class="node"><div class="n">3 · dispatch</div><div class="d">Run posts to the workflow_dispatch API on the default branch with the chosen build_branch + service. Needs <code>Actions: write</code>.</div></div>
-        <div class="node"><div class="n">4 · watch</div><div class="d">The run executes the DIGIT-DevOps engine + Trivy; this page polls its status and links to it.</div></div>
-      </div>
-      <p>The token is kept for this browser tab only (session storage): it survives a refresh, is cleared when the tab closes or after 15 min idle, and never leaves your browser &mdash; a strict Content-Security-Policy means it is only ever sent to <code>api.github.com</code>, and nothing on this page can send it elsewhere.</p>
-    </div>
-  </details>
 </main>
 
 <div id="modalHost"></div>
@@ -451,7 +464,6 @@ function onConnected(user){
   av.innerHTML = user.avatar_url ? '<img alt="" src="' + esc(user.avatar_url) + '">' : esc((user.login||"?").slice(0,2).toUpperCase());
   $("whoName").textContent = "@" + (user.login || "you");
   $("whoArea").hidden = false;
-  $("howBox").hidden = false;
   route(location.hash.slice(1) || "build");
   loadBranches();
   armIdle();
@@ -462,7 +474,7 @@ function disconnect(){
   try{ sessionStorage.removeItem("cb-session"); }catch(e){}
   if(pollTimer) clearInterval(pollTimer);
   if(idleTimer) clearTimeout(idleTimer);
-  $("whoArea").hidden = true; $("howBox").hidden = true;
+  $("whoArea").hidden = true;
   showView("connect");
   document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t.dataset.view==="build"));
 }
@@ -609,9 +621,9 @@ function showResolved(s){
     ? '<div class="mapnote">Folder <b>'+esc(s.label)+'</b> builds image <b>'+esc(s.image)+'</b> — the engine dispatches on the image-name.</div>' : "";
   resolved.innerHTML =
     '<dl class="kv">'
-    + '<dt>Image</dt><dd>'+esc(ns+s.image)+':'+esc(tag)+'</dd>'
-    + '<dt>Dockerfile</dt><dd>'+esc(s.df)+'</dd>'
-    + '<dt>Work dir</dt><dd>'+esc(s.wd)+'</dd>'
+    + '<dt>Image</dt><dd class="img">'+esc(ns+s.image)+':'+esc(tag)+'</dd>'
+    + '<dt>Dockerfile</dt><dd class="path">'+esc(s.df)+'</dd>'
+    + '<dt>Work dir</dt><dd class="path">'+esc(s.wd)+'</dd>'
     + '<dt>DB image</dt><dd>'+(s.db?'<span class="y">'+esc(ns+s.dbImage)+'</span>':'<span class="n">none</span>')+'</dd>'
     + '</dl>' + map;
   runBtn.disabled = false;
@@ -768,11 +780,11 @@ function openModal(html){
 function closeModal(){ $("modalHost").innerHTML = ""; }
 
 /* ---------------- views / tabs / theme ---------------- */
-const views = { connect:$("view-connect"), build:$("view-build"), security:$("view-security") };
+const views = { connect:$("view-connect"), build:$("view-build"), howto:$("view-howto") };
 function showView(v){ Object.entries(views).forEach(([k,el]) => el.hidden = (k!==v)); }
 function route(v){
   if(!TOKEN){ showView("connect"); return; }
-  if(v!=="build" && v!=="security") v = "build";
+  if(v!=="build" && v!=="howto") v = "build";
   showView(v);
   document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t.dataset.view===v));
 }

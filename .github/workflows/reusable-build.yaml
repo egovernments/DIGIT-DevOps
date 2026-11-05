@@ -1,8 +1,11 @@
 # Central, reusable Docker build engine for eGov service repos.
-# Pipeline: resolve-config -> code-scan -> image-scan -> build (push).
-# Trivy mirrors health-campaign-services: CRITICAL blocks the push; reports
-# publish to the caller's gh-pages /security/trivy via .trivy/dashboard.
-# The scan gate runs ONLY on the default branch; other branches build unscanned.
+# Pipeline (default branch): resolve-config -> code-scan -> build image (app + db,
+#   local) -> image-scan the built image(s) -> push (multi-arch) + cosign sign.
+#   A CRITICAL at the code stage OR the image stage blocks the push, so the image
+#   that is scanned is exactly the one that gets pushed. Reports publish to the
+#   caller's gh-pages /security/trivy via .trivy/dashboard, with the app and db
+#   image findings combined under one service.
+# On non-default branches the scans are skipped and the image is built + pushed.
 # Docs: docs/workflows/build.md
 name: Reusable Build
 
@@ -199,89 +202,24 @@ jobs:
           fi
           echo "Code scan passed for $SERVICE ($CRIT critical). Report: $URL"
 
-  # Security gate 2 — build the image and scan it before it is pushed.
-  image-scan:
-    name: Image scan · ${{ needs.resolve-config.outputs.image_name }}
-    needs: [resolve-config, code-scan]
-    # Default branch only; other branches skip straight to the build.
-    if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.is_default == 'true' }}
-    runs-on: ${{ inputs.runs_on }}
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout caller repo
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          ref: ${{ inputs.build_branch }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
-
-      - name: Build image locally (amd64) for scanning
-        run: |
-          docker buildx build \
-            --platform linux/amd64 \
-            --build-arg WORK_DIR=${{ needs.resolve-config.outputs.work_dir }} \
-            --file ${{ needs.resolve-config.outputs.dockerfile }} \
-            --tag local-scan/${{ needs.resolve-config.outputs.image_name }}:${{ needs.resolve-config.outputs.tag }} \
-            --load \
-            .
-
-      - name: Trivy image scan
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
-        env:
-          TRIVY_OFFLINE_SCAN: 'true'
-          TRIVY_TIMEOUT: 15m
-        with:
-          scan-type: image
-          image-ref: local-scan/${{ needs.resolve-config.outputs.image_name }}:${{ needs.resolve-config.outputs.tag }}
-          scanners: vuln,secret
-          severity: CRITICAL,HIGH,MEDIUM
-          format: json
-          output: image-scan.json
-          exit-code: '0'
-          hide-progress: true
-
-      - name: Evaluate gate & publish dashboard
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{ inputs.build_branch || github.ref_name }}
-        run: |
-          SERVICE="${{ needs.resolve-config.outputs.image_name }}"
-          CRIT=$(jq '[.Results[]? | (.Vulnerabilities[]?, .Secrets[]?) | select(.Severity=="CRITICAL")] | length' image-scan.json)
-          GATE=pass; [ "$CRIT" -gt 0 ] && GATE=fail
-          URL=$(bash .trivy/dashboard/publish.sh image "$SERVICE" "${{ github.run_id }}" image-scan.json "$GATE")
-          {
-            echo "### Trivy image scan · $SERVICE"
-            echo ""
-            echo "- Critical findings: **$CRIT**"
-            echo "- Report: [$URL]($URL)"
-          } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$CRIT" -gt 0 ]; then
-            echo "::error title=Image scan blocked::$CRIT critical finding(s) in the image for $SERVICE. Image not pushed. Report: $URL"
-            exit 1
-          fi
-          echo "Image scan passed for $SERVICE ($CRIT critical). Report: $URL"
-
+  # Build the image, scan the BUILT image, then push only if the scan passes.
+  # Order within this job: build (local, app + db) -> image-scan (app + db,
+  # default branch only) -> push (multi-arch) + cosign. Kept in one job because a
+  # locally-built image can't cross GitHub job boundaries without a heavy tarball;
+  # the buildx cache makes the pushed amd64 the same layers that were scanned. A
+  # CRITICAL in the gate fails the job before the push steps run.
   build:
-    name: Build & push · ${{ needs.resolve-config.outputs.image_name }}
-    needs: [resolve-config, code-scan, image-scan]
-    # Run when gates passed, or when they were skipped (enable_trivy=false).
-    # A failed gate leaves this skipped, so a CRITICAL image is never pushed.
+    name: Build · ${{ needs.resolve-config.outputs.image_name }}
+    needs: [resolve-config, code-scan]
+    # Run when the code gate passed, or was skipped (non-default branch / trivy off).
+    # A failed code-scan leaves this skipped, so nothing is built or pushed.
     if: >-
       ${{ always()
       && needs.resolve-config.result == 'success'
-      && (needs.code-scan.result == 'success' || needs.code-scan.result == 'skipped')
-      && (needs.image-scan.result == 'success' || needs.image-scan.result == 'skipped') }}
+      && (needs.code-scan.result == 'success' || needs.code-scan.result == 'skipped') }}
     runs-on: ${{ inputs.runs_on }}
     permissions:
-      contents: read
+      contents: write          # publish the Trivy image dashboard to gh-pages
       id-token: write          # cosign keyless signing (OIDC -> Fulcio)
     outputs:
       docker_image: ${{ steps.refs.outputs.app }}
@@ -301,14 +239,111 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
 
+      # --- Build the image(s) locally (amd64) so the exact built artifact can be
+      #     scanned before anything is pushed — only when the gate is active. ---
+      - name: Build application image (local, for scan)
+        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.is_default == 'true' }}
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: ${{ needs.resolve-config.outputs.dockerfile }}
+          platforms: linux/amd64
+          load: true
+          tags: local-scan/${{ inputs.service }}:${{ needs.resolve-config.outputs.tag }}
+          build-args: WORK_DIR=${{ needs.resolve-config.outputs.work_dir }}
+          cache-from: type=gha,scope=${{ inputs.service }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.service }}
+
+      - name: Build database image (local, for scan)
+        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.is_default == 'true' && needs.resolve-config.outputs.db_work_dir != '' }}
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: ${{ needs.resolve-config.outputs.db_work_dir }}
+          file: ${{ needs.resolve-config.outputs.db_dockerfile }}
+          platforms: linux/amd64
+          load: true
+          tags: local-scan/${{ inputs.service }}-db:${{ needs.resolve-config.outputs.tag }}
+          cache-from: type=gha,scope=${{ inputs.service }}-db
+          cache-to: type=gha,mode=max,scope=${{ inputs.service }}-db
+
+      # --- Image scan (app + db) + gate — default branch only ---
+      - name: Trivy image scan (application)
+        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.is_default == 'true' }}
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        env:
+          TRIVY_OFFLINE_SCAN: 'true'
+          TRIVY_TIMEOUT: 15m
+        with:
+          scan-type: image
+          image-ref: local-scan/${{ inputs.service }}:${{ needs.resolve-config.outputs.tag }}
+          scanners: vuln,secret
+          severity: CRITICAL,HIGH,MEDIUM
+          format: json
+          output: image-app.json
+          exit-code: '0'
+          hide-progress: true
+
+      - name: Trivy image scan (database)
+        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.is_default == 'true' && needs.resolve-config.outputs.db_work_dir != '' }}
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        env:
+          TRIVY_OFFLINE_SCAN: 'true'
+          TRIVY_TIMEOUT: 15m
+        with:
+          scan-type: image
+          image-ref: local-scan/${{ inputs.service }}-db:${{ needs.resolve-config.outputs.tag }}
+          scanners: vuln,secret
+          severity: CRITICAL,HIGH,MEDIUM
+          format: json
+          output: image-db.json
+          exit-code: '0'
+          hide-progress: true
+
+      - name: Evaluate image gate & publish dashboard
+        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.is_default == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ inputs.build_branch || github.ref_name }}
+          HAS_DB: ${{ needs.resolve-config.outputs.db_work_dir != '' }}
+        run: |
+          set -euo pipefail
+          SERVICE="${{ needs.resolve-config.outputs.image_name }}"
+          # Combine app + db image findings into one report so both appear under the
+          # same service in the dashboard; the gate counts criticals across both.
+          if [ "$HAS_DB" = "true" ] && [ -f image-db.json ]; then
+            jq -s '{SchemaVersion: .[0].SchemaVersion, ArtifactName: .[0].ArtifactName,
+                    Metadata: .[0].Metadata,
+                    Results: ((.[0].Results // []) + (.[1].Results // []))}' \
+               image-app.json image-db.json > image-scan.json
+          else
+            cp image-app.json image-scan.json
+          fi
+          CRIT=$(jq '[.Results[]? | (.Vulnerabilities[]?, .Secrets[]?) | select(.Severity=="CRITICAL")] | length' image-scan.json)
+          GATE=pass; [ "$CRIT" -gt 0 ] && GATE=fail
+          URL=$(bash .trivy/dashboard/publish.sh image "$SERVICE" "${{ github.run_id }}" image-scan.json "$GATE")
+          {
+            echo "### Trivy image scan · $SERVICE"
+            echo ""
+            echo "- Critical findings (app + db): **$CRIT**"
+            echo "- Report: [$URL]($URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$CRIT" -gt 0 ]; then
+            echo "::error title=Image scan blocked::$CRIT critical finding(s) in the image(s) for $SERVICE. Nothing pushed. Report: $URL"
+            exit 1
+          fi
+          echo "Image scan passed for $SERVICE ($CRIT critical). Report: $URL"
+
+      # --- Push (multi-arch) — reached only if the gate above did not fail.
+      #     success() is explicit so a failed gate skips the push. ---
       - name: Build and push application image
         id: build_app
+        if: ${{ success() && inputs.push }}
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
           file: ${{ needs.resolve-config.outputs.dockerfile }}
           platforms: ${{ inputs.platforms }}
-          push: ${{ inputs.push }}
+          push: true
           tags: ${{ inputs.registry_namespace }}/${{ inputs.service }}:${{ needs.resolve-config.outputs.tag }}
           build-args: WORK_DIR=${{ needs.resolve-config.outputs.work_dir }}
           cache-from: type=gha,scope=${{ inputs.service }}
@@ -316,19 +351,20 @@ jobs:
 
       - name: Build and push database image
         id: build_db
-        if: ${{ needs.resolve-config.outputs.db_work_dir != '' }}
+        if: ${{ success() && inputs.push && needs.resolve-config.outputs.db_work_dir != '' }}
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: ${{ needs.resolve-config.outputs.db_work_dir }}
           file: ${{ needs.resolve-config.outputs.db_dockerfile }}
           platforms: ${{ inputs.platforms }}
-          push: ${{ inputs.push }}
+          push: true
           tags: ${{ inputs.registry_namespace }}/${{ inputs.service }}-db:${{ needs.resolve-config.outputs.tag }}
           cache-from: type=gha,scope=${{ inputs.service }}-db
           cache-to: type=gha,mode=max,scope=${{ inputs.service }}-db
 
       - name: Export image refs
         id: refs
+        if: ${{ success() && inputs.push }}
         env:
           APP_IMAGE: ${{ inputs.registry_namespace }}/${{ inputs.service }}:${{ needs.resolve-config.outputs.tag }}
           DB_WORK_DIR: ${{ needs.resolve-config.outputs.db_work_dir }}
@@ -342,18 +378,17 @@ jobs:
           fi
 
       # Supply-chain control: sign the pushed image(s) so consumers can verify
-      # provenance. Keyless — identity from the GitHub OIDC token, certificate
-      # from Fulcio, signature recorded in the public Rekor log; no key to manage.
-      # sigstore/cosign-installer ships no floating v4 tag, so pin it by exact tag.
+      # provenance. Keyless — identity from the GitHub OIDC token, certificate from
+      # Fulcio, signature in the public Rekor log; no key to manage. cosign-installer
+      # ships no floating v4 tag, so pin it by exact tag.
       - name: Install cosign
-        if: ${{ inputs.push && inputs.enable_cosign }}
+        if: ${{ success() && inputs.push && inputs.enable_cosign }}
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
-          cosign-release: 'v3.1.3'   # pin the tool: a supply-chain control
-                                     # must not ride a floating version
+          cosign-release: 'v3.1.3'
 
       - name: Sign images (cosign keyless)
-        if: ${{ inputs.push && inputs.enable_cosign }}
+        if: ${{ success() && inputs.push && inputs.enable_cosign }}
         env:
           APP_REPO: ${{ inputs.registry_namespace }}/${{ inputs.service }}
           DB_REPO: ${{ inputs.registry_namespace }}/${{ inputs.service }}-db
@@ -372,13 +407,19 @@ jobs:
           echo "Signed (${SIGNED}) with cosign keyless — GitHub OIDC → Fulcio → Rekor." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summary
+        if: ${{ always() }}
         env:
           APP_IMAGE: ${{ inputs.registry_namespace }}/${{ inputs.service }}:${{ needs.resolve-config.outputs.tag }}
           DB_WORK_DIR: ${{ needs.resolve-config.outputs.db_work_dir }}
           DB_IMAGE: ${{ inputs.registry_namespace }}/${{ inputs.service }}-db:${{ needs.resolve-config.outputs.tag }}
+          PUSHED: ${{ inputs.push }}
         run: |
           {
             echo "### Build result"
-            echo "- Application: \`$APP_IMAGE\`"
-            if [ -n "$DB_WORK_DIR" ]; then echo "- Database: \`$DB_IMAGE\`"; fi
+            if [ "$PUSHED" = "true" ]; then
+              echo "- Application: \`$APP_IMAGE\`"
+              if [ -n "$DB_WORK_DIR" ]; then echo "- Database: \`$DB_IMAGE\`"; fi
+            else
+              echo "- Build-only (push disabled)."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

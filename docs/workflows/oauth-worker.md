@@ -132,6 +132,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/auth/login")    return login(url, env);
     if (url.pathname === "/auth/callback") return callback(url, env);
+    if (url.pathname === "/auth/refresh")  return refresh(request, env);
     if (url.pathname === "/" || url.pathname === "/health")
       return new Response("ci-auth-worker ok", { status: 200, headers: { "content-type": "text/plain" } });
     return new Response("Not found", { status: 404 });
@@ -175,10 +176,79 @@ async function callback(url, env) {
   } catch (e) { data = { error: "network_error" }; }
 
   const back = new URL(st.r);
-  back.hash = data && data.access_token
-    ? "token=" + encodeURIComponent(data.access_token) + "&state=" + encodeURIComponent(st.n || "")
-    : "auth_error=" + encodeURIComponent((data && data.error) || "exchange_failed");
+  if (data && data.access_token) {
+    const p = new URLSearchParams();
+    p.set("token", data.access_token);
+    p.set("state", st.n || "");
+    if (data.expires_in) p.set("expires_in", String(data.expires_in));
+    // refresh_token is present only when the OAuth App has "Expire user access
+    // tokens" on; the page stores it and calls /auth/refresh to renew silently.
+    if (data.refresh_token) p.set("refresh_token", data.refresh_token);
+    back.hash = p.toString();
+  } else {
+    back.hash = "auth_error=" + encodeURIComponent((data && data.error) || "exchange_failed");
+  }
   return Response.redirect(back.toString(), 302);
+}
+
+// CORS: echo the request Origin when it is on the allowlist (the page fetches
+// /auth/refresh cross-origin from github.io).
+function corsHeaders(request, env) {
+  const origin = request.headers.get("Origin") || "";
+  const ok = (env.ALLOWED_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean).includes(origin);
+  const h = { "Vary": "Origin" };
+  if (ok) {
+    h["Access-Control-Allow-Origin"] = origin;
+    h["Access-Control-Allow-Methods"] = "POST, OPTIONS";
+    h["Access-Control-Allow-Headers"] = "content-type";
+    h["Access-Control-Max-Age"] = "86400";
+  }
+  return h;
+}
+
+function json(obj, status, extra) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: Object.assign({ "content-type": "application/json" }, extra || {})
+  });
+}
+
+// Exchange a refresh_token for a fresh access token (the client secret stays
+// server-side). The page calls this when its access token 401s; GitHub returns a
+// new access_token AND a rotated refresh_token.
+async function refresh(request, env) {
+  const cors = corsHeaders(request, env);
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (request.method !== "POST") return new Response("method not allowed", { status: 405, headers: cors });
+  if (!cors["Access-Control-Allow-Origin"]) return new Response("origin not allowed", { status: 403 });
+
+  let body = {};
+  try { body = await request.json(); } catch (e) {}
+  const rt = body && body.refresh_token;
+  if (!rt) return json({ error: "missing refresh_token" }, 400, cors);
+
+  let data = {};
+  try {
+    const res = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: { "Accept": "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: env.GITHUB_CLIENT_ID,
+        client_secret: env.GITHUB_CLIENT_SECRET,
+        grant_type: "refresh_token",
+        refresh_token: rt
+      })
+    });
+    data = await res.json();
+  } catch (e) { data = { error: "network_error" }; }
+
+  if (!data || !data.access_token) return json({ error: (data && data.error) || "refresh_failed" }, 400, cors);
+  return json({
+    access_token: data.access_token,
+    expires_in: data.expires_in,
+    refresh_token: data.refresh_token,
+    refresh_token_expires_in: data.refresh_token_expires_in
+  }, 200, cors);
 }
 ```
 
@@ -209,10 +279,28 @@ SCOPE = "repo"
 - `/auth/callback` verifies the signature + 10-min freshness, checks the redirect origin
   against `ALLOWED_ORIGINS`, exchanges the code, and 302s back to the page with the token
   in the URL **fragment** (`#token=…`), which never reaches any server.
-- The page verifies `state` matches the nonce it stored, then holds the token in
+- The page verifies `state` matches the nonce it stored, then holds the access token in
   `sessionStorage` (per-tab; cleared on tab close / 15-min idle / Disconnect) — the same
   path as the PAT, so refresh-persistence and per-repo access apply identically.
 - The token appears briefly in the page URL fragment (and history); the page strips it
   immediately. Rotate `GITHUB_CLIENT_SECRET` if it is ever exposed.
-- If the OAuth App has **"Expire user access tokens"** on, tokens last ~8h and the user
-  simply signs in again (the Worker does not yet use the refresh token).
+
+### Token refresh
+
+The OAuth App has **"Expire user access tokens"** on, so the access token lasts ~8h and
+the callback also returns a `refresh_token`. The Worker exposes **`POST /auth/refresh`**:
+
+- The page stores the `refresh_token` alongside the access token (per-tab `sessionStorage`).
+- When an `api.github.com` call returns **401**, the page posts the refresh token to
+  `/auth/refresh`; the Worker exchanges it (`grant_type=refresh_token`, client secret
+  server-side) for a new access token (GitHub also rotates the refresh token), returns
+  them as JSON, and the page retries the call — so an ~8h-old session renews silently
+  instead of forcing a re-login.
+- `/auth/refresh` only answers requests whose `Origin` is in `ALLOWED_ORIGINS` (echoed
+  back as the CORS header; others get 403), and it handles the CORS pre-flight. The
+  consumer page's CSP therefore allows `connect-src` to this Worker in addition to
+  `api.github.com`.
+- The `refresh_token` is longer-lived than the access token; like the access token it
+  lives only in the tab's `sessionStorage` and is cleared on tab close / idle / Disconnect.
+  (GitHub can't mint a refresh token into a server-side cookie that a cross-site page in
+  Brave/Safari would reliably read, so the page holds it.)

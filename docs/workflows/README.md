@@ -1,61 +1,64 @@
 # Reusable build workflows
 
-Central CI library for eGov service repositories. A consumer repo keeps one thin
-caller; everything else is provisioned from here and upgraded centrally.
+Central CI for eGov service repositories. A consumer repo keeps one thin caller and a
+build config; the engine, the dispatcher UI, the security scanning and the dashboards
+are all provisioned from here and upgraded centrally.
+
+**→ Onboarding a new repo? Start with the [onboarding runbook](onboarding.md).**
 
 ## How it fits together
 
 ```
-DIGIT-DevOps (this repo)                      Consumer repo (e.g. DIGIT-Studio)
-  reusable-*.yaml ──── pinned @reusable-build-v1 ───▶ code-build.yaml  (thin caller)
-  templates/consumer/ ─────── run setup once ───────▶ sync-code-build.yaml, .trivy/
+DIGIT-DevOps (this repo)                      Consumer repo (e.g. a service repo)
+  reusable-*.yaml ──── pinned @reusable-build-v1 ───▶ code-build.yaml   (thin caller)
+  templates/consumer/ ─────── run Setup once ───────▶ sync-code-build.yaml, .trivy/
   promote-reusable-tag.yaml                            gh-pages: /  /actions  /security/trivy
     └ auto-moves the tag on every merge here
 ```
 
 - **Engine** lives here; consumers call it by tag, so a change merged here ships to all of them.
-- **Setup** (run once per repo, authenticates as a GitHub App) scaffolds the caller, the sync workflow, the Trivy toolkit and the pages.
+- **Setup** (run once per repo, authenticates as a GitHub App) scaffolds the caller, the sync workflow, the Trivy toolkit and the Pages.
 - **Sync** keeps the Code Build dropdowns matching the repo's live branches and services.
-- **Build** runs the engine: Trivy-gated on the default branch, images cosign-signed.
+- **Build** runs the engine: code-scan → build → image-scan → push → sign, gated on the default branch.
 
-Auth model: **setup + sync** push straight to the default branch as a **GitHub App** (on the ruleset bypass list); the **`/actions` UI** dispatches builds with a viewer's scoped, in-memory **PAT**. No long-lived PAT is stored anywhere.
+**Auth model:** Setup + Sync push straight to the default branch as a **GitHub App** (on
+the ruleset bypass list); the **`/actions`** dispatcher signs a user in with a scoped,
+per-tab **PAT** (default) or **Sign in with GitHub** (optional OAuth). No long-lived PAT
+is stored anywhere.
 
-## Workflows
+## Documentation
 
-| Workflow | Purpose |
+| Doc | What it covers |
 |---|---|
-| [`reusable-build.yaml`](build.md) | Build + push images, with Trivy code + image scans (CRITICAL blocks the push) |
-| [`reusable-setup.yaml`](setup.md) | One-shot scaffold of a consumer repo (Code Build caller, sync, Trivy toolkit, gh-pages landing page + `/actions` UI) |
-| [`reusable-code-build-sync.yaml`](sync-code-build.md) | Keep both Code Build dropdowns current — service (from `build-config.yml`) and branch (from live branches) |
-| `promote-reusable-tag.yaml` | Auto-move `reusable-build-v1` to master when the engine/templates change (not reusable; runs in this repo) |
+| **[onboarding.md](onboarding.md)** | **Start here** — step-by-step runbook to put a new repo on Code Build |
+| [build.md](build.md) | The build engine (`reusable-build.yaml`): pipeline, scan policy, cosign, inputs |
+| [setup.md](setup.md) | The Setup workflow + the GitHub App it needs, and the `auth_mode` toggle |
+| [sync-code-build.md](sync-code-build.md) | How the service + branch dropdowns stay current |
+| [actions-ui.md](actions-ui.md) | The landing page + `/actions` dispatcher, and sign-in methods |
+| [oauth-worker.md](oauth-worker.md) | Optional "Sign in with GitHub" — the broker Worker (OAuth) |
 
-## What a consumer ends up with
+### Components (this repo)
 
-- `.github/workflows/code-build.yaml` — build caller with synced **service** and **Build-from-Branch** dropdowns.
-- `.github/workflows/sync-code-build.yaml` — refreshes the service **and** branch dropdowns (config change, branch create/delete, daily).
-- `.trivy/dashboard/` — Trivy report generator, published to `gh-pages/security/trivy` (scans gate the default branch only).
-- gh-pages **landing page** (`/`) + [`/actions` dispatcher UI](actions-ui.md) (live branch → service picker).
+| Workflow | Role |
+|---|---|
+| `reusable-build.yaml` | The build engine (`on: workflow_call`) — [build.md](build.md) |
+| `reusable-setup.yaml` | One-shot consumer scaffold — [setup.md](setup.md) |
+| `reusable-code-build-sync.yaml` | Dropdown sync — [sync-code-build.md](sync-code-build.md) |
+| `promote-reusable-tag.yaml` | Auto-moves `reusable-build-v1` on engine/template changes (runs here, not reusable) |
 
-The `/actions` UI signs in with a PAT (default) or, optionally, **Sign in with GitHub** — see [oauth-worker.md](oauth-worker.md).
+## Running a build (two doors)
 
-## Onboard a repo
+- **GitHub-native** — Actions → **Build — Code** → Run workflow (session auth, synced service + branch dropdowns).
+- **`/actions` UI** — `https://<owner>.github.io/<repo>/actions/`: a live branch → service picker. Signs in with a scoped PAT or Sign in with GitHub.
 
-1. Create the GitHub App + its secrets (see [setup.md](setup.md)).
-2. Add a one-line `setup.yaml` caller and run it once.
-3. Ensure the repo has `DOCKER_USERNAME` (variable) and `DOCKER_ACCESS_TOKEN` (secret).
-
-Two ways to run a build afterwards:
-
-- **GitHub-native** — Actions → **Code Build** → Run workflow (session auth, synced dropdown).
-- **`/actions` UI** — live branch picker, needs a scoped fine-grained PAT.
+Both dispatch the same `code-build.yaml`.
 
 ## Versioning
 
 Callers pin a moving major tag `@reusable-build-v1` (or an immutable `@reusable-build-v1.0.y`).
 
-The move is **automated**: `promote-reusable-tag.yaml` runs when `reusable-*.yaml`
-or `templates/consumer/**` change on master, repoints `reusable-build-v1` at the
-new master tip, and cuts the next immutable `reusable-build-v1.0.<N>` snapshot. So
-merging a change here rolls it out to every consumer with no manual tag move. (It
-can also be run from the Actions tab via **Run workflow**.) Cut a new major tag
+The move is **automated**: `promote-reusable-tag.yaml` runs when `reusable-*.yaml` or
+`templates/consumer/**` change on master, repoints `reusable-build-v1` at the new master
+tip, and cuts the next immutable `reusable-build-v1.0.<N>` snapshot — so merging a change
+here rolls it out to every consumer with no manual tag move. Cut a new major tag
 `reusable-build-v2` by hand for a breaking change.

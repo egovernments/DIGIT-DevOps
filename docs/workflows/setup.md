@@ -1,5 +1,9 @@
 # Setup workflow
 
+> This is the reference for the **Setup workflow** and the **GitHub App** it uses. For
+> the end-to-end steps to put a new repo on Code Build, follow the
+> [onboarding runbook](onboarding.md).
+
 `reusable-setup.yaml` provisions a consumer repo in one run: it scaffolds the
 Code Build caller (with the service + branch dropdowns already populated), the sync-code-build
 workflow and the Trivy dashboard toolkit, and **commits them straight to the

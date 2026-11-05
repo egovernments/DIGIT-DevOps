@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.github.com; img-src 'self' data: https://avatars.githubusercontent.com; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.github.com https://digit-ci-auth.egovernments.workers.dev; img-src 'self' data: https://avatars.githubusercontent.com; base-uri 'none'; form-action 'none'">
 <title>Code Build</title>
 <meta name="cb-auth-mode" content="pat">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAzMiAzMic+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSdnJyB4MT0nMCcgeTE9JzAnIHgyPScxJyB5Mj0nMSc+PHN0b3Agb2Zmc2V0PScwJyBzdG9wLWNvbG9yPScjMmY0YmQ4Jy8+PHN0b3Agb2Zmc2V0PScxJyBzdG9wLWNvbG9yPScjMWEyYThjJy8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9JzMyJyBoZWlnaHQ9JzMyJyByeD0nOCcgZmlsbD0ndXJsKCNnKScvPjx0ZXh0IHg9JzE2JyB5PScyMicgZm9udC1mYW1pbHk9J3N5c3RlbS11aSxTZWdvZSBVSSxSb2JvdG8sc2Fucy1zZXJpZicgZm9udC1zaXplPScxNScgZm9udC13ZWlnaHQ9JzcwMCcgZmlsbD0nI2ZmZmZmZicgdGV4dC1hbmNob3I9J21pZGRsZSc+Q0I8L3RleHQ+PC9zdmc+">
@@ -234,7 +234,7 @@
         </div>
         <!-- Personal access token — the default sign-in method -->
         <div id="patBlock">
-          <p class="lead">Paste a <b>fine-grained personal access token</b> scoped to this repo. It is kept for <b>this browser tab</b> only &mdash; it survives a refresh, clears when you close the tab or after 15 min idle, is never shared with other tabs or devices, and (via a strict CSP) can only ever reach <span class="mono">api.github.com</span>.</p>
+          <p class="lead">Paste a <b>fine-grained personal access token</b> scoped to this repo. It is kept for <b>this browser tab</b> only &mdash; it survives a refresh, clears when you close the tab or after 15 min idle, is never shared with other tabs or devices, and (via a strict CSP) is only ever sent to <span class="mono">api.github.com</span>.</p>
           <div class="two">
             <div><label for="inOwner">Owner</label><input type="text" id="inOwner" spellcheck="false" autocapitalize="off"></div>
             <div><label for="inRepo">Repository</label><input type="text" id="inRepo" spellcheck="false" autocapitalize="off"></div>
@@ -322,7 +322,7 @@
         <div class="node"><div class="n">3 · dispatch</div><div class="d">Run posts to the workflow_dispatch API on the default branch with the chosen build_branch + service. Needs <code>Actions: write</code>.</div></div>
         <div class="node"><div class="n">4 · watch</div><div class="d">The run executes the DIGIT-DevOps engine + Trivy; this page polls its status and links to it.</div></div>
       </div>
-      <p>The token is kept for this browser tab only (session storage): it survives a refresh, is cleared when the tab closes or after 15 min idle, and never leaves your browser &mdash; a strict Content-Security-Policy means it can only ever reach <code>api.github.com</code>, and nothing on this page can send it elsewhere.</p>
+      <p>The token is kept for this browser tab only (session storage): it survives a refresh, is cleared when the tab closes or after 15 min idle, and never leaves your browser &mdash; a strict Content-Security-Policy means it is only ever sent to <code>api.github.com</code>, and nothing on this page can send it elsewhere.</p>
     </div>
   </details>
 </main>
@@ -331,8 +331,9 @@
 
 <script>
 "use strict";
-/* ---------------- state (token is memory-only) ---------------- */
+/* ---------------- state (token is per-tab) ---------------- */
 let TOKEN = null;
+let REFRESH_TOKEN = null;   // OAuth only: renews the access token via the broker Worker
 let OWNER = "egovernments", REPO = "DIGIT-Studio";
 let CFG = null;            // parsed config for the selected branch: { module: [services] }
 let DEFAULT_BRANCH = null;
@@ -359,15 +360,41 @@ const lastSeg = b => b.split("/").pop();
 })();
 
 /* ---------------- GitHub API ---------------- */
-async function api(path, opts){
-  const res = await fetch("https://api.github.com" + path, Object.assign({
+async function rawApi(path, opts){
+  return fetch("https://api.github.com" + path, Object.assign({
     headers: {
       "Authorization": "Bearer " + TOKEN,
       "Accept": "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28"
     }
   }, opts || {}));
+}
+// Wrapper: if the OAuth access token has expired (401) and we hold a refresh token,
+// renew it once via the broker Worker and retry the call — so the session survives
+// the ~8h access-token expiry without a re-login.
+async function api(path, opts){
+  let res = await rawApi(path, opts);
+  if(res.status === 401 && REFRESH_TOKEN && await refreshAccessToken()){
+    res = await rawApi(path, opts);
+  }
   return res;
+}
+async function refreshAccessToken(){
+  if(!REFRESH_TOKEN || !AUTH_BASE) return false;
+  try{
+    const r = await fetch(AUTH_BASE.replace(/\/+$/,"") + "/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: REFRESH_TOKEN })
+    });
+    if(!r.ok) return false;
+    const d = await r.json();
+    if(!d || !d.access_token) return false;
+    TOKEN = d.access_token;
+    if(d.refresh_token) REFRESH_TOKEN = d.refresh_token;   // GitHub rotates it
+    persistSession();
+    return true;
+  }catch(e){ return false; }
 }
 function b64utf8(b64){
   const bin = atob((b64||"").replace(/\s/g,""));
@@ -404,7 +431,7 @@ async function connect(presetToken, silent){
   }catch(e){
     fail("Network error reaching api.github.com.");
   }
-  function fail(msg){ TOKEN = null; setConnecting(false); try{ sessionStorage.removeItem("cb-session"); }catch(e){}
+  function fail(msg){ TOKEN = null; REFRESH_TOKEN = null; setConnecting(false); try{ sessionStorage.removeItem("cb-session"); }catch(e){}
     if(restoring){ showView("connect"); showErr(""); } else { showErr(msg); } }
 }
 function setConnecting(on){
@@ -412,11 +439,12 @@ function setConnecting(on){
   $("connectLabel").innerHTML = on ? '<span class="spin"></span>' : "Connect";
 }
 function showErr(msg){ const e=$("connectErr"); e.hidden=!msg; e.textContent=msg; }
+function persistSession(){ try{ sessionStorage.setItem("cb-session", JSON.stringify({token:TOKEN, refresh:REFRESH_TOKEN, owner:OWNER, repo:REPO})); }catch(e){} }
 
 function onConnected(user){
   $("inToken").value = "";            // drop the token out of the DOM immediately
   setConnecting(false);
-  try{ sessionStorage.setItem("cb-session", JSON.stringify({token:TOKEN, owner:OWNER, repo:REPO})); }catch(e){}
+  persistSession();
   $("brandSub").textContent = OWNER + "/" + REPO;
   $("trivyLink").href = "https://" + OWNER + ".github.io/" + REPO + "/security/trivy/";
   const av = $("whoAvatar");
@@ -429,7 +457,7 @@ function onConnected(user){
   armIdle();
 }
 function disconnect(){
-  TOKEN = null; CFG = null;
+  TOKEN = null; REFRESH_TOKEN = null; CFG = null;
   pending = null; graceUntil = 0;
   try{ sessionStorage.removeItem("cb-session"); }catch(e){}
   if(pollTimer) clearInterval(pollTimer);
@@ -768,11 +796,11 @@ tb.addEventListener("click", () => {
   const h = location.hash.slice(1);
   if(/(^|&)token=/.test(h) || /(^|&)auth_error=/.test(h)){
     const p = new URLSearchParams(h);
-    const token = p.get("token"), st = p.get("state"), err = p.get("auth_error");
+    const token = p.get("token"), st = p.get("state"), err = p.get("auth_error"), rt = p.get("refresh_token");
     let nonce=null; try{ nonce = sessionStorage.getItem("cb-oauth-nonce"); sessionStorage.removeItem("cb-oauth-nonce"); }catch(e){}
-    history.replaceState(null, "", location.pathname);   // strip the token from the URL + history
+    history.replaceState(null, "", location.pathname);   // strip the token(s) from the URL + history
     showView("connect");
-    if(token && st && nonce && st===nonce){ connect(token); }       // explicit sign-in: errors shown
+    if(token && st && nonce && st===nonce){ if(rt) REFRESH_TOKEN = rt; connect(token); }   // explicit sign-in: errors shown
     else if(err){ showErr("Sign-in failed: " + err); }
     else { showErr("Sign-in could not be verified — please try again."); }
     return;
@@ -782,9 +810,10 @@ tb.addEventListener("click", () => {
   if(s && s.token){
     if(s.owner) OWNER=s.owner;
     if(s.repo)  REPO=s.repo;
+    if(s.refresh) REFRESH_TOKEN = s.refresh;
     $("inOwner").value=OWNER; $("inRepo").value=REPO; $("brandSub").textContent=OWNER+"/"+REPO;
     showView("connect");
-    connect(s.token, true);     // silent restore
+    connect(s.token, true);     // silent restore (auto-refreshes if the access token expired)
     return;
   }
   showView("connect");

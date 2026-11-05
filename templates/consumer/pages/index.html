@@ -81,13 +81,14 @@
   .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
   @media (max-width:720px){.cards{grid-template-columns:1fr}}
   .card{display:flex;flex-direction:column;gap:12px;background:var(--surface);border:1px solid var(--border);
-    border-radius:var(--r);box-shadow:var(--shadow);padding:22px;position:relative;
-    transition:transform .16s ease, border-color .16s ease}
-  /* Hover lifts with transform + border only — both composite cheaply and repaint
-     nothing. The resting box-shadow stays constant (never animated), and there is no
-     promoted layer or negative-z-index pseudo shadow, so no card can flash a dark
-     band (a z-index:-1 pseudo-shadow banded under the first card in Chromium). */
-  a.card:hover{transform:translateY(-2px);border-color:var(--border-strong)}
+    border-radius:var(--r);padding:22px;position:relative;
+    transition:border-color .14s ease, background-color .14s ease}
+  /* Hover changes ONLY border + background — paint-only, no compositing. The split-
+     second dark "banner" came from the combination of `transform` (which promotes the
+     card to a GPU layer on hover) and a large blurred `box-shadow` (which the compositor
+     re-rasterises as a dark band for one frame on promotion, in Brave/Chromium). Both
+     are gone here, so there is nothing to flash. */
+  a.card:hover{border-color:var(--border-strong);background:var(--surface-2)}
   .ico{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;flex:none;
     background:var(--accent-weak);color:var(--accent)}
   .ico svg{width:22px;height:22px}

@@ -482,8 +482,29 @@ async function loadBranches(){
     all.sort((a,b)=> a===DEFAULT_BRANCH ? -1 : b===DEFAULT_BRANCH ? 1 : a.localeCompare(b));
     selB.disabled = false;
     fill(selB, all.map(b => ({v:b, t: b===DEFAULT_BRANCH ? b+"  (default)" : b})), "Select branch…");
+    await restoreSelection(all);
   }catch(e){ fill(selB, [], "Failed to load branches"); }
 }
+
+/* After connect/refresh, re-select the last-used branch/module/service (or the default
+   branch) and load its config + recent runs — so a reload keeps the form populated and
+   the runs panel doesn't blank out. */
+async function restoreSelection(branches){
+  let saved={}; try{ saved=JSON.parse(sessionStorage.getItem("cb-sel")||"{}")||{}; }catch(e){}
+  const branch = (saved.branch && branches.includes(saved.branch)) ? saved.branch
+               : (branches.includes(DEFAULT_BRANCH) ? DEFAULT_BRANCH : "");
+  if(!branch) return;
+  selB.value = branch;
+  await loadConfig(branch);          // populate modules
+  pollRuns(branch);                  // load recent runs (so a refresh doesn't blank them)
+  if(saved.module && CFG && CFG[saved.module]){
+    selM.value = saved.module; selM.dispatchEvent(new Event("change"));   // populate services
+    if(saved.service && CFG[saved.module].some(s => s.image === saved.service)){
+      selS.value = saved.service; selS.dispatchEvent(new Event("change")); // show resolved + enable Run
+    }
+  }
+}
+function saveSel(){ try{ sessionStorage.setItem("cb-sel", JSON.stringify({branch:selB.value, module:selM.value, service:selS.value})); }catch(e){} }
 
 function parseConfig(text){
   const doc = jsyaml.load(text) || {};
@@ -528,21 +549,24 @@ async function loadConfig(branch){
 
 selB.addEventListener("change", () => {
   clearResolved();
-  if(!selB.value){ selM.disabled=true; selS.disabled=true; fill(selM,[],"—"); fill(selS,[],"—"); renderRuns([]); return; }
+  if(!selB.value){ selM.disabled=true; selS.disabled=true; fill(selM,[],"—"); fill(selS,[],"—"); renderRuns([]); saveSel(); return; }
   loadConfig(selB.value);
   pollRuns(selB.value);
+  saveSel();
 });
 selM.addEventListener("change", () => {
   clearResolved();
   const list = CFG && CFG[selM.value];
   selS.disabled = !list;
-  if(!list){ fill(selS, [], "—"); return; }
+  if(!list){ fill(selS, [], "—"); saveSel(); return; }
   fill(selS, list.map(s => ({v:s.image, t: s.label + (s.label!==s.image ? "  → "+s.image : "")})), "Select service…");
+  saveSel();
 });
 selS.addEventListener("change", () => {
   const list = (CFG && CFG[selM.value]) || [];
   const s = list.find(x => x.image === selS.value);
   s ? showResolved(s) : clearResolved();
+  saveSel();
 });
 
 function clearResolved(){

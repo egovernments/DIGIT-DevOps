@@ -653,6 +653,10 @@ function runKind(run){
   return "done";
 }
 async function pollRuns(branch){
+  // Keep polling for a short window after any (re)load so a just-queued run — which can
+  // take a few seconds to appear in the API — is caught live, not only on a manual
+  // refresh. A dispatch sets a longer window; keep whichever is later.
+  graceUntil = Math.max(graceUntil, Date.now() + 45000);
   if(pollTimer) clearInterval(pollTimer);
   const tick = async () => {
     try{
@@ -687,18 +691,24 @@ function runRow(cls, href, title, sub, label){
 function renderRuns(runs, emptyMsg){
   const rr = $("recentRuns");
   if(runs===null){ rr.innerHTML = '<div class="hint" style="padding:12px 0">'+esc(emptyMsg||"Could not load runs.")+'</div>'; return; }
-  let html = "";
-  if(pending){   // optimistic row: show the just-dispatched build before GitHub lists it
-    html += runRow("queue", "https://github.com/"+OWNER+"/"+REPO+"/actions/workflows/code-build.yaml",
-      "Build — Code · "+pending.service+" ("+pending.branch+")", "just now · queued", "Queued");
+  // Build rows newest-first: the optimistic pending row, then the API runs. The key
+  // is the run-name ("Build — Code · <service> (<branch>)"), which is service + build
+  // branch — so de-duping by it keeps only the latest run per service+branch.
+  const rows = [];
+  if(pending){
+    const t = "Build — Code · "+pending.service+" ("+pending.branch+")";
+    rows.push({ key:t, cls:"queue", title:t, sub:"just now · queued", label:"Queued",
+      href:"https://github.com/"+OWNER+"/"+REPO+"/actions/workflows/code-build.yaml" });
   }
-  if(!runs.length && !pending){ rr.innerHTML = '<div class="hint" style="padding:12px 0">No Code Build runs yet.</div>'; return; }
-  html += runs.map(r => {
-    const k = runKind(r);
-    return runRow(RUN_CLS[k]||"queue", r.html_url, (r.display_title || r.name || "run"),
-      relTime(r.created_at)+" · "+(r.head_sha||"").slice(0,7), RUN_LABEL[k]||k);
-  }).join("");
-  rr.innerHTML = html;
+  for(const r of runs){
+    const k = runKind(r), t = r.display_title || r.name || "run";
+    rows.push({ key:t, cls:RUN_CLS[k]||"queue", title:t, href:r.html_url,
+      sub:relTime(r.created_at)+" · "+(r.head_sha||"").slice(0,7), label:RUN_LABEL[k]||k });
+  }
+  const seen = new Set();
+  const uniq = rows.filter(x => seen.has(x.key) ? false : (seen.add(x.key), true));
+  if(!uniq.length){ rr.innerHTML = '<div class="hint" style="padding:12px 0">No Code Build runs yet.</div>'; return; }
+  rr.innerHTML = uniq.map(x => runRow(x.cls, x.href, x.title, x.sub, x.label)).join("");
 }
 
 /* ---------------- dispatch ---------------- */

@@ -5,34 +5,47 @@
 ## Pipeline
 
 ```
-resolve-config ─▶ code-scan ─▶ image-scan ─▶ build (push + sign)
-                  (Trivy fs)    (Trivy image)   app + db, multi-arch, cosign
-                  └── default branch only ──┘
+resolve-config ─▶ code-scan ─▶ build  ──────────────────────────────────┐
+                  (Trivy fs)   │ 1. build image(s) locally (app + db, amd64)
+                               │ 2. image-scan the built image(s) (Trivy)
+                               │ 3. push multi-arch (app + db) + cosign sign
+                  └─ default branch only ─┘ (CRITICAL at either stage blocks push)
 ```
+
+The flow is **code scan → build → scan the built image → push**, so the image
+that is scanned is exactly the one that gets pushed (no throwaway build), and a
+CRITICAL at either stage blocks the push.
 
 1. **resolve-config** — reads `build/build-config.yml`, resolves the app work-dir /
    Dockerfile for `service` and any `<service>-db` entry, computes the tag
    `<branch>-<short-sha>`, and decides the **scan policy** (`is_default`).
-2. **code-scan** — Trivy filesystem scan of the work-dir. A **CRITICAL** finding
-   fails the job and the build is skipped.
-3. **image-scan** — builds the image locally (amd64) and Trivy-scans it. A
-   **CRITICAL** finding fails the job, so the image is never pushed.
-4. **build** — multi-arch buildx push of the app image (and `<service>-db` when
-   present), with GitHub Actions layer cache. The pushed image digest(s) are then
-   signed with **cosign keyless** (GitHub OIDC → Fulcio certificate → Rekor
-   transparency log — no private key to manage). Signing is skipped when
-   `push: false` or `enable_cosign: false`.
+2. **code-scan** — Trivy filesystem scan of the work-dir. A **CRITICAL** fails the
+   job, so the build never starts.
+3. **build** (one job, ordered steps):
+   - builds the app image — and the `<service>-db` image when present — **locally**
+     (amd64) so the exact artifact can be scanned;
+   - **image-scans** both with Trivy; the app and db findings are combined into one
+     report under the same service, and a **CRITICAL** in either fails the job
+     before any push;
+   - **pushes** multi-arch (app + db) with GitHub Actions layer cache (the pushed
+     amd64 is the scanned layers), then signs the pushed digest(s) with **cosign
+     keyless** (GitHub OIDC → Fulcio → Rekor; no private key). Signing is skipped
+     when `push: false` or `enable_cosign: false`.
+
+   Build → scan → push run in one job because a locally-built image can't cross
+   GitHub job boundaries without a heavy tarball transfer.
 
 ## Scan policy
 
 The Trivy gate runs **only when the build ref is the repo's default branch**
-(`build_branch`, or the triggering ref when empty). On any other branch, both
-scan jobs are **skipped** and the build runs normally — so feature-branch builds
+(`build_branch`, or the triggering ref when empty). On any other branch the scans
+are **skipped** and the image is built + pushed directly — so feature-branch builds
 are fast and never blocked, while `master` is gated (a CRITICAL blocks the push).
 Set `enable_trivy: false` to disable scanning entirely.
 
-Each scan publishes to the caller's `gh-pages/security/trivy` via
-`.trivy/dashboard/publish.sh`, regardless of the gate result.
+The image scan publishes to the caller's `gh-pages/security/trivy` via
+`.trivy/dashboard/publish.sh` (app + db findings under one service), regardless of
+the gate result.
 
 ## Inputs
 

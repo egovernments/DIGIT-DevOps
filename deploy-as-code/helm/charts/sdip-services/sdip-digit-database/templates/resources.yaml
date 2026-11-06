@@ -1,0 +1,51 @@
+{{- if .Values.enabled }}
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: sdip-digit-app-role
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  cluster:
+    name: {{ .Values.clusterName | quote }}
+  name: {{ .Values.appRole.name | quote }}
+  login: true
+  superuser: false
+  createdb: false
+  databaseRoleReclaimPolicy: retain
+  passwordSecret:
+    name: {{ .Values.appRole.passwordSecret | quote }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: sdip-digit-migrator-role
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  cluster:
+    name: {{ .Values.clusterName | quote }}
+  name: {{ .Values.migratorRole.name | quote }}
+  login: true
+  superuser: false
+  createdb: false
+  databaseRoleReclaimPolicy: retain
+  passwordSecret:
+    name: {{ .Values.migratorRole.passwordSecret | quote }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: sdip-digit-database
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  cluster:
+    name: {{ .Values.clusterName | quote }}
+  name: {{ .Values.databaseName | quote }}
+  owner: {{ .Values.migratorRole.name | quote }}
+  databaseReclaimPolicy: retain
+{{- end }}

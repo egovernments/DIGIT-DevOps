@@ -1,0 +1,78 @@
+{{- $v := include "sdipredis.values" . | fromYaml }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sdip-redis
+  namespace: {{ $v.namespace | quote }}
+spec:
+  serviceName: sdip-redis-headless
+  replicas: {{ $v.replicas }}
+  selector:
+    matchLabels:
+      app: sdip-redis
+  template:
+    metadata:
+      labels:
+        app: sdip-redis
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: redis
+          image: {{ printf "%s:%s" $v.image.repository $v.image.tag | quote }}
+          imagePullPolicy: {{ $v.image.pullPolicy }}
+          command:
+            - redis-server
+            - /etc/redis/redis.conf
+          ports:
+            - name: redis
+              containerPort: 6379
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          startupProbe:
+{{ include "sdipredis.authPing" . | indent 12 }}
+            periodSeconds: 3
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+{{ include "sdipredis.authPing" . | indent 12 }}
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+{{ include "sdipredis.authPing" . | indent 12 }}
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+{{ toYaml $v.resources | indent 12 }}
+          volumeMounts:
+            - name: redis-config
+              mountPath: /etc/redis
+              readOnly: true
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: redis-config
+          secret:
+            secretName: {{ $v.auth.existingSecret | quote }}
+            defaultMode: 288
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: {{ $v.persistence.storageClass | quote }}
+        resources:
+          requests:
+            storage: {{ $v.persistence.size | quote }}

@@ -1,0 +1,17 @@
+{{- $v := include "sdippg.values" . | fromYaml }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: sdip-core
+  namespace: {{ $v.namespace }}
+spec:
+  cluster:
+    name: {{ include "sdippg.name" . }}
+  name: {{ $v.bootstrap.database }}
+  owner: {{ $v.bootstrap.owner }}
+  databaseReclaimPolicy: retain
+  schemas:
+    {{- range $schema := $v.schemas }}
+    - name: {{ $schema }}
+      owner: {{ $v.bootstrap.owner }}
+    {{- end }}

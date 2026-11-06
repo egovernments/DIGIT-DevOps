@@ -4,8 +4,8 @@ metadata:
   name: studio-demo-monitoring-appset
   namespace: argocd
 spec:
-  # goTemplate so blackbox (git chart, one source) and the upstream-chart apps
-  # (chart repo + $values git ref) can share one appset via templatePatch.
+  # goTemplate so upstream-chart apps (chart repo + $values git ref) and local
+  # git-path charts (blackbox, matomo, kafka-ui) share one appset via templatePatch.
   goTemplate: true
   goTemplateOptions:
     - missingkey=invalid
@@ -13,6 +13,7 @@ spec:
     - list:
         elements:
           - name: kube-prometheus-stack
+            namespace: monitoring
             chartRepo: https://prometheus-community.github.io/helm-charts
             chart: kube-prometheus-stack
             version: "56.6.2"
@@ -21,6 +22,7 @@ spec:
               - $values/deploy-as-code/helm/charts/monitoring/values/prometheus.yaml
               - $values/deploy-as-code/helm/charts/monitoring/values/studio-demo/prometheus.yaml
           - name: grafana
+            namespace: monitoring
             chartRepo: https://grafana.github.io/helm-charts
             chart: grafana
             version: "7.3.0"
@@ -29,11 +31,26 @@ spec:
               - $values/deploy-as-code/helm/charts/monitoring/values/grafana.yaml
               - $values/deploy-as-code/helm/charts/monitoring/values/studio-demo/grafana.yaml
           - name: blackbox-exporter
+            namespace: monitoring
             chartPath: deploy-as-code/helm/charts/backbone-services/prometheus-blackbox-exporter
             releaseName: blackbox
             valueFiles:
               - values.yaml
               - ../../monitoring/values/blackbox-exporter.yaml
+          - name: matomo
+            namespace: monitoring
+            chartPath: deploy-as-code/helm/charts/backbone-services/matomo
+            releaseName: release-name
+            valueFiles:
+              - values.yaml
+              - ../../../environments/studio-demo.yaml
+          - name: kafka-ui
+            namespace: backbone
+            chartPath: deploy-as-code/helm/charts/backbone-services/kafka-ui
+            releaseName: release-name
+            valueFiles:
+              - values.yaml
+              - ../../../environments/studio-demo.yaml
   template:
     metadata:
       name: 'monitoring-{{.name}}'
@@ -42,7 +59,7 @@ spec:
       project: monitoring-project
       destination:
         server: https://kubernetes.default.svc
-        namespace: monitoring
+        namespace: '{{.namespace}}'
       syncPolicy:
         automated:
           prune: false
@@ -62,6 +79,12 @@ spec:
           kind: Deployment
           jsonPointers:
             - /spec/replicas
+        # controllers backfill volumeClaimTemplates apiVersion/kind (prometheus, matomo-mariadb)
+        - group: apps
+          kind: StatefulSet
+          jqPathExpressions:
+            - .spec.volumeClaimTemplates[]?.apiVersion
+            - .spec.volumeClaimTemplates[]?.kind
   templatePatch: |
     spec:
       {{- if hasKey . "chart" }}

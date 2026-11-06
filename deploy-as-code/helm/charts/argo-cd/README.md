@@ -145,16 +145,15 @@ kubectl apply -f studio/studio-app-project.yaml
 # 2. cluster-configs (namespaces, configmaps, secrets, RBAC, root ingress)
 kubectl apply -f cluster-configs/cluster-configs-application.yaml
 
-# 3. backbone-services (ingress-nginx, cert-manager, es, kafka, redis, oauth2-proxy, matomo, ...)
+# 3. backbone-services (ingress-nginx, cert-manager, es, kafka, redis, oauth2-proxy, pgadmin, ...)
 kubectl apply -f backbone-services/backbone-services-app-set.yaml
 
-# 4. monitoring (kube-prometheus-stack = prometheus + alertmanager, grafana, blackbox-exporter)
+# 4. monitoring (kube-prometheus-stack = prometheus + alertmanager, grafana, blackbox-exporter, matomo, kafka-ui)
 kubectl apply -f monitoring/monitoring-app-set.yaml
 
 # 5. application services
 kubectl apply -f egov/egov-app-set-core.yaml
 kubectl apply -f egov/egov-app-set-common.yaml
-kubectl apply -f egov/egov-user-application.yaml
 kubectl apply -f health/health-app-set.yaml
 kubectl apply -f studio/studio-app-set.yaml
 kubectl apply -f studio/digit-a11y-application.yaml
@@ -176,15 +175,16 @@ a workload; worst case an app shows OutOfSync and you investigate before syncing
 | Project | Namespace(s) | Services |
 |---|---|---|
 | `cluster-configs-project` | all | namespaces, configmaps, secrets, RBAC, root ingress |
-| `backbone-services-project` | backbone, egov, playground, monitoring | ingress-nginx, cert-manager, elasticsearch-master/data, kafka-kraft, redis, kibana, kafka-ui, pgadmin, playground, matomo, oauth2-proxy |
-| `monitoring-project` | monitoring, kube-system | kube-prometheus-stack (prometheus + alertmanager), grafana, blackbox-exporter |
-| `egov-project` | egov | 20 core + 4 common services + egov-user |
+| `backbone-services-project` | backbone, egov, playground | ingress-nginx, cert-manager, elasticsearch-master/data, kafka-kraft, redis, kibana, pgadmin, playground, oauth2-proxy |
+| `monitoring-project` | monitoring, backbone, kube-system | kube-prometheus-stack (prometheus + alertmanager), grafana, blackbox-exporter, matomo, kafka-ui |
+| `egov-project` | egov | 20 core (incl egov-user) + 4 common services |
 | `health-project` | health | beneficiary-idgen, health-individual, health-service-request |
 | `studio-project` | studio | 10 studio services + digit-a11y |
 
-`egov-user` and `digit-a11y` are standalone `Application`s (not in an
-ApplicationSet): egov-user needs its extra `egov-user-values.yaml`; digit-a11y's
-chart sits one directory deeper (`studio-services/agent/digit-a11y`).
+`digit-a11y` is the only standalone `Application` (its chart sits one directory
+deeper, `studio-services/agent/digit-a11y`). `egov-user` is in the core
+ApplicationSet; its chart values were renamed `egov-user-values.yaml` ->
+`values.yaml` so it needs no extra value file.
 
 ---
 

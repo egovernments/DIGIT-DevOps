@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: egov-user
+  namespace: argocd
+spec:
+  # standalone: needs extra egov-user-values.yaml layered before images
+  project: egov-project
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: studio-demo
+    path: deploy-as-code/helm/charts/core-services/egov-user
+    helm:
+      parameters:
+        - name: name
+          value: egov-user
+      valueFiles:
+        - values.yaml
+        - ../../../environments/studio-demo.yaml
+        - egov-user-values.yaml
+        - ../../../environments/studio-demo-images.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: egov
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s

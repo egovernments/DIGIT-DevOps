@@ -1,0 +1,114 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: studio-demo-backbone-services-appset
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: ingress-nginx
+            path: backbone-services/ingress-nginx
+            namespace: backbone
+          - name: cert-manager
+            path: backbone-services/cert-manager
+            namespace: egov
+          - name: elasticsearch-master
+            path: backbone-services/elasticsearch-master
+            namespace: backbone
+          - name: elasticsearch-data
+            path: backbone-services/elasticsearch-data
+            namespace: backbone
+          - name: kafka-kraft
+            path: backbone-services/kafka-kraft
+            namespace: backbone
+          - name: redis
+            path: backbone-services/redis
+            namespace: backbone
+          - name: kibana
+            path: backbone-services/kibana
+            namespace: backbone
+          - name: kafka-ui
+            path: backbone-services/kafka-ui
+            namespace: backbone
+          - name: pgadmin
+            path: backbone-services/pgadmin
+            namespace: playground
+          - name: playground
+            path: backbone-services/playground
+            namespace: egov
+          - name: matomo
+            path: backbone-services/matomo
+            namespace: monitoring
+
+  template:
+    metadata:
+      name: '{{name}}'
+    spec:
+      project: backbone-services-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: studio-demo
+        path: 'deploy-as-code/helm/charts/{{path}}'
+        helm:
+          # pin release name: kafka/es/redis name objects from .Release.Name
+          releaseName: release-name
+          valueFiles:
+            - values.yaml
+            - ../../../environments/studio-demo.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+        # controllers backfill volumeClaimTemplates apiVersion/kind
+        - group: apps
+          kind: StatefulSet
+          jqPathExpressions:
+            - .spec.volumeClaimTemplates[]?.apiVersion
+            - .spec.volumeClaimTemplates[]?.kind
+        # es/kafka generate TLS CA / KRaft id randomly at render; don't rotate on self-heal
+        - kind: Secret
+          name: elasticsearch-master-certs
+          namespace: backbone
+          jsonPointers:
+            - /data
+        - kind: Secret
+          name: kafka-kraft-cluster-id
+          namespace: backbone
+          jsonPointers:
+            - /data
+        # webhook caBundle + namespaceSelector injected at runtime (ingress-nginx/cert-manager/AKS)
+        - group: admissionregistration.k8s.io
+          kind: ValidatingWebhookConfiguration
+          jqPathExpressions:
+            - .webhooks[]?.clientConfig.caBundle
+            - .webhooks[]?.namespaceSelector
+        - group: admissionregistration.k8s.io
+          kind: MutatingWebhookConfiguration
+          jqPathExpressions:
+            - .webhooks[]?.clientConfig.caBundle
+            - .webhooks[]?.namespaceSelector
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+          - RespectIgnoreDifferences=true
+          - SkipDryRunOnMissingResource=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s

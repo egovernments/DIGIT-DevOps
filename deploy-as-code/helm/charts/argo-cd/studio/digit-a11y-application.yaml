@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: digit-a11y
+  namespace: argocd
+spec:
+  # standalone: chart is one dir deeper (agent/digit-a11y), valueFiles use 4x ../
+  project: studio-project
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: studio-demo
+    path: deploy-as-code/helm/charts/studio-services/agent/digit-a11y
+    helm:
+      parameters:
+        - name: name
+          value: digit-a11y
+      valueFiles:
+        - values.yaml
+        - ../../../../environments/studio-demo.yaml
+        - ../../../../environments/studio-demo-images.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: studio
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s

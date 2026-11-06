@@ -1,0 +1,115 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: studio-demo-monitoring-appset
+  namespace: argocd
+spec:
+  # goTemplate so upstream-chart apps (chart repo + $values git ref) and local
+  # git-path charts (blackbox, matomo, kafka-ui) share one appset via templatePatch.
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=invalid
+  generators:
+    - list:
+        elements:
+          - name: kube-prometheus-stack
+            namespace: monitoring
+            chartRepo: https://prometheus-community.github.io/helm-charts
+            chart: kube-prometheus-stack
+            version: "56.6.2"
+            releaseName: kube-prometheus-stack
+            valueFiles:
+              - $values/deploy-as-code/helm/charts/monitoring/values/prometheus.yaml
+              - $values/deploy-as-code/helm/charts/monitoring/values/studio-demo/prometheus.yaml
+          - name: grafana
+            namespace: monitoring
+            chartRepo: https://grafana.github.io/helm-charts
+            chart: grafana
+            version: "7.3.0"
+            releaseName: grafana
+            valueFiles:
+              - $values/deploy-as-code/helm/charts/monitoring/values/grafana.yaml
+              - $values/deploy-as-code/helm/charts/monitoring/values/studio-demo/grafana.yaml
+          - name: blackbox-exporter
+            namespace: monitoring
+            chartPath: deploy-as-code/helm/charts/backbone-services/prometheus-blackbox-exporter
+            releaseName: blackbox
+            valueFiles:
+              - values.yaml
+              - ../../monitoring/values/blackbox-exporter.yaml
+          - name: matomo
+            namespace: monitoring
+            chartPath: deploy-as-code/helm/charts/backbone-services/matomo
+            releaseName: release-name
+            valueFiles:
+              - values.yaml
+              - ../../../environments/studio-demo.yaml
+          - name: kafka-ui
+            namespace: backbone
+            chartPath: deploy-as-code/helm/charts/backbone-services/kafka-ui
+            releaseName: release-name
+            valueFiles:
+              - values.yaml
+              - ../../../environments/studio-demo.yaml
+  template:
+    metadata:
+      name: 'monitoring-{{.name}}'
+      namespace: argocd
+    spec:
+      project: monitoring-project
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{.namespace}}'
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - ApplyOutOfSyncOnly=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 15s
+            factor: 2
+            maxDuration: 5m
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+        # controllers backfill volumeClaimTemplates apiVersion/kind (prometheus, matomo-mariadb)
+        - group: apps
+          kind: StatefulSet
+          jqPathExpressions:
+            - .spec.volumeClaimTemplates[]?.apiVersion
+            - .spec.volumeClaimTemplates[]?.kind
+  templatePatch: |
+    spec:
+      {{- if hasKey . "chart" }}
+      sources:
+        - repoURL: {{ .chartRepo }}
+          chart: {{ .chart }}
+          targetRevision: "{{ .version }}"
+          helm:
+            releaseName: {{ .releaseName }}
+            valueFiles:
+              {{- range .valueFiles }}
+              - {{ . }}
+              {{- end }}
+        - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+          targetRevision: studio-demo
+          ref: values
+      {{- else }}
+      sources:
+        - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+          targetRevision: studio-demo
+          path: {{ .chartPath }}
+          helm:
+            releaseName: {{ .releaseName }}
+            valueFiles:
+              {{- range .valueFiles }}
+              - {{ . }}
+              {{- end }}
+      {{- end }}

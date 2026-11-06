@@ -1,0 +1,55 @@
+# kube-prometheus-stack - studio-demo (Azure AKS) overlay
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    # references the Secret "alertmanager" rendered by cluster-configs from SOPS
+    configSecret: alertmanager
+
+prometheus:
+  prometheusSpec:
+    retention: 7d
+    externalLabels:
+      cluster: studio-demo
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          # managed-csi = AKS equivalent of AWS gp3
+          storageClassName: managed-csi
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 15Gi
+    additionalScrapeConfigs:
+    - job_name: nginx-ingress-metrics
+      static_configs:
+      - targets:
+        - ingress-nginx-controller-metrics.backbone:10254
+    - job_name: redis-exporter
+      static_configs:
+      - targets:
+        - prometheus-redis-exporter.backbone:9121
+    - job_name: blackbox
+      metrics_path: /probe
+      params:
+        module:
+        - http_2xx
+      static_configs:
+      - targets:
+        - https://studio-demo.digit.org/monitoring/
+        - https://studio-demo.digit.org/pgadmin/login?next=%2Fpgadmin%2F
+        - https://studio-demo.digit.org/kibana/
+      relabel_configs:
+      - source_labels:
+        - __address__
+        target_label: __param_target
+      - source_labels:
+        - __param_target
+        target_label: instance
+      - target_label: __address__
+        replacement: prometheus-blackbox-exporter:9115
+    - job_name: blackbox_exporter
+      static_configs:
+      - targets:
+        - prometheus-blackbox-exporter:9115

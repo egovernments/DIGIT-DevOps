@@ -1,0 +1,74 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: studio-demo-egov-appset-core
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: boundary-service
+          - name: egov-accesscontrol
+          - name: egov-enc-service
+          - name: egov-filestore
+          - name: egov-idgen
+          - name: egov-indexer
+          - name: egov-localization
+          - name: egov-location
+          - name: egov-notification-mail
+          - name: egov-notification-sms
+          - name: egov-otp
+          - name: egov-persister
+          - name: egov-pg-service
+          - name: egov-url-shortening
+          - name: egov-workflow-v2
+          - name: gateway
+          - name: inbox
+          - name: mdms-v2
+          - name: pdf-service
+          - name: user-otp
+          - name: egov-user
+
+  template:
+    metadata:
+      name: '{{name}}'
+    spec:
+      project: egov-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: studio-demo
+        path: deploy-as-code/helm/charts/core-services/{{name}}
+        helm:
+          # charts name objects from .Values.name (no default)
+          parameters:
+            - name: name
+              value: '{{name}}'
+          valueFiles:
+            - values.yaml
+            - ../../../environments/studio-demo.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: egov
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+
+      syncPolicy:
+        # adopt running raw-applied objects in place; prune off = nothing deleted
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s

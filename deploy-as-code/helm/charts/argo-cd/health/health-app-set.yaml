@@ -1,0 +1,54 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: studio-demo-health-appset
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: beneficiary-idgen
+          - name: health-individual
+          - name: health-service-request
+
+  template:
+    metadata:
+      name: '{{name}}'
+    spec:
+      project: health-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: studio-demo
+        path: deploy-as-code/helm/charts/health-services/{{name}}
+        helm:
+          parameters:
+            - name: name
+              value: '{{name}}'
+          valueFiles:
+            - values.yaml
+            - ../../../environments/studio-demo.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: health
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s

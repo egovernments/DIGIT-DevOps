@@ -1,8 +1,14 @@
 # creation rules are evaluated sequentially, the first match wins
 creation_rules:
-        # upon creation of a file that matches the pattern *dev.yaml,
-        # KMS set A is used
         # eGOV Internal ------------------------------------------------------------------------------------------------------------- #
 
+        # studio-demo secrets: Azure Key Vault (studio-demo-sops-kv, RG studio-demo),
+        # decrypted by argocd-repo-server via AKS workload identity
+        # argocd-sops-studio-demo (Key Vault Crypto User). Mirrors unified-dev's
+        # digit3 Azure Vault sops pattern. Must stay ABOVE the AWS KMS fallback.
+        - path_regex: environments/studio-demo-secrets\.yaml$
+          azure_keyvault: 'https://studio-demo-sops-kv.vault.azure.net/keys/sops/36be6f8a9a4e46ec912a5f7ece678b3a'
+
+        # fallback: any other environments/*-secrets.yaml -> AWS KMS
         - path_regex: environments/.*\-secrets\.yaml$
-          kms: 'arn:aws:kms:ap-south-1:218381940040:key/9a3b0835-7713-4925-8b3d-da7e421d28d2'          
+          kms: 'arn:aws:kms:ap-south-1:218381940040:key/9a3b0835-7713-4925-8b3d-da7e421d28d2'

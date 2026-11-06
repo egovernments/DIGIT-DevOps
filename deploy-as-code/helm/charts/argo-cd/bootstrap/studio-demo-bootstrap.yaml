@@ -1,0 +1,43 @@
+# Root app-of-apps for studio-demo.
+#
+# After `helm install argocd`, this is the ONLY manual kubectl step:
+#   kubectl apply -f bootstrap/studio-demo-bootstrap.yaml
+#
+# It syncs the whole charts/argo-cd tree (except this bootstrap dir), so Argo CD
+# creates every AppProject + ApplicationSet + standalone Application itself; the
+# appsets then generate the per-service Applications. A push to studio-demo is
+# then enough - no more per-manifest kubectl apply.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: studio-demo-bootstrap
+  namespace: argocd
+spec:
+  # 'default' on purpose: it is not one of the projects this app manages, so the
+  # root can never prune the project it runs under.
+  project: default
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: studio-demo
+    path: deploy-as-code/helm/charts/argo-cd
+    directory:
+      recurse: true
+      include: '*.yaml'
+      exclude: 'bootstrap/*'   # don't let the root manage itself
+  destination:
+    server: https://kubernetes.default.svc
+    # AppProject/ApplicationSet are namespaced resources living in argocd
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

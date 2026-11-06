@@ -8,7 +8,6 @@ Argo CD syncing from this repo.
 - **Source repo / branch:** `https://github.com/egovernments/DIGIT-DevOps.git` @ `studio-demo` (public, cloned anonymously)
 - **Charts:** `deploy-as-code/helm/charts/<module>/<service>`
 - **Env overlay:** `deploy-as-code/helm/environments/studio-demo.yaml`
-- **Image tags:** `deploy-as-code/helm/environments/studio-demo-images.yaml` (see below)
 - **Pattern:** mirrors `health-campaign-devops` @ `azure-install-hcm-demo-v2`
 - **Scope:** Argo CD only. No Kargo / promotion workflow.
 
@@ -53,15 +52,14 @@ which is cosmetic.
 ### Image tags are now in git
 
 The Jenkins/Go deployer injected `--set image.tag=<build>` at deploy time, so git
-never carried the running versions. Under Argo CD the tag must live in git, so
-`studio-demo-images.yaml` freezes the exact tags that were running at cutover
-(generated from the live cluster). It is loaded as the **last** Helm value file by
-the egov / health / studio Applications, so it wins over chart defaults and
-`studio-demo.yaml`.
+never carried the running versions. Under Argo CD the tag must live in git, so each
+egov / health / studio service carries its running `image.tag` (and, for the ~26
+services that have a db-migration init container, `initContainers.dbMigration.image.tag`)
+inline in its `studio-demo.yaml` block, frozen from the live cluster at cutover.
 
-**To promote a new build from now on:** bump the service's tag in
-`studio-demo-images.yaml` and let Argo CD sync (this is the GitOps replacement for
-a Jenkins deploy job).
+**To promote a new build from now on:** bump the service's `image.tag` in
+`studio-demo.yaml` and let Argo CD sync (this is the GitOps replacement for a
+Jenkins deploy job).
 
 ---
 
@@ -126,38 +124,40 @@ this vault. To edit secrets locally you need `Key Vault Crypto User` on the vaul
 
 ## Apply order (the cutover)
 
-Projects first, then the config/infra layer, then the app services. All manifests
-live under this folder and are applied with plain `kubectl apply` (there is no
-app-of-apps auto-syncing this folder, matching the hcm-demo-v2 pattern).
+One manual step: apply the root app-of-apps. It syncs the whole `charts/argo-cd`
+tree (except `bootstrap/`), so Argo CD creates every AppProject + ApplicationSet +
+standalone Application itself, and the appsets then generate the per-service apps.
+From then on a push to `studio-demo` is enough.
 
 ```bash
 export KUBECONFIG=~/.kube/studio-demo
-cd deploy-as-code/helm/charts/argo-cd
+kubectl apply -f deploy-as-code/helm/charts/argo-cd/bootstrap/studio-demo-bootstrap.yaml
+```
 
-# 1. Projects
+Watch the projects/appsets appear, then the per-service Applications reach
+**Synced/Healthy**. Because every app ships `prune:false`, a mistake cannot delete
+a workload; worst case an app shows OutOfSync and you investigate before syncing.
+
+<details><summary>Manual apply (if you skip the bootstrap)</summary>
+
+```bash
+cd deploy-as-code/helm/charts/argo-cd
 kubectl apply -f cluster-configs/cluster-configs-app-project.yaml
 kubectl apply -f backbone-services/backbone-services-app-project.yaml
 kubectl apply -f monitoring/monitoring-app-project.yaml
 kubectl apply -f egov/egov-app-project.yaml
 kubectl apply -f health/health-app-project.yaml
 kubectl apply -f studio/studio-app-project.yaml
-
-# 2. cluster-configs (namespaces, configmaps, secrets, RBAC, root ingress)
 kubectl apply -f cluster-configs/cluster-configs-application.yaml
-
-# 3. backbone-services (ingress-nginx, cert-manager, es, kafka, redis, oauth2-proxy, pgadmin, ...)
 kubectl apply -f backbone-services/backbone-services-app-set.yaml
-
-# 4. monitoring (kube-prometheus-stack = prometheus + alertmanager, grafana, blackbox-exporter, matomo, kafka-ui)
 kubectl apply -f monitoring/monitoring-app-set.yaml
-
-# 5. application services
 kubectl apply -f egov/egov-app-set-core.yaml
 kubectl apply -f egov/egov-app-set-common.yaml
 kubectl apply -f health/health-app-set.yaml
 kubectl apply -f studio/studio-app-set.yaml
 kubectl apply -f studio/digit-a11y-application.yaml
 ```
+</details>
 
 Grafana needs a GitHub OAuth app (callback `https://studio-demo.digit.org/monitoring/login/github`); put its
 `clientID`/`clientSecret` in `cluster-configs.secrets.grafana` (sops) before syncing `monitoring-grafana`,

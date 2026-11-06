@@ -1,0 +1,24 @@
+# grafana - studio-demo (Azure AKS) overlay
+
+ingress:
+  hosts:
+    - studio-demo.digit.org
+  tls:
+    - secretName: studio-demo.digit.org-tls-certs
+      hosts:
+        - studio-demo.digit.org
+
+# GitHub OAuth creds (grafana-oauth Secret rendered by cluster-configs from SOPS)
+envFromSecret: grafana-oauth
+
+grafana.ini:
+  auth.github:
+    allowed_organizations: [egovernments]
+    # Admin to the studio-demo team, Viewer to any other egovernments member
+    role_attribute_path: "contains(groups[*], '@egovernments/studio-demo') && 'Admin' || 'Viewer'"
+
+# built-in admin login (grafana-admin Secret rendered by cluster-configs from SOPS)
+admin:
+  existingSecret: grafana-admin
+  userKey: admin-user
+  passwordKey: admin-password

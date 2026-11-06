@@ -137,6 +137,7 @@ cd deploy-as-code/helm/charts/argo-cd
 # 1. Projects
 kubectl apply -f cluster-configs/cluster-configs-app-project.yaml
 kubectl apply -f backbone-services/backbone-services-app-project.yaml
+kubectl apply -f monitoring/monitoring-app-project.yaml
 kubectl apply -f egov/egov-app-project.yaml
 kubectl apply -f health/health-app-project.yaml
 kubectl apply -f studio/studio-app-project.yaml
@@ -144,10 +145,13 @@ kubectl apply -f studio/studio-app-project.yaml
 # 2. cluster-configs (namespaces, configmaps, secrets, RBAC, root ingress)
 kubectl apply -f cluster-configs/cluster-configs-application.yaml
 
-# 3. backbone-services (ingress-nginx, cert-manager, es, kafka, redis, ...)
+# 3. backbone-services (ingress-nginx, cert-manager, es, kafka, redis, oauth2-proxy, matomo, ...)
 kubectl apply -f backbone-services/backbone-services-app-set.yaml
 
-# 4. application services
+# 4. monitoring (kube-prometheus-stack = prometheus + alertmanager, grafana, blackbox-exporter)
+kubectl apply -f monitoring/monitoring-app-set.yaml
+
+# 5. application services
 kubectl apply -f egov/egov-app-set-core.yaml
 kubectl apply -f egov/egov-app-set-common.yaml
 kubectl apply -f egov/egov-user-application.yaml
@@ -155,6 +159,11 @@ kubectl apply -f health/health-app-set.yaml
 kubectl apply -f studio/studio-app-set.yaml
 kubectl apply -f studio/digit-a11y-application.yaml
 ```
+
+Grafana needs a GitHub OAuth app (callback `https://studio-demo.digit.org/monitoring/login/github`); put its
+`clientID`/`clientSecret` in `cluster-configs.secrets.grafana` (sops) before syncing `monitoring-grafana`,
+else the grafana pod stays in `CreateContainerConfigError` (missing `grafana-oauth` Secret). The alertmanager
+slack webhook and grafana admin password are already in sops.
 
 Recommended: apply the ApplicationSets but watch the first few Applications reach
 **Synced/Healthy** before moving on. Because `prune:false`, a mistake cannot delete
@@ -167,7 +176,8 @@ a workload; worst case an app shows OutOfSync and you investigate before syncing
 | Project | Namespace(s) | Services |
 |---|---|---|
 | `cluster-configs-project` | all | namespaces, configmaps, secrets, RBAC, root ingress |
-| `backbone-services-project` | backbone, egov, playground, monitoring | ingress-nginx, cert-manager, elasticsearch-master/data, kafka-kraft, redis, kibana, kafka-ui, pgadmin, playground, matomo |
+| `backbone-services-project` | backbone, egov, playground, monitoring | ingress-nginx, cert-manager, elasticsearch-master/data, kafka-kraft, redis, kibana, kafka-ui, pgadmin, playground, matomo, oauth2-proxy |
+| `monitoring-project` | monitoring, kube-system | kube-prometheus-stack (prometheus + alertmanager), grafana, blackbox-exporter |
 | `egov-project` | egov | 20 core + 4 common services + egov-user |
 | `health-project` | health | beneficiary-idgen, health-individual, health-service-request |
 | `studio-project` | studio | 10 studio services + digit-a11y |

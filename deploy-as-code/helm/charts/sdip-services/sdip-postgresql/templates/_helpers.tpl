@@ -1,0 +1,41 @@
+{{/*
+Environment overrides.
+
+Mirrors the contract used by the `common` library chart that every other
+backbone service follows: values under a key matching the chart name in
+environments/<env>.yaml are merged over the chart's own values.yaml, with the
+environment winning.
+
+  environments/unified-dev.yaml:
+    sdip-postgresql:
+      instances: 3
+      storage:
+        storageClass: managed-csi
+
+mustMergeOverwrite is used rather than merge because argument order decides
+precedence: the LAST argument wins, so the environment block overrides the
+chart defaults rather than the other way round.
+
+Usage in a template:
+  {{- $v := include "sdippg.values" . | fromYaml }}
+  ... {{ $v.instances }} ...
+*/}}
+{{- define "sdippg.values" -}}
+{{- $envOverrides := (index .Values .Chart.Name) | default dict -}}
+{{- toYaml (mustMergeOverwrite (deepCopy .Values) $envOverrides) -}}
+{{- end -}}
+
+{{/*
+Resource name. Everything the operator derives (Services, Secrets, PVCs) is
+prefixed with this, so it is deliberately the plain chart name and not
+release-qualified -- consumers reference sdip-postgresql-rw by hostname.
+*/}}
+{{- define "sdippg.name" -}}
+{{- .Chart.Name -}}
+{{- end -}}
+
+{{- define "sdippg.labels" -}}
+{{- $v := include "sdippg.values" . | fromYaml -}}
+{{- $labels := mergeOverwrite (dict "app" (include "sdippg.name" .)) ($v.labels | default dict) -}}
+{{- toYaml $labels -}}
+{{- end -}}

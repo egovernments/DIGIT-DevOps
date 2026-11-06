@@ -1,0 +1,20 @@
+{{- $v := include "sdippg.values" . | fromYaml }}
+{{- range $role := $v.databaseRoles }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: {{ printf "sdip-pg-%s" $role.name | replace "_" "-" }}
+  namespace: {{ $v.namespace }}
+spec:
+  cluster:
+    name: {{ include "sdippg.name" $ }}
+  name: {{ $role.name }}
+  login: true
+  superuser: false
+  createdb: false
+  createrole: false
+  databaseRoleReclaimPolicy: retain
+  passwordSecret:
+    name: {{ $role.secret }}
+{{- end }}

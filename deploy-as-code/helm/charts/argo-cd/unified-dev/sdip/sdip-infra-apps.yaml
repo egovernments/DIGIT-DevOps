@@ -1,0 +1,72 @@
+# SDIP infrastructure applications.
+# Manual sync only. Provision and verify external Secrets before syncing.
+# Registration of this file in ArgoCD requires authorized DevOps action.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sdip-postgresql
+  namespace: argocd
+spec:
+  project: sdip-project
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: unified-dev
+    path: deploy-as-code/helm/charts/sdip-services/sdip-postgresql
+    helm:
+      releaseName: sdip-postgresql
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sdip
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sdip-redis
+  namespace: argocd
+spec:
+  project: sdip-project
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: unified-dev
+    path: deploy-as-code/helm/charts/sdip-services/sdip-redis
+    helm:
+      releaseName: sdip-redis
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sdip
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sdip-kafka
+  namespace: argocd
+spec:
+  project: sdip-project
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: unified-dev
+    path: deploy-as-code/helm/charts/backbone-services/kafka-kraft
+    helm:
+      releaseName: sdip-kafka
+      valueFiles:
+        - values.yaml
+        - ../../../environments/unified-sdip-infra-dev.yaml
+        - ../../../environments/unified-sdip-kafka-dev.yaml
+        - ../../../environments/unified-sdip-kafka-security-dev.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sdip
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true

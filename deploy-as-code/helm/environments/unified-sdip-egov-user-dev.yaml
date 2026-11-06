@@ -1,0 +1,220 @@
+# SDIP-specific DIGIT User overrides.
+# Ingress disabled.
+# OTP, database and messaging configuration pending validation.
+
+ingress:
+  enabled: false
+
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SPRING_REDIS_HOST
+    value: "sdip-redis.sdip.svc.cluster.local"
+  - name: SPRING_REDIS_PORT
+    value: "6379"
+  - name: EGOV_OTP_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-otp
+  - name: EGOV_USER_HOST
+    value: "http://localhost:8080"
+  - name: EGOV_SERVICES_ACCESSCONTROL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-accesscontrol
+  - name: EGOV_FILESTORE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-filestore
+  - name: MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: EGOV_MDMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  - name: EGOV_MDMS_V2_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-mdms-service
+  {{- if index .Values "egov-mdms-v2-search-endpoint" }}
+  - name: EGOV_MDMS_V2_SEARCH_ENDPOINT
+    value: {{ index .Values "egov-mdms-v2-search-endpoint" | quote }}
+  {{- else }}
+  - name: EGOV_MDMS_SEARCH_ENDPOINT
+    value: {{ .Values.mdmsV1SearchEndpoint | default "/egov-mdms-service/v1/_search" }}
+  - name: MDMS_PATH
+    value: {{ .Values.mdmsV1SearchEndpoint | default "/egov-mdms-service/v1/_search" }}
+  {{- end }}
+  - name: EGOV_MDMS_V2_SCHEMA_CREATE_ENDPOINT
+    value: {{ index .Values "egov-mdms-v2-create-schema-endpoint" | quote }}
+  - name: EGOV_MDMS_V2_DATA_CREATE_ENDPOINT
+    value: {{ index .Values "egov-mdms-v2-create-data-endpoint" | quote }}
+  - name: EGOV_ENC_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: egov-enc-service
+  - name: STATE_LEVEL_TENANT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: egov-state-level-tenant-id
+  - name: DECRYPTION_ABAC_ENABLED
+    value: {{ index .Values "decryption-abac-enabled" | quote }}
+  - name: KAFKA_TOPIC_AUDIT
+    value: "enc-user-audit-data"
+  - name: SPRING_KAFKA_CONSUMER_GROUP_ID
+    value: "egov-user"
+  - name: ACCOUNT_UNLOCK_COOL_DOWN_PERIOD_MINUTES
+    value: {{ index .Values "account-unlock-cool-down-period-minutes" | quote }}
+  - name: SPRING_KAFKA_PRODUCER_KEY_SERIALIZER
+    value: org.apache.kafka.common.serialization.StringSerializer
+  - name: SPRING_KAFKA_PRODUCER_VALUE_SERIALIZER
+    value: org.springframework.kafka.support.serializer.JsonSerializer
+  {{- if index .Values "otp-validation" }}
+  - name: OTP_VALIDATION_REGISTER_MANDATORY
+    value: {{ index .Values "otp-validation" | quote }}
+  {{- end }}
+  {{- if index .Values "citizen-otp-enabled" }}
+  - name: CITIZEN_LOGIN_PASSWORD_OTP_ENABLED
+    value: {{ index .Values "citizen-otp-enabled" | quote }}
+  {{- end }}
+  {{- if index .Values "employee-otp-enabled" }}
+  - name: EMPLOYEE_LOGIN_PASSWORD_OTP_ENABLED
+    value: {{ index .Values "employee-otp-enabled" | quote }}
+  {{- end }}
+  {{- if index .Values "access-token-validity" }}
+  - name: ACCESS_TOKEN_VALIDITY_IN_MINUTES
+    value: {{ index .Values "access-token-validity" | quote }}
+  {{- end }}
+  {{- if index .Values "refresh-token-validity" }}
+  - name: REFRESH_TOKEN_VALIDITY_IN_MINUTES
+    value: {{ index .Values "refresh-token-validity" | quote }}
+  {{- end }}
+  {{- if index .Values "default-password-expiry" }}
+  - name: DEFAULT_PASSWORD_EXPIRY_IN_DAYS
+    value: {{ index .Values "default-password-expiry" | quote }}
+  {{- end }}
+  {{- if index .Values "mobile-number-validation" }}
+  - name: MOBILE_NUMBER_VALIDATION_WORKAROUND_ENABLED
+    value: {{ index .Values "mobile-number-validation" | quote }}
+  {{- end }}
+  {{- if index .Values "roles-state-level" }}
+  - name: ROLES_STATE_LEVEL_ENABLED
+    value: {{ index .Values "roles-state-level" | quote }}
+  {{- end }}
+  {{- if index .Values "citizen-registration-withlogin" }}
+  - name: CITIZEN_REGISTRATION_WITHLOGIN_ENABLED
+    value: {{ index .Values "citizen-registration-withlogin" | quote }}
+  {{- end }}
+  {{- if index .Values "citizen-otp-fixed" }}
+  - name: CITIZEN_LOGIN_PASSWORD_OTP_FIXED_VALUE
+    value: ""
+  {{- end }}
+  {{- if index .Values "citizen-otp-fixed-enabled" }}
+  - name: CITIZEN_LOGIN_PASSWORD_OTP_FIXED_ENABLED
+    value: "false"
+  {{- end }}
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: JAVA_ARGS
+    value: {{ index .Values "java-args" | quote }}
+  {{- if index .Values "global" "mobile-validation-workaround" }}
+  - name: MOBILE_NUMBER_VALIDATION_WORKAROUND_ENABLED
+    value: "true"
+  {{- end }}
+  - name: SECURITY_BASIC_ENABLED
+    value: "false"
+  - name: MANAGEMENT_SECURITY_ENABLED
+    value: "false"
+  - name: KAFKA_TOPICS_USER_STATUS_CHANGE
+    value: "egov-user-status-change"
+  - name: USER_STATUS_CHANGE_EVENT_ENABLED
+    value: {{ index .Values "user-status-change-event-enabled" | default "false" | quote }}
+  - name: EGOV_USER_PWD_PATTERN
+    value: ((?=.*\d)(?=.*[a-z])(?=.*[@#$%])(?=\S+$).*$)
+  - name: STATE_SCHEMA_INDEX_POSITION_TENANTID
+    value: "1"
+  - name: IS_ENVIRONMENT_CENTRAL_INSTANCE
+    value: {{ index .Values "is-environment-central-instance" | default "false" | quote }}
+  {{- if index .Values "logging-level-web" }}
+  - name: LOGGING_LEVEL_WEB
+    value: {{ index .Values "logging-level-web" | quote }}
+  {{- end }}
+  {{- if index .Values "logging-level-org-egov-user" }}
+  - name: LOGGING_LEVEL_ORG_EGOV_USER
+    value: {{ index .Values "logging-level-org-egov-user" | quote }}
+  {{- end }}
+  {{- if index .Values "logging-level-org-springframework-web" }}
+  - name: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB
+    value: {{ index .Values "logging-level-org-springframework-web" | quote }}
+  {{- end }}
+  {{- if index .Values "logging-level-org-springframework-security" }}
+  - name: LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY
+    value: {{ index .Values "logging-level-org-springframework-security" | quote }}
+  {{- end }}
+  {{- if index .Values "auth-oidc-enabled" }}
+  - name: AUTH_OIDC_ENABLED
+    value: {{ index .Values "auth-oidc-enabled" | quote }}
+  {{- end }}
+  {{- if index .Values "auth-oidc-providers-source" }}
+  - name: AUTH_OIDC_PROVIDERS_SOURCE
+    value: {{ index .Values "auth-oidc-providers-source" | quote }}
+  {{- end }}
+  {{- if index .Values "mdms-oidcproviders-tenantid" }}
+  - name: MDMS_OIDCPROVIDERS_TENANTID
+    value: {{ index .Values "mdms-oidcproviders-tenantid" | quote }}
+  {{- end }}
+  {{- if index .Values "java-tool-options" }}
+  - name: JAVA_TOOL_OPTIONS
+    value: {{ index .Values "java-tool-options" }}
+  {{- end }}
+  {{- if index .Values "egov-hrms-enabled" }}
+  - name: EGOV_HRMS_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: egov-hrms
+        name: egov-service-host
+  - name: EGOV_HRMS_EMPLOYEE_CREATE_URL
+    value: {{ index .Values "egov-hrms-employee-create-url" | default "/egov-hrms/employees/_create" }}
+  {{- end }}
+  {{- if index .Values "egov-boundary-enabled" }}
+  - name: EGOV_BOUNDARY_HOST
+    valueFrom:
+      configMapKeyRef:
+        key: boundary-service
+        name: egov-service-host
+  - name: EGOV_BOUNDARY_HIERARCHY_SEARCH_URL
+    value: {{ index .Values "egov-boundary-hierarchy-search-url" | default "/boundary-service/boundary-hierarchy-definition/_search" }}
+  - name: EGOV_BOUNDARY_RELATIONSHIPS_SEARCH_URL
+    value: {{ index .Values "egov-boundary-relationships-search-url" | default "/boundary-service/boundary-relationships/_search" }}
+  {{- end }}
+  {{- if index .Values "oidc-google-secret-enabled" }}
+  - name: GRAPH_CLIENT_SECRET_MZ_OIDC_GOOGLE
+    valueFrom:
+      secretKeyRef:
+        key: {{ index .Values "oidc-google-secret-key" | default "graph-client-secret-mz-oidc-google" }}
+        name: sso
+  {{- end }}
+  - name: SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL
+    value: "SASL_SSL"
+  - name: SPRING_KAFKA_PROPERTIES_SASL_MECHANISM
+    value: "PLAIN"
+  - name: SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG
+    valueFrom:
+      secretKeyRef:
+        name: sdip-digit-kafka-client
+        key: jaas-config
+  - name: SPRING_REDIS_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: sdip-digit-redis-client
+        key: password

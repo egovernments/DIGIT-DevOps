@@ -64,9 +64,9 @@ env: |
         name: egov-config
         key: kafka-brokers         
   - name: WORKFLOW_TRANSITION_PATH
-    value: "egov-workflow-v2/egov-wf/process/_transition"
+    value: "workflow/v3/transition"
   - name: WORKFLOW_SEARCH_PATH
-    value: "egov-workflow-v2/egov-wf/process/_search" 
+    value: "workflow/v3/transition" 
   - name: WF_BUSINESS_SERVICE_CREATE_URL
     value: "egov-workflow-v2/egov-wf/businessservice/_create"
   - name: WF_BUSINESS_SERVICE_SEARCH_PATH
@@ -74,13 +74,11 @@ env: |
   - name: WF_BUSINESS_SERVICE_UPDATE_PATH
     value: "egov-workflow-v2/egov-wf/businessservice/_update"
   - name: WORKFLOW_ESCALATE_PATH
-    value: "egov-workflow-v2/egov-wf/auto"
+    value: "workflow/v3/auto"
   - name: AUTO_ESCALATION_SCHEDULER_ENABLED
     value: "true"
   - name: AUTO_ESCALATION_CRON_SCHEDULE
     value: "0 * * * *"
-  - name: AUTO_ESCALATION_SYNC_CONSUMER_ENABLED
-    value: "true"
   - name: STATE_LEVEL_TENANT_ID
     valueFrom:
       configMapKeyRef:
@@ -92,20 +90,20 @@ env: |
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
-        key: individual
+        key: individual-java
   - name: INDIVIDUAL_CREATE_ENDPOINT
-    value: "studio-individual/v1/_create"
+    value: "individuals/v3/individuals"
   - name: INDIVIDUAL_UPDATE_ENDPOINT
-    value: "studio-individual/v1/_update"
+    value: "individuals/v3/individuals"
   - name: INDIVIDUAL_SEARCH_ENDPOINT
-    value: "studio-individual/v1/_search"
+    value: "individuals/v3/individuals"
   - name: BOUNDARY_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: boundary-service
   - name: BOUNDARY_SEARCH_ENDPOINT
-    value: "boundary-service/boundary/_search"
+    value: "boundary/v3/boundaries"
   - name: MDMS_SERVICE_HOST
     value: {{ index .Values "mdms-service-host" | quote }}
   - name: MDMS_SEARCH_ENDPOINT 
@@ -133,16 +131,16 @@ env: |
         name: egov-service-host
         key: egov-idgen
   - name: IDGEN_SERVICE_GENERATE_URL
-    value: "egov-idgen/id/_generate" 
+    value: "idgen/v3/generate" 
   - name: LOCALIZATION_SERVICE_HOST
     valueFrom:
       configMapKeyRef:
         name: egov-service-host
         key: egov-localization
   - name: LOCALIZATION_CONTEXT_PATH
-    value: "localization/messages/v1" 
+    value: "localization/v3/messages" 
   - name: LOCALIZATION_SEARCH_ENDPOINT
-    value: "/_search"
+    value: ""
   - name: LOCALIZATION_UPSERT_ENDPOINT
     value: "/_upsert"   
   - name: SERVICE_MASTER_NAME
@@ -198,6 +196,29 @@ env: |
     value: "save-service-version-config-mapping"
   - name: DELETE_BUSINESS_SERVICE_TOPIC
     value: "delete-business-service-topic"
+  # DIGIT 3.0: the account service's tenant list, for escalation per tenant.
+  - name: DIGIT3_ACCOUNT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: account-java
+  # DIGIT 3.0: Keycloak base URL (without /keycloak), for applicants' logins.
+  - name: KEYCLOAK_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: keycloak
+  # Schema per tenant, the same as public-service-init: they share tables.
+  - name: TENANT_MIGRATION_ENABLED
+    value: {{ index .Values "tenant-migration-enabled" | default false | quote }}
+  # Studio's service account in each tenant realm (applicants' logins).
+  {{- with index .Values "keycloak-client-secret" }}
+  - name: STUDIO_KEYCLOAK_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: {{ .name }}
+        key: {{ .key }}
+  {{- end }}
   - name: PUBLIC_SERVICE_HOST
     valueFrom:
       configMapKeyRef:

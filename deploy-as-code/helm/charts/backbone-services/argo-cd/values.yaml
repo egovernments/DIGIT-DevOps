@@ -2516,16 +2516,9 @@ server:
       # plain HTTP. The server serves the whole app under /argocd via --rootpath, so no
       # rewrite/regex is needed.
       nginx.ingress.kubernetes.io/backend-protocol: HTTP
-      # NOTE: unified-dev gates the Argo CD UI behind oauth2-proxy (GitHub org
-      # "egovernments") via nginx auth-url/auth-signin annotations. studio-demo
-      # keeps the GitHub OAuth App client-id/secret in the oauth2-proxy secret
-      # (cluster-configs.secrets.oauth2-proxy) but oauth2-proxy is NOT yet deployed
-      # here, so those annotations are intentionally omitted for the cutover (an
-      # unresolved auth-url upstream makes nginx 500 the whole /argocd path). Argo CD
-      # uses its own admin login for now. To gate it later: deploy oauth2-proxy
-      # (callback https://studio-demo.digit.org/oauth2/callback) and re-add:
-      #   nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.<ns>.svc.cluster.local:4180/oauth2/auth"
-      #   nginx.ingress.kubernetes.io/auth-signin: "https://$host/oauth2/start?rd=$escaped_request_uri"
+      # Gate the Argo CD UI behind oauth2-proxy SSO (egovernments/studio-demo team).
+      nginx.ingress.kubernetes.io/auth-url: http://oauth2-proxy.backbone.svc.cluster.local:4180/oauth2/auth
+      nginx.ingress.kubernetes.io/auth-signin: https://$host/oauth2/start?rd=$escaped_request_uri
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
     # -- Defines which ingress controller will implement the resource

@@ -5,7 +5,13 @@ resource "azurerm_kubernetes_cluster" "aks" {
   dns_prefix          = "${var.name}"
   kubernetes_version  = "${var.kubernetes_version}"
 
-  
+  # Required by the federated credentials that ArgoCD (SOPS decryption) and
+  # Vault (auto-unseal) rely on. Leaving these undeclared makes Terraform
+  # disable workload identity on the next apply and break both.
+  oidc_issuer_enabled       = true
+  workload_identity_enabled = true
+
+
   default_node_pool {
     name       = "defaultpool"
     node_count = "${var.node_count}"
@@ -15,6 +21,10 @@ resource "azurerm_kubernetes_cluster" "aks" {
     node_public_ip_enabled = false
     temporary_name_for_rotation = "tempnodepool"
     os_disk_size_gb = var.os_disk_size_gb
+
+    upgrade_settings {
+      max_surge = "10%"
+    }
   }
 
   identity {

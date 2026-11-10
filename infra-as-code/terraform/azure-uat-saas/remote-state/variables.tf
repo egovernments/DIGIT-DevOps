@@ -26,6 +26,12 @@ variable "location" {
   default = "centralindia"
 }
 
+variable "subscription_id" {
+  description = "Azure subscription ID where the resources will be provisioned"
+  type        = string
+  default     = "777e3e4b-0998-4759-adc2-e7b5b19a6b28"
+}
+
 variable "resource_group" {
   description = "Azure Resource Group name"
   type        = string

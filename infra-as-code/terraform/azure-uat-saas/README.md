@@ -8,12 +8,11 @@ This directory provisions the Azure infrastructure required for a DIGIT environm
 - Adds a provider-level Azure entrypoint in `main.tf`.
 - Adds an Azure Storage backend configuration for Terraform state.
 - Adds `remote-state/` resources for the resource group, storage account, and state container.
-- Creates a virtual network with dedicated AKS and PostgreSQL subnets.
+- Creates a virtual network with a dedicated AKS subnet.
 - Adds NAT gateway resources for outbound access from the AKS subnet.
-- Provisions AKS through `../modules/kubernetes/azure`.
-- Provisions PostgreSQL Flexible Server through `../modules/db/azure`.
-- Adds private DNS zone wiring for PostgreSQL.
-- Adds validation for Azure environment, resource group, database user, and database password inputs.
+- Provisions AKS through `../modules/kubernetes/azure`, with the OIDC issuer and
+  workload identity enabled (ArgoCD SOPS decryption and Vault auto-unseal depend on them).
+- Adds validation for the Azure environment and resource group inputs.
 
 ## What's New in Kubernetes 1.34
 
@@ -47,8 +46,8 @@ Code/config changes made for the 1.33 → 1.34 upgrade:
 2. **Upgrade the control plane**
    ```bash
    terraform init
-   terraform plan  -var='db_password=<password>'
-   terraform apply -var='db_password=<password>'
+   terraform plan
+   terraform apply
    ```
 3. **Upgrade the node pool(s)** — ensure the default node pool `orchestrator_version` is set to 1.34 so nodes roll to the new version after the control plane.
 4. **Validate**
@@ -68,45 +67,77 @@ Required values:
 - `resource_group`: Azure resource group name.
 - `location`: Azure region.
 - `subscription_id`: Azure subscription ID.
-- `db_user`: PostgreSQL admin user.
 
 Review `variables.tf` for version and sizing defaults before applying:
 
 - `kubernetes_version` defaults to `1.34`.
-- `db_version` defaults to `15`.
-- `vm_size` defaults to `standard_e2s_v3`.
-- `node_count` defaults to `3`.
-- `db_sku_name` defaults to `B_Standard_B2ms`.
-- `db_storage_mb` defaults to `65536`.
-
-`db_password` is intentionally not stored in `input.yaml`; provide it at plan or apply time.
+- `vm_size` defaults to `Standard_D4as_v5`.
+- `node_count` defaults to `4`.
+- `os_disk_size_gb` defaults to `64`.
 
 ## Usage
 
 Run the init helper from this directory after updating `input.yaml`:
 
 ```bash
-cd infra-as-code/terraform/azure
+cd infra-as-code/terraform/azure-uat-saas
 go run ../scripts/init.go
 ```
 
-Create the remote-state resources first:
+The remote-state resources already exist for this environment and their state is
+stored in the backend, so just initialise against it:
 
 ```bash
 cd remote-state
+terraform init
+terraform plan    # expect: No changes
+```
+
+> For a brand-new environment only: comment out the `backend "azurerm"` block in
+> `remote-state/main.tf`, run `terraform init && terraform apply` against the local
+> backend to create the resource group, storage account, and container, then restore
+> the block with the generated storage account name and run
+> `terraform init -migrate-state` to move the state into it.
+
+Then provision the Azure infrastructure:
+
+```bash
+cd ..
 terraform init
 terraform plan
 terraform apply
 ```
 
-Use the generated storage account name from the remote-state output or Azure portal to update the backend placeholder in `main.tf` if needed, then provision the Azure infrastructure:
+## Authentication
+
+Terraform runs against this environment as the **`uat-saas-admin`** service principal
+(app ID `96b68946-6a6b-4112-99bf-8fd07ec9b423`), following the same per-environment
+convention as `digit-lts-admin`.
 
 ```bash
-cd ..
-terraform init
-terraform plan -var='db_password=<password>'
-terraform apply -var='db_password=<password>'
+export ARM_CLIENT_ID=96b68946-6a6b-4112-99bf-8fd07ec9b423
+export ARM_CLIENT_SECRET=<from vault>
+export ARM_TENANT_ID=593ce202-d1a9-4760-ba26-ae35417c00cb
+export ARM_SUBSCRIPTION_ID=777e3e4b-0998-4759-adc2-e7b5b19a6b28
 ```
+
+Role assignments, both scoped to the `uat-saas` resource group rather than the
+subscription, so the credential cannot reach other environments:
+
+| Role | Why |
+| --- | --- |
+| `Contributor` | Manages the resources, and supplies `listKeys` for backend auth |
+| `User Access Administrator` | Required by `azurerm_role_assignment.aks_subnet_network_contributor` |
+
+Because the grant is resource-group scoped, this principal **cannot create the resource
+group itself** — a from-scratch bootstrap needs a subscription-scoped identity.
+
+> The client secret expires **2027-11-10**. Rotate before then; an expired credential
+> fails with an opaque authentication error rather than an expiry message.
+
+The identity is never recorded in Terraform state, so switching between this service
+principal and a user account is purely a matter of which environment variables are set.
+It requires no state changes and disturbs no resources.
 
 ## Outputs
 
@@ -114,6 +145,19 @@ Key outputs include:
 
 - `resource_group`
 - `cluster_name`
-- `azurerm_postgresql_flexible_server`
-- `postgresql_flexible_server_database_name`
-- `db_user`
+
+The `remote-state` configuration outputs `azure_storage_account`.
+
+## State layout
+
+Both configurations share one container, under distinct keys:
+
+| Configuration | Backend key |
+| --- | --- |
+| `azure-uat-saas/` | `terraform.tfstate` |
+| `azure-uat-saas/remote-state/` | `bootstrap.tfstate` |
+
+Container `uat-saas-container` in storage account `tfstate0znm8` (resource group `uat-saas`).
+
+Because the bootstrap state lives inside the storage account it manages, never run
+`terraform destroy` in `remote-state/` — it would delete the account holding its own state.

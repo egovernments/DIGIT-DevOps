@@ -67,6 +67,19 @@ spec:
       spec:
         accessModes:
           - {{ .Values.persistence.accessMode }}
+        # Stated explicitly even though Filesystem is the API default.
+        #
+        # volumeClaimTemplates is immutable once the StatefulSet exists. The
+        # live object carries the defaulted volumeMode, but this manifest did
+        # not, so a Server-Side Apply sync (ApplyOutOfSyncOnly + ServerSideApply
+        # are set on the Application) tried to drop a field nobody else owned.
+        # The API server rejects that as an immutable-field change:
+        #   StatefulSet.apps "minio" is invalid: spec: Forbidden: updates to
+        #   statefulset spec for fields other than 'replicas', 'ordinals',
+        #   'template', ... are forbidden
+        # which left the app permanently OutOfSync and silently blocked every
+        # change to the pod template, image bumps included.
+        volumeMode: Filesystem
         {{- if .Values.persistence.storageClass }}
         storageClassName: {{ .Values.persistence.storageClass | quote }}
         {{- end }}

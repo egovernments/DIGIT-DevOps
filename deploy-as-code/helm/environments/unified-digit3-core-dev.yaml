@@ -325,6 +325,16 @@ boundary-management:
   image:
     tag: 'master-154c0db'
 mdms-v2:
+  # The common chart gives mdms-v2 only OTEL_EXPORTER_OTLP_ENDPOINT (host:port, no
+  # scheme), which the app turns into its trace URL; OtlpHttpSpanExporter rejects it
+  # ("must start with http://"). Set the full trace URL the way idgen/otp get it.
+  extraEnv:
+    app: |
+      - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: otel-tracing-export-otlp-endpoint
   initContainers:
     dbMigration:
       enabled: true

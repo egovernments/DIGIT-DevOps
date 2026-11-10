@@ -493,7 +493,7 @@ function onConnected(user){
 }
 function disconnect(){
   TOKEN = null; REFRESH_TOKEN = null; CFG = null;
-  pending = null; graceUntil = 0;
+  clearPending(); graceUntil = 0;
   try{ sessionStorage.removeItem("cb-session"); }catch(e){}
   if(pollTimer) clearInterval(pollTimer);
   if(idleTimer) clearTimeout(idleTimer);
@@ -560,6 +560,10 @@ async function restoreSelection(branches){
   if(!branch) return;
   selB.value = branch;
   await loadConfig(branch);          // populate modules
+  // Restore an in-flight queued dispatch so a refresh keeps the row until the run lists.
+  try{ const p=JSON.parse(sessionStorage.getItem("cb-pending")||"null");
+       if(p && (Date.now()-p.at) < 180000){ pending = p; graceUntil = Math.max(graceUntil, Date.now()+45000); }
+       else sessionStorage.removeItem("cb-pending"); }catch(e){}
   pollRuns(branch);                  // load recent runs (so a refresh doesn't blank them)
   if(saved.all){ allSvc.checked = true; applyBuildMode(); return; }   // restore all-services mode
   if(saved.module && CFG && CFG[saved.module]){
@@ -714,13 +718,22 @@ async function classifyFailed(run){
   try{
     const r = await api("/repos/"+OWNER+"/"+REPO+"/actions/runs/"+run.id+"/jobs?per_page=50");
     if(r.ok){
-      const bad = ((await r.json()).jobs || [])
-        .filter(j => j.conclusion==="failure" || j.conclusion==="timed_out")
-        .map(j => (j.name||"").toLowerCase()).join(" ");
-      // Match the engine's job display names ("Image scan · <svc>") and the job ids
-      // ("image-scan") — hyphen or space, any case (bad is already lower-cased).
-      if(/code[-\s]scan/.test(bad)) kind = "blocked-code";
-      else if(/image[-\s]scan/.test(bad)) kind = "blocked-image";
+      // A Trivy gate block is reported by the FAILED STEP, not the job: the code
+      // gate fails the "Code scan · <svc>" job, while the image gate fails a step
+      // ("Evaluate image gate …") inside the "Build · <svc>" job. Collect failed
+      // job names AND failed step names so both are detectable.
+      const names = [];
+      for(const j of ((await r.json()).jobs || [])){
+        if(j.conclusion==="failure" || j.conclusion==="timed_out"){
+          names.push(j.name||"");
+          for(const s of (j.steps||[])){
+            if(s.conclusion==="failure" || s.conclusion==="timed_out") names.push(s.name||"");
+          }
+        }
+      }
+      const bad = names.join(" ").toLowerCase();
+      if(/image[\s-]*gate|image[\s-]*scan/.test(bad)) kind = "blocked-image";
+      else if(/code[\s-]*gate|code[-\s]scan/.test(bad)) kind = "blocked-code";
     }
   }catch(e){}
   jobCache[run.id] = kind;
@@ -733,6 +746,11 @@ function runKind(run){
   if(run.conclusion==="cancelled") return "cancelled";
   return "done";
 }
+// The optimistic "Queued" row is persisted per-tab so a refresh during the queued
+// window keeps showing it until the real run lists (GitHub surfaces a just-queued run
+// only a few seconds after dispatch). Cleared once the real run appears or after 3 min.
+function savePending(){ try{ pending ? sessionStorage.setItem("cb-pending", JSON.stringify(pending)) : sessionStorage.removeItem("cb-pending"); }catch(e){} }
+function clearPending(){ pending = null; try{ sessionStorage.removeItem("cb-pending"); }catch(e){} }
 async function pollRuns(branch){
   // Keep polling for a short window after any (re)load so a just-queued run — which can
   // take a few seconds to appear in the API — is caught live, not only on a manual
@@ -750,7 +768,8 @@ async function pollRuns(branch){
         .filter(x => x.status==="completed" && (x.conclusion==="failure" || x.conclusion==="timed_out"))
         .map(classifyFailed));
       // Drop the optimistic row once our dispatched run appears in the list.
-      if(pending && runs.some(x => new Date(x.created_at).getTime() >= pending.at - 30000)) pending = null;
+      if(pending && runs.some(x => new Date(x.created_at).getTime() >= pending.at - 30000)) clearPending();
+      else if(pending && Date.now() - pending.at > 180000) clearPending();   // expire a stuck optimistic row
       lastRuns = runs;
       renderRuns(runs);
       // Keep polling while anything is active, or during the grace window after a
@@ -833,6 +852,7 @@ async function fireDispatch(payload){
     if(r.status === 204){
       msg.style.color = "var(--ok)"; msg.textContent = "Queued ✓ — watching Recent runs";
       pending = { service: (payload.inputs.all_services === "true" ? "all services" : payload.inputs.service), branch: payload.inputs.build_branch, at: Date.now() };
+      savePending();                      // survive a refresh during the queued window
       graceUntil = Date.now() + 180000;   // keep polling ~3 min so the new run is caught live
       renderRuns(lastRuns);               // reflect the queued build immediately (no refresh)
       pollRuns(payload.ref);

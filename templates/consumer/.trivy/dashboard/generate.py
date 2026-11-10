@@ -303,6 +303,18 @@ def cmd_scan(args):
           f"image={(ims['totals']['CRITICAL'] if ims else '-')}C/{ims['totals']['HIGH'] if ims else '-'}H")
 
 
+def reskin_service_page(site, service):
+    """Re-render a service's page from its stored manifest using the CURRENT
+    template, so a template change reaches every service on the next build — not
+    only the service that was just rebuilt."""
+    builds = (load_json(os.path.join(site, service, "data", "builds", "manifest.json")) or {}).get("builds") or []
+    if not builds:
+        return
+    for r in builds:
+        r["latest"] = (r["id"] == builds[0]["id"])
+    write_service_page(site, service, builds[:MAX_BUILDS], builds[0]["id"])
+
+
 def cmd_home(args):
     services = []
     for name in sorted(os.listdir(args.site)):
@@ -310,6 +322,7 @@ def cmd_home(args):
         s = load_json(p)
         if s:
             services.append(s)
+            reskin_service_page(args.site, name)   # keep every service page on the current template
     services.sort(key=lambda s: (s.get("score", 10),
                                  -((s.get("code") or {}).get("critical", 0)
                                    + (s.get("image") or {}).get("critical", 0)),

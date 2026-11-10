@@ -117,3 +117,56 @@ Key outputs include:
 - `azurerm_postgresql_flexible_server`
 - `postgresql_flexible_server_database_name`
 - `db_user`
+
+## Overnight scheduling (test-lts)
+
+The cluster has a single node pool, `defaultpool`. AKS never allows a System pool
+— which `default_node_pool` always is — to be scaled to 0, so the cost saving comes
+from **stopping the whole cluster** rather than scaling a pool down.
+
+`module.scheduling` creates an Azure Automation account, a PowerShell runbook and
+two weekly schedules:
+
+| Time (IST) | Action |
+|---|---|
+| `cluster_stop_time` — 21:00 | `Stop-AzAksCluster` — every node is deallocated |
+| `cluster_start_time` — 08:30 | `Start-AzAksCluster` — nodes come back |
+
+Set `scheduling = false` to leave the cluster running around the clock.
+
+Stopping deallocates all nodes but retains cluster state and persistent volumes;
+workloads reschedule onto the same PVCs on start. The runbook is idempotent (it
+checks `PowerState` first) and skips the action if the cluster is mid-operation.
+
+By default the schedules run on weekdays only (`schedule_week_days`), so the
+cluster stops on Friday evening and comes back on Monday morning. Add `Saturday`
+and `Sunday` for a strictly daily 21:00–08:30 cycle.
+
+### Operational notes
+
+- Run `terraform plan`/`apply` while the cluster is **running**. Planning against a
+  stopped cluster can show spurious drift.
+- The Automation identity needs Network Contributor on the AKS subnet as well as
+  AKS Contributor on the cluster: starting the cluster recreates VMSS instances in
+  the custom subnet, which re-validates `subnets/join` and otherwise fails with
+  `LinkedAuthorizationFailed`.
+
+### Do not rename the node pool
+
+`default_node_pool.name` is **not** one of the properties that
+`temporary_name_for_rotation` can cycle. Changing it makes Terraform destroy and
+recreate the entire AKS cluster — every node, every PVC binding, the lot.
+`node_pool_name` therefore defaults to `defaultpool`, the name the live cluster
+already uses.
+
+### Settings that must be declared or they get switched off
+
+The provider defaults these to off/absent, so omitting them does not mean "leave
+as is" — a plan will actively disable them:
+
+- `oidc_issuer_enabled` / `workload_identity_enabled`
+- the `azure_active_directory_role_based_access_control` block (`azure_rbac_enabled`, `aad_tenant_id`)
+- `default_node_pool.upgrade_settings.max_surge`
+
+They are wired through from `variables.tf` with the live cluster's values. Always
+confirm a plan reports **0 to destroy** before applying.

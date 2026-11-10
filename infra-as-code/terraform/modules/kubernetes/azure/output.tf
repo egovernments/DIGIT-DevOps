@@ -34,3 +34,13 @@ output "aks_principal_id" {
     description = "The system-assigned managed identity principal ID of the AKS cluster"
     value       = "${azurerm_kubernetes_cluster.aks.identity[0].principal_id}"
 }
+
+output "aks_cluster_id" {
+    description = "The AKS cluster resource ID"
+    value       = "${azurerm_kubernetes_cluster.aks.id}"
+}
+
+output "aks_cluster_name" {
+    description = "The AKS cluster name"
+    value       = "${azurerm_kubernetes_cluster.aks.name}"
+}

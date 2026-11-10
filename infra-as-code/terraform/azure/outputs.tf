@@ -1,4 +1,4 @@
-output "resource_group"{
+output "resource_group" {
   value = var.resource_group
 }
 

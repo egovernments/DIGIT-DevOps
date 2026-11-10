@@ -6,9 +6,26 @@ namespace: backbone
 # Resource names are fixed to match the live deployment (minio / minio-console / minio-svc).
 fullnameOverride: minio
 
+# quay.io/minio/minio is no longer publicly pullable. MinIO withdrew public
+# access to its container images, so every tag now returns 401 to an anonymous
+# client -- verified with a valid anonymous bearer token against quay.io, and
+# there is no public copy on docker.io, ghcr.io or public.ecr.aws either.
+#
+# This stayed invisible because the image was already cached on every node.
+# The 1.34 -> 1.35 node pool upgrade replaced all seven nodes, the cache went
+# with them, and minio-0/1 dropped straight into ImagePullBackOff.
+#
+# egovio/minio is the org's own mirror and the only reachable source. It is an
+# older MinIO release than the quay tag that was pinned here; that is a
+# deliberate trade of version currency for an image that can actually be
+# pulled. Checked before switching:
+#   - on-disk format is xl version 3 (distributionAlgo SIPMOD+PARITY), which
+#     this build reads natively -- MinIO refuses to start on a format newer
+#     than the binary knows, and this is not that case
+#   - linux/amd64 only, and every node in this cluster is amd64
 image:
-  repository: quay.io/minio/minio
-  tag: "RELEASE.2024-12-18T13-15-44Z"
+  repository: egovio/minio
+  tag: "RELEASE.2024-01-16T16-07-38Z"
   pullPolicy: IfNotPresent
 
 # Number of distributed nodes (StatefulSet replicas). Live = 2.

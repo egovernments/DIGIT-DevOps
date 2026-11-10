@@ -590,7 +590,8 @@ function parseConfig(text){
       wd: app["work-dir"] || "",
       df: app.dockerfile || "build/maven/Dockerfile (default)",
       db: !!db,
-      dbImage: db ? db["image-name"] : null
+      dbImage: db ? db["image-name"] : null,
+      dbWd: db ? (db["work-dir"] || "") : ""
     });
   }
   return byModule;
@@ -645,13 +646,16 @@ function showResolved(s){
   const ns = "egovio/";
   const map = s.label!==s.image
     ? '<div class="mapnote">Folder <b>'+esc(s.label)+'</b> builds image <b>'+esc(s.image)+'</b> — the engine dispatches on the image-name.</div>' : "";
-  resolved.innerHTML =
-    '<dl class="kv">'
-    + '<dt>Image</dt><dd class="img">'+esc(ns+s.image)+':'+esc(tag)+'</dd>'
+  // Order: source paths first, then the image they build; DB rows only when present.
+  let rows =
+      '<dt>Work Directory</dt><dd class="path">'+esc(s.wd)+'</dd>'
     + '<dt>Dockerfile</dt><dd class="path">'+esc(s.df)+'</dd>'
-    + '<dt>Work dir</dt><dd class="path">'+esc(s.wd)+'</dd>'
-    + '<dt>DB image</dt><dd>'+(s.db?'<span class="y">'+esc(ns+s.dbImage)+'</span>':'<span class="n">none</span>')+'</dd>'
-    + '</dl>' + map;
+    + '<dt>Image</dt><dd class="img">'+esc(ns+s.image)+':'+esc(tag)+'</dd>';
+  if(s.db){
+    rows += '<dt>DB Work Directory</dt><dd class="path">'+esc(s.dbWd)+'</dd>'
+          + '<dt>DB Image</dt><dd class="img">'+esc(ns+s.dbImage)+':'+esc(tag)+'</dd>';
+  }
+  resolved.innerHTML = '<dl class="kv">' + rows + '</dl>' + map;
   runBtn.disabled = false;
   runNote.textContent = "Dispatches Code Build on " + selB.value;
 }

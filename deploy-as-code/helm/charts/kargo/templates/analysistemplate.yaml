@@ -1,7 +1,8 @@
 {{- $k := .Values.kargo }}
 {{- if and $k.project $k.verify.enabled }}
-# Deploy-state verification: a Job asserts the target env's Deployment is running
-# the promoted tag and is healthy. Reaches the target cluster via a per-env
+# Deploy-state verification: a Job asserts the target env's Deployment has fully
+# rolled out the promoted tag (every replica updated and available, no old pods left)
+# and stays healthy for verify.stableSeconds with no container restarts. Reaches the target cluster via a per-env
 # read-only kubeconfig Secret. {{ `{{args.*}}` }} are resolved by Argo Rollouts.
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
@@ -56,6 +57,8 @@ spec:
                         value: {{ `{{args.expectedTag}}` | quote }}
                       - name: TIMEOUT
                         value: {{ $k.verify.timeoutSeconds | quote }}
+                      - name: STABLE_SECONDS
+                        value: {{ $k.verify.stableSeconds | default 60 | quote }}
                     volumeMounts:
                       - name: kubeconfig
                         mountPath: /kc
@@ -63,17 +66,48 @@ spec:
                     command: ["/bin/sh", "-c"]
                     args:
                       - |
-                        deadline=$(( $(date +%s) + ${TIMEOUT} ))
-                        while [ "$(date +%s)" -lt "${deadline}" ]; do
-                          img=$(kubectl -n "$NS" get deploy "$DEPLOY" -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)
-                          tag="${img##*:}"
-                          ready=$(kubectl -n "$NS" get deploy "$DEPLOY" -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo 0)
-                          updated=$(kubectl -n "$NS" get deploy "$DEPLOY" -o jsonpath='{.status.updatedReplicas}' 2>/dev/null || echo 0)
-                          echo "running=$tag ready=${ready:-0} updated=${updated:-0} expected=$EXPECTED_TAG"
-                          if [ "$tag" = "$EXPECTED_TAG" ] && [ "${ready:-0}" -ge 1 ] && [ "${updated:-0}" -ge 1 ]; then
-                            echo "VERIFIED"; exit 0
+                        # Deploy-state check. Env: NS, DEPLOY, EXPECTED_TAG, TIMEOUT, STABLE_SECONDS.
+                        # VERIFIED only when the rollout of EXPECTED_TAG is complete -- every replica updated
+                        # and available, no old pods left -- and stays so for STABLE_SECONDS with no new
+                        # container restarts. Fails at once on a failed rollout or a broken new pod.
+                        deadline=$(( $(date +%s) + TIMEOUT ))
+                        stable_since=""; base_restarts=""
+                        while [ "$(date +%s)" -lt "$deadline" ]; do
+                          d=$(kubectl -n "$NS" get deploy "$DEPLOY" -o jsonpath='{.metadata.generation}|{.status.observedGeneration}|{.spec.replicas}|{.status.replicas}|{.status.updatedReplicas}|{.status.availableReplicas}|{.status.unavailableReplicas}|{.status.conditions[?(@.type=="Progressing")].reason}|{.spec.template.spec.containers[0].image}' 2>/dev/null) || d=""
+                          # "|"-separated so that absent status fields stay empty instead of shifting
+                          oldifs=$IFS; IFS='|'; set -f; set -- $d; set +f; IFS=$oldifs
+                          gen=${1:-0} obs=${2:-0} want=${3:-0} total=${4:-0} updated=${5:-0} avail=${6:-0} unavail=${7:-0} reason=${8:-none} img=${9:-}
+                          img=${img%%@*}      # drop a digest: <repo>:<tag>@sha256:<digest>
+                          tag=${img##*:}
+                          echo "running=$tag expected=$EXPECTED_TAG replicas=$want total=$total updated=$updated available=$avail unavailable=$unavail progressing=$reason"
+                          if [ "$tag" != "$EXPECTED_TAG" ]; then stable_since=""; sleep 10; continue; fi
+                          if [ "$reason" = "ProgressDeadlineExceeded" ]; then
+                            echo "FAILED: rollout of $EXPECTED_TAG exceeded its progress deadline"; exit 1
+                          fi
+                          # pods of the newest ReplicaSet (highest revision) owned by this Deployment
+                          rs=$(kubectl -n "$NS" get rs -o jsonpath="{range .items[?(@.metadata.ownerReferences[0].name==\"$DEPLOY\")]}{.metadata.annotations.deployment\.kubernetes\.io/revision} {.metadata.name}{\"\n\"}{end}" 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2)
+                          pods=$(kubectl -n "$NS" get pods -o jsonpath="{range .items[?(@.metadata.ownerReferences[0].name==\"$rs\")]}{range .status.initContainerStatuses[*]}{.state.waiting.reason}:{.restartCount}{\" \"}{end}{range .status.containerStatuses[*]}{.state.waiting.reason}:{.restartCount}{\" \"}{end}{end}" 2>/dev/null)
+                          for c in $pods; do
+                            case "${c%%:*}" in
+                              CrashLoopBackOff|ImagePullBackOff|ErrImagePull|InvalidImageName|CreateContainerConfigError|CreateContainerError)
+                                echo "FAILED: a new pod of $DEPLOY is in ${c%%:*}"; exit 1 ;;
+                            esac
+                          done
+                          restarts=0; for c in $pods; do restarts=$(( restarts + ${c##*:} )); done
+                          if [ "$want" -ge 1 ] && [ "$obs" -ge "$gen" ] && [ "$updated" -eq "$want" ] && [ "$total" -eq "$want" ] \
+                             && [ "$avail" -ge "$want" ] && [ "$unavail" -eq 0 ]; then
+                            now=$(date +%s)
+                            if [ -z "$stable_since" ]; then stable_since=$now; base_restarts=$restarts; fi
+                            if [ "$restarts" -gt "$base_restarts" ]; then
+                              echo "FAILED: $DEPLOY restarted after becoming ready (restarts $base_restarts -> $restarts)"; exit 1
+                            fi
+                            if [ $(( now - stable_since )) -ge "$STABLE_SECONDS" ]; then
+                              echo "VERIFIED: $DEPLOY runs $EXPECTED_TAG on all $want replica(s), stable for ${STABLE_SECONDS}s"; exit 0
+                            fi
+                          else
+                            stable_since=""
                           fi
                           sleep 10
                         done
-                        echo "TIMEOUT: $DEPLOY not running $EXPECTED_TAG or not healthy"; exit 1
+                        echo "TIMEOUT: $DEPLOY not fully rolled out to $EXPECTED_TAG and stable within ${TIMEOUT}s"; exit 1
 {{- end }}

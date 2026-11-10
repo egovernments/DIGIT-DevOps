@@ -67,9 +67,11 @@ jobs:
           echo "services=$JSON" >> "$GITHUB_OUTPUT"
           echo "Will build: $JSON"
 
-  # One engine call per service. fail-fast:false so a blocked/failed service does
-  # not cancel the rest; max-parallel:1 builds them in sequence (and keeps the
-  # gh-pages dashboard pushes from colliding).
+  # One engine call per service, run in parallel (fail-fast:false so a blocked or
+  # failed service doesn't cancel the rest). For all-services each leg publishes
+  # only its own dashboard subtree (publish_home:false) — the shared landing index
+  # is rebuilt once by the `publish` job below, so parallel legs never race on it.
+  # A single-service build keeps publish_home:true (it owns the index itself).
   build:
     needs: resolve
     permissions:
@@ -77,7 +79,6 @@ jobs:
       id-token: write
     strategy:
       fail-fast: false
-      max-parallel: 1
       matrix:
         service: ${{ fromJSON(needs.resolve.outputs.services) }}
     uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-build.yaml@reusable-build-v1
@@ -86,29 +87,41 @@ jobs:
       build_branch: ${{ inputs.build_branch }}
       enable_trivy: true
       scan_branches: ${{ vars.TRIVY_SCAN_BRANCHES }}
+      publish_home: ${{ !inputs.all_services }}
     secrets:
       DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
       DOCKER_ACCESS_TOKEN: ${{ secrets.DOCKER_ACCESS_TOKEN }}
 
-  # All-services roll-up: one place to read the overall outcome (each service is
-  # still its own job above, and its scan report is on the Trivy dashboard).
-  report:
+  # All-services: rebuild the dashboard landing index once (from every service's
+  # summary the parallel legs published) and roll up the overall outcome.
+  publish:
     needs: [resolve, build]
     if: ${{ always() && inputs.all_services }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Roll-up summary
+      - name: Checkout build branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ inputs.build_branch }}
+      - name: Refresh dashboard home + roll-up
         env:
+          GH_TOKEN: ${{ github.token }}
           RESULT: ${{ needs.build.result }}
           SERVICES: ${{ needs.resolve.outputs.services }}
           BRANCH: ${{ inputs.build_branch }}
         run: |
+          set -euo pipefail
+          if [ -f .trivy/dashboard/publish.sh ]; then
+            bash .trivy/dashboard/publish.sh home || echo "::warning::dashboard home refresh failed"
+          fi
           COUNT=$(printf '%s' "$SERVICES" | jq 'length' 2>/dev/null || echo "?")
           {
             echo "### Build — Code · all services"
             echo ""
             echo "- Branch: \`$BRANCH\`"
-            echo "- Services dispatched: **$COUNT**"
+            echo "- Services dispatched: **$COUNT** (built in parallel)"
             echo "- Matrix result: **$RESULT** — each service is a separate job above; a red leg means that service's build or Trivy gate failed, the others still ran."
             echo "- Per-service scan reports: the Trivy dashboard under \`/security/trivy\`."
           } >> "$GITHUB_STEP_SUMMARY"

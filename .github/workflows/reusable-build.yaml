@@ -71,6 +71,11 @@ on:
         required: false
         type: boolean
         default: true
+      publish_home:
+        description: "Also regenerate the Trivy dashboard landing index in this run. Set false for parallel all-services legs (a final `home` run rebuilds it once, avoiding shared-index races)"
+        required: false
+        type: boolean
+        default: true
     secrets:
       DOCKER_USERNAME:
         required: true
@@ -198,6 +203,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{ inputs.build_branch || github.ref_name }}
+          PUBLISH_HOME: ${{ inputs.publish_home && '1' || '0' }}
         run: |
           SERVICE="${{ needs.resolve-config.outputs.image_name }}"
           CRIT=$(jq '[.Results[]? | (.Vulnerabilities[]?, .Secrets[]?) | select(.Severity=="CRITICAL")] | length' code-scan.json)
@@ -317,6 +323,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{ inputs.build_branch || github.ref_name }}
+          PUBLISH_HOME: ${{ inputs.publish_home && '1' || '0' }}
           HAS_DB: ${{ needs.resolve-config.outputs.db_work_dir != '' }}
         run: |
           set -euo pipefail

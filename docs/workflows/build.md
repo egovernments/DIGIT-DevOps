@@ -56,10 +56,16 @@ the gate result.
 
 The engine builds **one** service per call. The caller (`code-build.yaml`) fans out:
 turning on **All services** reads every `image-name` from `build-config.yml` and runs
-this engine once per service as a **matrix** (`fail-fast: false`, `max-parallel: 1` —
-sequential, so a blocked/failed service never cancels the rest and the gh-pages
-dashboard pushes don't collide). Each service is its own job and its own scan report;
-a roll-up job summarises the run. See [actions-ui.md](actions-ui.md).
+this engine once per service as a **parallel matrix** (`fail-fast: false`, so a
+blocked/failed service never cancels the rest). Each service is its own job and its own
+scan report.
+
+To keep the parallel legs from racing on the **shared** dashboard landing index, the
+caller passes `publish_home: false` to each leg (so a leg publishes only its own
+service subtree — disjoint paths, safe under the publish retry) and a final `publish`
+job rebuilds the landing index **once** from every service's summary and rolls up the
+outcome. A single-service build keeps `publish_home: true` and owns the index itself.
+See [actions-ui.md](actions-ui.md).
 
 ## Inputs
 
@@ -77,6 +83,7 @@ a roll-up job summarises the run. See [actions-ui.md](actions-ui.md).
 | `enable_trivy` | `true` | Run the Trivy gate on the scanned branches; other branches build unscanned |
 | `scan_branches` | `""` | Branches to scan + gate (comma/space/newline list, e.g. the `TRIVY_SCAN_BRANCHES` var); empty = default branch only |
 | `enable_cosign` | `true` | Sign pushed images with cosign keyless; needs `id-token: write` from the caller |
+| `publish_home` | `true` | Also regenerate the Trivy dashboard landing index in this run; `false` for parallel all-services legs (a final `home` run rebuilds it once) |
 
 Secrets: `DOCKER_USERNAME`, `DOCKER_ACCESS_TOKEN`.
 

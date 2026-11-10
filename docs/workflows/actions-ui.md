@@ -28,7 +28,8 @@ Both dispatch the same `code-build.yaml`. The native dialog's lists are synced
 snapshots; the UI reads branches and each branch's services **live**, so it can
 also surface a service that exists only on a not-yet-merged feature branch. Both
 offer an **All services** option that builds every service in the branch's
-`build-config.yml` (the caller fans out to one engine run per service, in sequence).
+`build-config.yml` (the caller fans out to one engine run per service, in parallel; a
+final job rebuilds the shared security-dashboard index once).
 
 ### Sign-in methods
 

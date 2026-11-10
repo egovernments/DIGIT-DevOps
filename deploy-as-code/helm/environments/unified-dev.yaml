@@ -1983,3 +1983,28 @@ postgresql-18:
     # generates its own random passwords instead.
     existingSecret: postgresql-18-db
     superuserSecret: postgresql-18-superuser-db
+  postgresql:
+    # PostGIS for digit3 boundary (migration V20260818120000 adds a geometry
+    # column). Mounted as an image volume; the PostgreSQL image is unchanged.
+    # Pinned to a dated build: the plain 3.7.0-18-trixie tag is rebuilt in place.
+    # GDAL_DATA/PROJ_DATA use ${image_root} (CloudNativePG 1.29+).
+    extensions:
+      - name: postgis
+        image:
+          reference: ghcr.io/cloudnative-pg/postgis-extension:3.7.0-202611091303-18-trixie
+        ld_library_path:
+          - system
+        env:
+          - name: GDAL_DATA
+            value: ${image_root}/share/gdal
+          - name: PROJ_DATA
+            value: ${image_root}/share/proj
+  # coredb is the bootstrap database (adopted, not recreated). The operator
+  # creates postgis as superuser; the boundary migration runs as coredev, which
+  # may not, and its CREATE EXTENSION IF NOT EXISTS then finds it present.
+  databases:
+    - name: coredb
+      owner: coredev
+      extensions:
+        - name: postgis
+          version: "3.7.0"

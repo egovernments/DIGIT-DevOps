@@ -11,17 +11,16 @@ are all provisioned from here and upgraded centrally.
 ```
 DIGIT-DevOps (this repo)                      Consumer repo (e.g. a service repo)
   reusable-*.yaml ──── pinned @reusable-build-v1 ───▶ code-build.yaml   (thin caller)
-  templates/consumer/ ─────── run Setup once ───────▶ sync-code-build.yaml, .trivy/
+  templates/consumer/ ─────── run Setup once ───────▶ setup.yaml, .trivy/
   promote-reusable-tag.yaml                            gh-pages: /  /actions  /security/trivy
     └ auto-moves the tag on every merge here
 ```
 
 - **Engine** lives here; consumers call it by tag, so a change merged here ships to all of them.
-- **Setup** (run once per repo, authenticates as a GitHub App) scaffolds the caller, the sync workflow, the Trivy toolkit and the Pages.
-- **Sync** keeps the Code Build dropdowns matching the repo's live branches and services.
-- **Build** runs the engine: code-scan → build → image-scan → push → sign, gated on the default branch.
+- **Setup** (authenticates as a GitHub App) has two modes: **full** scaffolds the caller, the Trivy toolkit and the Pages; **sync** only refreshes the Code Build dropdowns (service + branch lists) — the job the old separate Sync workflow did, now run manually from Setup.
+- **Build** runs the engine per service: code-scan → build → image-scan → push → sign, gated on the branches in `TRIVY_SCAN_BRANCHES`. One service, or **all services** at once (matrix fan-out).
 
-**Auth model:** Setup + Sync push straight to the default branch as a **GitHub App** (on
+**Auth model:** Setup pushes straight to the default branch as a **GitHub App** (on
 the ruleset bypass list); the **`/actions`** dispatcher signs a user in with a scoped,
 per-tab **PAT** (default) or **Sign in with GitHub** (optional OAuth). No long-lived PAT
 is stored anywhere.
@@ -31,10 +30,9 @@ is stored anywhere.
 | Doc | What it covers |
 |---|---|
 | **[onboarding.md](onboarding.md)** | **Start here** — step-by-step runbook to put a new repo on Code Build |
-| [build.md](build.md) | The build engine (`reusable-build.yaml`): pipeline, scan policy, cosign, inputs |
-| [setup.md](setup.md) | The Setup workflow + the GitHub App it needs, and the `auth_mode` toggle |
-| [sync-code-build.md](sync-code-build.md) | How the service + branch dropdowns stay current |
-| [actions-ui.md](actions-ui.md) | The landing page + `/actions` dispatcher, and sign-in methods |
+| [build.md](build.md) | The build engine (`reusable-build.yaml`): pipeline, scan policy, all-services, cosign, inputs |
+| [setup.md](setup.md) | The Setup workflow (full + sync modes), the GitHub App it needs, and the `auth_mode` toggle |
+| [actions-ui.md](actions-ui.md) | The landing page + `/actions` dispatcher, All services, and sign-in methods |
 | [oauth-worker.md](oauth-worker.md) | Optional "Sign in with GitHub" — the broker Worker (OAuth) |
 
 ### Components (this repo)
@@ -42,16 +40,15 @@ is stored anywhere.
 | Workflow | Role |
 |---|---|
 | `reusable-build.yaml` | The build engine (`on: workflow_call`) — [build.md](build.md) |
-| `reusable-setup.yaml` | One-shot consumer scaffold — [setup.md](setup.md) |
-| `reusable-code-build-sync.yaml` | Dropdown sync — [sync-code-build.md](sync-code-build.md) |
+| `reusable-setup.yaml` | Consumer scaffold (full) + dropdown sync (sync) — [setup.md](setup.md) |
 | `promote-reusable-tag.yaml` | Auto-moves `reusable-build-v1` on engine/template changes (runs here, not reusable) |
 
 ## Running a build (two doors)
 
-- **GitHub-native** — Actions → **Build — Code** → Run workflow (session auth, synced service + branch dropdowns).
-- **`/actions` UI** — `https://<owner>.github.io/<repo>/actions/`: a live branch → service picker. Signs in with a scoped PAT or Sign in with GitHub.
+- **GitHub-native** — Actions → **Build — Code** → Run workflow (session auth, synced service + branch dropdowns; tick **All services** to build the whole config).
+- **`/actions` UI** — `https://<owner>.github.io/<repo>/actions/`: a live branch → service picker, with an **All services** checkbox. Signs in with a scoped PAT or Sign in with GitHub.
 
-Both dispatch the same `code-build.yaml`.
+Both dispatch the same `code-build.yaml`. Keeping the dropdowns fresh: **Build — Setup** in **sync** mode (manual).
 
 ## Versioning
 

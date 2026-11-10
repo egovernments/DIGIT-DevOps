@@ -1,12 +1,11 @@
 # Code Build — provisioned by DIGIT-DevOps reusable-setup; do not edit the
-# branch / service option lists by hand: both are kept current by the
-# "Sync Code Build" workflow (service list from build-config.yml, branch list
-# from the repo's live branches).
+# branch / service option lists by hand — "Build — Setup" (sync mode) keeps them
+# current (service list from build-config.yml, branch list from live branches).
 # This workflow lives only on the default branch; pick the branch to build with
 # "Build from Branch" (leave GitHub's "Use workflow from" on the default branch).
 # Delegates the build (+ Trivy) to the central engine in DIGIT-DevOps.
 name: Build — Code
-run-name: Build — Code · ${{ inputs.service }} (${{ inputs.build_branch }})
+run-name: Build — Code · ${{ (inputs.all_services && 'all services') || inputs.service }} (${{ inputs.build_branch }})
 
 on:
   workflow_dispatch:
@@ -18,26 +17,111 @@ on:
         default: master
         options:
           - master
+      all_services:
+        description: "Build ALL services from build-config.yml (ignores the Service pick)"
+        required: false
+        type: boolean
+        default: false
       service:
-        description: "Service image to build (from build-config.yml)"
-        required: true
+        description: "Service image to build (from build-config.yml) — ignored when All services is on"
+        required: false
         type: choice
         options:
           - placeholder
 
 jobs:
+  # Resolve the build matrix: every service when all_services is on, else the one
+  # picked. Read from the branch being built so new services need no re-sync.
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.list.outputs.services }}
+    steps:
+      - name: Checkout build branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ inputs.build_branch }}
+      - name: Install yq
+        run: |
+          VERSION="v4.54.1"
+          sudo curl -fsSL "https://github.com/mikefarah/yq/releases/download/${VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
+      - name: Build the service matrix
+        id: list
+        env:
+          ALL: ${{ inputs.all_services }}
+          SERVICE: ${{ inputs.service }}
+          CONFIG: build/build-config.yml
+          BRANCH: ${{ inputs.build_branch }}
+        run: |
+          set -euo pipefail
+          if [ "$ALL" = "true" ]; then
+            test -f "$CONFIG" || { echo "::error::$CONFIG not found on $BRANCH"; exit 1; }
+            SVC=$(yq eval '.config[].build[]."image-name"' "$CONFIG" | grep -vE -- '-db$' | grep -vxF placeholder | sort -u)
+            [ -n "$SVC" ] || { echo "::error::no services found in $CONFIG"; exit 1; }
+          else
+            SVC="$SERVICE"
+            { [ -n "$SVC" ] && [ "$SVC" != "placeholder" ]; } || { echo "::error::pick a service, or turn on All services"; exit 1; }
+          fi
+          JSON=$(printf '%s\n' "$SVC" | grep -v '^$' | jq -R . | jq -cs .)
+          echo "services=$JSON" >> "$GITHUB_OUTPUT"
+          echo "Will build: $JSON"
+
+  # One engine call per service, run in parallel (fail-fast:false so a blocked or
+  # failed service doesn't cancel the rest). For all-services each leg publishes
+  # only its own dashboard subtree (publish_home:false) — the shared landing index
+  # is rebuilt once by the `publish` job below, so parallel legs never race on it.
+  # A single-service build keeps publish_home:true (it owns the index itself).
   build:
-    # Grant the engine the token scopes it needs: id-token:write for cosign
-    # keyless signing, contents:write so Trivy can publish to gh-pages.
+    needs: resolve
     permissions:
       contents: write
       id-token: write
-    # Central build engine, pinned to the moving v1 tag.
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.resolve.outputs.services) }}
     uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-build.yaml@reusable-build-v1
     with:
-      service: ${{ inputs.service }}
+      service: ${{ matrix.service }}
       build_branch: ${{ inputs.build_branch }}
       enable_trivy: true
+      scan_branches: ${{ vars.TRIVY_SCAN_BRANCHES }}
+      publish_home: ${{ !inputs.all_services }}
     secrets:
       DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
       DOCKER_ACCESS_TOKEN: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+
+  # All-services: rebuild the dashboard landing index once (from every service's
+  # summary the parallel legs published) and roll up the overall outcome.
+  publish:
+    needs: [resolve, build]
+    if: ${{ always() && inputs.all_services }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout build branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ inputs.build_branch }}
+      - name: Refresh dashboard home + roll-up
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT: ${{ needs.build.result }}
+          SERVICES: ${{ needs.resolve.outputs.services }}
+          BRANCH: ${{ inputs.build_branch }}
+        run: |
+          set -euo pipefail
+          if [ -f .trivy/dashboard/publish.sh ]; then
+            bash .trivy/dashboard/publish.sh home || echo "::warning::dashboard home refresh failed"
+          fi
+          COUNT=$(printf '%s' "$SERVICES" | jq 'length' 2>/dev/null || echo "?")
+          {
+            echo "### Build — Code · all services"
+            echo ""
+            echo "- Branch: \`$BRANCH\`"
+            echo "- Services dispatched: **$COUNT** (built in parallel)"
+            echo "- Matrix result: **$RESULT** — each service is a separate job above; a red leg means that service's build or Trivy gate failed, the others still ran."
+            echo "- Per-service scan reports: the Trivy dashboard under \`/security/trivy\`."
+          } >> "$GITHUB_STEP_SUMMARY"

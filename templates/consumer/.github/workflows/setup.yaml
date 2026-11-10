@@ -1,17 +1,32 @@
-# One-shot: provision Code Build from DIGIT-DevOps (caller, sync, Trivy, UI, gh-pages).
-# The scaffold is committed straight to the default branch via a GitHub App token.
-# Needs repo secrets BUILD_APP_CLIENT_ID + BUILD_APP_PRIVATE_KEY (GitHub App with
+# Provision / maintain Code Build from DIGIT-DevOps (caller, Trivy, UI, gh-pages).
+#   mode: full  — scaffold everything + publish the landing page + /actions UI.
+#   mode: sync  — ONLY refresh the Code Build dropdowns (service + branch lists).
+# Committed straight to the default branch via a GitHub App token. Needs repo
+# secrets BUILD_APP_CLIENT_ID + BUILD_APP_PRIVATE_KEY (GitHub App with
 # Contents:write + Workflows:write + Pages:write, installed on this repo, and on
 # the default-branch ruleset bypass list so it can push directly).
 # Docs: https://github.com/egovernments/DIGIT-DevOps/blob/master/docs/workflows/setup.md
 name: Build — Setup
-run-name: Build — Setup
+run-name: Build — Setup · ${{ inputs.mode }}
 
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "full = provision/upgrade everything; sync = only refresh the dropdowns"
+        type: choice
+        options:
+          - full
+          - sync
+        default: full
+      sync_branch:
+        description: "Sync from Branch — pull a branch's new services into the dropdown (sync mode); leave on default for a normal refresh"
+        type: choice
+        default: master
+        options:
+          - master
       auth_mode:
-        description: "Code Build /actions sign-in method (defaults to your last pick)"
+        description: "Code Build /actions sign-in method (full mode; defaults to your last pick)"
         type: choice
         options:
           - PAT     # paste a fine-grained token (default)
@@ -22,6 +37,8 @@ jobs:
   setup:
     uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-setup.yaml@reusable-build-v1
     with:
+      mode: ${{ inputs.mode }}
+      sync_branch: ${{ inputs.sync_branch }}
       auth_mode: ${{ inputs.auth_mode }}
     secrets:
       APP_CLIENT_ID: ${{ secrets.BUILD_APP_CLIENT_ID }}

@@ -9,7 +9,7 @@ resolve-config ─▶ code-scan ─▶ build  ───────────�
                   (Trivy fs)   │ 1. build image(s) locally (app + db, amd64)
                                │ 2. image-scan the built image(s) (Trivy)
                                │ 3. push multi-arch (app + db) + cosign sign
-                  └─ default branch only ─┘ (CRITICAL at either stage blocks push)
+                  └─ scanned branches only ─┘ (CRITICAL at either stage blocks push)
 ```
 
 The flow is **code scan → build → scan the built image → push**, so the image
@@ -18,7 +18,7 @@ CRITICAL at either stage blocks the push.
 
 1. **resolve-config** — reads `build/build-config.yml`, resolves the app work-dir /
    Dockerfile for `service` and any `<service>-db` entry, computes the tag
-   `<branch>-<short-sha>`, and decides the **scan policy** (`is_default`).
+   `<branch>-<short-sha>`, and decides the **scan policy** (`do_scan`, from `scan_branches`).
 2. **code-scan** — Trivy filesystem scan of the work-dir. A **CRITICAL** fails the
    job, so the build never starts.
 3. **build** (one job, ordered steps):
@@ -37,15 +37,35 @@ CRITICAL at either stage blocks the push.
 
 ## Scan policy
 
-The Trivy gate runs **only when the build ref is the repo's default branch**
-(`build_branch`, or the triggering ref when empty). On any other branch the scans
-are **skipped** and the image is built + pushed directly — so feature-branch builds
-are fast and never blocked, while `master` is gated (a CRITICAL blocks the push).
-Set `enable_trivy: false` to disable scanning entirely.
+The Trivy gate runs **only for the branches in `scan_branches`** (the caller passes
+the repo variable `TRIVY_SCAN_BRANCHES`, e.g. `master`, `develop`). On any other
+branch the scans are **skipped** and the image is built + pushed directly — so
+feature-branch builds are fast and never blocked, while the listed branches are gated
+(a CRITICAL blocks the push). When `scan_branches` is empty, it falls back to the
+**default branch only**. Set `enable_trivy: false` to disable scanning entirely.
+
+To add/remove gated branches, edit the **`TRIVY_SCAN_BRANCHES`** Actions variable
+(Settings → Secrets and variables → Actions → Variables), one branch per line. No
+workflow change needed.
 
 The image scan publishes to the caller's `gh-pages/security/trivy` via
 `.trivy/dashboard/publish.sh` (app + db findings under one service), regardless of
 the gate result.
+
+## Building all services
+
+The engine builds **one** service per call. The caller (`code-build.yaml`) fans out:
+turning on **All services** reads every `image-name` from `build-config.yml` and runs
+this engine once per service as a **parallel matrix** (`fail-fast: false`, so a
+blocked/failed service never cancels the rest). Each service is its own job and its own
+scan report.
+
+To keep the parallel legs from racing on the **shared** dashboard landing index, the
+caller passes `publish_home: false` to each leg (so a leg publishes only its own
+service subtree — disjoint paths, safe under the publish retry) and a final `publish`
+job rebuilds the landing index **once** from every service's summary and rolls up the
+outcome. A single-service build keeps `publish_home: true` and owns the index itself.
+See [actions-ui.md](actions-ui.md).
 
 ## Inputs
 
@@ -60,8 +80,10 @@ the gate result.
 | `default_dockerfile` | `build/maven/Dockerfile` | Dockerfile when the entry sets none |
 | `runs_on` | `ubuntu-latest` | Runner label |
 | `push` | `true` | `false` = build-only validation |
-| `enable_trivy` | `true` | Run the Trivy gate on the **default branch only**; other branches build unscanned |
+| `enable_trivy` | `true` | Run the Trivy gate on the scanned branches; other branches build unscanned |
+| `scan_branches` | `""` | Branches to scan + gate (comma/space/newline list, e.g. the `TRIVY_SCAN_BRANCHES` var); empty = default branch only |
 | `enable_cosign` | `true` | Sign pushed images with cosign keyless; needs `id-token: write` from the caller |
+| `publish_home` | `true` | Also regenerate the Trivy dashboard landing index in this run; `false` for parallel all-services legs (a final `home` run rebuilds it once) |
 
 Secrets: `DOCKER_USERNAME`, `DOCKER_ACCESS_TOKEN`.
 

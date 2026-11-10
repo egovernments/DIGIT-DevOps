@@ -8,7 +8,7 @@ per-build YAML to hand-write — with a security dashboard on GitHub Pages.
 
 ## What you'll end up with
 
-- **Build — Code / Build — Sync / Build — Setup** workflows in the repo.
+- **Build — Code / Build — Setup** workflows in the repo.
 - A **landing page**, an **`/actions`** build dispatcher, and a **Trivy dashboard** on
   GitHub Pages.
 - Images **built → image-scanned (CRITICAL blocks the push) → pushed → cosign-signed**,
@@ -63,7 +63,7 @@ Rules:
 1. **Install** the build GitHub App on this repo.
 2. **Ruleset bypass** — add the App to the default branch's ruleset bypass list
    (Settings → Rules → Rulesets → the active ruleset → *Bypass list* → add the App →
-   **Always**), so Setup/Sync can push directly to the default branch.
+   **Always**), so Setup can push directly to the default branch.
 3. **Secrets & variables** (Settings → Secrets and variables → Actions):
 
    | Name | Kind | Value |
@@ -72,6 +72,7 @@ Rules:
    | `BUILD_APP_PRIVATE_KEY` | secret | the App's private key (PEM) |
    | `DOCKER_USERNAME` | **variable** | registry username |
    | `DOCKER_ACCESS_TOKEN` | secret | registry access token |
+   | `TRIVY_SCAN_BRANCHES` | **variable** *(optional)* | branches to Trivy-scan + gate, one per line (e.g. `master`, `develop`); unset = default branch only |
 
 ### 3. Add the Setup caller
 
@@ -82,7 +83,15 @@ name: Build — Setup
 on:
   workflow_dispatch:
     inputs:
-      auth_mode:                 # Code Build /actions sign-in method
+      mode:                      # full = provision/upgrade; sync = only refresh dropdowns
+        type: choice
+        options: [full, sync]
+        default: full
+      sync_branch:               # sync mode: pull a branch's new services into the dropdown
+        type: choice
+        default: master
+        options: [master]
+      auth_mode:                 # full mode: /actions sign-in method
         type: choice
         options: [PAT, OAuth]    # PAT = paste a token (default); OAuth = Sign in with GitHub
         default: PAT
@@ -90,25 +99,26 @@ jobs:
   setup:
     uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-setup.yaml@reusable-build-v1
     with:
+      mode: ${{ inputs.mode }}
+      sync_branch: ${{ inputs.sync_branch }}
       auth_mode: ${{ inputs.auth_mode }}
     secrets:
       APP_CLIENT_ID: ${{ secrets.BUILD_APP_CLIENT_ID }}
       APP_PRIVATE_KEY: ${{ secrets.BUILD_APP_PRIVATE_KEY }}
 ```
 
-### 4. Run **Build — Setup**
+### 4. Run **Build — Setup** (mode: full)
 
 Actions → **Build — Setup** → **Run workflow** (keep *Use workflow from* on the default
-branch — Setup refuses any other; pick `auth_mode`). It direct-pushes to the default
-branch and publishes Pages:
+branch — Setup refuses any other; leave `mode: full`, pick `auth_mode`). It direct-pushes
+to the default branch and publishes Pages:
 
 - `code-build.yaml` (**Build — Code**) with the service + branch dropdowns populated,
-- `sync-code-build.yaml` (**Build — Sync**),
 - `.trivy/dashboard/` toolkit,
 - gh-pages: landing page `/`, `/actions` dispatcher, `/security/trivy`.
 
-> The first run adds the `auth_mode` choice to this repo's own `setup.yaml`, so picking
-> **`oauth`** is available from the **second** run onward.
+> The first run adds the `mode`/`auth_mode` choices to this repo's own `setup.yaml`, so
+> picking **`sync`** or **`OAuth`** is available from the **second** run onward.
 
 ### 5. Enable Pages (if not automatic)
 
@@ -118,19 +128,24 @@ Setup tries to enable Pages for you. If it couldn't, set Settings → Pages → 
 ### 6. Verify
 
 - Open `https://<owner>.github.io/<repo>/` — the landing page.
-- **Run a build**: Actions → **Build — Code** → Run (branch + service dropdowns), or use
-  the **`/actions`** dispatcher.
-- Watch the run. On the default branch a **CRITICAL** blocks the push; the report lands
-  at `/security/trivy/`.
+- **Run a build**: Actions → **Build — Code** → Run (branch + service dropdowns, or tick
+  **All services**), or use the **`/actions`** dispatcher.
+- Watch the run. On a scanned branch (`TRIVY_SCAN_BRANCHES`, or the default branch) a
+  **CRITICAL** blocks the push; the report lands at `/security/trivy/`.
 
 ---
 
 ## Day-2 operations
 
-- **Add / remove a service** — edit `build/build-config.yml`. **Build — Sync** refreshes
-  the dropdowns automatically (on config push, branch create/delete, and daily); you can
-  also run it by hand. See [sync-code-build.md](sync-code-build.md).
-- **Switch the sign-in method** — re-run **Build — Setup** with a different `auth_mode`.
+- **Add / remove a service** — edit `build/build-config.yml`, then run **Build — Setup**
+  with **`mode: sync`** to refresh the dropdowns (service list is unioned, never dropped;
+  branch list is refreshed). Use `sync_branch` to pull a feature branch's new services
+  into the dropdown before it merges. (The `/actions` UI reads services live, so it needs
+  no sync.)
+- **Build everything** — run **Build — Code** with **All services** on (or the checkbox in
+  the `/actions` UI) to build every service in `build-config.yml` from the chosen branch.
+- **Change which branches are scanned** — edit the `TRIVY_SCAN_BRANCHES` variable.
+- **Switch the sign-in method** — re-run **Build — Setup** (`mode: full`) with a different `auth_mode`.
 - **Engine upgrades are automatic** — callers pin `@reusable-build-v1`, which moves when
   the engine changes in DIGIT-DevOps. Nothing to do per repo.
 

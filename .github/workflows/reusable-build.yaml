@@ -57,12 +57,22 @@ on:
         type: boolean
         default: true
       enable_trivy:
-        description: "Run Trivy code + image scans on the default branch only (CRITICAL blocks the push); other branches build unscanned"
+        description: "Run Trivy code + image scans on the scanned branches (CRITICAL blocks the push); other branches build unscanned"
         required: false
         type: boolean
         default: true
+      scan_branches:
+        description: "Branches to Trivy-scan + gate (comma/space/newline list, e.g. the TRIVY_SCAN_BRANCHES repo var); empty = default branch only"
+        required: false
+        type: string
+        default: ""
       enable_cosign:
         description: "Sign the pushed images with cosign keyless (GitHub OIDC -> Fulcio -> Rekor); needs id-token:write from the caller"
+        required: false
+        type: boolean
+        default: true
+      publish_home:
+        description: "Also regenerate the Trivy dashboard landing index in this run. Set false for parallel all-services legs (a final `home` run rebuilds it once, avoiding shared-index races)"
         required: false
         type: boolean
         default: true
@@ -89,7 +99,7 @@ jobs:
       db_work_dir: ${{ steps.cfg.outputs.db_work_dir }}
       db_dockerfile: ${{ steps.cfg.outputs.db_dockerfile }}
       tag: ${{ steps.tag.outputs.tag }}
-      is_default: ${{ steps.policy.outputs.is_default }}
+      do_scan: ${{ steps.policy.outputs.do_scan }}
     steps:
       - name: Checkout caller repo
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -135,28 +145,36 @@ jobs:
           REF="${BUILD_BRANCH:-${GITHUB_REF##*/}}"
           echo "tag=${REF##*/}-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
-      # Scan policy: Trivy gates only the DEFAULT branch. Other branches build
-      # without scanning (the scan jobs are skipped, so the build runs normally).
+      # Scan policy: Trivy scans + gates only the branches in scan_branches
+      # (the TRIVY_SCAN_BRANCHES repo var). When that list is empty, fall back to
+      # the default branch only. Any other branch builds + pushes unscanned.
       - name: Determine scan policy
         id: policy
         env:
           GH_TOKEN: ${{ github.token }}
           BUILD_BRANCH: ${{ inputs.build_branch }}
+          SCAN_BRANCHES: ${{ inputs.scan_branches }}
         run: |
           set -euo pipefail
           DEFAULT=$(gh api "repos/${GITHUB_REPOSITORY}" -q .default_branch)
           REF="${BUILD_BRANCH:-${GITHUB_REF_NAME}}"
           REF="${REF##*/}"
-          if [ "$REF" = "$DEFAULT" ]; then IS=true; else IS=false; fi
-          echo "is_default=$IS" >> "$GITHUB_OUTPUT"
-          echo "Build ref '$REF' vs default '$DEFAULT' — scan gate: $IS"
+          DO=false
+          LIST=$(printf '%s' "$SCAN_BRANCHES" | tr ',' '\n' | sed 's/[[:space:]]//g' | grep -v '^$' || true)
+          if [ -n "$LIST" ]; then
+            printf '%s\n' "$LIST" | grep -qxF "$REF" && DO=true
+          else
+            [ "$REF" = "$DEFAULT" ] && DO=true
+          fi
+          echo "do_scan=$DO" >> "$GITHUB_OUTPUT"
+          echo "Build ref '$REF' | scan_branches='${SCAN_BRANCHES}' | default='$DEFAULT' — scan: $DO"
 
   # Security gate 1 — scan the service SOURCE. CRITICAL aborts before any build.
   code-scan:
     name: Code scan · ${{ needs.resolve-config.outputs.image_name }}
     needs: resolve-config
     # Gate only the default branch; other branches skip the scan and build normally.
-    if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.is_default == 'true' }}
+    if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.do_scan == 'true' }}
     runs-on: ${{ inputs.runs_on }}
     permissions:
       contents: write
@@ -185,6 +203,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{ inputs.build_branch || github.ref_name }}
+          PUBLISH_HOME: ${{ inputs.publish_home && '1' || '0' }}
         run: |
           SERVICE="${{ needs.resolve-config.outputs.image_name }}"
           CRIT=$(jq '[.Results[]? | (.Vulnerabilities[]?, .Secrets[]?) | select(.Severity=="CRITICAL")] | length' code-scan.json)
@@ -242,7 +261,7 @@ jobs:
       # --- Build the image(s) locally (amd64) so the exact built artifact can be
       #     scanned before anything is pushed — only when the gate is active. ---
       - name: Build application image (local, for scan)
-        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.is_default == 'true' }}
+        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.do_scan == 'true' }}
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
@@ -255,7 +274,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ inputs.service }}
 
       - name: Build database image (local, for scan)
-        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.is_default == 'true' && needs.resolve-config.outputs.db_work_dir != '' }}
+        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.do_scan == 'true' && needs.resolve-config.outputs.db_work_dir != '' }}
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: ${{ needs.resolve-config.outputs.db_work_dir }}
@@ -268,7 +287,7 @@ jobs:
 
       # --- Image scan (app + db) + gate — default branch only ---
       - name: Trivy image scan (application)
-        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.is_default == 'true' }}
+        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.do_scan == 'true' }}
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         env:
           TRIVY_OFFLINE_SCAN: 'true'
@@ -284,7 +303,7 @@ jobs:
           hide-progress: true
 
       - name: Trivy image scan (database)
-        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.is_default == 'true' && needs.resolve-config.outputs.db_work_dir != '' }}
+        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.do_scan == 'true' && needs.resolve-config.outputs.db_work_dir != '' }}
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         env:
           TRIVY_OFFLINE_SCAN: 'true'
@@ -300,10 +319,11 @@ jobs:
           hide-progress: true
 
       - name: Evaluate image gate & publish dashboard
-        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.is_default == 'true' }}
+        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.do_scan == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{ inputs.build_branch || github.ref_name }}
+          PUBLISH_HOME: ${{ inputs.publish_home && '1' || '0' }}
           HAS_DB: ${{ needs.resolve-config.outputs.db_work_dir != '' }}
         run: |
           set -euo pipefail

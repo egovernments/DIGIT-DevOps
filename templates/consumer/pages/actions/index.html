@@ -136,6 +136,19 @@
   .kv dd.path{color:var(--muted)}
   .mapnote{margin-top:10px;font-size:11.5px;color:var(--warn);background:var(--warn-bg);border-radius:6px;padding:7px 9px;line-height:1.45}
 
+  .allrow{display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;padding:11px 13px;
+    background:var(--inset);border:1px solid var(--border);border-radius:var(--r-sm);cursor:pointer}
+  .allrow input{width:16px;height:16px;margin-top:2px;accent-color:var(--accent);cursor:pointer;flex:none}
+  .allrow-t{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .allrow-t b{font-size:13.5px;font-weight:600}
+  .allrow-t .hint{margin-top:0}
+  .allgrp{margin-bottom:12px}
+  .allgrp:last-child{margin-bottom:0}
+  .allgrp .m{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:6px}
+  .allsvc{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12.5px;padding:3px 0;color:var(--fg)}
+  .allsvc .tick{color:var(--ok);font-weight:700;flex:none}
+  .allsvc .arrow{color:var(--faint)}
+
   .run{margin-top:18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
   .btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:var(--accent-fg);
     border:0;border-radius:var(--r-sm);padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer}
@@ -275,18 +288,28 @@
             <select id="selBranch"></select>
             <div class="hint">Modules and services are read live from this branch's <span class="mono">build/build-config.yml</span>.</div>
           </div>
-          <div class="field">
-            <label class="lbl" for="selModule"><span class="step">2</span>Module</label>
-            <select id="selModule" disabled></select>
-          </div>
-          <div class="field">
-            <label class="lbl" for="selService"><span class="step">3</span>Service</label>
-            <select id="selService" disabled></select>
+
+          <label class="allrow" for="allSvc">
+            <input type="checkbox" id="allSvc">
+            <span class="allrow-t"><b>All services</b><span class="hint">Build every service in build-config.yml from this branch, in sequence.</span></span>
+          </label>
+
+          <div id="svcPick">
+            <div class="field">
+              <label class="lbl" for="selModule"><span class="step">2</span>Module</label>
+              <select id="selModule" disabled></select>
+            </div>
+            <div class="field">
+              <label class="lbl" for="selService"><span class="step">3</span>Service</label>
+              <select id="selService" disabled></select>
+            </div>
           </div>
 
           <div class="resolved" id="resolved">
             <div class="empty">Select a service to see what will be built.</div>
           </div>
+
+          <div class="resolved" id="allList" hidden></div>
 
           <div class="run">
             <button class="btn" id="runBtn" disabled>▶ Run build</button>
@@ -502,6 +525,7 @@ function signIn(){
 /* ---------------- cascade: branch → module → service ---------------- */
 const selB=$("selBranch"), selM=$("selModule"), selS=$("selService");
 const resolved=$("resolved"), runBtn=$("runBtn"), runNote=$("runNote");
+const allSvc=$("allSvc"), svcPick=$("svcPick"), allList=$("allList");
 function optEl(v,t){ const o=document.createElement("option"); o.value=v; o.textContent=t; return o; }
 function fill(sel, items, placeholder){
   sel.innerHTML=""; sel.appendChild(optEl("", placeholder));
@@ -537,6 +561,7 @@ async function restoreSelection(branches){
   selB.value = branch;
   await loadConfig(branch);          // populate modules
   pollRuns(branch);                  // load recent runs (so a refresh doesn't blank them)
+  if(saved.all){ allSvc.checked = true; applyBuildMode(); return; }   // restore all-services mode
   if(saved.module && CFG && CFG[saved.module]){
     selM.value = saved.module; selM.dispatchEvent(new Event("change"));   // populate services
     if(saved.service && CFG[saved.module].some(s => s.image === saved.service)){
@@ -544,7 +569,7 @@ async function restoreSelection(branches){
     }
   }
 }
-function saveSel(){ try{ sessionStorage.setItem("cb-sel", JSON.stringify({branch:selB.value, module:selM.value, service:selS.value})); }catch(e){} }
+function saveSel(){ try{ sessionStorage.setItem("cb-sel", JSON.stringify({branch:selB.value, module:selM.value, service:selS.value, all:allSvc.checked})); }catch(e){} }
 
 function parseConfig(text){
   const doc = jsyaml.load(text) || {};
@@ -585,11 +610,12 @@ async function loadConfig(branch){
     fill(selM, mods.map(m => ({v:m, t: m + "  (" + CFG[m].length + ")"})), "Select module…");
     fill(selS, [], "Select module first");
   }catch(e){ fill(selM, [], "Could not parse config"); }
+  finally{ if(allSvc.checked) applyBuildMode(); }
 }
 
 selB.addEventListener("change", () => {
   clearResolved();
-  if(!selB.value){ selM.disabled=true; selS.disabled=true; fill(selM,[],"—"); fill(selS,[],"—"); renderRuns([]); saveSel(); return; }
+  if(!selB.value){ selM.disabled=true; selS.disabled=true; fill(selM,[],"—"); fill(selS,[],"—"); renderRuns([]); if(allSvc.checked) applyBuildMode(); saveSel(); return; }
   loadConfig(selB.value);
   pollRuns(selB.value);
   saveSel();
@@ -629,6 +655,45 @@ function showResolved(s){
   runBtn.disabled = false;
   runNote.textContent = "Dispatches Code Build on " + selB.value;
 }
+
+/* ---------------- all-services mode ---------------- */
+function allServicesList(){
+  const out = [];
+  if(CFG) for(const m of Object.keys(CFG)) for(const s of CFG[m]) out.push({module:m, label:s.label, image:s.image});
+  return out;
+}
+function renderAllList(){
+  if(!selB.value){ allList.innerHTML = '<div class="empty">Select a branch to list its services.</div>'; return; }
+  if(!CFG){ allList.innerHTML = '<div class="empty">Reading build-config.yml…</div>'; return; }
+  const items = allServicesList();
+  if(!items.length){ allList.innerHTML = '<div class="empty">No services found on this branch.</div>'; return; }
+  const byMod = {};
+  items.forEach(i => (byMod[i.module] = byMod[i.module] || []).push(i));
+  allList.innerHTML = Object.keys(byMod).map(m =>
+    '<div class="allgrp"><div class="m">'+esc(m)+' · '+byMod[m].length+'</div>'
+    + byMod[m].map(s => '<div class="allsvc"><span class="tick">✓</span>'
+        + esc(s.label) + (s.label!==s.image ? ' <span class="arrow">→</span> '+esc(s.image) : '') + '</div>').join('')
+    + '</div>').join('');
+}
+// Toggle between single-service pickers and the all-services list.
+function applyBuildMode(){
+  const on = allSvc.checked;
+  svcPick.hidden = on;
+  resolved.hidden = on;
+  allList.hidden = !on;
+  if(on){
+    renderAllList();
+    const n = allServicesList().length;
+    runBtn.disabled = !(selB.value && n);
+    runNote.textContent = selB.value ? ("Builds all " + n + " service" + (n!==1?"s":"") + " on " + selB.value) : "Pick a branch first";
+  }else{
+    const list = (CFG && CFG[selM.value]) || [];
+    const s = list.find(x => x.image === selS.value);
+    s ? showResolved(s) : clearResolved();
+  }
+  saveSel();
+}
+allSvc.addEventListener("change", applyBuildMode);
 
 /* ---------------- recent runs (live) ---------------- */
 // A Trivy gate block shows as "Blocked · Code/Image" (distinct from a genuine build
@@ -725,15 +790,24 @@ function renderRuns(runs, emptyMsg){
 
 /* ---------------- dispatch ---------------- */
 runBtn.addEventListener("click", () => {
-  const list = (CFG && CFG[selM.value]) || [];
-  const s = list.find(x => x.image === selS.value);
-  if(!s) return;
   // The workflow lives only on the default branch; dispatch there and pass the
   // chosen branch as build_branch so the engine checks out and builds it.
-  const payload = { ref: DEFAULT_BRANCH, inputs: { service: s.image, build_branch: selB.value } };
-  const body = esc(JSON.stringify(payload, null, 2)).replace(/&quot;(ref|inputs|service|build_branch)&quot;:/g, '&quot;<span class="mt">$1</span>&quot;:');
+  let payload, title;
+  if(allSvc.checked){
+    const count = allServicesList().length;
+    if(!selB.value || !count) return;
+    payload = { ref: DEFAULT_BRANCH, inputs: { build_branch: selB.value, all_services: "true" } };
+    title = "Dispatch Code Build — all " + count + " services";
+  }else{
+    const list = (CFG && CFG[selM.value]) || [];
+    const s = list.find(x => x.image === selS.value);
+    if(!s) return;
+    payload = { ref: DEFAULT_BRANCH, inputs: { service: s.image, build_branch: selB.value, all_services: "false" } };
+    title = "Dispatch Code Build";
+  }
+  const body = esc(JSON.stringify(payload, null, 2)).replace(/&quot;(ref|inputs|service|build_branch|all_services)&quot;:/g, '&quot;<span class="mt">$1</span>&quot;:');
   openModal(
-    '<div class="hd"><h3>Dispatch Code Build</h3><button class="xbtn" data-close aria-label="Close">×</button></div>'
+    '<div class="hd"><h3>'+esc(title)+'</h3><button class="xbtn" data-close aria-label="Close">×</button></div>'
     + '<div class="bd">'
     + '<p class="hint" style="margin:0 0 12px">This is the exact request the page will send.</p>'
     + '<pre>POST /repos/'+esc(OWNER)+'/'+esc(REPO)+'/actions/workflows/<span class="mt">code-build.yaml</span>/dispatches\n\n'+body+'</pre>'
@@ -754,7 +828,7 @@ async function fireDispatch(payload){
     });
     if(r.status === 204){
       msg.style.color = "var(--ok)"; msg.textContent = "Queued ✓ — watching Recent runs";
-      pending = { service: payload.inputs.service, branch: payload.inputs.build_branch, at: Date.now() };
+      pending = { service: (payload.inputs.all_services === "true" ? "all services" : payload.inputs.service), branch: payload.inputs.build_branch, at: Date.now() };
       graceUntil = Date.now() + 180000;   // keep polling ~3 min so the new run is caught live
       renderRuns(lastRuns);               // reflect the queued build immediately (no refresh)
       pollRuns(payload.ref);

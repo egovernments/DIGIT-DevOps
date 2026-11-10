@@ -58,8 +58,14 @@ kargo:
   # -amd64/-arm64 children stay out of Freight.
   allowTags: '^(master|flyway-branch)-.*[0-9a-f]{7,}$'
   # masterOnlyStages: [uat] (chart default) -- flyway-branch builds reach dev/qa only.
+  # Post-promotion deploy-state check (templates/analysistemplate.yaml): the Deployment
+  # in digit3-core must run the promoted tag and be healthy. Enabled on dev only: qa and
+  # uat run no digit3 services yet, so a check there could never pass and would block
+  # promotion -- add verifyKubeconfigSecret to those stages once digit3 is deployed there.
+  # Chart-only services (vault, cluster-configs) are never verified.
   verify:
-    enabled: false
+    enabled: true
+    namespace: digit3-core
 
   # Every service: Freight = egovio/<service> image tag (written to the app AND the
   # <service>-db migration image) + chart <service> from chartRepo. Warehouses re-scan
@@ -222,6 +228,8 @@ kargo:
     # migrations (init container) in the module database.
     - name: kong
       chart: kong
+      # The chart's fullnameOverride makes the Deployment kong-kong (verification).
+      deploymentName: kong-kong
       deploy:
         layout: root
       freightCreationPolicy: Manual
@@ -275,6 +283,7 @@ kargo:
       branch: unified-dev
       envFile: deploy-as-code/helm/environments/unified-digit3-core-dev.yaml
       autoPromotion: false
+      verifyKubeconfigSecret: verify-kubeconfig-dev
     - name: qa
       color: "#D64550"
       from: dev

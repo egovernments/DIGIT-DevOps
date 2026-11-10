@@ -347,6 +347,45 @@ kong:
   # Service kong-kong-proxy: the backend of every zuul: true ingress.
   fullnameOverride: kong-kong
   namespace: digit3-core
+  # The chart's kong-migration init container sets KONG_DATABASE from egov-config
+  # db-name ("coredb"); Kong wants the database TYPE there ("postgres"), and the name in
+  # KONG_PG_DATABASE. Same container as the chart's (kong 3.1.1), with that one fix.
+  # Drop this override once the chart is fixed.
+  initContainers:
+    extraInitContainers: |
+      - name: kong-migration
+        image: {{ include "kong.image" (dict "Values" .Values "repository" .Values.image.repository "tag" .Values.image.tag) }}
+        imagePullPolicy: IfNotPresent
+        args:
+        - -c
+        - kong migrations bootstrap && kong migrations up && kong migrations finish
+        command:
+        - /bin/sh
+        env:
+        - name: KONG_DATABASE
+          value: postgres
+        - name: KONG_PG_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-host
+        - name: KONG_PG_PORT
+          value: "5432"
+        - name: KONG_PG_USER
+          valueFrom:
+            secretKeyRef:
+              key: username
+              name: db
+        - name: KONG_PG_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: db
+        - name: KONG_PG_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-name
   image:
     tag: 'master-154c0db'
 # Keycloak (chart keycloak, app digit3-keycloak), a common-chart service like the ones
@@ -415,15 +454,35 @@ cluster-configs:
         spring-datasource-tomcat-initialSize: "1"
         spring-datasource-tomcat-max-active: "2"
         spring-jpa-show-sql: "true"
+        # Read by the 3.1.1 service charts (redis: boundary-management, employee,
+        # filestore, idgen, individual, localization, notify, otp, registry,
+        # url-shortener, workflow; smtp/mail: account, notification; otel: apportion,
+        # pg-service, template-config). Same values as the cluster-configs 3.1.1
+        # defaults, set here so they apply whatever cluster-configs version is promoted.
+        redis-host: redis.backbone
+        redis-port: "6379"
+        redis-address: redis.backbone:6379
+        otel-tracing-export-otlp-endpoint: http://open-telemetry-opentelemetry-collector.monitoring:4318/v1/traces
+        smtp-host: smtp.gmail.com
+        smtp-port: "587"
+        mail-sender-name: eGov Foundation
+        sms-provider-url: http://api.smscountry.com/SMSCwebservice_bulk.aspx
+        platform-tenant: default
     # Internal service URLs. Every DIGIT 3.0 service is <name>:8080 in digit3-core; the
     # *-java keys (boundary-management) point at the DIGIT 3.0 services of that name.
     egov-service-host:
       namespace: [digit3-core]
       data:
+        # account, boundary-management, employee, notify, pg-service, url-shortener and
+        # workflow: added by cluster-configs 3.1.1 with 2.x egov-namespace defaults
+        # (account.egov, ...); these are the DIGIT 3.0 services in digit3-core.
+        account: http://account.digit3-core:8080/
         apportion: http://apportion.digit3-core:8080/
         billing: http://billing.digit3-core:8080/
         boundary: http://boundary.digit3-core:8080/
         boundary-java: http://boundary.digit3-core:8080/
+        boundary-management: http://boundary-management.digit3-core:8080/
+        employee: http://employee.digit3-core:8080/
         filestore: http://filestore.digit3-core:8080/
         filestore-java: http://filestore.digit3-core:8080/
         idgen: http://idgen.digit3-core:8080/
@@ -433,9 +492,13 @@ cluster-configs:
         localization-java: http://localization.digit3-core:8080/
         mdms-v2: http://mdms-v2.digit3-core:8080/
         notification: http://notification.digit3-core:8080/
+        notify: http://notify.digit3-core:8080/
         otp: http://otp.digit3-core:8080/
+        pg-service: http://pg-service.digit3-core:8080/
         registry: http://registry.digit3-core:8080/
         template-config: http://template-config.digit3-core:8080/
+        url-shortener: http://url-shortener.digit3-core:8080/
+        workflow: http://workflow.digit3-core:8080/
         # Vault is not deployed on unified-dev yet (individual, otp need the key).
         vault: http://vault.vault:8200/
   secrets:

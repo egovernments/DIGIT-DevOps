@@ -21,12 +21,14 @@ It runs with no server — talking straight to `api.github.com`.
 
 | Door | Auth | Picker |
 |---|---|---|
-| GitHub-native Run workflow | github.com session | synced **dropdowns** (`build_branch` + `service`), kept current by sync-code-build |
+| GitHub-native Run workflow | github.com session | synced **dropdowns** (`build_branch` + `service`), kept current by **Build — Setup** (sync mode) |
 | `/actions` UI | fine-grained PAT | live branch **dropdown**; services read from the chosen branch |
 
 Both dispatch the same `code-build.yaml`. The native dialog's lists are synced
 snapshots; the UI reads branches and each branch's services **live**, so it can
-also surface a service that exists only on a not-yet-merged feature branch.
+also surface a service that exists only on a not-yet-merged feature branch. Both
+offer an **All services** option that builds every service in the branch's
+`build-config.yml` (the caller fans out to one engine run per service, in sequence).
 
 ### Sign-in methods
 
@@ -59,8 +61,11 @@ Worker URL is baked into the page as `AUTH_BASE`.
 ### Flow
 
 1. **Read** branches, then the chosen branch's `build-config.yml`.
-2. **Pick** branch → service (with a resolved image/dockerfile/db preview).
-3. **Dispatch** `workflow_dispatch` to `code-build.yaml` on the **default branch**, passing the chosen branch as `build_branch` + `service`. (The workflow lives only on the default branch; the engine checks out `build_branch` to build it.)
+2. **Pick** branch → service (with a resolved image/dockerfile/db preview), **or** tick
+   **All services** to see every service grouped by module and build them all.
+3. **Dispatch** `workflow_dispatch` to `code-build.yaml` on the **default branch**, passing
+   the chosen branch as `build_branch` and either `service` or `all_services: true`. (The
+   workflow lives only on the default branch; the engine checks out `build_branch` to build it.)
 4. **Watch** the run (polled) with a link, and jump to its `/security/trivy` report.
 
 ## Hosting

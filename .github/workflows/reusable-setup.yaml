@@ -1,8 +1,10 @@
-# One-shot setup for a consumer repo. Scaffolds the Code Build caller, the
-# sync-code-build workflow and the Trivy dashboard toolkit from DIGIT-DevOps,
-# populates the service + branch dropdowns, and commits them straight to the
-# default branch. The landing page + /actions UI are Pages content, so they are
-# published to the gh-pages branch (which Pages serves), not committed to the tree.
+# Setup for a consumer repo, in two modes:
+#   mode: full  — scaffold the Code Build caller + the Trivy dashboard toolkit,
+#                 seed the dropdowns, commit to the default branch, and publish
+#                 the landing page + /actions UI to gh-pages. (provision / upgrade)
+#   mode: sync  — ONLY refresh the Code Build dropdowns (service list from
+#                 build-config.yml, branch lists from live branches) and commit if
+#                 changed. No scaffold, no Pages. (what the old Build — Sync did)
 # Auth is a GitHub App token minted in-run from APP_CLIENT_ID + APP_PRIVATE_KEY. The App
 # needs Contents + Workflows + Pages write, must be installed on this repo, and
 # must be on the default-branch ruleset bypass list so it can push directly.
@@ -12,8 +14,18 @@ name: Reusable Setup
 on:
   workflow_call:
     inputs:
+      mode:
+        description: "'full' = provision/upgrade everything; 'sync' = only refresh the Code Build dropdowns"
+        required: false
+        type: string
+        default: "full"
+      sync_branch:
+        description: "sync mode: read build-config.yml from this branch to pull its new services into the dropdown; empty = the default branch"
+        required: false
+        type: string
+        default: ""
       enable_pages:
-        description: "Attempt to enable GitHub Pages on gh-pages (best effort)"
+        description: "Attempt to enable GitHub Pages on gh-pages (best effort; full mode only)"
         required: false
         type: boolean
         default: true
@@ -61,6 +73,7 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Checkout DIGIT-DevOps templates
+        if: ${{ inputs.mode != 'sync' }}
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: egovernments/DIGIT-DevOps
@@ -74,6 +87,7 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
 
       - name: Scaffold files and populate dropdowns
+        if: ${{ inputs.mode != 'sync' }}
         env:
           CONFIG: build/build-config.yml
           WF: .github/workflows/code-build.yaml
@@ -83,8 +97,8 @@ jobs:
           set -euo pipefail
           cp -R _devops/templates/consumer/. ./
           rm -rf _devops
-          # Drop the legacy single-purpose sync workflow (replaced by sync-code-build).
-          rm -f .github/workflows/sync-dropdown.yaml .github/workflows/sync-branches.yaml
+          # Drop legacy sync workflows (dropdown sync now runs as Setup's sync mode).
+          rm -f .github/workflows/sync-dropdown.yaml .github/workflows/sync-branches.yaml .github/workflows/sync-code-build.yaml
           # The pages/ tree (landing page + /actions UI) is GitHub Pages content:
           # it is published to the gh-pages branch (served by Pages), not committed
           # to the source tree. Stash it for the gh-pages step and keep it out of
@@ -97,30 +111,100 @@ jobs:
             SVC="$SVC" yq -i '.["on"].workflow_dispatch.inputs.service.options = (strenv(SVC) | split("\n"))' "$WF"
           fi
           # Seed the Build-from-Branch dropdown from live branches (default first,
-          # dependabot/* excluded); sync-code-build keeps it current afterwards.
+          # dependabot/* excluded); Setup's sync mode keeps it current afterwards.
           DEFAULT=$(gh api "repos/${GITHUB_REPOSITORY}" -q .default_branch)
           OTHERS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/branches" -q '.[].name' \
                     | grep -vE '^dependabot/' | grep -vxF "$DEFAULT" | grep -v '^$' | sort | head -n 199)
           BR=$(printf '%s\n%s\n' "$DEFAULT" "$OTHERS" | grep -v '^$')
           BR="$BR" yq -i '.["on"].workflow_dispatch.inputs.build_branch.options = (strenv(BR) | split("\n"))' "$WF"
           DEFAULT="$DEFAULT" yq -i '.["on"].workflow_dispatch.inputs.build_branch.default = strenv(DEFAULT)' "$WF"
-          # Same branch list seeds the Sync workflow's "Sync from Branch" picker.
-          SYNC_WF=.github/workflows/sync-code-build.yaml
-          if [ -f "$SYNC_WF" ]; then
-            BR="$BR" yq -i '.["on"].workflow_dispatch.inputs.sync_branch.options = (strenv(BR) | split("\n"))' "$SYNC_WF"
-            DEFAULT="$DEFAULT" yq -i '.["on"].workflow_dispatch.inputs.sync_branch.default = strenv(DEFAULT)' "$SYNC_WF"
-          fi
-          # Remember the chosen sign-in method as the default in this repo's own
-          # setup.yaml, so the next Setup run pre-selects the last pick (PAT/OAuth).
+          # The "Sync from Branch" picker now lives in setup.yaml — seed it too.
           SETUP_WF=.github/workflows/setup.yaml
           if [ -f "$SETUP_WF" ]; then
+            BR="$BR" yq -i '.["on"].workflow_dispatch.inputs.sync_branch.options = (strenv(BR) | split("\n"))' "$SETUP_WF"
+            DEFAULT="$DEFAULT" yq -i '.["on"].workflow_dispatch.inputs.sync_branch.default = strenv(DEFAULT)' "$SETUP_WF"
+            # Remember the chosen sign-in method as this repo's default (PAT/OAuth).
             m=$(printf '%s' "${AUTH_MODE:-PAT}" | tr '[:upper:]' '[:lower:]')
             case "$m" in oauth) DISP="OAuth";; *) DISP="PAT";; esac
             DISP="$DISP" yq -i '.["on"].workflow_dispatch.inputs.auth_mode.default = strenv(DISP)' "$SETUP_WF"
             echo "Remembered Code Build sign-in default: $DISP"
           fi
 
+      # ---- sync mode: refresh only the dropdowns (the old Build — Sync job) ----
+      - name: Sync service dropdown (sync mode)
+        if: ${{ inputs.mode == 'sync' }}
+        env:
+          CONFIG: build/build-config.yml
+          WF: .github/workflows/code-build.yaml
+          SYNC_BRANCH: ${{ inputs.sync_branch }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          test -f "$WF" || { echo "::error::$WF not found — run a full Setup first."; exit 1; }
+          DEFAULT=$(gh api "repos/${GITHUB_REPOSITORY}" -q .default_branch)
+          # Source config: another branch's build-config (to pull in its new
+          # services) when sync_branch is given, else the default branch's file.
+          if [ -n "$SYNC_BRANCH" ] && [ "$SYNC_BRANCH" != "$DEFAULT" ]; then
+            git fetch -q --depth 1 origin "$SYNC_BRANCH" || { echo "::error::cannot fetch branch '$SYNC_BRANCH'"; exit 1; }
+            SRC="$(mktemp)"
+            git show "FETCH_HEAD:$CONFIG" > "$SRC" 2>/dev/null || { echo "::error::$CONFIG not found on '$SYNC_BRANCH'"; exit 1; }
+            echo "Reading services from branch '$SYNC_BRANCH'."
+          else
+            test -f "$CONFIG" || { echo "::error::config not found: $CONFIG"; exit 1; }
+            SRC="$CONFIG"
+          fi
+          # services = app image-names (drop -db). Additive union, never drops.
+          NEW_SVC=$(yq eval '.config[].build[]."image-name"' "$SRC" | grep -vE -- '-db$' | sort -u)
+          OLD_SVC=$(yq eval '.["on"].workflow_dispatch.inputs.service.options[]' "$WF" 2>/dev/null || true)
+          SVC=$(printf '%s\n%s\n' "$OLD_SVC" "$NEW_SVC" | grep -v '^$' | grep -vxF placeholder | sort -u)
+          SVC="$SVC" yq -i '.["on"].workflow_dispatch.inputs.service.options = (strenv(SVC) | split("\n"))' "$WF"
+          echo "Services: $(echo "$SVC" | wc -l | tr -d ' ')"
+
+      - name: Sync branch dropdowns (sync mode)
+        if: ${{ inputs.mode == 'sync' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          WF: .github/workflows/code-build.yaml
+          SETUP_WF: .github/workflows/setup.yaml
+        run: |
+          set -euo pipefail
+          DEFAULT=$(gh api "repos/${GITHUB_REPOSITORY}" -q .default_branch)
+          # Live branches (dependabot/* excluded), default first; list is REPLACED
+          # each run so deleted branches disappear from the picker.
+          OTHERS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/branches" -q '.[].name' \
+                    | grep -vE '^dependabot/' | grep -vxF "$DEFAULT" | grep -v '^$' | sort | head -n 199)
+          BR=$(printf '%s\n%s\n' "$DEFAULT" "$OTHERS" | grep -v '^$')
+          BR="$BR" yq -i '.["on"].workflow_dispatch.inputs.build_branch.options = (strenv(BR) | split("\n"))' "$WF"
+          DEFAULT="$DEFAULT" yq -i '.["on"].workflow_dispatch.inputs.build_branch.default = strenv(DEFAULT)' "$WF"
+          if [ -f "$SETUP_WF" ]; then
+            BR="$BR" yq -i '.["on"].workflow_dispatch.inputs.sync_branch.options = (strenv(BR) | split("\n"))' "$SETUP_WF"
+          fi
+          echo "Branches: $(echo "$BR" | wc -l | tr -d ' ') (default: $DEFAULT)"
+
+      - name: Commit synced dropdowns (sync mode)
+        if: ${{ inputs.mode == 'sync' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          WF: .github/workflows/code-build.yaml
+          SETUP_WF: .github/workflows/setup.yaml
+        run: |
+          set -euo pipefail
+          FILES="$WF"; [ -f "$SETUP_WF" ] && FILES="$FILES $SETUP_WF"
+          if git diff --quiet -- $FILES; then
+            echo "Code Build dropdowns already up to date."
+            echo "SYNC=unchanged" >> "$GITHUB_ENV"; exit 0
+          fi
+          git config user.name  "digit-devops-workflows[bot]"
+          git config user.email "digit-devops-workflows[bot]@users.noreply.github.com"
+          git add $FILES
+          git commit -m "chore(code-build): sync service + branch dropdowns"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          echo "SYNC=committed" >> "$GITHUB_ENV"
+          echo "### Code Build dropdowns synced → ${GITHUB_REF_NAME}" >> "$GITHUB_STEP_SUMMARY"
+
+      # ---- full mode: scaffold + publish ----
       - name: Commit scaffold to the default branch
+        if: ${{ inputs.mode != 'sync' }}
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
@@ -140,6 +224,7 @@ jobs:
           echo "SCAFFOLD=committed" >> "$GITHUB_ENV"
 
       - name: Publish landing page + /actions UI to gh-pages
+        if: ${{ inputs.mode != 'sync' }}
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           AUTH_MODE: ${{ inputs.auth_mode }}
@@ -180,7 +265,7 @@ jobs:
           echo "Published landing page + /actions to gh-pages."
 
       - name: Enable Pages (best effort)
-        if: ${{ inputs.enable_pages }}
+        if: ${{ inputs.mode != 'sync' && inputs.enable_pages }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -190,11 +275,20 @@ jobs:
             || echo "::warning::Enable Pages manually (Settings > Pages > branch gh-pages) — token may lack Pages:write."
 
       - name: Summary
+        env:
+          MODE: ${{ inputs.mode }}
         run: |
-          {
-            echo "### Code Build setup"
-            echo "- Scaffold → ${SCAFFOLD:-committed} on the default branch (direct push via the App)"
-            echo "- Landing page → gh-pages \`/\`; Code Build dispatcher → \`/actions/\`"
-            echo "- Trivy dashboard → gh-pages \`/security/trivy\`"
-            echo "- Ensure repo has \`DOCKER_USERNAME\` (var) + \`DOCKER_ACCESS_TOKEN\` (secret)."
-          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$MODE" = "sync" ]; then
+            {
+              echo "### Code Build setup — sync"
+              echo "- Dropdowns → ${SYNC:-unchanged} on the default branch (service list unioned, branches refreshed)."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "### Code Build setup — full"
+              echo "- Scaffold → ${SCAFFOLD:-committed} on the default branch (direct push via the App)"
+              echo "- Landing page → gh-pages \`/\`; Code Build dispatcher → \`/actions/\`"
+              echo "- Trivy dashboard → gh-pages \`/security/trivy\`"
+              echo "- Ensure repo has \`DOCKER_USERNAME\` (var) + \`DOCKER_ACCESS_TOKEN\` (secret)."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

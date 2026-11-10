@@ -17,6 +17,5 @@ To avoid a second source of truth that drifts, the details live in one place —
 
 - [README](../../docs/workflows/README.md) — how the pieces fit, onboarding, versioning
 - [build.md](../../docs/workflows/build.md) — pipeline, scan policy, cosign, inputs
-- [setup.md](../../docs/workflows/setup.md) — the GitHub App + one-shot provisioning
-- [sync-code-build.md](../../docs/workflows/sync-code-build.md) — the dropdown sync
+- [setup.md](../../docs/workflows/setup.md) — the GitHub App + provisioning (full) and dropdown sync (sync)
 - [actions-ui.md](../../docs/workflows/actions-ui.md) — landing page + `/actions` dispatcher

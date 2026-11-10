@@ -102,7 +102,18 @@ postgresql:
   # rules. CloudNativePG already requires TLS for replication and issues its own
   # certificates; add entries here only to further restrict client access.
   pg_hba: []
-  shared_preload_libraries: []
+shared_preload_libraries: []
+# Extension images, passed through verbatim to spec.postgresql.extensions.
+# CloudNativePG mounts each as a read-only image volume (needs Kubernetes
+# ImageVolume, 1.33+), so the PostgreSQL image itself stays unchanged. Adding,
+# removing or retagging one restarts the instances. Making an extension
+# AVAILABLE is not the same as creating it -- see `databases` below.
+#
+#   - name: postgis
+#     image:
+#       reference: ghcr.io/cloudnative-pg/postgis-extension:<ver>-18-trixie
+#     ld_library_path: [system]
+extensions: []
 
 # Database created on first bootstrap. Changing these afterwards has NO effect
 # on an existing cluster -- initdb runs once.
@@ -158,6 +169,19 @@ managedRoles:
   #     passwordSecret:
   #       name: postgresql-18-readonly-db
   extra: []
+
+# Databases as CloudNativePG Database resources, one per entry (fields passed
+# through to its spec). The operator reconciles them as the superuser, which is
+# how an extension the application role may not create (PostGIS is not a
+# trusted extension) gets installed. An entry may name the bootstrap database:
+# the operator adopts it. databaseReclaimPolicy defaults to retain, so removing
+# an entry never drops the database.
+#
+#   - name: coredb
+#     owner: coredev
+#     extensions:
+#       - name: postgis
+databases: []
 
 # Set to false to disable the `postgres` superuser entirely (application user
 # only), which is the tighter production posture. When false, superuserSecret

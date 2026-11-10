@@ -1,0 +1,24 @@
+{{- $v := include "pg18.values" . | fromYaml }}
+{{- /*
+  One CloudNativePG Database per entry in `databases`. The operator reconciles
+  it as the superuser on every pass: it creates the database if missing (or
+  adopts an existing one, such as the bootstrap database) and creates the listed
+  extensions. Default databaseReclaimPolicy is retain -- deleting the resource
+  leaves the database in place.
+*/}}
+{{- range $db := ($v.databases | default list) }}
+{{- if not (and $db.name $db.owner) }}
+{{- fail "postgresql-18: every entry in databases needs name and owner" }}
+{{- end }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: {{ printf "%s-%s" (include "pg18.name" $) ($db.name | replace "_" "-") }}
+  namespace: {{ $v.namespace }}
+  labels:
+    {{- include "pg18.labels" $ | nindent 4 }}
+spec:
+  {{- $spec := mustMergeOverwrite (dict "databaseReclaimPolicy" "retain") $db (dict "cluster" (dict "name" (include "pg18.name" $))) }}
+  {{- toYaml $spec | nindent 2 }}
+{{- end }}

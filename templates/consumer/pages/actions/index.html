@@ -768,8 +768,11 @@ async function pollRuns(branch){
         .filter(x => x.status==="completed" && (x.conclusion==="failure" || x.conclusion==="timed_out"))
         .map(classifyFailed));
       // Drop the optimistic row once our dispatched run appears in the list.
-      if(pending && runs.some(x => new Date(x.created_at).getTime() >= pending.at - 30000)) clearPending();
-      else if(pending && Date.now() - pending.at > 180000) clearPending();   // expire a stuck optimistic row
+      if(pending){
+        const pk = "Build — Code · "+pending.service+" ("+pending.branch+")";
+        // Clear the optimistic row (and its stored copy) once its real run lists, or after 3 min.
+        if(runs.some(x => (x.display_title || x.name) === pk) || Date.now() - pending.at > 180000) clearPending();
+      }
       lastRuns = runs;
       renderRuns(runs);
       // Keep polling while anything is active, or during the grace window after a
@@ -791,24 +794,29 @@ function runRow(cls, href, title, sub, label){
 function renderRuns(runs, emptyMsg){
   const rr = $("recentRuns");
   if(runs===null){ rr.innerHTML = '<div class="hint" style="padding:12px 0">'+esc(emptyMsg||"Could not load runs.")+'</div>'; return; }
-  // Build rows newest-first: the optimistic pending row, then the API runs. The key
-  // is the run-name ("Build — Code · <service> (<branch>)"), which is service + build
-  // branch — so de-duping by it keeps only the latest run per service+branch.
-  const rows = [];
-  if(pending){
-    const t = "Build — Code · "+pending.service+" ("+pending.branch+")";
-    rows.push({ key:t, cls:"queue", title:t, sub:"just now · queued", label:"Queued",
-      href:"https://github.com/"+OWNER+"/"+REPO+"/actions/workflows/code-build.yaml" });
-  }
+  // Real API runs first — they carry the LIVE status. Key = run-name
+  // ("Build — Code · <service> (<branch>)") = service + build branch; keep only the
+  // newest per key (the API lists newest-first).
+  const rows = [], realKeys = new Set();
   for(const r of runs){
     const k = runKind(r), t = r.display_title || r.name || "run";
+    if(realKeys.has(t)) continue;
+    realKeys.add(t);
     rows.push({ key:t, cls:RUN_CLS[k]||"queue", title:t, href:r.html_url,
       sub:relTime(r.created_at)+" · "+(r.head_sha||"").slice(0,7), label:RUN_LABEL[k]||k });
   }
-  const seen = new Set();
-  const uniq = rows.filter(x => seen.has(x.key) ? false : (seen.add(x.key), true));
-  if(!uniq.length){ rr.innerHTML = '<div class="hint" style="padding:12px 0">No Code Build runs yet.</div>'; return; }
-  rr.innerHTML = uniq.map(x => runRow(x.cls, x.href, x.title, x.sub, x.label)).join("");
+  // The optimistic "Queued" row shows ONLY until the real run with the same identity
+  // appears — then the real run's live status (Running/Success/Blocked) takes over, so
+  // it never sits on "Queued" once the run is actually running (no refresh needed).
+  if(pending){
+    const t = "Build — Code · "+pending.service+" ("+pending.branch+")";
+    if(!realKeys.has(t)){
+      rows.unshift({ key:t, cls:"queue", title:t, sub:"just now · queued", label:"Queued",
+        href:"https://github.com/"+OWNER+"/"+REPO+"/actions/workflows/code-build.yaml" });
+    }
+  }
+  if(!rows.length){ rr.innerHTML = '<div class="hint" style="padding:12px 0">No Code Build runs yet.</div>'; return; }
+  rr.innerHTML = rows.map(x => runRow(x.cls, x.href, x.title, x.sub, x.label)).join("");
 }
 
 /* ---------------- dispatch ---------------- */

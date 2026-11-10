@@ -15,17 +15,31 @@ fullnameOverride: minio
 # The 1.34 -> 1.35 node pool upgrade replaced all seven nodes, the cache went
 # with them, and minio-0/1 dropped straight into ImagePullBackOff.
 #
-# egovio/minio is the org's own mirror and the only reachable source. It is an
-# older MinIO release than the quay tag that was pinned here; that is a
-# deliberate trade of version currency for an image that can actually be
-# pulled. Checked before switching:
-#   - on-disk format is xl version 3 (distributionAlgo SIPMOD+PARITY), which
-#     this build reads natively -- MinIO refuses to start on a format newer
-#     than the binary knows, and this is not that case
-#   - linux/amd64 only, and every node in this cluster is amd64
+# egovio is the org's own mirror and the only reachable source. The tag below
+# must stay at the ORIGINAL release -- do NOT substitute the older
+# RELEASE.2024-01-16T16-07-38Z that currently sits in egovio/minio.
+#
+# That substitution was tried and it does not work. The older binary pulls and
+# starts, then refuses its own data:
+#   ERROR Unable to initialize backend: decodeXLHeaders: Unknown xl header
+#   version 2
+# The drive format in .minio.sys/format.json is xl version 3 and IS readable by
+# that build, which makes the downgrade look safe -- but each object's xl.meta
+# carries a separate header version, here version 2, written by the newer
+# server. format.json does not expose it, so checking the drive format alone
+# does not catch this. MinIO is only downgrade-safe within a release range that
+# shares an xl.meta header version.
+#
+# Populate this tag by mirroring the image out of a uat-saas node's containerd
+# cache (populated 2026-08-31, before MinIO withdrew public access), which is
+# the last reachable copy:
+#   ctr -n k8s.io images export <tar> quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z
+#   docker load && docker tag && docker push egovio/minio:<same tag>
+# Expected digest:
+#   sha256:1dce27c494a16bae114774f1cec295493f3613142713130c2d22dd5696be6ad3
 image:
   repository: egovio/minio
-  tag: "RELEASE.2024-01-16T16-07-38Z"
+  tag: "RELEASE.2024-12-18T13-15-44Z"
   pullPolicy: IfNotPresent
 
 # Number of distributed nodes (StatefulSet replicas). Live = 2.

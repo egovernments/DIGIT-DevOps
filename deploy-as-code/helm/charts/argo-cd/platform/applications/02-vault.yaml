@@ -97,6 +97,33 @@ spec:
                   - test-lts.digit.org
 
           ha:
+            ## Vault runs here as ha.enabled=true with ha.replicas=1. In that
+            ## combination the chart's vault.pdb.maxUnavailable helper short-
+            ## circuits to a literal 0:
+            ##
+            ##   {{- if eq (int .Values.server.ha.replicas) 1 -}}{{ 0 }}
+            ##
+            ## so the rendered PodDisruptionBudget permits NO voluntary
+            ## eviction, ever, and disruptionsAllowed sits at 0 permanently.
+            ## Note the helper tests replicas BEFORE it looks at
+            ## disruptionBudget.maxUnavailable, so an explicit override there
+            ## does not help -- the only way out is to not render the PDB.
+            ##
+            ## That PDB blocks every node drain: AKS node pool upgrades fail
+            ## their pre-flight check with
+            ##   "code": "UnsatisfiablePDB" ... "spec.maxUnavailable=0 permits
+            ##   no unavailable replicas and can block voluntary pod eviction"
+            ## and any kubectl drain hangs on the same thing.
+            ##
+            ## A PDB over a single replica protects nothing in the first place
+            ## -- draining that node takes Vault down whether or not the budget
+            ## exists; the budget only decides whether the drain is allowed to
+            ## proceed or fails. Disabled until this becomes a real HA cluster
+            ## (ha.replicas: 3 with raft), at which point remove this and let
+            ## the helper compute a sane value again.
+            disruptionBudget:
+              enabled: false
+
             raft:
               ## Byte-for-byte the live vault-config, with the chart's two
               ## telemetry stanzas removed. The seal conditionals are kept in

@@ -14,6 +14,19 @@ cluster:
   # replicated cluster with automatic failover once this carries more than CREST.
   instances: 1
 
+  # No PodDisruptionBudget while this is a single instance.
+  #
+  # With instances: 1 the operator renders postgresql-primary as
+  # minAvailable: 1 over exactly one pod, so disruptionsAllowed is pinned at 0
+  # and the primary can never be voluntarily evicted. That blocks every node
+  # drain -- AKS node pool upgrades stall on it and kubectl drain hangs.
+  #
+  # The budget protects nothing here: draining the node takes this single
+  # instance down either way, and the PDB only decides whether the drain is
+  # allowed to proceed or fails outright. Re-enable together with instances: 3,
+  # where a real quorum makes the budget meaningful.
+  enablePDB: false
+
   storage:
     # The 8Gi chart default is a starter value. egov/postgres-0 sits on 100Gi; 50Gi
     # is a sensible start for a shared database with one tenant, and the default

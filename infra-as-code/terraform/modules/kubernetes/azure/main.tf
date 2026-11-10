@@ -22,6 +22,12 @@ resource "azurerm_kubernetes_cluster" "aks" {
     temporary_name_for_rotation = "tempnodepool"
     os_disk_size_gb = var.os_disk_size_gb
 
+    # kubernetes_version alone moves only the CONTROL PLANE. Without this the
+    # nodes stay on their old version and the upgrade is half done - the
+    # cluster reports the new version while every kubelet still runs the old
+    # one. Pinning it to the same variable keeps the pool in step.
+    orchestrator_version = var.kubernetes_version
+
     upgrade_settings {
       max_surge = "10%"
     }

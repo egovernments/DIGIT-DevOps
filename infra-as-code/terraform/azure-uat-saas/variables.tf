@@ -48,9 +48,12 @@ variable "location" {
   default     = "centralindia"
 }
 
-variable "kubernetes_version"{
+variable "kubernetes_version" {
   description = "AKS version"
-  default     = "1.34"
+  # 1.34 -> 1.35. AKS allows one minor version per hop, so this is a single
+  # step; 1.35.9 is the latest patch offered for this cluster. The value is a
+  # minor alias on purpose - AKS resolves it to the newest GA patch.
+  default = "1.35"
 }
 
 

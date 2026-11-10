@@ -20,17 +20,44 @@ spec:
         # cluster ends up with two Kafka clusters and services pointing at the
         # wrong one. Adopting the existing release would need its Deployment/
         # StatefulSet recreated, since spec.selector is immutable.
+        #
+        # releaseName is stated for every element because Argo CD otherwise
+        # defaults the Helm release name to the Application name
+        # (backbone-{{name}}). For charts whose StatefulSet selector contains
+        # {{ .Release.Name }} that default is not cosmetic: spec.selector is
+        # IMMUTABLE, so a release name that differs from the one the live
+        # object was created with makes every sync fail with
+        #   StatefulSet.apps "<n>" is invalid: spec: Forbidden: updates to
+        #   statefulset spec for fields other than 'replicas', ... are forbidden
+        # and, because the whole Application then fails to apply, it silently
+        # blocks unrelated changes such as an image bump.
+        #
+        # The values below are the release names the LIVE objects already carry.
+        # Do not "tidy" minio's to match the others - see its note.
         elements:
+          # Selector is {app: elasticsearch-master} only, no release label, so
+          # the name here is just the existing default made explicit.
           - name: elasticsearch-master
             namespace: backbone
+            releaseName: backbone-elasticsearch-master
           - name: elasticsearch-data
             namespace: backbone
+            releaseName: backbone-elasticsearch-data
           - name: kibana
             namespace: backbone
+            releaseName: backbone-kibana
+          # ADOPTED from an older manual Helm install whose release was literally
+          # called "release-name", which is baked into the live StatefulSet's
+          # immutable selector: {app: minio, release: release-name}. Anything
+          # else here cannot be applied without recreating the StatefulSet.
+          # Safe to set: the three Services select on {app: minio} alone, so
+          # routing does not depend on the release label.
           - name: minio
             namespace: backbone
+            releaseName: release-name
           - name: redis
             namespace: backbone
+            releaseName: backbone-redis
 
   template:
     metadata:
@@ -48,6 +75,9 @@ spec:
         targetRevision: digit-lts
         path: deploy-as-code/helm/charts/backbone-services/{{name}}
         helm:
+          # See the note on the elements list above: this must match the release
+          # name the live objects were created with, not the Application name.
+          releaseName: '{{releaseName}}'
           valueFiles:
             - values.yaml
             - ../../../environments/digit-lts.yaml

@@ -1,5 +1,7 @@
 # Reusable build workflows
 
+<sub>Stage 1 of 5 - **Workflows** -> [Code Build](<../2. Code Build/README.md>) -> [Helm Packaging & Releasing](<../3. Helm Packaging & Releasing/README.md>) -> [Kargo Promotions](<../4. Kargo Promotions/README.md>) -> [Argo CD](<../5. Argo CD/README.md>)</sub>
+
 Central CI for eGov service repositories. A consumer repo keeps one thin caller and a
 build config; the engine, the dispatcher UI, the security scanning and the dashboards
 are all provisioned from here and upgraded centrally.

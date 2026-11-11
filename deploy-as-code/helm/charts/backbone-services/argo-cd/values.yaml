@@ -4,6 +4,8 @@
 
 # -- Provide a name in place of `argocd`
 nameOverride: argocd
+# Key for the environments/<env>.yaml `argo-cd:` override block (templates/_env-overrides.tpl).
+envOverrideKey: argo-cd
 # -- String to fully override `"argo-cd.fullname"`
 fullnameOverride: "argocd"
 # -- Override the namespace
@@ -3076,7 +3078,8 @@ repoServer:
   podAnnotations: {}
 
   # -- Labels to be added to repo server pods
-  podLabels: {}
+  podLabels:
+    azure.workload.identity/use: "true"   # AKS webhook injects AZURE_* + token for sops (Azure KV)
 
   # -- Resource limits and requests for the repo server pods
   ## Memory raised 128Mi -> 1Gi per the source doc, to accommodate running
@@ -3298,10 +3301,10 @@ repoServer:
     ## system:serviceaccount:argocd:argocd-repo-server in the IAM role trust policy.
     name: "argocd-repo-server"
     ## -- Annotations applied to created service account
-    ## The source doc sets eks.amazonaws.com/role-arn here for IRSA. That annotation
-    ## has no effect on AKS, so the AWS_ROLE_ARN / AWS_WEB_IDENTITY_TOKEN_FILE env
-    ## vars in repoServer.env do that job instead.
-    annotations: {}
+    ## Azure workload identity (sops, Azure KV); AWS_* env still covers AWS-KMS files during cutover.
+    annotations:
+      azure.workload.identity/client-id: "1eb7e7f8-b990-4f06-826d-daeef6ea5c39"
+      azure.workload.identity/tenant-id: "593ce202-d1a9-4760-ba26-ae35417c00cb"
     # -- Labels applied to created service account
     labels: {}
     # -- Automount API credentials for the Service Account

@@ -2,20 +2,19 @@
 # Based on unified-studio-qa.yaml (unified-qa branch). Environment values (database,
 # Kafka, Elasticsearch, domain) are the live digit-lts ones from test-lts.yaml.
 #
-# Not deployed yet: no AppProject or ApplicationSet reads this file. Like unified-qa,
-# the module's ConfigMaps/Secrets are meant for their own cluster-configs Application
+# Services deploy from the PUBLISHED charts helm.digit.org/digit3/{studio,health},
+# pinned per service by chart-version (set by PR today; Kargo-promotable later). The
+# module's ConfigMaps/Secrets come from its own cluster-configs Application
 # (values.yaml + this file + digit-studio-lts-secrets.yaml), never layered onto
-# test-lts.yaml: egov-config here would replace egov's.
-#
-# Differences from unified-qa:
-#   - no global.localGateway / cluster-configs.gateway-alias: digit-lts's common and
-#     cluster-configs charts do not support them, so Ingresses render into
-#     ingress.namespace (egov), like every other digit-lts service.
-#   - egov-service-host still points at the DIGIT 2.x services in egov (egov-user,
-#     mdms-v2, workflow-v2, persister, ...). Most of them are NOT running on digit-lts.
+# test-lts.yaml. digit-studio alone stays on its in-repo chart (the published 3.0.0
+# chart drops the js-injection ConfigMap its Deployment mounts).
 global:
    domain: test-lts.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
    setup: fullsetup
+
+# Published charts route via the cluster gateway Service (common default is kong-proxy).
+ingress:
+  gatewayServiceName: kong-kong-proxy
 
 cluster-configs:
   # Rendered by its own cluster-configs Application (with the chart's values.yaml), so
@@ -25,10 +24,10 @@ cluster-configs:
   cluster-roles:
     enabled: false
   root-ingress: null
-  namespaces:  
+  namespaces:
     create: true
     values: [ studio ]
-      
+
   configmaps:
     # Also in health: the Studio dependencies beneficiary-idgen and
     # health-service-request run there. (Namespace health itself belongs to
@@ -50,7 +49,7 @@ cluster-configs:
         state-level-tenantid-length: "2"
         state-schema-index-position-tenantid: "1"
         is-environment-central-instance: "false"
-        egov-state-level-tenant-id: "pg" 
+        egov-state-level-tenant-id: "pg"
         s3-assets-bucket: "(pg-egov-assets|egov-playground-assets)"
         es-host: "elasticsearch-data.backbone"
         es-indexer-host: "http://elasticsearch-data.backbone:9200/"
@@ -71,7 +70,7 @@ cluster-configs:
         tracer-errors-provideexceptionindetails: "true"
         egov-bnd-freedownload-tenants: "pg.testing"
         egov-bnd-live-citizen-tenants: "pg.testing"
-        kibana-base-path: kibana-upgrade 
+        kibana-base-path: kibana-upgrade
         kibana-host: "http://kibana-v1.es-upgrade:5601/"
         egov-internal-microservice-user-uuid: 4fef6612-07a8-4751-97e9-0e0ac0687ebe
 
@@ -234,10 +233,15 @@ cluster-configs:
     studio-keycloak:
       namespace: [ studio ]
       name: studio-keycloak
-  
-      
+
+
+# Published chart 3.0.1 (3.0.0 lacked the js-injection ConfigMap; 3.0.1 defaults it to LTS content).
+# Keep ingress in studio: digit-studio serves its own Service, not via kong.
 digit-studio:
+  chart-version: "3.0.1"
   namespace: studio
+  ingress:
+    namespace: studio
   resources: |
     limits:
       cpu: "100m"
@@ -245,16 +249,10 @@ digit-studio:
     requests:
       cpu: "30m"
       memory: "100Mi"
-  custom-js-injection: |
-    sub_filter.conf: "
-      sub_filter  '<head>' '<head>
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/analytics/analytics.js type=text/javascript async></script>     
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsStudioLTS.js type=text/javascript></script>
-      ';"
-
   image:
     tag: studio-develop-dev-f9b92fd-2097
 public-service:
+  chart-version: "3.0.0"
   # postgres.egov has no SSL (unified-qa's Azure database does).
   db-sslmode: disable
   replicas: 1
@@ -282,6 +280,7 @@ public-service:
       image:
         tag: studio-digit3-migration-45a5551
 public-service-init:
+  chart-version: "3.0.0"
   # postgres.egov has no SSL (unified-qa's Azure database does).
   db-sslmode: disable
   replicas: 1
@@ -301,10 +300,6 @@ public-service-init:
   keycloak-client-secret:
     name: studio-keycloak
     key: client-secret
-  healthChecks:
-    enabled: true
-    livenessProbePath: /health/liveness
-    readinessProbePath: /health/readiness
 
   image:
     tag: studio-digit3-migration-884d1d0
@@ -313,6 +308,7 @@ public-service-init:
       image:
         tag: studio-digit3-migration-884d1d0
 studio-pdf:
+  chart-version: "3.0.0"
   namespace: studio
   resources: |
     limits:
@@ -325,6 +321,7 @@ studio-pdf:
   image:
     tag: studio-dynamic-dashboard-backend-353d7fd
 studio-pdf-helper-service:
+  chart-version: "3.0.0"
   # postgres.egov has no SSL (unified-qa's Azure database does).
   db-sslmode: disable
   namespace: studio
@@ -350,6 +347,7 @@ studio-pdf-helper-service:
       image:
         tag: java-migration-5bd1009
 studio-calculator-service:
+  chart-version: "3.0.0"
   replicas: 1
   namespace: studio
   memory_limits: 256Mi
@@ -363,6 +361,8 @@ studio-calculator-service:
       cpu: "50m"
       memory: "256Mi"
 studio-hrms:
+  chart-version: "3.0.0"
+  namespace: studio
   # digit-lts mdms-v2 serves under /mdms-v2 (unified-qa runs it as /egov-mdms-service).
   mdmsV1SearchEndpoint: "/mdms-v2/v1/_search"
   mdmsLegacySearchPath: "mdms-v2/v1/_search"
@@ -372,13 +372,13 @@ studio-hrms:
     dbMigration:
       image:
         tag: develop-df51598
-        namespace: studio
   heap: "-Xmx256m -Xms256m"
   memory_limits: "512Mi"
   cpu_limits: "200m"
   tracing-enabled: true
 
 studio-individual:
+  chart-version: "3.0.0"
   mdmsV1SearchEndpoint: "/mdms-v2/v1/_search"
   image:
     tag: studio-dynamic-dashboard-backend-f283291
@@ -398,6 +398,7 @@ studio-individual:
   kafka-mdc-enabled: "true"
 
 studio-service-request:
+  chart-version: "3.0.0"
   mdmsV1SearchEndpoint: "/mdms-v2/v1/_search"
   image:
     tag: studio-dynamic-dashboard-backend-44ee338
@@ -411,6 +412,7 @@ studio-service-request:
   cpu_limits: "200m"
 
 studio-user-otp:
+  chart-version: "3.0.0"
   # The existing digit-lts otp service (Deployment otp-java), not 2.x egov-otp.
   otp-host: "http://otp-java.egov:8080/otp"
   image:
@@ -425,6 +427,7 @@ studio-user-otp:
 # digit-lts-studio-appset-health). From unified-health-qa.yaml (unified-qa branch);
 # mdms path for digit-lts mdms-v2 (/mdms-v2).
 beneficiary-idgen:
+  chart-version: "3.0.0"
   namespace: health
   image:
     tag: master-perf-2d35084
@@ -486,6 +489,7 @@ beneficiary-idgen:
   cpu_limits: "300m"
 
 health-service-request:
+  chart-version: "3.0.0"
   namespace: health
   image:
     tag: master-product-2.2-d6ca977

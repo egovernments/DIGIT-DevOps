@@ -57,8 +57,8 @@ published repo, so it is image-tag-only under Kargo (open design decision).
    in `test-lts.yaml`.
 3. **GitHub App `5118215`**: confirm it has write access to the repo **and** bypasses the
    `digit-lts` branch protection (promotions push commits directly).
-4. **Credentials in `test-lts-secrets.yaml`** (SOPS/AWS KMS, under
-   `cluster-configs.secrets.kargo`), required before Kargo starts:
+4. **Credentials in `test-lts-secrets.yaml`** (SOPS/Azure Key Vault `digit-lts-sops-kv`
+   after PR #5553, under `cluster-configs.secrets.kargo`), required before Kargo starts:
    - `imageCredentials` (egovio Docker Hub, for Warehouse tag discovery),
    - `gitCredentials` (App `5118215`: `githubAppID`, `githubAppInstallationID`,
      `githubAppPrivateKey`, `repoURL`) -- reuse the values from `unified-dev-secrets.yaml`,

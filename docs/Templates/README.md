@@ -1,8 +1,8 @@
 # Templates
 
-<sub>**Deployment Guide** · [Contents](../README.md)</sub>
+<sub>[Deployment Documentation](../README.md) - Templates</sub>
 
-Ready-to-copy files for the approach described in this guide. Replace every `<placeholder>` (see the [placeholder table](../README.md#placeholders)). Comments in each file explain the choices it encodes.
+Ready-to-copy files for the stages described in these docs. Replace every `<placeholder>` (see the [placeholder table](../README.md#placeholders)). Comments in each file explain the choices it encodes.
 
 ## Argo CD
 

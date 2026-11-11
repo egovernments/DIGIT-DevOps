@@ -1,34 +1,48 @@
-## Health services that DIGIT Studio depends on (namespace health), one Application
-## health-<name> each, in studio-project. Values: chart values.yaml +
-## environments/digit-studio-lts.yaml; their ConfigMaps and db Secret in health come
-## from Application digit-lts-cluster-configs-studio.
+## Health services DIGIT Studio depends on (namespace health) from the PUBLISHED charts
+## helm.digit.org/digit3/health, one Application health-<name> each, pinned by
+## <service>.chart-version in digit-studio-lts.yaml. Common layout: the whole env file is
+## passed as values ($values ref). ConfigMaps and db Secret in health come from
+## Application digit-lts-cluster-configs-studio.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
   name: digit-lts-studio-appset-health
   namespace: argocd
 spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
   generators:
-    - list:
-        elements:
-          - name: beneficiary-idgen
-          - name: health-service-request
+    - matrix:
+        generators:
+          - list:
+              elements:
+                - name: beneficiary-idgen
+                - name: health-service-request
+          - git:
+              repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+              revision: digit-lts
+              files:
+                - path: deploy-as-code/helm/environments/digit-studio-lts.yaml
+              requeueAfterSeconds: 60
 
   template:
     metadata:
-      name: 'health-{{name}}'
+      name: 'health-{{ .name }}'
 
     spec:
       project: studio-project
 
-      source:
-        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
-        targetRevision: digit-lts
-        path: deploy-as-code/helm/charts/health-services/{{name}}
-        helm:
-          valueFiles:
-            - values.yaml
-            - ../../../environments/digit-studio-lts.yaml
+      sources:
+        - repoURL: https://helm.digit.org/digit3/health
+          chart: '{{ .name }}'
+          targetRevision: '{{ index . .name "chart-version" }}'
+          helm:
+            releaseName: '{{ .name }}'
+            valueFiles:
+              - $values/deploy-as-code/helm/environments/digit-studio-lts.yaml
+        - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+          targetRevision: digit-lts
+          ref: values
 
       destination:
         server: https://kubernetes.default.svc

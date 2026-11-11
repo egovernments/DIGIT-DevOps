@@ -89,6 +89,11 @@ module "kubernetes" {
   vm_size        = var.vm_size
   node_count     = var.node_count
 
+  # AKS owns the node count while this is on; node_count above is ignored.
+  auto_scaling_enabled = var.auto_scaling_enabled
+  min_count            = var.min_count
+  max_count            = var.max_count
+
   # Already enabled on the live cluster; passed explicitly so a plan does not
   # turn them off. See variables.tf.
   oidc_issuer_enabled       = var.oidc_issuer_enabled

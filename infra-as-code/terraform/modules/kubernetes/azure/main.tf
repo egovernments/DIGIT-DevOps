@@ -14,8 +14,17 @@ resource "azurerm_kubernetes_cluster" "aks" {
   # the ENTIRE CLUSTER to be destroyed and recreated. An existing cluster must
   # keep whatever name its default pool already has.
   default_node_pool {
-    name                        = var.node_pool_name
-    node_count                  = var.node_count
+    name = var.node_pool_name
+
+    # With the autoscaler on, the node count belongs to AKS. Passing null leaves
+    # the attribute computed, so Terraform reads the live count instead of
+    # resetting it to var.node_count on every apply. With the autoscaler off the
+    # pool is sized by hand, exactly as before.
+    auto_scaling_enabled = var.auto_scaling_enabled
+    node_count           = var.auto_scaling_enabled ? null : var.node_count
+    min_count            = var.auto_scaling_enabled ? var.min_count : null
+    max_count            = var.auto_scaling_enabled ? var.max_count : null
+
     max_pods                    = 100
     vm_size                     = var.vm_size
     vnet_subnet_id              = var.vnet_subnet_id

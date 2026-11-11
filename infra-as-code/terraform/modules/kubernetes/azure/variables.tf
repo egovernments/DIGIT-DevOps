@@ -37,3 +37,22 @@ variable "aad_tenant_id" {
 variable "node_pool_max_surge" {
   default = "10%"
 }
+
+# Cluster autoscaler. Off by default so environments that size their pool by
+# hand keep managing node_count themselves.
+variable "auto_scaling_enabled" {
+  type    = bool
+  default = false
+}
+
+variable "min_count" {
+  description = "Lower bound for the autoscaler. Ignored unless auto_scaling_enabled."
+  type        = number
+  default     = null
+}
+
+variable "max_count" {
+  description = "Upper bound for the autoscaler. Ignored unless auto_scaling_enabled."
+  type        = number
+  default     = null
+}

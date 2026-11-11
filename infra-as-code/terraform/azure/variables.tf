@@ -77,13 +77,36 @@ variable "vm_size" {
   default     = "Standard_D4as_v5" # 4 vCPU, 16 GiB
 }
 
-# Left at the live cluster's current size so this apply does not move any pods.
-# Measured requests are 51.5 GiB memory / 17.1 vCPU, which would fit on 5 nodes,
-# but observed working-set memory is ~73 GiB, so shrinking is a separate decision.
+# Only used when auto_scaling_enabled is false. With the autoscaler on, AKS owns
+# the count and Terraform reads it rather than setting it.
 # Lowering this is an in-place scale (cordon + drain), not a rotation.
 variable "node_count" {
-  description = "Number of nodes in the AKS node pool"
+  description = "Number of nodes in the AKS node pool. Ignored while autoscaling is on."
   default     = 7
+}
+
+# Cluster autoscaler. Measured requests are 51.5 GiB memory / 17.1 vCPU and
+# observed working-set memory is ~73 GiB, so the floor stays at 5 nodes
+# (80 GiB) to hold the steady state without eviction pressure.
+variable "auto_scaling_enabled" {
+  description = "Let AKS scale the node pool between min_count and max_count"
+  type        = bool
+  default     = true
+}
+
+variable "min_count" {
+  description = "Autoscaler floor, sized to hold the current working set"
+  type        = number
+  default     = 5
+}
+
+# 10 nodes = 40 vCPU of Standard_D4as_v5. Regional quota at the time of writing
+# is standardDASv5Family 80/130 and total cores 220/260, so a full scale-out
+# plus the 10% upgrade surge stays inside both limits.
+variable "max_count" {
+  description = "Autoscaler ceiling"
+  type        = number
+  default     = 10
 }
 
 variable "os_disk_size_gb" {

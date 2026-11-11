@@ -1,0 +1,186 @@
+# LPMS agent (citizen chat). Same layout as core-services/billing (DIGIT common chart 0.0.5).
+# Environment-specific values (image tag, account, public address) go in environments/<env>.yaml; secrets in the
+# cluster-configs secret "lpms-agent" (see cluster-configs/templates/secrets/lpms-agent-secret.yaml).
+
+# Common Labels
+labels:
+  app: "lpms-agent"
+  group: "citizen-chat"
+
+# Public address: Claude (Anthropic's servers) and citizens' browsers reach the agent here. Served under a path of the
+# environment's domain, e.g. https://test-lts.digit.org/lpms-agent, straight to this service (not through Kong: the
+# agent checks its own tokens and the person's LPMS login itself).
+ingress:
+  enabled: true
+  zuul: false
+  context: "lpms-agent"
+  # The agent serves pages with forms and file uploads; the WAF's multipart rule is off already in common's defaults.
+  additionalAnnotations: |
+    nginx.ingress.kubernetes.io/proxy-body-size: "6m"
+
+# Its own database tables are created by the agent itself at start (Flyway), so no migration init container.
+initContainers:
+  dbMigration:
+    enabled: false
+
+# Container Configs
+image:
+  repository: "lpms-agent"
+replicas: "1"
+httpPort: 5175
+# Not "java-spring": that adds the DIGIT database settings and moves the actuator to "/", which this service doesn't
+# use (its probes are at <context>/actuator/health/...).
+appType: ""
+healthChecks:
+  enabled: true
+  livenessProbePath: "/lpms-agent/actuator/health/liveness"
+  readinessProbePath: "/lpms-agent/actuator/health/readiness"
+securityContext:
+  runAsUser: 10001
+  fsGroup: 10001
+resources: |
+  requests:
+    cpu: "100m"
+    memory: "384Mi"
+  limits:
+    cpu: "500m"
+    memory: "768Mi"
+
+# Settings of the service (environment variables of the image; see README "Hosting").
+agent:
+  # The public address, no trailing slash, e.g. https://test-lts.digit.org/lpms-agent (must end with /<ingress.context>).
+  publicAddress: ""
+  # The LPMS account (tenant) this deployment serves, and the name people see for the connector (the account owner's).
+  account: ""
+  displayName: ""
+  # The account's Keycloak realm, e.g. https://test-lts.digit.org/keycloak/realms/<account>.
+  keycloakIssuer: ""
+  # LPMS's gateway; the in-cluster address can be used instead of the public one.
+  lpmsBaseUrl: ""
+  # The account's citizen website; empty = <lpmsBaseUrl>/license/citizen/<account>.
+  citizenWebsite: ""
+  # From the account's Organization profile.
+  country: "IN"
+  timeZone: "Asia/Kolkata"
+  # The account owner's notice shown when a person allows an app.
+  ownerNotice: ""
+  preparedLifetime: "PT60M"
+  accessTokenTtl: "PT10M"
+  refreshTokenTtl: "PT12H"
+  # Tool calls one login may make in a minute (0 = no limit); beyond it the assistant is told to wait.
+  toolCallsPerMinute: "60"
+  # Daily clean-up of ended logins and old prepared applications (cron, in timeZone).
+  housekeepingCron: "0 30 3 * * *"
+  # Which AI assistants citizens of this account may use (the account owner decides).
+  # enabled: false = no assistant at all. allowed: each assistant's name and the address it sends people back to after
+  # login; add an entry to allow another (e.g. a company's own agent).
+  assistants:
+    enabled: true
+    allowed:
+      - name: "Claude"
+        redirectUris:
+          - "https://claude.ai/api/mcp/auth_callback"
+          - "https://claude.com/api/mcp/auth_callback"
+  # The agent's database: the cluster's PostgreSQL (egov-config db-url) by default; set dbUrl to use another.
+  dbUrl: ""
+# Name of the cluster-configs secret holding signing-key.jwk.json, token-encryption.key (and db-password if dbUrl is set).
+secretName: "lpms-agent"
+
+extraVolumes: |
+  - name: agent-keys
+    secret:
+      secretName: {{ .Values.secretName }}
+      items:
+        - {key: signing-key.jwk.json, path: signing-key.jwk.json}
+        - {key: token-encryption.key, path: token-encryption.key}
+extraVolumeMounts: |
+  - name: agent-keys
+    mountPath: /secrets
+    readOnly: true
+
+# Additional Container Envs
+env: |
+  - name: LPMS_AGENT_PORT
+    value: {{ .Values.httpPort | quote }}
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    value: "/{{ .Values.ingress.context }}"
+  - name: LPMS_AGENT_ISSUER
+    value: {{ required "agent.publicAddress is required" .Values.agent.publicAddress | quote }}
+  - name: LPMS_AGENT_FORWARD_HEADERS
+    value: "framework"
+  - name: LPMS_AGENT_ALLOWED_HOSTS
+    value: {{ regexReplaceAll "^https?://([^/]+).*$" .Values.agent.publicAddress "${1}" | quote }}
+  - name: LPMS_AGENT_ALLOWED_ORIGINS
+    value: {{ printf "%s,https://claude.ai" (regexReplaceAll "^(https?://[^/]+).*$" .Values.agent.publicAddress "${1}") | quote }}
+  - name: LPMS_AGENT_CIMD_ALLOW_LOOPBACK
+    value: "false"
+  - name: LPMS_AGENT_ACCOUNT
+    value: {{ required "agent.account is required" .Values.agent.account | quote }}
+  - name: LPMS_AGENT_DISPLAY_NAME
+    value: {{ default (printf "Licences and permits (%s)" .Values.agent.account) .Values.agent.displayName | quote }}
+  - name: LPMS_AGENT_KEYCLOAK_ISSUER
+    value: {{ required "agent.keycloakIssuer is required" .Values.agent.keycloakIssuer | quote }}
+  - name: LPMS_AGENT_LPMS_BASE_URL
+    value: {{ required "agent.lpmsBaseUrl is required" .Values.agent.lpmsBaseUrl | quote }}
+  {{- if .Values.agent.citizenWebsite }}
+  - name: LPMS_AGENT_CITIZEN_WEBSITE
+    value: {{ .Values.agent.citizenWebsite | quote }}
+  {{- end }}
+  - name: LPMS_AGENT_APPLY_COUNTRY
+    value: {{ .Values.agent.country | quote }}
+  - name: LPMS_AGENT_TIME_ZONE
+    value: {{ .Values.agent.timeZone | quote }}
+  {{- if .Values.agent.ownerNotice }}
+  - name: LPMS_AGENT_OWNER_NOTICE
+    value: {{ .Values.agent.ownerNotice | quote }}
+  {{- end }}
+  - name: LPMS_AGENT_PREPARED_LIFETIME
+    value: {{ .Values.agent.preparedLifetime | quote }}
+  - name: LPMS_AGENT_ACCESS_TOKEN_TTL
+    value: {{ .Values.agent.accessTokenTtl | quote }}
+  - name: LPMS_AGENT_REFRESH_TOKEN_TTL
+    value: {{ .Values.agent.refreshTokenTtl | quote }}
+  - name: LPMS_AGENT_TOOL_CALLS_PER_MINUTE
+    value: {{ .Values.agent.toolCallsPerMinute | quote }}
+  - name: LPMS_AGENT_HOUSEKEEPING_CRON
+    value: {{ .Values.agent.housekeepingCron | quote }}
+  - name: LPMS_AGENT_ASSISTANTS_ENABLED
+    value: {{ .Values.agent.assistants.enabled | quote }}
+  - name: LPMS_AGENT_ASSISTANTS_ALLOWED
+    value: {{ $list := list }}{{ range .Values.agent.assistants.allowed }}{{ $list = append $list (printf "%s=%s" .name (join " " .redirectUris)) }}{{ end }}{{ join ";" $list | quote }}
+  {{- if .Values.agent.dbUrl }}
+  - name: LPMS_AGENT_DB_URL
+    value: {{ .Values.agent.dbUrl | quote }}
+  - name: LPMS_AGENT_DB_USER
+    value: "lpms_agent"
+  - name: LPMS_AGENT_DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: {{ .Values.secretName }}
+        key: db-password
+  {{- else }}
+  - name: LPMS_AGENT_DB_URL
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: db-url
+  - name: LPMS_AGENT_DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: LPMS_AGENT_DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+  {{- end }}
+  - name: LPMS_AGENT_SIGNING_KEY_FILE
+    value: "/secrets/signing-key.jwk.json"
+  - name: LPMS_AGENT_TOKEN_KEY_FILE
+    value: "/secrets/token-encryption.key"
+  - name: JAVA_TOOL_OPTIONS
+    value: "-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+
+# Extra route for the first place MCP clients look for the login settings (see templates/wellknown-ingress.yaml).
+wellKnownRoute: false

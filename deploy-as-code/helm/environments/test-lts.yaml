@@ -361,6 +361,33 @@ digit-telemetry-forwarder:
     # i.e. the same PostHog the licence UIs send to. No gateway login (authTokenUrl empty).
     retryScheduleMs: ""        # empty = 5 min, 1 h, 2 h, 10 h -> retry topics -retry-0 .. -retry-3
 
+## Citizen chat agent (charts/telemetry-services/lpms-agent): MCP connector for Claude, one release per LPMS account.
+## Public at https://test-lts.digit.org/lpms-agent (own ingress, not via Kong). Keys live in the cluster-configs
+## secret "lpms-agent" (test-lts-secrets.yaml); tables are created by the agent in the cluster DB (egov-config db-url).
+## Once, in Keycloak realm ESMAGICO9400 client "citizen": allow redirect https://test-lts.digit.org/lpms-agent/login/oauth2/code/*
+lpms-agent:
+  image:
+    # Repository contains "/" so common.image uses it verbatim (skips global.containerRegistry)
+    repository: "easeac/lpms-agent"
+    tag: "0.1.3"
+  ingress:
+    context: "lpms-agent"
+  agent:
+    publicAddress: "https://test-lts.digit.org/lpms-agent"
+    account: "ESMAGICO9400"
+    displayName: ""              # empty = "Licences and permits (ESMAGICO9400)"; set to the account owner's name if wanted
+    keycloakIssuer: "https://test-lts.digit.org/keycloak/realms/ESMAGICO9400"
+    lpmsBaseUrl: "https://test-lts.digit.org"
+    country: "IN"
+    timeZone: "Asia/Kolkata"
+    ownerNotice: ""              # optional privacy notice shown on the permission page
+    assistants:
+      enabled: true
+      allowed:
+        - name: "Claude"
+          redirectUris: ["https://claude.ai/api/mcp/auth_callback", "https://claude.com/api/mcp/auth_callback"]
+    dbUrl: ""                    # empty = cluster DB from egov-config db-url + "db" secret (user must be able to create tables)
+
 accesscontrol-java:
   tracing-export-enabled: "true"
 

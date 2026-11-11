@@ -1,0 +1,31 @@
+{{- /*
+MCP clients such as Claude look for the login settings of an address with a path first at
+/.well-known/oauth-authorization-server/<path> (on the domain root). The agent also answers at the third place they try
+(<path>/.well-known/openid-configuration, tested 27 Oct), so this route only saves a step; it rewrites the first place
+to the agent's own. Off unless wellKnownRoute is true; needs nginx ingress (rewrite-target).
+*/ -}}
+{{- if and .Values.ingress.enabled .Values.wellKnownRoute }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ template "common.name" . }}-well-known
+  namespace: {{ .Values.namespace }}
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/rewrite-target: /{{ .Values.ingress.context }}/.well-known/oauth-authorization-server
+  labels:
+{{- include "common.labels" . | nindent 4 }}
+spec:
+  rules:
+  - host: {{ .Values.ingress.hostName | default .Values.global.domain }}
+    http:
+      paths:
+      - path: /.well-known/oauth-authorization-server/{{ .Values.ingress.context }}
+        pathType: Exact
+        backend:
+          service:
+            name: {{ template "common.name" . }}
+            port:
+              number: {{ .Values.httpPort }}
+{{- end }}

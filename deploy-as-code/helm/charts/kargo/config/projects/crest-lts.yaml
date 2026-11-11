@@ -1,0 +1,77 @@
+# CREST Kargo pipeline on the digit-lts AKS cluster.
+#
+# Freight per service = image tag (docker.io/egovio/<service>) + packaged Helm chart
+# version (helm.digit.org/digit3/crest). ONE stage, digit-lts: a promotion MERGES the
+# Freight's keys into the module's env file on the digit-lts branch --
+#   deploy-as-code/helm/environments/crest-lts.yaml
+#     crest.chart-version, crest.image.tag, crest.initContainers.dbMigration.image.tag
+#     crest-ui.chart-version, crest-ui.image.tag
+# -- and the EXISTING ApplicationSet (digit-lts-crest-appset-crest, root layout, git
+# files generator on crest-lts.yaml, requeueAfterSeconds: 60) re-reads the file and
+# Argo CD syncs within ~60s. So there is NO argocd-update step here and NO argocd:
+# block: the apps keep coming from crest-app-set-crest.yaml, Kargo only writes the tags.
+#
+# NOTHING IS AUTOMATIC: Freight is assembled by hand (freightCreationPolicy: Manual) and
+# every promotion is clicked (autoPromotion: false). There is no dev/qa/uat chain on this
+# cluster -- digit-lts is the single stage, taking Freight straight from the Warehouse.
+# A DEDICATED Kargo project namespace, NOT the app namespace `crest`: a Kargo Project
+# creates and labels its own namespace, and it refuses to adopt a namespace that already
+# exists without the kargo.akuity.io/project label (the `crest` namespace is pre-created
+# unlabeled by cluster-configs). So the control objects (Project, Warehouses, Stages,
+# git/image-cred Secrets) live in `crest-lts`; the crest workloads stay in `crest`.
+kargo:
+  project: crest-lts
+  registry: docker.io/egovio
+  # Only used by an argocd-update step / the kargo-managed ApplicationSets, neither of
+  # which this project uses; kept so Stage/verification names read consistently.
+  argocdAppPrefix: crest-
+  git:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+  # Published charts: https://helm.digit.org/digit3/crest holds crest + crest-ui.
+  chartRepo: https://helm.digit.org/digit3/crest
+  # Pin to the 3.x line so a later major never auto-enters Freight.
+  chartSemver: "^3.0.0"
+  # crest builds are tagged main-<sha> (master-<sha> allowed for safety); the trailing
+  # sha anchor keeps the -amd64/-arm64 manifest children out of Freight.
+  allowTags: '^(main|master)-.*[0-9a-f]{7,}$'
+  # digit-lts is a single standalone stage, not a uat in a dev->qa->uat chain, so the
+  # default [uat] master-only guard does not apply; allowTags already bounds what enters.
+  masterOnlyStages: []
+  # Write promoted keys by merge (creates them if absent; crest-lts.yaml already seeds them).
+  envFileWrite: merge
+  # Deploy-state verification is off for now (needs a read-only kubeconfig Secret for this
+  # cluster, verify-kubeconfig-digit-lts). Enable once that Secret is rendered.
+  verify:
+    enabled: false
+
+  services:
+    # Backend API. Freight = egovio/crest image tag (written to the app AND the crest-db
+    # migration image) + chart crest. DB migrations run as an init container.
+    - name: crest
+      chart: crest
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    # UI bundle. Freight = egovio/crest-ui image tag + chart crest-ui. No DB migration.
+    - name: crest-ui
+      chart: crest-ui
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+
+  stages:
+    - name: digit-lts
+      color: "#3BA9C2"
+      branch: digit-lts
+      envFile: deploy-as-code/helm/environments/crest-lts.yaml
+      autoPromotion: false
+
+  teams:
+    - name: devops
+      role: admin
+      groups: [egovernments:micro-service-devops]

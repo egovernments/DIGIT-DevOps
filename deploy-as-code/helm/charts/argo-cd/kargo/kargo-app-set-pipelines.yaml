@@ -1,0 +1,57 @@
+# One Application per Kargo project (its pipeline chart + config/projects/<name>.yaml),
+# read from and promoting to the digit-lts branch. Each element's name is BOTH the config
+# file basename and the Kargo project namespace the objects deploy into.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: digit-lts-kargo-appset-pipelines
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          # CREST: published charts (helm.digit.org/digit3/crest) + per-env values;
+          # see config/projects/crest-lts.yaml
+          - name: crest-lts
+            branch: digit-lts
+
+  template:
+    metadata:
+      name: 'kargo-{{name}}'
+
+    spec:
+      project: kargo-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: '{{branch}}'
+        path: deploy-as-code/helm/charts/kargo
+        helm:
+          valueFiles:
+            - values.yaml
+            - config/projects/{{name}}.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{name}}'
+
+      # strictSemvers is a CRD default; ignoring it stops Warehouses showing OutOfSync
+      ignoreDifferences:
+        - group: kargo.akuity.io
+          kind: Warehouse
+          jqPathExpressions:
+            - '.spec.subscriptions[]?.image.strictSemvers'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          # the project namespace is created + labeled by Kargo's Project controller
+          - CreateNamespace=false
+        retry:
+          limit: 10
+          backoff:
+            duration: 15s
+            factor: 2
+            maxDuration: 5m

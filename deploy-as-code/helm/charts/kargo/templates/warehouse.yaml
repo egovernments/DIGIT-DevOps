@@ -1,0 +1,64 @@
+{{- $k := .Values.kargo }}
+{{- range $svc := $k.services }}
+{{- /* `image: false` = chart-only service (e.g. cluster-configs): no image subscription. */}}
+{{- $hasImage := ne (toString $svc.image) "false" }}
+{{- $chartRepo := $svc.chartRepo | default $k.chartRepo }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ $k.project }}
+spec:
+  freightCreationPolicy: {{ $svc.freightCreationPolicy | default "Automatic" }}
+  {{- if $svc.interval }}
+  interval: {{ $svc.interval }}
+  {{- end }}
+  subscriptions:
+    {{- if $hasImage }}
+    - image:
+        repoURL: {{ $k.registry }}/{{ $svc.repo | default $svc.name }}
+        imageSelectionStrategy: {{ $svc.imageSelectionStrategy | default "NewestBuild" }}
+        {{- $allowTags := $svc.allowTags | default $k.allowTags }}
+        {{- if $svc.extraAllowTags }}
+        {{- $allowTags = printf "%s|%s" $allowTags $svc.extraAllowTags }}
+        {{- end }}
+        {{- if $allowTags }}
+        allowTagsRegexes:
+          - {{ $allowTags | quote }}
+        {{- end }}
+        cacheByTag: {{ $svc.cacheByTag | default false }}
+        discoveryLimit: {{ $svc.discoveryLimit | default 10 }}
+    {{- end }}
+    {{- if $svc.chart }}
+    # Packaged Helm chart artifact: the chart VERSION joins the image tag in
+    # Freight, so a promotion pins which chart release renders this build.
+    - chart:
+        repoURL: {{ $chartRepo }}
+        name: {{ $svc.chart }}
+        {{- with ($svc.chartSemver | default $k.chartSemver) }}
+        semverConstraint: {{ . | quote }}
+        {{- end }}
+        discoveryLimit: {{ $svc.discoveryLimit | default 10 }}
+    {{- end }}
+    {{- if $svc.configPath }}
+    # Config artifact. Makes the service's chart directory part of Freight, so a
+    # promotion carries the image tag AND the config it was tested with, pinned
+    # together. This is Kargo's "Common Case": one Warehouse subscribing to an
+    # image repo *and* a git repo.
+    #
+    # includePaths entries are EXACT paths by default (a directory implicitly
+    # selects everything under it) -- no glob:/regex: prefix wanted here.
+    #
+    # It is also what prevents a feedback loop: the dev Stage pushes its own
+    # promotion commits to this same branch, but those touch the env file under
+    # environments/, not this path, so they create no new Freight.
+    - git:
+        repoURL: {{ $k.git.repoURL }}
+        branch: {{ $k.configBranch | default (index $k.stages 0).branch }}
+        commitSelectionStrategy: NewestFromBranch
+        includePaths:
+          - {{ $svc.configPath | quote }}
+        discoveryLimit: {{ $svc.discoveryLimit | default 10 }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,130 @@
+# DIGIT Studio Kargo pipeline on digit-lts. See ../../../argo-cd/kargo/README.md.
+kargo:
+  # Dedicated project namespace, not the app namespaces studio/health (Kargo creates+labels its own).
+  project: studio-lts
+  registry: docker.io/egovio
+  argocdAppPrefix: studio-
+  git:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+  # Default chart repo (studio services); health services override to digit3/health below.
+  chartRepo: https://helm.digit.org/digit3/studio
+  chartSemver: "^3.0.0"
+  # Studio image tags are scattered families all ending in the trailing sha, so anchor on it
+  # (also keeps the -amd64/-arm64 manifest children out of Freight). digit-studio overrides below.
+  allowTags: '^.*-[0-9a-f]{7,}$'
+  masterOnlyStages: []          # single standalone stage, not a uat in a dev->qa->uat chain
+  envFileWrite: merge
+  verify:
+    enabled: false              # enable once a read-only kubeconfig Secret exists for this cluster
+
+  services:
+    # UI shell (chart digit-studio 3.0.1). No DB migration. Its tags end in a build number
+    # (studio-develop-dev-<sha>-<n>), not a bare sha, so it needs its own allowTags.
+    - name: digit-studio
+      chart: digit-studio
+      allowTags: '^studio-.*-[0-9]{3,}$'
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: public-service
+      chart: public-service
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: public-service-init
+      chart: public-service-init
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: studio-calculator-service
+      chart: studio-calculator-service
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: studio-pdf
+      chart: studio-pdf
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: studio-hrms
+      chart: studio-hrms
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: studio-individual
+      chart: studio-individual
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: studio-pdf-helper-service
+      chart: studio-pdf-helper-service
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: studio-service-request
+      chart: studio-service-request
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: studio-user-otp
+      chart: studio-user-otp
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    # Health services Studio depends on: charts from digit3/health (not digit3/studio).
+    - name: beneficiary-idgen
+      chart: beneficiary-idgen
+      chartRepo: https://helm.digit.org/digit3/health
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: health-service-request
+      chart: health-service-request
+      chartRepo: https://helm.digit.org/digit3/health
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+
+  stages:
+    - name: digit-lts
+      color: "#3BA9C2"
+      branch: digit-lts
+      envFile: deploy-as-code/helm/environments/digit-studio-lts.yaml
+      autoPromotion: false
+
+  teams:
+    - name: kargo-studio
+      role: admin                     # create Freight + promote to digit-lts
+      groups: [egovernments:kargo-studio]

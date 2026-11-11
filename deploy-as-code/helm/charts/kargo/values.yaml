@@ -1,0 +1,117 @@
+# Defaults; overridden per project by config/projects/<project>.yaml.
+# Credentials + the kargo-api admin Secret are rendered by the cluster-configs chart.
+kargo:
+  project: ""
+  registry: docker.io/egovio
+  argocdAppPrefix: egov-
+  git:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+  services: []
+  stages: []
+
+  # Branch that promotable config is AUTHORED on -- the one a service's
+  # `configPath` git subscription watches. Defaults to the first stage's branch
+  # (the authoring environment), which is correct for every project here.
+  configBranch: ""
+
+  # Packaged Helm charts (per service, opt-in):
+  #   chart: <name>       chart name in the Helm repo. Adds a chart subscription to
+  #                       the Warehouse, so Freight pins the chart version next to
+  #                       the image tag; promotion writes it to
+  #                       <valuesKey>.<chartVersionKey> in the stage's envFile.
+  #   chartRepo / chartSemver   per-service overrides of the project keys below.
+  #   image: false        chart-only service (e.g. cluster-configs): no image
+  #                       subscription, no image keys, no master-only guard.
+  #   valuesKey: <key>    env-file section the keys are written under (default:
+  #                       the service name).
+  # yaml-update only REPLACES keys, so every key a promotion writes
+  # (image.tag, initContainers.dbMigration.image.tag, <chartVersionKey>) must be
+  # seeded in the env file first.
+  chartRepo: ""
+  chartSemver: ""
+  chartVersionKey: chart-version
+
+  # Per stage (in `stages:`), optional:
+  #   direct: true   with `from`, the stage ALSO accepts the service's Freight
+  #                  straight from its Warehouse, so a promotion may skip the
+  #                  upstream stage. masterOnlyStages still applies.
+
+  # Stage names whose promotion only accepts master-* Freight. On these stages the
+  # mutating promotion steps are guarded with an `if` on the image tag, so a non
+  # master build is a no-op (nothing is written to the env file). Lets feature/ticket
+  # builds reach dev/qa while keeping the named stages on master only.
+  # Default is [uat] (org policy: uat is mainline only). A project may override it,
+  # e.g. `masterOnlyStages: []` to allow any discovered Freight into every stage.
+  masterOnlyStages: [uat]
+
+  # Post-promotion deploy-state verification (needs Argo Rollouts).
+  # Each stage sets verifyKubeconfigSecret (read-only kubeconfig for that env's
+  # cluster); the Job checks the workload runs the promoted tag and is healthy.
+  verify:
+    enabled: false
+    namespace: egov            # fallback ns; per-service `namespace` overrides
+    # The Deployment checked is the service name; a service whose chart names it
+    # differently sets `deploymentName` (e.g. fullnameOverride).
+    image: alpine/k8s:1.34.1     # needs a shell + kubectl (not distroless)
+    # Must exceed the slowest git-push stage's roll-out lag. On qa/uat Kargo only
+    # pushes the commit (no argocd-update -- the target cluster's Argo CD is remote
+    # and unreachable from the control plane), so the clock is: Argo CD poll
+    # (reconciliation, ~120s on qa) + image pull + roll-out to Ready. 300s lost that
+    # race by seconds; 600s covers it with margin. dev still verifies quickly because
+    # its stage runs argocd-update to force an immediate sync.
+    timeoutSeconds: 600
+    # VERIFIED needs the completed rollout to hold this long with no container
+    # restarts: a pod that turns Ready and then crashes fails verification instead of
+    # passing at the first good poll.
+    stableSeconds: 60
+
+  # GitHub teams granted access to THIS project (see templates/rbac.yaml).
+  # Set per project in config/projects/<project>.yaml -- each project gets its
+  # own list, so access is never shared across projects.
+  #   role: admin | promoter | viewer  -> the kargo-<role> Role that Kargo
+  #   creates in every project namespace.
+  # groups are "<org>:<team-slug>" as emitted by the Dex github connector
+  # configured with teamNameField: slug.
+  #
+  # This list is the SINGLE source of truth for Kargo access: rbac.yaml
+  # derives both the in-project role and the cluster-scoped login /
+  # project-list grant from it. Nothing needs adding to
+  # config/control-plane.yaml when a team is added here.
+  #
+  # Per entry:
+  #   name           required. Names the generated ServiceAccount/Role.
+  #   role           admin | promoter | viewer (default viewer).
+  #   groups         GitHub teams, "<org>:<team-slug>". Matches the groups claim.
+  #   emails         individual addresses. Matches the email claim. Use when a
+  #                  grant applies to some members of a team rather than all of
+  #                  it -- GitHub cannot express that, so there is no team to
+  #                  name. groups and emails are OR'd; either or both may be set.
+  #   manageFreight  grants a SEPARATE Role (team-<name>-freight) with full
+  #                  create/update/delete over Freight. Freight is PROJECT-level
+  #                  and cannot be scoped to a stage, so only grant it to the
+  #                  team that assembles Freight -- typically the dev promoters.
+  #                  Promoters without it can still promote existing Freight.
+  #   promoteStages  role: promoter only. Environment names from `stages:`
+  #                  (dev/qa/uat) this team may promote TO. Omit for the stock
+  #                  project-wide promoter. rbac.yaml expands each entry to
+  #                  every "<service>-<stage>" Stage object, so adding a
+  #                  service needs no RBAC change. A name not in `stages:` is
+  #                  a hard template error rather than a silent no-op.
+  #
+  # Splitting view from promote is two entries, not one:
+  #   - name: health-devs          # everyone: read the whole project
+  #     role: viewer
+  #     groups: [egovernments:unified-health-dev]
+  #   - name: health-qa-promoters  # a subset: may promote to QA only
+  #     role: promoter
+  #     promoteStages: [qa]
+  #     emails: [a@egovernments.org, b@egovernments.org]
+  teams: []
+
+  # Namespace for the "global" per-team ServiceAccounts that grant login and
+  # the project list. MUST match the API server's
+  # GLOBAL_SERVICE_ACCOUNT_NAMESPACES (the Kargo release namespace by
+  # default; extend via api.oidc.globalServiceAccounts.namespaces). If this
+  # points somewhere Kargo does not scan, the ServiceAccounts are created but
+  # silently ignored and users see an empty project list.
+  globalNamespace: kargo

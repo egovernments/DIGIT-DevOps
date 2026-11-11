@@ -1,0 +1,59 @@
+# Kargo control-plane install values for the digit-lts AKS cluster. See ../../argo-cd/kargo/README.md.
+api:
+  host: kargo-latest.digit.org
+  basePath: ""
+  tls:
+    enabled: false
+    terminatedUpstream: true    # nginx terminates TLS; keep generated URLs https
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    tls:
+      enabled: true
+      selfSignedCert: false
+      secretName: kargo-latest.digit.org-tls-certs
+    pathType: Prefix
+  adminAccount:
+    enabled: true               # local admin until GitHub SSO is confirmed, then set false
+    tokenTTL: 24h
+  secret:
+    name: kargo-api
+  oidc:
+    enabled: true
+    dex:
+      enabled: true
+      envFrom:
+        - secretRef:
+            name: kargo-dex-github
+      connectors:
+        - type: github
+          id: github
+          name: GitHub
+          config:
+            clientID: $GITHUB_CLIENT_ID
+            clientSecret: $GITHUB_CLIENT_SECRET
+            redirectURI: https://kargo-latest.digit.org/dex/callback
+            # Both orgs; each must approve the OAuth app for private team reads.
+            orgs:
+              - name: egovernments
+              - name: digitnxt
+            teamNameField: slug   # groups claim = <org>:<team-slug>
+  argocd:
+    urls:
+      "": https://test-lts.digit.org/argocd
+
+controller:
+  argocd:
+    integrationEnabled: true
+    namespace: argocd
+    watchArgocdNamespaceOnly: true
+  gitClient:
+    name: kargo
+    email: kargo@digit.org
+
+webhooksServer:
+  replicas: 2                    # survive bulk Warehouse/Stage applies without webhook timeout

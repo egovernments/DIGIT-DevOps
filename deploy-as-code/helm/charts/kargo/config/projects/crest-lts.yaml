@@ -1,0 +1,44 @@
+# CREST Kargo pipeline on digit-lts. See ../../../argo-cd/kargo/README.md.
+kargo:
+  # Dedicated project namespace, not the app ns `crest` (Kargo creates+labels its own).
+  project: crest-lts
+  registry: docker.io/egovio
+  argocdAppPrefix: crest-
+  git:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+  chartRepo: https://helm.digit.org/digit3/crest
+  chartSemver: "^3.0.0"
+  allowTags: '^(main|master)-.*[0-9a-f]{7,}$'
+  masterOnlyStages: []          # single standalone stage, not a uat in a dev->qa->uat chain
+  envFileWrite: merge
+  verify:
+    enabled: false              # enable once a read-only kubeconfig Secret exists for this cluster
+
+  services:
+    - name: crest
+      chart: crest
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: crest-ui
+      chart: crest-ui
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+
+  stages:
+    - name: digit-lts
+      color: "#3BA9C2"
+      branch: digit-lts
+      envFile: deploy-as-code/helm/environments/crest-lts.yaml
+      autoPromotion: false
+
+  teams:
+    - name: devops
+      role: admin
+      groups: [egovernments:micro-service-devops]

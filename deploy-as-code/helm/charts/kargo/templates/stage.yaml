@@ -1,0 +1,193 @@
+{{- $k := .Values.kargo }}
+{{- range $svc := $k.services }}
+{{- $repo := $svc.repo | default $svc.name }}
+{{- /* A service tracks an image unless it sets `image: false` (a chart-only service,
+       e.g. cluster-configs). The image drives the master-only guard, so a chart-only
+       service has no guard. */}}
+{{- $hasImage := ne (toString $svc.image) "false" }}
+{{- /* Packaged chart: a Freight also carries the chart version, written to
+       <valuesKey>.<chartVersionKey> in the stage's env file next to the image tags. */}}
+{{- $chartRepo := $svc.chartRepo | default $k.chartRepo }}
+{{- $valuesKey := $svc.valuesKey | default $svc.name }}
+{{- /* envFileWrite: merge -- write the Freight's keys by merging a generated file into
+       the env file (yaml-merge CREATES missing keys), so nothing has to be seeded.
+       Default (update) uses yaml-update, which only replaces existing keys. */}}
+{{- $mergeWrite := eq ($k.envFileWrite | default "update") "merge" }}
+{{- $imageTag := printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo }}
+{{- $chartVersion := printf "${{ chartFrom(\"%s\", \"%s\").Version }}" $chartRepo $svc.chart }}
+{{- $chartVersionKey := $k.chartVersionKey | default "chart-version" }}
+{{- range $stage := $k.stages }}
+{{- /* Config promotion is only meaningful on a stage that has an upstream. The
+       first stage IS the authoring branch -- its ArgoCD already auto-syncs that
+       branch, so copying there is at best a no-op and at worst reverts an edit
+       made after the Freight was assembled. */}}
+{{- $promoteConfig := and $svc.configPath $stage.from }}
+{{- $masterOnly := and $hasImage (has $stage.name ($k.masterOnlyStages | default list)) }}
+{{- $masterGuard := printf "${{ imageFrom(\"%s/%s\").Tag matches '^master-' }}" $k.registry $repo }}
+{{- /* Loud reject for master-only stages, as a ternary:
+         master tag     -> true   (boolean)  -> the step runs normally
+         non-master tag -> a STRING (non-boolean) -> Kargo treats a non-boolean `if`
+                           result as a step failure, so the whole Promotion is Errored.
+       Must NOT be written as `<bool> || '<string>'`: expr evaluates that as an invalid
+       operation ("mismatched types bool and string") for EVERY tag, master included,
+       which blocked all uat promotions (the bug this replaces). $masterGuard (plain
+       boolean) only SKIPS steps -- an all-skipped Promotion reports Succeeded, which is
+       misleading -- so git-clone carries $masterAssert to fail loudly before any
+       mutation, while the mutating steps keep $masterGuard as defence-in-depth. */}}
+{{- $masterAssert := printf "${{ imageFrom(\"%s/%s\").Tag matches '^master-' ? true : 'REJECTED: only master-* images may be promoted to %s' }}" $k.registry $repo $stage.name }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: {{ $svc.name }}-{{ $stage.name }}
+  namespace: {{ $k.project }}
+  {{- if $stage.color }}
+  annotations:
+    kargo.akuity.io/color: {{ $stage.color | quote }}
+  {{- end }}
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: {{ $svc.name }}
+      sources:
+      {{- if $stage.from }}
+        {{- if $stage.direct }}
+        # also straight from the Warehouse: promotion may skip {{ $stage.from }}
+        direct: true
+        {{- end }}
+        stages:
+          - {{ $svc.name }}-{{ $stage.from }}
+      {{- else }}
+        direct: true
+      {{- end }}
+  {{- if and $k.verify.enabled $stage.verifyKubeconfigSecret $hasImage }}
+  verification:
+    analysisTemplates:
+      - name: deploy-state-check
+    args:
+      - name: kubeconfigSecret
+        value: {{ $stage.verifyKubeconfigSecret | quote }}
+      - name: namespace
+        value: {{ $svc.namespace | default $k.verify.namespace | quote }}
+      - name: deployment
+        value: {{ $svc.deploymentName | default $svc.name | quote }}
+      - name: expectedTag
+        value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
+  {{- end }}
+  promotionTemplate:
+    spec:
+      steps:
+        - uses: git-clone
+          {{- if $masterOnly }}
+          # Master-only stage guard: a non-master tag makes this a non-boolean expr,
+          # which fails the step -> Promotion rejected (loud), not silently skipped.
+          if: {{ $masterAssert | quote }}
+          {{- end }}
+          config:
+            repoURL: {{ $k.git.repoURL }}
+            checkout:
+              {{- if $promoteConfig }}
+              # The config revision PINNED IN THIS FREIGHT -- deliberately not the
+              # upstream branch HEAD, so what QA tested is what UAT receives.
+              - commit: {{ printf "${{ commitFrom(\"%s\").ID }}" $k.git.repoURL | quote }}
+                path: ./src
+              {{- end }}
+              - branch: {{ $stage.branch }}
+                path: ./repo
+      {{- if $promoteConfig }}
+        # Overlay the Freight's config onto this env's branch. NOTE: copy does not
+        # prune -- a file deleted at the source is not deleted downstream.
+        - uses: copy
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            inPath: ./src/{{ $svc.configPath }}
+            outPath: ./repo/{{ $svc.configPath }}
+      {{- end }}
+      {{- if $mergeWrite }}
+        {{- /* The keys under <valuesKey> as a YAML document. Values are single-quoted so
+               a tag or version always stays a string. Written to the workspace root,
+               outside ./repo, so it is never committed. */}}
+        - uses: file-write
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            path: ./kargo-promoted-values.yaml
+            overwrite: true
+            contents: |
+              {{ $valuesKey }}:
+              {{- if $hasImage }}
+                image:
+                  tag: {{ squote $imageTag }}
+              {{- if $svc.dbMigration }}
+                initContainers:
+                  dbMigration:
+                    image:
+                      tag: {{ squote $imageTag }}
+              {{- end }}
+              {{- end }}
+              {{- if $svc.chart }}
+                {{ $chartVersionKey }}: {{ squote $chartVersion }}
+              {{- end }}
+        - uses: yaml-merge
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            inFiles:
+              - ./repo/{{ $stage.envFile }}
+              - ./kargo-promoted-values.yaml
+            outFile: ./repo/{{ $stage.envFile }}
+      {{- else }}
+      {{- /* yaml-update only replaces keys that already exist: every key below must
+             be seeded in the env file before the first promotion. */}}
+        - uses: yaml-update
+          {{- if $masterOnly }}
+          # Only master-* builds may be written to this stage's env file.
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            path: ./repo/{{ $stage.envFile }}
+            updates:
+              {{- if $hasImage }}
+              - key: {{ $valuesKey }}.image.tag
+                value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
+              {{- if $svc.dbMigration }}
+              - key: {{ $valuesKey }}.initContainers.dbMigration.image.tag
+                value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
+              {{- end }}
+              {{- end }}
+              {{- if $svc.chart }}
+              - key: {{ $valuesKey }}.{{ $chartVersionKey }}
+                value: {{ printf "${{ chartFrom(\"%s\", \"%s\").Version }}" $chartRepo $svc.chart | quote }}
+              {{- end }}
+      {{- end }}
+        - uses: git-commit
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            path: ./repo
+            message: {{ printf "kargo: promote %s to %s" $svc.name $stage.name | quote }}
+        - uses: git-push
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            path: ./repo
+            targetBranch: {{ $stage.branch }}
+      {{- if $stage.argocdUpdate }}
+        - uses: argocd-update
+          {{- if $masterOnly }}
+          if: {{ $masterGuard | quote }}
+          {{- end }}
+          config:
+            apps:
+              - name: {{ $k.argocdAppPrefix }}{{ $svc.name }}
+                namespace: {{ $stage.argocdNamespace | default "argocd" }}
+      {{- end }}
+{{- end }}
+{{- end }}

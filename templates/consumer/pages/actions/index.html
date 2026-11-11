@@ -581,9 +581,13 @@ function parseConfig(text){
   const byModule = {};
   for(const node of nodes){
     if(!node || !node.name) continue;
-    const parts = String(node.name).split("/");          // builds/DIGIT-Studio/<module>/<key>
-    const module = parts[2] || "other";
-    const key = parts[3] || "";
+    // name is builds/<repo>/…/<module>/<service-key>; nesting depth varies per repo
+    // (e.g. builds/DIGIT-Studio/studio-services/public-service, or deeper like
+    // builds/digit3/src/services/idgen), so take the LAST two segments: the service
+    // key and the module that groups it. Works across orgs without a fixed depth.
+    const parts = String(node.name).split("/").filter(Boolean);
+    const module = parts.length >= 2 ? parts[parts.length - 2] : "other";
+    const key = parts[parts.length - 1] || "";
     const builds = Array.isArray(node.build) ? node.build : [];
     const app = builds.find(b => b && b["image-name"] && !/-db$/.test(b["image-name"])) || builds[0];
     const db  = builds.find(b => b && b["image-name"] && /-db$/.test(b["image-name"]));

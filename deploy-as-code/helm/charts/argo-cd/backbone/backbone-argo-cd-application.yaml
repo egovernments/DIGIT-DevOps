@@ -1,0 +1,51 @@
+## Self-manage Argo CD: the install chart (reconciliation, repo-server SOPS, RBAC, SSO)
+## becomes GitOps, so a PR to backbone-services/argo-cd is applied to the cluster instead
+## of a manual `helm upgrade`. ServerSideApply adopts the existing hand-helm'd release in
+## place (expect a brief OutOfSync on first sync). project default: it installs
+## cluster-scoped RBAC and must not prune the project it runs under.
+## Recovery: if a bad values change makes Argo CD unable to reconcile itself, fix it by
+## `helm -n argocd upgrade argocd deploy-as-code/helm/charts/backbone-services/argo-cd`.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backbone-argo-cd
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: digit-lts
+    path: deploy-as-code/helm/charts/backbone-services/argo-cd
+    helm:
+      releaseName: argocd
+      valueFiles:
+        - values.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=false
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+
+  # AKS Admissions Enforcer injects namespaceSelector entries on the applicationset
+  # webhook; ignore them so selfHeal does not fight AKS.
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - '.webhooks[]?.namespaceSelector.matchExpressions[]? | select(.key == "control-plane" or .key == "kubernetes.azure.com/managedby")'

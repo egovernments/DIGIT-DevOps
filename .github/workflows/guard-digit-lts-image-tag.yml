@@ -1,0 +1,44 @@
+name: guard-digit-lts-image-tag
+
+on:
+  pull_request_target:
+    branches: [digit-lts]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  guard-image-tags:
+    runs-on: ubuntu-latest
+    steps:
+      # image.tag in the crest/studio env files is Kargo-owned; it may only change via a
+      # Kargo promotion or an authorised direct commit, never a pull request.
+      - name: Block image.tag edits in crest/studio env files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          FILES="deploy-as-code/helm/environments/crest-lts.yaml deploy-as-code/helm/environments/digit-studio-lts.yaml"
+          fail=0
+          for f in $FILES; do
+            patch="$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq ".[] | select(.filename==\"$f\") | .patch" || true)"
+            [ -z "$patch" ] && continue
+            offending="$(printf '%s\n' "$patch" \
+              | grep -E '^[+-]' | grep -vE '^[+-]{3}' \
+              | grep -E '^[+-][[:space:]]*tag:|^[+-].*image:[[:space:]]*\{[^}]*tag:' || true)"
+            if [ -n "$offending" ]; then
+              echo "::error file=$f::image.tag changes are not allowed in this file via pull request"
+              echo "Offending lines in $f:"
+              printf '%s\n' "$offending"
+              fail=1
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "image.tag in the crest/studio env files is owned by Kargo promotions."
+            echo "It may change only via a Kargo promotion or an authorised direct commit, not a PR."
+            exit 1
+          fi
+          echo "OK: no image.tag edits in the guarded env files."

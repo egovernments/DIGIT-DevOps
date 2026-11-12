@@ -1,0 +1,111 @@
+{{- /* Bundled SeaweedFS (S3 API) for evaluation. Mirrors upstream's hobby `seaweedfs` service. */ -}}
+{{- $os := .Values.objectStorage }}
+{{- if and $os.bundled.enabled (not $os.endpoint) }}
+{{- $name := include "posthog.serviceName" (list . "seaweedfs") }}
+{{- $buckets := list $os.bucket }}
+{{- with .Values.sessionReplay.storage.bucket }}{{ if ne . $os.bucket }}{{ $buckets = append $buckets . }}{{ end }}{{ end }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: seaweedfs
+spec:
+  replicas: 1
+  serviceName: {{ $name }}
+  selector:
+    matchLabels:
+      {{- include "posthog.selectorLabels" (list . "seaweedfs") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.selectorLabels" (list . "seaweedfs") | nindent 8 }}
+    spec:
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: seaweedfs
+          image: {{ include "posthog.chartImage" (list $ (printf "%s:%s" $os.bundled.image.repository (toString $os.bundled.image.tag))) | quote }}
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              /usr/bin/weed server -s3 -s3.port=8333 -master.port=9333 -dir=/data -volume.max=1000 -master.volumePreallocate=false -ip=127.0.0.1 -ip.bind=0.0.0.0 &
+              WEED_PID=$!
+              # weed shell exits 0 even when the filer is not up yet, so verify the buckets exist
+              # (mirrors upstream's readiness loop) before reporting ready.
+              until echo "s3.bucket.list" | /usr/bin/weed shell -master=127.0.0.1:9333 2>/dev/null | grep -q "{{ index $buckets 0 }}"; do
+                {{- range $buckets }}
+                echo "s3.bucket.create -name {{ . }}" | /usr/bin/weed shell -master=127.0.0.1:9333 >/dev/null 2>&1 || true
+                {{- end }}
+                sleep 3
+              done
+              echo "buckets ready:"; echo "s3.bucket.list" | /usr/bin/weed shell -master=127.0.0.1:9333 2>/dev/null
+              touch /tmp/ready
+              wait $WEED_PID
+          ports:
+            - name: s3
+              containerPort: 8333
+            - name: master
+              containerPort: 9333
+          readinessProbe:
+            exec:
+              command: [test, -f, /tmp/ready]
+            periodSeconds: 5
+          startupProbe:
+            exec:
+              command: [test, -f, /tmp/ready]
+            periodSeconds: 5
+            failureThreshold: 60
+          resources:
+            {{- toYaml $os.bundled.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with $os.bundled.persistence.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $os.bundled.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: seaweedfs
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "posthog.selectorLabels" (list . "seaweedfs") | nindent 4 }}
+  ports:
+    - name: s3
+      port: 8333
+      targetPort: s3
+{{- end }}

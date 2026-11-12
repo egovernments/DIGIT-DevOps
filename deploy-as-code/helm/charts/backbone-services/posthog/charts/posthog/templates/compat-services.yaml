@@ -1,0 +1,43 @@
+{{- /*
+Compose-name aliases. PostHog's code carries hostnames as defaults (PGHOST=db, CLICKHOUSE_HOST=
+clickhouse, KAFKA_HOSTS=kafka:9092, TEMPORAL_HOST=temporal, ...) that resolve in docker-compose
+because the services are named that way. These ExternalName Services make the same names resolve
+inside the release namespace, so a default that env does not override still works. They point at
+the release-scoped Service (or the external host when one is configured).
+*/ -}}
+{{- if .Values.compatAliases.enabled }}
+{{- $up := include "posthog.upstream" . | fromYaml }}
+{{- $root := . }}
+{{- range $host, $rule := $up.aliases }}
+{{- $target := "" }}
+{{- if $rule.helper }}
+{{- $target = include "posthog.host" (list $root $rule.helper) }}
+{{- else if $rule.service }}
+{{- $svcOv := index $root.Values.services $rule.service | default dict }}
+{{- if ternary $svcOv.enabled true (hasKey $svcOv "enabled") }}
+{{- $target = include "posthog.serviceName" (list $root $rule.service) }}
+{{- end }}
+{{- else if and $rule.storage (not $root.Values.objectStorage.endpoint) $root.Values.objectStorage.bundled.enabled }}
+{{- $target = include "posthog.serviceName" (list $root "seaweedfs") }}
+{{- end }}
+{{- if and $target (ne $target $host) }}
+{{- if not (contains "." $target) }}
+{{- $target = printf "%s.%s.svc.%s" $target $root.Release.Namespace $root.Values.clusterDomain }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $host }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: compat-alias
+  annotations:
+    posthog-k8s/alias-for: {{ $target }}
+spec:
+  type: ExternalName
+  externalName: {{ $target }}
+{{- end }}
+{{- end }}
+{{- end }}

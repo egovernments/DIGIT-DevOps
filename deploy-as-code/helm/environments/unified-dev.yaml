@@ -22,7 +22,10 @@ cluster-configs:
     ## sdip: the SDIP ApplicationSet (charts/argo-cd/unified-dev/sdip/) targets
     ## namespace sdip with CreateNamespace=false like the others, so it is created
     ## here. SDIP is not a Kargo project, so it takes no label below.
-    values: [ backbone, egov, monitoring, playground, temporal, kargo, unified-core, unified-health, unified-studio, digit-core3-0, digit3-core, vault, sdip ]
+    ## posthog: created here, not only by the backbone ApplicationSet's
+    ## CreateNamespace, because this Application also renders the posthog-*
+    ## Secrets into it (secrets/posthog-secret.yaml).
+    values: [ backbone, egov, monitoring, playground, temporal, kargo, unified-core, unified-health, unified-studio, digit-core3-0, digit3-core, vault, sdip, posthog ]
     ## Kargo will not adopt a namespace that already exists without this label:
     ## the Project goes Stalled/ExistingNamespaceMissingLabel. These namespaces
     ## are created here, so they are labeled here too -- the kargo-pipelines
@@ -2008,3 +2011,78 @@ postgresql-18:
       extensions:
         - name: postgis
           version: "3.7.0"
+
+# Overrides for the posthog chart (charts/backbone-services/posthog). The block
+# is passed to the vendored community chart in its charts/posthog, whose
+# values.yaml holds the defaults.
+#
+# Dev profile: every datastore is bundled in the `posthog` namespace (PostgreSQL,
+# ClickHouse, Redpanda, Redis/Valkey, Temporal, SeaweedFS), nothing is shared with
+# backbone. About 3.6 CPU / 17 GiB memory requests and 122 GiB of volumes.
+posthog:
+  posthog:
+    siteUrl: https://posthog.unified-dev.digit.org
+    # Let teams other than the first one create their own organization.
+    multiOrg: true
+    optOutCapture: true
+    # posthog-app: SECRET_KEY, ENCRYPTION_SALT_KEYS, BROWSERLESS_TOKEN,
+    # INTERNAL_API_SECRET, INTERNAL_REQUEST_TOKEN, RECORDING_API_JWT_SECRET.
+    # Rendered by cluster-configs from unified-dev-secrets.yaml
+    # (cluster-configs.secrets.posthog). ENCRYPTION_SALT_KEYS must never change
+    # once data exists.
+    existingSecret: posthog-app
+
+  # Argo CD renders with `helm template`, so the chart's lookup-based generation
+  # would produce new passwords on every sync. Every random secret is therefore
+  # mapped to an existing Secret below. `generate` stays true only because the
+  # chart evaluates every key, mapped or not, and fails on false; the generated
+  # values of mapped keys are discarded, so the render is deterministic.
+  # Anything added later must be mapped too, or it is regenerated on each sync.
+  secrets:
+    generate: true
+    keys:
+      PGPASSWORD: {secret: posthog-db}
+      DATABASE_URL: {secret: posthog-db}
+      CLICKHOUSE_API_PASSWORD: {secret: posthog-clickhouse-users}
+      CLICKHOUSE_APP_PASSWORD: {secret: posthog-clickhouse-users}
+      CLICKHOUSE_BILLING_PASSWORD: {secret: posthog-clickhouse-users}
+      CLICKHOUSE_DICT_READER_PASSWORD: {secret: posthog-clickhouse-users}
+      CLICKHOUSE_SIGNALS_PASSWORD: {secret: posthog-clickhouse-users}
+
+  postgresql:
+    persistence:
+      size: 20Gi
+
+  objectStorage:
+    bundled:
+      persistence:
+        size: 20Gi
+
+  router:
+    replicas: 1
+    podDisruptionBudget:
+      # A single replica with minAvailable 1 blocks node drains (see the AKS
+      # node-image rolls).
+      enabled: false
+    ingress:
+      enabled: true
+      className: nginx
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      # Empty hosts -> siteUrl on the app listener (UI, API and SDK ingestion).
+      tls:
+        - hosts: [posthog.unified-dev.digit.org]
+          secretName: posthog.unified-dev.digit.org-tls-certs
+
+  # Replay Vision only. Needs a Localhost seccomp profile on the nodes for
+  # Chromium's sandbox, which the AKS pools do not have.
+  rasterizer:
+    enabled: false
+
+  services:
+    web:
+      replicas: 1
+    clickhouse:
+      persistence: {size: 50Gi}
+    kafka:
+      persistence: {size: 20Gi}

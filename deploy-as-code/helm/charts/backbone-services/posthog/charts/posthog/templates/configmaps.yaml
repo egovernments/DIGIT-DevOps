@@ -1,0 +1,44 @@
+{{- /*
+Upstream config files (files/upstream/docker/**) become one ConfigMap per directory. A few files
+carry compose hostnames or dev passwords and are rewritten here:
+  - clickhouse config.xml / config.d/default.xml: `clickhouse` and `zookeeper` hosts -> chart services
+  - clickhouse users.xml: plaintext dev passwords -> from_env (values come from the env secret)
+  - livestream configs: `kafka:9092` -> chart Kafka
+*/ -}}
+{{- $root := . -}}
+{{- $ch := include "posthog.host" (list . "clickhouse") -}}
+{{- $zk := include "posthog.serviceName" (list . "zookeeper") -}}
+{{- $kafka := printf "%s:9092" (include "posthog.host" (list . "kafka")) -}}
+{{- if .Values.kafka.external.brokers }}{{ $kafka = .Values.kafka.external.brokers }}{{ end -}}
+{{- range $dir := include "posthog.configDirs" . | fromJsonArray }}
+{{- $base := ternary "files/chart" "files/upstream" (hasPrefix "chart/" $dir) }}
+{{- $rel := ternary (trimPrefix "chart/" $dir) $dir (hasPrefix "chart/" $dir) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "posthog.configMapName" (list $root $dir) }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: config
+data:
+{{- range $path, $_ := $root.Files.Glob (printf "%s/%s/*" $base $rel) }}
+{{- $content := $root.Files.Get $path }}
+{{- $file := base $path }}
+{{- if eq $dir "docker/clickhouse" }}
+{{- $content = $content | replace "<host>zookeeper</host>" (printf "<host>%s</host>" $zk) }}
+{{- $content = $content | replace "<password>apipass</password>" "<password from_env=\"CLICKHOUSE_API_PASSWORD\"/>" }}
+{{- $content = $content | replace "<password>apppass</password>" "<password from_env=\"CLICKHOUSE_APP_PASSWORD\"/>" }}
+{{- $content = $content | replace "<password>billingpass</password>" "<password from_env=\"CLICKHOUSE_BILLING_PASSWORD\"/>" }}
+{{- $content = $content | replace "<password>dictreaderpass</password>" "<password from_env=\"CLICKHOUSE_DICT_READER_PASSWORD\"/>" }}
+{{- $content = $content | replace "<password>signalspass</password>" "<password from_env=\"CLICKHOUSE_SIGNALS_PASSWORD\"/>" }}
+{{- else if eq $dir "docker/clickhouse/config.d" }}
+{{- $content = $content | replace "<host>clickhouse</host>" (printf "<host>%s</host>" $ch) }}
+{{- else if eq $dir "docker/livestream" }}
+{{- $content = $content | replace "kafka:9092" $kafka }}
+{{- end }}
+  {{ $file }}: |-
+{{ $content | indent 4 }}
+{{- end }}
+{{- end }}

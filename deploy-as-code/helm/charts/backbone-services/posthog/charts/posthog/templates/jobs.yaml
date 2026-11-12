@@ -1,0 +1,206 @@
+{{- /*
+Jobs: the migrate job (chart-defined, uses the web service's env), the Temporal search-attribute
+registration (chart-defined hook, uses temporal-django-worker's env) plus upstream jobs
+(asyncmigrationscheck). Hooks map to Argo CD PostSync hooks.
+*/ -}}
+{{- $up := include "posthog.upstream" . | fromYaml -}}
+{{- $root := . -}}
+{{- $web := index $up.services "web" -}}
+{{- define "posthog.jobSpec" -}}
+{{- $root := index . 0 }}{{ $name := index . 1 }}{{ $svc := index . 2 }}{{ $command := index . 3 }}{{ $args := index . 4 }}
+{{- $ov := index $root.Values.services $name | default dict }}
+{{- $_ := set $svc "overrides" $ov }}
+{{- /* A chart job can borrow another service's env (and that service's env overrides). */}}
+{{- $envName := $svc.envService | default $name }}
+{{- $envOv := index $root.Values.services $envName | default dict }}
+  backoffLimit: {{ $root.Values.migrations.backoffLimit }}
+  activeDeadlineSeconds: {{ $root.Values.migrations.activeDeadlineSeconds }}
+  {{- /* Not on migrate: Argo CD recreates a regular Job that the TTL controller deleted, so the
+         migrations ran again every day. Hooks are replaced on every run anyway. */}}
+  {{- if ne $name "migrate" }}
+  ttlSecondsAfterFinished: 86400
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.selectorLabels" (list $root $name) | nindent 8 }}
+      annotations:
+        {{- include "posthog.podAnnotations" (list $root $svc) | nindent 8 }}
+    spec:
+      {{- include "posthog.imagePullSecrets" $root | nindent 6 }}
+      automountServiceAccountToken: false
+      restartPolicy: OnFailure
+      securityContext:
+        {{- include "posthog.podSecurityContext" (list $root $svc) | nindent 8 }}
+      containers:
+        - name: {{ $name }}
+          image: {{ include "posthog.image" (list $root $svc.image) | quote }}
+          imagePullPolicy: IfNotPresent
+          {{- with $command }}
+          command:
+            {{- range . }}
+            - {{ ternary (tpl . $root) . (contains "{{" .) | quote }}
+            {{- end }}
+          {{- end }}
+          {{- with $args }}
+          args:
+            {{- range . }}
+            - {{ ternary (tpl . $root) . (contains "{{" .) | quote }}
+            {{- end }}
+          {{- end }}
+          env:
+            {{- include "posthog.env" (list $root $envName $svc.env) | nindent 12 }}
+            {{- if ne $envName $name }}
+            {{- with $envOv.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- end }}
+            {{- with $ov.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml ($ov.resources | default $svc.resources) | nindent 12 }}
+          securityContext:
+            {{- include "posthog.containerSecurityContext" (list $root $svc) | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- range $svc.mounts }}
+            {{- if .file }}
+            - name: cfg
+              mountPath: {{ .path }}
+              subPath: {{ base .file }}
+              readOnly: true
+            {{- end }}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- range $svc.mounts }}
+        {{- if .file }}
+        - name: cfg
+          configMap:
+            name: {{ include "posthog.configMapName" (list $root (dir .file)) }}
+        {{- end }}
+        {{- end }}
+{{- end -}}
+{{- if .Values.migrations.enabled }}
+{{- $migrate := deepCopy $web }}
+{{- /* Not a hook: on a fresh install the datastores only exist once the release is applied, and
+       web/worker wait for this Job through their init container. Job specs are immutable, so the
+       name carries a hash of the rendered spec (image, env, script, resources): any change makes a
+       new Job, the same spec keeps the finished one and a sync re-applies it unchanged. */}}
+{{- $spec := "" }}
+{{- if .Values.migrations.sessionsV3Reset }}
+{{- /* Installs from before 2026-10-28 carry an empty raw_sessions_v3 in the old shape; see the script. */}}
+{{- $script := printf "python - <<'PY'\n%s\nPY\nexec ./bin/migrate" (.Files.Get "files/migrate/sessions_v3_reset.py" | trim) }}
+{{- $spec = include "posthog.jobSpec" (list . "migrate" $migrate (list "/bin/sh" "-ec") (list $script)) }}
+{{- else }}
+{{- $spec = include "posthog.jobSpec" (list . "migrate" $migrate (list "./bin/migrate") (list)) }}
+{{- end }}
+{{- $rev := printf "%s-%s" .Chart.Version $spec | sha256sum | trunc 8 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "posthog.serviceName" (list . "migrate") }}-{{ $rev }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrate
+  annotations:
+    {{- /* Once a newer spec replaces it, the finished Job is left for pruning without keeping
+           the Application OutOfSync. */}}
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+spec:
+{{ $spec }}
+{{- end }}
+{{- $tdw := index $up.services "temporal-django-worker" }}
+{{- $tdwOv := index .Values.services "temporal-django-worker" | default dict }}
+{{- if and .Values.temporal.searchAttributes.enabled $tdw (ternary $tdwOv.enabled true (hasKey $tdwOv "enabled")) }}
+{{- /* PostHog stamps custom search attributes (PostHogTeamId, ...) on workflows. Temporal with SQL
+       visibility starts without them, and a workflow that sets an unknown attribute fails to start.
+       Upstream's management command reads the list from posthog/temporal/common/search_attributes.py
+       in the pinned image and adds only the missing ones, so re-running it is a no-op. Temporal can
+       still be creating the namespace on a fresh install, hence the retry loop. */}}
+{{- $sa := deepCopy $tdw }}
+{{- $_ := set $sa "envService" "temporal-django-worker" }}
+{{- $_ := set $sa "resources" (dict "requests" (dict "cpu" "50m" "memory" "256Mi") "limits" (dict "memory" "2Gi")) }}
+{{- $script := printf `i=0
+until python manage.py register_temporal_search_attributes --namespace %s; do
+  i=$((i+1))
+  [ "$i" -ge 30 ] && { echo "Temporal search attributes not registered after $i attempts"; exit 1; }
+  echo "Temporal not ready (attempt $i), retrying in 10s"
+  sleep 10
+done` (.Values.temporal.searchAttributes.namespace | quote) }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "posthog.serviceName" (list . "temporal-search-attributes") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: temporal-search-attributes
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+{{ include "posthog.jobSpec" (list . "temporal-search-attributes" $sa (list "/bin/sh" "-ec") (list $script)) }}
+{{- end }}
+{{- if and .Values.temporal.schedules.enabled $tdw (ternary $tdwOv.enabled true (hasKey $tdwOv "enabled")) }}
+{{- /* PostHog's periodic work runs as Temporal schedules: Replay Vision scanners, insight alerts,
+       subscriptions, error tracking digests and ~130 more. Upstream's bin/migrate creates them only
+       when DEPLOYMENT is not `hobby`, and the hobby env sets it, so without this Job none of them
+       ever ran. The command reconciles idempotently; cloud-only schedules (usage reports, CRM
+       sync) stay off because CLOUD_DEPLOYMENT is unset. Weight 1: after the search attributes. */}}
+{{- $ts := deepCopy $tdw }}
+{{- $_ := set $ts "envService" "temporal-django-worker" }}
+{{- $_ := set $ts "resources" (dict "requests" (dict "cpu" "50m" "memory" "256Mi") "limits" (dict "memory" "2Gi")) }}
+{{- $script := `i=0
+until timeout 300 python manage.py schedule_temporal_workflows; do
+  i=$((i+1))
+  [ "$i" -ge 10 ] && { echo "Temporal schedules not created after $i attempts"; exit 1; }
+  echo "Creating the Temporal schedules failed (attempt $i), retrying in 15s"
+  sleep 15
+done` }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "posthog.serviceName" (list . "temporal-schedules") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: temporal-schedules
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+{{ include "posthog.jobSpec" (list . "temporal-schedules" $ts (list "/bin/sh" "-ec") (list $script)) }}
+{{- end }}
+{{- range $name, $svc := $up.services }}
+{{- if eq $svc.kind "job" }}
+{{- $ov := index $root.Values.services $name | default dict }}
+{{- if ternary $ov.enabled true (hasKey $ov "enabled") }}
+{{- $j := $svc.job }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "posthog.serviceName" (list $root $name) }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+  annotations:
+    helm.sh/hook: {{ $j.hook }}
+    helm.sh/hook-weight: {{ $j.weight | quote }}
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+{{ include "posthog.jobSpec" (list $root $name $svc $svc.command $svc.args) }}
+{{- end }}
+{{- end }}
+{{- end }}

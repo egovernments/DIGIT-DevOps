@@ -1,0 +1,124 @@
+{{- /* Bundled single-node PostgreSQL. Evaluation only: use CloudNativePG or a managed database in production. */ -}}
+{{- if and .Values.postgresql.bundled (not .Values.postgresql.external.host) }}
+{{- $name := include "posthog.serviceName" (list . "postgresql") }}
+{{- $pg := .Values.postgresql }}
+{{- $userRef := splitn "/" 2 (include "posthog.secretRef" (list . "PGUSER")) }}
+{{- $passRef := splitn "/" 2 (include "posthog.secretRef" (list . "PGPASSWORD")) }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  replicas: 1
+  serviceName: {{ $name }}
+  selector:
+    matchLabels:
+      {{- include "posthog.selectorLabels" (list . "postgresql") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.selectorLabels" (list . "postgresql") | nindent 8 }}
+    spec:
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 120
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: postgresql
+          image: {{ include "posthog.chartImage" (list $ (printf "%s:%s" $pg.image.repository (toString $pg.image.tag))) | quote }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: {name: {{ $userRef._0 }}, key: {{ $userRef._1 }}}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: {{ $passRef._0 }}, key: {{ $passRef._1 }}}
+            - name: POSTGRES_DB
+              value: {{ $pg.auth.database | quote }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - name: postgresql
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: [sh, -c, 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" -h 127.0.0.1']
+            periodSeconds: 10
+          startupProbe:
+            exec:
+              command: [sh, -c, 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" -h 127.0.0.1']
+            periodSeconds: 5
+            failureThreshold: 60
+          resources:
+            {{- toYaml $pg.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+            {{- include "posthog.seedMount" . | nindent 12 }}
+            - name: run
+              mountPath: /var/run/postgresql
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # upstream init scripts plus the chart's seed hook, merged into one directory
+        - name: init
+          projected:
+            defaultMode: 0755
+            sources:
+              - configMap:
+                  name: {{ include "posthog.configMapName" (list . "docker/postgres-init-scripts") }}
+              - configMap:
+                  name: {{ include "posthog.configMapName" (list . "chart/postgres") }}
+        {{- include "posthog.seedVolume" . | nindent 8 }}
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with $pg.persistence.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $pg.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    {{- include "posthog.selectorLabels" (list . "postgresql") | nindent 4 }}
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+{{- end }}

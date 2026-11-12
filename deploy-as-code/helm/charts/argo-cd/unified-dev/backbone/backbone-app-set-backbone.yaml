@@ -53,6 +53,14 @@ spec:
             namespace: security
           - name: postgresql-18
             namespace: backbone
+          # Self-hosted PostHog with all its datastores bundled in its own
+          # namespace. Values: the `posthog:` block of unified-dev.yaml. Its
+          # Secrets come from cluster-configs (cluster-configs.secrets.posthog);
+          # pods wait in CreateContainerConfigError until those exist. First
+          # sync runs ~1500 PostgreSQL + ~300 ClickHouse migrations in the
+          # posthog-migrate-* Job (10-25 min), web/workers wait on it.
+          - name: posthog
+            namespace: posthog
   template:
     metadata:
       name: 'backbone-{{name}}'

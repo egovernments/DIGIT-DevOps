@@ -1,0 +1,402 @@
+{{- /*
+One template renders every upstream service (Deployment or StatefulSet + Service). The service
+definitions come from upstream.yaml; values.services.<name> layers overrides on top.
+*/ -}}
+{{- $up := include "posthog.upstream" . | fromYaml -}}
+{{- $root := . -}}
+{{- range $name, $svc := $up.services }}
+{{- $ov := index $root.Values.services $name | default dict }}
+{{- $_ := set $svc "overrides" $ov }}
+{{- $enabled := ternary $ov.enabled true (hasKey $ov "enabled") }}
+{{- /* Bundled datastores are skipped when an external one is configured. */}}
+{{- $external := dict "kafka" $root.Values.kafka.external.brokers "redis7" $root.Values.redis.external.host "valkey" $root.Values.valkey.external.host "clickhouse" $root.Values.clickhouse.external.host "zookeeper" $root.Values.clickhouse.external.host }}
+{{- if and $enabled (not (index $external $name)) (ne $svc.kind "job") (ne $svc.kind "sidecar") }}
+{{- $component := $name }}
+{{- $fullname := include "posthog.serviceName" (list $root $component) }}
+{{- $mounts := $svc.mounts | default list }}
+{{- $needsImageDir := false }}
+{{- range $mounts }}{{ if .imageDir }}{{ $needsImageDir = true }}{{ end }}{{ end }}
+{{- $replicas := $ov.replicas | default 1 }}
+{{- $isStateful := eq $svc.kind "statefulset" }}
+---
+apiVersion: apps/v1
+kind: {{ ternary "StatefulSet" "Deployment" $isStateful }}
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  replicas: {{ ternary 1 $replicas $isStateful }}
+  {{- if $isStateful }}
+  serviceName: {{ $fullname }}
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  {{- else }}
+  revisionHistoryLimit: 3
+  strategy:
+    {{- if or (eq $name "web") (eq $name "browserless") }}
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+    {{- else }}
+    type: Recreate
+    {{- end }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "posthog.selectorLabels" (list $root $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.selectorLabels" (list $root $component) | nindent 8 }}
+        {{- with $root.Values.commonLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- include "posthog.podAnnotations" (list $root $svc) | nindent 8 }}
+    spec:
+      {{- include "posthog.imagePullSecrets" $root | nindent 6 }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ $ov.terminationGracePeriodSeconds | default (ternary 120 30 $isStateful) }}
+      {{- with $ov.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        {{- include "posthog.podSecurityContext" (list $root $svc) | nindent 8 }}
+      {{- $waitsForMigrations := and $root.Values.migrations.enabled (has $name (list "web" "worker" "temporal-django-worker")) }}
+      {{- if or $needsImageDir $waitsForMigrations }}
+      initContainers:
+        {{- if $needsImageDir }}
+        {{- include "posthog.imageDirInitContainer" (list $root $mounts) | nindent 8 }}
+        {{- end }}
+        {{- if $waitsForMigrations }}
+        {{- include "posthog.waitForMigrationsInitContainer" (list $root $svc) | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: {{ $component }}
+          image: {{ include "posthog.image" (list $root $svc.image) | quote }}
+          imagePullPolicy: IfNotPresent
+          {{- with $svc.command }}
+          command:
+            {{- range . }}
+            - {{ ternary (tpl . $root) . (contains "{{" .) | quote }}
+            {{- end }}
+          {{- end }}
+          {{- with ($ov.args | default $svc.args) }}
+          args:
+            {{- range . }}
+            - {{ ternary (tpl . $root) . (contains "{{" .) | quote }}
+            {{- end }}
+          {{- end }}
+          env:
+            {{- include "posthog.env" (list $root $name (concat $svc.env (include "posthog.geminiGatewayClientEnv" (list $root $name) | fromYamlArray))) | nindent 12 }}
+            {{- if eq $name "clickhouse" }}
+            {{- range $u, $k := dict "api" "CLICKHOUSE_API_PASSWORD" "app" "CLICKHOUSE_APP_PASSWORD" "billing" "CLICKHOUSE_BILLING_PASSWORD" "dict_reader" "CLICKHOUSE_DICT_READER_PASSWORD" "signals" "CLICKHOUSE_SIGNALS_PASSWORD" }}
+            {{- $ref := splitn "/" 2 (include "posthog.secretRef" (list $root $k)) }}
+            - name: {{ $k }}
+              valueFrom:
+                secretKeyRef: {name: {{ $ref._0 }}, key: {{ $ref._1 }}}
+            {{- end }}
+            {{- end }}
+            {{- with $ov.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $svc.ports }}
+          ports:
+            {{- range . }}
+            - name: {{ .name }}
+              containerPort: {{ .port }}
+              protocol: TCP
+            {{- end }}
+          {{- end }}
+          {{- /* values.services.<name>.readinessProbe replaces the upstream handler (e.g. a
+               tcpSocket check for services whose HTTP endpoints all require a token). */}}
+          {{- $probe := $ov.readinessProbe | default $svc.readinessProbe }}
+          {{- with $probe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+            initialDelaySeconds: {{ ternary 15 5 $isStateful }}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          {{- end }}
+          {{- with $probe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+            periodSeconds: 10
+            failureThreshold: {{ ternary 60 30 (or $isStateful (eq $name "web")) }}
+          {{- end }}
+          resources:
+            {{- toYaml ($ov.resources | default $svc.resources) | nindent 12 }}
+          securityContext:
+            {{- include "posthog.containerSecurityContext" (list $root $svc) | nindent 12 }}
+          volumeMounts:
+            {{- if $isStateful }}
+            - name: data
+              mountPath: {{ $svc.persistence.mountPath }}
+            {{- range $svc.persistence.extra }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+            {{- end }}
+            {{- end }}
+            {{- range $mounts }}
+            {{- $f := ternary (printf "chart/%s" (.chartFile | default "")) (.file | default "") (hasKey . "chartFile") }}
+            {{- if $f }}
+            - name: cfg-{{ dir $f | replace "/" "-" | replace "_" "-" | replace "." "-" | trunc 40 }}
+              mountPath: {{ .path }}
+              subPath: {{ base $f }}
+              readOnly: true
+            {{- else if .dir }}
+            - name: cfg-{{ .dir | replace "/" "-" | replace "_" "-" | replace "." "-" | trunc 40 }}
+              mountPath: {{ .path }}
+              readOnly: true
+            {{- else if .imageDir }}
+            - name: upstream-{{ .imageDir | replace "/" "-" | replace "_" "-" }}
+              mountPath: {{ .path }}
+            {{- end }}
+            {{- end }}
+            - name: tmp
+              mountPath: /tmp
+            {{- if eq $name "clickhouse" }}
+            {{- include "posthog.seedMount" $root | nindent 12 }}
+            {{- end }}
+            {{- with $ov.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- range $sname, $side := $up.services }}
+        {{- if and (eq $side.kind "sidecar") (eq $side.sidecarOf $name) }}
+        - name: {{ $sname }}
+          image: {{ include "posthog.image" (list $root $side.image) | quote }}
+          imagePullPolicy: IfNotPresent
+          {{- with $side.command }}
+          command:
+            {{- range . }}
+            - {{ ternary (tpl . $root) . (contains "{{" .) | quote }}
+            {{- end }}
+          {{- end }}
+          {{- with $side.args }}
+          args:
+            {{- range $i, $a := . }}
+            {{- if eq $i (sub (len $side.args) 1) }}
+            - {{ printf "%s\necho 'sidecar %s done, sleeping'; exec sleep infinity\n" (ternary (tpl $a $root) $a (contains "{{" $a)) $sname | quote }}
+            {{- else }}
+            - {{ ternary (tpl $a $root) $a (contains "{{" $a) | quote }}
+            {{- end }}
+            {{- end }}
+          {{- end }}
+          env:
+            {{- include "posthog.env" (list $root $sname $side.env) | nindent 12 }}
+          resources:
+            requests: {cpu: 10m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            {{- include "posthog.containerSecurityContext" (list $root $side) | nindent 12 }}
+          volumeMounts:
+            {{- range $side.mounts }}
+            {{- if .file }}
+            - name: cfg-{{ dir .file | replace "/" "-" | replace "_" "-" | replace "." "-" | trunc 40 }}
+              mountPath: {{ .path }}
+              subPath: {{ base .file }}
+              readOnly: true
+            {{- end }}
+            {{- end }}
+        {{- end }}
+        {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if eq $name "clickhouse" }}
+        {{- include "posthog.seedVolume" $root | nindent 8 }}
+        {{- end }}
+        {{- $seen := dict }}
+        {{- range $mounts }}
+        {{- $f := ternary (printf "chart/%s" (.chartFile | default "")) (.file | default "") (hasKey . "chartFile") }}
+        {{- if $f }}
+        {{- $cm := include "posthog.configMapName" (list $root (dir $f)) }}
+        {{- $vn := printf "cfg-%s" (dir $f | replace "/" "-" | replace "_" "-" | replace "." "-" | trunc 40) }}
+        {{- if not (hasKey $seen $vn) }}{{- $_ := set $seen $vn true }}
+        - name: {{ $vn }}
+          configMap:
+            name: {{ $cm }}
+            defaultMode: 0755
+        {{- end }}
+        {{- else if .dir }}
+        {{- $vn := printf "cfg-%s" (.dir | replace "/" "-" | replace "_" "-" | replace "." "-" | trunc 40) }}
+        {{- if not (hasKey $seen $vn) }}{{- $_ := set $seen $vn true }}
+        - name: {{ $vn }}
+          {{- if .extraChartFiles }}
+          {{- /* upstream directory plus chart-owned files, merged into one directory */}}
+          projected:
+            defaultMode: 0755
+            sources:
+              - configMap:
+                  name: {{ include "posthog.configMapName" (list $root .dir) }}
+              {{- range .extraChartFiles }}
+              - configMap:
+                  name: {{ include "posthog.configMapName" (list $root (printf "chart/%s" (dir .))) }}
+                  items:
+                    - key: {{ base . }}
+                      path: {{ base . }}
+              {{- end }}
+          {{- else }}
+          configMap:
+            name: {{ include "posthog.configMapName" (list $root .dir) }}
+            defaultMode: 0755
+          {{- end }}
+        {{- end }}
+        {{- else if .imageDir }}
+        - name: upstream-{{ .imageDir | replace "/" "-" | replace "_" "-" }}
+          emptyDir: {}
+        {{- end }}
+        {{- end }}
+        {{- range $sname, $side := $up.services }}
+        {{- if and (eq $side.kind "sidecar") (eq $side.sidecarOf $name) }}
+        {{- range $side.mounts }}
+        {{- if .file }}
+        {{- $vn := printf "cfg-%s" (dir .file | replace "/" "-" | replace "_" "-" | replace "." "-" | trunc 40) }}
+        {{- if not (hasKey $seen $vn) }}{{- $_ := set $seen $vn true }}
+        - name: {{ $vn }}
+          configMap:
+            name: {{ include "posthog.configMapName" (list $root (dir .file)) }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- with $ov.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with $ov.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $ov.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $ov.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if and (gt (int $replicas) 1) (not $ov.topologySpreadConstraints) }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "posthog.selectorLabels" (list $root $component) | nindent 14 }}
+      {{- end }}
+      {{- with $ov.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if $isStateful }}
+  {{- $p := mergeOverwrite (deepCopy $svc.persistence) ($ov.persistence | default dict) }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with $p.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        {{- with $p.selector }}
+        selector:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $p.size }}
+    {{- range $svc.persistence.extra }}
+    {{- $extraOv := index ($p.extraOverrides | default dict) .name | default dict }}
+    - metadata:
+        name: {{ .name }}
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with ($extraOv.storageClass | default $p.storageClass) }}
+        storageClassName: {{ . }}
+        {{- end }}
+        {{- with $extraOv.selector }}
+        selector:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $extraOv.size | default .size }}
+    {{- end }}
+  {{- end }}
+{{- if $svc.ports }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  type: ClusterIP
+  {{- if $isStateful }}
+  clusterIP: None
+  publishNotReadyAddresses: true
+  {{- end }}
+  selector:
+    {{- include "posthog.selectorLabels" (list $root $component) | nindent 4 }}
+  ports:
+    {{- range $svc.ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .name }}
+      protocol: TCP
+    {{- end }}
+    {{- with $svc.metricsPort }}
+    - name: metrics
+      port: {{ . }}
+      targetPort: {{ . }}
+      protocol: TCP
+    {{- end }}
+{{- end }}
+{{- if and (gt (int $replicas) 1) (not $isStateful) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "posthog.selectorLabels" (list $root $component) | nindent 6 }}
+{{- end }}
+{{- if and $root.Values.metrics.serviceMonitor.enabled $svc.metricsPort }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+    {{- with $root.Values.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "posthog.selectorLabels" (list $root $component) | nindent 6 }}
+  endpoints:
+    - port: metrics
+      interval: {{ $root.Values.metrics.serviceMonitor.interval }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,205 @@
+{{- /*
+Session replay rasterizer: upstream's Node.js Temporal worker (Dockerfile.recording-rasterizer) that
+plays recordings in chrome-headless-shell and writes MP4s to object storage. Replay Vision scans and
+replay video exports dispatch their `rasterize-recording` activity to `rasterization-task-queue`,
+which TEMPORAL_USE_SINGLE_TASK_QUEUE does not collapse. Upstream's hobby compose has no such
+service, so without it those workflows wait until their activity times out.
+
+Recordings are untrusted content. Upstream routes Chromium and the S3 client through an egress
+proxy (smokescreen) and refuses to start in production without one; `rasterizer.egressProxy` sets
+it, otherwise RASTERIZER_USE_PROXY=false and, with networkPolicy.enabled, an egress policy limits
+the pod to Temporal, recording-api, DNS and public addresses on 80/443.
+*/ -}}
+{{- $tdw := (include "posthog.upstream" . | fromYaml).services | default dict -}}
+{{- $tdwOv := index .Values.services "temporal-django-worker" | default dict -}}
+{{- if and .Values.rasterizer.enabled (index $tdw "temporal-django-worker") (ternary $tdwOv.enabled true (hasKey $tdwOv "enabled")) }}
+{{- $r := .Values.rasterizer }}
+{{- $name := include "posthog.serviceName" (list . "recording-rasterizer") }}
+{{- $os := .Values.objectStorage }}
+{{- $env := list
+  (dict "name" "TEMPORAL_HOST" "value" (include "posthog.host" (list . "temporal")))
+  (dict "name" "TEMPORAL_PORT" "value" "7233")
+  (dict "name" "TEMPORAL_NAMESPACE" "value" .Values.temporal.searchAttributes.namespace)
+  (dict "name" "SECRET_KEY" "secret" "SECRET_KEY")
+  (dict "name" "INTERNAL_API_SECRET" "secret" "INTERNAL_API_SECRET")
+  (dict "name" "RECORDING_API_BASE_URL" "value" (printf "http://%s:6738" (include "posthog.serviceName" (list . "recording-api"))))
+  (dict "name" "SITE_URL" "value" .Values.posthog.siteUrl)
+  (dict "name" "AWS_ACCESS_KEY_ID" "secret" "OBJECT_STORAGE_ACCESS_KEY_ID")
+  (dict "name" "AWS_SECRET_ACCESS_KEY" "secret" "OBJECT_STORAGE_SECRET_ACCESS_KEY")
+  (dict "name" "VIDEO_EXPORT_OBJECT_STORAGE_REGION" "value" $os.region)
+  (dict "name" "MAX_CONCURRENT_ACTIVITIES" "value" (toString $r.maxConcurrentActivities))
+  (dict "name" "SHUTDOWN_GRACE_TIME_MS" "value" (toString (mul $r.shutdownGraceSeconds 1000)))
+  (dict "name" "HOME" "value" "/tmp")
+}}
+{{- /* The client forces path-style when an endpoint is set: right for SeaweedFS/MinIO, so AWS
+       (forcePathStyle false) keeps the SDK's regional endpoint. */}}
+{{- if or $os.forcePathStyle $os.bundled.enabled }}
+{{- $env = append $env (dict "name" "VIDEO_EXPORT_OBJECT_STORAGE_ENDPOINT" "value" (include "posthog.objectStorageEndpoint" .)) }}
+{{- end }}
+{{- if not $r.chromeSandbox }}
+{{- $env = append $env (dict "name" "PUPPETEER_EXECUTABLE_PATH" "value" "/chart/rasterizer/chrome-no-sandbox") }}
+{{- end }}
+{{- if $r.egressProxy }}
+{{- $env = append $env (dict "name" "HTTPS_PROXY" "value" $r.egressProxy) }}
+{{- else }}
+{{- $env = append $env (dict "name" "RASTERIZER_USE_PROXY" "value" "false") }}
+{{- end }}
+{{- if not $r.chromeSandbox }}
+---
+# rasterizer.chromeSandbox=false: Chromium without its sandbox (see values.yaml before using it).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-chrome
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: recording-rasterizer
+data:
+  chrome-no-sandbox: |
+    #!/bin/sh
+    exec /usr/local/bin/chrome-headless-shell --no-sandbox "$@"
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: recording-rasterizer
+spec:
+  replicas: {{ $r.replicas }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "posthog.selectorLabels" (list . "recording-rasterizer") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.selectorLabels" (list . "recording-rasterizer") | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      automountServiceAccountToken: false
+      {{- with $r.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      # Renders in flight finish within the grace time (SHUTDOWN_GRACE_TIME_MS); the rest is retried.
+      terminationGracePeriodSeconds: {{ add $r.shutdownGraceSeconds 30 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        # Chromium's namespace sandbox needs clone/unshare/chroot, which RuntimeDefault blocks
+        # ("No usable sandbox!"). docs/rasterizer.md has a Localhost profile that allows them.
+        seccompProfile:
+          {{- toYaml $r.seccompProfile | nindent 10 }}
+      {{- with $r.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: rasterizer
+          image: {{ include "posthog.image" (list . "recording-rasterizer") | quote }}
+          imagePullPolicy: IfNotPresent
+          {{- if $r.exitOnWorkerFailure }}
+          # files/rasterizer/watch.sh: exit when the Temporal worker reports FAILED (it stays up otherwise).
+          command: ["/bin/sh", "-c", {{ .Files.Get "files/rasterizer/watch.sh" | quote }}, "rasterizer"]
+          args: {{ toJson $r.command }}
+          {{- end }}
+          env:
+            {{- include "posthog.env" (list . "recording-rasterizer" $env) | nindent 12 }}
+            {{- with $r.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 6738
+          readinessProbe:
+            httpGet: {path: /_ready, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /_health, port: http}
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            {{- toYaml $r.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- if not $r.chromeSandbox }}
+            - name: chrome
+              mountPath: /chart/rasterizer
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if not $r.chromeSandbox }}
+        - name: chrome
+          configMap:
+            name: {{ $name }}-chrome
+            defaultMode: 0555
+        {{- end }}
+{{- if .Values.networkPolicy.enabled }}
+---
+# Egress containment for the browser that plays untrusted recordings: no private addresses besides
+# Temporal and recording-api (and the bundled object storage).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-egress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "posthog.selectorLabels" (list . "recording-rasterizer") | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    - ports:
+        - {port: 53, protocol: UDP}
+        - {port: 53, protocol: TCP}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "posthog.selectorLabels" (list . "temporal") | nindent 14 }}
+      ports:
+        - port: 7233
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "posthog.selectorLabels" (list . "recording-api") | nindent 14 }}
+      ports:
+        - port: 6738
+    {{- if $os.bundled.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "posthog.selectorLabels" (list . "seaweedfs") | nindent 14 }}
+      ports:
+        - port: 8333
+    {{- end }}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: {{ toJson $r.networkPolicy.blockedCidrs }}
+      ports:
+        - port: 80
+        - port: 443
+    {{- with $r.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- end }}

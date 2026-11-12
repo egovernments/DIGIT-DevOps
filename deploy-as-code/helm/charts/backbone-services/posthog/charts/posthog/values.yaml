@@ -1,0 +1,377 @@
+# Default values for the posthog chart.
+# Service definitions (images, env, ports, probes) come from upstream.yaml, generated from
+# PostHog's hobby docker-compose. Everything here layers on top of that.
+
+global:
+  # -- Registry prefix for every image (e.g. a pull-through cache). Empty uses the upstream registries.
+  imageRegistry: ""
+  # -- Pull secrets applied to every pod.
+  imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+# -- Extra labels on every resource.
+commonLabels: {}
+# -- Extra annotations on every pod.
+podAnnotations: {}
+
+images:
+  # -- Pin images to the digests recorded at sync time (repository:tag@sha256:...), and keep the digests of the
+  # chart's own images (router, bundled PostgreSQL and SeaweedFS). Turn off to follow the tags.
+  pinDigests: true
+  # -- Per-image overrides keyed like upstream.yaml `images` (posthog, posthog-node, capture, clickhouse, ...).
+  # Example: posthog: {tag: release-1.140.0}
+  overrides: {}
+
+posthog:
+  # -- URL of the PostHog UI (SITE_URL). Cookies, links and CSRF are bound to it.
+  siteUrl: https://posthog.example.com
+  # -- URL browsers and SDKs send events to (the router's ingest listener). Defaults to siteUrl.
+  publicUrl: ""
+  # -- Allow more than one organization on the instance (MULTI_ORG_ENABLED).
+  multiOrg: false
+  # -- Set the Secure flag on session cookies. Keep true behind TLS.
+  secureCookies: true
+  # -- Do not report anonymous usage to PostHog Inc. (OPT_OUT_CAPTURE).
+  optOutCapture: false
+  # -- Where the browser sends CSP reports; empty disables reporting.
+  cspReportEndpoint: ""
+  # -- Existing Secret with keys SECRET_KEY, ENCRYPTION_SALT_KEYS, BROWSERLESS_TOKEN, INTERNAL_API_SECRET,
+  # INTERNAL_REQUEST_TOKEN, RECORDING_API_JWT_SECRET (and AI_GATEWAY_API_KEY with geminiGateway).
+  # Recommended for GitOps: the chart does not generate secrets when this is set. INTERNAL_REQUEST_TOKEN
+  # and RECORDING_API_JWT_SECRET are optional: without them flag test evaluation in the UI fails and
+  # recording-api falls back to INTERNAL_API_SECRET (see CHANGELOG 0.2.0).
+  existingSecret: ""
+  # -- Inline secrets (used only when existingSecret is empty). Empty values are generated on install
+  # and kept across upgrades via lookup. NOTE: `helm template` and Argo CD render without lookup, so
+  # set them explicitly or use existingSecret there.
+  secrets:
+    secretKey: ""
+    encryptionSaltKeys: ""
+    browserlessToken: ""
+    internalApiSecret: ""
+    # -- Shared by web/worker/temporal-django-worker and feature-flags (Django -> flags calls).
+    internalRequestToken: ""
+    # -- Signs the team-scoped tokens web/worker/temporal-django-worker send to recording-api.
+    recordingApiJwtSecret: ""
+    anthropicApiKey: ""
+    openaiApiKey: ""
+
+secrets:
+  # -- Generate missing secret values at install time. Set false to fail instead of generating.
+  generate: true
+  # -- Route individual secret keys to an existing Secret: KEY: {secret: name, key: keyInSecret}.
+  # Keys: SECRET_KEY, ENCRYPTION_SALT_KEYS, BROWSERLESS_TOKEN, INTERNAL_API_SECRET, INTERNAL_REQUEST_TOKEN,
+  # RECORDING_API_JWT_SECRET, ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, AI_GATEWAY_API_KEY,
+  # DATABASE_URL, PGUSER, PGPASSWORD, CLICKHOUSE_API_PASSWORD, CLICKHOUSE_APP_PASSWORD, CLICKHOUSE_BILLING_PASSWORD,
+  # CLICKHOUSE_DICT_READER_PASSWORD, CLICKHOUSE_SIGNALS_PASSWORD, OBJECT_STORAGE_ACCESS_KEY_ID,
+  # OBJECT_STORAGE_SECRET_ACCESS_KEY, SESSION_RECORDING_ACCESS_KEY_ID, SESSION_RECORDING_SECRET_ACCESS_KEY.
+  keys: {}
+
+# PostgreSQL: bundled single instance or an external server (CloudNativePG, RDS, ...).
+postgresql:
+  # -- Deploy the bundled PostgreSQL StatefulSet. Fine for evaluation; use an operator in production.
+  bundled: true
+  image:
+    repository: postgres
+    # -- Tag and digest (the multi-arch index). Override both together; a tag without a digest follows the tag.
+    tag: 15.12-alpine@sha256:ef9d1517df69c4d27dbb9ddcec14f431a2442628603f4e9daa429b92ae6c3cd1
+  auth:
+    username: posthog
+    # -- Empty generates a password on install.
+    password: ""
+    database: posthog
+  persistence:
+    size: 20Gi
+    storageClass: ""
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {memory: 2Gi}
+  external:
+    # -- Host of the external server (turns the bundled instance off when set).
+    host: ""
+    port: 5432
+    username: posthog
+    password: ""
+    database: posthog
+    # -- Existing Secret holding the connection: urlKey is a full postgres:// URL (CloudNativePG `uri`),
+    # passwordKey just the password. When urlKey is set it wins for DATABASE_URL.
+    existingSecret: ""
+    urlKey: ""
+    passwordKey: ""
+
+# ClickHouse: bundled single node (external clusters are a roadmap item).
+clickhouse:
+  users:
+    # -- Passwords for the application users in users.xml; empty values are generated.
+    api: ""
+    app: ""
+    billing: ""
+    dictReader: ""
+    # -- Read-only user for PostHog's Signals product (fails closed without it).
+    signals: ""
+  external:
+    host: ""
+
+redis:
+  external:
+    host: ""
+    port: 6379
+
+valkey:
+  external:
+    host: ""
+
+kafka:
+  external:
+    # -- Comma-separated broker list; turns the bundled Redpanda off when set.
+    brokers: ""
+
+temporal:
+  database: temporal
+  visibilityDatabase: temporal_visibility
+  # -- Set true when the databases exist already (the PostgreSQL user has no CREATEDB).
+  skipDbCreate: false
+  searchAttributes:
+    # -- Register PostHog's custom search attributes (PostHogTeamId, PostHogOrgId, ...) in Temporal after
+    # every install and upgrade. Temporal with SQL visibility starts without them, and workflows that set
+    # them fail to start. Runs upstream's `manage.py register_temporal_search_attributes`, which adds only
+    # the missing ones; the list comes from the pinned PostHog image.
+    enabled: true
+    # -- Temporal namespace the PostHog services use (their TEMPORAL_NAMESPACE, upstream default `default`).
+    namespace: default
+  schedules:
+    # -- Create PostHog's Temporal schedules after every install and upgrade (`manage.py
+    # schedule_temporal_workflows`): Replay Vision scanners, insight alerts, subscriptions, error
+    # tracking digests and the other periodic jobs. Upstream's bin/migrate skips this on hobby
+    # deploys; without it none of that periodic work runs. Idempotent.
+    enabled: true
+
+# Object storage for exports, symbol sets, AI blobs. S3-compatible.
+objectStorage:
+  # -- S3 endpoint, e.g. https://s3.eu-central-1.amazonaws.com. Empty uses the bundled SeaweedFS.
+  endpoint: ""
+  bucket: posthog
+  region: us-east-1
+  forcePathStyle: true
+  accessKeyId: ""
+  secretAccessKey: ""
+  existingSecret: ""
+  accessKeyIdKey: accessKeyId
+  secretAccessKeyKey: secretAccessKey
+  # Bundled SeaweedFS (single node, no replication): evaluation only.
+  bundled:
+    enabled: true
+    image:
+      repository: chrislusf/seaweedfs
+      # -- Tag and digest (the multi-arch index). Override both together; a tag without a digest follows the tag.
+      tag: 4.29@sha256:d47c7ee99fcb951351d7194915f4e3a5ea604a8e8871183d713907dec4fb9bf5
+    persistence:
+      size: 50Gi
+      storageClass: ""
+    resources:
+      requests: {cpu: 100m, memory: 256Mi}
+      limits: {memory: 1Gi}
+
+# Session replay blob storage. Defaults to objectStorage; set for a separate bucket/credentials.
+sessionReplay:
+  storage:
+    endpoint: ""
+    bucket: ""
+    region: ""
+    accessKeyId: ""
+    secretAccessKey: ""
+    existingSecret: ""
+    accessKeyIdKey: accessKeyId
+    secretAccessKeyKey: secretAccessKey
+
+# The router fronts everything: an `app` listener with the full UI/API and an `ingest` listener
+# that only forwards the SDK paths (so the login page never has to be public).
+router:
+  # -- Caddy for the router and the gemini-gateway, pinned by digest (the multi-arch index).
+  image: caddy:2.10-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+  replicas: 2
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {memory: 256Mi}
+  ports:
+    app: 8080
+    ingest: 8081
+  # -- Request headers removed on the ingest listener (identity headers a trusted proxy would set).
+  stripHeaders: [X-Forwarded-User, X-Forwarded-Groups, X-Forwarded-Email, X-Remote-User, X-Remote-Group, Authorization-Teleport]
+  ingest:
+    # -- Paths on the `web` service that SDKs need besides the dedicated ingestion services.
+    webPaths: ["/decide", "/decide/*", "/static/*", "/_health", "/report", "/report/*", "/robots.txt"]
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    # -- Hosts: `listener` is app or ingest. Defaults to siteUrl -> app and publicUrl -> ingest.
+    hosts: []
+    tls: []
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+rasterizer:
+  # -- Session replay rasterizer (upstream's Node.js worker with chrome-headless-shell). It renders
+  # recordings to video for Replay Vision scans and replay video exports, which wait on Temporal's
+  # `rasterization-task-queue` until it runs. Needs temporal-django-worker.
+  enabled: true
+  replicas: 1
+  # -- Parallel renders per pod. Each one holds a Chromium (~300-800 MB); the worker takes fewer
+  # above 70 % of the memory limit.
+  maxConcurrentActivities: 2
+  # -- Restart the container when the Temporal worker reports FAILED. Upstream's process stays up in
+  # that state (e.g. after a Temporal restart) with a healthy /_health and no poller, so scans wait
+  # until they time out. The chart runs `command` behind files/rasterizer/watch.sh.
+  exitOnWorkerFailure: true
+  # -- The image's CMD (Dockerfile.recording-rasterizer), run by the watcher.
+  command: [node, nodejs/dist/session-replay/recording-rasterizer/index.js]
+  # -- Seconds a stopping pod lets running renders finish; the rest are retried elsewhere.
+  shutdownGraceSeconds: 120
+  # -- Egress proxy for Chromium and the S3 client (e.g. `http://smokescreen:4750`). Recordings are
+  # untrusted content. Empty: direct egress (`RASTERIZER_USE_PROXY=false`); with
+  # `networkPolicy.enabled` the pod then reaches only Temporal, recording-api, DNS and public
+  # addresses on ports 80/443.
+  egressProxy: ""
+  # -- Pod seccomp profile. Chromium's sandbox needs a profile that allows clone, unshare and
+  # chroot; RuntimeDefault does not, and the pod then fails with "No usable sandbox!". Install
+  # docs/seccomp/chrome-sandbox.json on the nodes and use
+  # `{type: Localhost, localhostProfile: profiles/chrome-sandbox.json}` (see docs/rasterizer.md).
+  seccompProfile: {type: RuntimeDefault}
+  # -- Keep Chromium's sandbox. `false` starts it with --no-sandbox: a renderer exploit in a
+  # crafted recording (anyone with the project token can send one) then runs as the worker, which
+  # holds SECRET_KEY and the object storage keys. Only for clusters that cannot load the profile.
+  chromeSandbox: true
+  nodeSelector: {}
+  resources:
+    requests: {cpu: 250m, memory: 768Mi}
+    limits: {memory: 3Gi}
+  priorityClassName: ""
+  # -- Extra env, e.g. `SCREENSHOT_JPEG_QUALITY` or `MAX_IDLE_BROWSERS`.
+  env: []
+  networkPolicy:
+    # -- Address ranges the browser may not reach on 80/443 (private, CGNAT, link-local, loopback).
+    blockedCidrs: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16, 127.0.0.0/8]
+    # -- Additional egress rules, e.g. an in-cluster S3 such as MinIO.
+    extraEgress: []
+
+# Gemini-only stand-in for PostHog's AI gateway (docs/gemini-gateway.md). Replay Vision sends every
+# Gemini call through that gateway (AI_GATEWAY_URL), which PostHog does not publish. This Caddy proxy
+# takes the Gemini API with an internal token, replaces it with your Gemini key, drops PostHog's
+# label headers and forwards to Google. Other features that use the gateway (OpenAI/Anthropic
+# models) get 501.
+geminiGateway:
+  enabled: false
+  # -- Google Gemini API key (inline, lands in the chart's Secret). For GitOps map it instead:
+  # `secrets.keys.GEMINI_API_KEY: {secret: <name>, key: <key>}`.
+  geminiApiKey: ""
+  # -- Internal token between PostHog and the gateway (AI_GATEWAY_API_KEY); generated when empty.
+  # Under Argo CD put it in posthog.existingSecret or map it with secrets.keys.AI_GATEWAY_API_KEY.
+  token: ""
+  # -- Gemini API endpoint the requests go to.
+  upstream: https://generativelanguage.googleapis.com
+  replicas: 1
+  port: 8080
+  # -- Services that get AI_GATEWAY_URL and AI_GATEWAY_API_KEY. Replay Vision runs in all three
+  # (scans in temporal-django-worker, scanner drafts and questions in web).
+  clients: [web, worker, temporal-django-worker]
+  resources:
+    requests: {cpu: 20m, memory: 32Mi}
+    limits: {memory: 256Mi}
+  networkPolicy:
+    # -- Address ranges the gateway may not reach on 443 (it only needs the Gemini API).
+    blockedCidrs: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 169.254.0.0/16, 127.0.0.0/8]
+    extraEgress: []
+
+# Trusted-header login: log users in from headers set by an authenticating proxy (Teleport,
+# oauth2-proxy, Authelia, Pomerium). Requires the auth overlay image, see docs/auth-proxy.md.
+authProxy:
+  enabled: false
+  userHeader: X-Forwarded-User
+  groupsHeader: X-Forwarded-Groups
+  # -- Group -> organization membership mapping, e.g. {platform-admins: {organizations: ["*"], level: admin}}
+  groups: {}
+
+# Per-service overrides keyed by upstream service name (see upstream.yaml). Every service accepts:
+# enabled, replicas, resources, env (list), podAnnotations, nodeSelector, tolerations, affinity,
+# topologySpreadConstraints, podSecurityContext, containerSecurityContext, readOnlyRootFilesystem,
+# readinessProbe (replaces the upstream handler; startupProbe follows it),
+# persistence: {size, storageClass, selector, extraOverrides: {<claim>: {size, storageClass, selector}}},
+# extraVolumes, extraVolumeMounts, priorityClassName, args, env.
+# `selector` binds the claim to pre-provisioned PersistentVolumes (e.g. local volumes with a label);
+# zookeeper has a second claim named `datalog` which extraOverrides can target.
+services:
+  web:
+    replicas: 2
+  browserless:
+    enabled: true
+  ingestion-traces:
+    enabled: true
+  livestream:
+    enabled: true
+  clickhouse:
+    persistence: {size: 100Gi, storageClass: ""}
+  kafka:
+    persistence: {size: 50Gi, storageClass: ""}
+  zookeeper:
+    persistence: {size: 5Gi, storageClass: ""}
+  redis7:
+    persistence: {size: 2Gi, storageClass: ""}
+
+# Cluster DNS domain, used for ExternalName aliases.
+clusterDomain: cluster.local
+
+compatAliases:
+  # -- Create ExternalName Services named like the compose services (db, kafka, clickhouse, redis7,
+  # temporal, plugins, ...). PostHog's code uses those names as defaults in places env does not
+  # cover; without the aliases some components would try to reach `kafka:9092`. One release per
+  # namespace when enabled.
+  enabled: true
+
+# Fast first start. A fresh PostHog database needs ~1500 PostgreSQL and ~300 ClickHouse
+# migrations, which takes 10-20 minutes on small clusters. A schema seed (pg_dump + native
+# ClickHouse BACKUP of an already-migrated, empty instance, produced with e2e/export-seed.sh and
+# published with each chart release) is restored by the bundled datastores on first start, so
+# the migrate job only has to confirm that everything is applied.
+seed:
+  # -- Directory on the node holding posthog.pgdump and clickhouse/seed/ (hostPath; CI and single-node setups).
+  hostPath: ""
+  # -- Existing PersistentVolumeClaim with the same layout (any cluster).
+  existingClaim: ""
+
+migrations:
+  # -- Run `bin/migrate` as a Job on install and upgrade; web and the workers wait for it.
+  enabled: true
+  backoffLimit: 3
+  activeDeadlineSeconds: 3600
+  # -- Before `bin/migrate`, rebuild an empty `raw_sessions_v3` that still has the pre-2026-10-28 shape
+  # (uniqExact). ClickHouse migration 0364 would otherwise attach views that cannot write to it, and
+  # inserts into sharded_events would fail. The empty v3 tables and views are dropped and their migration
+  # records reset, so the migrations recreate them; a v3 table that holds rows stops the Job with the
+  # manual steps instead.
+  sessionsV3Reset: true
+  # -- Resources of the wait-for-migrations init container in web and the workers. It runs
+  # `manage.py migrate --check`, which loads the whole migration graph; since upstream's move to
+  # Django 6.1 (2026-10) that no longer fits in 1Gi.
+  waitResources:
+    requests: {cpu: 50m, memory: 256Mi}
+    limits: {memory: 2Gi}
+
+networkPolicy:
+  # -- Default-deny ingress for chart pods; allow traffic inside the release and to the router.
+  enabled: false
+  # -- Extra selectors allowed to reach the router's app listener (e.g. an identity-aware proxy).
+  appIngressFrom: []
+  # -- Extra selectors allowed to reach the router's ingest listener (ingress controller, tunnel).
+  ingestIngressFrom: []
+
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    labels: {}
+
+# -- Pod Security Standards level applied to the namespace when the chart creates it (see README).
+podSecurity: baseline

@@ -6,3 +6,30 @@ posthog:
   # CD release name is. cluster-configs' posthog-db secret builds DATABASE_URL
   # against posthog-postgresql.
   fullnameOverride: posthog
+
+# Pre-creates PostHog's Kafka topics when posthog.kafka.external is set. The
+# vendored chart only creates them in the sidecar of its bundled Redpanda, and
+# consumer-first services (ClickHouse Kafka tables among them) need the topics to
+# exist. Topic list: files/kafka-topics.txt, a copy of the vendored chart's
+# files/upstream/docker/kafka/topics.txt (re-copy it when re-vendoring).
+kafkaTopics:
+  # Redpanda image from the vendored chart's upstream.yaml (`images.kafka`), for rpk.
+  image: docker.io/redpandadata/redpanda:v25.1.9@sha256:8f7e9e4c1422baaa1a5e2a6c6c668cfe05442cb3cb476542c7dff61725e6fe31
+  # Topics the services produce to (KAFKA_TOPIC / CAPTURE_OUTPUT_* env in the
+  # render) that the upstream list leaves to broker auto-create, which would
+  # give them the broker defaults (7 days, unbounded) instead of `config` below.
+  extraTopics:
+    - events_plugin_ingestion
+    - ingestion-errortracking-main
+    - logs_ingestion
+    - session_recording_snapshot_item_events
+  partitions: 1
+  # rpk only accepts odd values. 1 keeps PostHog's share of kafka-kraft's 8 Gi
+  # disks at <= ~1 GiB per broker (49 topics x 64 MiB / 3 brokers); a broker
+  # restart pauses its topics, which PostHog retries through.
+  replicationFactor: 1
+  # Applied on create and re-applied to existing topics on every run. Keep them
+  # small on a shared cluster: the broker's own default is 7 days, unbounded size.
+  config:
+    retention.ms: "86400000"
+    retention.bytes: "67108864"

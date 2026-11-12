@@ -1,3 +1,112 @@
+global:
+   ## SDIP gets its own host: "/" on unified-dev.digit.org already redirects to
+   ## the DIGIT 2.x citizen UI, so the SPA cannot claim root there.
+   domain: sdip.unified-dev.digit.org
+   setup: fullsetup
+
+cluster-configs:
+  namespaces:
+    create: true
+    values: [ sdip ]
+
+  ## Only cluster-configs-unified-dev renders the cluster-wide singletons
+  ## (digit-admin / digit-user ClusterRoles and the shared root-ingress).
+  ## Leaving these on would make every product Application render them too, and
+  ## whichever synced last would claim ownership while the rest sat permanently
+  ## OutOfSync with SharedResourceWarning.
+  cluster-roles:
+    enabled: false
+  root-ingress: null
+
+  configmaps:
+    egov-config:
+      namespace: [ sdip ]
+      data:
+        db-host: unified-dev-server.postgres.database.azure.com
+        db-name: sdip
+        db-url: jdbc:postgresql://unified-dev-server.postgres.database.azure.com:5432/sdip
+        db-url-no-schema: "jdbc:postgresql://unified-dev-server.postgres.database.azure.com:5432/sdip"
+        domain: "https://sdip.unified-dev.digit.org"
+        egov-services-fqdn-name: "https://sdip.unified-dev.digit.org/"
+        ## Shared backbone, same values the other unified-dev product envs use.
+        ## kafka-kraft-controller-headless is a headless Service -- clients
+        ## resolve the broker pods directly through it.
+        kafka-brokers: kafka-kraft-controller-headless.backbone:9092
+        redis-host: redis.backbone
+        logging-level-jdbc: "DEBUG"
+        serializers-timezone-in-ist: "true"
+        server-tomcat-max-connections: "500"
+        server-tomcat-max-threads: "10"
+        spring-datasource-tomcat-initialSize: "1"
+        spring-datasource-tomcat-max-active: "2"
+        spring-jpa-show-sql: "true"
+        timezone: Asia/Kolkata
+        tracer-errors-provideexceptionindetails: "true"
+
+    egov-service-host:
+      namespace: [ sdip ]
+      data:
+        ## Service name is the Argo CD release name (sdip-app-set.yaml sets
+        ## releaseName to the element name), and both charts expose port 8080.
+        sdip-backend: "http://sdip-backend.sdip:8080/"
+        sdip-ui: "http://sdip-ui.sdip:8080/"
+
+        ## Shared DIGIT platform services, which run in the egov namespace. The
+        ## ConfigMap lives in sdip, so every entry must be namespace-qualified --
+        ## a bare "http://egov-user:8080/" would resolve to sdip and fail.
+        ## Generated from the Services actually present in egov on unified-dev,
+        ## so stale entries from the older env files are not carried over.
+        audit-service: "http://audit-service.egov:8080/"
+        billing: "http://billing.egov:8080/"
+        billing-service: "http://billing-service.egov:8080/"
+        boundary: "http://boundary.egov:8080/"
+        boundary-service: "http://boundary-service.egov:8080/"
+        collection-services: "http://collection-services.egov:8080/"
+        dashboard-analytics: "http://dashboard-analytics.egov:8080/"
+        digit-user-preferences-service: "http://digit-user-preferences-service.egov:8080/"
+        egov-accesscontrol: "http://egov-accesscontrol.egov:8080/"
+        egov-apportion-service: "http://egov-apportion-service.egov:8080/"
+        egov-enc-service: "http://egov-enc-service.egov:8080/"
+        egov-filestore: "http://egov-filestore.egov:8080/"
+        egov-hrms: "http://egov-hrms.egov:8080/"
+        egov-idgen: "http://egov-idgen.egov:8080/"
+        egov-indexer: "http://egov-indexer.egov:8080/"
+        egov-localization: "http://egov-localization.egov:8080/"
+        egov-location: "http://egov-location.egov:8080/"
+        egov-malware-detection: "http://egov-malware-detection.egov:8080/"
+        egov-mdms-service: "http://egov-mdms-service.egov:8080/"
+        egov-notification-mail: "http://egov-notification-mail.egov:8080/"
+        egov-notification-sms: "http://egov-notification-sms.egov:8080/"
+        egov-otp: "http://egov-otp.egov:8080/"
+        egov-persister: "http://egov-persister.egov:8080/"
+        egov-pg-service: "http://egov-pg-service.egov:8080/"
+        egov-url-shortening: "http://egov-url-shortening.egov:8080/"
+        egov-user: "http://egov-user.egov:8080/"
+        egov-user-egov: "http://egov-user.egov:8080/"
+        egov-user-event: "http://egov-user-event.egov:8080/"
+        egov-workflow: "http://workflow.egov:8080/"
+        egov-workflow-v2: "http://egov-workflow-v2.egov:8080/"
+        filestore: "http://filestore.egov:8080/"
+        gateway: "http://gateway.egov:8080/"
+        inbox: "http://inbox.egov:8080/"
+        individual: "http://individual.egov:8080/"
+        keycloak: "http://keycloak.egov:8080/"
+        mdms-service-v2: "http://mdms-v2.egov:8080/"
+        mdms-v2: "http://mdms-v2.egov:8080/"
+        notification: "http://notification.egov:8080/"
+        pdf-service: "http://pdf-service.egov:8080/"
+        project: "http://project.egov:8080/"
+        service-request: "http://service-request.egov:8080/"
+        tenant-management: "http://tenant-management.egov:8080/"
+        url-shortener: "http://url-shortener.egov:8080/"
+        user-otp: "http://user-otp.egov:8080/"
+        workflow: "http://workflow.egov:8080/"
+
+  secrets:
+    db:
+      namespace: [ sdip ]
+      name: db
+
 sdip-backend:
   # Do not store credentials in this file.
   # Built by egovernments/SDIP .github/workflows/build.yaml; the tag is

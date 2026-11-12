@@ -1,0 +1,67 @@
+{{- $brokers := .Values.posthog.kafka.external.brokers | default "" }}
+{{- if $brokers }}
+{{- $kt := .Values.kafkaTopics }}
+{{- $topics := printf "%s\n# kafkaTopics.extraTopics\n%s\n" (.Files.Get "files/kafka-topics.txt" | trimSuffix "\n") (join "\n" ($kt.extraTopics | default list)) }}
+{{- $configs := list }}
+{{- range $k, $v := $kt.config }}{{ $configs = append $configs (printf "%s=%v" $k $v) }}{{ end }}
+{{- /* Jobs are immutable: a changed topic list, image or setting makes a new Job. */}}
+{{- $hash := printf "%s|%s|%v|%v|%s|%s" $topics $kt.image $kt.partitions $kt.replicationFactor (join "," $configs) $brokers | sha256sum | trunc 8 }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: posthog-kafka-topics-{{ $hash }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+data:
+  topics.txt: |
+{{ $topics | indent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: posthog-kafka-topics-{{ $hash }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    # Before the PostHog workloads (wave 0), so their consumers find the topics.
+    argocd.argoproj.io/sync-wave: "-1"
+    # A superseded Job stays behind (prune is off); do not let it hold the app OutOfSync.
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: create-topics
+          image: {{ $kt.image }}
+          command: [/bin/bash, -ec]
+          args:
+            - |
+              B={{ $brokers | quote }}
+              for t in $(grep -vE '^[[:space:]]*(#|$)' /topics/topics.txt); do
+                if rpk topic list -X brokers="$B" | awk 'NR>1{print $1}' | grep -qx "$t"; then
+                  rpk topic alter-config "$t" -X brokers="$B"{{ range $configs }} --set {{ . | quote }}{{ end }}
+                else
+                  rpk topic create "$t" -X brokers="$B" -p {{ $kt.partitions }} -r {{ $kt.replicationFactor }}{{ range $configs }} -c {{ . | quote }}{{ end }}
+                fi
+              done
+              rpk topic list -X brokers="$B"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          volumeMounts:
+            - {name: topics, mountPath: /topics}
+      volumes:
+        - name: topics
+          configMap:
+            name: posthog-kafka-topics-{{ $hash }}
+{{- end }}

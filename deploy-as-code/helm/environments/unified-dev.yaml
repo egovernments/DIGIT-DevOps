@@ -2016,9 +2016,10 @@ postgresql-18:
 # is passed to the vendored community chart in its charts/posthog, whose
 # values.yaml holds the defaults.
 #
-# Dev profile: every datastore is bundled in the `posthog` namespace (PostgreSQL,
-# ClickHouse, Redpanda, Redis/Valkey, Temporal, SeaweedFS), nothing is shared with
-# backbone. About 3.6 CPU / 17 GiB memory requests and 122 GiB of volumes.
+# Dev profile: Kafka is the shared kafka-kraft in backbone; every other datastore
+# is bundled in the `posthog` namespace (PostgreSQL, ClickHouse, Redis/Valkey,
+# Temporal, SeaweedFS). About 3.3 CPU / 15.5 GiB memory requests and 102 GiB of
+# volumes.
 posthog:
   posthog:
     siteUrl: https://posthog.unified-dev.digit.org
@@ -2073,6 +2074,18 @@ posthog:
       tls:
         - hosts: [posthog.unified-dev.digit.org]
           secretName: posthog.unified-dev.digit.org-tls-certs
+
+  # Shared kafka-kraft instead of the bundled Redpanda. `brokers` turns Redpanda
+  # off and feeds the ClickHouse Kafka tables; `host` is what the services'
+  # KAFKA_HOSTS are built from (the vendored chart needs both). FQDN, because
+  # the chart's `kafka` ExternalName alias points at it and a CNAME target is not
+  # search-expanded. The wrapper's kafka-topics Job creates PostHog's 45 topics
+  # with 1-day / 64 MiB-per-partition retention (kafkaTopics in the chart's
+  # values.yaml): kafka-kraft has 8 Gi disks and DIGIT shares them.
+  kafka:
+    external:
+      host: kafka-kraft-controller-headless.backbone.svc.cluster.local
+      brokers: kafka-kraft-controller-headless.backbone.svc.cluster.local:9092
 
   # Replay Vision only. Needs a Localhost seccomp profile on the nodes for
   # Chromium's sandbox, which the AKS pools do not have.

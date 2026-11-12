@@ -24,6 +24,17 @@ top-level keys (`redis`, `clickhouse`, `minio`, ...) never reach it. Only
 `global` is shared; the vendored chart reads `global.imageRegistry` and
 `global.imagePullSecrets` from it, so do not set those there.
 
+## Shared Kafka
+
+unified-dev points PostHog at the shared `kafka-kraft` in `backbone`
+(`posthog.kafka.external`). The vendored chart then drops its Redpanda and with
+it the sidecar that pre-creates PostHog's topics, so this wrapper adds
+`templates/kafka-topics-job.yaml`: an Argo CD sync-wave -1 Job that creates
+`files/kafka-topics.txt` + `kafkaTopics.extraTopics` and (re)applies
+`kafkaTopics.config` retention to them on every change. Topics PostHog creates
+later through broker auto-create get the broker defaults (7 days, unbounded);
+check for them after upgrades.
+
 ## Upgrading
 
 Do not edit `charts/posthog`. Re-vendor a newer release instead:
@@ -33,6 +44,13 @@ git clone --depth 1 --branch <tag> https://github.com/enricofranke/posthog-k8s.g
 rsync -a --delete --exclude LICENSE \
   --exclude ci --exclude tests --exclude README.md.gotmpl \
   /tmp/posthog-k8s/charts/posthog/ charts/posthog/
+```
+
+and re-copy the topic list the wrapper's kafka-topics Job uses (Helm does not
+let the parent chart read a subchart's files):
+
+```bash
+cp charts/posthog/files/upstream/docker/kafka/topics.txt files/kafka-topics.txt
 ```
 
 Then update the table above, read the upstream CHANGELOG, and render with the

@@ -1,0 +1,164 @@
+{{- /*
+Gemini-only stand-in for PostHog's AI gateway. Replay Vision builds its Gemini client only through
+the gateway (`posthog/llm/gateway_client.py: build_gemini_client`) and has no direct route to Google
+any more; PostHog's Go ai-gateway is not published. The client sends the Gemini REST API to
+`<AI_GATEWAY_URL without /v1>/v1beta/...` with `x-goog-api-key: <AI_GATEWAY_API_KEY>` and refuses any
+request that leaves that origin, including the resumable-upload URL Google hands out.
+
+So this Caddy proxy:
+  - accepts /v1beta/* and /upload/v1beta/* only with the internal token,
+  - replaces the token with the Gemini key and forwards to `geminiGateway.upstream`,
+  - drops PostHog's X-PostHog-* label headers before they reach Google,
+  - rewrites `X-Goog-Upload-URL` in responses to its own address, so the upload chunks come back here,
+  - answers everything else (OpenAI / Anthropic routes of the real gateway) with 501.
+No access log: request headers carry the token.
+*/ -}}
+{{- if .Values.geminiGateway.enabled }}
+{{- $g := .Values.geminiGateway }}
+{{- if and (not $g.geminiApiKey) (not (index .Values.secrets.keys "GEMINI_API_KEY")) }}
+{{- fail "geminiGateway.enabled needs a Gemini API key: geminiGateway.geminiApiKey or secrets.keys.GEMINI_API_KEY" }}
+{{- end }}
+{{- $name := include "posthog.serviceName" (list . "gemini-gateway") }}
+{{- $upstream := trimSuffix "/" $g.upstream }}
+{{- $caddyfile := include "posthog.geminiGatewayCaddyfile" (list . $upstream) }}
+{{- $gemini := splitn "/" 2 (include "posthog.secretRef" (list . "GEMINI_API_KEY")) }}
+{{- $token := splitn "/" 2 (include "posthog.secretRef" (list . "AI_GATEWAY_API_KEY")) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gemini-gateway
+data:
+  Caddyfile: |
+    {{- $caddyfile | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gemini-gateway
+spec:
+  replicas: {{ $g.replicas }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "posthog.selectorLabels" (list . "gemini-gateway") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "posthog.selectorLabels" (list . "gemini-gateway") | nindent 8 }}
+      annotations:
+        checksum/caddyfile: {{ $caddyfile | sha256sum | trunc 16 }}
+    spec:
+      {{- include "posthog.imagePullSecrets" . | nindent 6 }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: caddy
+          image: {{ include "posthog.chartImage" (list $ .Values.router.image) | quote }}
+          imagePullPolicy: IfNotPresent
+          # The Caddyfile reads both keys at start ({$...}); an empty one would turn the token check
+          # into "header present", so refuse to start without them.
+          command: [/bin/sh, -ec]
+          args:
+            - |
+              [ -n "$AI_GATEWAY_API_KEY" ] || { echo "AI_GATEWAY_API_KEY is empty" >&2; exit 1; }
+              [ -n "$GEMINI_API_KEY" ] || { echo "GEMINI_API_KEY is empty" >&2; exit 1; }
+              exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+          env:
+            - name: XDG_CONFIG_HOME
+              value: /tmp/config
+            - name: XDG_DATA_HOME
+              value: /tmp/data
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef: {name: {{ $gemini._0 }}, key: {{ $gemini._1 }}}
+            - name: AI_GATEWAY_API_KEY
+              valueFrom:
+                secretKeyRef: {name: {{ $token._0 }}, key: {{ $token._1 }}}
+          ports:
+            - name: http
+              containerPort: {{ $g.port }}
+          readinessProbe:
+            httpGet: {path: /_health, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /_health, port: http}
+            periodSeconds: 30
+          resources:
+            {{- toYaml $g.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            # The caddy image carries cap_net_bind_service as a file capability (see router).
+            capabilities: {drop: [ALL], add: [NET_BIND_SERVICE]}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/caddy
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $name }}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gemini-gateway
+spec:
+  selector:
+    {{- include "posthog.selectorLabels" (list . "gemini-gateway") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $g.port }}
+      targetPort: http
+{{- if .Values.networkPolicy.enabled }}
+---
+# The gateway holds the Gemini key: it only needs DNS and the Gemini API. Ingress is the release's
+# internal policy (pods of this release only; the rasterizer's egress policy keeps the browser out).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}-egress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "posthog.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "posthog.selectorLabels" (list . "gemini-gateway") | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    - ports:
+        - {port: 53, protocol: UDP}
+        - {port: 53, protocol: TCP}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: {{ toJson $g.networkPolicy.blockedCidrs }}
+      ports:
+        - port: 443
+    {{- with $g.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- end }}

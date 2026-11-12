@@ -15,7 +15,8 @@ kargo:
   masterOnlyStages: []          # uat-saas accepts the same build tags as digit-lts (no master-* convention)
   envFileWrite: merge
   verify:
-    enabled: false              # enable once a read-only kubeconfig Secret exists for this cluster
+    enabled: true
+    namespace: studio           # most studio services in ns studio; health services override below
 
   services:
     # UI shell (chart digit-studio 3.0.1). No DB migration. Its tags end in a build number
@@ -101,6 +102,7 @@ kargo:
     - name: beneficiary-idgen
       chart: beneficiary-idgen
       chartRepo: https://helm.digit.org/digit3/health
+      namespace: health
       dbMigration: true
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
@@ -110,6 +112,7 @@ kargo:
     - name: health-service-request
       chart: health-service-request
       chartRepo: https://helm.digit.org/digit3/health
+      namespace: health
       dbMigration: true
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
@@ -122,12 +125,14 @@ kargo:
       color: "#3BA9C2"
       branch: digit-lts
       envFile: deploy-as-code/helm/environments/digit-studio-lts.yaml
+      verifyKubeconfigSecret: verify-kubeconfig-digit-lts
       autoPromotion: false
     - name: uat-saas
       from: digit-lts               # only Freight already promoted to digit-lts
       color: "#C2873B"
       branch: uat-saas
       envFile: deploy-as-code/helm/environments/uat-saas.yaml
+      verifyKubeconfigSecret: verify-kubeconfig-uat-saas
       autoPromotion: false
 
   teams:

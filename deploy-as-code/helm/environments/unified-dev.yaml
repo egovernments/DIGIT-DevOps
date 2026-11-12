@@ -2099,6 +2099,12 @@ posthog:
   services:
     web:
       replicas: 1
+    browserless:
+      # Upstream probes GET /pressure, which browserless answers with 401 once
+      # TOKEN is set, so the pod failed its startup probe and restarted every
+      # ~5 min. The vendored chart's documented fix: probe the port instead.
+      readinessProbe:
+        tcpSocket: {port: http}
     clickhouse:
       persistence: {size: 50Gi}
     kafka:

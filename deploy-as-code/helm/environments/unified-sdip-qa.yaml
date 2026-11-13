@@ -1,0 +1,34 @@
+# Promotion target for the unified-sdip Kargo pipeline. NOT a deployment config.
+#
+# Nothing reads this file yet. There is no SDIP ApplicationSet on the unified-qa
+# branch, and the `sdip` namespace on the qa cluster is empty apart from the
+# default kube-root-ca.crt ConfigMap. The file exists so that promoting SDIP
+# Freight from dev to qa has somewhere to write.
+#
+# Why it must exist before the first promotion: the qa Stage promotes with
+# yaml-update, which only REPLACES keys that are already present -- it does not
+# create them. Without this file the promotion fails at the yaml-update step;
+# without the two image.tag keys below it succeeds while writing nothing.
+# (charts/kargo/templates/stage.yaml, and the note above `stages:` in
+# charts/kargo/config/projects/unified-sdip.yaml on the unified-dev branch.)
+#
+# Expect the tags below to be rewritten by commits authored by `kargo`. An empty
+# value means nothing has been promoted to qa yet.
+#
+# To make qa actually deploy, this file grows into a real environment config --
+# image repository, replicas, env, probes, the runtime Secret projection -- and
+# the branch additionally needs an SDIP ApplicationSet + AppProject, a
+# cluster-configs-unified-sdip-qa Application, the namespace, and
+# unified-sdip-qa-secrets.yaml. QA also needs its own database and schema
+# migrations, its own ingress host, and its own runtime Secret values; none of
+# those carry over from dev. Model it on unified-sdip-dev.yaml on the
+# unified-dev branch, then set verifyKubeconfigSecret on the qa stage to switch
+# Kargo's post-promotion verification back on.
+
+sdip-backend:
+  image:
+    tag: ""
+
+sdip-ui:
+  image:
+    tag: ""

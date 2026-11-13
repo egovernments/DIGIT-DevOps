@@ -1,0 +1,100 @@
+# unified-sdip Kargo pipeline: SDIP backend + UI (sdip namespace), DEV only.
+#
+# Namespace split follows the other projects: the pipeline lives in
+# `unified-sdip`, the workloads in `sdip` -- the same relationship as
+# unified-core/egov, unified-health/health and unified-studio/studio.
+kargo:
+  project: unified-sdip
+  registry: docker.io/egovio
+  git:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+
+  # The SDIP ApplicationSet names its Applications after the element -- plain
+  # `sdip-backend` / `sdip-ui`, with no product prefix -- so argocd-update must
+  # not prepend one. (unified-core uses egov-, studio uses studio-.)
+  argocdAppPrefix: ""
+
+  # Project-level discovery default: mainline only, anchored on the trailing
+  # commit sha so the per-arch manifest children (-amd64 / -arm64) stay out of
+  # Freight; the main tag is already a multi-arch index.
+  #
+  # As with unified-studio, NO SDIP image is built from master today. SDIP's
+  # pipeline (egovernments/SDIP .github/workflows/build.yaml) tags
+  # <branch>-<short-sha>, and every published tag so far is dev-* or
+  # sdip-phase2-import-*. The default below therefore matches nothing right now
+  # and both services carry an extraAllowTags. That is deliberate: it keeps the
+  # mainline default honest, so services are discovered unchanged once they move
+  # to master, and retiring a branch family is just dropping a line.
+  allowTags: '^master-.*[0-9a-f]{7,}$'
+
+  # Post-promotion verification runs against the sdip namespace on unified-dev.
+  # Both charts name the Deployment after the Argo CD release name, which equals
+  # the service name, so no deploymentName override is needed.
+  verify:
+    enabled: true
+    namespace: sdip
+
+  services:
+    - name: sdip-backend
+      namespace: sdip
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      # dev-<short-sha>, e.g. dev-eaa3988. The sha anchor keeps the per-arch
+      # children out; it also excludes the stale sdip-phase2-import-* builds,
+      # which predate the unified-dev profile entirely and must never be
+      # promoted (they crash-loop: no application-unified-dev.properties and no
+      # org.sdip.runtime package).
+      extraAllowTags: '^dev-[0-9a-f]{7,}$'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+    - name: sdip-ui
+      namespace: sdip
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      extraAllowTags: '^dev-[0-9a-f]{7,}$'
+      cacheByTag: true
+      discoveryLimit: 50
+      interval: 30m0s
+
+  # DEV ONLY, deliberately.
+  #
+  # SDIP exists on unified-dev and nowhere else: there is no sdip namespace on
+  # the qa or uat clusters, no SDIP ApplicationSet on the unified-qa /
+  # unified-uat branches, and no unified-sdip-qa.yaml / unified-sdip-uat.yaml
+  # for a promotion to write into. Declaring those stages now would render
+  # Stages that can never promote successfully and would show as a broken
+  # pipeline in the Kargo UI.
+  #
+  # Adding them later is this block plus the matching env file on each target
+  # branch -- see unified-studio.yaml for the shape. masterOnlyStages defaults
+  # to [uat], so a uat stage added later is mainline-only without extra config.
+  stages:
+    - name: dev
+      color: "#3BA9C2"
+      branch: unified-dev
+      envFile: deploy-as-code/helm/environments/unified-sdip-dev.yaml
+      # Promotion stays a deliberate act: Freight is discovered automatically,
+      # but a human picks which build reaches dev.
+      autoPromotion: false
+      # DEV shares the cluster with Kargo, so the promotion can force an
+      # immediate Argo CD sync instead of waiting for the next poll.
+      argocdUpdate: true
+      argocdNamespace: argocd
+      verifyKubeconfigSecret: verify-kubeconfig-dev
+
+  # GitHub teams with access to THIS project only. Starting with devops alone,
+  # as unified-studio did. Add SDIP-specific entries the same way once the team
+  # slugs exist, e.g.
+  #   - name: sdip-devs
+  #     role: viewer
+  #     groups: [egovernments:<sdip-team-slug>]
+  #   - name: sdip-dev-promoters
+  #     role: promoter
+  #     promoteStages: [dev]
+  #     manageFreight: true
+  #     groups: [egovernments:<sdip-dev-promote-slug>]
+  teams:
+    - name: devops
+      role: admin
+      groups: [egovernments:micro-service-devops]

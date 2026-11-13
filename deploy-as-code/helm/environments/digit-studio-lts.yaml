@@ -156,7 +156,8 @@ cluster-configs:
         property-services: "http://property-services.egov:8080/"
         pgr-master: "http://pgr-master:8080/"
         pgr-rest: "http://pgr-rest:8080/"
-        pdf-service: "http://pdf.egov:8080/"
+        # pdf-v3 (license-certificate repo), DIGIT 3.0's PDF service; read only by studio-pdf.
+        pdf-service: "http://pdf-v3.egov:8080/"
         project-factory: "http://project-factory.health:8080/"
         report: "http://report.egov:8080/"
         swm-services: "http://swm-services:8080/"
@@ -323,13 +324,14 @@ studio-pdf-helper-service:
   # postgres.egov has no SSL (unified-qa's Azure database does).
   db-sslmode: disable
   namespace: studio
-  # The helper commits pdf-service config to egovernments/configs (this branch) and to
-  # DIGIT-DevOps (branch + file below), then restarts pdf-service in egov through the
-  # Kubernetes API in secret github-config. egovernments/configs has no DIGIT-LTS branch
-  # yet; it must be created before this service runs.
-  github-config-branch: "DIGIT-LTS"
-  github-devops-file-path: "deploy-as-code/helm/environments/test-lts.yaml"
-  github-devops-branch: "digit-lts"
+  # On DIGIT 3.0 the helper saves the designer's PDF designs as pdf-v3 templates (pdf-v3 host:
+  # its default http://pdf-v3.egov:8080, else EGOV_PDF_HOST); it no longer uses GitHub or
+  # restarts pdf-service. It embeds a design's images while saving and downloads them only from
+  # PDF_IMAGE_HOSTS: the storage host filestore-java's file links point to (S3_ENDPOINT).
+  extraEnv:
+    app: |
+      - name: PDF_IMAGE_HOSTS
+        value: "minio-api.test-lts.digit.org"
   resources: |
     limits:
       cpu: "100m"

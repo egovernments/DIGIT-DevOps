@@ -307,7 +307,17 @@ sdip-backend:
     - name: sdip-runtime-files
       secret:
         secretName: sdip-backend-runtime-files
-        defaultMode: 0400
+        ## 0444, not 0400. Secret volume files are owned by root:root unless the
+        ## Pod sets securityContext.fsGroup, and this chart sets no
+        ## securityContext at all, while the image runs USER sdip. With 0400 the
+        ## application could not read its own runtime files:
+        ## RuntimeConnections.secret() threw "Runtime file missing or invalid",
+        ## LocalRuntimeGuard replaced that with its generic "Shared runtime
+        ## configuration is incomplete or invalid" message, and the pod
+        ## CrashLoopBackOff'd with no indication of the real cause.
+        ## Verified in-cluster: a non-root uid reading a 0400 root-owned file in
+        ## this exact projection gets EACCES.
+        defaultMode: 0444
         items:
           ## core-fix-client.json is read as "digit/core-fix-client.json".
           - key: core-fix-client.json

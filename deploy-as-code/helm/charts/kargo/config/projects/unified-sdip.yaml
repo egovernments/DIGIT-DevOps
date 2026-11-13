@@ -145,8 +145,31 @@ kargo:
     # rbac.yaml expands this to every "<service>-dev" Stage, so adding a service
     # needs no change here, and a stage name that does not exist is a hard
     # template error rather than a silent no-op.
+    #
+    # BOTH teams are listed, and `sdip` alone does not work. They are nested:
+    #
+    #   unified-dev-deploy (19 members)
+    #   └── sdip  (12)   <- the team this grant is "about"
+    #       └── ssb  (12)  <- where all 12 are DIRECT members
+    #
+    # Dex builds the groups claim from GitHub's GET /user/teams, which returns
+    # only DIRECT memberships. All 12 people are direct members of the leaf team
+    # `ssb` and hold `sdip` only by inheritance, so `egovernments:sdip` never
+    # appears in anyone's token. Granting it alone matched nobody and the
+    # project list came back "projects.kargo.akuity.io is forbidden: list is not
+    # permitted" -- confirmed in the Dex log, where a login shows
+    #   groups="[egovernments:unified-dev-deploy egovernments:ssb]"
+    # with no sdip entry.
+    #
+    # `ssb` is what actually matches today. `sdip` is kept so the grant still
+    # works if someone is later made a direct member of it. This widens nothing:
+    # the two teams have byte-identical membership. rbac.yaml comma-joins the
+    # list into one claim annotation, which is OR.
+    #
+    # Do NOT "simplify" this to the parent `unified-dev-deploy` -- that team has
+    # 19 members, seven of whom are not on SDIP.
     - name: sdip
       role: promoter
       promoteStages: [dev]
       manageFreight: true
-      groups: [egovernments:sdip]
+      groups: [egovernments:sdip, egovernments:ssb]

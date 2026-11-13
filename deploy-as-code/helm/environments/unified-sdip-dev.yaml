@@ -174,20 +174,21 @@ sdip-backend:
   # Built by egovernments/SDIP .github/workflows/build.yaml; the tag is
   # <branch>-<short-sha> of the SDIP commit the image was built from.
   #
-  # NOT YET PUBLISHED. egovio/sdip-backend carries only
-  # sdip-phase2-import-{c93a6dc,30e0cdb}, and neither contains the unified-dev
-  # profile at all -- no application-unified-dev.properties and no
-  # org.sdip.runtime package. dev-a72e39f is the tag CI will produce for the
-  # merge of SDIP PR #419 (<branch>-<short-sha>, dev @ a72e39fa).
+  # dev @ eaa3988 (SDIP PR #421), published 2026-11-13, linux/amd64 + arm64.
   #
-  # replicas stays 0 until that image exists: pinning an unpullable tag on a
-  # live replica only produces ImagePullBackOff noise. Flip the tag and replicas
-  # together once the build is confirmed pullable.
+  # Caveat for whoever debugs this image: PR #421 unblocked the build by
+  # switching the Dockerfile from -DskipTests to -Dmaven.test.skip=true, which
+  # skips test *compilation*. Seven missing-symbol errors are therefore hidden,
+  # not fixed -- three ServiceQuorumWorkflow* test classes reference
+  # DigitWorkflowClient.upgradeServiceQuorum and OwnerLiveSupport.personForRole,
+  # neither of which exists on dev (the implementation is on
+  # feature/sdip-phase2-workflow-configuration, e391bfe). Production sources are
+  # unaffected, so the image is sound; the test/code gap is still open upstream.
   image:
     repository: egovio/sdip-backend
-    tag: "dev-a72e39f"
+    tag: "dev-eaa3988"
 
-  replicas: 0
+  replicas: 1
   envFromSecret: ""
 
   env:

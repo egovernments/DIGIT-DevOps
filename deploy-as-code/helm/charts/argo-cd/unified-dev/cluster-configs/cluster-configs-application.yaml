@@ -232,3 +232,62 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m0s
+---
+## SDIP. Without this Application nothing rendered environments/unified-sdip-dev.yaml:
+## the sdip ApplicationSet only deploys the sdip-backend / sdip-ui charts, which
+## have no ConfigMap or Secret templates, so the egov-config / egov-service-host
+## ConfigMaps and the db Secret declared for namespace `sdip` -- and the
+## credentials already encrypted in unified-sdip-dev-secrets.yaml -- never
+## reached the cluster, leaving sdip-backend in CreateContainerConfigError on
+## its configMapKeyRef / secretKeyRef.
+##
+## This Application also renders the three ExternalName aliases into `egov`
+## (cluster-configs.external-aliases) that SDIP's single-namespace endpoint
+## validator requires, and the sdip-backend-runtime-files Secret.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-configs-unified-sdip-dev
+  namespace: argocd
+spec:
+  project: cluster-configs-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-dev
+      path: "deploy-as-code/helm/charts/cluster-configs"
+      helm:
+        valueFiles:
+          - values.yaml
+          - ../../environments/unified-sdip-dev.yaml
+          ## secrets:// is decrypted by argocd-repo-server via SOPS + AWS KMS.
+          ## Key mapping: deploy-as-code/helm/.sops.yaml
+          - secrets://../../environments/unified-sdip-dev-secrets.yaml
+        ## Same reasoning as the urban / health / studio Applications above --
+        ## only cluster-configs-unified-dev owns the cluster-wide singletons.
+        ## unified-sdip-dev.yaml already sets both, these are belt-and-braces
+        ## against a future edit to that file.
+        parameters:
+          - name: cluster-configs.cluster-roles.enabled
+            value: "false"
+          - name: cluster-configs.root-ingress
+            value: "null"
+        ## NOTE: no namespaces.create override here. unified-sdip-dev.yaml sets
+        ## `create: false` because cluster-configs-unified-dev already creates
+        ## `sdip`; two Applications rendering the same Namespace object leaves
+        ## one of them permanently OutOfSync with SharedResourceWarning.
+  destination:
+    server: https://kubernetes.default.svc
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m0s

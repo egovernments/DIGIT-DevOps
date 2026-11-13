@@ -5,8 +5,14 @@ global:
    setup: fullsetup
 
 cluster-configs:
+  ## `sdip` is already in cluster-configs-unified-dev's namespaces list
+  ## (environments/unified-dev.yaml), so creating it here too would leave both
+  ## Applications fighting over the same Namespace object with
+  ## SharedResourceWarning. Unlike urban/health -- where nothing else created
+  ## the namespace and `create: false` broke the sync -- the namespace does
+  ## exist, so this env only populates it.
   namespaces:
-    create: true
+    create: false
     values: [ sdip ]
 
   ## Only cluster-configs-unified-dev renders the cluster-wide singletons
@@ -102,27 +108,238 @@ cluster-configs:
         user-otp: "http://user-otp.egov:8080/"
         workflow: "http://workflow.egov:8080/"
 
+  ## RuntimeConnections.validateService() accepts an endpoint only when its host
+  ## ends with ".<SDIP_SERVICE_NAMESPACE>.svc.cluster.local", and that setting
+  ## takes a single namespace. It is applied to the seven DIGIT URLs *and* to
+  ## every Kafka broker, the ClamAV host and the object-store origin -- which on
+  ## unified-dev live in backbone and security, not egov. These CNAME aliases
+  ## give the out-of-namespace dependencies an egov-resolvable name without
+  ## weakening the validator or touching the real Services.
+  ##
+  ## Kafka: only the bootstrap string is validated. Broker metadata still
+  ## advertises *.backbone.svc.cluster.local, which the client dials directly.
+  external-aliases:
+    namespace: egov
+    aliases:
+      sdip-kafka: kafka-kraft-controller-headless.backbone.svc.cluster.local
+      sdip-clamav: clamav.security.svc.cluster.local
+      sdip-objectstore: minio.backbone.svc.cluster.local
+
   secrets:
     db:
       namespace: [ sdip ]
       name: db
 
+    ## Mounted at SDIP_RUNTIME_CONFIG_DIR. The backend reads all three files
+    ## during startup validation (org.sdip.runtime.SharedRuntimeConfiguration)
+    ## and refuses to start if any is missing or malformed.
+    ##
+    ## Only coreFix.clientToken is a credential; it lives in
+    ## unified-sdip-dev-secrets.yaml and this Secret is not rendered until it is
+    ## set. The other values are deployment inputs, kept here so they are
+    ## reviewable in a diff.
+    sdip-backend-runtime-files:
+      namespace: [ sdip ]
+      name: sdip-backend-runtime-files
+
+      ## baseUrl must carry no path -- DigitProtectedDataClient appends
+      ## /egov-enc-service/crypto/... itself and rejects a non-empty path.
+      ##
+      ## WARNING: stock egov-enc-service does not implement crypto/v2/_digest.
+      ## That endpoint only exists in SDIP's fork
+      ## (SDIP Phase-2/infra/digit/encryption-fix). Startup checks the URL shape
+      ## and token length only, so the pod will go Ready against the stock
+      ## service while every digest-backed flow (email lookup, invitations,
+      ## onboarding, password links) fails at runtime.
+      coreFix:
+        baseUrl: http://egov-enc-service.egov.svc.cluster.local:8080
+
+      ## digestKeyRef is not a secret: it is the active symmetric key id for
+      ## tenant pb in the enc service's key store, passed through as `keyId`.
+      ## Read it from any crypto/v1/_encrypt response -- the envelope is
+      ## prefixed "<keyId>|". Must be an integer >= 1.
+      onboarding:
+        digestKeyRef: 1
+        invitationLifetimeDays: 7
+
+      ## charts/backbone-services/kafka-kraft sets listeners.client.protocol to
+      ## PLAINTEXT with no SASL and no ACLs on this cluster. Only the ten
+      ## security.protocol / sasl.* / ssl.* keys the backend allowlists may
+      ## appear here; anything else aborts startup.
+      kafka:
+        security.protocol: PLAINTEXT
+
 sdip-backend:
   # Do not store credentials in this file.
   # Built by egovernments/SDIP .github/workflows/build.yaml; the tag is
   # <branch>-<short-sha> of the SDIP commit the image was built from.
+  #
+  # NOT YET PUBLISHED. egovio/sdip-backend carries only
+  # sdip-phase2-import-{c93a6dc,30e0cdb}, and neither contains the unified-dev
+  # profile at all -- no application-unified-dev.properties and no
+  # org.sdip.runtime package. dev-a72e39f is the tag CI will produce for the
+  # merge of SDIP PR #419 (<branch>-<short-sha>, dev @ a72e39fa).
+  #
+  # replicas stays 0 until that image exists: pinning an unpullable tag on a
+  # live replica only produces ImagePullBackOff noise. Flip the tag and replicas
+  # together once the build is confirmed pullable.
   image:
     repository: egovio/sdip-backend
-    tag: "sdip-phase2-import-c93a6dc"
+    tag: "dev-a72e39f"
 
-  replicas: 1
+  replicas: 0
   envFromSecret: ""
 
   env:
+    ## ---- profile / mode ------------------------------------------------
+    - name: SPRING_PROFILES_ACTIVE
+      value: "unified-dev"
+    - name: SDIP_RUNTIME_MODE
+      value: "unified-dev"
     - name: SERVER_PORT
       value: "8080"
     - name: SERVER_ADDRESS
       value: "0.0.0.0"
+
+    ## ---- runtime Secret mount -------------------------------------------
+    ## Must match the volumeMounts path below; the validator requires an
+    ## absolute path.
+    - name: SDIP_RUNTIME_CONFIG_DIR
+      value: "/etc/sdip/runtime"
+
+    ## ---- the single approved service namespace ---------------------------
+    - name: SDIP_SERVICE_NAMESPACE
+      value: "egov"
+
+    ## ---- DIGIT platform services (all in egov) ---------------------------
+    - name: SDIP_DIGIT_USER_URL
+      value: "http://egov-user.egov.svc.cluster.local:8080"
+    - name: SDIP_DIGIT_ACCESSCONTROL_URL
+      value: "http://egov-accesscontrol.egov.svc.cluster.local:8080"
+    ## v1 MDMS is a distinct Service from mdms-v2 on unified-dev; SDIP calls both.
+    - name: SDIP_DIGIT_MDMS_URL
+      value: "http://egov-mdms-service.egov.svc.cluster.local:8080"
+    - name: SDIP_DIGIT_MDMS_V2_URL
+      value: "http://mdms-v2.egov.svc.cluster.local:8080"
+    ## A path is permitted by validateService -- only query and fragment are not.
+    - name: SDIP_DIGIT_WORKFLOW_URL
+      value: "http://egov-workflow-v2.egov.svc.cluster.local:8080/egov-workflow-v2/egov-wf"
+    - name: SDIP_DIGIT_OTP_URL
+      value: "http://egov-otp.egov.svc.cluster.local:8080"
+    - name: SDIP_DIGIT_FILESTORE_URL
+      value: "http://egov-filestore.egov.svc.cluster.local:8080"
+
+    ## ---- object store: alias -> minio.backbone ---------------------------
+    ## validateStorageOrigin() additionally forbids any path component.
+    - name: SDIP_OBJECTSTORE_URL
+      value: "http://sdip-objectstore.egov.svc.cluster.local:9000"
+
+    ## ---- Kafka: alias -> kafka-kraft-controller-headless.backbone --------
+    ## Every broker is validated and an explicit port is mandatory.
+    - name: SDIP_KAFKA_BOOTSTRAP_SERVERS
+      value: "sdip-kafka.egov.svc.cluster.local:9092"
+    - name: SDIP_NOTIFICATION_EMAIL_TOPIC
+      value: "sdip.unified-dev.notification.email"
+    - name: SDIP_EMAIL_DISPATCH_ENABLED
+      value: "false"
+
+    ## ---- ClamAV: alias -> clamav.security --------------------------------
+    ## scannerHost() requires DNS only: no scheme, no port, no path.
+    - name: SDIP_CLAMAV_HOST
+      value: "sdip-clamav.egov.svc.cluster.local"
+    - name: SDIP_CLAMAV_PORT
+      value: "3310"
+
+    ## ---- synthetic exchange ----------------------------------------------
+    ## Mandatory in shared mode. Keep false: `true` additionally requires
+    ## SDIP_EVENT_TOPIC_PREFIX (which must not start with "sdip.dev."),
+    ## SDIP_EVENT_REPLICATION_FACTOR (1-3) and SDIP_EVENT_ALLOW_TOPIC_CREATE.
+    - name: SDIP_SYNTHETIC_EXCHANGE_ENABLED
+      value: "false"
+
+    ## ---- public origin ----------------------------------------------------
+    ## Must be an HTTPS origin with an empty or "/" path in shared mode.
+    - name: SDIP_PUBLIC_BASE_URL
+      value: "https://sdip.unified-dev.digit.org"
+
+    ## ---- Redis ------------------------------------------------------------
+    ## application-unified-dev.properties interpolates these with no Spring
+    ## default, so the context fails to build if they are unset. The backbone
+    ## redis runs without requirepass, hence the empty password.
+    - name: SDIP_REDIS_HOST
+      value: "redis.backbone.svc.cluster.local"
+    - name: SDIP_REDIS_PORT
+      value: "6379"
+    - name: SDIP_REDIS_PASSWORD
+      value: ""
+
+    ## ---- shared PostgreSQL (SDIP PR #419) ---------------------------------
+    ## Setting any one of these switches RuntimeConnections.source(owner) to the
+    ## shared login and removes the need for the six
+    ## <owner>-database-credentials.json files.
+    - name: SDIP_DB_JDBC_URL
+      valueFrom:
+        configMapKeyRef:
+          name: egov-config
+          key: db-url
+    - name: SDIP_DB_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: db
+          key: username
+    - name: SDIP_DB_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: db
+          key: password
+    ## Six owner pools share one login. The default of 4 each would put 24
+    ## connections per replica on the shared unified-dev-server instance.
+    - name: SDIP_DB_POOL_MAX_PER_OWNER
+      value: "3"
+
+  volumeMounts:
+    - name: sdip-runtime-files
+      mountPath: /etc/sdip/runtime
+      readOnly: true
+
+  volumes:
+    - name: sdip-runtime-files
+      secret:
+        secretName: sdip-backend-runtime-files
+        defaultMode: 0400
+        items:
+          ## core-fix-client.json is read as "digit/core-fix-client.json".
+          - key: core-fix-client.json
+            path: digit/core-fix-client.json
+          - key: onboarding-runtime.json
+            path: onboarding-runtime.json
+          - key: kafka-client.json
+            path: kafka-client.json
+
+  ## /internal/health/ready probes all six database pools plus Redis, cached for
+  ## three seconds, so its timeout has to exceed the sum of those checks.
+  healthChecks:
+    startup:
+      httpGet:
+        path: /internal/health/live
+        port: http
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 36
+    readiness:
+      httpGet:
+        path: /internal/health/ready
+        port: http
+      periodSeconds: 10
+      timeoutSeconds: 15
+      failureThreshold: 3
+    liveness:
+      httpGet:
+        path: /internal/health/live
+        port: http
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 3
 
 sdip-ui:
   # Same build pipeline and tag scheme as sdip-backend above.

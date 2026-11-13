@@ -14,17 +14,15 @@ service:
 envFromSecret: ""
 env: []
 
-healthChecks:
-  readiness:
-    tcpSocket:
-      port: http
-    initialDelaySeconds: 15
-    periodSeconds: 10
-  liveness:
-    tcpSocket:
-      port: http
-    initialDelaySeconds: 60
-    periodSeconds: 20
+# Probes are defined per environment, not here.
+#
+# deployment.yaml merges this file with the `sdip-backend` block of the env file
+# via mergeOverwrite, which deep-merges: a tcpSocket default here survived
+# alongside an httpGet override there, producing a probe with two handlers that
+# the API server rejects with "may not specify more than 1 handler type".
+# Keeping the key present but empty lets `{{- with $cfg.healthChecks.startup }}`
+# resolve without a nil dereference.
+healthChecks: {}
 
 resources:
   requests:

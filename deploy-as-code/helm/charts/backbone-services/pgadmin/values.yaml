@@ -43,6 +43,22 @@ ui-languages: "{'en': 'English'}"
 enable-save-password: "False"
 max-query-history: "50"
 max-login-attempts: "5"
+# Keep False while enable-save-password is False: with no stored database
+# password there is nothing for a master password to protect, and requiring one
+# blocks users from saving a server registration.
+master-password-required: "False"
+
+# Second, non-admin UI login, provisioned from the read-email / read-password
+# keys of the `pgadmin` Secret. pgAdmin's entrypoint only ever creates
+# PGADMIN_DEFAULT_EMAIL, so without this those Secret keys are inert and the
+# user cannot log in. Also loads servers.json for BOTH users -- the entrypoint
+# loads it only for the default admin.
+readUser:
+  enabled: true
+  # How long the postStart hook waits for the main container to create the
+  # config DB and the default admin before giving up (and giving up is a no-op,
+  # never a container failure).
+  timeoutSeconds: 180
 shared-storage: "[{'name': 'Shared Folder', 'path': '/var/lib/pgadmin/shared_folder', 'restricted_access': True}]"
 
 persistence:
@@ -79,8 +95,32 @@ extraVolumeMounts: |
     name: config
     subPath: config_local.py
     readOnly: true
+  {{- if .Values.readUser.enabled }}
+  - mountPath: /pgadmin4/bootstrap-users.py
+    name: config
+    subPath: bootstrap-users.py
+    readOnly: true
+  {{- end }}
   - mountPath: /var/lib/pgadmin
     name: storage
+
+# Runs alongside the main process once the container starts.
+#
+# NOT guarded with a Helm conditional: common/_deployment.yaml renders this key
+# with toYaml, not tpl, so a {{ if }} here would be literal text rather than a
+# template. readUser.enabled gates the script and its mount instead; with it
+# disabled the file is absent, python exits non-zero and `|| true` absorbs it.
+#
+# `|| true` is load-bearing in any case: a non-zero postStart hook kills the
+# container, and failing to provision a secondary login must never take pgAdmin
+# itself down.
+lifecycle:
+  postStart:
+    exec:
+      command:
+        - /bin/sh
+        - -c
+        - /venv/bin/python3 /pgadmin4/bootstrap-users.py >> /var/lib/pgadmin/bootstrap-users.log 2>&1 || true
 
 securityContext:
   fsGroup: 5050
@@ -97,6 +137,21 @@ env: |
       secretKeyRef:
         name: pgadmin
         key: admin-password
+  {{- if .Values.readUser.enabled }}
+  # Consumed by bootstrap-users.py, not by pgAdmin itself -- pgAdmin has no
+  # notion of a second default user. These two Secret keys already existed and
+  # were read by nothing.
+  - name: PGADMIN_READ_EMAIL
+    valueFrom:
+      secretKeyRef:
+        name: pgadmin
+        key: read-email
+  - name: PGADMIN_READ_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: pgadmin
+        key: read-password
+  {{- end }}
   - name: CONFIG_DATABASE_CONNECTION_POOL_SIZE
     value: "5"
   - name: PGADMIN_LISTEN_PORT

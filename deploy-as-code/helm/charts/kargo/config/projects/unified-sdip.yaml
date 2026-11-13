@@ -115,18 +115,38 @@ kargo:
       # only by setting masterOnlyStages: [] at the top of this file, which
       # drops a guarantee every other project here honours.
 
-  # GitHub teams with access to THIS project only. Starting with devops alone,
-  # as unified-studio did. Add SDIP-specific entries the same way once the team
-  # slugs exist, e.g.
-  #   - name: sdip-devs
-  #     role: viewer
-  #     groups: [egovernments:<sdip-team-slug>]
-  #   - name: sdip-dev-promoters
-  #     role: promoter
-  #     promoteStages: [dev]
-  #     manageFreight: true
-  #     groups: [egovernments:<sdip-dev-promote-slug>]
+  # GitHub teams with access to THIS project only.
   teams:
     - name: devops
       role: admin
       groups: [egovernments:micro-service-devops]
+
+    # github.com/orgs/egovernments/teams/sdip -- the SDIP product team.
+    #
+    # One entry, not the two unified-studio uses, because the stage-scoped
+    # promoter Role that rbac.yaml generates already carries read-only project
+    # visibility identical to kargo-viewer. A separate viewer entry for the same
+    # team would grant nothing it does not already have. Studio splits them
+    # because its viewers and its promoters are DIFFERENT GitHub teams.
+    #
+    # manageFreight is required here, not optional: this project runs
+    # freightCreationPolicy: Manual, so Freight has to be assembled by hand
+    # before anything can be promoted. Without it the UI refuses with
+    #   freights.kargo.akuity.io "freight" is forbidden: create is not permitted
+    # even though existing Freight is visible. Note the scope -- Freight is a
+    # project-level object that resourceNames cannot pin, so this team can
+    # create, edit and delete ANY Freight in unified-sdip.
+    #
+    # promoteStages is [dev] deliberately, matching studio-dev-promoters:
+    #   qa  - promotes but deploys nothing today (no ApplicationSet on the
+    #         unified-qa branch); add "qa" here when that changes.
+    #   uat - left with devops. uat is master-only by org policy and SDIP has no
+    #         mainline build, so the grant would be inert anyway.
+    # rbac.yaml expands this to every "<service>-dev" Stage, so adding a service
+    # needs no change here, and a stage name that does not exist is a hard
+    # template error rather than a silent no-op.
+    - name: sdip
+      role: promoter
+      promoteStages: [dev]
+      manageFreight: true
+      groups: [egovernments:sdip]

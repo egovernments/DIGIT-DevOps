@@ -49,3 +49,102 @@ data:
     MAX_LOGIN_ATTEMPTS = {{ index .Values "max-login-attempts" }}
     SHARED_STORAGE = {{ index .Values "shared-storage" }}
     ENABLE_PSQL = True
+    # With ALLOW_SAVE_PASSWORD False, pgAdmin never stores a database password,
+    # so the master password protects nothing and only adds a per-user dialog
+    # that blocks "Add New Server" from saving. Users who could log in were
+    # unable to register a server because of it.
+    MASTER_PASSWORD_REQUIRED = {{ index .Values "master-password-required" }}
+{{- if .Values.readUser.enabled }}
+  # Provisions the non-admin UI login and gives BOTH users the preconfigured
+  # servers. pgAdmin's own entrypoint only ever creates PGADMIN_DEFAULT_EMAIL
+  # and only loads servers.json for that one user, so without this the
+  # read-email / read-password keys that already exist in the pgadmin Secret
+  # are never consumed by anything and the second user cannot log in at all.
+  #
+  # Run from a postStart hook rather than an initContainer: the SQLite config
+  # DB does not exist until the main container has started, so there is nothing
+  # to write to beforehand. Idempotent, and deliberately never fails the
+  # container -- a bootstrap problem must not take pgAdmin down.
+  bootstrap-users.py: |
+    import os, sys, time, uuid
+
+    ROOT = '/pgadmin4'
+    if sys.path[0] != ROOT:
+        sys.path.insert(0, ROOT)
+    os.chdir(ROOT)
+
+    SQLITE = {{ index .Values "sqlite-path" | quote }}
+    EMAIL = os.environ.get('PGADMIN_READ_EMAIL', '').strip()
+    PW = os.environ.get('PGADMIN_READ_PASSWORD', '')
+    ADMIN = os.environ.get('PGADMIN_DEFAULT_EMAIL', '').strip()
+    SERVERS = '/pgadmin4/servers.json'
+
+    def log(msg):
+        print('[bootstrap-users] %s' % msg, flush=True)
+
+    if not EMAIL or not PW:
+        log('read user not configured; nothing to do'); raise SystemExit(0)
+
+    # The main container creates the config DB and the default admin on first
+    # start. Wait for both before touching anything.
+    deadline = time.time() + {{ .Values.readUser.timeoutSeconds }}
+    import builtins
+    builtins.SERVER_MODE = True
+    while time.time() < deadline:
+        if os.path.exists(SQLITE):
+            try:
+                import config
+                from pgadmin.model import db, User, Role, Server
+                from pgadmin import create_app
+                app = create_app()
+                with app.app_context():
+                    if User.query.filter_by(email=ADMIN).first():
+                        break
+            except Exception as exc:
+                log('waiting for pgAdmin to finish starting (%s)' % type(exc).__name__)
+        time.sleep(3)
+    else:
+        log('timed out waiting for the config DB; leaving it alone'); raise SystemExit(0)
+
+    from flask_security.utils import hash_password
+    from pgadmin.utils import load_database_servers
+
+    with app.app_context():
+        user = User.query.filter_by(email=EMAIL).first()
+        if user is None:
+            role = Role.query.filter_by(name='User').first()
+            user = User(email=EMAIL, username=EMAIL, password=hash_password(PW),
+                        active=True, auth_source='internal',
+                        fs_uniquifier=uuid.uuid4().hex, login_attempts=0,
+                        locked=False)
+            user.roles = [role]
+            db.session.add(user)
+            db.session.commit()
+            log('created read user %s' % EMAIL)
+        else:
+            log('read user %s already present' % EMAIL)
+
+    # load_database_servers is NOT idempotent -- its last argument is
+    # `from_setup`, not "ignore conflicts", and it appends a fresh row every
+    # call. Because this hook runs on every container start, loading
+    # unconditionally duplicates each server on each restart, without bound.
+    # So only load for a user who has none yet.
+    #
+    # It also must run INSIDE an application context; outside one it raises
+    # "Working outside of application context" and loads nothing.
+    with app.app_context():
+        for who in (ADMIN, EMAIL):
+            target = User.query.filter_by(email=who).first()
+            if target is None:
+                log('no such user %s; skipping servers' % who)
+                continue
+            existing = Server.query.filter_by(user_id=target.id).count()
+            if existing:
+                log('%s already has %d server(s); not reloading' % (who, existing))
+                continue
+            try:
+                load_database_servers(SERVERS, None, who, True)
+                log('loaded servers.json for %s' % who)
+            except Exception as exc:
+                log('could not load servers for %s: %s' % (who, exc))
+{{- end }}

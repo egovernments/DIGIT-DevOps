@@ -855,10 +855,36 @@ inbox:
   # egov-service-host key for the MDMS host: egov-mdms-service (the default)
   # names egov-mdms-service.egov, which does not exist on digit-lts.
   mdms-host-key: mdms-v2
-  mdmsV1SearchEndpoint: "/mdms-v2/v1/_search"
+  # DIGIT 3.0 (DIGIT-Analytics inbox, feature/inbox-postgres-store): MDMS v2 records, workflow v3 process
+  # definitions, caller from Kong's headers. Studio's applications come from the Postgres store: the view
+  # inbox_application in each tenant schema, read with the services' shared DB user (secret db).
+  mdmsV1SearchEndpoint: "/mdms-v2/v2"
+  workflow-host-key: workflow
+  workflow-businessservice-search-path: "/workflow/v3/process/definition"
+  extraEnv:
+    app: |
+      - name: INBOX_PLATFORM
+        value: "3.0"
+      - name: INBOX_POSTGRES_STORE_URL
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-url
+      - name: INBOX_POSTGRES_STORE_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: username
+      - name: INBOX_POSTGRES_STORE_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: db
+            key: password
+      - name: INBOX_POSTGRES_STORE_SCHEMA_PER_TENANT
+        value: "true"
 
   image:
-    tag: inbox-parallel-workflow-b5cd4a6
+    tag: feature-inbox-postgres-store-4573de7
 
 collection-services:
   # Studio dependency (no DIGIT 3.0 equivalent on digit-lts); tags as on unified-qa.

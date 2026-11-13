@@ -1,0 +1,39 @@
+# Promotion target for the unified-sdip Kargo pipeline. NOT a deployment config.
+#
+# Nothing reads this file yet. There is no SDIP ApplicationSet on the
+# unified-uat branch, and the uat cluster has no `sdip` namespace at all. The
+# file exists so that promoting SDIP Freight from qa to uat has somewhere to
+# write.
+#
+# Why it must exist before the first promotion: the uat Stage promotes with
+# yaml-update, which only REPLACES keys that are already present -- it does not
+# create them. Without this file the promotion fails at the yaml-update step;
+# without the two image.tag keys below it succeeds while writing nothing.
+# (charts/kargo/templates/stage.yaml, and the note above `stages:` in
+# charts/kargo/config/projects/unified-sdip.yaml on the unified-dev branch.)
+#
+# EXPECT THESE TO STAY EMPTY FOR NOW. uat inherits the org-wide
+# masterOnlyStages: [uat] policy, so it accepts master-* Freight only, and SDIP
+# publishes no master-* tags -- every build is <branch>-<sha> off dev. A uat
+# promotion today fails loudly with "REJECTED: only master-* images may be
+# promoted to uat", which is the intended signal that SDIP has no mainline build
+# yet. This file is seeded now so that when one exists, uat is not blocked on a
+# missing promotion target as well.
+#
+# To make uat actually deploy, this file grows into a real environment config --
+# image repository, replicas, env, probes, the runtime Secret projection -- and
+# the branch additionally needs an SDIP ApplicationSet + AppProject, a
+# cluster-configs-unified-sdip-uat Application, the namespace, and
+# unified-sdip-uat-secrets.yaml. uat also needs its own database and schema
+# migrations, its own ingress host, and its own runtime Secret values; none of
+# those carry over from dev or qa. Model it on unified-sdip-dev.yaml on the
+# unified-dev branch, then set verifyKubeconfigSecret on the uat stage to switch
+# Kargo's post-promotion verification back on.
+
+sdip-backend:
+  image:
+    tag: ""
+
+sdip-ui:
+  image:
+    tag: ""

@@ -174,22 +174,39 @@ sdip-backend:
   # Built by egovernments/SDIP .github/workflows/build.yaml; the tag is
   # <branch>-<short-sha> of the SDIP commit the image was built from.
   #
-  # dev @ eaa3988 (SDIP PR #421), published 2026-11-13, linux/amd64 + arm64.
+  # dev @ 31813df (SDIP PR #466), linux/amd64 + arm64.
   #
-  # Caveat for whoever debugs this image: PR #421 unblocked the build by
-  # switching the Dockerfile from -DskipTests to -Dmaven.test.skip=true, which
-  # skips test *compilation*. Seven missing-symbol errors are therefore hidden,
-  # not fixed -- three ServiceQuorumWorkflow* test classes reference
-  # DigitWorkflowClient.upgradeServiceQuorum and OwnerLiveSupport.personForRole,
-  # neither of which exists on dev (the implementation is on
-  # feature/sdip-phase2-workflow-configuration, e391bfe). Production sources are
-  # unaffected, so the image is sound; the test/code gap is still open upstream.
+  # dbMigration below defaults the migration image to this same tag, so the
+  # schema and the code that reads it are promoted as one unit. Both images come
+  # from a single Build Pipeline dispatch: sdip-backend-db is the second build
+  # entry of the backend's job, the way Digit-Core pairs billing-service with
+  # billing-service-db.
+  #
+  # The test-compilation gap previously noted here is closed -- SDIP #463
+  # restored the workflow test gate, and this build ran 691 tests, 0 failures.
   image:
     repository: egovio/sdip-backend
-    tag: dev-eaa3988
+    tag: dev-31813df
 
   replicas: 1
   envFromSecret: ""
+
+  ## Flyway, as initContainers, exactly as every other DIGIT service runs its
+  ## migrations. The backend cannot migrate itself: application.properties
+  ## excludes FlywayAutoConfiguration.
+  ##
+  ## `bootstrap` MUST stay first. It is a Flyway set of its own
+  ## (SDIP Phase-2/database/bootstrap) that creates the twelve <schema>_app /
+  ## <schema>_ro roles the other six sets GRANT to -- PostgreSQL rejects a GRANT
+  ## to a role that does not exist, so the six fail without it. It keeps its own
+  ## history table in the `bootstrap` schema, leaving the per-schema histories
+  ## untouched.
+  ##
+  ## Kubernetes runs initContainers in order and stops at the first failure, so
+  ## ordering here is the ordering that happens.
+  dbMigration:
+    enabled: true
+    schemas: [bootstrap, iam, ptm, rol, std, exc, vcs]
 
   env:
     ## ---- profile / mode ------------------------------------------------

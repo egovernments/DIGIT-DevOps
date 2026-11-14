@@ -39,6 +39,11 @@ spec:
       {{- $mig := $cfg.dbMigration }}
       {{- $tag := $mig.image.tag | default $cfg.image.tag }}
       {{- range $schema := $mig.schemas }}
+      {{- $locations := list (printf "%s/%s" $mig.locationsPrefix $schema) }}
+      {{- $seed := get ($mig.seedLocations | default dict) $schema }}
+      {{- if $seed }}
+      {{- $locations = append $locations $seed }}
+      {{- end }}
         - name: db-migration-{{ $schema }}
           image: "{{ $mig.image.repository }}:{{ $tag }}"
           imagePullPolicy: {{ $mig.image.pullPolicy | default $cfg.image.pullPolicy }}
@@ -63,7 +68,7 @@ spec:
             - name: SCHEMA_TABLE
               value: {{ $mig.schemaTable | quote }}
             - name: FLYWAY_LOCATIONS
-              value: {{ printf "%s/%s" $mig.locationsPrefix $schema | quote }}
+              value: {{ join "," $locations | quote }}
           {{- with $mig.resources }}
           resources:
 {{ toYaml . | indent 12 }}

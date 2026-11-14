@@ -14,6 +14,62 @@ service:
 envFromSecret: ""
 env: []
 
+# Flyway migrations, run as initContainers before the backend starts -- the same
+# mechanism every DIGIT service uses. The app cannot migrate itself:
+# application.properties excludes FlywayAutoConfiguration, deliberately, so that
+# a privileged migration credential is never mounted in the web application.
+#
+# DISABLED until two prerequisites are met. Both are tracked in the PR that
+# added this; neither can be fixed from this repo.
+#
+#   1. The image does not exist. DIGIT's pattern is a per-service `-db` image
+#      carrying Flyway plus the SQL (egovio/boundary-db, egovio/audit-service-db
+#      ...). SDIP's build/build-config.yml publishes only sdip-backend and
+#      sdip-ui, and there is no Dockerfile for a migration image. SDIP must add
+#      one that lays the six migration sets out under `locationsPrefix` below.
+#
+#   2. The roles the migrations GRANT to must already exist. The migration SQL
+#      contains `GRANT ... TO iam_app`, `GRANT SELECT ... TO exc_ro` and so on
+#      for all six schemas -- twelve roles in total. PostgreSQL rejects a GRANT
+#      to a role that does not exist, so without a one-time role bootstrap these
+#      initContainers fail and, by design, block the rollout.
+#
+# Enabling before both are done turns a working (if empty) deployment into a
+# CrashLoop, so leave this false until the image is published AND the roles
+# exist.
+dbMigration:
+  enabled: false
+  image:
+    repository: egovio/sdip-backend-db
+    # Defaults to the backend image tag, so the schema and the code that reads
+    # it are promoted as one unit rather than drifting apart.
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  # One Flyway run per schema, in this order. Each keeps its own history table
+  # inside its own schema, which is why they cannot be a single invocation.
+  schemas: [iam, ptm, rol, std, exc, vcs]
+  schemaTable: flyway_schema_history
+
+  # The migration image is expected to place each schema's SQL at
+  # <locationsPrefix>/<schema>, e.g. filesystem:/flyway/sql/iam.
+  locationsPrefix: "filesystem:/flyway/sql"
+
+  # Both live in the sdip namespace, rendered by cluster-configs. The Secret
+  # already carries flyway-username / flyway-password -- they were provisioned
+  # with the db Secret and nothing has consumed them until now.
+  configMapName: egov-config
+  dbUrlKey: db-url
+  secretName: db
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
 # Probes are defined per environment, not here.
 #
 # deployment.yaml merges this file with the `sdip-backend` block of the env file

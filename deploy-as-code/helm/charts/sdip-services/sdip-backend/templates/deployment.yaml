@@ -23,6 +23,53 @@ spec:
       imagePullSecrets:
 {{ toYaml . | indent 8 }}
       {{- end }}
+      {{- if $cfg.dbMigration.enabled }}
+      {{- /*
+        Flyway, one initContainer per schema -- the same shape every DIGIT
+        service uses (common/_deployment.yaml initContainers.dbMigration), with
+        one difference: those services own a single schema, SDIP owns six. Each
+        schema keeps its own history table, so they must run as separate Flyway
+        invocations rather than one.
+
+        Ordering is sequential by definition: Kubernetes runs initContainers in
+        order and stops at the first failure, so a broken migration blocks the
+        rollout instead of starting a backend against a half-migrated database.
+      */}}
+      initContainers:
+      {{- $mig := $cfg.dbMigration }}
+      {{- $tag := $mig.image.tag | default $cfg.image.tag }}
+      {{- range $schema := $mig.schemas }}
+        - name: db-migration-{{ $schema }}
+          image: "{{ $mig.image.repository }}:{{ $tag }}"
+          imagePullPolicy: {{ $mig.image.pullPolicy | default $cfg.image.pullPolicy }}
+          env:
+            - name: DB_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ $mig.configMapName }}
+                  key: {{ $mig.dbUrlKey }}
+            - name: FLYWAY_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $mig.secretName }}
+                  key: flyway-username
+            - name: FLYWAY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $mig.secretName }}
+                  key: flyway-password
+            - name: SCHEMA_NAME
+              value: {{ $schema | quote }}
+            - name: SCHEMA_TABLE
+              value: {{ $mig.schemaTable | quote }}
+            - name: FLYWAY_LOCATIONS
+              value: {{ printf "%s/%s" $mig.locationsPrefix $schema | quote }}
+          {{- with $mig.resources }}
+          resources:
+{{ toYaml . | indent 12 }}
+          {{- end }}
+      {{- end }}
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ $cfg.image.repository }}:{{ $cfg.image.tag }}"

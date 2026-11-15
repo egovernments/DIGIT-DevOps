@@ -42,6 +42,9 @@ cluster-configs:
                 smtp-port: "587"
                 mail-sender-name: "eGov Foundation"
                 otel-tracing-export-otlp-endpoint: "http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/traces"
+                otel-exporter-otlp-endpoint: "http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318"
+                keycloak-enabled: "true"
+                sms-provider-url: "http://api.smscountry.com/SMSCwebservice_bulk.aspx"
                 logging-level-jdbc: "DEBUG"
                 mobile-validation-workaround: "true"
                 serializers-timezone-in-ist: "true"
@@ -255,6 +258,14 @@ cluster-configs:
                 namespace: kargo
 
 employee:
+  # digit3/core employee (base) via egov-app-set-core-published; keys below are legacy employee-UI config (ignored by the core chart).
+  chart-version: "3.1.1"
+  image:
+    tag: master-626621a
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-626621a
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
   custom-js-injection: |
     sub_filter.conf: "
@@ -414,7 +425,10 @@ lpms-agent:
 accesscontrol-java:
   tracing-export-enabled: "true"
 
-# digit3/core published-chart canary: base-name 'account' alongside account-java (egov-app-set-core-published)
+# --- digit3/core published-chart services (base names) via egov-app-set-core-published, deployed
+#     ALONGSIDE the -java locals. dev mode -> image.tag. Images/tags mirror the running -java builds
+#     (incl. non-egovio repos and db-migration tag drift) so behaviour is identical. db tag defaults
+#     to 'latest' in-chart, so it is pinned per service.
 account:
   chart-version: "3.1.1"
   image:
@@ -423,6 +437,107 @@ account:
     dbMigration:
       image:
         tag: master-626621a
+billing:
+  chart-version: "3.1.1"
+  image:
+    repository: varunkumar704/billing
+    tag: billing-bill-pdf-filestore-9858216-payment-event
+  initContainers:
+    dbMigration:
+      image:
+        repository: varunkumar704/billing-db
+        tag: billing-bill-pdf-filestore-9858216-payment-event
+boundary:
+  chart-version: "3.1.1"
+  image:
+    tag: boundary-performance-2d39f1f
+  initContainers:
+    dbMigration:
+      image:
+        tag: boundary-performance-2d39f1f
+filestore:
+  chart-version: "3.1.1"
+  image:
+    tag: filestore-module-validation-27257641-1
+  initContainers:
+    dbMigration:
+      image:
+        tag: filestore-module-validation-2725764
+idgen:
+  chart-version: "3.1.1"
+  image:
+    tag: master-5ebd481
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-5ebd481
+individual:
+  chart-version: "3.1.1"
+  image:
+    tag: develop-modulith-498b431
+  initContainers:
+    dbMigration:
+      image:
+        tag: develop-modulith-498b431
+localization:
+  chart-version: "3.1.1"
+  image:
+    tag: develop-modulith-a70011df-3
+  initContainers:
+    dbMigration:
+      image:
+        tag: develop-modulith-a70011df-3
+notification:
+  chart-version: "3.1.1"
+  image:
+    repository: notification-java
+    tag: java25-migration-coreservice-a5027ba
+  initContainers:
+    dbMigration:
+      image:
+        repository: notification-java-db
+        tag: java25-migration-coreservice-a5027ba
+otp:
+  chart-version: "3.1.1"
+  image:
+    tag: master-6305193a
+  initContainers:
+    dbMigration:
+      image:
+        repository: anishegov/otp-db
+        tag: master-abb92138
+registry:
+  chart-version: "3.1.1"
+  image:
+    tag: master-533aae9
+  initContainers:
+    dbMigration:
+      image:
+        tag: v1.0.0-5994b4ba-2
+template-config:
+  chart-version: "3.1.1"
+  image:
+    tag: master-8ce9994
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-8ce9994
+url-shortener:
+  chart-version: "3.1.1"
+  image:
+    tag: master-8ce9994
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-8ce9994
+workflow:
+  chart-version: "3.1.1"
+  image:
+    tag: develop-a5f4ac3
+  initContainers:
+    dbMigration:
+      image:
+        tag: develop-a5f4ac3
 
 account-java:
   image:

@@ -1,0 +1,66 @@
+## egov core-services from PUBLISHED charts helm.digit.org/digit3/core (base names), one
+## egov-<name> Application each, chart version pinned by <service>.chart-version in test-lts.yaml.
+## Migration target off the local -java charts in egov-app-set-core. Canary: account only.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: digit-lts-egov-appset-core-published
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          - list:
+              elements:
+                - name: account
+          - git:
+              repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+              revision: digit-lts
+              files:
+                - path: deploy-as-code/helm/environments/test-lts.yaml
+              requeueAfterSeconds: 60
+
+  template:
+    metadata:
+      name: 'egov-{{ .name }}'
+
+    spec:
+      project: egov-project
+
+      sources:
+        - repoURL: https://helm.digit.org/digit3/core
+          chart: '{{ .name }}'
+          targetRevision: '{{ index . .name "chart-version" }}'
+          helm:
+            releaseName: '{{ .name }}'
+            valueFiles:
+              - $values/deploy-as-code/helm/environments/test-lts.yaml
+        - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+          targetRevision: digit-lts
+          ref: values
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'egov'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas

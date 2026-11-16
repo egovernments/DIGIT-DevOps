@@ -551,6 +551,7 @@ workflow:
       memory: "2Gi"
 
 employee-onboarding:
+  chart-version: "3.0.0"
   image:
     repository: "egovio/employee-onboarding"
     tag: master-7859366
@@ -562,6 +563,7 @@ employee-onboarding:
   tracing-export-enabled: "true"
 
 notify:
+  chart-version: "3.1.1"
   image:
     repository: "egovio/notify"
     tag: master-066dba9
@@ -571,6 +573,13 @@ notify:
         repository: "egovio/notify-db"
         tag: master-066dba9
   tracing-export-enabled: "true"
+  resources: |
+    requests:
+      cpu: "150m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
 
 workflow-java:
   image:
@@ -1052,6 +1061,7 @@ ui-access-control:
     tag: dev-test-0202fa8-2
 
 boundary-management:
+  chart-version: "3.1.1"
   # Images come from digit3's "Build boundary-management" GitHub Action
   # (.github/workflows/build_boundary_management.yaml), tagged <branch>-<short-sha>.
   # Both tags below must be replaced with the tag printed in that run's summary
@@ -1070,8 +1080,16 @@ boundary-management:
   filestoreModule: "boundary"
   # Keep equal to or below boundary-java's BULK_RELATIONSHIP_MAX_SIZE (1000).
   bulkRelationshipChunkSize: "1000"
+  resources: |
+    requests:
+      cpu: "150m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "3Gi"
 
 localization-management:
+  chart-version: "3.0.0"
   image:
     repository: "egovio/localization-management"
     tag: "develop-modulith-c1f10f6"
@@ -1086,6 +1104,17 @@ localization-management:
   batchSize: "100"
   maxRows: "50000"
   maxFileBytes: "26214400"
+  extraEnv:
+    app: |                 # modulith: cap heap so native mem is left for threads (same as localization)
+      - name: JAVA_OPTS
+        value: "-XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=40.0"
+  resources: |
+    requests:
+      cpu: "150m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
 
 calculator:
   image:
@@ -1510,6 +1539,7 @@ internal-gateway-scg:
     tag: "sandbox-tracer-2.9.1-3017689"
 
 apportion:
+  chart-version: "3.1.1"
   image:
     tag: "master-4aa1de2"
   # db-migration image recovered from the cluster's last-good ReplicaSet
@@ -1518,8 +1548,17 @@ apportion:
     dbMigration:
       image:
         tag: "master-4aa1de2"
+      schemaTable: egov_apportion_service_schema   # running apportion uses this Flyway table (chart default apportion_schema)
+  resources: |
+    requests:
+      cpu: "150m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
 
 mdms-v2:
+  chart-version: "3.1.1"
   image:
     tag: "filestore-master-b8bd841"
   initContainers:
@@ -1538,6 +1577,7 @@ pdf:
         tag: "pdf-service-90c5ad6"
 
 pg-service:
+  chart-version: "3.1.1"
   image:
     tag: "master-3cf7645"
   # db-migration image recovered from the cluster's last-good ReplicaSet
@@ -1546,6 +1586,13 @@ pg-service:
     dbMigration:
       image:
         tag: "master-3cf7645"
+  resources: |
+    requests:
+      cpu: "150m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
 
 pgr-camunda-services:
   image:

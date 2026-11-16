@@ -42,6 +42,9 @@ cluster-configs:
                 smtp-port: "587"
                 mail-sender-name: "eGov Foundation"
                 otel-tracing-export-otlp-endpoint: "http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/traces"
+                otel-exporter-otlp-endpoint: "http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318"
+                keycloak-enabled: "true"
+                sms-provider-url: "http://api.smscountry.com/SMSCwebservice_bulk.aspx"
                 logging-level-jdbc: "DEBUG"
                 mobile-validation-workaround: "true"
                 serializers-timezone-in-ist: "true"
@@ -255,6 +258,14 @@ cluster-configs:
                 namespace: kargo
 
 employee:
+  # digit3/core employee (base) via egov-app-set-core-published; keys below are legacy employee-UI config (ignored by the core chart).
+  chart-version: "3.1.1"
+  image:
+    tag: master-066dba9
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-066dba9
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
   custom-js-injection: |
     sub_filter.conf: "
@@ -413,6 +424,120 @@ lpms-agent:
 
 accesscontrol-java:
   tracing-export-enabled: "true"
+
+# --- digit3/core published-chart services (base names) via egov-app-set-core-published.
+#     Per-service CUTOVER (A2): tags match uat-saas (the latest/clean egovio builds), so each
+#     service upgrades + renames off its -java local chart. dev mode -> image.tag; db-migration
+#     tag is pinned (defaults to 'latest' in-chart). Cut over one service at a time: scale its
+#     -java to 0 FIRST, then sync the base app so the newer Flyway migration runs with no old pod.
+account:
+  chart-version: "3.1.1"
+  image:
+    tag: master-d80757a
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-d80757a
+billing:
+  chart-version: "3.1.1"
+  image:
+    tag: billing-tenant-c1f75b8
+  initContainers:
+    dbMigration:
+      image:
+        tag: billing-tenant-c1f75b8
+boundary:
+  chart-version: "3.1.1"
+  image:
+    tag: boundary-performance-2d39f1f
+  initContainers:
+    dbMigration:
+      image:
+        tag: boundary-performance-2d39f1f
+filestore:
+  chart-version: "3.1.1"
+  image:
+    tag: master-00fdef3
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-00fdef3
+idgen:
+  chart-version: "3.1.1"
+  image:
+    tag: master-00fdef3
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-00fdef3
+individual:
+  chart-version: "3.1.1"
+  image:
+    tag: master-066dba9
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-066dba9
+localization:
+  chart-version: "3.1.1"
+  image:
+    tag: master-00fdef3
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-00fdef3
+notification:
+  chart-version: "3.1.1"
+  image:
+    tag: master-f6dd4be
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-f6dd4be
+otp:
+  chart-version: "3.1.1"
+  image:
+    repository: anishegov/otp
+    tag: master-6305193a
+  initContainers:
+    dbMigration:
+      image:
+        repository: anishegov/otp-db
+        tag: master-abb92138
+registry:
+  chart-version: "3.1.1"
+  image:
+    tag: master-64c7654
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-64c7654
+template-config:
+  chart-version: "3.1.1"
+  image:
+    repository: template-config-java
+    tag: java25-migration-coreservice-5dc98f5
+  initContainers:
+    dbMigration:
+      image:
+        repository: template-config-java-db
+        tag: java25-migration-coreservice-5dc98f5
+url-shortener:
+  chart-version: "3.1.1"
+  image:
+    tag: master-00fdef3
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-00fdef3
+workflow:
+  chart-version: "3.1.1"
+  image:
+    tag: workflow-migration-723c6966-4
+  initContainers:
+    dbMigration:
+      image:
+        tag: workflow-migration-723c6966-4
 
 account-java:
   image:

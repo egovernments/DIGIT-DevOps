@@ -1,38 +1,34 @@
 global:
-   domain: test-lts.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
+   domain: test-lts.digit.org
    setup: fullsetup
-   mode: dev                   # services run image.tag (not chart appVersion) so Kargo image promotions deploy
+   mode: dev
 
 cluster-configs:
-    namespaces:  
+    namespaces:
       create: true
-      ## `inji` added for the Inji credentialing stack. It must exist before the
-      ## digit-lts-inji-appset-inji Applications sync; that appset also carries
-      ## CreateNamespace=true as a fallback in case this chart syncs later.
       values: [ backbone, egov, es-cluster, kafka-cluster, monitoring, playground, health, inji ]
-      
+
     root-ingress:
       cert-issuer: letsencrypt-prod
     configmaps:
         egov-config:
             namespace: [ egov, monitoring, keycloak ]
             data:
-                db-host: "postgres.egov:5432" ## Add db-host name eg: egov-demo.database.azure.co
-                db-name: "postgres" ## Add db-name
-                db-url: "jdbc:postgresql://postgres.egov:5432/postgres" ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
-                db-otel-url: "jdbc:otel:postgresql://postgres.egov:5432/postgres" ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
-                db-pgbouncer-url: "jdbc:postgresql://pgbouncer.egov:5432/postgres" ## example: jdbc:postgresql://egov-demo.postgres.database.azure.com:5432/egov_demo
-                domain: test-lts.digit.org ## Add your Domain Name 
-                egov-services-fqdn-name: https://test-lts.digit.org/ ## Add your Domain Name
+                db-host: "postgres.egov:5432"
+                db-name: "postgres"
+                db-url: "jdbc:postgresql://postgres.egov:5432/postgres"
+                db-otel-url: "jdbc:otel:postgresql://postgres.egov:5432/postgres"
+                db-pgbouncer-url: "jdbc:postgresql://pgbouncer.egov:5432/postgres"
+                domain: test-lts.digit.org
+                egov-services-fqdn-name: https://test-lts.digit.org/
                 health-db-url: jdbc:postgresql://postgres.egov:5432/postgres?currentSchema=health
-                egov-state-level-tenant-id: "pg" 
+                egov-state-level-tenant-id: "pg"
                 s3-assets-bucket: "(pg-egov-assets|egov-playground-assets)"
                 es-host: "elasticsearch-data.backbone"
                 es-indexer-host: "http://elasticsearch-data.backbone:9200/"
                 flyway-locations: "filesystem:/flyway/sql,filesystem:/flyway/seed,filesystem:/flyway/qa"
                 kafka-brokers: "release-name-kafka-controller-headless.backbone:9092"
                 kafka-infra-brokers: kafka-v2-infra.kafka-cluster:9092
-                # digit3/core published-chart keys (consumed via configMapKeyRef: egov-config)
                 keycloak-base-url: "http://keycloak.keycloak.svc.cluster.local:8080/keycloak"
                 platform-tenant: "default"
                 redis-host: "redis.backbone.svc.cluster.local"
@@ -45,7 +41,6 @@ cluster-configs:
                 otel-exporter-otlp-endpoint: "http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318"
                 keycloak-enabled: "true"
                 sms-provider-url: "http://api.smscountry.com/SMSCwebservice_bulk.aspx"
-                # digit3 common 'java' env block (Hikari pool / tomcat / otel) - required by published core charts
                 otel-enabled: "true"
                 db-pool-max-size: "5"
                 db-pool-min-idle: "1"
@@ -234,17 +229,10 @@ cluster-configs:
             namespace: [ egov, health, inji ]
 
         inji-db:
-            ## Five module role passwords now: the four Inji modules plus
-            ## mockidPassword for mock-identity-system (step 05b). Values are
-            ## SOPS-encrypted in test-lts-secrets.yaml.
             name: inji-db
             namespace: [ inji ]
 
         db-common-secrets:
-            ## mock-identity-system (step 05b) hardcodes a reference to
-            ## Secret/db-common-secrets key db-dbuser-password. It holds the
-            ## mockidsystemuser password only -- per-module role separation is
-            ## unchanged. `mockidPassword` comes from test-lts-secrets.yaml.
             name: db-common-secrets
             namespace: [ inji ]
 
@@ -252,7 +240,6 @@ cluster-configs:
             name: mimotooidc
             namespace: [ inji ]
 
-        # Kargo non-secret config; credentials are in test-lts-secrets.yaml. See charts/argo-cd/kargo/README.md.
         kargo:
             projects: [ crest-lts, studio-lts ]
             adminSecret:
@@ -260,12 +247,11 @@ cluster-configs:
                 name: kargo-api
                 namespace: kargo
             dexSecret:
-                enabled: true    # clientID/clientSecret in test-lts-secrets.yaml (OAuth app for kargo-latest.digit.org)
+                enabled: true
                 name: kargo-dex-github
                 namespace: kargo
 
 employee:
-  # digit3/core employee (base) via egov-app-set-core-published; keys below are legacy employee-UI config (ignored by the core chart).
   chart-version: "3.1.1"
   image:
     tag: master-626621a
@@ -280,6 +266,7 @@ employee:
       <script src=https://unpkg.com/@egovernments/telemetry@0.0.2/dist/egov-telemetry-1557467338.js type=text/javascript></script>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-uat-assets/globalConfigs.js type=text/javascript></script>
       ';"
+
 digit-ui:
   image:
     tag: "multiarch"
@@ -288,6 +275,7 @@ digit-ui:
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-uat-assets/globalConfigs.js type=text/javascript></script>
       ';"     
+
 citizen:
   image:
     tag: "multiarch"
@@ -298,15 +286,16 @@ citizen:
       <script src=https://s3.ap-south-1.amazonaws.com/egov-uat-assets/globalConfigs.js type=text/javascript></script>
       ';"
       
+
 egov-url-shortening:
   heap: "-Xmx256m -Xms256m"
   memory_limits: 512Mi
   egov-url-shortner-endpoint: "/eus/shortener"
   hashids-salt: "randomsalt"
   hashids-min-length: "2"
-  
+
 egov-filestore:
-  memory_limits: "512Mi" 
+  memory_limits: "512Mi"
   volume: /opt/eGov/filestore
   is-bucket-fixed: "true"
   minio.url : "http://minio.backbone:9000/"
@@ -317,15 +306,15 @@ egov-filestore:
   allowed-file-formats: "jpg,jpeg,png,doc,docx,pdf,odt,ods,text,dxf,xls,xlsx,csv,shp,shx,dbf,prj,cpg,sbn,sbx,qix,xml"
 
   filestore-url-validity: 3600
-  fixed-bucketname: unified-dev-bucket-s3  ## Add filestore bucket name
+  fixed-bucketname: unified-dev-bucket-s3
 
 egov-enc-service:
   heap: "-Xmx256m -Xms256m"
   memory_limits: 512Mi
   state-level-tenant-id: "pb"
+
 localisationgo:
   memory_limits: 512Mi
-  
 
 egov-idgen:
   idformat-from-mdms: "true"
@@ -342,12 +331,12 @@ egov-location:
   memory_limits: 512Mi
 
 egov-notification-sms:
-  sms-provider-url: "sms provider url" ## Add sms provider url
+  sms-provider-url: "sms provider url"
   sms.provider.class: "Generic"
   sms.provider.contentType:  "application/x-www-form-urlencoded"
   sms-config-map: "{'User':'$username', 'passwd': '$password', 'sid':'$senderid', 'mobilenumber':'$mobileno', 'message':'$message', 'mtype':'N', 'DR':'N', 'smsservicetype':'singlemsg'}"
-  sms-gateway-to-use: "sms provider name" ## Add sms provider name
-  sms-sender: "sms sender" ## Add sms sender
+  sms-gateway-to-use: "sms provider name"
+  sms-sender: "sms sender"
   sms-sender-requesttype: "GET"
   sms-custom-config: "true"
   sms-extra-req-params: "mtype=N&DR=Y"
@@ -360,35 +349,26 @@ egov-notification-sms:
 
 digit-telemetry-cleaner:
   image:
-    # Repository contains "/" so common.image uses it verbatim (skips global.containerRegistry)
     repository: "easeac/digit-telemetry-cleaner"
     tag: "0.1.3"
   telemetry:
     partnerId: "egov"
     instanceId: "test-lts"
     environment: "uat"
-    licenceBusinessServices: ""   ## REPLACE if needed: billing business services that are licences, comma-separated (empty = none)
+    licenceBusinessServices: ""
 
 digit-telemetry-forwarder:
   image:
-    # Repository contains "/" so common.image uses it verbatim (skips global.containerRegistry)
     repository: "easeac/digit-telemetry-forwarder"
     tag: "0.1.0"
   telemetry:
-    partnerId: "egov"          # must match the cleaner
-    instanceId: "test-lts"     # must match the cleaner
-    environment: "uat"         # must match the cleaner
-    # destinationUrl / projectKey left empty: taken from secret license-ui (vite_posthog_host / vite_posthog_key),
-    # i.e. the same PostHog the licence UIs send to. No gateway login (authTokenUrl empty).
-    retryScheduleMs: ""        # empty = 5 min, 1 h, 2 h, 10 h -> retry topics -retry-0 .. -retry-3
+    partnerId: "egov"
+    instanceId: "test-lts"
+    environment: "uat"
+    retryScheduleMs: ""
 
-## Citizen chat agent (charts/telemetry-services/lpms-agent): MCP connector for Claude, one release per LPMS account.
-## Public at https://test-lts.digit.org/lpms-agent (own ingress, not via Kong). Keys live in the cluster-configs
-## secret "lpms-agent" (test-lts-secrets.yaml); tables are created by the agent in the cluster DB (egov-config db-url).
-## Once, in Keycloak realm ESMAGICO9400 client "citizen": allow redirect https://test-lts.digit.org/lpms-agent/login/oauth2/code/*
 lpms-agent:
   image:
-    # Repository contains "/" so common.image uses it verbatim (skips global.containerRegistry)
     repository: "easeac/lpms-agent"
     tag: "0.1.3"
   ingress:
@@ -396,27 +376,22 @@ lpms-agent:
   agent:
     publicAddress: "https://test-lts.digit.org/lpms-agent"
     account: "ESMAGICO9400"
-    displayName: ""              # empty = "Licences and permits (ESMAGICO9400)"; set to the account owner's name if wanted
+    displayName: ""
     keycloakIssuer: "https://test-lts.digit.org/keycloak/realms/ESMAGICO9400"
     lpmsBaseUrl: "https://test-lts.digit.org"
     country: "IN"
     timeZone: "Asia/Kolkata"
-    ownerNotice: ""              # optional privacy notice shown on the permission page
+    ownerNotice: ""
     assistants:
       enabled: true
       allowed:
         - name: "Claude"
           redirectUris: ["https://claude.ai/api/mcp/auth_callback", "https://claude.com/api/mcp/auth_callback"]
-    dbUrl: ""                    # empty = cluster DB from egov-config db-url + "db" secret (user must be able to create tables)
+    dbUrl: ""
 
 accesscontrol-java:
   tracing-export-enabled: "true"
 
-# --- digit3/core published-chart services (base names) via egov-app-set-core-published.
-#     A1 CUTOVER: tags = digit-lts's OWN current -java builds, so the published base chart runs the
-#     SAME image + SAME Flyway migrations already applied -> clean no-op migration (rename + publish
-#     only, no version upgrade; A2/uat-saas tags caused Flyway 'migration not resolved locally').
-#     dev mode -> image.tag; db-migration tag pinned per service (chart defaults it to 'latest').
 account:
   chart-version: "3.1.1"
   image:
@@ -425,6 +400,7 @@ account:
     dbMigration:
       image:
         tag: master-626621a
+
 billing:
   chart-version: "3.1.1"
   image:
@@ -435,6 +411,7 @@ billing:
       image:
         repository: varunkumar704/billing-db
         tag: billing-bill-pdf-filestore-9858216-payment-event
+
 boundary:
   chart-version: "3.1.1"
   image:
@@ -443,6 +420,7 @@ boundary:
     dbMigration:
       image:
         tag: boundary-performance-2d39f1f
+
 filestore:
   chart-version: "3.1.1"
   image:
@@ -451,6 +429,7 @@ filestore:
     dbMigration:
       image:
         tag: filestore-module-validation-2725764
+
 idgen:
   chart-version: "3.1.1"
   image:
@@ -459,6 +438,7 @@ idgen:
     dbMigration:
       image:
         tag: master-5ebd481
+
 individual:
   chart-version: "3.1.1"
   image:
@@ -467,26 +447,28 @@ individual:
     dbMigration:
       image:
         tag: develop-modulith-498b431
-      schemaTable: individual_schema_v3   # -java uses this custom Flyway history table (not the chart default individual_schema)
+      schemaTable: individual_schema_v3
+
 localization:
   chart-version: "3.1.1"
   image:
     tag: develop-modulith-a70011df-3
   extraEnv:
-    app: |                 # cap heap so native mem is left for threads (image default OOMs at 2Gi -> Tomcat thread OOM)
+    app: |
       - name: JAVA_OPTS
         value: "-XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=40.0"
   initContainers:
     dbMigration:
       image:
         tag: develop-modulith-a70011df-3
-  resources: |          # chart default 1Gi OOMs (heap=75% of limit); match -java (1536Mi). String: tpl'd by common.
+  resources: |
     requests:
       cpu: "150m"
       memory: "1Gi"
     limits:
       cpu: "1"
       memory: "2Gi"
+
 notification:
   chart-version: "3.1.1"
   image:
@@ -497,6 +479,7 @@ notification:
       image:
         repository: notification-java-db
         tag: java25-migration-coreservice-a5027ba
+
 otp:
   chart-version: "3.1.1"
   image:
@@ -507,7 +490,8 @@ otp:
       image:
         repository: anishegov/otp-db
         tag: master-abb92138
-  vault-enabled: "true"   # otp app requires otp.vault.enabled (null -> bind failure); otp-java had VAULT_ENABLED=true
+  vault-enabled: "true"
+
 registry:
   chart-version: "3.1.1"
   image:
@@ -516,6 +500,7 @@ registry:
     dbMigration:
       image:
         tag: v1.0.0-5994b4ba-2
+
 template-config:
   chart-version: "3.1.1"
   image:
@@ -526,6 +511,7 @@ template-config:
       image:
         repository: template-config-java-db
         tag: java25-migration-coreservice-5dc98f5
+
 url-shortener:
   chart-version: "3.1.1"
   image:
@@ -534,6 +520,7 @@ url-shortener:
     dbMigration:
       image:
         tag: master-8ce9994
+
 workflow:
   chart-version: "3.1.1"
   image:
@@ -542,7 +529,7 @@ workflow:
     dbMigration:
       image:
         tag: develop-a5f4ac3
-  resources: |          # chart default 1Gi OOMs (exit 137); match -java (1536Mi). String: tpl'd by common.
+  resources: |
     requests:
       cpu: "150m"
       memory: "1Gi"
@@ -551,6 +538,7 @@ workflow:
       memory: "2Gi"
 
 employee-onboarding:
+  chart-version: "3.0.0"
   image:
     repository: "egovio/employee-onboarding"
     tag: master-7859366
@@ -562,6 +550,7 @@ employee-onboarding:
   tracing-export-enabled: "true"
 
 notify:
+  chart-version: "3.1.1"
   image:
     repository: "egovio/notify"
     tag: master-066dba9
@@ -571,11 +560,16 @@ notify:
         repository: "egovio/notify-db"
         tag: master-066dba9
   tracing-export-enabled: "true"
+  resources: |
+    requests:
+      cpu: "150m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
 
 workflow-java:
   image:
-    # Published repo is egovio/workflow, not egovio/workflow-java which the chart
-    # would default to. Contains "/" so common.image uses it verbatim.
     repository: "egovio/workflow"
     tag: "develop-a5f4ac3"
   tracing-export-enabled: "true"
@@ -625,7 +619,6 @@ chatbot:
 
   user-service-chatbot-citizen-passwrord: "123456"
 
-
 ws-services:
   wcid-format: "WS/[CITY.CODE]/[fy:yyyy-yy]/[SEQ_EGOV_COMMON]"
   is-external-workflow-enabled: "true"
@@ -645,21 +638,20 @@ bpa-calculator:
 
 sw-services:
   scid-format: "SW/[CITY.CODE]/[fy:yyyy-yy]/[SEQ_EGOV_COMMON]"
-  is-external-workflow-enabled: "true" 
+  is-external-workflow-enabled: "true"
 
 egov-pg-service:
-  axis: true  
+  axis: true
   egov-pg-reconciliation-system-user-uuid: "db4fe8ed-c0e0-4c2a-829b-72296d8d156f"
 
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 egov-mdms-service:
   memory_limits: "512Mi"
   replicas: 1
   mdms-path: "/work-dir/egov-mdms-data/data"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/egov-mdms-data"   ##### Change repo url with Your fork Repo url
-      branch: "UNIFIED-DEV"                                        ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/egov-mdms-data"
+      branch: "UNIFIED-DEV"
   mdms-folder: "egov-mdms-data"
   masters-config-url: "file:///work-dir/egov-mdms-data/master-config.json"
   java-args: -Dspring.profiles.active=monitoring
@@ -669,8 +661,8 @@ egov-indexer:
   memory_limits: "768Mi"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/configs"        ##### Change repo url with Your fork Repo url
-      branch: "sandbox-indexer"                                      ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs"
+      branch: "sandbox-indexer"
   egov-indexer-yaml-repo-path: "file:///work-dir/configs/egov-indexer/MdmsTest.yml,file:///work-dir/configs/egov-indexer/UserSearchById.yml,file:///work-dir/configs/fsm/egov-indexer/egov-vehicle.yaml,file:///work-dir/configs/fsm/egov-indexer/egov-vendor.yaml,file:///work-dir/configs/fsm/egov-indexer/egov-fsm.yml,file:///work-dir/configs/egov-indexer/privacy-audit.yaml,file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml,file:///work-dir/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/configs/egov-indexer/error-queue.yml,file:///work-dir/configs/egov-indexer/finance-rolloutadotpion-indexer.yml,file:///work-dir/configs/egov-indexer/payment-indexer.yml,file:///work-dir/configs/egov-indexer/pgr-services.yml,file:///work-dir/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-tl-indexer.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry.yaml,file:///work-dir/configs/egov-indexer/water-service.yml,file:///work-dir/configs/egov-indexer/water-services-meter.yml,file:///work-dir/configs/egov-indexer/sewerage-service.yml,file:///work-dir/configs/egov-indexer/property-services.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry-v2.yaml,file:///work-dir/configs/egov-indexer/egov-vehicle.yaml,file:///work-dir/configs/egov-indexer/egov-vendor.yaml,file:///work-dir/configs/egov-indexer/egov-url-shortening-indexer.yaml,file:///work-dir/configs/egov-indexer/fire-noc-service.yml,file:///work-dir/configs/egov-indexer/egov-echallan.yml,file:///work-dir/configs/egov-indexer/egov-bpa-indexer.yml,file:///work-dir/configs/egov-indexer/edcr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-birth-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-death-indexer.yml,file:///work-dir/configs/egov-indexer/ws-event-indexer.yml,file:///work-dir/configs/egov-indexer/egov-error-queue-indexer.yml,file:///work-dir/configs/egov-indexer/citizen-feedback-indexer.yml,file:///work-dir/configs/egov-indexer/egov-fsm.yml,file:///work-dir/configs/egov-indexer/fsm-inbox-indexer.yml,file:///work-dir/configs/works/egov-indexer/contractservices-indexer.yml,file:///work-dir/configs/works/egov-indexer/estimateservices-indexer.yml,file:///work-dir/configs/works/egov-indexer/expensebill-indexer.yml,file:///work-dir/configs/works/egov-indexer/individual-indexer.yml,file:///work-dir/configs/works/egov-indexer/musterservices-indexer.yml,file:///work-dir/configs/works/egov-indexer/organisationservices-indexer.yml,file:///work-dir/configs/works/egov-indexer/project-indexer.yml,file:///work-dir/configs/egov-indexer/product-indexer.yml,file:///work-dir/configs/egov-indexer/individual-indexer.yml,file:///work-dir/configs/egov-indexer/household-indexer.yml,file:///work-dir/configs/egov-indexer/project-task-indexer.yml,file:///work-dir/configs/egov-indexer/stock-indexer.yml,file:///work-dir/configs/egov-indexer/facility-indexer.yml,file:///work-dir/configs/egov-indexer/project-staff-indexer.yml,file:///work-dir/configs/egov-indexer/service-request-indexer.yml,file:///work-dir/configs/works/egov-indexer/measurement-indexer.yml,file:///work-dir/configs/works/egov-indexer/ifms-pi-indexer.yml,file:///work-dir/configs/works/egov-indexer/expensepayment-indexer.yml,file:///work-dir/configs/egov-indexer/egov-pqm-service.yml,file:///work-dir/configs/egov-indexer/pqm-service-indexer.yml,file:///work-dir/configs/egov-indexer/pqm-anomaly-finder-indexer.yml,file:///work-dir/configs/egov-indexer/sample.yml,file:///work-dir/configs/egov-indexer/pgr-services.yml,file:///work-dir/configs/egov-indexer/searchBody.yml"
 
 egov-persister:
@@ -682,16 +674,16 @@ egov-persister:
   persist-yml-path: "file:///work-dir/configs/egov-persister/tenant-management.yml,file:///work-dir/configs/fsm/egov-persister/fsm-persister.yaml,file:///work-dir/configs/fsm/egov-persister/vehicle-persister.yaml,file:///work-dir/configs/fsm/egov-persister/vendor-persister.yaml,file:///work-dir/configs/fsm/egov-persister/fsm-calculator-persister.yaml,file:///work-dir/configs/egov-persister/pt-mutation-calculator-persister.yml,file:///work-dir/configs/egov-persister/apportion-persister.yml,file:///work-dir/configs/egov-persister/billing-services-persist.yml,file:///work-dir/configs/egov-persister/egf-bill.yaml,file:///work-dir/configs/egov-persister/egov-user-event-persister.yml,file:///work-dir/configs/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/egov-persister/firenoc_persiter.yaml,file:///work-dir/configs/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/egov-persister/pdf-generator.yml,file:///work-dir/configs/egov-persister/pg-service-persister.yml,file:///work-dir/configs/egov-persister/pgr.v3.yml,file:///work-dir/configs/egov-persister/property-services.yml,file:///work-dir/configs/egov-persister/pt-calculator-v2-persister.yml,file:///work-dir/configs/egov-persister/pt-drafts.yml,file:///work-dir/configs/egov-persister/pt-persist.yml,file:///work-dir/configs/egov-persister/tl-billing-slab-persister.yml,file:///work-dir/configs/egov-persister/tl-calculation-persister.yml,file:///work-dir/configs/egov-persister/uploader-persister.yml,file:///work-dir/configs/egov-persister/collection-migration-persister.yml,file:///work-dir/configs/egov-persister/property-services-registry.yml,file:///work-dir/configs/egov-persister/tradelicense.yml,file:///work-dir/configs/egov-persister/sewerage-persist.yml,file:///work-dir/configs/egov-persister/water-persist.yml,file:///work-dir/configs/egov-persister/water-meter.yml,file:///work-dir/configs/egov-persister/bpa-persister.yml,file:///work-dir/configs/egov-persister/assessment-persister.yml,file:///work-dir/configs/egov-persister/chatbot.yml,file:///work-dir/configs/egov-persister/fsm-persister.yaml,file:///work-dir/configs/egov-persister/vehicle-persister.yaml,file:///work-dir/configs/egov-persister/vendor-persister.yaml,file:///work-dir/configs/egov-persister/fsm-calculator-persister.yaml,file:///work-dir/configs/egov-persister/mdms-persister.yml,file:///work-dir/configs/works/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/works/egov-persister/audit-service-persister.yml,file:///work-dir/configs/works/egov-persister/bankaccounts-persister.yml,file:///work-dir/configs/works/egov-persister/btr-persister.yml,file:///work-dir/configs/works/egov-persister/contract-service-persister.yml,file:///work-dir/configs/works/egov-persister/estimate-service.yml,file:///work-dir/configs/works/egov-persister/expence-calculator-service-persister.yml,file:///work-dir/configs/works/egov-persister/expense-bill-payment-persister.yaml,file:///work-dir/configs/works/egov-persister/expense-billarray-payment-persister.yaml,file:///work-dir/configs/works/egov-persister/expensebilling-service-persister.yml,file:///work-dir/configs/works/egov-persister/muster-service-persister.yml,file:///work-dir/configs/works/egov-persister/organisation-persister.yml,file:///work-dir/configs/egov-persister/project-persister.yml,file:///work-dir/configs/health/egov-persister/product-persister.yml,file:///work-dir/configs/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/household-persister.yml,file:///work-dir/configs/egov-persister/project-task-persister.yml,file:///work-dir/configs/health/egov-persister/stock-persister.yml,file:///work-dir/configs/health/egov-persister/facility-persister.yml,file:///work-dir/configs/egov-persister/service-request-persister.yml,file:///work-dir/configs/health/egov-persister/service-request-persister.yml,file:///work-dir/configs/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/works/egov-persister/measurement-persister.yml,file:///work-dir/configs/works/egov-persister/measurement-service-persister.yml,file:///work-dir/configs/egov-persister/pqm-persister.yaml,file:///work-dir/configs/health/egov-persister/referral-management-persister.yml,file:///work-dir/configs/egov-persister/pqm-anomaly-finder-persister.yaml,file:///work-dir/configs/egov-persister/boundary-persister.yml,file:///work-dir/configs/health/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/project-persister.yml,file:///work-dir/configs/health/egov-persister/project-task-persister.yml,file:///work-dir/configs/health/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/works/egov-persister/mukta-ifix-adapter-persister.yml,file:///work-dir/configs/health/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/egov-persister/pgr-camunda-persister.yml"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
-      branch: "UNIFIED-DEV" 
-      
+      repo: "git@github.com:egovernments/configs"
+      branch: "UNIFIED-DEV"
+
 audit-service:
   persist-yml-path: "https://raw.githubusercontent.com/egovernments/configs/UNIFIED-DEV/works/egov-persister/attendance-service-persister.yml,https://raw.githubusercontent.com/egovernments/configs/UNIFIED-DEV/works/egov-persister/muster-service-persister.yml,https://raw.githubusercontent.com/egovernments/configs/UNIFIED-DEV/works/egov-persister/estimate-service.yml,https://raw.githubusercontent.com/egovernments/configs/UNIFIED-DEV/works/egov-persister/contract-service-persister.yml,https://raw.githubusercontent.com/egovernments/configs/UNIFIED-DEV/works/egov-persister/bankaccounts-persister.yml,https://raw.githubusercontent.com/egovernments/configs/UNIFIED-DEV/works/egov-persister/expense-bill-payment-persister.yaml"
   initContainers:
     gitSync:
       repo: "git@github.com:egovernments/configs"
       branch: "UNIFIED-DEV"
-      
+
 pgr-services:
   image:
     tag: "sandbox-d760d6b"
@@ -699,37 +691,35 @@ pgr-services:
     dbMigration:
       image:
         tag: "sandbox-d760d6b"
-  namespace: egov 
+  namespace: egov
   memory_limits: 512Mi
 
 egov-data-uploader:
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
-      branch: "UAT"                                    ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs"
+      branch: "UAT"
 
 egov-searcher:
   search-yaml-path: "file:///work-dir/configs/egov-searcher/rainmaker-pgr-v2.yml,file:///work-dir/configs/egov-searcher/weekly-impact-emailer-searcher.yml,file:///work-dir/configs/egov-searcher/PTDemandBasedSearcher.yml,file:///work-dir/configs/egov-searcher/bill-genie.yml,file:///work-dir/configs/egov-searcher/rainmaker-tl.yml,file:///work-dir/configs/egov-searcher/localitySearcher.yml"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/configs"     ##### Change repo url with Your fork Repo url
-      branch: "UAT"                                   ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs"
+      branch: "UAT"
 
 dashboard-analytics:
   config-schema-paths: "file:///work-dir/configs/egov-dss-dashboards/dashboard-analytics/*.json"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
-      branch: "sandbox"                                    ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs"
+      branch: "sandbox"
 
 dashboard-ingest:
   config-schema-paths: "file:///work-dir/configs/egov-dss-dashboards/dashboard-ingest/*.json"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
-      branch: "UAT"                                    ##### Change repo branch with Your fork Repo branch
-
-# reportinfra >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+      repo: "git@github.com:egovernments/configs"
+      branch: "UAT"
 
 national-dashboard-ingest:
   heap: "-Xmx750m -Xms750m"
@@ -747,15 +737,15 @@ report:
   spring-datasource-tomcat-max-active: 5
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/configs"     ##### Change repo url with Your fork Repo url
-      branch: "UAT"                                   ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs"
+      branch: "UAT"
   report-locationsfile-path: "file:///work-dir/configs/reports/reportFileLocationsv1.txt"
 
 pdf-service:
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/configs"     ##### Change repo url with Your fork Repo url
-      branch: "UAT"                                   ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs"
+      branch: "UAT"
   data-config-urls: "file:///work-dir/configs/pdf-service/data-config/tradelicense-receipt.json,file:///work-dir/configs/pdf-service/data-config/property-receipt.json,file:///work-dir/configs/pdf-service/data-config/property-bill.json,file:///work-dir/configs/pdf-service/data-config/tradelicense-bill.json,file:///work-dir/configs/pdf-service/data-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/data-config/pt-receipt.json,file:///work-dir/configs/pdf-service/data-config/tl-receipt.json,file:///work-dir/configs/pdf-service/data-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/data-config/consolidatedreceipt.json,file:///work-dir/configs/pdf-service/data-config/tlapplication.json,file:///work-dir/configs/pdf-service/data-config/passvehicle-certificate.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedacknowlegment.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedsewerageconnection.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit.json,file:///work-dir/configs/pdf-service/data-config/ptmutationcertificate.json,file:///work-dir/configs/pdf-service/data-config/tlrenewalcertificate.json,file:///work-dir/configs/pdf-service/data-config/bpa-revocation.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit-low.json,file:///work-dir/configs/pdf-service/data-config/misc-receipt.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationwater.json,file:///work-dir/configs/pdf-service/data-config/ws-sanctionletter.json,file:///work-dir/configs/pdf-service/data-config/ws-estimationnotice.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationsewerage.json,file:///work-dir/configs/pdf-service/data-config/tlcertificate.json"
   format-config-urls: "file:///work-dir/configs/pdf-service/format-config/tradelicense-receipt.json,file:///work-dir/configs/pdf-service/format-config/property-receipt.json,file:///work-dir/configs/pdf-service/format-config/property-bill.json,file:///work-dir/configs/pdf-service/format-config/tradelicense-bill.json,file:///work-dir/configs/pdf-service/format-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/format-config/pt-receipt.json,file:///work-dir/configs/pdf-service/format-config/tl-receipt.json,file:///work-dir/configs/pdf-service/format-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/format-config/consolidatedreceipt.json,file:///work-dir/configs/pdf-service/format-config/tlapplication.json,file:///work-dir/configs/pdf-service/format-config/passvehicle-certificate.json,file:///work-dir/configs/pdf-service/format-config/ws-consolidatedacknowlegment.json,file:///work-dir/configs/pdf-service/format-config/ws-consolidatedsewerageconnection.json,file:///work-dir/configs/pdf-service/format-config/buildingpermit.json,file:///work-dir/configs/pdf-service/format-config/ptmutationcertificate.json,file:///work-dir/configs/pdf-service/format-config/tlrenewalcertificate.json,file:///work-dir/configs/pdf-service/format-config/bpa-revocation.json,file:///work-dir/configs/pdf-service/format-config/buildingpermit-low.json,file:///work-dir/configs/pdf-service/format-config/misc-receipt.json,file:///work-dir/configs/pdf-service/format-config/ws-applicationwater.json,file:///work-dir/configs/pdf-service/format-config/ws-sanctionletter.json,file:///work-dir/configs/pdf-service/format-config/ws-estimationnotice.json,file:///work-dir/configs/pdf-service/format-config/ws-applicationsewerage.json,file:///work-dir/configs/pdf-service/format-config/tlcertificate.json"
 
@@ -777,14 +767,11 @@ sandbox-ui:
       <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/analytics/analytics.js type=text/javascript></script>     
       <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/sandbox/globalConfigSandboxLTS.js type=text/javascript></script>';"     
 
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
-# financials >>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 egf-master:
   memory_limits: 512Mi
   heap: "-Xmx256m -Xms256m"
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
 egov-custom-consumer:
   erp-host: "https://mohali-qa.egovernments.org/"
 
@@ -793,22 +780,16 @@ egov-apportion-service:
     tag: "digit3-apportion-userId-23ea7f6"
   memory_limits: 512Mi
   heap: -Xmx256m -Xms256m
-  # db-migration image recovered from the cluster's last-good ReplicaSet;
-  # the chart default resolved to :latest, which this repo does not publish.
   initContainers:
     dbMigration:
       image:
         tag: "digit3-apportion-userId-23ea7f6"
 
-# docs >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 redoc:
   replicas: 1
   images:
     - egovio/redoc:v1.0.5
   service_type: LoadBalancer
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-# gateway >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 nginx-ingress:
   images:
@@ -821,8 +802,6 @@ nginx-ingress:
   ssl-ciphers: "EECDH+CHACHA20:EECDH+AES"
   ssl-ecdh-curve: "X25519:prime256v1:secp521r1:secp384r1"
 
-## Consumed by backbone-services/ingress-nginx (top-level `controller` merges into
-## that chart's values). Keys land in the ingress-nginx-controller ConfigMap.
 controller:
   config:
     proxy-read-timeout: "300"
@@ -830,12 +809,11 @@ controller:
     proxy-connect-timeout: "300"
 
 cert-manager:
-  email: "devops@egovernments.org"     ### Add email-id which used by cert-manager for certificates validation.
+  email: "devops@egovernments.org"
   global:
     leaderElection:
       namespace: egov
-  
-  
+
 zuul:
   replicas: 1
   custom-filter-property: "false"
@@ -846,33 +824,23 @@ zuul:
   egov-open-endpoints-whitelist: "/user/oauth/token,/user-otp/v1/_send,/otp/v1/_validate,/user/citizen/_create,/localization/messages,/localization/messages/v1/_search,/user/password/nologin/_update,/pgr/servicedefinition/v1/_search,/pgr/servicecategories/v1/_search,/pgr/v1/otp/_send,/pgr-master/receivingmode/v1/_search,/tenant/v1/tenant/_search,/egov-location/boundarys,/egov-location/boundarys/boundariesByBndryTypeNameAndHierarchyTypeName,/pgr-master/service/v1/_search,/egov-location/boundarys/getLocationByLocationName,/pgr-master/OTPConfig/_search,/pgr-master/serviceGroup/v1/_search,/egov-location/boundarys/isshapefileexist,/pgr/services/v1/_search,/hr-masters/hrconfigurations/_search,/collection-services/receipts/_view,/pgr-master/service/v2/_search,/pgr-master/servicedefinition/v1/_search,/citizen-services,/citizen-services/v1/requests/receipt/_create,/citizen-services/v1/pgresponse,/citizen-services/v1/requests/anonymous/_search,/egov-mdms-service/v1/_search,/egov-mdms-service/v1/_get,/egov-mdms-service/v1/_reload,/egov-mdms-service/v1/_reloadobj,/egov-location/boundarys/getshapefile,/egov-indexer/index-operations/_index,/egov-indexer/index-operations/_reload,/egov-mdms-service-test/v1/_search,/egov-mdms-create/v1/_update,/egov-mdms-create/v1/_create,/egov-mdms-service-test/v1/_reload,/filestore/v1/files/url,/egov-url-shortening,/whatsapp-webhook/messages,/edcr/rest/dcr/downloadfile,/dashboard-ingest/ingest/upload,/egov-searcher/water-services/wateropensearch/_get,/egov-searcher/sewerage-services/sewerageopensearch/_get,/xstate-chatbot/status,/xstate-chatbot/reminder,/nlp-engine/fuzzy/city,/nlp-engine/fuzzy/locality"
   egov-mixed-mode-endpoints-whitelist: "/pgr/seva/v1/_create,/pgr/seva/v1/_search,/pgr/seva/v1/_count,/workflow/history/v1/_search,/filestore/v1/files/id,/filestore/v1/files,/filestore/v1/files/tag,/egov-common-masters/departments/_search,/pt-property/property/propertytypes/_search,/pt-property/properties/_search,/pt-property/property/usages/_search,/egov-idgen/id/_generate,/egf-masters/financialyears/_search,/egov-common-workflows/process/_start,/egov-common-workflows/process/_search,/egov-common-workflows/tasks,/egov-common-workflows/tasks/{id}/_update,/user/_search,/billing-service/demand/_dues,/billing-service/bill/_generate,/billing-service/demand/_create,/wcms/masters/waterchargesconfig/_search,/wcms/masters/usagetypes/_search,/wcms/masters/pipesizes/_search,/wcms-connection/connection/_getbillingtypes,/wcms-connection/connection/_getconnectiontypes,/wcms/masters/sourcetypes/_search,/wcms/masters/supplytypes/_search,/wcms/masters/storagereservoirs/_search,/wcms/masters/treatmentplants/_search,/wcms/masters/documenttypes-applicationtypes/_search,/wcms/masters/donations/_search,/wcms/masters/nonmeterwaterrates/_search,/wcms-connection/connection/_create,/egov-common-masters/genders/_search,/egov-common-workflows/designations/_search,/access/v1/actions/mdms/_get,/tl-services/v1/BPAREG/_create,/tl-services/v1/BPAREG/_update,/tl-calculator/v1/BPAREG/_getbill,/property-services/property/_search,/billing-service/bill/v2/_search,/egov-location/location/v11/boundarys/_search,/pg-service/transaction/v1/_create,/collection-services/payments/_search,/pdf-service/v1/_create,/billing-service/bill/v2/_fetchbill,/pg-service/transaction/v1/_update,/ws-services/wc/_search,/sw-services/swc/_search,/edcr/rest/dcr/scrutinydetails,/edcr/rest/dcr/occomparison,/egov-pdf/download/PAYMENT/consolidatedreceipt,/collection-services/payments/PT/_search,/collection-services/payments/WS/_search,/collection-services/payments/SW/_search,/collection-services/payments/WS.ONE_TIME_FEE/_search,/collection-services/payments/SW.ONE_TIME_FEE/_search,/turn-io-adapter/_transform,/egov-user-event/v1/events/_search"
 
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
 gateway:
   image:
     tag: "gateway-form-data-whilelisting-fix-71aff8f"
   egov-open-endpoints-whitelist: "/individual/v1/_search,/individual/v1/_create,/egov-url-shortening/shortener,/dashboard-analytics/dashboard/getDashboardConfig/pgr,/access/v1/actions/mdms/_get,/tenant-management/tenant/_create,/tenant-management/subTenant/_update,/tenant-management/subTenant/_search,/tenant-management/subTenant/_create,/tenant-management/tenant/_search,/default-data-handler/defaultdata/setup,/mdms-v2/v1/_count,/tenant-management/tenant/config/_update,/tenant-management/tenant/config/_create,/tenant-management/tenant/config/_search,/user/oauth/token,/user-otp/v1/_send,/otp/v1/_validate,/user/citizen/_create,/localization/messages,/localization/messages/v1/_search,/user/password/nologin/_update,/tenant/v1/tenant/_search,/egov-location/boundarys,/egov-location/boundarys/boundariesByBndryTypeNameAndHierarchyTypeName,/egov-location/boundarys/getLocationByLocationName,/egov-mdms-service/v1/_search,/egov-location/location/v11/geography/_search,/filestore/v1/files/url,/pt-calculator-v2/billing-slab/_search,/egov-searcher/property-services/propertyopensearch/_get,/edcr/rest/dcr/downloadfile,/egov-location/location/v11/boundarys/_search,/filestore/v1/files/id,/filestore/v1/files,/filestore/v1/files/tag,/mdms-v2/v1/_search"
 
-
 inbox:
-  # From unified-qa.yaml (unified-qa branch); mdms path for digit-lts mdms-v2.
   namespace: egov
   memory_limits: 512Mi
   heap: "-Xmx256m -Xms256m"
   java-debug: true
-  tracing-enabled: "true"  
+  tracing-enabled: "true"
   service-map : '{"FSM":{"searchPath":"http://fsm.egov:8080/fsm/v1/_search","dataRoot":"fsm","applNosParam":"applicationNos","businessIdProperty":"applicationNo"},"FSM_POST_PAY_SERVICE":{"searchPath":"http://fsm.egov:8080/fsm/v1/_search","dataRoot":"fsm","applNosParam":"applicationNos","businessIdProperty":"applicationNo","applsStatusParam":"applicationStatus"},"FSM_VEHICLE_TRIP":{"searchPath":"http://vehicle.egov:8080/vehicle/trip/v1/_search","dataRoot":"vehicleTrip","applNosParam":"applicationNos","businessIdProperty":"applicationNo"},"PT.CREATE,PT.UPDATE,PT.MUTATION":{"searchPath":"http://property-services.urban:8080/property-services/property/_search","dataRoot":"Properties","applNosParam":"acknowldgementNumber","businessIdProperty":"acknowldgementNumber","applsStatusParam":"status"},"NewTL,DIRECTRENEWAL,EDITRENEWAL":{"searchPath":"http://tl-services.urban:8080/tl-services/v1/_search","dataRoot":"Licenses","applNosParam":"applicationNumber","businessIdProperty":"applicationNumber","applsStatusParam":"status"},"BPA_LOW,BPA,BPA_OC,BPA_HIGH":{"searchPath":"http://bpa-services.urban:8080/bpa-services/v1/bpa/_search","dataRoot":"BPA","applNosParam":"applicationNo","businessIdProperty":"applicationNo","applsStatusParam":"status"},"ARCHITECT,ENGINEER,STRUCTURALENGINEER,BUILDER,SUPERVISOR,TOWNPLANNER":{"searchPath":"http://tl-services.urban:8080/tl-services/v1/BPAREG/_search","dataRoot":"Licenses","applNosParam":"applicationNumber","businessIdProperty":"applicationNumber","applsStatusParam":"status"},"FIRE_NOC_SRV,FIRE_NOC_OFFLINE,AIRPORT_NOC_OFFLINE,AIRPORT_NOC_SRV":{"searchPath":"http://noc-services.urban:8080/noc-services/v1/noc/_search","dataRoot":"Noc","applNosParam":"applicationNo","businessIdProperty":"applicationNo","applsStatusParam":"status"},"NewWS1,ModifyWSConnection,DisconnectWSConnection":{"searchPath":"http://ws-services.urban:8080/ws-services/wc/_search","dataRoot":"WaterConnection","applNosParam":"applicationNumber","businessIdProperty":"applicationNo","applsStatusParam":"applicationStatus"},"NewSW1,ModifySWConnection,DisconnectSWConnection":{"searchPath":"http://sw-services.urban:8080/sw-services/swc/_search","dataRoot":"SewerageConnections","applNosParam":"applicationNumber","businessIdProperty":"applicationNo","applsStatusParam":"applicationStatus"},"WS.AMENDMENT,SW.AMENDMENT":{"searchPath":"http://billing-service.egov:8080/billing-service/amendment/_search","dataRoot":"Amendments","applNosParam":"consumerCode","businessIdProperty":"amendmentId","applsStatusParam":"status"}}'
   bs-service-map : '{"WS":{"searchPath":"http://ws-services.urban:8080/ws-services/wc/_search","dataRoot":"WaterConnection","consumerCodeParam":"connectionNumber"},"SW":{"searchPath":"http://sw-services.urban:8080/sw-services/swc/_search","dataRoot":"SewerageConnections","consumerCodeParam":"connectionNumber"}}'
   water-es-index : water-services
   sewerage-es-index : sewerage-services
-  # egov-service-host key for the MDMS host: egov-mdms-service (the default)
-  # names egov-mdms-service.egov, which does not exist on digit-lts.
   mdms-host-key: mdms-v2
-  # DIGIT 3.0 (DIGIT-Analytics inbox, feature/inbox-postgres-store): MDMS v2 records, workflow v3 process
-  # definitions, caller from Kong's headers. Studio's applications come from the Postgres store: the view
-  # inbox_application in each tenant schema, read with the services' shared DB user (secret db).
   mdmsV1SearchEndpoint: "/mdms-v2/v2"
-  # workflow-java until core workflow is cut over to the base-name service (#5597); then set back to workflow.
   workflow-host-key: workflow-java
   workflow-businessservice-search-path: "/workflow/v3/process/definition"
   extraEnv:
@@ -901,7 +869,6 @@ inbox:
     tag: feature-inbox-postgres-store-4573de7
 
 collection-services:
-  # Studio dependency (no DIGIT 3.0 equivalent on digit-lts); tags as on unified-qa.
   image:
     tag: v1.2.0-c0009c1c40-6
   initContainers:
@@ -925,7 +892,6 @@ finance-collections-voucher-consumer:
   erp-env-name: "qa"
   erp-domain-name: "egovernments.org"
 
-
 user-otp:
   image:
     tag: "sandbox-d760d6b"
@@ -943,7 +909,6 @@ pdf-v3:
 
 license-certificate:
   image:
-    # Repository contains "/" so common.image uses it verbatim (skips global.containerRegistry)
     repository: "egovio/license-certificate"
     tag: renew-license-22a1d89-102
   domain: "https://test-lts.digit.org/"
@@ -987,12 +952,9 @@ license-certificate:
     dbMigration:
       image:
         tag: renew-license-22a1d89-102
-   
 
 license-admin:
   image:
-    # Repository contains "/" so common.image uses it verbatim (skips global.containerRegistry)
-    # repository: "talele08/license-admin"
     tag: admin-localization-51a87a9
   api-proxy-target: "http://kong-kong-proxy.egov"
   vite-api-base-url: ""
@@ -1052,10 +1014,7 @@ ui-access-control:
     tag: dev-test-0202fa8-2
 
 boundary-management:
-  # Images come from digit3's "Build boundary-management" GitHub Action
-  # (.github/workflows/build_boundary_management.yaml), tagged <branch>-<short-sha>.
-  # Both tags below must be replaced with the tag printed in that run's summary
-  # before the first sync; there is no :latest on either repo.
+  chart-version: "3.1.1"
   image:
     repository: "boundary-management"
     tag: "dveleop-modulith-aara-4daf20f1-1"
@@ -1066,12 +1025,18 @@ boundary-management:
         tag: "dveleop-modulith-aara-4daf20f1-1"
   logLevel: "debug"
   defaultLocale: "en_IN"
-  # Filestore document category the xlsx uploads are filed under (must exist per tenant).
   filestoreModule: "boundary"
-  # Keep equal to or below boundary-java's BULK_RELATIONSHIP_MAX_SIZE (1000).
   bulkRelationshipChunkSize: "1000"
+  resources: |
+    requests:
+      cpu: "150m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "3Gi"
 
 localization-management:
+  chart-version: "3.0.0"
   image:
     repository: "egovio/localization-management"
     tag: "develop-modulith-c1f10f6"
@@ -1080,12 +1045,21 @@ localization-management:
       image:
         repository: "egovio/localization-management-db"
         tag: "develop-modulith-fe7107f"
-  # This type must exist as an active FileStore document category for every
-  # tenant that uploads workbooks, with xlsx in allowedFormats.
   filestoreModule: "localization-management"
   batchSize: "100"
   maxRows: "50000"
   maxFileBytes: "26214400"
+  extraEnv:
+    app: |
+      - name: JAVA_OPTS
+        value: "-XX:InitialRAMPercentage=25.0 -XX:MaxRAMPercentage=40.0"
+  resources: |
+    requests:
+      cpu: "150m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
 
 calculator:
   image:
@@ -1135,7 +1109,6 @@ metabase:
     tag: "v0.58.22"
   db-host: "postgres.egov"
 
-# rainmaker-pgr >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 rainmaker-pgr:
   notification-sms-enabled: "true"
   notification-email-enabled: "false"
@@ -1176,10 +1149,6 @@ egov-hrms:
   memory_limits: 512Mi
   java-args: -Dspring.profiles.active=monitoring
   employee-applink: "https://egov-demo.egovernments.org/employee/user/login"
-
-
-
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 kafka-config:
   topics: "egov.pgr.validated:1:1,egov.pgr.locationupdated:1:1,egov.pgr.workflowupdated:1:1,egov.pgr.saved:1:1,egov.pgr.indexing:1:1,egov.core.notification.email:1:1,egov.core.notification.sms:1:1,attendance-save-db:1:1,egov.employee:1:1,save-asset-db:1:1,update-asset-db:1:1,save-assetcategory-db:1:1,agreement-save-db:1:1,agreement-update-db:1:1,lams-workflow-start:1:1,lams-workflow-update:1:1,egov-common-holiday:1:1,egov.leaveopeningbalance-create:1:1,egov.leaveopeningbalance-update:1:1,egov-hr-leavetype:1:1,egov.leaveallotment-create:1:1,egov.leaveallotment-update:1:1,egov.designation-create:1:1,egov.designation-update:1:1,egov.position-create:1:1,egov.position-update:1:1,egov.egf.masters.validated.topic:1:1,egov.egf.masters.completed:1:1,egov.wcms.category-create:1:1,property-create-validated:1:1,property-create-tax-calculated:1:1,property-create-user-validated:1:1,property-create-workflow-started:1:1,property-create-workflow-updated:1:1,save-bill-db:1:1,update-bill-db:1:1,save-bill:1:1,update-bill:1:1,save-demand:1:1,update-demand:1:1,egov.collection.receipt-create:1:1,save-taxHeadMaster-db:1:1,update-taxHeadMaster:1:1,save-glCodeMaster-db:1:1,save-glCodeMaster:1:1,update-glCodeMaster-db:1:1,update-glCodeMaster:1:1,save-taxperiod-db:1:1,save-taxperiod:1:1,update-taxperiod-db:1:1,update-taxperiod:1:1,save-businessservicedetail-db:1:1,save-businessservicedetail:1:1,update-businessservicedetail-db:1:1,update-businessservicedetail:1:1,property-update-workflow-approved:1:1,property-update-user-validated:1:1,property-update-workflow-started:1:1,property-titletransfer-create-user-validated:1:1,property-titletransfer-update-user-validated:1:1,property-titletransfer-create-workflow-started:1:1,property-titletransfer-approved:1:1,property-titletransfer-workflow-updated:1:1,property-update-tax-calculated:1:1,property-update-validated:1:1,property-titletransfer-cretae-validated:1:1,property-titletransfer-update-validated:1:1,property-create-tax-generated:1:1,create-legacy-tradelicense-validated:1:1,egov.pgr.servicedefinition-create:1:1,demand-bill-update:1:1,egov.pgr.servicedefinition-update:1:1,egov-common-department-create:1:1,egov-common-department-update:1:1,egov.services.tl-services.create.legacy.tradelicense.validated:1:1,save-service-db:1:1,update-service-db:1:1,update-legacy-tradelicense-validated:1:1,tradelicense-validated:1:1,tradelicense-persisted:1:1,tradelicense-workflow-populated:1:1,demand-bill-update:1:1,egov.wcms.newconnection-create:1:1,egov.wcms.newconnection-update:1:1,update-newconn-workflow:1:1,initiated-newconn-workflow:1:1,works-offlinestatus-create-validated:1:1,works-offlinestatus-update-validated:1:1,works-contractor-create-validated:1:1,works-contractor-update-validated:1:1,works-letterofacceptance-create-validated:1:1,works-letterofacceptance-update-validated:1:1,works-measurementbook-create-update:1:1,works-revision-detailed-estimate-create-update:1:1,works-workorder-createupdate-validated:1:1,lcms-create-summon-validated:1:1,lcms-create-case:1:1,lcms-create-vakalatnama:1:1,lcms-parawisecomment-create:1:1,lcms-parawisecomment-update:1:1,lcms-assign-advocate:1:1,lcms-update-assign-advocate:1:1,lcms-advocate-create:1:1,lcms-advocate-update:1:1,advocate-payment-create:1:1,advocate-payment-update:1:1,lcms-opinion-create:1:1,lcms-opinion-update:1:1,legacy-case-create:1:1,legacy-hearing-create:1:1,legacy-case-voucher-create:1:1,legacy-case-advocate-create:1:1,lcms-hearingdetails-create:1:1,lcms-hearingdetails-update:1:1,lcms-notice-create:1:1,lcms-notice-update:1:1,lcms-register-create:1:1,lcms-register-update:1:1,lcms-evidence-create:1:1,lcms-evidence-update:1:1,lcms-agency-create:1:1,lcms-agency-update:1:1,lcms-personal-details-create:1:1,Lcms-event-create:1:1,lcms-create-summon-indexer:1:1,lcms-legacy-casecreate-indexer:1:1,works-abstract-estimate-createandupdate:1:1,works-detailed-estimate-createandupdate:1:1,works-revision-loa-create-update:1:1,works-sorrate-saveorupdate-validated:1:1,works-estimatetemplate-saveorupdate-validated:1:1,lcms-update-summon-validated:1:1,mdms.create.gitpushprocess:1:1,works-contractoradvance-saveorupdate-validated:1:1,works-qualitytesting-createandupdate:1:1,works-abstract-estimate-backupdate:1:1,works-detailedestimate-backupdate:1:1,works-abstract-estimate-backupdate-oncreate-detailedestimate:1:1,works-abstract-estimate-backupdate-oncancel-detailedestimate:1:1,works-detailedestimate-backupdate-oncreate-loa:1:1,works-detailedestimate-backupdate-oncancel-loa:1:1,swm-vehicleschedule-save-topic:1:1,works-projectcode-create:1:1,works-projectcode-update:1:1,works-masters-remarks-createandupdate:1:1,works-milestonetemplate-saveorupdate-validated:1:1,works-contractorbill-create-update:1:1,works-measurementbook-backupdate-for-billstatus:1:1,works-notice-createupdate-validated:1:1,works-milestone-saveorupdate-validated:1:1,works-trackmilestone-saveorupdate-validated:1:1,swm-shift-save-topic:1:1,swm-shift-update-topic:1:1,swm-shift-indexer-topic:1:1,works-letterofacceptance-backupdate-oncreate-workorder:1:1,works-letterofacceptance-backupdate-oncancel-workorder:1:1,works-loa-backupdate-oncreate-milestone:1:1,works-loa-backupdate-oncancel-milestone:1:1,works-loa-backupdate-oncreate-contractoradvance:1:1,works-loa-backupdate-oncancel-contractoradvance:1:1,works-loa-backupdate-onupdate-withallofflinestatusandworkorder:1:1,works-workorder-backupdate-oncreate-milestone:1:1,works-workorder-backupdate-oncancel-contractoradvance:1:1,works-loa-backupdate-onupdate-offlinestatus:1:1,works-workorder-backupdate-onupdate-offlinestatus:1:1,works-loa-backupdate-onupdate-withallofflinestatus:1:1,works-workorder-backupdate-onupdate-withallofflinestatus:1:1,works-loa-backupdate-oncreate-bill:1:1,works-loa-backupdate-oncancel-bill:1:1,works-loa-backupdate-oncreatemb:1:1,works-loa-backupdate-oncancelmb:1:1,works-loa-backupdate-oncreatembandnobill:1:1,works-loa-backupdate-oncreatembandbill:1:1,works-workorder-backupdate-oncreate-bill:1:1,works-workorder-backupdate-oncancel-bill:1:1,works-workorder-backupdate-oncreatembandnobill:1:1,works-workorder-backupdate-oncreatembandbill:1:1,egov.error:1:1,save-pt-property:1:1,update-pt-property:1:1,save-pt-billingslab:1:1,update-pt-billingslab:1:1,save-pg-txns:1:1,update-pg-txns:1:1,save-pg-txns-dump:1:1,update-pg-txns-dump:1:1,save-pt-drafts:1:1,update-pt-drafts:1:1,egov.collectionmasters.bankaccountservicemapping-create:1:1,bankaccountservicemapping-create:1:1,update-pt-property-index:1:1"
@@ -1256,39 +1225,34 @@ jaeger:
         }
       }
 
-# redis >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 redis:
   replicas: 1
   images:
     - egovio/redis:3.2
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 playground:
   replicas: 1
   images:
     - egovio/playground:1.3
 
-# fluent-bit >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 fluent-bit:
   images:
     - fluent/fluent-bit:1.0.6
   egov-services-log-topic: "egov-services-logs"
   egov-infra-log-topic: "egov-infra-logs"
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-# kafka-v2 AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 kafka-v2:
   image:
     tag: "5.4.1"
   persistence:
     enabled: true
     aws:
-      - volumeId: "<kafka-v2_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone>     ## REPLACE: add respective zone. 
-      - volumeId: "<kafka-v2_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<kafka-v2_volume_id_3>"  ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
+      - volumeId: "<kafka-v2_volume_id_1>"
+        zone: <zone>
+      - volumeId: "<kafka-v2_volume_id_2>"
+        zone: <zone>
+      - volumeId: "<kafka-v2_volume_id_3>"
+        zone: <zone>
   zookeeperHosts: "zookeeper-v2.zookeeper-cluster:2181/kafka-v2"
 
   heapOptions: "-Xms704M -Xmx704M"
@@ -1305,27 +1269,23 @@ kafka-v2:
   minInsyncReplicas: "1"
   offsetsReplicationFactor: "3"
 
-### Kafka Connect <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 kafka-connect:
   image:
-    tag: latest 
+    tag: latest
 
-
-# zookeeper-v2 AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 zookeeper-v2:
   image:
     tag: "5.4.1"
   persistence:
     enabled: true
     aws:
-      - volumeId: "<zookeeper-v2_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<zookeeper-v2_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<zookeeper-v2_volume_id_3>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
+      - volumeId: "<zookeeper-v2_volume_id_1>"
+        zone: <zone>
+      - volumeId: "<zookeeper-v2_volume_id_2>"
+        zone: <zone>
+      - volumeId: "<zookeeper-v2_volume_id_3>"
+        zone: <zone>
 
-  ## Zookeeper JVM Heap Option
   heapOptions: "-Xms256M -Xmx256M"
   resources:
     limits:
@@ -1335,20 +1295,18 @@ zookeeper-v2:
       cpu: 300m
       memory: 384Mi
 
-
-# es-v1-cluster AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>
 elasticsearch-data-v1:
   image:
     tag: 6.6.2
   persistence:
     enabled: true
     aws:
-      - volumeId: "<elasticsearch-data_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<elasticsearch-data_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
-      - volumeId: "<elasticsearch-data_volume_id_3>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
+      - volumeId: "<elasticsearch-data_volume_id_1>"
+        zone: <zone>
+      - volumeId: "<elasticsearch-data_volume_id_2>"
+        zone: <zone>
+      - volumeId: "<elasticsearch-data_volume_id_3>"
+        zone: <zone>
 
   esJavaOpts: "-Xmx1g -Xms1g"
   resources:
@@ -1359,8 +1317,6 @@ elasticsearch-data-v1:
       cpu: "2000m"
       memory: "2Gi"
 
-### es-master-v1 AWS >>>>>>>>>>>>>>>>>>>>
-
 elasticsearch-master-v1:
   replicas: 3
   image:
@@ -1368,13 +1324,13 @@ elasticsearch-master-v1:
   persistence:
     enabled: true
     aws:
-      - volumeId: "<elasticsearch-master_volume_id_1>" ## REPLACE: add volume id
-        zone: <zone> ##REPLACE: add zone
-      - volumeId: "<elasticsearch-master_volume_id_2>" ## REPLACE: add volume id
-        zone: <zone> ##REPLACE: add zone
-      - volumeId: "<elasticsearch-master_volume_id_3>" ## REPLACE: add volume id
-        zone: <zone> ## REPLACE: add zone
- 
+      - volumeId: "<elasticsearch-master_volume_id_1>"
+        zone: <zone>
+      - volumeId: "<elasticsearch-master_volume_id_2>"
+        zone: <zone>
+      - volumeId: "<elasticsearch-master_volume_id_3>"
+        zone: <zone>
+
   esJavaOpts: "-Xmx448m -Xms448m"
   resources:
     requests:
@@ -1392,16 +1348,12 @@ es-curator:
   logs-cleanup-enabled: "true"
   jaeger-cleanup-enabled: "true"
   logs-to-retain: "7"
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-### Grafana >>>>>>>>>>>>>>>>>>>>
 grafana:
   github:
     allowed_organizations: ["egovernments"]
     role_attribute_path: contains(groups[*], '@egovernments/micro-service-uat') && 'Viewer'
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-### Prometheus & Alertmanager >>>>>>>>>>>>>>>>>>>>
 prometheus:
   alertmanager:
     enabled: true
@@ -1430,21 +1382,17 @@ prometheus:
         - targets: [ 'prometheus-blackbox-exporter:9115' ]
     - job_name: 'digit-services-otel'
       static_configs:
-        - targets: ['open-telemetry-opentelemetry-collector:8889']  # OTEL collector Prometheus endpoint
+        - targets: ['open-telemetry-opentelemetry-collector:8889']
       scrape_interval: 5s
       metrics_path: /metrics
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-### loki-stack >>>>>>>>>>>>>>>>>>>>
 loki:
   persistence:
-    size: 50Gi  # MODIFY: set according to expected log volume for this environment
+    size: 50Gi
   serviceAccount:
     annotations: { }
   schemaConfig:
     configs:
-      # MODIFY: retain this period only if this env has existing boltdb-shipper data.
-      # For a fresh Loki 3.x install, remove this block entirely.
       - from: "2020-10-24"
         store: boltdb-shipper
         object_store: filesystem
@@ -1452,8 +1400,6 @@ loki:
         index:
           prefix: index_
           period: 24h
-      # MODIFY: set 'from' to the date Loki 3.x was first deployed in this environment.
-      # For a fresh install this should be the deployment date (YYYY-MM-DD).
       - from: "2026-05-21"
         store: tsdb
         object_store: filesystem
@@ -1462,90 +1408,78 @@ loki:
           prefix: tsdb_index_
           period: 24h
   limitsConfig:
-    retention_period: 168h       # MODIFY: adjust log retention period per env requirements
-    reject_old_samples_max_age: 720h  # MODIFY: max age for ingested log samples (must be >= retention_period)
+    retention_period: 168h
+    reject_old_samples_max_age: 720h
   compactor:
-    compaction_interval: 10m  # MODIFY: how often compaction runs; increase for low-traffic envs (e.g. 1h)
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    compaction_interval: 10m
 
-### pgadmin >>>>>>>>>>>>>>>>>>>>
-## Deployed by Argo CD via charts/argo-cd/playground/playground-app-set-backbone.yaml
-## into the `playground` namespace, which is where the `pgadmin` Secret
-## (admin-email / admin-password, created by cluster-configs) already lives.
 pgadmin:
-  ## Dynamic provisioning: no persistence.azureCsi/aws/... backend is set, so only a
-  ## PVC is rendered and the AKS `default` StorageClass (disk.csi.azure.com) creates
-  ## the managed disk. pgadmin keeps its SQLite config db under /var/lib/pgadmin, so
-  ## this must be a real volume -- the Deployment mounts pgadmin-data
-  ## unconditionally, and with persistence disabled the pod stays Pending.
   persistence:
     enabled: true
     storageClassName: default
     dataDirSize: 2Gi
     accessMode: ReadWriteOnce
     volumeMode: Filesystem
-  ## Connection details that pgadmin pre-registers in servers.json. The chart
-  ## defaults are AWS/eGov-specific and wrong for this cluster:
-  ##   dbUrl  default egov-dev-db.<...>.ap-south-1.rds.amazonaws.com -> does not exist here
-  ##   db-admin-username default "egov" -> the in-cluster Postgres runs as "postgres"
-  ##     (statefulset/postgres in egov has POSTGRES_USER=postgres)
-  ##
-  ## Matches cluster-configs egov-config: db-host postgres.egov:5432, db-name postgres.
   dbUrl: "postgres.egov"
   dbPort: "5432"
-  ## Shown as the server group / entry names in the pgadmin UI ("<env>_WRITE" and
-  ## "<env>_READ"); the chart default is the generic "DEV".
   environment: "TEST-LTS"
   db-admin-username: "postgres"
-  ## No separate read-only role exists in the in-cluster Postgres, so the READ
-  ## entry points at the same user. Change this if a readonly role is created.
   db-read-username: "postgres"
-  ## dbReadUrl is intentionally unset -- there is no read replica, so the READ
-  ## entry falls back to dbUrl.
   maintenance-db-name: "postgres"
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 internal-gateway-scg:
   image:
     tag: "sandbox-tracer-2.9.1-3017689"
 
 apportion:
+  chart-version: "3.1.1"
   image:
     tag: "master-4aa1de2"
-  # db-migration image recovered from the cluster's last-good ReplicaSet
-  # (the chart default resolved to :latest, which does not exist on any -db repo)
   initContainers:
     dbMigration:
       image:
         tag: "master-4aa1de2"
+      schemaTable: egov_apportion_service_schema
+  resources: |
+    requests:
+      cpu: "150m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
 
 mdms-v2:
+  chart-version: "3.1.1"
   image:
     tag: "filestore-master-b8bd841"
   initContainers:
      dbMigration:
        image:
-         tag: "filestore-master-b8bd841"  
+         tag: "filestore-master-b8bd841"
 
 pdf:
   image:
     tag: "pdf-service-90c5ad6"
-  # db-migration image recovered from the cluster's last-good ReplicaSet
-  # (the chart default resolved to :latest, which does not exist on any -db repo)
   initContainers:
     dbMigration:
       image:
         tag: "pdf-service-90c5ad6"
 
 pg-service:
+  chart-version: "3.1.1"
   image:
     tag: "master-3cf7645"
-  # db-migration image recovered from the cluster's last-good ReplicaSet
-  # (the chart default resolved to :latest, which does not exist on any -db repo)
   initContainers:
     dbMigration:
       image:
         tag: "master-3cf7645"
+  resources: |
+    requests:
+      cpu: "150m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
 
 pgr-camunda-services:
   image:
@@ -1561,15 +1495,6 @@ template-config-java:
         repository: "template-config-db"
         tag: "master-8ce9994"
 
-## ===========================================================================
-## Inji credentialing stack (namespace: inji)
-##
-## Runs ALONGSIDE the existing walt.id issuer (egov/vc -> egov/walt), which is
-## left untouched. Everything is served off the single existing hostname
-## test-lts.digit.org under a path prefix, so no new DNS records and no new
-## TLS certificates are required.
-## ===========================================================================
-
 inji-db-init:
   enabled: true
 
@@ -1578,80 +1503,26 @@ inji-db-init:
     port: 5432
 
 inji-stack-config:
-  ## The ConfigMap of hostnames that inji-certify, mimoto and injiweb all read
-  ## via extraEnvVarsCM. Enable BEFORE any upstream module Application, or
-  ## those pods fail on a missing ConfigMap reference.
   enabled: true
 
 inji-certify-config:
-  ## Enable AFTER step 06 (inji-certify) is Synced/Healthy. Creates the
-  ## DigitLicenseCredential configuration for scope digit_license_vc_ldp if it
-  ## does not already exist; never modifies or deletes an existing one.
   enabled: true
 
 inji-esignet-client:
-  ## Enable AFTER step 05 (esignet) is Synced/Healthy. Registers client
-  ## digitlts-mimoto; never modifies an existing registration.
   enabled: true
 
 inji-mimoto-keygen:
-  ## Enable BEFORE step 07. Mimoto's pod stays Pending with
-  ##   persistentvolumeclaim "mimoto-keygen-keymanager" not found
-  ## until the PVC exists, and the keystore inside it must be a real PKCS12
-  ## file (a subPath mount over an empty volume creates a directory instead).
   enabled: true
 
 inji-ingress:
-  ## Kubernetes Ingress objects for the Inji modules. Needed because every
-  ## upstream Inji chart routes only through Istio (gateway.yaml /
-  ## virtualservice.yaml, both gated on istio.enabled) and renders no Ingress;
-  ## all of them are set istio.enabled=false in
-  ## charts/inji-services/values/test-lts/.
-  ##
-  ## Each module is gated separately. Enable one ONLY after its A record
-  ## resolves to 4.224.237.122 -- cert-manager solves HTTP01 against the real
-  ## hostname, and repeated failures count against Let's Encrypt rate limits.
-  ## Use certIssuer: letsencrypt-staging while iterating on hostnames.
-  ## Chart enabled; each module still gated individually below.
   enabled: true
   certIssuer: "letsencrypt-prod"
   modules:
     injiweb:
-      ## ENABLED. DNS resolves (injiweb.test-lts.digit.org -> 4.224.237.122).
-      ##
-      ## The ClusterRole concern that previously blocked this is mitigated, not
-      ## outstanding: ServiceAccount injiweb now carries
-      ## automountServiceAccountToken: false and the running pod was recreated,
-      ## so it has no kube-api-access volume and no token at all (verified --
-      ## /var/run/secrets/kubernetes.io/serviceaccount does not exist in the
-      ## container). The over-broad ClusterRole still exists but cannot be
-      ## exercised. See the long note in charts/argo-cd/inji/inji-app-project.yaml.
-      ##
-      ## That patch is LIVE-ONLY -- the chart does not declare the field, so
-      ## ArgoCD server-side apply leaves it alone, but a chart upgrade that
-      ## starts declaring it would revert the mitigation. Re-check after any
-      ## inji-web version bump.
       enabled: true
     injicertify:
-      ## ENABLED. DNS resolves (injicertify.test-lts.digit.org -> 4.224.237.122).
-      ##
-      ## Required now, not optional: the issuer DID is
-      ## did:web:injicertify.test-lts.digit.org, which a verifier resolves to
-      ## https://injicertify.test-lts.digit.org/.well-known/did.json, and
-      ## mimoto-issuers-config.json points credential_issuer_host and
-      ## wellknown_endpoint at this hostname. Mimoto's runtime call to
-      ## getIssuerConfiguration() fetches that wellknown, so without this
-      ## Ingress the web-wallet flow cannot resolve the issuer.
-      ## The host-root .well-known paths are served by the wellKnownRewrite
-      ## rule in the inji-ingress chart.
       enabled: true
     esignet:
-      ## ENABLED. DNS resolves (4.224.237.122) and the denyPaths snippet in the
-      ## chart blocks /v1/esignet/client-mgmt and /v1/esignet/system-info at
-      ## the edge -- necessary because eSignet runs permitAll.
       enabled: true
     injiverify:
-      ## inji-verify is not built yet -- there is no Application for it in
-      ## inji-applications.yaml, so this would target a Service that does not
-      ## exist. Leave disabled until that chart is added.
       enabled: false

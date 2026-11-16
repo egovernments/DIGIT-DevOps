@@ -46,10 +46,7 @@ creates nothing new in either namespace.
   `postgresql-lts.egov`, the instance being decommissioned — on its own an
   auth outage waiting to happen. **Fixed at source:**
   `charts/core-services/keycloak/values.yaml` now defaults to `postgres.egov`,
-  so the chart and the live cluster agree and this override merely restates
-  it. (`digit-lts.yaml` and `digit-health-lts.yaml` still reference
-  `postgresql-lts`, but both are stale environment files and neither defines
-  a `keycloak:` block.)
+  so the chart and the live cluster agree and this override merely restates it.
 - **`env` is NOT overridden — and must not be.** An earlier version of this
   Application replaced the whole `env` block with the live 34 entries. That
   worked, but it was a trap: the chart stores `env` as a **scalar string**
@@ -151,5 +148,4 @@ the failure mode that lost the backbone elasticsearch StatefulSets.
   verbatim in the ConfigMap as drift) and no Go-template syntax beyond the
   seal conditionals already present (the chart runs it through `tpl`, so a
   stray `{{ ... }}` fails the whole render).
-- Both Applications use `environments/test-lts.yaml`, not `digit-lts.yaml`.
-  Only test-lts matches this cluster.
+- Both Applications use `environments/test-lts.yaml`.

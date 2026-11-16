@@ -23,4 +23,19 @@ spec:
   # scaffolded project: empty list (a bare key serializes to null and the CRD rejects it)
   promotionPolicies: []
   {{- end }}
+  {{- with $k.webhookReceivers }}
+  # Passed through verbatim to ProjectConfig.spec.webhookReceivers, so any receiver
+  # type the CRD supports works without a chart change. Kargo derives a hard-to-guess
+  # URL per receiver from the referenced Secret and publishes it on
+  # ProjectConfig.status.webhookReceivers[].url -- that URL is what gets registered
+  # at the sender. Read it back with:
+  #
+  #   kubectl -n <project> get projectconfig <project> \
+  #     -o jsonpath='{.status.webhookReceivers[*].url}'
+  #
+  # The Secret itself is created out-of-band (this repo is public) and must live in
+  # the project namespace, same as the ProjectConfig.
+  webhookReceivers:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 {{- end }}

@@ -9,6 +9,34 @@ kargo:
   services: []
   stages: []
 
+  # Webhook receivers on the ProjectConfig, so a push to Docker Hub refreshes the
+  # matching Warehouse immediately instead of waiting for its `interval` poll
+  # (30m on most services here -- by far the largest delay in the deploy path).
+  #
+  # Every project gets the dockerhub receiver by default; a project may override
+  # this list to add or replace receivers (github, generic, quay, harbor, ... --
+  # see the ProjectConfig CRD for the full set).
+  #
+  # The referenced Secret is NOT in this repo (it is public). Create it in the
+  # project namespace before this lands, or Kargo cannot mint the receiver URL:
+  #
+  #   kubectl -n <project> create secret generic kargo-webhook-dockerhub \
+  #     --from-literal=secret="$(openssl rand -hex 32)"
+  #
+  # That value is never shared with Docker Hub. Kargo hashes it into the receiver
+  # URL, and the unguessable URL is itself the shared secret -- so registering the
+  # webhook at Docker Hub means pasting the URL from
+  # ProjectConfig.status.webhookReceivers[].url, nothing else.
+  #
+  # Ingress for these lives at kargo.digit.org/webhooks (unified-dev) and
+  # kargo-latest.digit.org/webhooks (digit-lts), already routed to
+  # kargo-external-webhooks-server.
+  webhookReceivers:
+    - name: dockerhub
+      dockerhub:
+        secretRef:
+          name: kargo-webhook-dockerhub
+
   # Branch that promotable config is AUTHORED on -- the one a service's
   # `configPath` git subscription watches. Defaults to the first stage's branch
   # (the authoring environment), which is correct for every project here.

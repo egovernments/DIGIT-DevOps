@@ -32,6 +32,8 @@ spec:
                 - name: pg-service
                 - name: registry
                 - name: url-shortener
+                - name: keycloak
+                  namespace: keycloak
           - git:
               repoURL: https://github.com/egovernments/DIGIT-DevOps.git
               revision: digit-lts
@@ -52,6 +54,9 @@ spec:
           targetRevision: '{{ index . .name "chart-version" }}'
           helm:
             releaseName: '{{ .name }}'
+            parameters:
+              - name: global.namespace
+                value: '{{ dig "namespace" "egov" . }}'
             valueFiles:
               - $values/deploy-as-code/helm/environments/test-lts.yaml
         - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
@@ -60,7 +65,7 @@ spec:
 
       destination:
         server: https://kubernetes.default.svc
-        namespace: 'egov'
+        namespace: '{{ dig "namespace" "egov" . }}'
 
       syncPolicy:
         automated:

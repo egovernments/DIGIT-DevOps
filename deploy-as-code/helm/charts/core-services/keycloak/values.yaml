@@ -139,17 +139,14 @@ env: |
   {{- end }}
   - name: SPRING_DATASOURCE_DRIVER_CLASS_NAME
     value: "org.postgresql.Driver"  
-  # A literal value, NOT a configMapKeyRef on egov-service-host/otp.
-  #
-  # Two reasons. First, that ConfigMap key resolves to http://otp.egov:8080/
-  # and the `otp` Service has NO ENDPOINTS on digit-lts -- the working backend
-  # is otp-java. Second, env lists strategic-merge BY NAME, so a chart using
-  # valueFrom against a live object using value produces an entry carrying
-  # both keys, and the API server rejects the apply outright with
-  #   env[N].valueFrom: may not be specified when `value` is not empty
+  # A literal value, NOT a configMapKeyRef on egov-service-host/otp: env lists
+  # strategic-merge BY NAME, so a chart using valueFrom against a live object
+  # using value produces an entry carrying both keys, which the API server
+  # rejects (env[N].valueFrom: may not be specified when `value` is not empty).
+  # Default is the base `otp` Service (otp-java was removed in the core rename).
   # Override per environment with `otp-host` if the service name differs.
   - name: OTP_HOST
-    value: {{ index .Values "otp-host" | default "http://otp-java.egov:8080/" | quote }}
+    value: {{ index .Values "otp-host" | default "http://otp.egov:8080/" | quote }}
   - name: OTP_GENERATE_PATH
     value: "otp/v3/generate"
   - name: OTP_RESEND_PATH

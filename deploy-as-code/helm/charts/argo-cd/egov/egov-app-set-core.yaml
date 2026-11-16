@@ -1,47 +1,62 @@
+## egov core-services from published charts helm.digit.org/digit3/core (base names),
+## one egov-<name> Application each; chart version pinned by <service>.chart-version in test-lts.yaml.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
   name: digit-lts-egov-appset-core
   namespace: argocd
 spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
   generators:
-    - list:
-        elements:
-          - name: license-admin
-          - name: license-citizen
-          - name: license-employee
-          - name: license-certificate
-          - name: pdf-v3
-          - name: metabase
-          - name: vc
-          - name: license-validator
-          - name: walt
-          - name: calculator
-          - name: gateway
-          - name: internal-gateway-scg
-          - name: gateway-kong
-          - name: pdf
-          - name: schema-registry
-          - name: user-otp
-          - name: workflow-java
-          - name: ui-access-control
-          - name: inbox
+    - matrix:
+        generators:
+          - list:
+              elements:
+                - name: account
+                - name: apportion
+                - name: billing
+                - name: boundary
+                - name: boundary-management
+                - name: employee
+                - name: employee-onboarding
+                - name: filestore
+                - name: idgen
+                - name: individual
+                - name: localization
+                - name: localization-management
+                - name: mdms-v2
+                - name: notification
+                - name: notify
+                - name: otp
+                - name: pg-service
+                - name: registry
+                - name: url-shortener
+          - git:
+              repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+              revision: digit-lts
+              files:
+                - path: deploy-as-code/helm/environments/test-lts.yaml
+              requeueAfterSeconds: 60
 
   template:
     metadata:
-      name: 'egov-{{name}}'
+      name: 'egov-{{ .name }}'
 
     spec:
       project: egov-project
 
-      source:
-        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
-        targetRevision: digit-lts
-        path: deploy-as-code/helm/charts/core-services/{{name}}
-        helm:
-          valueFiles:
-            - values.yaml
-            - ../../../environments/test-lts.yaml
+      sources:
+        - repoURL: https://helm.digit.org/digit3/core
+          chart: '{{ .name }}'
+          targetRevision: '{{ index . .name "chart-version" }}'
+          helm:
+            releaseName: '{{ .name }}'
+            valueFiles:
+              - $values/deploy-as-code/helm/environments/test-lts.yaml
+        - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+          targetRevision: digit-lts
+          ref: values
 
       destination:
         server: https://kubernetes.default.svc

@@ -12,10 +12,9 @@ cluster `digit-lts` in this repo.
 | `cluster-configs/cluster-configs-app-project.yaml` | The `AppProject` it belongs to |
 | `../backbone-services/argo-cd/values-azure-aks.yaml` | Values overlay that teaches `argocd-repo-server` to decrypt `secrets://` values files |
 
-The encryption key mapping is unchanged and already present in
-`deploy-as-code/helm/.sops.yaml`: `environments/digit-lts-secrets.yaml` is bound
-to `arn:aws:kms:ap-south-1:218381940040:key/9a3b0835-7713-4925-8b3d-da7e421d28d2`,
-which matches the KMS ARN already embedded in that file's `sops:` metadata.
+The encryption key mapping lives in `deploy-as-code/helm/.sops.yaml`:
+`environments/test-lts-secrets.yaml` is bound to the Azure Key Vault
+`digit-lts-sops-kv` key, matching that file's `sops:` metadata.
 
 ## The one deviation from the source doc
 

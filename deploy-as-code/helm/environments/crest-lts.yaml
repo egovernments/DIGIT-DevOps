@@ -81,6 +81,13 @@ cluster-configs:
     db:
       name: db
       namespace: [crest]
+    # CREST's own credentials - the OpenAI key the service calls out with. Separate
+    # from `db` above, which the postgresql chart's reconciler also reads. The value
+    # lives in crest-lts-secrets.yaml under the same path; only the Secret name and
+    # its namespaces are declared here.
+    crest:
+      name: crest
+      namespace: [crest]
     kc-db: null
     kc-admin: null
     egov-notification-sms: null
@@ -104,6 +111,16 @@ crest:
     dbMigration:
       image:
         tag: "main-aa70c5a"
+  # common merges extraEnv.app onto the chart's own `env` block by name, last wins, so
+  # this adds the key without a chart release. Chart 3.0.1 declares no OpenAI env of its
+  # own; move this into the chart's values once it does.
+  extraEnv:
+    app: |
+      - name: CREST_OPENAI_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: crest
+            key: openai-api-key
 crest-ui:
   chart-version: "3.0.0"
   image:

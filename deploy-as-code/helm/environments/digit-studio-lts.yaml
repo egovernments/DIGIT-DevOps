@@ -403,6 +403,26 @@ studio-individual:
 studio-service-request:
   chart-version: "3.0.0"
   mdmsV1SearchEndpoint: "/mdms-v2/v1/_search"
+  # DIGIT 3.0 build: writes its own rows (no persister) in each tenant's schema.
+  # Chart 3.0.0 has no tenant-migration setting, so it goes in extraEnv.app, which
+  # replaces the chart's own extraEnv.app: its SPRING_DATASOURCE_URL is repeated.
+  # Kafka (account-migration events) comes from the common chart's
+  # SPRING_KAFKA_BOOTSTRAP_SERVERS. Tenants that existed before need one in-cluster
+  # POST /studio-service-request/internal/migrate each.
+  extraEnv:
+    app: |
+      - name: SPRING_DATASOURCE_URL
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: studio-db-url
+      - name: TENANT_MIGRATION_ENABLED
+        value: "true"
+  # The chart prefixes /<ingress context>: /studio-service-request/health/liveness.
+  healthChecks:
+    enabled: true
+    livenessProbePath: "/health/liveness"
+    readinessProbePath: "/health/readiness"
   image:
     tag: studio-dynamic-dashboard-backend-44ee338
   initContainers:

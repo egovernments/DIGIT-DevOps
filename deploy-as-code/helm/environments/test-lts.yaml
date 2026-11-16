@@ -358,26 +358,6 @@ egov-notification-sms:
   sms-message-req-param-name: "message"
   sms-error-codes: "401,403,404,405,406,407,408,409,410,411,412,413,414"
 
-billing-java:
-  image:
-    # Published repo is varunkumar704/billing, not egovio/billing-java which the chart
-    # would default to. Contains "/" so common.image uses it verbatim.
-    repository: "varunkumar704/billing"
-    tag: "billing-bill-pdf-filestore-9858216-payment-event"
-  tracing-export-enabled: "true"
-  # db-migration image recovered from the cluster's last-good ReplicaSet
-  # (the chart default resolved to :latest, which does not exist on any -db repo)
-  initContainers:
-    dbMigration:
-      image:
-        repository: "varunkumar704/billing-db"
-        tag: "billing-bill-pdf-filestore-9858216-payment-event"
-
-## Product telemetry (charts/telemetry-services). No DB, no ingress; Kafka from egov-config kafka-brokers.
-## No secret of their own: the forwarder reads the PostHog host/key from the existing license-ui secret and the
-## cleaner reads its instance secret from hmac-secret (both already in test-lts-secrets.yaml).
-## Topics are NOT created by the charts: digit-product-telemetry, digit-product-telemetry-retry-0..3,
-## digit-product-telemetry-dlt, digit-product-telemetry-4xx-dlt must exist before the pods go ready.
 digit-telemetry-cleaner:
   image:
     # Repository contains "/" so common.image uses it verbatim (skips global.containerRegistry)
@@ -570,28 +550,6 @@ workflow:
       cpu: "1"
       memory: "2Gi"
 
-account-java:
-  image:
-    repository: "egovio/account"
-    tag: master-626621a
-  initContainers:
-    dbMigration:
-      image:
-        repository: "egovio/account-db"
-        tag: master-626621a
-  tracing-export-enabled: "true"
-
-employee-java:
-  image:
-    repository: "egovio/employee"
-    tag: master-626621a
-  initContainers:
-    dbMigration:
-      image:
-        repository: "egovio/employee-db"
-        tag: master-626621a
-  tracing-export-enabled: "true"
-
 employee-onboarding:
   image:
     repository: "egovio/employee-onboarding"
@@ -601,17 +559,6 @@ employee-onboarding:
       image:
         repository: "egovio/employee-onboarding-db"
         tag: master-7859366
-  tracing-export-enabled: "true"
-
-individual-java:
-  image:
-    repository: "egovio/individual"
-    tag: develop-modulith-498b431
-  initContainers:
-    dbMigration:
-      image:
-        repository: "egovio/individual-db"
-        tag: develop-modulith-498b431
   tracing-export-enabled: "true"
 
 notify:
@@ -624,106 +571,6 @@ notify:
         repository: "egovio/notify-db"
         tag: master-066dba9
   tracing-export-enabled: "true"
-
-filestore-java:
-  image:
-    # Repository contains "/" so common.image uses it verbatim (skips global.containerRegistry)
-    repository: "egovio/filestore"
-    tag: filestore-module-validation-27257641-1
-  tracing-export-enabled: "true"
-  # db-migration image recovered from the cluster's last-good ReplicaSet
-  # (the chart default resolved to :latest, which does not exist on any -db repo)
-  initContainers:
-    dbMigration:
-      image:
-        repository: "egovio/filestore-db"
-        tag: "filestore-module-validation-2725764"
-
-idgen-java:
-  image:
-    # Published repo is egovio/idgen, not egovio/idgen-java which the chart
-    # would default to. Contains "/" so common.image uses it verbatim.
-    repository: "egovio/idgen"
-    tag: "master-5ebd481"
-  tracing-export-enabled: "true"
-  # db-migration image recovered from the cluster's last-good ReplicaSet
-  # (the chart default resolved to :latest, which does not exist on any -db repo)
-  initContainers:
-    dbMigration:
-      image:
-        repository: "egovio/idgen-db"
-        tag: "master-5ebd481"
-
-
-localization-java:
-  image:
-    # Published repo is egovio/localization, not egovio/localization-java which the chart
-    # would default to. Contains "/" so common.image uses it verbatim.
-    repository: "egovio/localization"
-    tag: "develop-modulith-a70011df-3"
-  tracing-export-enabled: "true"
-  # Reserve 512Mi of the 1.5Gi container limit for native JVM memory.
-  extraEnv:
-    app: |
-      - name: JAVA_TOOL_OPTIONS
-        value: "-Xms256m -Xmx1024m"
-  # Use the migration image from the same localization status release.
-  initContainers:
-    dbMigration:
-      image:
-        repository: "egovio/localization-db"
-        tag: "develop-modulith-a70011df-3"
-
-notification-java:
-  image:
-    tag: "java25-migration-coreservice-a5027ba"
-  initContainers:
-    dbMigration:
-      image:
-        tag: "java25-migration-coreservice-a5027ba"
-  tracing-export-enabled: "true"
-
-
-otp-java:
-  image:
-    repository: "anishegov/otp"
-    tag: master-6305193a
-  initContainers:
-    dbMigration:
-      image:
-        repository: "anishegov/otp-db"
-        tag: master-abb92138
-  tracing-export-enabled: "true"
-
-registry-java:
-  image:
-    # Published repo is egovio/registry, not egovio/registry-java which the chart
-    # would default to. Contains "/" so common.image uses it verbatim.
-    repository: "egovio/registry"
-    tag: "master-533aae9"
-  tracing-export-enabled: "true"
-  # db-migration image recovered from the cluster's last-good ReplicaSet
-  # (the chart default resolved to :latest, which does not exist on any -db repo)
-  initContainers:
-    dbMigration:
-      image:
-        repository: "egovio/registry-db"
-        tag: "v1.0.0-5994b4ba-2"
-
-url-shortener-java:
-  image:
-    # Published repo is egovio/url-shortener, not egovio/url-shortener-java which the chart
-    # would default to. Contains "/" so common.image uses it verbatim.
-    repository: "egovio/url-shortener"
-    tag: "master-8ce9994"
-  tracing-export-enabled: "true"
-  # db-migration image recovered from the cluster's last-good ReplicaSet
-  # (the chart default resolved to :latest, which does not exist on any -db repo)
-  initContainers:
-    dbMigration:
-      image:
-        repository: "egovio/url-shortener-db"
-        tag: "master-8ce9994"
 
 workflow-java:
   image:
@@ -1203,17 +1050,6 @@ license-validator:
 ui-access-control:
   image:
     tag: dev-test-0202fa8-2
-
-boundary-java:
-   tracing-export-enabled: "true"
-   image:
-      repository: "boundary"
-      tag: boundary-performance-2d39f1f
-   initContainers:
-     dbMigration:
-       image:
-         repository: "boundary-db"
-         tag: boundary-performance-2d39f1f
 
 boundary-management:
   # Images come from digit3's "Build boundary-management" GitHub Action

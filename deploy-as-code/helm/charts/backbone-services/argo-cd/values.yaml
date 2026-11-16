@@ -722,6 +722,27 @@ configs:
     annotations: {}
 
     # -- Shared secret for authenticating GitHub webhook events
+    #
+    # DELIBERATELY EMPTY, AND MUST STAY THAT WAY: this repo is public, so the HMAC
+    # that authenticates https://test-lts.digit.org/argocd/api/webhook cannot live
+    # here. The live value is set out-of-band on the cluster:
+    #
+    #   kubectl -n argocd patch secret argocd-secret --type=merge \
+    #     -p "{\"data\":{\"webhook.github.secret\":\"$(printf %s "$SECRET" | base64)\"}}"
+    #
+    # and the same string is configured on the egovernments/DIGIT-DevOps repo webhook
+    # (push events, content-type json). Rotating one without the other silently breaks
+    # delivery -- argocd-server then logs a signature mismatch and falls back to the
+    # timeout.reconciliation poll. This is a different secret from the one behind the
+    # unified-dev webhook; the two environments do not share it.
+    #
+    # Leaving this empty does NOT wipe the live key, even though backbone-argo-cd
+    # self-heals this chart. The argocd-secret template guards every field with
+    # `with`, so an empty value renders no `data` block at all, and the app sync runs
+    # ServerSideApply -- so the key stays owned by whoever patched it and is never
+    # claimed or stripped. Verified against a hard refresh: app stays Synced, key
+    # survives. Setting this to a non-empty placeholder WOULD overwrite the real
+    # secret.
     githubSecret: ""
     # -- Shared secret for authenticating GitLab webhook events
     gitlabSecret: ""
@@ -766,7 +787,57 @@ configs:
 
 # -- Array of extra K8s manifests to deploy
 ## Note: Supports use of custom Helm templates
-extraObjects: []
+extraObjects:
+  # A second Ingress exposing ONLY the GitHub webhook endpoint, bypassing oauth2-proxy.
+  #
+  # The main argocd-server ingress gates everything under /argocd behind oauth2-proxy
+  # (see server.ingress.annotations -- on this cluster that is the `egov` namespace,
+  # not `backbone`). GitHub cannot complete an OAuth redirect, so a webhook delivered
+  # there gets a 302 to /oauth2/start and is recorded as failed -- GitHub does not
+  # follow redirects. Without this object, pushes never reach Argo CD and every app
+  # waits out the timeout.reconciliation poll (30s + up to 5s jitter here).
+  #
+  # What authenticates this path instead is the HMAC in configs.secret.githubSecret:
+  # argocd-server validates X-Hub-Signature-256 and answers 400 to anything unsigned.
+  # Do not add the auth-url/auth-signin annotations here, and do not widen the path --
+  # pathType Exact keeps this to the single webhook URL so nothing else under /argocd
+  # escapes oauth2-proxy. nginx matches an exact location ahead of the main ingress's
+  # /argocd prefix.
+  #
+  # Written as a string rather than a map: values.yaml has to parse as plain YAML
+  # before `tpl` ever runs, and a bare `{{- include ... | nindent }}` as a map value
+  # does not. extra-manifests.yaml handles both forms (`typeIs "string"`).
+  - |
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: argocd-server-webhook
+      namespace: {{ include "argo-cd.namespace" . }}
+      labels:
+        {{- include "argo-cd.labels" (dict "context" . "component" .Values.server.name "name" "server-webhook") | nindent 4 }}
+      annotations:
+        nginx.ingress.kubernetes.io/backend-protocol: HTTP
+    spec:
+      ingressClassName: {{ .Values.server.ingress.ingressClassName | quote }}
+      rules:
+        - host: {{ default .Values.global.domain .Values.server.ingress.hostname | quote }}
+          http:
+            paths:
+              - path: {{ printf "%s/api/webhook" .Values.server.ingress.path | quote }}
+                pathType: Exact
+                backend:
+                  service:
+                    name: {{ include "argo-cd.server.fullname" . }}
+                    port:
+                      number: 80
+      tls:
+        - hosts:
+            - {{ default .Values.global.domain .Values.server.ingress.hostname | quote }}
+          # Same `<host>-tls-certs` convention the main ingress derives. No
+          # cert-manager.io/cluster-issuer annotation here on purpose: the cert for
+          # this host is already ordered by the main ingress, and a second issuer
+          # annotation would open a duplicate order for it.
+          secretName: {{ printf "%s-tls-certs" (default .Values.global.domain .Values.server.ingress.hostname) | quote }}
   # - apiVersion: secrets-store.csi.x-k8s.io/v1
   #   kind: SecretProviderClass
   #   metadata:

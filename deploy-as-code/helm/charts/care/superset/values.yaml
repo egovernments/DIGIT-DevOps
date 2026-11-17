@@ -181,13 +181,23 @@ auth:
     # with it on and those absent, login fails for everyone, so enable it per
     # environment rather than here.
     enabled: false
-    # GitHub org whose members may sign in. Empty disables self-registration
+    # The org that scopes everything below. Empty disables self-registration
     # entirely -- see the ConfigMap template for why.
     githubOrg: ""
-    # Role a user receives on first login. Gamma can read the dashboards and
-    # datasets it is granted; Alpha can also add datasources.
+    # GitHub team slug -> Superset roles. When set, membership of one of these
+    # teams IS the access grant: an account in none of them is refused even if
+    # it belongs to the org. Leave empty to fall back to org membership alone.
+    # Slugs, not display names: "CARE Analytics" has the slug "care-analytics".
+    teamRoles: {}
+    # Baseline role every accepted user gets, on top of their team roles.
+    # Gamma reads the dashboards and datasets it is granted; Alpha can also add
+    # datasources; sql_lab is additive and grants SQL Lab.
     defaultRole: Gamma
     selfRegistration: true
+    # Re-derive roles from GitHub on each login. Leaving this on means a team
+    # change takes effect at next login -- and that roles assigned by hand in
+    # the UI do not survive one.
+    syncRolesAtLogin: true
 
 # Init containers configuration
 initContainers:

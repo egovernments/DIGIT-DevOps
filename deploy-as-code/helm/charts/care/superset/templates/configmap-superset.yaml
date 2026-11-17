@@ -102,7 +102,6 @@ data:
     from flask_appbuilder.security.manager import AUTH_OAUTH
 
     AUTH_TYPE = AUTH_OAUTH
-    AUTH_USER_REGISTRATION_ROLE = "{{ .Values.auth.oauth.defaultRole }}"
 
     OAUTH_PROVIDERS = [
         {
@@ -121,12 +120,32 @@ data:
     ]
 {{- if .Values.auth.oauth.githubOrg }}
 
-    # Membership of this org is checked on every login, so self-registration is
-    # safe to leave on: an account outside the org is rejected before a Superset
-    # user is created. read:org is requested above so private membership counts.
     AUTH_USER_REGISTRATION = {{ if .Values.auth.oauth.selfRegistration }}True{{ else }}False{{ end }}
 
+    # Baseline role for anyone who passes the checks below. Team mappings add
+    # to it rather than replace it.
+    AUTH_USER_REGISTRATION_ROLE = "{{ .Values.auth.oauth.defaultRole }}"
+
+    # Recalculate roles from GitHub on every login, so removing someone from a
+    # team downgrades them without anyone touching Superset. The cost is that
+    # roles granted by hand in the UI are wiped at next login -- with this on,
+    # GitHub teams are the source of truth, not Settings -> List Users.
+    AUTH_ROLES_SYNC_AT_LOGIN = {{ if .Values.auth.oauth.syncRolesAtLogin }}True{{ else }}False{{ end }}
+
     GITHUB_ORG = "{{ .Values.auth.oauth.githubOrg }}"
+{{- if .Values.auth.oauth.teamRoles }}
+
+    # GitHub team slug -> Superset roles. FAB reads this against the role_keys
+    # the security manager returns below.
+    AUTH_ROLES_MAPPING = {
+{{- range $slug, $roles := .Values.auth.oauth.teamRoles }}
+        "{{ $slug }}": [{{ range $i, $r := $roles }}{{ if $i }}, {{ end }}"{{ $r }}"{{ end }}],
+{{- end }}
+    }
+{{- else }}
+
+    AUTH_ROLES_MAPPING = {}
+{{- end }}
 
     from superset.security import SupersetSecurityManager
 
@@ -141,15 +160,42 @@ data:
                 return info
 
             remote = self.appbuilder.sm.oauth_remotes[provider]
-            orgs = {
-                (o.get("login") or "").lower()
-                for o in remote.get("user/orgs").json()
+            org = GITHUB_ORG.lower()
+
+            # user/teams spans every org the account belongs to, so the slugs
+            # are filtered by org first. Without that, a team of the same name
+            # in an unrelated org would grant access here.
+            teams = {
+                (t.get("slug") or "").lower()
+                for t in remote.get("user/teams").json()
+                if ((t.get("organization") or {}).get("login") or "").lower() == org
             }
-            if GITHUB_ORG.lower() not in orgs:
-                raise Exception(
-                    "GitHub account %s is not a member of %s"
-                    % (info.get("username"), GITHUB_ORG)
+
+            if AUTH_ROLES_MAPPING:
+                # Match case-insensitively, but hand FAB the mapping's own keys:
+                # get_roles_from_keys looks them up verbatim.
+                by_lower = {k.lower(): k for k in AUTH_ROLES_MAPPING}
+                matched = sorted(
+                    by_lower[slug] for slug in teams if slug in by_lower
                 )
+                if not matched:
+                    raise Exception(
+                        "GitHub account %s is in no %s team mapped to a Superset "
+                        "role (teams seen: %s)"
+                        % (info.get("username"), GITHUB_ORG, ", ".join(sorted(teams)) or "none")
+                    )
+                info["role_keys"] = matched
+            else:
+                # No team mapping configured, so org membership is the gate.
+                orgs = {
+                    (o.get("login") or "").lower()
+                    for o in remote.get("user/orgs").json()
+                }
+                if org not in orgs:
+                    raise Exception(
+                        "GitHub account %s is not a member of %s"
+                        % (info.get("username"), GITHUB_ORG)
+                    )
 
             # The built-in returns only {"username": "github_<login>"}, which
             # would create users with no email -- alerts and reports have

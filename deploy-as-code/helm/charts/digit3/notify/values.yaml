@@ -1,7 +1,7 @@
 # notify: the channel-provider notification service otp and account send through
 # (POST /notify/v3/notifications). It is not part of any bundle, so every shape needs this
 # release. Unlike the other services it keeps its own database (`notify`, created by
-# scripts/03-backbone.sh), uses JPA, and has no per-tenant schemas.
+# scripts/03-backbone.sh) and uses JPA; tenant schemas are created inside that database.
 
 # Common Labels
 labels:
@@ -72,6 +72,10 @@ smscountry:
 
 # Additional Container Envs
 env: |
+  # Per-tenant schemas, like every other service: consume account-migration and answer
+  # POST /internal/migrate (notify defaults this to false).
+  - name: TENANT_MIGRATION_ENABLED
+    value: "true"
   - name: SERVER_PORT
     value: "8080"
   - name: SERVER_SERVLET_CONTEXT_PATH

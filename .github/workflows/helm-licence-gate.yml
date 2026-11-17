@@ -1,0 +1,55 @@
+name: Helm licence gate
+
+# Every chart in deploy-as-code/helm/charts (and every chart Argo CD pulls from a Helm repo) must be listed in
+# deploy-as-code/helm/licences.yaml; third-party entries must link a pinned licence text that matches the declared
+# licence, and the licence must be Category A or B of the DIGIT 3.0 Licences Review (.claude/hooks/license-policy.json).
+
+on:
+  pull_request:
+    branches: [master, digit-lts, modulith]
+    paths:
+      - "deploy-as-code/helm/**"
+      - "deploy-as-code/argocd-apps/**"
+      - ".claude/hooks/check-helm-licences.py"
+      - ".claude/hooks/license-policy.json"
+      - ".github/workflows/helm-licence-gate.yml"
+  push:
+    paths:
+      - "deploy-as-code/helm/**"
+      - "deploy-as-code/argocd-apps/**"
+      - ".claude/hooks/check-helm-licences.py"
+      - ".claude/hooks/license-policy.json"
+      - ".github/workflows/helm-licence-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  helm-licence-check:
+    name: Helm licence check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PyYAML
+        run: python -m pip install --quiet pyyaml==6.0.2
+
+      - name: Check chart licences
+        run: |
+          set -o pipefail
+          python .claude/hooks/check-helm-licences.py --all --summary "$GITHUB_STEP_SUMMARY" | tee helm-licence-report.txt
+
+      - name: Upload licence report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-licence-report
+          path: helm-licence-report.txt
+          if-no-files-found: ignore

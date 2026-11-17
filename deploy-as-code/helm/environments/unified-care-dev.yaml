@@ -195,6 +195,15 @@ superset:
     enabled: true           # served at https://care-dev.digit.org/analytics (common.ingress)
   database:
     host: unified-dev-server.postgres.database.azure.com  # unified-dev RDS
+  # Initialisation already ran on this environment. A Job's pod template is
+  # immutable, so once the completed Job exists any change to its spec -- such as
+  # adding a package to the shared install -- leaves the Application OutOfSync
+  # with "field is immutable" until the Job is removed. Recreating it is not free
+  # either: it re-runs `superset fab create-admin` for a user that now exists,
+  # which exits non-zero under `set -e`. Turn this back on when bootstrapping a
+  # new environment.
+  initJob:
+    enabled: false
 
 
 

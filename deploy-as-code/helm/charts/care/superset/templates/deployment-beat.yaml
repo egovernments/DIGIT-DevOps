@@ -19,6 +19,11 @@ spec:
       labels:
         app: {{ .Values.name }}
         component: beat
+      annotations:
+        # See deployment-web.yaml: a mounted ConfigMap changing does not restart
+        # the container, so the pod would keep the previous superset_config.py
+        # while Argo CD reported Synced.
+        checksum/superset-config: {{ include (print $.Template.BasePath "/configmap-superset.yaml") . | sha256sum }}
     spec:
       imagePullSecrets:
         - name: docker-registry-secret

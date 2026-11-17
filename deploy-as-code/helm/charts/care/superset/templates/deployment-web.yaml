@@ -19,6 +19,16 @@ spec:
       labels:
         app: {{ .Values.name }}
         component: web
+      annotations:
+        # Roll the pods when the rendered config changes. Both ConfigMaps are
+        # mounted as volumes, and a volume update does not restart a container
+        # or reload nginx -- without this a config-only change syncs in Argo CD
+        # and reports Synced while every pod keeps running the previous
+        # configuration.
+        checksum/superset-config: {{ include (print $.Template.BasePath "/configmap-superset.yaml") . | sha256sum }}
+{{- if .Values.web.nginx }}
+        checksum/nginx-config: {{ include (print $.Template.BasePath "/configmap-nginx.yaml") . | sha256sum }}
+{{- end }}
     spec:
       imagePullSecrets:
         - name: docker-registry-secret

@@ -12,7 +12,11 @@ data:
     from celery.schedules import crontab
 
     # Critical for context path deployment
-    APPLICATION_ROOT = "{{ .Values.contextPath }}"
+    # contextPath empty = served at the root of its own host. APPLICATION_ROOT
+    # must still be "/" (Flask's default; "" breaks the session cookie path),
+    # while STATIC_ASSETS_PREFIX stays empty so asset URLs are /static/... and
+    # not //static/...
+    APPLICATION_ROOT = "{{ .Values.contextPath | default "/" }}"
     STATIC_ASSETS_PREFIX = "{{ .Values.contextPath }}"
 
     # Enable proxy fix for Traefik/nginx X-Forwarded-* headers

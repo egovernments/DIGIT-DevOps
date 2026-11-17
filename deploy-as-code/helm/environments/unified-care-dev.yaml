@@ -191,8 +191,22 @@ care-radiology:
     careBackendServiceName: care-backend
 
 superset:
+  # Superset's SPA hardcodes LOGIN: "/login/" in spa.*.entry.js, with no prefix
+  # awareness and no config hook, so the GitHub sign-in button ignores
+  # APPLICATION_ROOT and lands on the host root -- where care-frontend answers.
+  # Everything else about the subpath worked, but rather than patch that one
+  # path, Superset gets the root of its own host, which removes the whole class
+  # of bug. Needs an A record for superset.unified-dev.digit.org and the GitHub
+  # OAuth callback set to https://superset.unified-dev.digit.org/oauth-authorized/github.
+  contextPath: ""
   ingress:
-    enabled: true           # served at https://care.unified-dev.digit.org/analytics (common.ingress)
+    enabled: true
+    hostName: superset.unified-dev.digit.org
+    context: ""             # path "/" on that host
+    annotations:
+      # Its own host means its own certificate; previously it shared the one
+      # care-frontend's Ingress requested for the shared domain.
+      cert-manager.io/cluster-issuer: letsencrypt-prod
   database:
     host: unified-dev-server.postgres.database.azure.com  # unified-dev RDS
   # Initialisation already ran on this environment. A Job's pod template is

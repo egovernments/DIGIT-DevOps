@@ -23,16 +23,16 @@ spec:
       imagePullSecrets:
         - name: docker-registry-secret
       initContainers:
-        - name: install-psycopg2
+        - name: install-python-packages
           image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
           command:
             - /bin/sh
             - -c
             - |
               set -e
-              echo "Installing psycopg2-binary to shared volume..."
-              pip install --no-cache-dir --target=/python-packages psycopg2-binary
-              echo "psycopg2-binary installed successfully!"
+              echo "Installing Python packages to shared volume..."
+              pip install --no-cache-dir --target=/python-packages --no-deps {{ join " " .Values.initContainers.packages }}
+              echo "Python packages installed successfully!"
           volumeMounts:
             - name: python-packages
               mountPath: /python-packages

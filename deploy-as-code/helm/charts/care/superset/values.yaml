@@ -177,6 +177,19 @@ beat:
 # Init containers configuration
 initContainers:
   waitImage: busybox:latest
+  # Installed into the shared /python-packages volume, which the web and worker
+  # containers put FIRST on PYTHONPATH. Anything listed here therefore shadows the
+  # image's own copy of the same package, which is why the install uses --no-deps:
+  # clickhouse-connect[sqlalchemy] would otherwise drag SQLAlchemy 2.x over the
+  # 1.4.54 Superset is built against and break it. For the same reason the added
+  # packages are pinned -- with --no-deps a newly required dependency would not be
+  # picked up on its own. lz4 and backports.zstd are clickhouse-connect's
+  # compression codecs; the image ships neither.
+  packages:
+    - psycopg2-binary
+    - clickhouse-connect==1.13.0
+    - lz4==4.4.5
+    - backports.zstd==1.8.0
   resources:
     requests:
       cpu: "250m"

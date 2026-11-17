@@ -27,12 +27,25 @@ echo
 
 SOPS_RULES="$HELM_DIR/.sops.yaml"
 if ! grep -q "$RECIPIENT" "$SOPS_RULES" 2>/dev/null; then
-  note "adding creation rule to .sops.yaml"
-  [ -f "$SOPS_RULES" ] && grep -q "creation_rules:" "$SOPS_RULES" || echo "creation_rules:" >> "$SOPS_RULES"
-  cat >> "$SOPS_RULES" <<EOF
-  - path_regex: environments/azure\-k3s\-secrets(\..*)?\.yaml\$
-    age: $RECIPIENT
-EOF
+  note "adding a creation rule for this environment's secrets file to .sops.yaml"
+  # sops applies the FIRST matching rule, and the shared azure-k3s rule already matches every
+  # per-environment file with another team's key. So the new rule names this domain's file
+  # exactly and goes in front of it, indented like the existing list items (appending at a
+  # different indent made the YAML invalid and sops refused to load it).
+  python3 - "$SOPS_RULES" "$DOMAIN" "$RECIPIENT" <<'PY'
+import os, re, sys
+path, domain, recipient = sys.argv[1:]
+lines = open(path).read().splitlines() if os.path.exists(path) else []
+if not any(l.strip() == "creation_rules:" for l in lines):
+    lines.append("creation_rules:")
+regex = r"environments/azure\-k3s\-secrets\." + re.escape(domain).replace("-", r"\-") + r"\.yaml$"
+items = [i for i, l in enumerate(lines) if l.lstrip().startswith("- path_regex:")]
+first_k3s = next((i for i in items if "azure" in lines[i] and "k3s" in lines[i]), None)
+at = first_k3s if first_k3s is not None else (items[0] if items else len(lines))
+indent = re.match(r"\s*", lines[at]).group(0) if at < len(lines) else "  "
+lines[at:at] = [f"{indent}- path_regex: {regex}", f"{indent}  age: '{recipient}'"]
+open(path, "w").write("\n".join(lines) + "\n")
+PY
 else
   note ".sops.yaml already lists this recipient"
 fi

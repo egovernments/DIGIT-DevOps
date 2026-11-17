@@ -454,14 +454,23 @@ reference — every `KONG_*` variable, defaults, per-shape examples — is
 ### 3.6 Tenant + verify
 
 ```bash
-# Onboard a tenant through the account API (unprotected bootstrap route; in-cluster,
-# so curl from the VM). One call creates the tenant, its Keycloak realm (wait for
-# keycloak first) and publishes the migration event every service turns into the
-# tenant's schema. Choose the password — a server-generated one is never delivered.
+# Onboard a tenant through the account API (in-cluster, so curl from the VM). One
+# call creates the tenant, its Keycloak realm (wait for keycloak first) and publishes
+# the migration event every service turns into the tenant's schema. Choose the
+# password — a server-generated one is never delivered.
+# Tenant create/update/delete need a platform token (PLATFORM_AUTH_ENABLED=true): a
+# master-realm JWT holding SUPERADMIN. scripts/_platform_token.py bootstraps the role
+# and a `digit-platform` client (idempotent) and prints one; the Keycloak admin
+# credentials go in on stdin.
 kubectl wait --for=condition=Available deploy/keycloak -n keycloak --timeout=300s
+KC=$(kubectl get svc keycloak -n keycloak -o jsonpath='{.spec.clusterIP}')
+scp -i <key> scripts/_platform_token.py azureuser@<domain>:/tmp/
+PT=$({ kubectl get secret kc-admin -n keycloak -o jsonpath='{.data.username}' | base64 -d; echo
+       kubectl get secret kc-admin -n keycloak -o jsonpath='{.data.password}' | base64 -d; echo; } \
+  | ssh -i <key> azureuser@<domain> "python3 /tmp/_platform_token.py http://$KC:8080/keycloak")
 BIP=$(kubectl get svc dev-bundle -n egov -o jsonpath='{.spec.clusterIP}')
 ssh -i <key> azureuser@<domain> "curl -s -X POST http://$BIP:8080/account/v3/tenants \
-  -H 'Content-Type: application/json' -H 'X-User-ID: bootstrap' \
+  -H 'Content-Type: application/json' -H 'X-User-ID: bootstrap' -H 'Authorization: Bearer $PT' \
   -d '{\"name\":\"My Tenant\",\"email\":\"admin@example.org\",\"phone\":\"+919999999999\",\"password\":\"<choose>\"}'"
 # → {"code":"MYTENANT", …}   (codes are UPPERCASE, derived from the name)
 
@@ -616,14 +625,15 @@ curl -s http://localhost:18001/services | python3 -c \
 ### 5.3 Tenant + verify
 
 As §3.6, with two differences: `account` lives in **identity-bundle**, so the
-tenant call goes to `svc/identity-bundle`; and completion means all **four**
-bundles consumed the event (each migrates only its own services):
+tenant call goes to `svc/identity-bundle` (with the same platform token, `$PT`);
+and completion means all **four** bundles consumed the event (each migrates only
+its own services):
 
 ```bash
 kubectl wait --for=condition=Available deploy/keycloak -n keycloak --timeout=300s
 BIP=$(kubectl get svc identity-bundle -n egov -o jsonpath='{.spec.clusterIP}')
 ssh -i <key> azureuser@<domain> "curl -s -X POST http://$BIP:8080/account/v3/tenants \
-  -H 'Content-Type: application/json' -H 'X-User-ID: bootstrap' \
+  -H 'Content-Type: application/json' -H 'X-User-ID: bootstrap' -H 'Authorization: Bearer $PT' \
   -d '{\"name\":\"My Tenant\",\"email\":\"admin@example.org\",\"phone\":\"+919999999999\",\"password\":\"<choose>\"}'"
 until [ "$(kubectl exec -n egov postgresql-lts-0 -- psql -U postgres -tAc \
   "SELECT count(*) FROM pg_tables WHERE schemaname='MYTENANT' AND tablename LIKE '%_schema'" | tr -d ' ')" = 15 ]; do sleep 5; done
@@ -771,6 +781,7 @@ that migrates every member.
 | Rendered Ingress "apiVersion not set" | generator template `{{- if … -}}` swallowed the line — fixed in `generate_bundle_chart.py` |
 | 400 `MISSING_HEADER` on every request | DIGIT 3.x requires `X-Tenant-ID` (+ `X-User-ID` for writes); kong injects them from the JWT in production |
 | Tenant code rejected with 400 ValidationFailed | account service requires UPPERCASE tenant codes |
+| Tenant create/update/delete: 401 `UNAUTHENTICATED` / 403 `FORBIDDEN` | account requires a master-realm token holding `SUPERADMIN` (`PLATFORM_AUTH_ENABLED=true`) — mint one with `scripts/_platform_token.py` (§3.6); `admin-cli` tokens carry no `realm_access` and are always refused |
 | `kubectl port-forward` hangs/000 over the SSH tunnel | curl ClusterIPs from the VM over SSH instead |
 | `01` / k3s installer: `[ERROR]  Download failed` right after `Downloading binary https://github.com/k3s-io/k3s/releases/download/<ver>/k3s` (the small `sha256sum-amd64.txt` downloaded fine) | GitHub's release CDN answering 504 from the VM's region — transient and location-specific (`curl -sI -L <that URL>` from the VM shows it; from your workstation it is usually 200). Either retry later, or sidestep it: download the binary where it works and verify it — `curl -sfLO <URL>/k3s && curl -sfL <URL>/sha256sum-amd64.txt | grep ' k3s$' | sha256sum -c` — then `scp k3s <user>@<domain>:/tmp/k3s` and on the VM `sudo install -m 755 /tmp/k3s /usr/local/bin/k3s && curl -sfL https://get.k3s.io | INSTALL_K3S_SKIP_DOWNLOAD=true sh -s - --disable traefik`. Re-run `01-cluster.sh` (it skips the install once `k3s` exists) and continue. |
 | `bind :16443: Address already in use` on tunnel setup | old tunnel still bound; test kubectl first, else `pkill -f "16443:127.0.0.1:6443"` and reconnect |

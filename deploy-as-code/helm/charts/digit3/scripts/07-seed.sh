@@ -84,12 +84,26 @@ print_credentials() {
   fi
 }
 
+# Tenant create is a platform-operator call: account (PLATFORM_AUTH_ENABLED=true) accepts it only
+# with a master-realm token holding SUPERADMIN. _platform_token.py bootstraps that role and a
+# `digit-platform` client idempotently and prints the token; the Keycloak admin credentials
+# travel on stdin, never in argv.
+note "platform token (master realm, SUPERADMIN) for the tenant create"
+KC=$(kubectl get svc keycloak -n keycloak -o jsonpath='{.spec.clusterIP}')
+vm_ssh 'cat > /tmp/_platform_token.py' < "$SCRIPT_DIR/_platform_token.py"
+PLATFORM_TOKEN=$({ kubectl get secret kc-admin -n keycloak -o jsonpath='{.data.username}' | base64 -d; echo
+                   kubectl get secret kc-admin -n keycloak -o jsonpath='{.data.password}' | base64 -d; echo; } \
+  | vm_ssh "python3 /tmp/_platform_token.py http://$KC:8080/keycloak; rc=\$?; rm -f /tmp/_platform_token.py; exit \$rc") \
+  || die "could not mint a platform token — check the kc-admin secret and keycloak (kubectl logs -n keycloak deploy/keycloak)"
+echo "    platform token minted (master/digit-platform)"
+
 note "creating tenant '$NAME' on shape '$SHAPE' (all calls run on the VM)"
 # The tenant admin is created with this password — generated here and printed
 # ONCE at the end. Without it the server generates one that is never delivered
 # (SMTP is a placeholder in test environments).
 ADMIN_PASS=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-16)
-RESP=$(vm_curl "-X POST http://$ACCOUNT:8080/account/v3/tenants $H_JSON -H 'X-User-ID: seed-script' -d '{\"name\":\"$NAME\",\"email\":\"$EMAIL\",\"phone\":\"$PHONE\",\"password\":\"$ADMIN_PASS\"}'")
+RESP=$(vm_curl "-X POST http://$ACCOUNT:8080/account/v3/tenants $H_JSON -H 'X-User-ID: seed-script' -H 'Authorization: Bearer $PLATFORM_TOKEN' -d '{\"name\":\"$NAME\",\"email\":\"$EMAIL\",\"phone\":\"$PHONE\",\"password\":\"$ADMIN_PASS\"}'")
+unset PLATFORM_TOKEN
 CODE=$(printf '%s' "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('code',''))" 2>/dev/null || true)
 if [ -z "$CODE" ]; then
   CODE=$(vm_curl "'http://$ACCOUNT:8080/account/v3/tenants?email=$EMAIL'" | \

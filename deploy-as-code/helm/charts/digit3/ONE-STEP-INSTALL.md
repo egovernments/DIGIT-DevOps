@@ -133,7 +133,7 @@ preflight    verify every image the shape needs exists on Docker Hub at --tag (l
 03-backbone  backbone sync (self-heals the cert-manager webhook race) + keycloak DB/role + seaweedfs bucket
 04-openbao   init/unseal, transit + approle, credentials into sops (skipped with --skip-openbao)
 06-deploy    chart gen + shape helmfile sync with DIGIT_TAG + kong (waits for kong's Admin API)
-07-seed      tenant (with admin password) + runtime seeds + OpenBao encryption verification
+07-seed      platform token, tenant (with admin password) + runtime seeds + OpenBao encryption verification
 ```
 
 `05-build.sh` is **not** run by `install.sh` — it is the optional path for

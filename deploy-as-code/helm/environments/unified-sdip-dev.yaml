@@ -130,14 +130,15 @@ cluster-configs:
       namespace: [ sdip ]
       name: db
 
-    ## Mounted at SDIP_RUNTIME_CONFIG_DIR. The backend reads all three files
-    ## during startup validation (org.sdip.runtime.SharedRuntimeConfiguration)
-    ## and refuses to start if any is missing or malformed.
+    ## Mounted at SDIP_RUNTIME_CONFIG_DIR. The backend reads all three JSON
+    ## files during startup validation
+    ## (org.sdip.runtime.SharedRuntimeConfiguration) and refuses to start if any
+    ## is missing or malformed.
     ##
-    ## Only coreFix.clientToken is a credential; it lives in
-    ## unified-sdip-dev-secrets.yaml and this Secret is not rendered until it is
-    ## set. The other values are deployment inputs, kept here so they are
-    ## reviewable in a diff.
+    ## coreFix.clientToken and mdmsOwner.token are the credentials; both live in
+    ## unified-sdip-dev-secrets.yaml and never appear here. This Secret is not
+    ## rendered until coreFix.clientToken is set. The other values are
+    ## deployment inputs, kept here so they are reviewable in a diff.
     sdip-backend-runtime-files:
       namespace: [ sdip ]
       name: sdip-backend-runtime-files
@@ -161,6 +162,48 @@ cluster-configs:
       onboarding:
         digestKeyRef: 1
         invitationLifetimeDays: 7
+
+        ## Versioned, opt-in reconciliation of the eleven SDIP role codes into
+        ## the shared DIGIT role catalog (tenant pb, schema
+        ## ACCESSCONTROL-ROLES.roles), run once per startup by
+        ## org.sdip.iam.bootstrap.SdipMdmsRoleSync. Default is READ_ONLY, which
+        ## only reports the missing codes; APPLY is what registers them.
+        ##
+        ## Kept at APPLY as requested in PR #5631, but it is inert here: the
+        ## eleven role codes were registered out of band by the MDMS owner, so
+        ## the runner returns at missing.isEmpty() and logs outcome=READY
+        ## without reading a credential or writing anything.
+        ##
+        ## That gate is enforced by SdipMdmsRoleSync alone, NOT by MDMS.
+        ## Verified on this cluster: mdms-v2 runs with no authentication
+        ## (SECURITY_BASIC_ENABLED=false), its create endpoints appear in no
+        ## ACCESSCONTROL-ACTIONS catalog and so in no role-action mapping, and
+        ## the runner calls mdms-v2.egov.svc.cluster.local directly, bypassing
+        ## the gateway where DIGIT would otherwise enforce authN/authZ. A token
+        ## is never validated on this path.
+        ##
+        ## authTokenFile is left pointing at a file that is no longer projected.
+        ## Harmless while the catalog is complete, but if a role is ever removed
+        ## the runner will stop at MDMS_WRITE_CREDENTIAL_FILE_UNAVAILABLE rather
+        ## than re-register it. Note also that an APPLY run cannot currently
+        ## succeed: the runner never populates RequestInfo.userInfo, which MDMS
+        ## requires for audit enrichment, so the write fails with
+        ## NullCheckException regardless of the credential. Raised with the SDIP
+        ## team; re-registration is a manual owner action until that is fixed.
+        ##
+        ## schemaAbsentConfirmed stays false: this is the "do not create
+        ## schemas" setting. Verified on this cluster that
+        ## ACCESSCONTROL-ROLES.roles already exists for tenant pb, isActive, and
+        ## satisfies the runner's compatibility check (x-unique == [code],
+        ## required contains code and name), so the schema-create branch is
+        ## never reached and no schema-write permission is needed. Only flip
+        ## this if the schema is genuinely absent and its creation is approved.
+        mdmsRoleSync:
+          enabled: true
+          mode: APPLY
+          approval: APPROVED_SDIP_MDMS_ROLE_CATALOG_PB_V1
+          schemaAbsentConfirmed: false
+          authTokenFile: mdms-owner.token
 
       ## charts/backbone-services/kafka-kraft sets listeners.client.protocol to
       ## PLAINTEXT with no SASL and no ACLs on this cluster. Only the ten
@@ -347,8 +390,13 @@ sdip-backend:
             path: onboarding-runtime.json
           - key: kafka-client.json
             path: kafka-client.json
-          - key: mdms-owner.token
-            path: mdms-owner.token
+          ## No mdms-owner.token projection. The eleven SDIP role codes are
+          ## already registered in MDMS V1 and V2 for tenant pb, so
+          ## SdipMdmsRoleSync returns at missing.isEmpty() before it ever reads
+          ## a credential. Re-adding this item without the matching key in the
+          ## Secret fails the mount outright -- "references non-existent secret
+          ## key: mdms-owner.token" -- and leaves the pod at Init:0/7 with no
+          ## init container started, which is exactly what happened here.
 
   ## /internal/health/ready probes all six database pools plus Redis, cached for
   ## three seconds, so its timeout has to exceed the sum of those checks.

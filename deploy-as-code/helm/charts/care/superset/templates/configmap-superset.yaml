@@ -89,6 +89,95 @@ data:
     WTF_CSRF_ENABLED = True
     WTF_CSRF_TIME_LIMIT = None
 
+{{- if .Values.auth.oauth.enabled }}
+
+    # ---- Authentication: GitHub OAuth -------------------------------------
+    # Individual logins without per-user passwords: Superset never sees a
+    # credential, and access follows the GitHub account. Credentials come from
+    # the superset secret (cluster-configs.secrets.superset in the SOPS-encrypted
+    # environments/<env>-secrets.yaml), never from values.
+    #
+    # The GitHub OAuth app's callback URL must be exactly:
+    #   https://<domain>{{ .Values.contextPath }}/oauth-authorized/github
+    from flask_appbuilder.security.manager import AUTH_OAUTH
+
+    AUTH_TYPE = AUTH_OAUTH
+    AUTH_USER_REGISTRATION_ROLE = "{{ .Values.auth.oauth.defaultRole }}"
+
+    OAUTH_PROVIDERS = [
+        {
+            "name": "github",
+            "icon": "fa-github",
+            "token_key": "access_token",
+            "remote_app": {
+                "client_id": os.getenv("OAUTH_CLIENT_ID"),
+                "client_secret": os.getenv("OAUTH_CLIENT_SECRET"),
+                "api_base_url": "https://api.github.com/",
+                "access_token_url": "https://github.com/login/oauth/access_token",
+                "authorize_url": "https://github.com/login/oauth/authorize",
+                "client_kwargs": {"scope": "read:user read:org user:email"},
+            },
+        }
+    ]
+{{- if .Values.auth.oauth.githubOrg }}
+
+    # Membership of this org is checked on every login, so self-registration is
+    # safe to leave on: an account outside the org is rejected before a Superset
+    # user is created. read:org is requested above so private membership counts.
+    AUTH_USER_REGISTRATION = {{ if .Values.auth.oauth.selfRegistration }}True{{ else }}False{{ end }}
+
+    GITHUB_ORG = "{{ .Values.auth.oauth.githubOrg }}"
+
+    from superset.security import SupersetSecurityManager
+
+    class GithubOrgSecurityManager(SupersetSecurityManager):
+        # get_oauth_user_info, NOT oauth_user_info: the latter is a None class
+        # attribute that the oauth_user_info_getter decorator assigns to, so
+        # calling it through super() raises "NoneType is not callable". The
+        # built-in GitHub handling lives in get_oauth_user_info.
+        def get_oauth_user_info(self, provider, resp):
+            info = super().get_oauth_user_info(provider, resp)
+            if provider != "github":
+                return info
+
+            remote = self.appbuilder.sm.oauth_remotes[provider]
+            orgs = {
+                (o.get("login") or "").lower()
+                for o in remote.get("user/orgs").json()
+            }
+            if GITHUB_ORG.lower() not in orgs:
+                raise Exception(
+                    "GitHub account %s is not a member of %s"
+                    % (info.get("username"), GITHUB_ORG)
+                )
+
+            # The built-in returns only {"username": "github_<login>"}, which
+            # would create users with no email -- alerts and reports have
+            # nowhere to send to. Fill in what the API exposes.
+            me = remote.get("user").json()
+            email = me.get("email")
+            if not email:
+                for entry in remote.get("user/emails").json():
+                    if entry.get("primary") and entry.get("email"):
+                        email = entry["email"]
+                        break
+            parts = (me.get("name") or "").split(" ", 1)
+            info.setdefault("email", email or "")
+            info.setdefault("first_name", parts[0] if parts[0] else info.get("username", ""))
+            info.setdefault("last_name", parts[1] if len(parts) > 1 else "")
+            return info
+
+    CUSTOM_SECURITY_MANAGER = GithubOrgSecurityManager
+{{- else }}
+
+    # No org configured, so nothing distinguishes a colleague from any other
+    # GitHub account that reaches the login page. Registration is therefore off:
+    # an admin creates the user in Superset first, and GitHub only authenticates
+    # them. Set auth.oauth.githubOrg to allow members to register themselves.
+    AUTH_USER_REGISTRATION = False
+{{- end }}
+{{- end }}
+
     # Branding
     APP_NAME = "{{ .Values.branding.appName | default "CARE Analytics" }}"
     APP_ICON = "{{ .Values.branding.appIcon | default "/static/assets/images/superset-logo.png" }}"

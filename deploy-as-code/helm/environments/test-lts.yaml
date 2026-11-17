@@ -528,6 +528,16 @@ otp:
   schema-separation-mode: "false"
   tenant-migration-enabled: "false"
   chart-version: "3.1.2"
+  # otp sends OTPs with POST {NOTIFY_BASE_URL}notify/v3/notifications, which the notify service
+  # serves. The chart reads the base URL from key `notification`: that service has no such path,
+  # so every OTP generate fails (404 -> otp 503) and Keycloak's OTP login step fails.
+  extraEnv:
+    app: |
+      - name: NOTIFY_BASE_URL
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: notify
   image:
     repository: anishegov/otp
     tag: master-6305193a

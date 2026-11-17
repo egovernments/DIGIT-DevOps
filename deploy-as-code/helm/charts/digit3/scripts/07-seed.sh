@@ -6,7 +6,7 @@
 #     itself because the create carries X-User-ID)
 #   - idgen templates: individual, registryId, BillNumber, ReceiptNumber, TxnID
 #   - the sms-otp-login notification template (the OTP SMS dispatch renders it)
-# --verify additionally proves the Vault PII pipeline end to end.
+# --verify additionally proves the OpenBao PII pipeline end to end.
 #
 #   ./07-seed.sh <tenant-name> <email> [phone-E164] [--verify]
 #   custom grouping: ACCOUNT_SVC=<svc> [IDGEN_SVC=… INDIVIDUAL_SVC=… NOTIFICATION_SVC=… OTP_SVC=…] ./07-seed.sh …
@@ -61,7 +61,7 @@ check_ready() { # deploy-name
   local d="$1" ready
   ready=$(kubectl get deploy "$d" -n egov -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
   [ "${ready:-0}" -ge 1 ] 2>/dev/null || \
-    die "service '$d' has no ready pod — check: kubectl get pods -n egov -l app=$d; a stale vault-approle secret is the classic cause (re-run ./04-vault.sh, then rollout restart)"
+    die "service '$d' has no ready pod — check: kubectl get pods -n egov -l app=$d; a stale vault-approle secret is the classic cause (re-run ./04-openbao.sh, then rollout restart)"
 }
 for d in $(printf '%s\n' "$ACCOUNT_DEP" "$IDGEN_DEP" "$INDIVIDUAL_DEP" | sort -u); do check_ready "$d"; done
 # Keycloak is the slowest thing on a fresh VM (~100s to listen) and lives in
@@ -153,9 +153,9 @@ IND_ID=$(printf '%s' "$IRESP" | python3 -c "import sys,json;print(json.load(sys.
 P1=FAIL; printf '%s' "$IRESP" | grep -q "\"mobileNumber\":\"$MOBILE\"" && P1=PASS
 ROW=$(psql_exec -tAc "SELECT mobilenumber||'|'||hashedmobilenumber FROM \"$CODE\".individual_v3 WHERE individualid='$IND_ID'")
 P2=FAIL; printf '%s' "$ROW" | grep -q "^vault:v1:" && ! printf '%s' "$ROW" | grep -q "$MOBILE" && P2=PASS
-P3=FAIL; vault_exec 'vault list -format=json transit/keys' | grep -q "\"$CODE\"" && P3=PASS
+P3=FAIL; bao_exec 'bao list -format=json transit/keys' | grep -q "\"$CODE\"" && P3=PASS
 echo
 echo "  API returns plaintext mobile           : $P1  ($IND_ID)"
 echo "  DB stores vault:v1 ciphertext + HMAC   : $P2"
-echo "  per-tenant transit key exists in Vault : $P3"
+echo "  per-tenant transit key in OpenBao      : $P3"
 [ "$P1$P2$P3" = "PASSPASSPASS" ] && note "verification PASSED" || die "verification FAILED — see the gotchas table in INSTALL.md"

@@ -6,7 +6,7 @@
 #   CHART_DIR   charts/digit3             ENV_FILE / SECRETS_FILE  environments/*
 set -euo pipefail
 # Name the failing command: under set -e a step that suppresses its own output
-# otherwise exits silently (seen: 04-vault dying right after "Sealed false"
+# otherwise exits silently (seen: 04-vault, now 04-openbao, dying right after "Sealed false"
 # with nothing to show for it).
 trap 'echo "ERROR: ${BASH_SOURCE[0]##*/}:${LINENO}: ${BASH_COMMAND} (exit $?)" >&2' ERR
 
@@ -96,7 +96,7 @@ wait_for_pod() { # ns selector [timeout-seconds]
     sleep 5; waited=$((waited + 5))
     # `if`, not `[ … ] && die`: the && list left status 1 as the loop's last
     # command whenever the pod was not Ready on the FIRST check, so the function
-    # returned 1 and the caller's set -e killed the script (04-vault, twice).
+    # returned 1 and the caller's set -e killed the script (04-vault, now 04-openbao, twice).
     if [ "$waited" -ge "$timeout" ]; then
       die "pod $ns/$sel not Ready after ${timeout}s: $(kubectl get pods -n "$ns" -l "$sel" --no-headers 2>&1 | head -2)"
     fi
@@ -117,11 +117,12 @@ sops_get() { # path (dotted) — prints the decrypted value to stdout
   sops -d --extract "$jq_path" "$SECRETS_FILE"
 }
 
-# Run a vault CLI command inside the pod, authenticated with the root token
-# piped from the sops file (never displayed, never in argv).
-vault_exec() { # 'vault subcommand ...'
-  sops_get "vault-operator.root-token" | kubectl exec -i vault-0 -n vault -- \
-    sh -c "read -r T; VAULT_TOKEN=\"\$T\" $*"
+# Run an OpenBao CLI command inside the pod, authenticated with the root token
+# piped from the sops file (never displayed, never in argv). The sops key keeps
+# its `vault-operator` name so existing secrets files need no restructuring.
+bao_exec() { # 'bao subcommand ...'
+  sops_get "vault-operator.root-token" | kubectl exec -i openbao-0 -n openbao -- \
+    sh -c "read -r T; BAO_TOKEN=\"\$T\" $*"
 }
 
 psql_exec() { kubectl exec -i -n egov postgresql-lts-0 -- psql -U postgres "$@"; }

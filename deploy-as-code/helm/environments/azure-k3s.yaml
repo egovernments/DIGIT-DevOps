@@ -9,7 +9,7 @@ cluster-configs:
       # kafka-cluster, zookeeper-cluster, logging (nothing deployed there);
       # added keycloak. health/monitoring/playground kept because secret
       # templates in cluster-configs still target them.
-      values: [ backbone, cert-manager, egov, health, keycloak, monitoring, playground, vault ]
+      values: [ backbone, cert-manager, egov, health, keycloak, monitoring, openbao, playground ]
 
     root-ingress:
       cert-issuer: letsencrypt-prod
@@ -165,7 +165,7 @@ cluster-configs:
                 health-project: "http://health-project.health:8080/"
                 service-request: "http://service-request:8080/"
                 household: "http://household.health:8080/"
-                vault-host: "http://vault-0.vault-internal.vault.svc.cluster.local:8200/"
+                vault-host: "http://openbao-0.openbao-internal.openbao.svc.cluster.local:8200/"
                 localisationgo: "http://localisationgo:8080/"
                 boundary-go: "http://boundary-go:8080/"
                 kong-db: "http://kong-db:8080/"
@@ -187,7 +187,7 @@ cluster-configs:
                 individual: "http://individual.egov.svc.cluster.local:8080/" # shape overlay overrides (see azure-k3s-<shape>.yaml)
                 boundary: "http://boundary.egov.svc.cluster.local:8080/" # shape overlay overrides (see azure-k3s-<shape>.yaml)
                 otp: "http://otp.egov.svc.cluster.local:8080/" # shape overlay overrides (see azure-k3s-<shape>.yaml)
-                vault: "http://vault.vault.svc.cluster.local:8200"
+                vault: "http://openbao.openbao.svc.cluster.local:8200"
                 keycloak-host: "http://keycloak.keycloak.svc.cluster.local:8080/keycloak"
                 billing: "http://billing.egov.svc.cluster.local:8080/" # shape overlay overrides (see azure-k3s-<shape>.yaml)
                 registry: "http://registry.egov.svc.cluster.local:8080/" # shape overlay overrides (see azure-k3s-<shape>.yaml)
@@ -337,7 +337,7 @@ individual:
     # would default to. Contains "/" so common.image uses it verbatim.
     repository: "egovio/individual"
   tracing-export-enabled: "true"
-  # PII encryption via the env vault (scripts/04-vault.sh provisions it)
+  # PII encryption via the env OpenBao (scripts/04-openbao.sh provisions it)
   vault-enabled: "true"
   # db-migration image recovered from the cluster's last-good ReplicaSet
   # (the chart default resolved to :latest, which does not exist on any -db repo)
@@ -371,7 +371,7 @@ otp:
     # default to. Contains "/" so common.image uses it verbatim.
     repository: "egovio/otp"
   tracing-export-enabled: "true"
-  # PII encryption via the env vault (scripts/04-vault.sh provisions it)
+  # PII encryption via the env OpenBao (scripts/04-openbao.sh provisions it)
   vault-enabled: "true"
   # Chart default db-migration tag resolves to :latest which doesn't exist;
   # tag matches the init image running on test-lts.

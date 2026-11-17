@@ -1,6 +1,6 @@
 # DIGIT 3 on k3s — Installation Steps
 
-DIGIT 3 with Vault PII encryption in **9 steps**, in your choice of three
+DIGIT 3 with OpenBao PII encryption in **9 steps**, in your choice of three
 **out-of-the-box shapes** — pre-generated charts, pinned published images:
 
 | Shape (`--shape`) | Containers | What it is |
@@ -67,7 +67,7 @@ files too), and generates the encrypted secrets with fresh credentials.
 ```
 
 **6. Backbone** — deploys cluster-configs, cert-manager (self-healing the
-webhook race), ingress-nginx, postgres, redis, minio (provisioning
+webhook race), ingress-nginx, postgres, valkey, seaweedfs (provisioning
 filestore's bucket) and Kafka, waits for postgres **and** Kafka to be Ready,
 then creates the Keycloak database **and** role from the `kc-db` secret:
 
@@ -75,14 +75,14 @@ then creates the Keycloak database **and** role from the `kc-db` secret:
 ./03-backbone.sh
 ```
 
-**7. Vault** — deploys Vault, initializes it (keys go straight into the sops
+**7. OpenBao** — deploys OpenBao, initializes it (keys go straight into the sops
 file, never onto disk), unseals, enables transit + AppRole (reconciling stored
 credentials against the live role), and re-renders the `vault-approle` k8s
 secret. Skip if you don't want PII encryption (then set `VAULT_ENABLED: "false"`
 first — `environments/bundle-defaults.yaml` → `byMember.individual` for the bundle shapes, `vault-enabled` in `azure-k3s.yaml` for per-service):
 
 ```bash
-./04-vault.sh
+./04-openbao.sh
 ```
 
 **8. Deploy** — `06` regenerates everything shape-specific from the manifest
@@ -109,7 +109,7 @@ side-loads them into the node's containerd and records the tag for `06`:
 **9. Seed + verify** — creates a tenant (Keycloak realm + per-tenant schema
 via the tenant-migration event), waits for the full fan-out, seeds the runtime
 lookups (otp configs, idgen templates, the OTP SMS template), prints the tenant
-admin password ONCE, and with `--verify` proves the Vault pipeline end to end
+admin password ONCE, and with `--verify` proves the OpenBao pipeline end to end
 (API plaintext, DB `vault:v1:…` ciphertext + HMAC blind index, per-tenant
 transit key):
 
@@ -123,8 +123,8 @@ printed; omitted, it is prompted for (so pass it when scripting).
 
 ## Ongoing operations
 
-- **After any Vault pod restart** the Shamir seal closes — re-run
-  `./04-vault.sh` (it detects the initialized state and just unseals from
+- **After any OpenBao pod restart** the Shamir seal closes — re-run
+  `./04-openbao.sh` (it detects the initialized state and just unseals from
   the sops file).
 - **After a VM reboot** (or when kubectl starts timing out) — re-run
   `./01-cluster.sh <key> <domain>` to re-open the tunnel.

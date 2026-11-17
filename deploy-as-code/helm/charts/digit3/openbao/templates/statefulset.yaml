@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: openbao
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: openbao
+spec:
+  serviceName: openbao-internal
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openbao
+  template:
+    metadata:
+      labels:
+        app: openbao
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: openbao
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["bao", "server", "-config=/openbao/config/config.hcl"]
+          env:
+            - { name: BAO_ADDR, value: "http://127.0.0.1:8200" }
+          ports:
+            - { containerPort: 8200, name: http }
+            - { containerPort: 8201, name: cluster }
+          # Ready only once unsealed; sealed or uninitialised reports not-ready.
+          readinessProbe:
+            httpGet:
+              path: /v1/sys/health?standbyok=true
+              port: 8200
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /openbao/config }
+            - { name: data, mountPath: /openbao/data }
+      volumes:
+        - name: config
+          configMap:
+            name: openbao-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.persistence.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}

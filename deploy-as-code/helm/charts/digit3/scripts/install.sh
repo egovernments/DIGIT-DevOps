@@ -8,7 +8,7 @@
 #
 #   ./install.sh --key <ssh-key> --domain <domain> --digit3 <path> \
 #                --shape single-container|domain-bundles|per-service|<path>/<name>.package.yaml --tag modulith-<sha> \
-#                --tenant "Name" --email admin@org [--vm-user azureuser] [--skip-vault] \
+#                --tenant "Name" --email admin@org [--vm-user azureuser] [--skip-openbao] \
 #                [--hub-user <dockerhub-user> --hub-token <read-only-token>] [--local-images]
 #
 # --local-images: the images were built on this machine (CUSTOM-BUNDLING.md §2, "build locally") rather
@@ -24,7 +24,7 @@
 # exact resume command; every phase converges to a no-op when re-run.
 source "$(dirname "$0")/lib.sh"
 
-KEY="" DOM="" VMUSER="" DIGIT3="" SHAPE="" TAG="" TENANT="" EMAIL="" SKIP_VAULT=false LOCAL_IMAGES=false
+KEY="" DOM="" VMUSER="" DIGIT3="" SHAPE="" TAG="" TENANT="" EMAIL="" SKIP_OPENBAO=false LOCAL_IMAGES=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --key)        KEY="$2"; shift 2 ;;
@@ -35,7 +35,9 @@ while [ $# -gt 0 ]; do
     --tag)        TAG="$2"; shift 2 ;;
     --tenant)     TENANT="$2"; shift 2 ;;
     --email)      EMAIL="$2"; shift 2 ;;
-    --skip-vault) SKIP_VAULT=true; shift ;;
+    --skip-openbao) SKIP_OPENBAO=true; shift ;;
+    --skip-vault)   note "--skip-vault is deprecated (Vault was replaced by OpenBao) — use --skip-openbao"
+                    SKIP_OPENBAO=true; shift ;;
     --local-images) LOCAL_IMAGES=true; shift ;;
     --hub-user)   export DOCKERHUB_USER="$2"; shift 2 ;;
     --hub-token)  export DOCKERHUB_TOKEN="$2"; shift 2 ;;
@@ -94,7 +96,7 @@ $LOCAL_IMAGES && { [ -z "$MISSING" ] || die "not in the local docker at :$TAG:$M
 echo "    all $(echo $IMAGES | wc -w) image pairs published"
 
 echo
-note "plan: shape=$SHAPE  tag=$TAG  domain=$DOM  digit3=$DIGIT3  vault=$($SKIP_VAULT && echo skip || echo yes)  tenant='$TENANT' <$EMAIL>"
+note "plan: shape=$SHAPE  tag=$TAG  domain=$DOM  digit3=$DIGIT3  openbao=$($SKIP_OPENBAO && echo skip || echo yes)  tenant='$TENANT' <$EMAIL>"
 echo
 
 HERE="$SCRIPT_DIR"
@@ -120,20 +122,20 @@ if $LOCAL_IMAGES; then
 fi
 run "02 secrets"  "$HERE/02-secrets.sh"
 run "03 backbone" "$HERE/03-backbone.sh"
-if $SKIP_VAULT; then
-  note "── phase: 04 vault — SKIPPED (--skip-vault; set VAULT_ENABLED=false first — bundle-defaults.yaml byMember.individual / per-service vault-enabled) ──"
+if $SKIP_OPENBAO; then
+  note "── phase: 04 openbao — SKIPPED (--skip-openbao; set VAULT_ENABLED=false first — bundle-defaults.yaml byMember.individual / per-service vault-enabled) ──"
 else
-  run "04 vault"  "$HERE/04-vault.sh"
+  run "04 openbao" "$HERE/04-openbao.sh"
 fi
 run "06 deploy"   "$HERE/06-deploy.sh" "$DIGIT3" "$SHAPE_ARG" "$TAG"
-if $SKIP_VAULT; then
+if $SKIP_OPENBAO; then
   run "07 seed"   "$HERE/07-seed.sh" "$TENANT" "$EMAIL"
 else
   run "07 seed"   "$HERE/07-seed.sh" "$TENANT" "$EMAIL" --verify
 fi
 
 echo
-note "INSTALL COMPLETE — shape '$SHAPE' at :$TAG deployed$($SKIP_VAULT || echo ' and Vault-verified')."
+note "INSTALL COMPLETE — shape '$SHAPE' at :$TAG deployed$($SKIP_OPENBAO || echo ' and OpenBao-verified')."
 echo "  kubectl:            export KUBECONFIG=$(sed -n 's/^KUBECONFIG_PATH="\(.*\)"$/\1/p' "$HERE/.env" 2>/dev/null || echo '~/modulith-kubeconfig.yaml')"
 echo "  API token helper:   ./08-token.sh <TENANT-CODE> <email>"
 echo "  back up ~/.config/sops/age/keys.txt — it is the only key to the secrets"

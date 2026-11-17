@@ -95,7 +95,7 @@ cluster-configs:
       employee-iam-client-secret: $(openssl rand -hex 16)
     hmac-secret:
       hmac-secret: $(openssl rand -base64 36 | tr -d '/+=')
-    vault-approle:            # filled by 04-vault.sh
+    vault-approle:            # filled by 04-openbao.sh
       role-id: ""
       secret-id: ""
     egov-pg-service:
@@ -108,7 +108,7 @@ cluster-configs:
       password: sms-pass-placeholder
     kafka-kraft:
       kraft-cluster-id: $KRAFT_ID
-vault-operator:               # filled by 04-vault.sh
+vault-operator:               # filled by 04-openbao.sh
   unseal-key: ""
   root-token: ""
 EOF

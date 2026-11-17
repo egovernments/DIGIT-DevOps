@@ -117,7 +117,7 @@ Record the connection settings once — `deploy.sh` targets `KUBECONFIG_PATH`
 kube context), reads `DOMAIN` to pick the per-environment secrets file (§1.4),
 exports it for the generated bundle values and passes `--set
 global.domain=$DOMAIN` to every release; every `scripts/*.sh` (e.g. §1.8's
-`04-vault.sh`) reads all three. On the scripted path `01-cluster.sh` writes it:
+`04-openbao.sh`) reads all three. On the scripted path `01-cluster.sh` writes it:
 
 ```bash
 cat > deploy-as-code/helm/charts/digit3/scripts/.env <<EOF
@@ -217,15 +217,14 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=webhook -A
 
 kubectl wait --for=condition=ready pod postgresql-lts-0 -n egov --timeout=300s   # before §1.7
 kubectl wait --for=condition=ready pod release-name-kafka-controller-0 -n backbone --timeout=300s   # tenant events need it (§1.9)
-# filestore's bucket — the minio chart creates none (missing → NoSuchBucket on the first upload)
-kubectl exec -n backbone minio-0 -- sh -c \
-  'mc alias set local http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null && mc mb -p local/unified-dev-bucket-s3'
+# filestore's bucket — the seaweedfs chart creates none (missing → NoSuchBucket on the first upload)
+echo 's3.bucket.create -name unified-dev-bucket-s3' | kubectl exec -i -n backbone seaweedfs-0 -- weed shell
 ```
 
 Always `sync`, never `apply` (helm-diff is broken on helm v4). Order enforced
 via `needs:`: **cluster-configs first** (namespaces, ConfigMaps, all
 secrets), then cert-manager → ingress-nginx, postgres (release name
-`postgresql-lts` — it *is* the DB hostname), redis, minio (single replica),
+`postgresql-lts` — it *is* the DB hostname), valkey, seaweedfs (single replica),
 and Kafka whose release name **must be `release-name`** so the
 `kafka-brokers` DNS resolves. `03-backbone.sh` does all of this, including
 the webhook retry and the bucket.
@@ -250,37 +249,40 @@ SQL
 
 `03-backbone.sh` does this idempotently on the scripted path.
 
-### 1.8 HashiCorp Vault (PII encryption at rest) — on by default
+### 1.8 OpenBao (PII encryption at rest) — on by default
 
-Services with PII (otp, individual) encrypt fields via Vault's **Transit**
+OpenBao (MPL-2.0) replaces HashiCorp Vault (BUSL-1.1). It keeps Vault 1.14's HTTP
+API, so services keep their `VAULT_*` settings and the `vault:v1:` ciphertext format,
+and the sops keys keep their `vault-operator` / `vault-approle` names.
+
+Services with PII (otp, individual) encrypt fields via OpenBao's **Transit**
 engine — stored as `vault:v1:…` ciphertext with a keyed HMAC blind index for
 search, one transit key **per tenant** (auto-created on first encrypt). The
-shipped environment has Vault **ON** (`vault-enabled: "true"` on otp and
+shipped environment has it **ON** (`vault-enabled: "true"` on otp and
 individual, `VAULT_ENABLED` on every bundle holding individual — `byMember.individual` in
 `environments/bundle-defaults.yaml`; the
 charts carry the `vault-approle` / `hmac-secret` secretKeyRefs, rendered by
 cluster-configs from the sops file). This step is therefore optional **only
-if you first set those to `"false"`** — with them on and no Vault deployed,
+if you first set those to `"false"`** — with them on and no OpenBao deployed,
 otp/individual (or the bundle JVM) crash-loop in `VaultAuth`.
 
-The chart is `charts/digit3/vault` (official HashiCorp 0.29.1, de-AWS'd:
-no gp2 storageClass, no awskms auto-unseal, no public ingress; release name
-and namespace MUST be `vault` — egov-config's `vault-host` and
-egov-service-host's `vault` keys point there). One idempotent script deploys,
+The chart is `charts/digit3/openbao` (single node, Raft storage, Shamir seal, no
+public ingress; release name and namespace MUST be `openbao` — egov-service-host's
+`vault` and `vault-host` keys point there). One idempotent script deploys,
 initializes (1-of-1 Shamir, keys written straight into the sops file),
 unseals, enables transit + AppRole (`digit-services` role, `digit-transit`
 policy covering encrypt/decrypt/sign/verify/keys + token renew-self) and
 renders the `vault-approle` secret:
 
 ```bash
-scripts/04-vault.sh        # reads scripts/.env (written in §1.3): SSH_KEY, DOMAIN, KUBECONFIG_PATH
+scripts/04-openbao.sh      # reads scripts/.env (written in §1.3): SSH_KEY, DOMAIN, KUBECONFIG_PATH
 ```
 
 It writes the unseal key, root token and AppRole ids into the secrets file
 selected by `DOMAIN` — another reason to use a per-environment file (§1.4)
 rather than the tracked shared one.
 
-**After every Vault pod restart the Shamir seal closes** — re-run the script
+**After every OpenBao pod restart the Shamir seal closes** — re-run the script
 (it detects the initialized state and just unseals from the sops file). PII
 encrypt/decrypt calls fail while sealed; the services themselves stay up.
 
@@ -761,11 +763,11 @@ that migrates every member.
 | kong-migration: "failed to parse host name host:5432" | `db-host` in egov-config must be host-only |
 | kong: `mkdir /kong: read-only` / permission denied | `readOnlyRootFilesystem: false` + `env.prefix: /kong_prefix` (key appears twice in values — the later one wins) |
 | "Tag is mandatory" / `-db:latest` pull errors | every service block in the env file must pin image + init tags |
-| Bundle pod `CreateContainerConfigError: secret "egov-filestore" not found` | chart default is AWS S3 → override S3 env to the minio secret |
+| Bundle pod `CreateContainerConfigError: secret "egov-filestore" not found` | chart default is AWS S3 → override S3 env to the `minio` secret (SeaweedFS credentials) |
 | Vault login 500 "failed to determine alias name" | AppRole login sent an empty role_id — the env override didn't reach the pod; check `kubectl get deploy … -o yaml` for empty `VAULT_ROLE_ID` |
 | Bundle env `valueFrom` override renders as empty env var | chart default `value: ""` shadowed the `valueFrom` (the `common.name` mergo merge can't delete keys, `null` included) — fixed in the generator: non-empty `value` wins, else `valueFrom`; regenerate the bundle chart |
 | Bundle boot: `NumberFormatException: "15m000"` | Go-duration `DB_CONN_MAX_LIFETIME=15m` harvested into env; dropped via bundler merge-rules |
-| Bundle / otp / individual crash-loop in `VaultAuth`; PII calls 500 after a Vault pod restart | Vault is on by default — run §1.8 (`04-vault.sh`; rerun after any Vault restart to unseal), or set `vault-enabled` / `VAULT_ENABLED` to `"false"` |
+| Bundle / otp / individual crash-loop in `VaultAuth`; PII calls 500 after an OpenBao pod restart | OpenBao is on by default — run §1.8 (`04-openbao.sh`; rerun after any OpenBao restart to unseal), or set `vault-enabled` / `VAULT_ENABLED` to `"false"` |
 | Rendered Ingress "apiVersion not set" | generator template `{{- if … -}}` swallowed the line — fixed in `generate_bundle_chart.py` |
 | 400 `MISSING_HEADER` on every request | DIGIT 3.x requires `X-Tenant-ID` (+ `X-User-ID` for writes); kong injects them from the JWT in production |
 | Tenant code rejected with 400 ValidationFailed | account service requires UPPERCASE tenant codes |
@@ -781,5 +783,5 @@ that migrates every member.
 | Per-service: valid token but every route 503; kong upstreams show `dev-bundle.egov…` | `setup.py` run without `KONG_BUNDLE_MANIFESTS=none` (§4.2) — rerun with it |
 | `setup.py`: connection refused / 5xx right after the shape sync | kong not Running yet — `kubectl rollout status deploy/kong-kong -n egov`, then rerun (built-in retries cover ~10 s only) |
 | kong pods `Init:CrashLoopBackOff`; init log "Database has pending migrations; run 'kong migrations finish'" | two first-boot replicas raced the unserialized init migration — chart ships `autoscaling.minReplicas: 1` for this; recover with a one-off pod running `kong migrations up -y && kong migrations finish`, then delete the kong pods |
-| filestore upload: `NoSuchBucket` | the minio chart creates no bucket — `mc mb -p local/unified-dev-bucket-s3` (§1.6) |
+| filestore upload: `NoSuchBucket` | the seaweedfs chart creates no bucket — `weed shell` `s3.bucket.create -name unified-dev-bucket-s3` (§1.6) |
 | Pods `ImagePullBackOff`; events `429 Too Many Requests … unauthenticated pull rate limit` | Docker Hub anonymous cap (e.g. parallel installs from one egress IP) — wait for the window, or configure `docker-registry-secret` with Hub credentials |

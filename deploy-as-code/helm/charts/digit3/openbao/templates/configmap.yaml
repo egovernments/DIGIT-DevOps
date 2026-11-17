@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openbao-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: openbao
+data:
+  config.hcl: |
+    ui = true
+    disable_mlock = true
+    api_addr     = "http://openbao.{{ .Release.Namespace }}.svc.cluster.local:8200"
+    cluster_addr = "http://openbao-0.openbao-internal.{{ .Release.Namespace }}.svc.cluster.local:8201"
+
+    listener "tcp" {
+      tls_disable     = true
+      address         = "0.0.0.0:8200"
+      cluster_address = "0.0.0.0:8201"
+    }
+
+    storage "raft" {
+      path    = "/openbao/data"
+      node_id = "openbao-0"
+    }

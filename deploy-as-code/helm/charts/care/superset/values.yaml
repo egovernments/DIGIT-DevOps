@@ -215,6 +215,13 @@ initContainers:
     - clickhouse-connect==1.13.0
     - lz4==4.4.5
     - backports.zstd==1.8.0
+    # Required by AUTH_TYPE = AUTH_OAUTH: FAB's BaseSecurityManager.__init__
+    # imports authlib.integrations.flask_client, and the image does not ship it.
+    # Without these the web, worker and beat pods all fail to start, not just
+    # the login. joserfc is authlib's own dependency; cryptography (its other
+    # one) is already in the image at a satisfying version.
+    - authlib==1.9.8
+    - joserfc==1.8.0
   resources:
     requests:
       cpu: "250m"

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbao
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: openbao
+spec:
+  selector:
+    app: openbao
+  ports:
+    - { name: http, port: 8200, targetPort: 8200 }
+    - { name: cluster, port: 8201, targetPort: 8201 }
+---
+# Headless: gives openbao-0 the stable DNS name used by cluster_addr and egov-service-host's vault-host.
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbao-internal
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: openbao
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: openbao
+  ports:
+    - { name: http, port: 8200, targetPort: 8200 }
+    - { name: cluster, port: 8201, targetPort: 8201 }

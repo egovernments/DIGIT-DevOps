@@ -1,8 +1,8 @@
 # DIGIT 3 — One-Step Install
 
-Install DIGIT 3 (with Vault PII encryption) on a single-node k3s VM with a
+Install DIGIT 3 (with OpenBao PII encryption) on a single-node k3s VM with a
 single command. `scripts/install.sh` orchestrates all phases — cluster,
-secrets, backbone, Vault, deploy, seed+verify — prompting for anything you
+secrets, backbone, OpenBao, deploy, seed+verify — prompting for anything you
 don't pass as a flag. It is a thin wrapper over the numbered phase scripts
 (which stay independently runnable), and every phase is idempotent, so
 re-running after any hiccup is always safe.
@@ -105,7 +105,7 @@ rather than hanging on a prompt):
 | `--tenant` | tenant name to seed (code derives UPPERCASE) | yes |
 | `--email` | tenant admin email | yes |
 | `--vm-user` | SSH user | no (default `azureuser`) |
-| `--skip-vault` | skip Vault (PII stored plaintext; set `VAULT_ENABLED: "false"` first — `environments/bundle-defaults.yaml` → `byMember.individual` for the bundle shapes, `vault-enabled` in `azure-k3s.yaml` for per-service) | no |
+| `--skip-openbao` | skip OpenBao (PII stored plaintext; `--skip-vault` still works, with a deprecation warning; set `VAULT_ENABLED: "false"` first — `environments/bundle-defaults.yaml` → `byMember.individual` for the bundle shapes, `vault-enabled` in `azure-k3s.yaml` for per-service) | no |
 | `--local-images` | the images were built on this machine, not published: the preflight checks the local docker, and after 01 every image and its `-db` pair is loaded into the node's containerd | no |
 | `--hub-user` / `--hub-token` | any Docker Hub account + **read-only** access token → the VM pulls authenticated. Prefer `~/.config/digit3/dockerhub.env` (`DOCKERHUB_USER=`/`DOCKERHUB_TOKEN=` lines, sourced automatically) or the env vars — a token passed as a flag is visible in `ps` to every user on the workstation for the whole install. Without it pulls are anonymous: 100/h per IP, and a per-service install needs 42 — a repeat within the hour fails with 429 | no |
 
@@ -130,10 +130,10 @@ Deploy exactly one shape at a time (they publish the same ingress paths).
 preflight    verify every image the shape needs exists on Docker Hub at --tag (local docker with --local-images)
 01-cluster   k3s install + SSH tunnel + kubeconfig
 02-secrets   age key, sops rule, encrypted secrets (fresh random passwords)
-03-backbone  backbone sync (self-heals the cert-manager webhook race) + keycloak DB/role + minio bucket
-04-vault     init/unseal, transit + approle, credentials into sops (skipped with --skip-vault)
+03-backbone  backbone sync (self-heals the cert-manager webhook race) + keycloak DB/role + seaweedfs bucket
+04-openbao   init/unseal, transit + approle, credentials into sops (skipped with --skip-openbao)
 06-deploy    chart gen + shape helmfile sync with DIGIT_TAG + kong (waits for kong's Admin API)
-07-seed      tenant (with admin password) + runtime seeds + Vault encryption verification
+07-seed      platform token, tenant (with admin password) + runtime seeds + OpenBao encryption verification
 ```
 
 `05-build.sh` is **not** run by `install.sh` — it is the optional path for
@@ -151,7 +151,7 @@ On success it prints:
 - how to mint an API token: `./08-token.sh <TENANT-CODE> <email>`
 
 **Back up `~/.config/sops/age/keys.txt`** off this machine — it is the only
-key to the secrets (and to Vault's unseal key).
+key to the secrets (and to OpenBao's unseal key).
 
 ---
 

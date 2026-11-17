@@ -73,8 +73,12 @@ esac
 # domain only would strand anything that calls back into kong from inside the cluster (through
 # kong-kong-proxy.egov).
 KONG_HOSTS="$DOMAIN,kong-kong-proxy.egov.svc.cluster.local,kong-kong-proxy.egov"
+# token-revocation checks its denylist in Valkey (backboneservices-helmfile). Pass the host
+# explicitly: setup.py's default still names redis.backbone in digit3 checkouts that predate
+# that change, and with fail_open=false a missing denylist host denies every request.
 (cd "$DIGIT3/src/services/kong" && \
   env KONG_ADMIN_URL=http://localhost:18001 KONG_ROUTE_HOSTS="$KONG_HOSTS" \
+  KONG_REVOCATION_REDIS_HOST="${KONG_REVOCATION_REDIS_HOST:-valkey.backbone.svc.cluster.local}" \
   ${KONG_BUNDLES:+KONG_BUNDLE_MANIFESTS="$KONG_BUNDLES"} python3 setup.py)
 
 echo "$SHAPE" > "$SCRIPT_DIR/.last-shape"

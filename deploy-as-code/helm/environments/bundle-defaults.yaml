@@ -48,7 +48,8 @@ common:
 # A bundle that includes one of these building blocks also gets its block (deep-merged).
 byMember:
   # Filestore: chart defaults point at AWS S3 + the egov-filestore secret (not present here); use the
-  # in-cluster MinIO, and store files there (the generated bundle properties pin source=local otherwise).
+  # in-cluster SeaweedFS S3 gateway (the `minio` secret name is kept for compatibility), and store files
+  # there (the generated bundle properties pin source=local otherwise).
   filestore:
     env:
       S3_ACCESS_KEY:
@@ -62,12 +63,12 @@ byMember:
             name: minio
             key: secretkey
       S3_ENDPOINT:
-        value: minio.backbone.svc.cluster.local:9000
+        value: seaweedfs.backbone.svc.cluster.local:8333
       S3_USE_SSL:
         value: 'false'
       FILESTORE_S3_SOURCE:
         value: s3
-  # PII encryption: individual (and otp) AppRole-login to Vault at boot (scripts/04-vault.sh provisions it).
+  # PII encryption: individual (and otp) AppRole-login to OpenBao at boot (scripts/04-openbao.sh provisions it).
   individual:
     env:
       VAULT_ENABLED:

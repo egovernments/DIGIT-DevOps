@@ -6,7 +6,7 @@
 #     itself because the create carries X-User-ID)
 #   - idgen templates: individual, registryId, BillNumber, ReceiptNumber, TxnID
 #   - the sms-otp-login notification template (the OTP SMS dispatch renders it)
-# --verify additionally proves the Vault PII pipeline end to end.
+# --verify additionally proves the OpenBao PII pipeline end to end.
 #
 #   ./07-seed.sh <tenant-name> <email> [phone-E164] [--verify]
 #   custom grouping: ACCOUNT_SVC=<svc> [IDGEN_SVC=… INDIVIDUAL_SVC=… NOTIFICATION_SVC=… OTP_SVC=…] ./07-seed.sh …
@@ -61,7 +61,7 @@ check_ready() { # deploy-name
   local d="$1" ready
   ready=$(kubectl get deploy "$d" -n egov -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
   [ "${ready:-0}" -ge 1 ] 2>/dev/null || \
-    die "service '$d' has no ready pod — check: kubectl get pods -n egov -l app=$d; a stale vault-approle secret is the classic cause (re-run ./04-vault.sh, then rollout restart)"
+    die "service '$d' has no ready pod — check: kubectl get pods -n egov -l app=$d; a stale vault-approle secret is the classic cause (re-run ./04-openbao.sh, then rollout restart)"
 }
 for d in $(printf '%s\n' "$ACCOUNT_DEP" "$IDGEN_DEP" "$INDIVIDUAL_DEP" | sort -u); do check_ready "$d"; done
 # Keycloak is the slowest thing on a fresh VM (~100s to listen) and lives in
@@ -84,15 +84,29 @@ print_credentials() {
   fi
 }
 
+# Tenant create is a platform-operator call: account (PLATFORM_AUTH_ENABLED=true) accepts it only
+# with a master-realm token holding SUPERADMIN. _platform_token.py bootstraps that role and a
+# `digit-platform` client idempotently and prints the token; the Keycloak admin credentials
+# travel on stdin, never in argv.
+note "platform token (master realm, SUPERADMIN) for the tenant create"
+KC=$(kubectl get svc keycloak -n keycloak -o jsonpath='{.spec.clusterIP}')
+vm_ssh 'cat > /tmp/_platform_token.py' < "$SCRIPT_DIR/_platform_token.py"
+PLATFORM_TOKEN=$({ kubectl get secret kc-admin -n keycloak -o jsonpath='{.data.username}' | base64 -d; echo
+                   kubectl get secret kc-admin -n keycloak -o jsonpath='{.data.password}' | base64 -d; echo; } \
+  | vm_ssh "python3 /tmp/_platform_token.py http://$KC:8080/keycloak; rc=\$?; rm -f /tmp/_platform_token.py; exit \$rc") \
+  || die "could not mint a platform token — check the kc-admin secret and keycloak (kubectl logs -n keycloak deploy/keycloak)"
+echo "    platform token minted (master/digit-platform)"
+
 note "creating tenant '$NAME' on shape '$SHAPE' (all calls run on the VM)"
 # The tenant admin is created with this password — generated here and printed
 # ONCE at the end. Without it the server generates one that is never delivered
 # (SMTP is a placeholder in test environments).
 ADMIN_PASS=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-16)
-RESP=$(vm_curl "-X POST http://$ACCOUNT:8080/account/v3/tenants $H_JSON -H 'X-User-ID: seed-script' -d '{\"name\":\"$NAME\",\"email\":\"$EMAIL\",\"phone\":\"$PHONE\",\"password\":\"$ADMIN_PASS\"}'")
+RESP=$(vm_curl "-X POST http://$ACCOUNT:8080/accounts/v3/tenants $H_JSON -H 'X-User-ID: seed-script' -H 'Authorization: Bearer $PLATFORM_TOKEN' -d '{\"name\":\"$NAME\",\"email\":\"$EMAIL\",\"phone\":\"$PHONE\",\"password\":\"$ADMIN_PASS\"}'")
+unset PLATFORM_TOKEN
 CODE=$(printf '%s' "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('code',''))" 2>/dev/null || true)
 if [ -z "$CODE" ]; then
-  CODE=$(vm_curl "'http://$ACCOUNT:8080/account/v3/tenants?email=$EMAIL'" | \
+  CODE=$(vm_curl "'http://$ACCOUNT:8080/accounts/v3/tenants?email=$EMAIL'" | \
     python3 -c "import sys,json;ts=json.load(sys.stdin).get('tenants') or [];print(ts[0]['code'] if ts else '')" 2>/dev/null || true)
   [ -n "$CODE" ] && { echo "    tenant already exists (admin password unchanged)"; ADMIN_PASS=""; } || die "tenant create failed: $RESP"
 fi
@@ -147,15 +161,15 @@ fi
 
 note "verify: creating a test individual with a mobile number"
 MOBILE="9$(printf '%09d' $((RANDOM * RANDOM % 1000000000)))"
-IRESP=$(vm_curl "-X POST http://$INDIVIDUAL:8080/individual/v3/individuals $H_JSON $(hdr) -d '{\"givenName\":\"Seed\",\"familyName\":\"Verify\",\"mobileNumber\":\"$MOBILE\",\"gender\":\"OTHER\"}'")
+IRESP=$(vm_curl "-X POST http://$INDIVIDUAL:8080/individuals/v3/individuals $H_JSON $(hdr) -d '{\"givenName\":\"Seed\",\"familyName\":\"Verify\",\"mobileNumber\":\"$MOBILE\",\"gender\":\"OTHER\"}'")
 IND_ID=$(printf '%s' "$IRESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('individualId',''))" 2>/dev/null || true)
 [ -n "$IND_ID" ] || die "individual create failed: $IRESP"
 P1=FAIL; printf '%s' "$IRESP" | grep -q "\"mobileNumber\":\"$MOBILE\"" && P1=PASS
 ROW=$(psql_exec -tAc "SELECT mobilenumber||'|'||hashedmobilenumber FROM \"$CODE\".individual_v3 WHERE individualid='$IND_ID'")
 P2=FAIL; printf '%s' "$ROW" | grep -q "^vault:v1:" && ! printf '%s' "$ROW" | grep -q "$MOBILE" && P2=PASS
-P3=FAIL; vault_exec 'vault list -format=json transit/keys' | grep -q "\"$CODE\"" && P3=PASS
+P3=FAIL; bao_exec 'bao list -format=json transit/keys' | grep -q "\"$CODE\"" && P3=PASS
 echo
 echo "  API returns plaintext mobile           : $P1  ($IND_ID)"
 echo "  DB stores vault:v1 ciphertext + HMAC   : $P2"
-echo "  per-tenant transit key exists in Vault : $P3"
+echo "  per-tenant transit key in OpenBao      : $P3"
 [ "$P1$P2$P3" = "PASSPASSPASS" ] && note "verification PASSED" || die "verification FAILED — see the gotchas table in INSTALL.md"

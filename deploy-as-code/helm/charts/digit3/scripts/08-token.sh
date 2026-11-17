@@ -65,4 +65,4 @@ echo "$TOKEN"
 echo
 echo "sample call (run on the VM — see INSTALL.md on port-forward reliability):"
 echo "  curl -H 'Authorization: Bearer <token>' -H 'X-Tenant-ID: $REALM' \\"
-echo "       -H 'Host: $DOMAIN' http://$KGIP:8000/individual/v3/individuals"
+echo "       -H 'Host: $DOMAIN' http://$KGIP:8000/individuals/v3/individuals"

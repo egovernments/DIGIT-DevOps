@@ -5,7 +5,7 @@ source "$(dirname "$0")/lib.sh"
 load_env
 ensure_tunnel
 
-note "deploying backbone (cluster-configs, cert-manager, ingress, postgres, redis, minio, kafka)"
+note "deploying backbone (cluster-configs, cert-manager, ingress, postgres, valkey, seaweedfs, kafka)"
 # First-ever sync installs cert-manager AND its ClusterIssuers in one pass; the
 # validating webhook isn't serving yet, so the issuers fail. Known race
 # (INSTALL.md §1.6). On a truly fresh cluster the failed release may leave the
@@ -34,12 +34,18 @@ for attempt in 1 2 3 4; do
 done
 $SYNC_OK || die "backbone sync still failing after retries — is cert-manager's webhook coming up? kubectl get pods -n cert-manager"
 
-# filestore's bucket: minio starts empty and the service reports NoSuchBucket
-# on the first upload — provision it once here (idempotent: mb -p).
-note "minio bucket for filestore"
-kubectl exec -n backbone minio-0 -- sh -c \
-  'mc alias set local http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null && mc mb -p local/unified-dev-bucket-s3' \
-  2>/dev/null | tail -1 || echo "    minio not ready yet — re-run this script (idempotent)"
+# filestore's bucket: seaweedfs starts empty and the service reports NoSuchBucket
+# on the first upload — provision it once here with SeaweedFS's own shell (no
+# credentials needed in-pod; no AGPL `mc`). Idempotent: an existing bucket is kept.
+note "seaweedfs bucket for filestore"
+if kubectl exec -n backbone seaweedfs-0 -- sh -c 'echo s3.bucket.list | weed shell' 2>/dev/null | grep -q 'unified-dev-bucket-s3'; then
+  echo "    unified-dev-bucket-s3 exists"
+else
+  echo 's3.bucket.create -name unified-dev-bucket-s3' | kubectl exec -i -n backbone seaweedfs-0 -- weed shell >/dev/null 2>&1
+  kubectl exec -n backbone seaweedfs-0 -- sh -c 'echo s3.bucket.list | weed shell' 2>/dev/null | grep -q 'unified-dev-bucket-s3' \
+    && echo "    unified-dev-bucket-s3 created" \
+    || echo "    seaweedfs not ready yet — re-run this script (idempotent)"
+fi
 
 note "waiting for postgres"
 wait_for_pod egov statefulset.kubernetes.io/pod-name=postgresql-lts-0 300
@@ -47,6 +53,13 @@ wait_for_pod egov statefulset.kubernetes.io/pod-name=postgresql-lts-0 300
 # storage problem) nothing notices until 07-seed's fan-out hangs — surface it here instead.
 note "waiting for kafka"
 wait_for_pod backbone statefulset.kubernetes.io/pod-name=release-name-kafka-controller-0 300
+
+note "notify database (notify keeps its own database; its init container migrates it)"
+if ! psql_exec -tAc "SELECT 1 FROM pg_database WHERE datname='notify'" | grep -q 1; then
+  psql_exec -c "CREATE DATABASE notify"
+else
+  echo "    notify exists"
+fi
 
 note "keycloak database"
 if ! psql_exec -tAc "SELECT 1 FROM pg_database WHERE datname='new_keycloak'" | grep -q 1; then
@@ -100,4 +113,4 @@ if kubectl get deploy keycloak -n keycloak >/dev/null 2>&1; then
   fi
 fi
 
-next "./04-vault.sh   (or skip to ./06-deploy.sh <digit3> <shape> if not using Vault PII encryption)"
+next "./04-openbao.sh   (or skip to ./06-deploy.sh <digit3> <shape> if not using OpenBao PII encryption)"

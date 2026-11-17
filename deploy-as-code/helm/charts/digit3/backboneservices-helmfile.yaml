@@ -36,14 +36,16 @@ releases:
     values:
       - ./postgres/values.yaml
 
-  - name: redis
-    chart: ./redis
+  # Valkey (BSD-3-Clause, Redis protocol) — services and Kong's token-revocation plugin reach it at
+  # valkey.backbone.svc.cluster.local:6379.
+  - name: valkey
+    chart: ./valkey
     namespace: backbone
     installed: true
     needs:
       - egov/cluster-configs
     values:
-      - ./redis/values.yaml
+      - ./valkey/values.yaml
 
   # Kafka (Bitnami KRaft, single controller). Release name MUST be
   # "release-name": egov-config kafka-brokers points at
@@ -57,18 +59,18 @@ releases:
     values:
       - ./kafka-kraft/values.yaml
 
-  # Single-replica (SNSD) minio — filestore stores files here via the S3 API
-  # (S3_ENDPOINT minio.backbone:9000, credentials from the cluster-configs `minio` secret).
-  - name: minio
-    chart: ./minio
+  # SeaweedFS (Apache-2.0) S3 gateway — filestore stores files here via the S3 API
+  # (S3_ENDPOINT seaweedfs.backbone:8333). Its S3 identity is rendered from the same
+  # cluster-configs.secrets.minio keys filestore reads, so the secrets file is the input.
+  - name: seaweedfs
+    chart: ./seaweedfs
     namespace: backbone
     installed: true
     needs:
       - egov/cluster-configs
     values:
       - ../../environments/azure-k3s-secrets.dec.yaml
-      - ../../environments/azure-k3s.yaml
-      - ./minio/values.yaml
+      - ./seaweedfs/values.yaml
 
   - name: ingress-nginx
     chart: ./ingress-nginx
@@ -81,21 +83,18 @@ releases:
       - ../../environments/azure-k3s.yaml
       - ./ingress-nginx/values.yaml
 
-  # HashiCorp Vault (official chart 0.29.1), standalone file-storage mode on the
-  # default StorageClass. Release name MUST be `vault` and namespace `vault` so
-  # egov-config's vault-host (vault-0.vault-internal.vault.svc:8200) and
-  # egov-service-host's vault key resolve. After install (and after every pod
-  # restart) Vault must be unsealed: keys live in the sops secrets file under
-  # `vault-operator:` (operator init was run with -key-shares=1 -key-threshold=1)
-  # — scripts/04-vault.sh deploys, initializes, unseals and configures it.
-  - name: vault
-    chart: ./vault
-    namespace: vault
+  # OpenBao (MPL-2.0, Vault 1.14 API), single node, Raft storage on the default
+  # StorageClass. Release name MUST be `openbao` and namespace `openbao` so
+  # egov-service-host's vault (openbao.openbao.svc:8200) and vault-host
+  # (openbao-0.openbao-internal.openbao.svc:8200) keys resolve. After install (and
+  # after every pod restart) OpenBao must be unsealed: keys live in the sops secrets
+  # file under `vault-operator:` (init is run with -key-shares=1 -key-threshold=1)
+  # — scripts/04-openbao.sh deploys, initializes, unseals and configures it.
+  - name: openbao
+    chart: ./openbao
+    namespace: openbao
     installed: true
-    missingFileHandler: Warn
     needs:
       - egov/cluster-configs
     values:
-      - ../../environments/azure-k3s-secrets.dec.yaml
-      - ../../environments/azure-k3s.yaml
-      - ./vault/values.yaml
+      - ./openbao/values.yaml

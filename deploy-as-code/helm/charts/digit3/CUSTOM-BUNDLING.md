@@ -23,7 +23,7 @@ deploy**. Custom bundling only touches the second half.
 | 01 cluster | `01-cluster.sh` | **same** |
 | 02 secrets | `02-secrets.sh` | **same** |
 | 03 backbone | `03-backbone.sh` | **same** |
-| 04 vault | `04-vault.sh` | **same** |
+| 04 openbao | `04-openbao.sh` | **same** |
 | 05 images | published, preflighted by `install.sh` | **you build** — locally, or by registering the bundle in the Actions pipeline (§2) |
 | 06 deploy | `--shape <name>` | **same script**, `--shape <path>/<name>.package.yaml` — everything shape-specific is generated (§3) |
 | 07 seed | `07-seed.sh` | **same script** — 06 records which Service owns each endpoint (§4) |
@@ -46,7 +46,7 @@ or phase by phase:
 ./01-cluster.sh <ssh-private-key> <domain> [vm-user]   # default vm-user: azureuser
 ./02-secrets.sh                                        # no arguments
 ./03-backbone.sh                                       # no arguments
-./04-vault.sh                                          # no arguments
+./04-openbao.sh                                        # no arguments
 ./06-deploy.sh <digit3> <digit3>/src/bundles/<yourshape>.package.yaml <tag>
 ./07-seed.sh "My Tenant" admin@example.org --verify
 ```
@@ -188,7 +188,7 @@ real environment choices there; never restate bundle blocks or the service-host 
 layered last and win). Kong is then programmed from the same manifest, and 06 records the shape and the
 Service owning each seeded endpoint (`scripts/.last-shape`, `scripts/.last-owners`).
 
-To change what every bundle gets — a new env var, a different MinIO endpoint, Vault off — edit
+To change what every bundle gets — a new env var, a different S3 endpoint, OpenBao off — edit
 `environments/bundle-defaults.yaml` once; it applies to every bundle of every shape on the next deploy.
 
 **Commit** the manifest (digit3) and, in DevOps, `environments/generated/<yourshape>-*`, the helmfile,
@@ -204,7 +204,7 @@ leaves it in place — or put it in a bundle.
 Nothing extra: `07-seed.sh` reads `scripts/.last-owners` (written by 06 from the manifest) to find the
 Service that owns account, idgen, individual, notification and otp, and does everything it does for the
 stock shapes — tenant + realm, the fan-out wait, otp configs, idgen templates, the OTP SMS template, the
-one-time admin password, and with `--verify` the Vault PII proof. `ACCOUNT_SVC=… IDGEN_SVC=…` in the
+one-time admin password, and with `--verify` the OpenBao PII proof. `ACCOUNT_SVC=… IDGEN_SVC=…` in the
 environment still override it.
 
 ```bash

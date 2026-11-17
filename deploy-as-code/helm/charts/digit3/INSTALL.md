@@ -469,7 +469,7 @@ PT=$({ kubectl get secret kc-admin -n keycloak -o jsonpath='{.data.username}' | 
        kubectl get secret kc-admin -n keycloak -o jsonpath='{.data.password}' | base64 -d; echo; } \
   | ssh -i <key> azureuser@<domain> "python3 /tmp/_platform_token.py http://$KC:8080/keycloak")
 BIP=$(kubectl get svc dev-bundle -n egov -o jsonpath='{.spec.clusterIP}')
-ssh -i <key> azureuser@<domain> "curl -s -X POST http://$BIP:8080/account/v3/tenants \
+ssh -i <key> azureuser@<domain> "curl -s -X POST http://$BIP:8080/accounts/v3/tenants \
   -H 'Content-Type: application/json' -H 'X-User-ID: bootstrap' -H 'Authorization: Bearer $PT' \
   -d '{\"name\":\"My Tenant\",\"email\":\"admin@example.org\",\"phone\":\"+919999999999\",\"password\":\"<choose>\"}'"
 # → {"code":"MYTENANT", …}   (codes are UPPERCASE, derived from the name)
@@ -632,7 +632,7 @@ its own services):
 ```bash
 kubectl wait --for=condition=Available deploy/keycloak -n keycloak --timeout=300s
 BIP=$(kubectl get svc identity-bundle -n egov -o jsonpath='{.spec.clusterIP}')
-ssh -i <key> azureuser@<domain> "curl -s -X POST http://$BIP:8080/account/v3/tenants \
+ssh -i <key> azureuser@<domain> "curl -s -X POST http://$BIP:8080/accounts/v3/tenants \
   -H 'Content-Type: application/json' -H 'X-User-ID: bootstrap' -H 'Authorization: Bearer $PT' \
   -d '{\"name\":\"My Tenant\",\"email\":\"admin@example.org\",\"phone\":\"+919999999999\",\"password\":\"<choose>\"}'"
 until [ "$(kubectl exec -n egov postgresql-lts-0 -- psql -U postgres -tAc \
@@ -745,7 +745,7 @@ prints a ready bearer token plus a sample curl:
 ```bash
 ./scripts/08-token.sh MYTENANT admin@example.org      # password prompted silently
 curl -H "Authorization: Bearer <token>" -H "X-Tenant-ID: MYTENANT" \
-     -H "Host: <domain>" http://<kong-proxy-ip>:8000/individual/v3/individuals
+     -H "Host: <domain>" http://<kong-proxy-ip>:8000/individuals/v3/individuals
 ```
 
 Kong's header-enrichment injects the user identity from the JWT (audit fields

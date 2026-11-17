@@ -102,11 +102,11 @@ note "creating tenant '$NAME' on shape '$SHAPE' (all calls run on the VM)"
 # ONCE at the end. Without it the server generates one that is never delivered
 # (SMTP is a placeholder in test environments).
 ADMIN_PASS=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-16)
-RESP=$(vm_curl "-X POST http://$ACCOUNT:8080/account/v3/tenants $H_JSON -H 'X-User-ID: seed-script' -H 'Authorization: Bearer $PLATFORM_TOKEN' -d '{\"name\":\"$NAME\",\"email\":\"$EMAIL\",\"phone\":\"$PHONE\",\"password\":\"$ADMIN_PASS\"}'")
+RESP=$(vm_curl "-X POST http://$ACCOUNT:8080/accounts/v3/tenants $H_JSON -H 'X-User-ID: seed-script' -H 'Authorization: Bearer $PLATFORM_TOKEN' -d '{\"name\":\"$NAME\",\"email\":\"$EMAIL\",\"phone\":\"$PHONE\",\"password\":\"$ADMIN_PASS\"}'")
 unset PLATFORM_TOKEN
 CODE=$(printf '%s' "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('code',''))" 2>/dev/null || true)
 if [ -z "$CODE" ]; then
-  CODE=$(vm_curl "'http://$ACCOUNT:8080/account/v3/tenants?email=$EMAIL'" | \
+  CODE=$(vm_curl "'http://$ACCOUNT:8080/accounts/v3/tenants?email=$EMAIL'" | \
     python3 -c "import sys,json;ts=json.load(sys.stdin).get('tenants') or [];print(ts[0]['code'] if ts else '')" 2>/dev/null || true)
   [ -n "$CODE" ] && { echo "    tenant already exists (admin password unchanged)"; ADMIN_PASS=""; } || die "tenant create failed: $RESP"
 fi
@@ -161,7 +161,7 @@ fi
 
 note "verify: creating a test individual with a mobile number"
 MOBILE="9$(printf '%09d' $((RANDOM * RANDOM % 1000000000)))"
-IRESP=$(vm_curl "-X POST http://$INDIVIDUAL:8080/individual/v3/individuals $H_JSON $(hdr) -d '{\"givenName\":\"Seed\",\"familyName\":\"Verify\",\"mobileNumber\":\"$MOBILE\",\"gender\":\"OTHER\"}'")
+IRESP=$(vm_curl "-X POST http://$INDIVIDUAL:8080/individuals/v3/individuals $H_JSON $(hdr) -d '{\"givenName\":\"Seed\",\"familyName\":\"Verify\",\"mobileNumber\":\"$MOBILE\",\"gender\":\"OTHER\"}'")
 IND_ID=$(printf '%s' "$IRESP" | python3 -c "import sys,json;print(json.load(sys.stdin).get('individualId',''))" 2>/dev/null || true)
 [ -n "$IND_ID" ] || die "individual create failed: $IRESP"
 P1=FAIL; printf '%s' "$IRESP" | grep -q "\"mobileNumber\":\"$MOBILE\"" && P1=PASS

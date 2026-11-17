@@ -54,6 +54,13 @@ wait_for_pod egov statefulset.kubernetes.io/pod-name=postgresql-lts-0 300
 note "waiting for kafka"
 wait_for_pod backbone statefulset.kubernetes.io/pod-name=release-name-kafka-controller-0 300
 
+note "notify database (notify keeps its own database; its init container migrates it)"
+if ! psql_exec -tAc "SELECT 1 FROM pg_database WHERE datname='notify'" | grep -q 1; then
+  psql_exec -c "CREATE DATABASE notify"
+else
+  echo "    notify exists"
+fi
+
 note "keycloak database"
 if ! psql_exec -tAc "SELECT 1 FROM pg_database WHERE datname='new_keycloak'" | grep -q 1; then
   psql_exec -c "CREATE DATABASE new_keycloak"

@@ -81,7 +81,7 @@ resolve_shape "$DIGIT3" "$SHAPE_ARG"   # → SHAPE, MANIFEST, BUNDLES (old names
 # ── preflight: every image this shape deploys must exist on Docker Hub ────────
 hub_has() { curl -sfm 10 "https://hub.docker.com/v2/repositories/egovio/$1/tags/$2" >/dev/null 2>&1; }
 case "$SHAPE" in
-  per-service)  IMAGES="idgen template-config billing apportion url-shortener pg-service otp notification employee individual workflow registry filestore localization account boundary" ;;
+  per-service)  IMAGES="idgen template-config billing apportion url-shortener pg-service otp notification notify employee individual workflow registry filestore localization account boundary" ;;
   *)            IMAGES="$BUNDLES" ;;   # every bundle in the manifest (stock or custom)
 esac
 local_has() { docker image inspect "egovio/$1:$2" >/dev/null 2>&1; }

@@ -1,0 +1,120 @@
+# notify: the channel-provider notification service otp and account send through
+# (POST /notify/v3/notifications). It is not part of any bundle, so every shape needs this
+# release. Unlike the other services it keeps its own database (`notify`, created by
+# scripts/03-backbone.sh), uses JPA, and has no per-tenant schemas.
+
+# Common Labels
+labels:
+  app: "notify"
+  group: "core"
+
+# Ingress Configs
+ingress:
+  enabled: true
+  zuul: true
+  context: "notify"
+
+# Init Containers Configs
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "flyway_schema_history"
+    image:
+      repository: "notify-db"
+    env: |
+        - name: "DB_URL"
+          value: "jdbc:postgresql://postgresql-lts.egov:5432/notify"
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          value: "filesystem:/flyway/sql"
+        - name: FLYWAY_SCHEMAS
+          value: public
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: public
+
+# Container Configs
+image:
+  repository: "notify"
+replicas: 1
+appType: "java"
+tracing-export-enabled: "false"
+tracing-enabled: true
+healthChecks:
+  enabled: false
+  livenessProbePath: "/notify/actuator/health"
+  readinessProbePath: "/notify/actuator/health"
+
+resources: |
+  requests:
+    cpu: "100m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+# SMS provider (the bundled smscountry jar). It registers only when username, password and
+# API URL are all set; the credentials come from the egov-notification-sms secret. Override
+# the URL per environment (e2e points it at its mock server).
+smscountry:
+  apiUrl: "http://api.smscountry.com/SMSCwebservice_bulk.aspx"
+  senderId: ""
+
+# Additional Container Envs
+env: |
+  - name: SERVER_PORT
+    value: "8080"
+  - name: SERVER_SERVLET_CONTEXT_PATH
+    value: /notify
+  - name: SPRING_DATASOURCE_URL
+    value: jdbc:postgresql://postgresql-lts.egov:5432/notify
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: db
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: db
+  # Migrations run in the notify-db init container.
+  - name: SPRING_FLYWAY_ENABLED
+    value: "false"
+  - name: PUBSUB_TYPE
+    value: kafka
+  - name: KAFKA_BROKERS
+    valueFrom:
+      configMapKeyRef:
+        key: kafka-brokers
+        name: egov-config
+  - name: KAFKA_CONSUMER_GROUP
+    value: notify
+  - name: SMSCOUNTRY_API_URL
+    value: {{ .Values.smscountry.apiUrl | quote }}
+  {{- with .Values.smscountry.senderId }}
+  - name: SMSCOUNTRY_SENDER_ID
+    value: {{ . | quote }}
+  {{- end }}
+  - name: SMSCOUNTRY_USERNAME
+    valueFrom:
+      secretKeyRef:
+        key: username
+        name: egov-notification-sms
+        optional: true
+  - name: SMSCOUNTRY_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        key: password
+        name: egov-notification-sms
+        optional: true

@@ -327,23 +327,22 @@ kafka-kraft:
 
 # MinIO object store (filestore S3). Root login: <env>-secrets.yaml
 minio:
-  chart-version: 3.3.0
-  buckets:
-    - name: digit-filestore
-      policy: none
-      purge: false
-  consoleIngress:
-    enabled: false
+  chart-version: 4.0.0          # digit3/backbone/minio, based on the digit-lts chart
+  replicas: 1                   # 1 = standalone; more = distributed (use 4+)
   # Root login = the "minio" Secret from the secrets file (shared with filestore)
-  existingSecret: minio
-  existingSecretKeys:
-    rootUser: accesskey
-    rootPassword: secretkey
-  mode: standalone
+  auth:
+    existingSecret: minio
+    existingSecretKeys:
+      rootUser: accesskey
+      rootPassword: secretkey
   persistence:
     size: 20Gi
     storageClass: ""
-  replicas: 1
+  # Created by a sidecar once MinIO is up (never fails the install)
+  provisioning:
+    buckets:
+      - name: digit-filestore
+        policy: none
 
 # Vault (initialised and unsealed by the workflow)
 vault:

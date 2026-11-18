@@ -7,7 +7,9 @@ name: DIGIT one-click (Azure)
 #            not create (ownership tags managed-by / digit-repo / digit-name).
 #            1. Azure resource group, Terraform state storage and the team's own Key Vault
 #            2. digit-secrets.yaml: fresh random passwords, generated and locked (SOPS-encrypted
-#               with that Key Vault) BY THIS WORKFLOW and committed to the fork - first install only
+#               with that Key Vault) BY THIS WORKFLOW and committed to the fork - first install only.
+#               The team's own credentials come from the optional GitHub secret DIGIT_SECRETS and
+#               are merged in + re-locked on every install/deploy (nobody encrypts by hand).
 #            3. Terraform: AKS + PostgreSQL Flexible Server + filestore storage
 #            4. Helmfile: DIGIT backbone, core 3.0 and monitoring from packaged Helm charts,
 #               secrets decrypted by helm-secrets
@@ -15,6 +17,13 @@ name: DIGIT one-click (Azure)
 #            Stops if the plan would delete/replace the cluster, database, storage or network
 #            unless confirm = replace.
 #   deploy   step 4 only - update the DIGIT apps (everything else in digit-config.yaml)
+#
+# Two ways to deploy DIGIT (argocd.enabled in digit-config.yaml, fixed at the first install):
+#   helmfile (default)  the workflow runs `helmfile apply` (step 4)
+#   argocd              the workflow installs Argo CD (helmfiles/argocd.yaml.gotmpl) and one root
+#                       Application "digit"; Argo CD then deploys EVERY release from this fork via
+#                       the digit-helmfile plugin (scripts/argocd-plugin.sh) - same helmfiles,
+#                       same values - and keeps it in sync with every commit.
 #   destroy  Terraform destroy. The resource group (state + Key Vault) is kept.
 #
 # After the first install, every commit to the fork's default branch runs by itself and
@@ -117,6 +126,11 @@ jobs:
             exit 1
           fi
           state=$(t digit-state)   # installed | destroyed | "" (never finished an install)
+          mode=$(t digit-deploy-mode)
+          if [ "$state" = installed ] && [ -n "$mode" ] && [ "$mode" != "$DEPLOY_MODE" ] && [ "$ACTION" != destroy ]; then
+            echo "::error file=digit-config.yaml::This DIGIT was deployed with $mode, but digit-config.yaml now says $DEPLOY_MODE (argocd.enabled). It cannot be switched on a running DIGIT. Change argocd.enabled back, or run destroy and then install again."
+            exit 1
+          fi
 
           if [ "$EVENT" = push ]; then
             if [ "$state" != installed ]; then
@@ -233,20 +247,19 @@ jobs:
           version: ${{ env.SOPS_VERSION }}
           required: "false"
 
-      # First install only: generate, lock and commit digit-secrets.yaml. Never overwritten.
+      # First install only: generate and lock digit-secrets.yaml. Never overwritten.
       - name: Create digit-secrets.yaml (first install only)
-        env:
-          BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           if [ -f digit-secrets.yaml ]; then echo "digit-secrets.yaml already exists - kept"; exit 0; fi
           bash deploy-as-code/helm/scripts/generate-secrets.sh deploy-as-code/helm/secrets.template.yaml digit-secrets.yaml "$SOPS_KEY_ID"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add digit-secrets.yaml
-          git commit -q -m "chore(one-click): locked secrets for $ENVIRONMENT [skip ci]"
-          git push -q origin "HEAD:$BRANCH"
-          echo "Committed digit-secrets.yaml (encrypted with Key Vault $KEY_VAULT_NAME)" | tee -a "$GITHUB_STEP_SUMMARY"
+      # The team's own credentials (optional GitHub secret DIGIT_SECRETS) are locked in too,
+      # so they are part of the very first deploy. Commits digit-secrets.yaml if it changed.
+      - name: Add your own credentials (DIGIT_SECRETS) and commit
+        uses: ./.github/actions/apply-user-secrets
+        with:
+          user-secrets: ${{ secrets.DIGIT_SECRETS }}
+          branch: ${{ github.ref_name }}
 
   Infra:
     if: ${{ !failure() && !cancelled() && needs.Check.outputs.infra == 'true' }}
@@ -316,6 +329,8 @@ jobs:
     if: ${{ !failure() && !cancelled() && needs.Check.outputs.deploy == 'true' }}
     needs: [Check, Prepare, Infra]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # commit digit-secrets.yaml when DIGIT_SECRETS changed
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -335,6 +350,13 @@ jobs:
         uses: ./.github/actions/setup-terraform-azure
         with:
           version: ${{ env.TF_VERSION }}
+      # Picks up DIGIT_SECRETS changes (editing a GitHub secret does not create a commit,
+      # so after changing it run the workflow with action = deploy).
+      - name: Add your own credentials (DIGIT_SECRETS)
+        uses: ./.github/actions/apply-user-secrets
+        with:
+          user-secrets: ${{ secrets.DIGIT_SECRETS }}
+          branch: ${{ github.ref_name }}
       - name: Connect to the cluster
         run: |
           az aks get-credentials -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --overwrite-existing \
@@ -371,29 +393,137 @@ jobs:
 
       # helmfiles/backbone -> core -> monitoring, all from packaged charts.
       # Values: defaults.yaml < digit-config.yaml < Terraform outputs < digit-secrets.yaml (helm-secrets).
-      - name: Deploy DIGIT (backbone, core, monitoring - takes 20-40 minutes)
+      - name: Deploy DIGIT with helmfile (backbone, core, monitoring - takes 20-40 minutes)
+        if: env.DEPLOY_MODE == 'helmfile'
         run: helmfile -f digit-helmfile.yaml.gotmpl apply --suppress-secrets --skip-diff-on-install
         working-directory: deploy-as-code/helm
 
-      # The postsync hook only runs when the vault release changes; re-check every deploy (idempotent).
-      - name: Vault check
+      # ---- Argo CD mode: install Argo CD, then Argo CD deploys everything from this fork ----
+      # sops in the Argo CD plugin unlocks digit-secrets.yaml with the cluster's own (kubelet)
+      # managed identity: allowed to get/decrypt with the Key Vault key, nothing else.
+      - name: Argo CD - allow the cluster to unlock digit-secrets.yaml
+        if: env.DEPLOY_MODE == 'argocd'
         run: |
-          # namespaces as the helmfile sees them: defaults.yaml overridden by digit-config.yaml
-          # shellcheck disable=SC2016  # $i is a yq variable
-          ns() { yq eval-all -r '. as $i ireduce ({}; . * $i) | .namespaces.'"$1" defaults.yaml "$DIGIT_CONFIG"; }
-          bash scripts/vault-bootstrap.sh "$(ns vault)" "$(ns core)"
+          set -euo pipefail
+          cid=$(az aks show -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --query identityProfile.kubeletidentity.clientId -o tsv)
+          oid=$(az aks show -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --query identityProfile.kubeletidentity.objectId -o tsv)
+          [ -n "$cid" ] && [ -n "$oid" ] || { echo "::error::Could not read the cluster's kubelet identity"; exit 1; }
+          az keyvault set-policy -n "$KEY_VAULT_NAME" -g "$RESOURCE_GROUP" --object-id "$oid" --key-permissions get decrypt -o none
+          echo "KUBELET_CLIENT_ID=$cid" >> "$GITHUB_ENV"
+
+      # Admin login of the Argo CD UI = secrets.argocd.adminPassword. The bcrypt hash is kept
+      # when the password did not change, so Argo CD is not restarted on every deploy.
+      - name: Argo CD - admin password
+        if: env.DEPLOY_MODE == 'argocd'
+        run: |
+          set -euo pipefail
+          pw=$(sops -d --extract '["secrets"]["argocd"]["adminPassword"]' "$DIGIT_SECRETS"); echo "::add-mask::$pw"
+          old=$(kubectl -n "$NS_ARGOCD" get secret argocd-secret -o jsonpath='{.data.admin\.password}' 2>/dev/null | base64 -d || true)
+          python3 -m venv "$RUNNER_TEMP/venv" && "$RUNNER_TEMP/venv/bin/pip" install -q --disable-pip-version-check bcrypt
+          hash=$(PW="$pw" OLD="$old" "$RUNNER_TEMP/venv/bin/python" -c '
+          import os, bcrypt
+          pw, old = os.environ["PW"].encode(), os.environ["OLD"].encode()
+          try: keep = bool(old) and bcrypt.checkpw(pw, old)
+          except ValueError: keep = False
+          print((old if keep else bcrypt.hashpw(pw, bcrypt.gensalt())).decode())')
+          echo "::add-mask::$hash"
+          echo "ARGOCD_ADMIN_HASH=$hash" >> "$GITHUB_ENV"
+
+      - name: Argo CD - install or upgrade Argo CD
+        if: env.DEPLOY_MODE == 'argocd'
+        run: helmfile -f helmfiles/argocd.yaml.gotmpl apply --suppress-secrets --skip-diff-on-install
         working-directory: deploy-as-code/helm
+
+      # The only object the workflow gives Argo CD. Argo CD renders it with the plugin into one
+      # Application per helmfile release (ordered by sync waves) and keeps all of them synced.
+      - name: Argo CD - hand DIGIT over to Argo CD
+        if: env.DEPLOY_MODE == 'argocd'
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          tf=$(base64 -w0 < "$TF_OUTPUTS_FILE")
+          kubectl apply -f - <<EOF
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: digit
+            namespace: ${NS_ARGOCD}
+          spec:
+            project: default
+            source:
+              repoURL: https://github.com/${GITHUB_REPOSITORY}.git
+              targetRevision: ${BRANCH}
+              path: deploy-as-code/helm
+              plugin:
+                name: digit-helmfile
+                env:
+                  - {name: MODE, value: apps}
+                  - {name: TF_OUTPUTS, value: "${tf}"}
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: ${NS_ARGOCD}
+            syncPolicy:
+              automated: {prune: true, selfHeal: true}
+              retry: {limit: 20, backoff: {duration: 30s, factor: 2, maxDuration: 10m}}
+          EOF
+          # Do not wait for the 3-minute poll
+          kubectl -n "$NS_ARGOCD" annotate applications.argoproj.io --all argocd.argoproj.io/refresh=normal --overwrite >/dev/null
+
+      # Vault starts sealed: unseal it and write the AppRole (idempotent). In Argo CD mode this
+      # waits until Argo CD has created Vault.
+      - name: Vault check
+        env:
+          VAULT_WAIT_SECONDS: ${{ env.DEPLOY_MODE == 'argocd' && '2400' || '450' }}
+        run: bash scripts/vault-bootstrap.sh "$NS_VAULT" "$NS_CORE"
+        working-directory: deploy-as-code/helm
+
+      - name: Argo CD - wait until every application is synced and healthy
+        if: env.DEPLOY_MODE == 'argocd'
+        run: |
+          set -euo pipefail
+          head=$(git rev-parse HEAD)
+          deadline=$((SECONDS + 3600)); next_print=0
+          while :; do
+            apps=$(kubectl -n "$NS_ARGOCD" get applications.argoproj.io -o json)
+            rev=$(printf '%s' "$apps" | jq -r '.items[] | select(.metadata.name == "digit") | .status.sync.revision // ""')
+            # ok when Argo CD runs this commit, or a newer one that contains it
+            if [ "$rev" != "$head" ] && [ -n "$rev" ]; then
+              git fetch -q --depth=50 origin "$rev" 2>/dev/null && git merge-base --is-ancestor "$head" "$rev" 2>/dev/null && head=$rev
+            fi
+            total=$(printf '%s' "$apps" | jq '.items | length')
+            pending=$(printf '%s' "$apps" | jq -r --arg h "$head" '.items[]
+              | select(.status.sync.status != "Synced" or .status.health.status != "Healthy" or (.status.sync.revision // "") != $h)
+              | "\(.metadata.name)  sync=\(.status.sync.status // "-")  health=\(.status.health.status // "-")"')
+            if [ "$total" -gt 1 ] && [ -z "$pending" ]; then
+              echo "All $total Argo CD applications are synced and healthy at ${head:0:9}"; break
+            fi
+            if [ $SECONDS -ge "$next_print" ]; then
+              echo "--- $(date -u +%H:%M:%S) waiting for $(printf '%s\n' "$pending" | grep -c .) of $total applications:"; printf '%s\n' "$pending"
+              next_print=$((SECONDS + 120))
+            fi
+            if [ $SECONDS -ge $deadline ]; then
+              echo "::error::Argo CD did not finish within 60 minutes. Still waiting for:"
+              printf '%s\n' "$pending"
+              printf '%s' "$apps" | jq -r '.items[] | select(.status.conditions != null) | "\(.metadata.name): \(.status.conditions | map(.message) | join(" | "))"' | cut -c1-400
+              exit 1
+            fi
+            sleep 20
+          done
+          {
+            echo "### Argo CD"
+            echo "All $total applications synced and healthy. UI: **https://${DOMAIN_NAME}/argocd** (user \`admin\`, password = \`argocd.adminPassword\`)."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remember the commit now running in Azure (apps)
         run: |
           az tag update --resource-id "$(az group show -n "$RESOURCE_GROUP" --query id -o tsv)" --operation merge \
-            --tags digit-deploy-sha="$(git rev-parse HEAD)" -o none
+            --tags digit-deploy-sha="$(git rev-parse HEAD)" digit-deploy-mode="$DEPLOY_MODE" -o none
 
       - name: Last step - point your domain at DIGIT
         working-directory: deploy-as-code/helm
         run: |
-          # shellcheck disable=SC2016  # $i is a yq variable
-          bb=$(yq eval-all -r '. as $i ireduce ({}; . * $i) | .namespaces.backbone' defaults.yaml "$DIGIT_CONFIG")
+          bb=$NS_BACKBONE
           ip=""
           for _ in $(seq 1 30); do
             ip=$(kubectl get svc ingress-nginx-controller -n "$bb" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
@@ -440,12 +570,11 @@ jobs:
       # Remove the ingress LoadBalancer first so its public IP is released before the network goes.
       - name: Delete the public IP
         continue-on-error: true
-        working-directory: deploy-as-code/helm
         run: |
-          # shellcheck disable=SC2016  # $i is a yq variable
-          bb=$(yq eval-all -r '. as $i ireduce ({}; . * $i) | .namespaces.backbone' defaults.yaml "$DIGIT_CONFIG")
           az aks get-credentials -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --overwrite-existing
-          kubectl delete svc ingress-nginx-controller -n "$bb" --wait=true --timeout=5m
+          # Argo CD mode: stop Argo CD first, or it would put the service straight back
+          kubectl -n "$NS_ARGOCD" scale statefulset argocd-application-controller --replicas=0 2>/dev/null || true
+          kubectl delete svc ingress-nginx-controller -n "$NS_BACKBONE" --wait=true --timeout=5m
       - name: Terraform init
         run: terraform init -input=false -no-color
         working-directory: ${{ env.TF_DIR }}

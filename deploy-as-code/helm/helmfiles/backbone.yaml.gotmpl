@@ -7,12 +7,17 @@ bases:
 {{- $v := .Values }}
 {{- $ns := $v.namespaces }}
 {{- $es := $v.components.elasticsearch }}
+repositories:
+  - name: digit3-backbone
+    url: {{ $v.repositories.digit }}/digit3/backbone
+  - name: digit3-cluster-configs
+    url: {{ $v.repositories.digit }}/digit3/cluster-configs
 releases:
   - name: cluster-configs
     namespace: {{ $ns.core }}
     chart: digit3-cluster-configs/cluster-configs
     version: {{ index $v.versions "cluster-configs" }}
-    labels: {layer: backbone}
+    labels: {layer: backbone, wave: "0"}
     values:
       - ../values/cluster-configs.yaml.gotmpl
       - cluster-configs: {{ $v | get "values.cluster-configs" dict | toYaml | nindent 10 }}
@@ -22,7 +27,7 @@ releases:
     chart: digit3-backbone/cert-manager
     version: {{ index $v.versions "cert-manager" }}
     installed: {{ $v | get "releases.cert-manager.enabled" true }}
-    labels: {layer: backbone}
+    labels: {layer: backbone, wave: "1"}
     needs: [{{ $ns.core }}/cluster-configs]
     values:
       - ../values/backbone/cert-manager.yaml.gotmpl
@@ -33,7 +38,7 @@ releases:
     chart: digit3-backbone/ingress-nginx
     version: {{ index $v.versions "ingress-nginx" }}
     installed: {{ $v | get "releases.ingress-nginx.enabled" true }}
-    labels: {layer: backbone}
+    labels: {layer: backbone, wave: "2"}
     needs: [{{ $ns.backbone }}/cert-manager]
     values:
       - ../values/backbone/ingress-nginx.yaml.gotmpl
@@ -44,7 +49,7 @@ releases:
     chart: digit3-backbone/redis
     version: {{ index $v.versions "redis" }}
     installed: {{ $v | get "releases.redis.enabled" true }}
-    labels: {layer: backbone}
+    labels: {layer: backbone, wave: "1"}
     needs: [{{ $ns.core }}/cluster-configs]
     values:
       - ../values/global.yaml.gotmpl
@@ -55,7 +60,7 @@ releases:
     chart: digit3-backbone/kafka-kraft
     version: {{ index $v.versions "kafka-kraft" }}
     installed: {{ $v | get "releases.kafka-kraft.enabled" true }}
-    labels: {layer: backbone}
+    labels: {layer: backbone, wave: "1"}
     needs: [{{ $ns.core }}/cluster-configs]
     values:
       - ../values/backbone/kafka-kraft.yaml.gotmpl
@@ -66,7 +71,7 @@ releases:
     chart: digit3-backbone/minio
     version: {{ index $v.versions "minio" }}
     installed: {{ $v | get "releases.minio.enabled" true }}
-    labels: {layer: backbone}
+    labels: {layer: backbone, wave: "1"}
     needs: [{{ $ns.core }}/cluster-configs]
     values:
       - ../values/global.yaml.gotmpl
@@ -78,7 +83,7 @@ releases:
     chart: digit3-backbone/vault
     version: {{ index $v.versions "vault" }}
     installed: {{ $v | get "releases.vault.enabled" true }}
-    labels: {layer: backbone}
+    labels: {layer: backbone, wave: "1"}
     needs: [{{ $ns.core }}/cluster-configs]
     # Vault starts sealed and empty: init/unseal it, enable transit + AppRole and write the
     # vault-approle Secret the core services (otp, individual) log in with. Idempotent.
@@ -100,7 +105,7 @@ releases:
     chart: digit3-backbone/elasticsearch-master
     version: {{ index $v.versions "elasticsearch-master" }}
     installed: {{ and $es ($v | get "releases.elasticsearch-master.enabled" true) }}
-    labels: {layer: backbone}
+    labels: {layer: backbone, wave: "1"}
     needs: [{{ $ns.core }}/cluster-configs]
     values:
       - ../values/backbone/elasticsearch.yaml.gotmpl
@@ -111,7 +116,7 @@ releases:
     chart: digit3-backbone/elasticsearch-data
     version: {{ index $v.versions "elasticsearch-data" }}
     installed: {{ and $es ($v | get "releases.elasticsearch-data.enabled" true) }}
-    labels: {layer: backbone}
+    labels: {layer: backbone, wave: "2"}
     needs: [{{ $ns.backbone }}/elasticsearch-master]
     values:
       - ../values/backbone/elasticsearch.yaml.gotmpl
@@ -122,7 +127,7 @@ releases:
     chart: digit3-backbone/kibana
     version: {{ index $v.versions "kibana" }}
     installed: {{ and $es ($v | get "releases.kibana.enabled" true) }}
-    labels: {layer: backbone}
+    labels: {layer: backbone, wave: "3"}
     needs: [{{ $ns.backbone }}/elasticsearch-data]
     values:
       - ../values/global.yaml.gotmpl

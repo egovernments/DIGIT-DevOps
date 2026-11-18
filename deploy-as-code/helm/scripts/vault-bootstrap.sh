@@ -18,8 +18,9 @@ POD=vault-0
 log() { echo "[vault-bootstrap] $*"; }
 mask() { [ -n "${GITHUB_ACTIONS:-}" ] && [ -n "$1" ] && echo "::add-mask::$1"; true; }
 
+# VAULT_WAIT_SECONDS: how long to wait for the pod (Argo CD mode creates it later than helmfile)
 log "waiting for $VNS/$POD"
-for _ in $(seq 1 90); do
+for _ in $(seq 1 $(( ${VAULT_WAIT_SECONDS:-450} / 5 ))); do
   [ "$(kubectl -n "$VNS" get pod "$POD" -o jsonpath='{.status.containerStatuses[0].started}' 2>/dev/null)" = "true" ] && break
   sleep 5
 done

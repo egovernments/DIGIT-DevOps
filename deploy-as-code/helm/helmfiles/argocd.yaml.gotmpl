@@ -1,0 +1,22 @@
+# Argo CD mode only (argocd.enabled: true in digit-config.yaml). The workflow installs Argo CD
+# itself with this helmfile; Argo CD then deploys every DIGIT release (backbone, core,
+# monitoring) from the team's fork through the "digit-helmfile" plugin
+# (scripts/argocd-plugin.sh), using the very same helmfiles and values as helmfile mode.
+# Inputs from the workflow: ARGOCD_ADMIN_HASH (bcrypt), KUBELET_CLIENT_ID (managed identity
+# that may decrypt digit-secrets.yaml in the team's Key Vault).
+bases:
+  - _environment.yaml.gotmpl
+---
+{{- $v := .Values }}
+repositories:
+  - name: digit3-backbone
+    url: {{ $v.repositories.digit }}/digit3/backbone
+releases:
+  - name: argo-cd
+    namespace: {{ $v.argocd.namespace }}
+    chart: digit3-backbone/argo-cd
+    version: {{ index $v.versions "argo-cd" }}
+    labels: {layer: argocd}
+    values:
+      - ../values/argocd/argo-cd.yaml.gotmpl
+      - {{ $v | get "values.argo-cd" dict | toYaml | nindent 8 }}

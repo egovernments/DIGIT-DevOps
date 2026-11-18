@@ -28,6 +28,14 @@ runs:
         [[ $location =~ ^[a-z0-9]+$ ]] || err "location '$location' is not an Azure region like centralindia."
         [ -n "${ARM_SUBSCRIPTION_ID:-}" ] || { echo "::error::Run azure-login first"; exit 1; }
 
+        # Settings as the helmfile sees them: deploy-as-code/helm/defaults.yaml < digit-config.yaml
+        # shellcheck disable=SC2016  # $i is a yq variable
+        merged=$(yq eval-all -o=json -I0 '. as $i ireduce ({}; . * $i)' deploy-as-code/helm/defaults.yaml "$f")
+        m() { printf '%s' "$merged" | yq -p=json -r "$1"; }
+        argo=$(m '.argocd.enabled')
+        [[ $argo == true || $argo == false ]] || err "argocd.enabled must be true or false (it is '$argo')."
+        if [ "$argo" = true ]; then mode=argocd; else mode=helmfile; fi
+
         # Globally-unique Azure names: <name without '-'> + type + 6-char hash(subscription/fork/name).
         # The same fork + name always gives the same names (re-runs find the same resources);
         # a different fork or name never does.
@@ -44,6 +52,11 @@ runs:
           echo "DOMAIN_NAME=$domain"
           echo "DIGIT_CONFIG=$GITHUB_WORKSPACE/$f"
           echo "DIGIT_SECRETS=$GITHUB_WORKSPACE/digit-secrets.yaml"
+          echo "DEPLOY_MODE=$mode"
+          echo "NS_CORE=$(m .namespaces.core)"
+          echo "NS_BACKBONE=$(m .namespaces.backbone)"
+          echo "NS_VAULT=$(m .namespaces.vault)"
+          echo "NS_ARGOCD=$(m .argocd.namespace)"
           # Ownership tags on every Azure resource this install creates
           echo "OWNER_TAGS=managed-by=digit-one-click digit-repo=${GITHUB_REPOSITORY,,} digit-name=$name"
           # optional scalar Terraform overrides -> TF_VAR_<name>
@@ -57,5 +70,6 @@ runs:
           echo "| Azure region | \`$location\` |"
           echo "| Resource group | \`$rg\` |"
           echo "| AKS cluster | \`$name\` |"
+          echo "| Deployed with | $mode |"
         } > "$RUNNER_TEMP/config-summary.md"
         echo "Loaded $f: name=$name domain=$domain location=$location resource-group=$rg"

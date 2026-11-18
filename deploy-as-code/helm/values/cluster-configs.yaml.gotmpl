@@ -87,7 +87,8 @@ cluster-configs:
       stripe-secret-key: {{ $s.stripeSecretKey | quote }}
     docker-registry-secret:
       namespace: [{{ $ns.core }}, {{ $ns.backbone }}]
-      dockerconfigjson: '{"auths":{}}'
+      # Private registry login: dockerConfigJson in DIGIT_SECRETS (default: none)
+      dockerconfigjson: {{ $s | get "dockerConfigJson" "{\"auths\":{}}" | squote }}
     # Written by scripts/vault-bootstrap.sh from the live Vault (no data here = not rendered).
     vault-approle:
       namespace: [{{ $ns.core }}]
@@ -101,4 +102,14 @@ cluster-configs:
       namespace: [{{ $ns.backbone }}]
       username: "elastic"
       password: {{ $s.elasticsearch.password | quote }}
+{{- end }}
+{{- /* Team-provided Secrets: extra.<name> in DIGIT_SECRETS (namespace defaults to core). */}}
+{{- $builtin := list "db" "minio" "kc-admin" "kc-db" "employee-iam-secret" "citizen-broker-secret" "hmac-secret" "egov-notification-mail" "egov-notification-sms" "egov-pg-service" "docker-registry-secret" "vault-approle" "kafka-kraft-cluster-id" "elasticsearch-master-credentials" }}
+{{- range $name, $sec := ($s | get "extra" dict) }}
+{{- if has $name $builtin }}{{ fail (printf "DIGIT_SECRETS extra.%s: that Secret is created by the install - set its keys directly instead" $name) }}{{ end }}
+    {{ $name }}:
+      namespace: {{ $sec | get "namespace" (list $ns.core) | toJson }}
+{{- range $k, $val := omit $sec "namespace" }}
+      {{ $k }}: {{ $val | toString | quote }}
+{{- end }}
 {{- end }}

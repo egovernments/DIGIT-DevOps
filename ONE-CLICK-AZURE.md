@@ -16,7 +16,8 @@ This guide has two parts:
 ## What you need
 
 1. A **GitHub** account.
-2. An **Azure** subscription where you are an **Owner**.
+2. An **Azure** subscription where you are an **Owner** (or **User Access Administrator**),
+   so you can create the key in step 3. The key itself gets much less than Owner.
 3. A **domain name** you own, for example `digit.example.com`. You must be able to add a
    DNS record for it at the website where you bought it.
 
@@ -36,15 +37,31 @@ You now have your own copy at `https://github.com/<your-name>/DIGIT-DevOps`.
 ## Step 3. Make a key for Azure
 
 1. Open https://shell.azure.com and sign in. If it asks, choose **Bash**.
-2. Copy this line, paste it into the window, and press **Enter**:
+2. Copy this whole block, paste it into the window, and press **Enter**:
 
    ```bash
-   az ad sp create-for-rbac --name digit-one-click --role Owner --scopes /subscriptions/$(az account show --query id -o tsv) --json-auth
+   SUB=$(az account show --query id -o tsv)
+   CREDS=$(az ad sp create-for-rbac --name digit-one-click --role Contributor --scopes "/subscriptions/$SUB" --json-auth)
+   APP=$(echo "$CREDS" | jq -r .clientId)
+   for _ in 1 2 3 4 5 6 7 8 9 10; do OID=$(az ad sp show --id "$APP" --query id -o tsv 2>/dev/null) && [ -n "$OID" ] && break; sleep 10; done
+   NC=$(az role definition list --name "Network Contributor" --query [0].name -o tsv)
+   AKSC=$(az role definition list --name "Azure Kubernetes Service Contributor Role" --query [0].name -o tsv)
+   COND="((!(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})) OR (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$NC, $AKSC})) AND ((!(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})) OR (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$NC, $AKSC}))"
+   az role assignment create --assignee-object-id "$OID" --assignee-principal-type ServicePrincipal \
+     --role "Role Based Access Control Administrator" --scope "/subscriptions/$SUB" \
+     --condition "$COND" --condition-version 2.0 -o none && echo "$CREDS"
    ```
 
 3. It prints text that starts with `{` and ends with `}`. Copy **all** of it.
 
 > Keep this text secret. Paste it only in step 4.
+
+What this key may do: create and change resources (**Contributor**), and give out only two
+small roles that the install needs (**Network Contributor** and **Azure Kubernetes Service
+Contributor Role**). It cannot make anyone Owner. Details: [Part 2, `AZURE_CREDENTIALS`](#azure_credentials-repository-secret-required).
+
+If your Azure admin prefers one simple line, an **Owner** key also works:
+`az ad sp create-for-rbac --name digit-one-click --role Owner --scopes /subscriptions/$(az account show --query id -o tsv) --json-auth`
 
 ## Step 4. Save the key in your copy
 
@@ -277,8 +294,22 @@ values:
 ### `AZURE_CREDENTIALS` (repository secret, required)
 
 The full JSON printed by `az ad sp create-for-rbac ... --json-auth` (step 3). It must contain
-`clientId`, `clientSecret`, `tenantId` and `subscriptionId`. The service principal needs **Owner**
-on the subscription (it creates role assignments).
+`clientId`, `clientSecret`, `tenantId` and `subscriptionId`.
+
+**Permissions of the service principal** (least privilege, set by step 3), on the subscription:
+
+| Role | Why |
+|---|---|
+| **Contributor** | creates `<name>-rg`, AKS, PostgreSQL, network, storage, Automation, the Key Vault and its access policies, and tags |
+| **Role Based Access Control Administrator**, with a condition: may assign and remove **only** Network Contributor and Azure Kubernetes Service Contributor Role | Terraform creates these 3 role assignments (Contributor alone cannot): Network Contributor on the AKS subnet for the AKS identity (`infra-as-code/terraform/azure/main.tf`); Azure Kubernetes Service Contributor Role on the cluster and Network Contributor on the AKS subnet for the node-scaling Automation account (`modules/scheduling/azure`, only when `terraform.scheduling` is `true`, the default) |
+
+**Owner** on the subscription also works but gives far more than needed.
+
+Rules for this setup:
+
+- The person who runs step 3 must be **Owner** or **User Access Administrator** and be allowed to create app registrations in Microsoft Entra ID.
+- The Key Vault uses access policies (managed by Contributor). If an Azure Policy forces Key Vaults to use Azure RBAC, the install also needs Key Vault data roles, and those must be added to the condition.
+- A new `azurerm_role_assignment` added to the Terraform code needs its role added to the condition.
 
 ### `DIGIT_SECRETS`
 

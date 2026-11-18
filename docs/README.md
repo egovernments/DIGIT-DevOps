@@ -16,7 +16,7 @@ Supporting material:
 
 - [Onboarding a new service](<Onboarding a new service.md>) - the single end-to-end runbook across all five stages (build -> package -> deploy), with the naming contract and per-gate checks.
 - [Templates](Templates/README.md) - ready-to-copy manifests and files for onboarding (Argo CD, Kargo, environments, access).
-- [One-click install on Azure](../one-click/README.md) - fork, fill in your environment file (`one-click/<env>.yaml`, egov-demo layout), add one secret, run one workflow.
+- [One-click install on Azure](../one-click/README.md) - fork, fill in `one-click/input.yaml`, add one secret, run one workflow.
 
 ## Architecture
 

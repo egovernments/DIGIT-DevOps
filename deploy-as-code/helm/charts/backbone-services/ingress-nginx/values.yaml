@@ -53,7 +53,18 @@ controller:
     https: 443
   # -- Global configuration passed to the ConfigMap consumed by the controller. Values may contain Helm templates.
   # Ref.: https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/
-  config: {}
+  config:
+    # ingress-nginx ships with use-gzip=false, so nothing was compressed at the
+    # edge: UI bundles, MDMS payloads and dashboard JSON all travelled full
+    # size. gzip-types stays at the controller default (JS, JSON, CSS, XML,
+    # SVG, fonts); text/html is always compressed by nginx itself.
+    use-gzip: "true"
+    # Default is 1. 5 gives most of the size reduction for a fraction of the
+    # CPU the higher levels cost.
+    gzip-level: "5"
+    # Default is 256. Under ~1KB the gzip overhead outweighs what it saves on
+    # the wire.
+    gzip-min-length: "1024"
   # -- Annotations to be added to the controller config configuration configmap.
   configAnnotations: {}
   # -- Will add custom headers before sending traffic to backends according to https://github.com/kubernetes/ingress-nginx/tree/main/docs/examples/customization/custom-headers

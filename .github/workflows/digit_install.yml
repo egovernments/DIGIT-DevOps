@@ -422,7 +422,7 @@ jobs:
         if: steps.decide.outputs.deploy == 'true' && env.DEPLOY_MODE == 'argocd'
         run: |
           set -euo pipefail
-          pw=$(sops -d --extract '["argocd"]["adminPassword"]' "$SECRETS_FILE"); echo "::add-mask::$pw"
+          pw=$(sops -d --extract '["cluster-configs"]["secrets"]["argocd-admin"]["password"]' "$SECRETS_FILE"); echo "::add-mask::$pw"
           old=$(kubectl -n "$NS_ARGOCD" get secret argocd-secret -o jsonpath='{.data.admin\.password}' 2>/dev/null | base64 -d || true)
           python3 -m venv "$RUNNER_TEMP/venv" && "$RUNNER_TEMP/venv/bin/pip" install -q --disable-pip-version-check bcrypt
           hash=$(PW="$pw" OLD="$old" "$RUNNER_TEMP/venv/bin/python" -c '

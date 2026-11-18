@@ -126,13 +126,13 @@ registry, or passwords **you choose** for the admin screens (Keycloak, Grafana, 
          password: my-sms-password
        kc-admin:
          password: choose-a-password      # Keycloak admin
+       grafana-admin:
+         admin-password: choose-a-password
        git-ssh-key:                       # a new Kubernetes secret, any name
          ssh-privatekey: |
            -----BEGIN OPENSSH PRIVATE KEY-----
            ...
            -----END OPENSSH PRIVATE KEY-----
-   grafana:
-     adminPassword: choose-a-password
    ```
 
 4. Click **Add secret**.
@@ -202,8 +202,9 @@ the tool that deploys differs. You choose once, in `infra.argocd.enabled`, befor
 | Someone changes a service by hand in the cluster | stays until the next deploy | Argo CD puts it back at once |
 | Best for | trying DIGIT, simple setups | teams that run DIGIT for a long time |
 
-**Argo CD login:** user `admin`, password `argocd.adminPassword` from your secrets file. Set
-your own in `DIGIT_SECRETS` (step 6): `argocd: {adminPassword: choose-a-password}`.
+**Argo CD login:** user `admin`, password `cluster-configs.secrets.argocd-admin.password` from
+your secrets file. Set your own in `DIGIT_SECRETS` (step 6):
+`cluster-configs: {secrets: {argocd-admin: {password: choose-a-password}}}`.
 
 ## If something goes wrong
 
@@ -345,6 +346,10 @@ Rules for this setup:
 Repository secret, optional. YAML in the **same layout as the secrets file**
 (`digit-template-secrets.yaml`). Only the paths you want to set.
 
+The secrets file has **one format**: every secret is `cluster-configs.secrets.<name>`, a
+Kubernetes Secret created in the listed namespaces, and charts read it by name. Every value
+is written once (MinIO, Grafana and Jaeger read the shared Secrets, not a copy).
+
 | Path | What it is | Notes |
 |---|---|---|
 | `cluster-configs.secrets.egov-notification-sms.{username,password}` | SMS provider login | default `not-configured` |
@@ -354,10 +359,10 @@ Repository secret, optional. YAML in the **same layout as the secrets file**
 | `cluster-configs.secrets.kc-db.password` | Keycloak database password | before the first install only |
 | `cluster-configs.secrets.employee-iam-secret`, `citizen-broker-secret` | Keycloak client secrets | |
 | `cluster-configs.secrets.docker-registry-secret.dockerconfigjson` | private image registry (`.dockerconfigjson` string) | |
-| `cluster-configs.secrets.minio.{accesskey,secretkey}` and `minio.{rootUser,rootPassword}` | MinIO login (set both pairs to the same values) | before the first install only |
-| `cluster-configs.secrets.elasticsearch-master-credentials.password` and the `jaeger` passwords | Elasticsearch `elastic` user (set all to the same value) | before the first install only |
-| `grafana.adminPassword` | Grafana `admin` login | |
-| `argocd.adminPassword` | Argo CD `admin` login | Argo CD mode |
+| `cluster-configs.secrets.minio.{accesskey,secretkey}` | MinIO root login = filestore S3 key | before the first install only |
+| `cluster-configs.secrets.elasticsearch-master-credentials.password` | Elasticsearch `elastic` user (Kibana, Jaeger too) | before the first install only |
+| `cluster-configs.secrets.grafana-admin.{admin-user,admin-password}` | Grafana login | |
+| `cluster-configs.secrets.argocd-admin.password` | Argo CD `admin` login | Argo CD mode |
 | `cluster-configs.secrets.<new-name>.<key>` | any other Kubernetes Secret | `namespace: [ns, ...]` optional, default `[egov]` |
 
 Not allowed, because changing them breaks existing data: `cluster-configs.secrets.db`,
@@ -405,7 +410,7 @@ Any other path not in the template is rejected as a typo.
 - **Order.** Sync waves follow the layers: `cluster-configs` → backbone → Keycloak → Kong → core services → monitoring.
 - **Sync.** All Applications use automated sync with prune and self-heal. `enabled: false` removes a release's Application and everything it deployed.
 - **Vault.** The workflow unseals it (`scripts/vault-bootstrap.sh`); after that it unseals itself on restarts.
-- **UI.** `https://<domain>/argocd`, user `admin`, password `argocd.adminPassword`.
+- **UI.** `https://<domain>/argocd`, user `admin`, password `cluster-configs.secrets.argocd-admin.password`.
 
 ## What gets created
 

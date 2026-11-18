@@ -48,4 +48,11 @@ releases:
     {{- end }}
     values:
       - {{ include "release-values" (dict "v" $v "r" $r.name "ns" "monitoring") | nindent 8 }}
+    {{- if eq $r.name "jaeger" }}
+      # The jaeger chart writes ES_PASSWORD into its index-cleaner CronJob only from this
+      # value: take it from the one entry in the secrets file.
+      - storage:
+          elasticsearch:
+            password: {{ $v | get "cluster-configs.secrets.elasticsearch-master-credentials.password" "" | quote }}
+    {{- end }}
 {{- end }}

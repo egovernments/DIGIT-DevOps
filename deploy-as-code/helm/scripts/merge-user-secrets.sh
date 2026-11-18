@@ -14,12 +14,12 @@
 #     secrets:
 #       egov-notification-sms: {username: my-user, password: my-pass}
 #       docker-registry-secret: {dockerconfigjson: '{"auths":{...}}'}
+#       grafana-admin: {admin-password: my-pass}
+#       argocd-admin: {password: my-pass}
 #       git-ssh-key:                       # a NEW Secret: any new name under secrets
 #         namespace: [egov]                #   optional, default [egov]
 #         ssh-privatekey: |
 #           -----BEGIN OPENSSH PRIVATE KEY-----
-#   grafana: {adminPassword: my-pass}
-#   argocd: {adminPassword: my-pass}
 #
 # Refused (changing them breaks data that already exists):
 #   cluster-configs.secrets.db, .kafka-kraft-cluster-id, .hmac-secret

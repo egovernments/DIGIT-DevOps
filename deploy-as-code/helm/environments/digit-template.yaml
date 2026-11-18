@@ -347,14 +347,18 @@ kafka-kraft:
 
 # MinIO object store (filestore S3). Root login: <env>-secrets.yaml
 minio:
-  chart-version: 3.1.0
+  chart-version: 3.2.0
   buckets:
     - name: digit-filestore
       policy: none
       purge: false
   consoleIngress:
     enabled: false
-  existingSecret: ""
+  # Root login = the "minio" Secret from the secrets file (shared with filestore)
+  existingSecret: minio
+  existingSecretKeys:
+    rootUser: accesskey
+    rootPassword: secretkey
   mode: standalone
   persistence:
     size: 20Gi
@@ -701,9 +705,11 @@ loki:
   write:
     replicas: 0
 
-# Dashboards. Admin password: <env>-secrets.yaml
+# Dashboards. Admin login: cluster-configs.secrets.grafana-admin in <env>-secrets.yaml
 grafana:
   chart-version: 7.3.0
+  admin:
+    existingSecret: grafana-admin   # login from the secrets file
   dashboardProviders:
     dashboardproviders.yaml:
       apiVersion: 1
@@ -848,6 +854,15 @@ open-telemetry:
 # Tracing (stores in Elasticsearch). Elasticsearch password: <env>-secrets.yaml
 jaeger:
   chart-version: 4.4.7
+  # Elasticsearch password from the "elasticsearch-master-credentials" Secret (secrets file),
+  # used below as ${env:ES_PASSWORD}. The index-cleaner CronJob gets it from the helmfile.
+  jaeger:
+    extraEnv:
+      - name: ES_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: elasticsearch-master-credentials
+            key: password
   esIndexCleaner:
     enabled: true
     numberOfDays: 3
@@ -876,6 +891,7 @@ jaeger:
               auth:
                 basic:
                   username: elastic
+                  password: ${env:ES_PASSWORD}
               server_urls:
                 - http://elasticsearch-master.backbone:9200
           primary_store_elasticsearch:
@@ -883,6 +899,7 @@ jaeger:
               auth:
                 basic:
                   username: elastic
+                  password: ${env:ES_PASSWORD}
               server_urls:
                 - http://elasticsearch-master.backbone:9200
     processors:

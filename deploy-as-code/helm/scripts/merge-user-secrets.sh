@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Merge the team's own credentials (GitHub secret DIGIT_SECRETS) into digit-secrets.yaml.
 #
-#   DIGIT_USER_SECRETS="<yaml>" merge-user-secrets.sh <digit-secrets.yaml>
+#   DIGIT_USER_SECRETS="<yaml>" merge-user-secrets.sh <digit-secrets.yaml> <secrets.template.yaml>
 #
+# Also fills in keys that exist in the template but not yet in the file (added in a newer
+# version of this repo) with fresh random values, so older installs keep working.
 # The team never encrypts anything: this script decrypts the file with the workflow's Azure
 # login, merges, and encrypts it again with the SAME Key Vault key (read from the file's own
 # SOPS metadata). It only rewrites the file when a value really changed.
@@ -20,15 +22,24 @@
 # Refused (changing them breaks data that already exists): db, kafka, hmac.
 # Exit 0 = merged or unchanged; prints "changed=true|false" on stdout.
 set -euo pipefail
-f=${1:?digit-secrets.yaml}
+f=${1:?digit-secrets.yaml}; tmpl=${2:?secrets.template.yaml}
 err() { echo "::error::DIGIT_SECRETS: $*" >&2; exit 1; }
-[ -n "${DIGIT_USER_SECRETS:-}" ] || { echo "changed=false"; exit 0; }
 [ -f "$f" ] || err "$f does not exist yet (run install first)."
 
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 ( umask 077
-  printf '%s\n' "$DIGIT_USER_SECRETS" > "$work/user.yaml"
-  sops -d "$f" > "$work/current.yaml" )
+  if [ -n "${DIGIT_USER_SECRETS:-}" ]; then printf '%s\n' "$DIGIT_USER_SECRETS"; else echo '{}'; fi > "$work/user.yaml"
+  sops -d "$f" > "$work/current.yaml"
+  cp "$work/current.yaml" "$work/before.yaml" )
+
+# 1. Template keys missing from the file (newer repo version) -> fresh random value.
+yq -r '.. | select(tag == "!!str" and test("^<[a-z_]+>$")) | path | join(".")' "$tmpl" |
+  while IFS= read -r p; do
+    [ "$(yq -r ".$p | tag" "$work/current.yaml")" = "!!null" ] || continue
+    v=$(python3 -c "import secrets,string; a=string.ascii_letters+string.digits; print(''.join(secrets.choice(a) for _ in range(24)))")
+    ( umask 077; V="$v" yq -i ".$p = strenv(V)" "$work/current.yaml" )
+    echo "added missing secret $p" >&2
+  done
 
 yq -e 'type == "!!map"' "$work/user.yaml" >/dev/null 2>&1 \
   || err "is not valid YAML. Check the spaces at the start of each line (see ONE-CLICK-AZURE.md)."
@@ -50,7 +61,7 @@ blocked=$(yq -r 'keys | .[] | select(. == "db" or . == "kafka" or . == "hmac")' 
 # free-form extra.* and dockerConfigJson.
 unknown=$(yq -r 'del(.extra) | del(.dockerConfigJson) | .. | select(tag != "!!map") | path | join(".")' "$work/user.yaml" |
   while IFS= read -r p; do
-    [ "$(yq -r ".secrets.$p | tag" "$work/current.yaml" 2>/dev/null)" = "!!null" ] && echo "$p"
+    [ "$(yq -r ".secrets.$p | tag" "$tmpl" 2>/dev/null)" = "!!null" ] && echo "$p"
   done || true)
 [ -z "$unknown" ] || err "unknown keys (typo?): $(echo "$unknown" | tr '\n' ' '). Allowed: the keys in deploy-as-code/helm/secrets.template.yaml, dockerConfigJson and extra."
 
@@ -61,7 +72,7 @@ yq -e '[(.extra // {})[] | type == "!!map"] | all' "$work/user.yaml" >/dev/null 
 # shellcheck disable=SC2016  # $i is a yq variable
 ( umask 077
   yq eval-all '. as $i ireduce ({}; . * $i)' "$work/current.yaml" <(yq '{"secrets": .}' "$work/user.yaml") > "$work/merged.yaml" )
-if [ "$(yq -o=json -I0 . "$work/current.yaml")" = "$(yq -o=json -I0 . "$work/merged.yaml")" ]; then
+if [ "$(yq -o=json -I0 . "$work/before.yaml")" = "$(yq -o=json -I0 . "$work/merged.yaml")" ]; then
   echo "changed=false"; exit 0
 fi
 

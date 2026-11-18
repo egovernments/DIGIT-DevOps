@@ -1,0 +1,90 @@
+{{- /*
+  Argo CD for the one-click Argo CD mode. UI: https://<domain>/argocd (user admin,
+  password secrets.argocd.adminPassword). The repo-server gets a sidecar running the
+  helmfile image as plugin "digit-helmfile"; sops in it decrypts digit-secrets.yaml with
+  the AKS kubelet managed identity (AZURE_CLIENT_ID, no secret in the cluster).
+*/ -}}
+{{- $v := .Values }}
+{{- $img := $v.argocd.pluginImage }}
+global:
+  domain: {{ $v.domain }}
+
+configs:
+  params:
+    server.insecure: true              # TLS ends at ingress-nginx
+    server.basehref: /argocd
+    server.rootpath: /argocd
+    # helmfile renders a whole release; give the plugin time
+    controller.repo.server.timeout.seconds: 600
+    # Each render loads the chart-repo indexes (~150-300 MiB). 39 Applications rendering at
+    # once OOM-kill the sidecar, so cap concurrent renders.
+    reposerver.parallelism.limit: 3
+  cm:
+    url: https://{{ $v.domain }}/argocd
+    timeout.reconciliation: 180s
+    # Make the root app wait for each child Application's health (sync waves = layers).
+    resource.customizations.health.argoproj.io_Application: |
+      hs = {}
+      hs.status = "Progressing"
+      hs.message = ""
+      if obj.status ~= nil and obj.status.health ~= nil then
+        hs.status = obj.status.health.status
+        if obj.status.health.message ~= nil then hs.message = obj.status.health.message end
+      end
+      return hs
+  secret:
+    argocdServerAdminPassword: {{ requiredEnv "ARGOCD_ADMIN_HASH" | quote }}
+  cmp:
+    create: true
+    plugins:
+      digit-helmfile:
+        generate:
+          command: [bash, scripts/argocd-plugin.sh]
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hostname: {{ $v.domain }}
+    path: /argocd
+    pathType: Prefix
+    annotations:
+      cert-manager.io/cluster-issuer: {{ $v.tls.issuer }}
+    tls: false
+    extraTls:
+      - hosts: [{{ $v.domain }}]
+        secretName: {{ $v.domain }}-tls-certs
+
+repoServer:
+  env:
+    - name: ARGOCD_EXEC_TIMEOUT
+      value: 10m
+  volumes:
+    - name: cmp-tmp
+      emptyDir: {}
+    - name: digit-helmfile-plugin
+      configMap:
+        name: argocd-cmp-cm
+  extraContainers:
+    - name: digit-helmfile
+      image: {{ $img }}
+      command: [/var/run/argocd/argocd-cmp-server]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      env:
+        - name: ARGOCD_EXEC_TIMEOUT
+          value: 10m
+        # sops -> Azure Key Vault with the kubelet managed identity (IMDS)
+        - name: AZURE_CLIENT_ID
+          value: {{ requiredEnv "KUBELET_CLIENT_ID" | quote }}
+      resources:
+        requests: {cpu: 200m, memory: 512Mi}
+        limits: {memory: 2Gi}
+      volumeMounts:
+        - {name: var-files, mountPath: /var/run/argocd}
+        - {name: plugins, mountPath: /home/argocd/cmp-server/plugins}
+        - {name: digit-helmfile-plugin, mountPath: /home/argocd/cmp-server/config/plugin.yaml, subPath: digit-helmfile.yaml}
+        - {name: cmp-tmp, mountPath: /tmp}

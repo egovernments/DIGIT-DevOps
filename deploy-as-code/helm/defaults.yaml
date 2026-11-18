@@ -19,6 +19,14 @@ components:
   monitoring: true      # kube-prometheus-stack, grafana, loki, otel collector, jaeger, blackbox
 releases: {}            # e.g. releases: {jaeger: {enabled: false}}
 
+# Deploy with Argo CD instead of helmfile (set argocd.enabled in digit-config.yaml, before the
+# first install). Argo CD then deploys every release above from the fork, through the
+# "digit-helmfile" plugin running pluginImage in the repo-server.
+argocd:
+  enabled: false
+  namespace: argocd
+  pluginImage: ghcr.io/helmfile/helmfile:v1.8.4
+
 # Packaged chart repositories.
 repositories:
   digit: https://helm.digit.org      # + /digit3/<module>
@@ -31,7 +39,8 @@ repositories:
 versions:
   # helm.digit.org/digit3/backbone
   cert-manager: 3.0.0
-  ingress-nginx: 3.0.0
+  ingress-nginx: 3.1.0   # gzip on
+  argo-cd: 3.0.0         # Argo CD mode only
   redis: 3.0.0
   kafka-kraft: 3.0.0
   minio: 3.1.0

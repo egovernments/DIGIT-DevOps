@@ -5,13 +5,16 @@ bases:
 ---
 {{- $v := .Values }}
 {{- $ns := $v.namespaces.core }}
+repositories:
+  - name: digit3-core
+    url: {{ $v.repositories.digit }}/digit3/core
 releases:
   - name: keycloak
     namespace: {{ $ns }}
     chart: digit3-core/keycloak
     version: {{ index $v.versions "keycloak" }}
     installed: {{ $v | get "releases.keycloak.enabled" true }}
-    labels: {layer: core}
+    labels: {layer: core, wave: "4"}
     values:
       - ../values/global.yaml.gotmpl
       - ../values/core/keycloak.yaml.gotmpl
@@ -22,7 +25,7 @@ releases:
     chart: digit3-core/kong
     version: {{ index $v.versions "kong" }}
     installed: {{ $v | get "releases.kong.enabled" true }}
-    labels: {layer: core}
+    labels: {layer: core, wave: "5"}
     needs: [{{ $ns }}/keycloak]
     values:
       - ../values/core/kong.yaml.gotmpl
@@ -35,7 +38,7 @@ releases:
     chart: digit3-core/{{ $svc }}
     version: {{ index $v.versions $svc | quote }}
     installed: {{ $v | get (printf "releases.%s.enabled" $svc) true }}
-    labels: {layer: core}
+    labels: {layer: core, wave: "6"}
     needs: [{{ $ns }}/kong]
     values:
       - ../values/global.yaml.gotmpl

@@ -8,13 +8,24 @@ bases:
 {{- $v := .Values }}
 {{- $ns := $v.namespaces.monitoring }}
 {{- $on := $v.components.monitoring }}
+repositories:
+  - name: digit3-backbone
+    url: {{ $v.repositories.digit }}/digit3/backbone
+  - name: prometheus-community
+    url: {{ $v.repositories.prometheusCommunity }}
+  - name: grafana
+    url: {{ $v.repositories.grafana }}
+  - name: jaegertracing
+    url: {{ $v.repositories.jaegertracing }}
+  - name: open-telemetry
+    url: {{ $v.repositories.openTelemetry }}
 releases:
   - name: kube-prometheus-stack
     namespace: {{ $ns }}
     chart: prometheus-community/kube-prometheus-stack
     version: {{ index $v.versions "kube-prometheus-stack" }}
     installed: {{ and $on ($v | get "releases.kube-prometheus-stack.enabled" true) }}
-    labels: {layer: monitoring}
+    labels: {layer: monitoring, wave: "7"}
     disableValidation: true
     values:
       - ../charts/monitoring/values/prometheus.yaml
@@ -26,7 +37,7 @@ releases:
     chart: grafana/loki
     version: {{ index $v.versions "loki" }}
     installed: {{ and $on ($v | get "releases.loki.enabled" true) }}
-    labels: {layer: monitoring}
+    labels: {layer: monitoring, wave: "7"}
     values:
       - ../charts/monitoring/values/loki.yaml
       - singleBinary:
@@ -50,7 +61,7 @@ releases:
     chart: grafana/grafana
     version: {{ index $v.versions "grafana" }}
     installed: {{ and $on ($v | get "releases.grafana.enabled" true) }}
-    labels: {layer: monitoring}
+    labels: {layer: monitoring, wave: "8"}
     needs: [{{ $ns }}/kube-prometheus-stack]
     values:
       - ../charts/monitoring/values/grafana.yaml
@@ -62,7 +73,7 @@ releases:
     chart: open-telemetry/opentelemetry-collector
     version: {{ index $v.versions "opentelemetry-collector" }}
     installed: {{ and $on ($v | get "releases.open-telemetry.enabled" true) }}
-    labels: {layer: monitoring}
+    labels: {layer: monitoring, wave: "7"}
     values:
       - ../charts/monitoring/values/open-telemetry.yaml
       - mode: deployment
@@ -81,7 +92,7 @@ releases:
     chart: jaegertracing/jaeger
     version: {{ index $v.versions "jaeger" }}
     installed: {{ and $on $v.components.elasticsearch ($v | get "releases.jaeger.enabled" true) }}
-    labels: {layer: monitoring}
+    labels: {layer: monitoring, wave: "7"}
     values:
       - ../charts/monitoring/values/jaeger.yaml
       - ../values/monitoring/jaeger.yaml.gotmpl
@@ -92,7 +103,7 @@ releases:
     chart: digit3-backbone/prometheus-blackbox-exporter
     version: {{ index $v.versions "prometheus-blackbox-exporter" }}
     installed: {{ and $on ($v | get "releases.blackbox.enabled" true) }}
-    labels: {layer: monitoring}
+    labels: {layer: monitoring, wave: "7"}
     values:
       - ../charts/monitoring/values/blackbox-exporter.yaml
       - namespace: {{ $ns }}

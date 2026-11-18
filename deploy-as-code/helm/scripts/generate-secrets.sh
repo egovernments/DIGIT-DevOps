@@ -37,6 +37,7 @@ vals = {
   'citizen_broker_client_secret': r(32),
   'hmac_secret': r(48),
   'grafana_admin_password': r(24),
+  'argocd_admin_password': r(24),
 }
 for k, v in vals.items():
     assert s.count('<%s>' % k) == 1, k

@@ -87,7 +87,8 @@ Now you have your own copy at `https://github.com/<your-name>/DIGIT-DevOps`.
 
 | I want to... | Do this |
 |---|---|
-| change a setting | Edit `digit-config.yaml` (step 5), then run the workflow with **deploy** (step 6). |
+| change the machines (number or size) | Edit the `terraform:` part of `digit-config.yaml`, then run the workflow with **infra**. Only Azure changes; DIGIT is not redeployed. |
+| change a DIGIT setting | Edit any other part of `digit-config.yaml`, then run the workflow with **deploy**. Only DIGIT changes; Azure is not touched. |
 | delete my DIGIT | Run the workflow with **destroy**, and type `delete` in the **confirm** box. |
 | delete everything in Azure | After **destroy**, delete the resource group `<name>-rg` in the Azure portal. |
 | get the newest version | On your copy's main page, click **Sync fork**, then **Update branch**. Then run **deploy**. |
@@ -103,7 +104,9 @@ Click the run with the red ❌, then click the red step. The red message tells y
 | `name ... is not allowed` | Use only small letters, numbers and `-`. Start with a letter. 3 to 20 characters. |
 | `Do not run this in egovernments/DIGIT-DevOps` | You are in the original project. Do step 1 and use your own copy. |
 | `locked by someone else's Key Vault` | Delete `digit-secrets.yaml` in your copy, then run **install** again. |
-| `does not exist yet. Run ... install first` | Run the workflow with **install** before **deploy**. |
+| `does not exist yet. Run ... install first` or `Nothing is installed` | Run the workflow with **install** before **infra** or **deploy**. |
+| `already exists but was not created by this fork` | That name is taken in your Azure. Pick a new `name` in `digit-config.yaml`. |
+| `would delete or replace` | Your change would rebuild the cluster, database or storage and can lose data. Undo the change. Only if you are sure, run **infra** again with `replace` in the **confirm** box. |
 | anything else | Click **Re-run jobs**, then **Re-run failed jobs**. If it fails again, ask the DIGIT team and share the red message. |
 
 ---
@@ -111,7 +114,8 @@ Click the run with the red ❌, then click the red step. The red message tells y
 ## For the curious (you can skip this)
 
 - **What gets created.** In Azure: a resource group `<name>-rg` with an AKS cluster, a PostgreSQL server, storage and a Key Vault. On the cluster: DIGIT core 3.0, its backbone (Kafka, Redis, MinIO, Vault, Elasticsearch, Kibana, ingress, cert-manager) and monitoring (Prometheus, Grafana, Loki, OpenTelemetry, Jaeger). Everything comes from packaged Helm charts at https://helm.digit.org, deployed with helmfile from `deploy-as-code/helm/`.
-- **Passwords.** The first install makes new random passwords just for you. It locks them (SOPS encryption with your own Azure Key Vault key) and saves them as `digit-secrets.yaml` in your copy. Your copy is public, but the locked file is safe: only your Azure key can open it. No two teams share a password or a key.
+- **Passwords.** You never make or lock passwords yourself. On the first install the workflow makes new random passwords just for you, locks them (SOPS encryption with your own Azure Key Vault key, also created by the workflow) and saves them as `digit-secrets.yaml` in your copy. Every later run unlocks them with the same key. Your copy is public, but the locked file is safe: only your Azure key can open it. No two teams share a password or a key.
+- **Always a new environment.** Everything the install creates in Azure is labelled with your copy and your `name`. The workflow only reuses Azure things that carry your label, from an earlier run of the same copy and name. If something with that name already exists and is not yours, it stops and changes nothing.
 - **Read or change a password** (needs the Azure CLI and `sops` on your computer):
   ```bash
   az login

@@ -3,13 +3,18 @@ name: DIGIT one-click (Azure)
 # digit-config.yaml, and adds ONE GitHub secret, AZURE_CREDENTIALS. Everything else is
 # created and named by this workflow:
 #
-#   install  1. Azure resource group, Terraform state storage and the team's own Key Vault
-#            2. digit-secrets.yaml: fresh random passwords, locked (SOPS-encrypted) with that
-#               Key Vault and committed to the fork - only on the first install
+#   install  First time: a NEW environment. Refuses to touch Azure resources this fork did
+#            not create (ownership tags managed-by / digit-repo / digit-name).
+#            1. Azure resource group, Terraform state storage and the team's own Key Vault
+#            2. digit-secrets.yaml: fresh random passwords, generated and locked (SOPS-encrypted
+#               with that Key Vault) BY THIS WORKFLOW and committed to the fork - first install only
 #            3. Terraform: AKS + PostgreSQL Flexible Server + filestore storage
 #            4. Helmfile: DIGIT backbone, core 3.0 and monitoring from packaged Helm charts,
 #               secrets decrypted by helm-secrets
-#   deploy   step 4 only (after changing digit-config.yaml)
+#   infra    step 3 only - update Azure infrastructure (terraform: in digit-config.yaml).
+#            Stops if the plan would delete/replace the cluster, database, storage or network
+#            unless confirm = replace.
+#   deploy   step 4 only - update the DIGIT apps (everything else in digit-config.yaml)
 #   destroy  Terraform destroy. The resource group (state + Key Vault) is kept.
 on:
   workflow_dispatch:
@@ -21,10 +26,11 @@ on:
         default: install
         options:
           - install
+          - infra
           - deploy
           - destroy
       confirm:
-        description: 'Only for destroy: type the word  delete'
+        description: 'For destroy type: delete   (for infra, only if it asks: replace)'
         required: false
         default: ''
 
@@ -68,6 +74,27 @@ jobs:
           credentials: ${{ secrets.AZURE_CREDENTIALS }}
       - name: Check digit-config.yaml
         uses: ./.github/actions/load-config
+      # install = a NEW environment, or a re-run of this fork's own install.
+      # infra / deploy / destroy = only an environment this fork installed.
+      - name: Check the environment belongs to this fork
+        env:
+          ACTION: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY,,}"
+          tags=$(az group show -n "$RESOURCE_GROUP" --query tags -o json 2>/dev/null || true)
+          if [ -z "$tags" ]; then
+            if [ "$ACTION" = install ]; then
+              echo "New environment: $RESOURCE_GROUP will be created" | tee -a "$GITHUB_STEP_SUMMARY"; exit 0
+            fi
+            echo "::error::Nothing is installed for '$ENVIRONMENT' yet. Run the workflow with action = install first."; exit 1
+          fi
+          t() { printf '%s' "$tags" | jq -r --arg k "$1" '(. // {})[$k] // ""'; }
+          if [ "$(t managed-by)" != digit-one-click ] || [ "$(t digit-repo)" != "$repo" ] || [ "$(t digit-name)" != "$ENVIRONMENT" ]; then
+            echo "::error file=digit-config.yaml::The resource group $RESOURCE_GROUP already exists but was not created by this fork's one-click install (owner: '$(t digit-repo)'). Nothing was changed. Choose a different name in digit-config.yaml."
+            exit 1
+          fi
+          echo "Existing environment created by $repo: $RESOURCE_GROUP" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Summary
         run: cat "$RUNNER_TEMP/config-summary.md" >> "$GITHUB_STEP_SUMMARY"
 
@@ -107,13 +134,16 @@ jobs:
       - name: Resource group, Terraform state storage and Key Vault
         run: |
           set -euo pipefail
-          az group create -n "$RESOURCE_GROUP" -l "$LOCATION" --tags environment="$ENVIRONMENT" -o none
+          read -ra tags <<< "$OWNER_TAGS"
+          # Check (previous job) already refused groups this fork does not own.
+          az group show -n "$RESOURCE_GROUP" -o none 2>/dev/null ||
+            az group create -n "$RESOURCE_GROUP" -l "$LOCATION" --tags "${tags[@]}" environment="$ENVIRONMENT" -o none
 
           if ! az storage account show -n "$STORAGE_ACCOUNT_NAME" -g "$RESOURCE_GROUP" -o none 2>/dev/null; then
             echo "Creating Terraform state storage $STORAGE_ACCOUNT_NAME"
             az storage account create -n "$STORAGE_ACCOUNT_NAME" -g "$RESOURCE_GROUP" -l "$LOCATION" \
               --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 \
-              --allow-blob-public-access false --tags environment="$ENVIRONMENT" -o none
+              --allow-blob-public-access false --tags "${tags[@]}" environment="$ENVIRONMENT" -o none
           fi
           key=$(az storage account keys list -n "$STORAGE_ACCOUNT_NAME" -g "$RESOURCE_GROUP" --query '[0].value' -o tsv)
           echo "::add-mask::$key"
@@ -121,14 +151,26 @@ jobs:
             --account-key "$key" --public-access off -o none
 
           # The team's own Key Vault + key that locks digit-secrets.yaml.
+          # A soft-deleted vault of the same name is only ever this fork's own earlier install
+          # (the name hashes subscription + fork + name). Bring it back only when the fork still
+          # has the digit-secrets.yaml it locked; otherwise purge it and start fresh.
           if ! az keyvault show -n "$KEY_VAULT_NAME" -g "$RESOURCE_GROUP" -o none 2>/dev/null; then
-            if [ -n "$(az keyvault list-deleted --query "[?name=='$KEY_VAULT_NAME'].name" -o tsv)" ]; then
-              echo "Recovering deleted Key Vault $KEY_VAULT_NAME (keeps the key, so old secrets still unlock)"
+            old=$(az keyvault show-deleted -n "$KEY_VAULT_NAME" --query properties.tags -o json 2>/dev/null || true)
+            if [ -n "$old" ] && [ "$(printf '%s' "$old" | jq -r '(. // {})["digit-repo"] // ""')" != "${GITHUB_REPOSITORY,,}" ]; then
+              echo "::error::Key Vault name $KEY_VAULT_NAME is held by a deleted vault this fork did not create. Choose a different name in digit-config.yaml."; exit 1
+            fi
+            if [ -n "$old" ] && [ -f digit-secrets.yaml ]; then
+              echo "Recovering this fork's deleted Key Vault $KEY_VAULT_NAME (keeps the key, so digit-secrets.yaml still unlocks)"
               az keyvault recover -n "$KEY_VAULT_NAME" -o none
             else
+              if [ -n "$old" ]; then
+                echo "Purging this fork's old deleted Key Vault $KEY_VAULT_NAME (no digit-secrets.yaml uses it)"
+                az keyvault purge -n "$KEY_VAULT_NAME" -o none
+                for _ in $(seq 1 60); do az keyvault show-deleted -n "$KEY_VAULT_NAME" -o none 2>/dev/null || break; sleep 10; done
+              fi
               echo "Creating Key Vault $KEY_VAULT_NAME"
               az keyvault create -n "$KEY_VAULT_NAME" -g "$RESOURCE_GROUP" -l "$LOCATION" \
-                --enable-rbac-authorization false --tags environment="$ENVIRONMENT" -o none
+                --enable-rbac-authorization false --tags "${tags[@]}" environment="$ENVIRONMENT" -o none
             fi
           fi
           # Access policy for this service principal (object id from its own token: no Graph rights needed).
@@ -162,8 +204,8 @@ jobs:
           echo "Committed digit-secrets.yaml (encrypted with Key Vault $KEY_VAULT_NAME)" | tee -a "$GITHUB_STEP_SUMMARY"
 
   Infra:
-    if: ${{ inputs.action == 'install' }}
-    needs: Prepare
+    if: ${{ !failure() && !cancelled() && (inputs.action == 'install' || inputs.action == 'infra') }}
+    needs: [Check, Prepare]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -190,7 +232,30 @@ jobs:
       - name: Terraform plan
         run: terraform plan -input=false -no-color -out=tfplan
         working-directory: ${{ env.TF_DIR }}
-      - name: Terraform apply (AKS, PostgreSQL, storage - takes 15-25 minutes)
+      # Never lose data by accident: deleting or replacing the cluster, database, storage or
+      # network needs confirm = replace. Node pools may be replaced (e.g. a new VM size).
+      - name: Check the plan is safe
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          risky=$(terraform show -json tfplan | jq -r '.resource_changes[]?
+            | select(.change.actions | index("delete"))
+            | select(.type | test("^azurerm_(kubernetes_cluster|postgresql_flexible_server(_database)?|storage_account|storage_container|virtual_network|subnet|key_vault)$"))
+            | .address')
+          {
+            echo "### Infrastructure plan"
+            terraform show -json tfplan | jq -r '[.resource_changes[]? | .change.actions | join("+")] | group_by(.) | map("- \(.[0]): \(length)") | .[]'
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ -z "$risky" ] && exit 0
+          while read -r r; do echo "  will be DELETED or REPLACED: $r"; done <<< "$risky"
+          if [ "$CONFIRM" != replace ]; then
+            echo "::error::This change would delete or replace: $(echo "$risky" | tr '\n' ' ')- data on them can be lost. Nothing was changed. If you really want this, run again with confirm = replace."
+            exit 1
+          fi
+          echo "::warning::confirm = replace given - applying a plan that deletes/replaces: $(echo "$risky" | tr '\n' ' ')"
+        working-directory: ${{ env.TF_DIR }}
+      - name: Terraform apply (AKS, PostgreSQL, storage - first time takes 15-25 minutes)
         run: terraform apply -input=false -no-color -auto-approve tfplan
         working-directory: ${{ env.TF_DIR }}
       - name: Check the cluster

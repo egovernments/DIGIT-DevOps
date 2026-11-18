@@ -28,10 +28,11 @@ runs:
         [[ $location =~ ^[a-z0-9]+$ ]] || err "location '$location' is not an Azure region like centralindia."
         [ -n "${ARM_SUBSCRIPTION_ID:-}" ] || { echo "::error::Run azure-login first"; exit 1; }
 
-        # Globally-unique Azure names: <name without '-'> + type + 6-char hash(subscription/name).
-        # Same inputs always give the same names, so every re-run finds the same resources.
+        # Globally-unique Azure names: <name without '-'> + type + 6-char hash(subscription/fork/name).
+        # The same fork + name always gives the same names (re-runs find the same resources);
+        # a different fork or name never does.
         base=$(printf '%s' "${name//-/}" | cut -c1-14)
-        h=$(printf '%s/%s' "$ARM_SUBSCRIPTION_ID" "$name" | sha256sum | cut -c1-6)
+        h=$(printf '%s/%s/%s' "$ARM_SUBSCRIPTION_ID" "${GITHUB_REPOSITORY,,}" "$name" | sha256sum | cut -c1-6)
         rg="${name}-rg"
         {
           echo "ENVIRONMENT=$name"
@@ -43,6 +44,8 @@ runs:
           echo "DOMAIN_NAME=$domain"
           echo "DIGIT_CONFIG=$GITHUB_WORKSPACE/$f"
           echo "DIGIT_SECRETS=$GITHUB_WORKSPACE/digit-secrets.yaml"
+          # Ownership tags on every Azure resource this install creates
+          echo "OWNER_TAGS=managed-by=digit-one-click digit-repo=${GITHUB_REPOSITORY,,} digit-name=$name"
           # optional scalar Terraform overrides -> TF_VAR_<name>
           yq -r '(.terraform // {}) | to_entries | .[] | select(.value | tag != "!!map" and tag != "!!seq") | "TF_VAR_" + .key + "=" + (.value | tostring)' "$f"
         } >> "$GITHUB_ENV"

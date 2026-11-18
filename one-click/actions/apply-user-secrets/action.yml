@@ -1,0 +1,21 @@
+name: Apply DIGIT_SECRETS
+description: >
+  Merge the team's own credentials (optional GitHub secret DIGIT_SECRETS) into
+  <env>-secrets.yaml, re-encrypted with the team's Key Vault key (and fill in secrets added
+  to the template since). Commit the file afterwards with commit-to-fork.
+  Needs: azure-login, load-config, setup-sops.
+inputs:
+  user-secrets:
+    description: secrets.DIGIT_SECRETS (may be empty)
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        DIGIT_USER_SECRETS: ${{ inputs.user-secrets }}
+      run: |
+        set -euo pipefail
+        res=$(bash one-click/scripts/merge-user-secrets.sh "$SECRETS_FILE" "$SECRETS_TEMPLATE")
+        if [ "$res" = "changed=true" ]; then echo "Updated $(basename "$SECRETS_FILE") (DIGIT_SECRETS / new secrets)" | tee -a "$GITHUB_STEP_SUMMARY"; fi

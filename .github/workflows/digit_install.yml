@@ -1,43 +1,39 @@
 name: DIGIT one-click (Azure)
-# Fork this repository, then follow ONE-CLICK-AZURE.md. A team only ever changes ONE file,
-# digit-config.yaml, and adds ONE GitHub secret, AZURE_CREDENTIALS. Everything else is
-# created and named by this workflow:
+# Fork this repository, then follow one-click/README.md. A team changes ONE file,
+# one-click/input.yaml (environment, domain, email + optional settings), and adds ONE GitHub
+# secret, AZURE_CREDENTIALS. Everything else is created by this workflow. The helmfiles live
+# in egovernments/helm-charts (helmfile/digit3-one-click), pinned by helmfiles_ref, and read
+# only one-click/<environment>.yaml (filled from input.yaml + Terraform on every deploy) and
+# one-click/<environment>-secrets.yaml.
 #
 #   install  First time: a NEW environment. Refuses to touch Azure resources this fork did
 #            not create (ownership tags managed-by / digit-repo / digit-name).
 #            1. Azure resource group, Terraform state storage and the team's own Key Vault
-#            2. digit-secrets.yaml: fresh random passwords, generated and locked (SOPS-encrypted
-#               with that Key Vault) BY THIS WORKFLOW and committed to the fork - first install only.
-#               The team's own credentials come from the optional GitHub secret DIGIT_SECRETS and
-#               are merged in + re-locked on every install/deploy (nobody encrypts by hand).
-#            3. Terraform: AKS + PostgreSQL Flexible Server + filestore storage
-#            4. Helmfile: DIGIT backbone, core 3.0 and monitoring from packaged Helm charts,
-#               secrets decrypted by helm-secrets
-#   infra    step 3 only - update Azure infrastructure (terraform: in digit-config.yaml).
-#            Stops if the plan would delete/replace the cluster, database, storage or network
-#            unless confirm = replace.
-#   deploy   step 4 only - update the DIGIT apps (everything else in digit-config.yaml)
-#
-# Two ways to deploy DIGIT (argocd.enabled in digit-config.yaml, fixed at the first install):
-#   helmfile (default)  the workflow runs `helmfile apply` (step 4)
-#   argocd              the workflow installs Argo CD (helmfiles/argocd.yaml.gotmpl) and one root
-#                       Application "digit"; Argo CD then deploys EVERY release from this fork via
-#                       the digit-helmfile plugin (scripts/argocd-plugin.sh) - same helmfiles,
-#                       same values - and keeps it in sync with every commit.
+#            2. <environment>.yaml copied from digit-template.yaml; <environment>-secrets.yaml:
+#               fresh random passwords + DIGIT_SECRETS, locked (SOPS) with that Key Vault BY
+#               THIS WORKFLOW; both committed to the fork
+#            3. Terraform: AKS + PostgreSQL Flexible Server + storage
+#            4. Deploy DIGIT backbone, core 3.0 and monitoring from packaged Helm charts
+#   infra    step 3 only. Stops if the plan would delete/replace the cluster, database,
+#            storage, network or Key Vault, unless confirm = replace.
+#   deploy   step 4 only (also applies a changed DIGIT_SECRETS)
 #   destroy  Terraform destroy. The resource group (state + Key Vault) is kept.
 #
+# Two ways to deploy (argocd_enabled in input.yaml, fixed at the first install):
+#   helmfile  the workflow runs `helmfile apply`
+#   argocd    the workflow installs Argo CD and one root Application "digit"; Argo CD deploys
+#             EVERY release via the digit-helmfile plugin (input.yaml + env files from this
+#             fork, helmfiles from helm-charts at the same pinned ref).
+#
 # After the first install, every commit to the fork's default branch runs by itself and
-# applies only what changed since the commit that is running in Azure (recorded in the
-# resource-group tags digit-infra-sha / digit-deploy-sha, see .github/scripts/one-click-changes.sh):
-#   Terraform code or terraform:/location in digit-config.yaml  -> Infra job
-#   helmfiles/values/defaults, digit-secrets.yaml, rest of config -> Deploy job
-#   both                                                         -> Infra, then Deploy
+# applies only what changed since the commit running in Azure (resource-group tags
+# digit-infra-sha / digit-deploy-sha, one-click/scripts/one-click-changes.sh):
+#   Terraform code, or location / terraform_* in input.yaml        -> infra
+#   the rest of input.yaml, <environment>.yaml, the secrets file   -> deploy
 on:
   push:
     paths:
-      - digit-config.yaml
-      - digit-secrets.yaml
-      - deploy-as-code/helm/**
+      - one-click/*.yaml
       - infra-as-code/terraform/**
   workflow_dispatch:
     inputs:
@@ -75,21 +71,50 @@ env:
   TF_DIR: infra-as-code/terraform/azure
 
 jobs:
-  Check:
-    # Commits run only in forks, on the default branch; manual runs anywhere (refused upstream).
+  # Which environments to run: the one asked for, or (on a commit) every environment file.
+  Environments:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.repository != 'egovernments/DIGIT-DevOps' && github.ref_name == github.event.repository.default_branch) }}
     runs-on: ubuntu-latest
     outputs:
-      prepare: ${{ steps.decide.outputs.prepare }}
-      infra: ${{ steps.decide.outputs.infra }}
-      deploy: ${{ steps.decide.outputs.deploy }}
-      destroy: ${{ steps.decide.outputs.destroy }}
+      list: ${{ steps.list.outputs.list }}
     steps:
       - name: Use your own fork
         if: ${{ github.repository == 'egovernments/DIGIT-DevOps' }}
         run: |
-          echo "::error::Do not run this in egovernments/DIGIT-DevOps. Fork the repository and run it in your fork (ONE-CLICK-AZURE.md, step 1)."
+          echo "::error::Do not run this in egovernments/DIGIT-DevOps. Fork the repository and run it in your fork (one-click/README.md, step 1)."
           exit 1
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      # The environment is the one named in one-click/input.yaml. On a commit, nothing runs
+      # until input.yaml is filled in.
+      - name: Read the environment from input.yaml
+        id: list
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          env=$(yq -r '.environment // ""' one-click/input.yaml 2>/dev/null || true)
+          if [ "$EVENT" = push ] && [[ ! $env =~ ^[a-z][a-z0-9-]{1,18}[a-z0-9]$ ]]; then
+            echo "one-click/input.yaml is not filled in yet - nothing to do" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo 'list=[]' >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          list=$(jq -cn --arg e "${env:-input.yaml}" '[$e]')
+          echo "Environment: $list" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+
+  DIGIT:
+    needs: Environments
+    if: ${{ needs.Environments.outputs.list != '[]' }}
+    name: ${{ matrix.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    permissions:
+      contents: write   # commit the environment file (first install) and the secrets file
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.Environments.outputs.list) }}
+    steps:
       - name: Confirm destroy
         if: ${{ inputs.action == 'destroy' && inputs.confirm != 'delete' }}
         run: |
@@ -97,17 +122,18 @@ jobs:
           exit 1
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.ref_name }}
       - name: Azure login
-        uses: ./.github/actions/azure-login
+        uses: ./one-click/actions/azure-login
         with:
           credentials: ${{ secrets.AZURE_CREDENTIALS }}
-      - name: Check digit-config.yaml
-        uses: ./.github/actions/load-config
-      # install = a NEW environment, or a re-run of this fork's own install.
-      # infra / deploy / destroy = only an environment this fork installed.
+      - name: Check input.yaml
+        uses: ./one-click/actions/load-config
+
       # install = a NEW environment, or a re-run of this fork's own install.
       # Everything else = only an environment this fork installed and has not destroyed.
-      # On a commit, only the jobs whose inputs changed since the running commit are run.
+      # On a commit, only the parts whose inputs changed since the running commit are run.
       - name: Decide what to run
         id: decide
         env:
@@ -117,18 +143,19 @@ jobs:
           set -euo pipefail
           out() { printf 'prepare=%s\ninfra=%s\ndeploy=%s\ndestroy=%s\n' "$1" "$2" "$3" "$4" >> "$GITHUB_OUTPUT"; }
           note() { echo "$1" | tee -a "$GITHUB_STEP_SUMMARY"; }
+          cat "$RUNNER_TEMP/config-summary.md" >> "$GITHUB_STEP_SUMMARY"
           repo="${GITHUB_REPOSITORY,,}"
           tags=$(az group show -n "$RESOURCE_GROUP" --query tags -o json 2>/dev/null || true)
           t() { printf '%s' "$tags" | jq -r --arg k "$1" '(. // {})[$k] // ""'; }
 
           if [ -n "$tags" ] && { [ "$(t managed-by)" != digit-one-click ] || [ "$(t digit-repo)" != "$repo" ] || [ "$(t digit-name)" != "$ENVIRONMENT" ]; }; then
-            echo "::error file=digit-config.yaml::The resource group $RESOURCE_GROUP already exists but was not created by this fork's one-click install (owner: '$(t digit-repo)'). Nothing was changed. Choose a different name in digit-config.yaml."
+            echo "::error file=$INPUT_FILE::The resource group $RESOURCE_GROUP already exists but was not created by this fork's one-click install (owner: '$(t digit-repo)'). Nothing was changed. Use a different environment name in input.yaml."
             exit 1
           fi
           state=$(t digit-state)   # installed | destroyed | "" (never finished an install)
           mode=$(t digit-deploy-mode)
           if [ "$state" = installed ] && [ -n "$mode" ] && [ "$mode" != "$DEPLOY_MODE" ] && [ "$ACTION" != destroy ]; then
-            echo "::error file=digit-config.yaml::This DIGIT was deployed with $mode, but digit-config.yaml now says $DEPLOY_MODE (argocd.enabled). It cannot be switched on a running DIGIT. Change argocd.enabled back, or run destroy and then install again."
+            echo "::error file=$INPUT_FILE::This DIGIT was deployed with $mode, but argocd_enabled in input.yaml now says $DEPLOY_MODE. It cannot be switched on a running DIGIT. Change it back, or run destroy and then install again."
             exit 1
           fi
 
@@ -137,7 +164,7 @@ jobs:
               note "Not installed (or destroyed) - this commit changes nothing in Azure. Run the workflow with action = install."
               out false false false false; exit 0
             fi
-            res=$(bash .github/scripts/one-click-changes.sh "$(t digit-infra-sha)" "$(t digit-deploy-sha)")
+            res=$(bash one-click/scripts/one-click-changes.sh "$ENVIRONMENT" "$(t digit-infra-sha)" "$(t digit-deploy-sha)")
             infra=$(sed -n 's/^infra=//p' <<< "$res"); deploy=$(sed -n 's/^deploy=//p' <<< "$res")
             note "This commit: infra=$infra, deploy=$deploy"
             out false "$infra" "$deploy" false; exit 0
@@ -154,30 +181,18 @@ jobs:
               fi
               out false "$([ "$ACTION" = infra ] && echo true || echo false)" "$([ "$ACTION" = deploy ] && echo true || echo false)" "$([ "$ACTION" = destroy ] && echo true || echo false)" ;;
           esac
-      - name: Summary
-        run: cat "$RUNNER_TEMP/config-summary.md" >> "$GITHUB_STEP_SUMMARY"
 
-  # Creates the Azure pieces that must exist before Terraform, then the team's secrets.
-  Prepare:
-    if: ${{ needs.Check.outputs.prepare == 'true' }}
-    needs: Check
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write   # commit the generated, encrypted digit-secrets.yaml to the fork
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Setup sops
+        if: contains(format('{0}{1}{2}{3}', steps.decide.outputs.prepare, steps.decide.outputs.infra, steps.decide.outputs.deploy, steps.decide.outputs.destroy), 'true')
+        uses: ./one-click/actions/setup-sops
         with:
-          ref: ${{ github.ref_name }}
-      - name: Azure login
-        uses: ./.github/actions/azure-login
-        with:
-          credentials: ${{ secrets.AZURE_CREDENTIALS }}
-      - name: Load digit-config.yaml
-        uses: ./.github/actions/load-config
+          version: ${{ env.SOPS_VERSION }}
+          required: ${{ steps.decide.outputs.prepare == 'true' && 'false' || 'true' }}
 
-      # The PostgreSQL server name (<name>-server) must be unique in all of Azure.
+      # ---------------- Prepare (install) ----------------
+      # The database server name (<env>-server) must be unique in all of Azure.
       - name: Check the name is free in Azure
+        if: steps.decide.outputs.prepare == 'true'
         run: |
           set -euo pipefail
           srv="${ENVIRONMENT}-server"
@@ -187,14 +202,15 @@ jobs:
           free=$(az rest --method post \
             --url "https://management.azure.com/subscriptions/${ARM_SUBSCRIPTION_ID}/providers/Microsoft.DBforPostgreSQL/checkNameAvailability?api-version=2022-12-01" \
             --body "{\"name\": \"$srv\", \"type\": \"Microsoft.DBforPostgreSQL/flexibleServers\"}" --query nameAvailable -o tsv)
-          [ "$free" = "true" ] || { echo "::error file=digit-config.yaml::The name '$ENVIRONMENT' is already used by someone else in Azure. Choose another name in digit-config.yaml."; exit 1; }
+          [ "$free" = "true" ] || { echo "::error file=$INPUT_FILE::The name '$ENVIRONMENT' is already used by someone else in Azure. Use another environment name in input.yaml."; exit 1; }
 
       # Idempotent: every re-run finds the same, already-created resources.
       - name: Resource group, Terraform state storage and Key Vault
+        if: steps.decide.outputs.prepare == 'true'
         run: |
           set -euo pipefail
           read -ra tags <<< "$OWNER_TAGS"
-          # Check (previous job) already refused groups this fork does not own.
+          # The decide step already refused groups this fork does not own.
           az group show -n "$RESOURCE_GROUP" -o none 2>/dev/null ||
             az group create -n "$RESOURCE_GROUP" -l "$LOCATION" --tags "${tags[@]}" environment="$ENVIRONMENT" -o none
 
@@ -209,21 +225,21 @@ jobs:
           az storage container create -n "${ENVIRONMENT}-container" --account-name "$STORAGE_ACCOUNT_NAME" \
             --account-key "$key" --public-access off -o none
 
-          # The team's own Key Vault + key that locks digit-secrets.yaml.
-          # A soft-deleted vault of the same name is only ever this fork's own earlier install
-          # (the name hashes subscription + fork + name). Bring it back only when the fork still
-          # has the digit-secrets.yaml it locked; otherwise purge it and start fresh.
+          # The team's own Key Vault + key that locks <env>-secrets.yaml. A soft-deleted vault of
+          # the same name is only ever this fork's own earlier install (the name hashes
+          # subscription + fork + env): bring it back only when the fork still has the secrets
+          # file it locked; otherwise purge it and start fresh.
           if ! az keyvault show -n "$KEY_VAULT_NAME" -g "$RESOURCE_GROUP" -o none 2>/dev/null; then
             old=$(az keyvault show-deleted -n "$KEY_VAULT_NAME" --query properties.tags -o json 2>/dev/null || true)
             if [ -n "$old" ] && [ "$(printf '%s' "$old" | jq -r '(. // {})["digit-repo"] // ""')" != "${GITHUB_REPOSITORY,,}" ]; then
-              echo "::error::Key Vault name $KEY_VAULT_NAME is held by a deleted vault this fork did not create. Choose a different name in digit-config.yaml."; exit 1
+              echo "::error::Key Vault name $KEY_VAULT_NAME is held by a deleted vault this fork did not create. Use a different environment name."; exit 1
             fi
-            if [ -n "$old" ] && [ -f digit-secrets.yaml ]; then
-              echo "Recovering this fork's deleted Key Vault $KEY_VAULT_NAME (keeps the key, so digit-secrets.yaml still unlocks)"
+            if [ -n "$old" ] && [ -f "$SECRETS_FILE" ]; then
+              echo "Recovering this fork's deleted Key Vault $KEY_VAULT_NAME (keeps the key, so the secrets file still unlocks)"
               az keyvault recover -n "$KEY_VAULT_NAME" -o none
             else
               if [ -n "$old" ]; then
-                echo "Purging this fork's old deleted Key Vault $KEY_VAULT_NAME (no digit-secrets.yaml uses it)"
+                echo "Purging this fork's old deleted Key Vault $KEY_VAULT_NAME (no secrets file uses it)"
                 az keyvault purge -n "$KEY_VAULT_NAME" -o none
                 for _ in $(seq 1 60); do az keyvault show-deleted -n "$KEY_VAULT_NAME" -o none 2>/dev/null || break; sleep 10; done
               fi
@@ -241,58 +257,60 @@ jobs:
             az keyvault key create --vault-name "$KEY_VAULT_NAME" -n sops --kty RSA --size 4096 -o none
           echo "SOPS_KEY_ID=$(az keyvault key show --vault-name "$KEY_VAULT_NAME" -n sops --query key.kid -o tsv)" >> "$GITHUB_ENV"
 
-      - name: Setup sops
-        uses: ./.github/actions/setup-sops
-        with:
-          version: ${{ env.SOPS_VERSION }}
-          required: "false"
+      # First install only: one-click/<environment>.yaml from digit-template.yaml. Its
+      # placeholders stay; they are filled from input.yaml + Terraform on every deploy.
+      - name: Create the environment file (first install only)
+        if: steps.decide.outputs.prepare == 'true'
+        run: |
+          if [ -f "$ENV_FILE" ]; then echo "$ENV_FILE already exists - kept"; exit 0; fi
+          cp "$ENV_TEMPLATE" "$ENV_FILE" && echo "Created $ENV_FILE from $ENV_TEMPLATE"
 
-      # First install only: generate and lock digit-secrets.yaml. Never overwritten.
-      - name: Create digit-secrets.yaml (first install only)
+      # First install only: generate and lock <env>-secrets.yaml. Never overwritten.
+      - name: Create the secrets file (first install only)
+        if: steps.decide.outputs.prepare == 'true'
         run: |
           set -euo pipefail
-          if [ -f digit-secrets.yaml ]; then echo "digit-secrets.yaml already exists - kept"; exit 0; fi
-          bash deploy-as-code/helm/scripts/generate-secrets.sh deploy-as-code/helm/secrets.template.yaml digit-secrets.yaml "$SOPS_KEY_ID"
-      # The team's own credentials (optional GitHub secret DIGIT_SECRETS) are locked in too,
-      # so they are part of the very first deploy. Commits digit-secrets.yaml if it changed.
-      - name: Add your own credentials (DIGIT_SECRETS) and commit
-        uses: ./.github/actions/apply-user-secrets
+          if [ -f "$SECRETS_FILE" ]; then echo "$SECRETS_FILE already exists - kept"; exit 0; fi
+          bash one-click/scripts/generate-secrets.sh "$SECRETS_TEMPLATE" "$SECRETS_FILE" "$SOPS_KEY_ID"
+
+      # The team's own credentials (optional GitHub secret DIGIT_SECRETS) are locked in too
+      # (also on every deploy), so they are part of the very first deploy.
+      - name: Add your own credentials (DIGIT_SECRETS)
+        if: steps.decide.outputs.prepare == 'true' || steps.decide.outputs.deploy == 'true'
+        uses: ./one-click/actions/apply-user-secrets
         with:
           user-secrets: ${{ secrets.DIGIT_SECRETS }}
+      - name: Commit the environment files
+        if: steps.decide.outputs.prepare == 'true' || steps.decide.outputs.deploy == 'true'
+        uses: ./one-click/actions/commit-to-fork
+        with:
+          paths: ${{ env.ENV_FILE }} ${{ env.SECRETS_FILE }}
+          message: "chore(one-click): environment files for ${{ matrix.environment }}"
           branch: ${{ github.ref_name }}
-
-  Infra:
-    if: ${{ !failure() && !cancelled() && needs.Check.outputs.infra == 'true' }}
-    needs: [Check, Prepare]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ github.ref_name }}   # includes digit-secrets.yaml committed by Prepare
-      - name: Azure login
-        uses: ./.github/actions/azure-login
-        with:
-          credentials: ${{ secrets.AZURE_CREDENTIALS }}
-      - name: Load digit-config.yaml
-        uses: ./.github/actions/load-config
-      - name: Unlock digit-secrets.yaml
-        uses: ./.github/actions/setup-sops
+      - name: Unlock the secrets file
+        if: steps.decide.outputs.prepare == 'true'
+        uses: ./one-click/actions/setup-sops
         with:
           version: ${{ env.SOPS_VERSION }}
+
+      # ---------------- Infra (install, infra) ----------------
       - name: Setup Terraform
-        uses: ./.github/actions/setup-terraform-azure
+        if: steps.decide.outputs.infra == 'true' || steps.decide.outputs.deploy == 'true' || steps.decide.outputs.destroy == 'true'
+        uses: ./one-click/actions/setup-terraform-azure
         with:
           version: ${{ env.TF_VERSION }}
       - name: Terraform init
+        if: steps.decide.outputs.infra == 'true'
         run: terraform init -input=false -no-color
         working-directory: ${{ env.TF_DIR }}
       - name: Terraform plan
+        if: steps.decide.outputs.infra == 'true'
         run: terraform plan -input=false -no-color -out=tfplan
         working-directory: ${{ env.TF_DIR }}
       # Never lose data by accident: deleting or replacing the cluster, database, storage or
       # network needs confirm = replace. Node pools may be replaced (e.g. a new VM size).
       - name: Check the plan is safe
+        if: steps.decide.outputs.infra == 'true'
         env:
           CONFIRM: ${{ inputs.confirm }}
         run: |
@@ -308,79 +326,67 @@ jobs:
           [ -z "$risky" ] && exit 0
           while read -r r; do echo "  will be DELETED or REPLACED: $r"; done <<< "$risky"
           if [ "$CONFIRM" != replace ]; then
-            echo "::error::This change would delete or replace: $(echo "$risky" | tr '\n' ' ')- data on them can be lost. Nothing was changed. If you really want this, run again with confirm = replace."
+            echo "::error::This change would delete or replace: $(echo "$risky" | tr '\n' ' ')- data on them can be lost. Nothing was changed. If you really want this, run infra again with confirm = replace."
             exit 1
           fi
           echo "::warning::confirm = replace given - applying a plan that deletes/replaces: $(echo "$risky" | tr '\n' ' ')"
         working-directory: ${{ env.TF_DIR }}
       - name: Terraform apply (AKS, PostgreSQL, storage - first time takes 15-25 minutes)
+        if: steps.decide.outputs.infra == 'true'
         run: terraform apply -input=false -no-color -auto-approve tfplan
         working-directory: ${{ env.TF_DIR }}
-      - name: Check the cluster
+      - name: Remember the commit now running in Azure (infra)
+        if: steps.decide.outputs.infra == 'true'
         run: |
           az aks get-credentials -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --overwrite-existing
           kubectl get nodes -o wide
-      - name: Remember the commit now running in Azure (infra)
-        run: |
           az tag update --resource-id "$(az group show -n "$RESOURCE_GROUP" --query id -o tsv)" --operation merge \
             --tags digit-state=installed digit-infra-sha="$(git rev-parse HEAD)" -o none
 
-  Deploy:
-    if: ${{ !failure() && !cancelled() && needs.Check.outputs.deploy == 'true' }}
-    needs: [Check, Prepare, Infra]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write   # commit digit-secrets.yaml when DIGIT_SECRETS changed
-    steps:
-      - name: Checkout code
+      # ---------------- Deploy (install, deploy) ----------------
+      # The helmfiles (and the Vault / Argo CD scripts) from helm-charts at the pinned ref
+      - name: Get the helmfiles (${{ env.HELMFILES_REPO }}@${{ env.HELMFILES_REF }})
+        if: steps.decide.outputs.deploy == 'true'
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.ref_name }}
-      - name: Azure login
-        uses: ./.github/actions/azure-login
-        with:
-          credentials: ${{ secrets.AZURE_CREDENTIALS }}
-      - name: Load digit-config.yaml
-        uses: ./.github/actions/load-config
-      - name: Unlock digit-secrets.yaml
-        uses: ./.github/actions/setup-sops
-        with:
-          version: ${{ env.SOPS_VERSION }}
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-terraform-azure
-        with:
-          version: ${{ env.TF_VERSION }}
-      # Picks up DIGIT_SECRETS changes (editing a GitHub secret does not create a commit,
-      # so after changing it run the workflow with action = deploy).
-      - name: Add your own credentials (DIGIT_SECRETS)
-        uses: ./.github/actions/apply-user-secrets
-        with:
-          user-secrets: ${{ secrets.DIGIT_SECRETS }}
-          branch: ${{ github.ref_name }}
-      - name: Connect to the cluster
+          repository: ${{ env.HELMFILES_REPO }}
+          ref: ${{ env.HELMFILES_REF }}
+          path: .helmfiles
+          sparse-checkout: helmfile/digit3-one-click
+          persist-credentials: false
+      - name: Check the helmfiles
+        if: steps.decide.outputs.deploy == 'true'
         run: |
+          [ -f "$HELMFILE_DIR/digit-helmfile.yaml.gotmpl" ] || {
+            echo "::error file=$INPUT_FILE::No helmfile/digit3-one-click in $HELMFILES_REPO@$HELMFILES_REF. Check helmfiles_repo / helmfiles_ref in input.yaml."; exit 1; }
+          git -C .helmfiles log -1 --format="Helmfiles: $HELMFILES_REPO@%h (%s)" | tee -a "$GITHUB_STEP_SUMMARY"
+      # <environment>.yaml keeps its placeholders in git; fill them for this deploy:
+      # <domain> <email> <env> from input.yaml, <db_host> <db_name> from Terraform.
+      - name: Fill in the environment file
+        if: steps.decide.outputs.deploy == 'true'
+        run: |
+          set -euo pipefail
+          [ -f "$ENV_FILE" ] || { echo "::error::$ENV_FILE not found. Run the workflow with action = install first."; exit 1; }
+          terraform -chdir="$TF_DIR" init -input=false -no-color >/dev/null
+          out=$(terraform -chdir="$TF_DIR" output -json)
+          DB_HOST=$(jq -r '.azurerm_postgresql_flexible_server.value // ""' <<< "$out")
+          DB_NAME=$(jq -r '.postgresql_flexible_server_database_name.value // ""' <<< "$out")
+          [ -n "$DB_HOST" ] && [ -n "$DB_NAME" ] || { echo "::error::No database in Terraform state. Run the workflow with action = install."; exit 1; }
+          mkdir -p "$RUNNER_TEMP/env"
+          DB_HOST="$DB_HOST" DB_NAME="$DB_NAME" bash "$HELMFILE_DIR/scripts/render-env.sh" \
+            "$ENV_FILE" "$INPUT_FILE" "$RUNNER_TEMP/env/$ENVIRONMENT.yaml"
+          { echo "DB_HOST=$DB_HOST"; echo "DB_NAME=$DB_NAME"; echo "DIGIT_ENV_FILE=$RUNNER_TEMP/env/$ENVIRONMENT.yaml"; } >> "$GITHUB_ENV"
+      - name: Connect to the cluster
+        if: steps.decide.outputs.deploy == 'true'
+        run: |
+          set -euo pipefail
           az aks get-credentials -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --overwrite-existing \
             || { echo "::error::Cluster $ENVIRONMENT not found. Run the workflow with action = install first."; exit 1; }
           kubectl get nodes
 
-      # Infra values go straight from Terraform state to helmfile - never into committed files.
-      - name: Read Terraform outputs
-        run: |
-          set -euo pipefail
-          terraform init -input=false -no-color >/dev/null
-          out="$RUNNER_TEMP/tf-outputs.yaml"
-          terraform output -json | CLUSTER="$ENVIRONMENT" yq -P '{"infra": {
-              "dbHost": .azurerm_postgresql_flexible_server.value,
-              "dbName": .postgresql_flexible_server_database_name.value,
-              "clusterName": strenv(CLUSTER)}}' > "$out"
-          bad=$(yq -r '.infra | to_entries | .[] | select(.value == null or .value == "") | .key' "$out")
-          [ -z "$bad" ] || { echo "::error::Missing Terraform outputs: $bad. Run the workflow with action = install."; exit 1; }
-          cat "$out"
-          echo "TF_OUTPUTS_FILE=$out" >> "$GITHUB_ENV"
-        working-directory: ${{ env.TF_DIR }}
-
       # Helm pinned to v3: the runner image may ship Helm 4, whose plugin install differs.
       - name: Install Helm, Helmfile, helm-diff, helm-secrets
+        if: steps.decide.outputs.deploy == 'true'
         run: |
           set -euo pipefail
           curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" | tar -xz -C "$RUNNER_TEMP" linux-amd64/helm
@@ -391,18 +397,18 @@ jobs:
           helm plugin install https://github.com/jkroepke/helm-secrets --version "v${HELM_SECRETS_VERSION}"
           helm version --short; helmfile --version; helm plugin list
 
-      # helmfiles/backbone -> core -> monitoring, all from packaged charts.
-      # Values: defaults.yaml < digit-config.yaml < Terraform outputs < digit-secrets.yaml (helm-secrets).
+      # backbone -> core -> monitoring from packaged charts. The helmfiles read only
+      # DIGIT_ENV_FILE (<environment>.yaml, filled) and DIGIT_SECRETS_FILE (helm-secrets).
       - name: Deploy DIGIT with helmfile (backbone, core, monitoring - takes 20-40 minutes)
-        if: env.DEPLOY_MODE == 'helmfile'
+        if: steps.decide.outputs.deploy == 'true' && env.DEPLOY_MODE == 'helmfile'
         run: helmfile -f digit-helmfile.yaml.gotmpl apply --suppress-secrets --skip-diff-on-install
-        working-directory: deploy-as-code/helm
+        working-directory: ${{ env.HELMFILE_DIR }}
 
       # ---- Argo CD mode: install Argo CD, then Argo CD deploys everything from this fork ----
-      # sops in the Argo CD plugin unlocks digit-secrets.yaml with the cluster's own (kubelet)
+      # sops in the Argo CD plugin unlocks <env>-secrets.yaml with the cluster's own (kubelet)
       # managed identity: allowed to get/decrypt with the Key Vault key, nothing else.
-      - name: Argo CD - allow the cluster to unlock digit-secrets.yaml
-        if: env.DEPLOY_MODE == 'argocd'
+      - name: Argo CD - allow the cluster to unlock the secrets file
+        if: steps.decide.outputs.deploy == 'true' && env.DEPLOY_MODE == 'argocd'
         run: |
           set -euo pipefail
           cid=$(az aks show -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --query identityProfile.kubeletidentity.clientId -o tsv)
@@ -411,13 +417,13 @@ jobs:
           az keyvault set-policy -n "$KEY_VAULT_NAME" -g "$RESOURCE_GROUP" --object-id "$oid" --key-permissions get decrypt -o none
           echo "KUBELET_CLIENT_ID=$cid" >> "$GITHUB_ENV"
 
-      # Admin login of the Argo CD UI = secrets.argocd.adminPassword. The bcrypt hash is kept
+      # Admin login of the Argo CD UI = cluster-configs.secrets.argocd-admin.password. The bcrypt hash is kept
       # when the password did not change, so Argo CD is not restarted on every deploy.
       - name: Argo CD - admin password
-        if: env.DEPLOY_MODE == 'argocd'
+        if: steps.decide.outputs.deploy == 'true' && env.DEPLOY_MODE == 'argocd'
         run: |
           set -euo pipefail
-          pw=$(sops -d --extract '["secrets"]["argocd"]["adminPassword"]' "$DIGIT_SECRETS"); echo "::add-mask::$pw"
+          pw=$(sops -d --extract '["cluster-configs"]["secrets"]["argocd-admin"]["password"]' "$SECRETS_FILE"); echo "::add-mask::$pw"
           old=$(kubectl -n "$NS_ARGOCD" get secret argocd-secret -o jsonpath='{.data.admin\.password}' 2>/dev/null | base64 -d || true)
           python3 -m venv "$RUNNER_TEMP/venv" && "$RUNNER_TEMP/venv/bin/pip" install -q --disable-pip-version-check bcrypt
           hash=$(PW="$pw" OLD="$old" "$RUNNER_TEMP/venv/bin/python" -c '
@@ -430,19 +436,18 @@ jobs:
           echo "ARGOCD_ADMIN_HASH=$hash" >> "$GITHUB_ENV"
 
       - name: Argo CD - install or upgrade Argo CD
-        if: env.DEPLOY_MODE == 'argocd'
+        if: steps.decide.outputs.deploy == 'true' && env.DEPLOY_MODE == 'argocd'
         run: helmfile -f helmfiles/argocd.yaml.gotmpl apply --suppress-secrets --skip-diff-on-install
-        working-directory: deploy-as-code/helm
+        working-directory: ${{ env.HELMFILE_DIR }}
 
       # The only object the workflow gives Argo CD. Argo CD renders it with the plugin into one
       # Application per helmfile release (ordered by sync waves) and keeps all of them synced.
       - name: Argo CD - hand DIGIT over to Argo CD
-        if: env.DEPLOY_MODE == 'argocd'
+        if: steps.decide.outputs.deploy == 'true' && env.DEPLOY_MODE == 'argocd'
         env:
           BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          tf=$(base64 -w0 < "$TF_OUTPUTS_FILE")
           kubectl apply -f - <<EOF
           apiVersion: argoproj.io/v1alpha1
           kind: Application
@@ -454,12 +459,13 @@ jobs:
             source:
               repoURL: https://github.com/${GITHUB_REPOSITORY}.git
               targetRevision: ${BRANCH}
-              path: deploy-as-code/helm
+              path: one-click
               plugin:
                 name: digit-helmfile
                 env:
                   - {name: MODE, value: apps}
-                  - {name: TF_OUTPUTS, value: "${tf}"}
+                  - {name: DB_HOST, value: "${DB_HOST}"}
+                  - {name: DB_NAME, value: "${DB_NAME}"}
             destination:
               server: https://kubernetes.default.svc
               namespace: ${NS_ARGOCD}
@@ -473,13 +479,14 @@ jobs:
       # Vault starts sealed: unseal it and write the AppRole (idempotent). In Argo CD mode this
       # waits until Argo CD has created Vault.
       - name: Vault check
+        if: steps.decide.outputs.deploy == 'true'
         env:
           VAULT_WAIT_SECONDS: ${{ env.DEPLOY_MODE == 'argocd' && '2400' || '450' }}
         run: bash scripts/vault-bootstrap.sh "$NS_VAULT" "$NS_CORE"
-        working-directory: deploy-as-code/helm
+        working-directory: ${{ env.HELMFILE_DIR }}
 
       - name: Argo CD - wait until every application is synced and healthy
-        if: env.DEPLOY_MODE == 'argocd'
+        if: steps.decide.outputs.deploy == 'true' && env.DEPLOY_MODE == 'argocd'
         run: |
           set -euo pipefail
           head=$(git rev-parse HEAD)
@@ -512,26 +519,25 @@ jobs:
           done
           {
             echo "### Argo CD"
-            echo "All $total applications synced and healthy. UI: **https://${DOMAIN_NAME}/argocd** (user \`admin\`, password = \`argocd.adminPassword\`)."
+            echo "All $total applications synced and healthy. UI: **https://${DOMAIN_NAME}/argocd** (user \`admin\`, password = \`cluster-configs.secrets.argocd-admin.password\`)."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remember the commit now running in Azure (apps)
+        if: steps.decide.outputs.deploy == 'true'
         run: |
           az tag update --resource-id "$(az group show -n "$RESOURCE_GROUP" --query id -o tsv)" --operation merge \
             --tags digit-deploy-sha="$(git rev-parse HEAD)" digit-deploy-mode="$DEPLOY_MODE" -o none
 
       - name: Last step - point your domain at DIGIT
-        working-directory: deploy-as-code/helm
+        if: steps.decide.outputs.deploy == 'true'
         run: |
-          bb=$NS_BACKBONE
           ip=""
           for _ in $(seq 1 30); do
-            ip=$(kubectl get svc ingress-nginx-controller -n "$bb" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+            ip=$(kubectl get svc ingress-nginx-controller -n "$NS_BACKBONE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
             [ -n "$ip" ] && break; sleep 10
           done
           echo "Public IP: ${ip:-not ready yet}"
           {
-            cat "$RUNNER_TEMP/config-summary.md"
             echo
             echo "## DIGIT is installed :rocket:"
             echo
@@ -544,50 +550,28 @@ jobs:
             echo "Wait 5 to 30 minutes, then open **https://${DOMAIN_NAME}**."
           } >> "$GITHUB_STEP_SUMMARY"
 
-  Destroy:
-    if: ${{ needs.Check.outputs.destroy == 'true' }}
-    needs: Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ github.ref_name }}
-      - name: Azure login
-        uses: ./.github/actions/azure-login
-        with:
-          credentials: ${{ secrets.AZURE_CREDENTIALS }}
-      - name: Load digit-config.yaml
-        uses: ./.github/actions/load-config
-      - name: Unlock digit-secrets.yaml
-        uses: ./.github/actions/setup-sops
-        with:
-          version: ${{ env.SOPS_VERSION }}
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-terraform-azure
-        with:
-          version: ${{ env.TF_VERSION }}
+      # ---------------- Destroy ----------------
       # Remove the ingress LoadBalancer first so its public IP is released before the network goes.
       - name: Delete the public IP
+        if: steps.decide.outputs.destroy == 'true'
         continue-on-error: true
         run: |
           az aks get-credentials -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --overwrite-existing
           # Argo CD mode: stop Argo CD first, or it would put the service straight back
           kubectl -n "$NS_ARGOCD" scale statefulset argocd-application-controller --replicas=0 2>/dev/null || true
           kubectl delete svc ingress-nginx-controller -n "$NS_BACKBONE" --wait=true --timeout=5m
-      - name: Terraform init
-        run: terraform init -input=false -no-color
-        working-directory: ${{ env.TF_DIR }}
       - name: Terraform destroy (takes 10-20 minutes)
-        run: terraform destroy -input=false -no-color -auto-approve
+        if: steps.decide.outputs.destroy == 'true'
+        run: |
+          terraform init -input=false -no-color
+          terraform destroy -input=false -no-color -auto-approve
         working-directory: ${{ env.TF_DIR }}
       # Commits no longer change anything until the next install.
       - name: Mark the environment destroyed
+        if: steps.decide.outputs.destroy == 'true'
         run: |
           az tag update --resource-id "$(az group show -n "$RESOURCE_GROUP" --query id -o tsv)" --operation merge \
             --tags digit-state=destroyed digit-infra-sha= digit-deploy-sha= -o none
-      - name: Summary
-        run: |
           {
             echo "## DIGIT \`$ENVIRONMENT\` is deleted"
             echo "The resource group \`$RESOURCE_GROUP\` is kept. It holds the Terraform state and your Key Vault,"

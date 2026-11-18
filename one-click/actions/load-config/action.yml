@@ -1,0 +1,83 @@
+name: Load one-click/input.yaml
+description: >
+  Validate one-click/input.yaml (the team's one file, flat key: "value" like the Terraform
+  input.yaml), work out every Azure name from the environment name, and export them.
+  Azure names are derived from environment + fork + subscription, so nobody has to invent
+  globally-unique storage or Key Vault names. Needs ARM_SUBSCRIPTION_ID (azure-login).
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        dir=one-click
+        f="$dir/input.yaml"
+        err() { echo "::error file=$f::$*"; exit 1; }
+        [ -f "$f" ] || err "one-click/input.yaml is missing."
+        yq -e 'type == "!!map"' "$f" >/dev/null 2>&1 || err "input.yaml is not valid YAML. Check the quotes you changed."
+        bad=$(yq -r 'to_entries | .[] | select(.value | tostring | test("^<[a-z_]+>$")) | .key' "$f")
+        [ -z "$bad" ] || err "Fill in these lines first: $(echo "$bad" | paste -sd' ' -)"
+        get() { yq -r ".$1 // \"$2\"" "$f"; }
+
+        name=$(get environment ""); domain=$(get domain ""); email=$(get email "")
+        location=$(get location centralindia); argo=$(get argocd_enabled false)
+        hrepo=$(get helmfiles_repo egovernments/helm-charts); href=$(get helmfiles_ref master)
+        [[ $name =~ ^[a-z][a-z0-9-]{1,18}[a-z0-9]$ && $name != *--* && $name != digit-template ]] \
+          || err "environment '$name' is not allowed. Use 3-20 small letters, numbers or '-', starting with a letter."
+        [[ $domain =~ ^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$ ]] \
+          || err "domain '$domain' must be your web address, like digit.example.com (no https://, no /)."
+        email_re='^[^@[:space:]|&\\]+@[^@[:space:]|&\\]+\.[^@[:space:]|&\\]+$'
+        [[ $email =~ $email_re ]] || err "email '$email' must be your e-mail address."
+        [[ $location =~ ^[a-z0-9]+$ ]] || err "location '$location' is not an Azure region like centralindia."
+        [[ $argo == true || $argo == false ]] || err "argocd_enabled must be \"true\" or \"false\" (it is '$argo')."
+        if [ "$argo" = true ]; then mode=argocd; else mode=helmfile; fi
+        [[ $hrepo =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || err "helmfiles_repo '$hrepo' must look like owner/repository."
+        [[ $href =~ ^[A-Za-z0-9_./-]+$ ]] || err "helmfiles_ref '$href' must be a branch, tag or full commit SHA."
+        [ -n "${ARM_SUBSCRIPTION_ID:-}" ] || { echo "::error::Run azure-login first"; exit 1; }
+
+        # Globally-unique Azure names: <environment without '-'> + type + 6-char
+        # hash(subscription/fork/environment). The same fork + environment always gives the
+        # same names (re-runs find the same resources); a different one never does.
+        base=$(printf '%s' "${name//-/}" | cut -c1-14)
+        h=$(printf '%s/%s/%s' "$ARM_SUBSCRIPTION_ID" "${GITHUB_REPOSITORY,,}" "$name" | sha256sum | cut -c1-6)
+        rg="${name}-rg"
+        {
+          echo "ENVIRONMENT=$name"
+          echo "RESOURCE_GROUP=$rg"
+          echo "LOCATION=$location"
+          echo "STORAGE_ACCOUNT_NAME=${base}st${h}"
+          echo "FILESTORE_STORAGE_ACCOUNT_NAME=${base}fs${h}"
+          echo "KEY_VAULT_NAME=${base}kv${h}"
+          echo "DOMAIN_NAME=$domain"
+          echo "ACME_EMAIL=$email"
+          echo "INPUT_FILE=$f"
+          echo "ENV_FILE=$dir/$name.yaml"
+          echo "ENV_TEMPLATE=$dir/digit-template.yaml"
+          echo "SECRETS_FILE=$dir/$name-secrets.yaml"
+          echo "SECRETS_TEMPLATE=$dir/digit-template-secrets.yaml"
+          # helmfile reads the filled copy of ENV_FILE (written by the deploy) and this one
+          echo "DIGIT_SECRETS_FILE=$GITHUB_WORKSPACE/$dir/$name-secrets.yaml"
+          echo "DEPLOY_MODE=$mode"
+          # where the helmfiles come from (checked out to HELMFILE_DIR by the workflow)
+          echo "HELMFILES_REPO=$hrepo"
+          echo "HELMFILES_REF=$href"
+          echo "HELMFILE_DIR=$GITHUB_WORKSPACE/.helmfiles/helmfile/digit3-one-click"
+          # fixed namespaces (see the helmfiles)
+          echo "NS_CORE=egov"; echo "NS_BACKBONE=backbone"; echo "NS_VAULT=vault"; echo "NS_ARGOCD=argocd"
+          # Ownership tags on every Azure resource this install creates
+          echo "OWNER_TAGS=managed-by=digit-one-click digit-repo=${GITHUB_REPOSITORY,,} digit-name=$name"
+          # terraform_<name>: "value" -> TF_VAR_<name>
+          yq -r 'to_entries | .[] | select(.key | test("^terraform_[a-z0-9_]+$")) | "TF_VAR_" + (.key | sub("^terraform_"; "")) + "=" + (.value | tostring)' "$f"
+        } >> "$GITHUB_ENV"
+
+        {
+          echo "### $name"
+          echo "| | |"; echo "|---|---|"
+          echo "| Web address | \`$domain\` |"
+          echo "| Azure region | \`$location\` |"
+          echo "| Resource group | \`$rg\` |"
+          echo "| AKS cluster | \`$name\` |"
+          echo "| Deployed with | $mode |"
+          echo "| Helmfiles | \`$hrepo@$href\` |"
+        } > "$RUNNER_TEMP/config-summary.md"
+        echo "Loaded $f: environment=$name domain=$domain location=$location mode=$mode"

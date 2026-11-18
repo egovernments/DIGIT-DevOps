@@ -14,11 +14,15 @@
 # Values are exactly the helmfile mode's: defaults.yaml < digit-config.yaml < Terraform
 # outputs < digit-secrets.yaml (helm-secrets; sops decrypts with the cluster's managed identity).
 set -euo pipefail
-export HOME=/tmp HELM_CACHE_HOME=/tmp/helm/cache HELM_CONFIG_HOME=/tmp/helm/config
+# Several renders run at once (reposerver.parallelism.limit). `helm repo add` locks
+# repositories.yaml for at most 30s, so each render gets its own HELM_CONFIG_HOME; the
+# downloaded chart-repo indexes (HELM_CACHE_HOME) stay shared.
+export HOME=/tmp HELM_CACHE_HOME=/tmp/helm/cache
+HELM_CONFIG_HOME=$(mktemp -d /tmp/helm-config.XXXXXX); export HELM_CONFIG_HOME
 root=${PWD%/"${ARGOCD_APP_SOURCE_PATH:-deploy-as-code/helm}"}
 export DIGIT_CONFIG="$root/digit-config.yaml" DIGIT_SECRETS="$root/digit-secrets.yaml"
 TF_OUTPUTS_FILE=$(mktemp); export TF_OUTPUTS_FILE
-trap 'rm -f "$TF_OUTPUTS_FILE"' EXIT
+trap 'rm -rf "$TF_OUTPUTS_FILE" "$HELM_CONFIG_HOME"' EXIT
 printf '%s' "${ARGOCD_ENV_TF_OUTPUTS:?TF_OUTPUTS missing}" | base64 -d > "$TF_OUTPUTS_FILE"
 log=$(mktemp)
 run() { "$@" 2>"$log" || { cat "$log" >&2; exit 1; }; }

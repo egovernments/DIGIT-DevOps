@@ -48,6 +48,11 @@ variable "location" {
   default     = "<location>"
 }
 
+variable "db_extensions" {
+  description = "Comma-separated PostgreSQL extensions to allow (azure.extensions), e.g. POSTGIS,UUID-OSSP"
+  default     = ""
+}
+
 variable "db_version" {
   description = "PostgreSQL Flexible Server engine version"
   default     = "15"

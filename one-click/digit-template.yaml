@@ -38,13 +38,17 @@ cluster-configs:
         db-name: <db_name>
         db-port: "5432"
         db-ssl-mode: require
-        db-url: jdbc:postgresql://<db_host>:5432/<db_name>?sslmode=require
+        db-url: jdbc:postgresql://<db_host>:5432/<db_name>
+        # ~20 services share one small server: keep pools small, wait longer for a connection
+        db-pool-max-size: "5"
+        db-pool-min-idle: "1"
+        db-pool-connection-timeout-ms: "30000"
         egov-services-fqdn-name: https://<domain>/
         flyway-locations: filesystem:/flyway/sql
         kafka-brokers: kafka-kraft-controller-headless.backbone:9092
         keycloak-base-url: http://keycloak.egov.svc.cluster.local:8080/keycloak
-        keycloak-db-url: jdbc:postgresql://<db_host>:5432/keycloak?sslmode=require
-        otel-exporter-otlp-endpoint: open-telemetry-opentelemetry-collector.monitoring:4318
+        keycloak-db-url: jdbc:postgresql://<db_host>:5432/keycloak
+        otel-exporter-otlp-endpoint: http://open-telemetry-opentelemetry-collector.monitoring:4318
         otel-tracing-export-otlp-endpoint: http://open-telemetry-opentelemetry-collector.monitoring:4318/v1/traces
         redis-address: redis.backbone:6379
         redis-host: redis.backbone
@@ -161,48 +165,95 @@ kong:
 
 account:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 apportion:
   chart-version: 3.1.3
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 billing:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 boundary:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 boundary-management:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 employee:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 employee-onboarding:
   chart-version: 3.0.1
+  # chart defaults point at an in-cluster postgres.egov / keycloak namespace
+  db-host: <db_host>
+  db-name: <db_name>
+  db-ssl-mode: require
+  keycloak-base-url: http://keycloak.egov.svc.cluster.local:8080/keycloak/
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 filestore:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
@@ -212,18 +263,36 @@ filestore:
 
 idgen:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 individual:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 localization:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
@@ -236,54 +305,114 @@ localization-management:
 
 mdms-v2:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 notification:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 notify:
   chart-version: 3.1.2
+  # notify's Spring Boot 4.0.1 fails binding spring.datasource.hikari.* ("pool is sealed");
+  # a plain driver DataSource avoids it until the image is rebuilt.
+  extraEnv:
+    app: |
+      - name: SPRING_DATASOURCE_TYPE
+        value: "org.springframework.jdbc.datasource.SimpleDriverDataSource"
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 otp:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 pg-service:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 registry:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 template-config:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 url-shortener:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 workflow:
   chart-version: 3.1.2
+  image:
+    tag: v3.0.3-beta-1976d84
+  initContainers:
+    dbMigration:
+      image:
+        tag: v3.0.3-beta-1976d84
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod

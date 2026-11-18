@@ -38,3 +38,11 @@ resource "azurerm_postgresql_flexible_server_database" "db" {
     prevent_destroy = false
   }
 }
+
+# Extensions the applications may CREATE (Azure allow-list). Empty = leave the server default.
+resource "azurerm_postgresql_flexible_server_configuration" "extensions" {
+  count     = var.extensions == "" ? 0 : 1
+  name      = "azure.extensions"
+  server_id = azurerm_postgresql_flexible_server.postgresql_server.id
+  value     = var.extensions
+}

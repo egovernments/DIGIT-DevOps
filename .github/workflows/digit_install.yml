@@ -2,7 +2,9 @@ name: DIGIT one-click (Azure)
 # Fork this repository, then follow ONE-CLICK-AZURE.md. A team changes ONE file,
 # deploy-as-code/helm/environments/<env>.yaml (egov-demo.yaml layout, renamed from
 # digit-template.yaml), and adds ONE GitHub secret, AZURE_CREDENTIALS. Everything else is
-# created by this workflow. The helmfiles read only <env>.yaml and <env>-secrets.yaml.
+# created by this workflow. The helmfiles live in egovernments/helm-charts
+# (helmfile/digit3-one-click), pinned per environment by infra.helmfiles.ref, and read only
+# <env>.yaml and <env>-secrets.yaml.
 #
 #   install  First time: a NEW environment. Refuses to touch Azure resources this fork did
 #            not create (ownership tags managed-by / digit-repo / digit-name).
@@ -20,19 +22,19 @@ name: DIGIT one-click (Azure)
 # Two ways to deploy (infra.argocd.enabled in <env>.yaml, fixed at the first install):
 #   helmfile  the workflow runs `helmfile apply`
 #   argocd    the workflow installs Argo CD and one root Application "digit"; Argo CD deploys
-#             EVERY release from this fork via the digit-helmfile plugin
-#             (scripts/argocd-plugin.sh) - same helmfiles, same two files.
+#             EVERY release via the digit-helmfile plugin (env files from this fork,
+#             helmfiles from helm-charts at the same pinned ref).
 #
 # After the first install, every commit to the fork's default branch runs by itself, for
 # every environment file in it, and applies only what changed since the commit running in
 # Azure (resource-group tags digit-infra-sha / digit-deploy-sha,
 # .github/scripts/one-click-changes.sh):
 #   Terraform code or infra.location/infra.terraform  -> infra
-#   the rest of <env>.yaml, <env>-secrets.yaml, helmfiles -> deploy
+#   the rest of <env>.yaml (incl. infra.helmfiles.ref), <env>-secrets.yaml -> deploy
 on:
   push:
     paths:
-      - deploy-as-code/helm/**
+      - deploy-as-code/helm/environments/**
       - infra-as-code/terraform/**
   workflow_dispatch:
     inputs:
@@ -280,7 +282,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -f "$SECRETS_FILE" ]; then echo "$SECRETS_FILE already exists - kept"; exit 0; fi
-          bash deploy-as-code/helm/scripts/generate-secrets.sh "$SECRETS_TEMPLATE" "$SECRETS_FILE" "$SOPS_KEY_ID"
+          bash .github/scripts/generate-secrets.sh "$SECRETS_TEMPLATE" "$SECRETS_FILE" "$SOPS_KEY_ID"
 
       # The team's own credentials (optional GitHub secret DIGIT_SECRETS) are locked in too
       # (also on every deploy), so they are part of the very first deploy.
@@ -372,6 +374,22 @@ jobs:
             --tags digit-state=installed digit-infra-sha="$(git rev-parse HEAD)" -o none
 
       # ---------------- Deploy (install, deploy) ----------------
+      # The helmfiles (and the Vault / Argo CD scripts) from helm-charts at the pinned ref
+      - name: Get the helmfiles (${{ env.HELMFILES_REPO }}@${{ env.HELMFILES_REF }})
+        if: steps.decide.outputs.deploy == 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ env.HELMFILES_REPO }}
+          ref: ${{ env.HELMFILES_REF }}
+          path: .helmfiles
+          sparse-checkout: helmfile/digit3-one-click
+          persist-credentials: false
+      - name: Check the helmfiles
+        if: steps.decide.outputs.deploy == 'true'
+        run: |
+          [ -f "$HELMFILE_DIR/digit-helmfile.yaml.gotmpl" ] || {
+            echo "::error file=$ENV_FILE::No helmfile/digit3-one-click in $HELMFILES_REPO@$HELMFILES_REF. Check infra.helmfiles in $ENV_FILE."; exit 1; }
+          git -C .helmfiles log -1 --format="Helmfiles: $HELMFILES_REPO@%h (%s)" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Connect to the cluster
         if: steps.decide.outputs.deploy == 'true'
         run: |
@@ -401,7 +419,7 @@ jobs:
       - name: Deploy DIGIT with helmfile (backbone, core, monitoring - takes 20-40 minutes)
         if: steps.decide.outputs.deploy == 'true' && env.DEPLOY_MODE == 'helmfile'
         run: helmfile -f digit-helmfile.yaml.gotmpl apply --suppress-secrets --skip-diff-on-install
-        working-directory: deploy-as-code/helm
+        working-directory: ${{ env.HELMFILE_DIR }}
 
       # ---- Argo CD mode: install Argo CD, then Argo CD deploys everything from this fork ----
       # sops in the Argo CD plugin unlocks <env>-secrets.yaml with the cluster's own (kubelet)
@@ -437,7 +455,7 @@ jobs:
       - name: Argo CD - install or upgrade Argo CD
         if: steps.decide.outputs.deploy == 'true' && env.DEPLOY_MODE == 'argocd'
         run: helmfile -f helmfiles/argocd.yaml.gotmpl apply --suppress-secrets --skip-diff-on-install
-        working-directory: deploy-as-code/helm
+        working-directory: ${{ env.HELMFILE_DIR }}
 
       # The only object the workflow gives Argo CD. Argo CD renders it with the plugin into one
       # Application per helmfile release (ordered by sync waves) and keeps all of them synced.
@@ -458,12 +476,14 @@ jobs:
             source:
               repoURL: https://github.com/${GITHUB_REPOSITORY}.git
               targetRevision: ${BRANCH}
-              path: deploy-as-code/helm
+              path: deploy-as-code/helm/environments
               plugin:
                 name: digit-helmfile
                 env:
                   - {name: MODE, value: apps}
                   - {name: ENV, value: "${ENVIRONMENT}"}
+                  - {name: HELMFILES_REPO, value: "${HELMFILES_REPO}"}
+                  - {name: HELMFILES_REF, value: "${HELMFILES_REF}"}
             destination:
               server: https://kubernetes.default.svc
               namespace: ${NS_ARGOCD}
@@ -481,7 +501,7 @@ jobs:
         env:
           VAULT_WAIT_SECONDS: ${{ env.DEPLOY_MODE == 'argocd' && '2400' || '450' }}
         run: bash scripts/vault-bootstrap.sh "$NS_VAULT" "$NS_CORE"
-        working-directory: deploy-as-code/helm
+        working-directory: ${{ env.HELMFILE_DIR }}
 
       - name: Argo CD - wait until every application is synced and healthy
         if: steps.decide.outputs.deploy == 'true' && env.DEPLOY_MODE == 'argocd'

@@ -185,7 +185,7 @@ It changes only what your commit changed:
 | add a DIGIT service | Add a block with its name and `chart-version` (a chart from `helm.digit.org/digit3/core`), commit. |
 | add or change a password or key | Edit the secret **`DIGIT_SECRETS`** (step 6), then **Actions → Run workflow → deploy**. (Changing a GitHub secret is not a commit, so it does not run by itself.) |
 | run infra or deploy again by hand | **Actions → Run workflow**, type your environment, choose **infra** or **deploy**. |
-| get the newest DIGIT version | On your copy's main page click **Sync fork → Update branch**, then update the `chart-version` lines you want in your file. |
+| get the newest DIGIT version | Update the `chart-version` lines you want in your file (and `infra.helmfiles.ref` for newer helmfiles), commit. **Sync fork → Update branch** brings a newer workflow and templates. |
 | delete my DIGIT | **Run workflow** with **destroy**, type `delete` in **confirm**. |
 | delete everything in Azure | After destroy, delete the resource group `<your-name>-rg` in the Azure portal. |
 
@@ -249,8 +249,10 @@ Anything not listed here must not be changed.
    public. Secrets go only into `DIGIT_SECRETS`.
 4. **Never** create or edit `<env>-secrets.yaml` by hand. The workflow creates it, locks it and
    commits it.
-5. Do not edit anything under `deploy-as-code/helm/helmfiles/`, `deploy-as-code/helm/scripts/`,
-   `infra-as-code/` or `.github/`, nor `digit-template-secrets.yaml`.
+5. Do not edit anything under `infra-as-code/` or `.github/`, nor `digit-template-secrets.yaml`.
+   The helmfiles are not in this repository: they live in
+   [egovernments/helm-charts](https://github.com/egovernments/helm-charts/tree/master/helmfile/digit3-one-click)
+   (`helmfile/digit3-one-click`) and each environment pins their version with `infra.helmfiles.ref`.
 6. The file name (environment name) and `infra.argocd.enabled` are fixed after the first install.
 7. Several environments can live in one fork: one `<env>.yaml` per environment.
 
@@ -258,14 +260,17 @@ Anything not listed here must not be changed.
 
 Same layout as `egov-demo.yaml` / `egov-demo-secrets.yaml`. The helmfiles read **only** these two files.
 
+In this repository (DIGIT-DevOps) the one-click setup is only: the workflow and its actions/scripts in
+`.github/`, the environment templates, and the Terraform code. The helmfiles come from helm-charts.
+
 | Path | Who changes it | What it is |
 |---|---|---|
 | `deploy-as-code/helm/environments/digit-template.yaml` | nobody; teams rename it to `<env>.yaml` | starting point for an environment file |
 | `deploy-as-code/helm/environments/<env>.yaml` | the team | the environment: `infra`, `global`, then one block per release |
 | `deploy-as-code/helm/environments/<env>-secrets.yaml` | the workflow only | passwords, SOPS-encrypted with the team's Azure Key Vault key |
 | `deploy-as-code/helm/environments/digit-template-secrets.yaml` | nobody | the list of secrets and their layout (`DIGIT_SECRETS` may set these paths) |
-| `deploy-as-code/helm/digit-helmfile.yaml.gotmpl`, `helmfiles/` | nobody | which releases exist and in which order; read the two files above |
-| `deploy-as-code/helm/scripts/` | nobody | Vault bootstrap, secret generation/merge, Argo CD plugin |
+| helm-charts `helmfile/digit3-one-click/` (`digit-helmfile.yaml.gotmpl`, `helmfiles/`, `scripts/`) | nobody (pinned by `infra.helmfiles.ref`) | which releases exist and in which order; Vault bootstrap; Argo CD plugin. Read the two files above |
+| `.github/scripts/` | nobody | secrets generation and `DIGIT_SECRETS` merge, commit-change detection |
 | `infra-as-code/terraform/azure/` | nobody | Azure infrastructure |
 | `.github/workflows/digit_install.yml` | nobody | the workflow |
 
@@ -288,6 +293,8 @@ Same layout as `egov-demo.yaml` / `egov-demo-secrets.yaml`. The helmfiles read *
 | `email` | e-mail | - (**fill in**) | yes (also update the `cert-manager` block) | fills `<email>`: Let's Encrypt account |
 | `location` | Azure region | `centralindia` | **no** (rebuilds everything; blocked unless `confirm = replace`) | Azure region |
 | `argocd.enabled` | `true` / `false` | `false` | **no** | `false` = helmfile deploys; `true` = Argo CD deploys everything |
+| `helmfiles.repo` | `owner/repo` | `egovernments/helm-charts` | yes | where the helmfiles come from |
+| `helmfiles.ref` | branch, tag or **full** commit SHA | `master` | yes (runs **deploy**) | which version of the helmfiles deploys this environment. Pin it for a reproducible environment |
 | `terraform.<var>` | scalar | see `infra-as-code/terraform/azure/variables.tf` | yes (runs **infra**) | Terraform variable, e.g. `node_count: 4`, `main_vm_size: "Standard_D8s_v3"`, `scheduling: false` |
 
 ### Placeholders the workflow fills in
@@ -404,8 +411,8 @@ Any other path not in the template is rejected as a typo.
 
 ## Argo CD mode, in detail
 
-- **Install.** The workflow installs Argo CD (chart `argo-cd`) into namespace `argocd`, with a repo-server sidecar plugin `digit-helmfile` (`deploy-as-code/helm/scripts/argocd-plugin.sh`).
-- **One root Application.** The workflow creates one Application, `digit`, pointing at the fork (`deploy-as-code/helm`, default branch, plugin env `ENV=<env>`).
+- **Install.** The workflow installs Argo CD (chart `argo-cd`) into namespace `argocd`, with a repo-server sidecar plugin `digit-helmfile` (helm-charts `helmfile/digit3-one-click/scripts/argocd-plugin.sh`).
+- **One root Application.** The workflow creates one Application, `digit`, pointing at the fork (`deploy-as-code/helm/environments`, default branch, plugin env `ENV=<env>`, `HELMFILES_REPO`, `HELMFILES_REF`). The plugin fetches the helmfiles from helm-charts at that ref (sparse, shallow) and reads the env files from the fork.
 - **One Application per release.** The plugin turns the root into one Application per release, with the same names, namespaces and values as helmfile mode, because it is the same helmfiles reading the same two files.
 - **Order.** Sync waves follow the layers: `cluster-configs` → backbone → Keycloak → Kong → core services → monitoring.
 - **Sync.** All Applications use automated sync with prune and self-heal. `enabled: false` removes a release's Application and everything it deployed.

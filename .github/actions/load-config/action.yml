@@ -34,6 +34,10 @@ runs:
         [[ $location =~ ^[a-z0-9]+$ ]] || err "infra.location '$location' is not an Azure region like centralindia."
         [[ $argo == true || $argo == false ]] || err "infra.argocd.enabled must be true or false (it is '$argo')."
         if [ "$argo" = true ]; then mode=argocd; else mode=helmfile; fi
+        hrepo=$(yq -r '.infra.helmfiles.repo // "egovernments/helm-charts"' "$f")
+        href=$(yq -r '.infra.helmfiles.ref // "master"' "$f")
+        [[ $hrepo =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || err "infra.helmfiles.repo '$hrepo' must look like owner/repository."
+        [[ $href =~ ^[A-Za-z0-9_./-]+$ ]] || err "infra.helmfiles.ref '$href' must be a branch, tag or commit."
         # The workflow fills <domain> <email> <env> <db_host> <db_name>; anything else is unfilled.
         bad=$(yq -r '.. | select(tag == "!!str") | select(test("<[a-z_]+>")) | select(sub("<(domain|email|env|db_host|db_name)>"; "") | test("<[a-z_]+>")) | path | join(".")' "$f")
         [ -z "$bad" ] || err "Fill in these lines first: $(echo "$bad" | paste -sd' ' -)"
@@ -62,6 +66,10 @@ runs:
           echo "DIGIT_ENV_FILE=$GITHUB_WORKSPACE/$f"
           echo "DIGIT_SECRETS_FILE=$GITHUB_WORKSPACE/$dir/$name-secrets.yaml"
           echo "DEPLOY_MODE=$mode"
+          # where the helmfiles come from (checked out to HELMFILE_DIR by the workflow)
+          echo "HELMFILES_REPO=$hrepo"
+          echo "HELMFILES_REF=$href"
+          echo "HELMFILE_DIR=$GITHUB_WORKSPACE/.helmfiles/helmfile/digit3-one-click"
           # fixed namespaces (see the helmfiles)
           echo "NS_CORE=egov"; echo "NS_BACKBONE=backbone"; echo "NS_VAULT=vault"; echo "NS_ARGOCD=argocd"
           # Ownership tags on every Azure resource this install creates
@@ -78,5 +86,6 @@ runs:
           echo "| Resource group | \`$rg\` |"
           echo "| AKS cluster | \`$name\` |"
           echo "| Deployed with | $mode |"
+          echo "| Helmfiles | \`$hrepo@$href\` |"
         } > "$RUNNER_TEMP/config-summary.md"
         echo "Loaded $f: domain=$domain location=$location resource-group=$rg mode=$mode"

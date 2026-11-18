@@ -7,14 +7,14 @@
 # (digit-infra-sha / digit-deploy-sha), written after every successful Infra / Deploy job.
 # Prints "infra=true|false" and "deploy=true|false" (reasons go to stderr).
 #   infra  : Terraform code changed, or infra.location / infra.terraform in <env>.yaml changed
-#   deploy : anything else in <env>.yaml, <env>-secrets.yaml, the helmfiles or the deploy
-#            scripts changed
+#   deploy : anything else in <env>.yaml (incl. infra.helmfiles.ref, the helmfile version from
+#            helm-charts) or <env>-secrets.yaml changed
 # An unknown or unreachable commit (first run, force-push) means "run it" - always safe.
 set -euo pipefail
 env=${1:?environment}
 ENV_FILE="deploy-as-code/helm/environments/$env.yaml"
 INFRA_RE='^infra-as-code/terraform/(azure/|modules/[^/]+/azure/|scripts/init\.go$)'
-DEPLOY_RE="^deploy-as-code/helm/(environments/${env}-secrets\.yaml\$|digit-helmfile\.yaml\.gotmpl\$|helmfiles/|scripts/(vault-bootstrap|argocd-plugin)\.sh\$)"
+DEPLOY_RE="^deploy-as-code/helm/environments/${env}-secrets\.yaml\$"
 INFRA_CFG='{"location": .infra.location, "terraform": .infra.terraform}'
 DEPLOY_CFG='del(.infra.location) | del(.infra.terraform)'
 

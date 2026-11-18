@@ -28,7 +28,7 @@ name: DIGIT one-click (Azure)
 # After the first install, every commit to the fork's default branch runs by itself, for
 # every environment file in it, and applies only what changed since the commit running in
 # Azure (resource-group tags digit-infra-sha / digit-deploy-sha,
-# .github/scripts/one-click-changes.sh):
+# one-click/scripts/one-click-changes.sh):
 #   Terraform code or infra.location/infra.terraform  -> infra
 #   the rest of <env>.yaml (incl. infra.helmfiles.ref), <env>-secrets.yaml -> deploy
 on:
@@ -132,11 +132,11 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
       - name: Azure login
-        uses: ./.github/actions/azure-login
+        uses: ./one-click/actions/azure-login
         with:
           credentials: ${{ secrets.AZURE_CREDENTIALS }}
       - name: Check the environment file
-        uses: ./.github/actions/load-config
+        uses: ./one-click/actions/load-config
         with:
           environment: ${{ matrix.environment }}
 
@@ -173,7 +173,7 @@ jobs:
               note "Not installed (or destroyed) - this commit changes nothing in Azure. Run the workflow with action = install."
               out false false false false; exit 0
             fi
-            res=$(bash .github/scripts/one-click-changes.sh "$ENVIRONMENT" "$(t digit-infra-sha)" "$(t digit-deploy-sha)")
+            res=$(bash one-click/scripts/one-click-changes.sh "$ENVIRONMENT" "$(t digit-infra-sha)" "$(t digit-deploy-sha)")
             infra=$(sed -n 's/^infra=//p' <<< "$res"); deploy=$(sed -n 's/^deploy=//p' <<< "$res")
             note "This commit: infra=$infra, deploy=$deploy"
             out false "$infra" "$deploy" false; exit 0
@@ -193,7 +193,7 @@ jobs:
 
       - name: Setup sops
         if: contains(format('{0}{1}{2}{3}', steps.decide.outputs.prepare, steps.decide.outputs.infra, steps.decide.outputs.deploy, steps.decide.outputs.destroy), 'true')
-        uses: ./.github/actions/setup-sops
+        uses: ./one-click/actions/setup-sops
         with:
           version: ${{ env.SOPS_VERSION }}
           required: ${{ steps.decide.outputs.prepare == 'true' && 'false' || 'true' }}
@@ -282,32 +282,32 @@ jobs:
         run: |
           set -euo pipefail
           if [ -f "$SECRETS_FILE" ]; then echo "$SECRETS_FILE already exists - kept"; exit 0; fi
-          bash .github/scripts/generate-secrets.sh "$SECRETS_TEMPLATE" "$SECRETS_FILE" "$SOPS_KEY_ID"
+          bash one-click/scripts/generate-secrets.sh "$SECRETS_TEMPLATE" "$SECRETS_FILE" "$SOPS_KEY_ID"
 
       # The team's own credentials (optional GitHub secret DIGIT_SECRETS) are locked in too
       # (also on every deploy), so they are part of the very first deploy.
       - name: Add your own credentials (DIGIT_SECRETS)
         if: steps.decide.outputs.prepare == 'true' || steps.decide.outputs.deploy == 'true'
-        uses: ./.github/actions/apply-user-secrets
+        uses: ./one-click/actions/apply-user-secrets
         with:
           user-secrets: ${{ secrets.DIGIT_SECRETS }}
       - name: Commit the environment files
         if: steps.decide.outputs.prepare == 'true' || steps.decide.outputs.deploy == 'true'
-        uses: ./.github/actions/commit-to-fork
+        uses: ./one-click/actions/commit-to-fork
         with:
           paths: ${{ env.ENV_FILE }} ${{ env.SECRETS_FILE }}
           message: "chore(one-click): environment files for ${{ matrix.environment }}"
           branch: ${{ github.ref_name }}
       - name: Unlock the secrets file
         if: steps.decide.outputs.prepare == 'true'
-        uses: ./.github/actions/setup-sops
+        uses: ./one-click/actions/setup-sops
         with:
           version: ${{ env.SOPS_VERSION }}
 
       # ---------------- Infra (install, infra) ----------------
       - name: Setup Terraform
         if: steps.decide.outputs.infra == 'true' || steps.decide.outputs.destroy == 'true'
-        uses: ./.github/actions/setup-terraform-azure
+        uses: ./one-click/actions/setup-terraform-azure
         with:
           version: ${{ env.TF_VERSION }}
       - name: Terraform init
@@ -360,7 +360,7 @@ jobs:
           [ "$cur" = "$H" ] || echo "::warning file=$ENV_FILE::cluster-configs db-host is '$cur' but the database is '$H'. Update it in $ENV_FILE."
       - name: Commit the database address
         if: steps.decide.outputs.infra == 'true'
-        uses: ./.github/actions/commit-to-fork
+        uses: ./one-click/actions/commit-to-fork
         with:
           paths: ${{ env.ENV_FILE }}
           message: "chore(one-click): database address for ${{ matrix.environment }}"

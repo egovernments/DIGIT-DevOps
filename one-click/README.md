@@ -249,7 +249,8 @@ Anything not listed here must not be changed.
    public. Secrets go only into `DIGIT_SECRETS`.
 4. **Never** create or edit `<env>-secrets.yaml` by hand. The workflow creates it, locks it and
    commits it.
-5. Do not edit anything under `infra-as-code/` or `.github/`, nor `digit-template-secrets.yaml`.
+5. Do not edit `one-click/actions/`, `one-click/scripts/`, `one-click/digit-template-secrets.yaml`,
+   `.github/workflows/digit_install.yml` or `infra-as-code/`.
    The helmfiles are not in this repository: they live in
    [egovernments/helm-charts](https://github.com/egovernments/helm-charts/tree/master/helmfile/digit3-one-click)
    (`helmfile/digit3-one-click`) and each environment pins their version with `infra.helmfiles.ref`.
@@ -260,9 +261,15 @@ Anything not listed here must not be changed.
 
 Same layout as `egov-demo.yaml` / `egov-demo-secrets.yaml`. The helmfiles read **only** these two files.
 
-In this repository (DIGIT-DevOps) the one-click setup is only: the `one-click/` folder (this guide,
-the templates and the teams' environment files), the workflow and its actions/scripts in `.github/`,
-and the Terraform code in `infra-as-code/`. The helmfiles come from helm-charts.
+In this repository (DIGIT-DevOps) the one-click setup is only three places, easy to review:
+
+```
+one-click/                            everything one-click (this guide, templates, environments, actions, scripts)
+.github/workflows/digit_install.yml   the workflow (GitHub requires workflows in .github/workflows)
+infra-as-code/terraform/azure/        the Terraform code
+```
+
+The helmfiles come from helm-charts.
 
 | Path | Who changes it | What it is |
 |---|---|---|
@@ -272,7 +279,8 @@ and the Terraform code in `infra-as-code/`. The helmfiles come from helm-charts.
 | `one-click/<env>-secrets.yaml` | the workflow only | passwords, SOPS-encrypted with the team's Azure Key Vault key |
 | `one-click/digit-template-secrets.yaml` | nobody | the list of secrets and their layout (`DIGIT_SECRETS` may set these paths) |
 | helm-charts `helmfile/digit3-one-click/` (`digit-helmfile.yaml.gotmpl`, `helmfiles/`, `scripts/`) | nobody (pinned by `infra.helmfiles.ref`) | which releases exist and in which order; Vault bootstrap; Argo CD plugin. Read the two files above |
-| `.github/scripts/` | nobody | secrets generation and `DIGIT_SECRETS` merge, commit-change detection |
+| `one-click/actions/` | nobody | the workflow's steps: Azure login, environment-file checks, sops, Terraform setup, `DIGIT_SECRETS`, committing to the fork |
+| `one-click/scripts/` | nobody | secrets generation and `DIGIT_SECRETS` merge, commit-change detection |
 | `infra-as-code/terraform/azure/` | nobody | Azure infrastructure |
 | `.github/workflows/digit_install.yml` | nobody | the workflow |
 

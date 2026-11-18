@@ -1,0 +1,37 @@
+name: Azure login
+description: >
+  Read the single AZURE_CREDENTIALS secret (output of
+  `az ad sp create-for-rbac ... --json-auth`), export it for Terraform (ARM_*) and for
+  SOPS / helm-secrets (AZURE_*), and log the Azure CLI in.
+inputs:
+  credentials:
+    description: JSON with clientId, clientSecret, tenantId, subscriptionId (secrets.AZURE_CREDENTIALS)
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        CREDS: ${{ inputs.credentials }}
+      run: |
+        set -euo pipefail
+        help="See step 3 and 4 of ONE-CLICK-AZURE.md."
+        [ -n "$CREDS" ] || { echo "::error::The secret AZURE_CREDENTIALS is missing in this repository. $help"; exit 1; }
+        printf '%s' "$CREDS" | jq -e 'type == "object"' >/dev/null 2>&1 \
+          || { echo "::error::AZURE_CREDENTIALS is not valid. Copy ALL of the Cloud Shell output, from { to }. $help"; exit 1; }
+        get() { printf '%s' "$CREDS" | jq -r --arg k "$1" '.[$k] // ""'; }
+        id=$(get clientId); sec=$(get clientSecret); ten=$(get tenantId); sub=$(get subscriptionId)
+        echo "::add-mask::$sec"
+        for k in id sec ten sub; do
+          [ -n "${!k}" ] || { echo "::error::AZURE_CREDENTIALS is missing a value (clientId, clientSecret, tenantId, subscriptionId). $help"; exit 1; }
+        done
+        {
+          echo "ARM_CLIENT_ID=$id";  echo "ARM_CLIENT_SECRET=$sec"
+          echo "ARM_TENANT_ID=$ten"; echo "ARM_SUBSCRIPTION_ID=$sub"
+          # Azure SDK names, read by sops / helm-secrets for the Key Vault key
+          echo "AZURE_CLIENT_ID=$id"; echo "AZURE_CLIENT_SECRET=$sec"; echo "AZURE_TENANT_ID=$ten"
+        } >> "$GITHUB_ENV"
+        az login --service-principal -u "$id" -p "$sec" --tenant "$ten" --output none \
+          || { echo "::error::Azure login failed. Create the key again (step 3) and update AZURE_CREDENTIALS."; exit 1; }
+        az account set --subscription "$sub"
+        az account show --query '{subscription:name, id:id}' -o table

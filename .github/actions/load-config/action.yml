@@ -1,0 +1,58 @@
+name: Load digit-config.yaml
+description: >
+  Validate the team's one file (digit-config.yaml at the repo root), work out every Azure
+  name from it, and export them. Azure names are derived from `name` + the subscription,
+  so nobody has to invent globally-unique storage or Key Vault names.
+  Needs ARM_SUBSCRIPTION_ID (azure-login).
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        f=digit-config.yaml
+        err() { echo "::error file=$f::$*"; exit 1; }
+        [ -f "$f" ] || err "digit-config.yaml is missing at the top of the repository."
+        yq -e 'type == "!!map"' "$f" >/dev/null 2>&1 || err "digit-config.yaml is not valid YAML. Check the spaces and quotes you changed."
+
+        bad=$(yq -r '.. | select(tag == "!!str" and test("^<[a-z_]+>$")) | path | join(".")' "$f")
+        [ -z "$bad" ] || err "Fill in these lines first: $(echo "$bad" | tr '\n' ' ')"
+
+        name=$(yq -r '.name // ""' "$f"); domain=$(yq -r '.domain // ""' "$f")
+        email=$(yq -r '.email // ""' "$f"); location=$(yq -r '.location // "centralindia"' "$f")
+        [[ $name =~ ^[a-z][a-z0-9-]{1,18}[a-z0-9]$ && $name != *--* ]] \
+          || err "name '$name' is not allowed. Use 3-20 small letters, numbers or '-', starting with a letter."
+        [[ $domain =~ ^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$ ]] \
+          || err "domain '$domain' is not a web address like digit.example.com (no https://, no /)."
+        [[ $email =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || err "email '$email' is not an email address."
+        [[ $location =~ ^[a-z0-9]+$ ]] || err "location '$location' is not an Azure region like centralindia."
+        [ -n "${ARM_SUBSCRIPTION_ID:-}" ] || { echo "::error::Run azure-login first"; exit 1; }
+
+        # Globally-unique Azure names: <name without '-'> + type + 6-char hash(subscription/name).
+        # Same inputs always give the same names, so every re-run finds the same resources.
+        base=$(printf '%s' "${name//-/}" | cut -c1-14)
+        h=$(printf '%s/%s' "$ARM_SUBSCRIPTION_ID" "$name" | sha256sum | cut -c1-6)
+        rg="${name}-rg"
+        {
+          echo "ENVIRONMENT=$name"
+          echo "RESOURCE_GROUP=$rg"
+          echo "LOCATION=$location"
+          echo "STORAGE_ACCOUNT_NAME=${base}st${h}"
+          echo "FILESTORE_STORAGE_ACCOUNT_NAME=${base}fs${h}"
+          echo "KEY_VAULT_NAME=${base}kv${h}"
+          echo "DOMAIN_NAME=$domain"
+          echo "DIGIT_CONFIG=$GITHUB_WORKSPACE/$f"
+          echo "DIGIT_SECRETS=$GITHUB_WORKSPACE/digit-secrets.yaml"
+          # optional scalar Terraform overrides -> TF_VAR_<name>
+          yq -r '(.terraform // {}) | to_entries | .[] | select(.value | tag != "!!map" and tag != "!!seq") | "TF_VAR_" + .key + "=" + (.value | tostring)' "$f"
+        } >> "$GITHUB_ENV"
+
+        {
+          echo "### $name"
+          echo "| | |"; echo "|---|---|"
+          echo "| Web address | \`$domain\` |"
+          echo "| Azure region | \`$location\` |"
+          echo "| Resource group | \`$rg\` |"
+          echo "| AKS cluster | \`$name\` |"
+        } > "$RUNNER_TEMP/config-summary.md"
+        echo "Loaded $f: name=$name domain=$domain location=$location resource-group=$rg"

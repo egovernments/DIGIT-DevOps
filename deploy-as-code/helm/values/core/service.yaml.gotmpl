@@ -1,0 +1,13 @@
+{{- /* Shared by every DIGIT 3.0 core service release (digit3/common based). */ -}}
+ingress:
+  # cert-manager issues <domain>-tls-certs for the shared host (common ingress TLS block)
+  additionalAnnotations: |
+    cert-manager.io/cluster-issuer: {{ .Values.tls.issuer }}
+{{- if eq .Release.Name "filestore" }}
+# filestore 3.x speaks S3 only: use the in-cluster MinIO (credentials: Secret minio).
+s3-source: "s3"
+s3-endpoint: "minio.{{ .Values.namespaces.backbone }}.svc.cluster.local:9000"
+s3-use-ssl: "false"
+minio-use-ssl: "false"
+s3-bucket: {{ .Values.filestore.bucket | quote }}
+{{- end }}

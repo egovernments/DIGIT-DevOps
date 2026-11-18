@@ -1,0 +1,44 @@
+# Layer 2 - DIGIT core 3.0 from https://helm.digit.org/digit3/core: Keycloak, Kong (+ its
+# gateway-sync route reconciler) and the DIGIT 3.0 services. Needs layer 1 (backbone).
+bases:
+  - _environment.yaml.gotmpl
+---
+{{- $v := .Values }}
+{{- $ns := $v.namespaces.core }}
+releases:
+  - name: keycloak
+    namespace: {{ $ns }}
+    chart: digit3-core/keycloak
+    version: {{ index $v.versions "keycloak" }}
+    installed: {{ $v | get "releases.keycloak.enabled" true }}
+    labels: {layer: core}
+    values:
+      - ../values/global.yaml.gotmpl
+      - ../values/core/keycloak.yaml.gotmpl
+      - {{ $v | get "values.keycloak" dict | toYaml | nindent 8 }}
+
+  - name: kong
+    namespace: {{ $ns }}
+    chart: digit3-core/kong
+    version: {{ index $v.versions "kong" }}
+    installed: {{ $v | get "releases.kong.enabled" true }}
+    labels: {layer: core}
+    needs: [{{ $ns }}/keycloak]
+    values:
+      - ../values/core/kong.yaml.gotmpl
+      - {{ $v | get "values.kong" dict | toYaml | nindent 8 }}
+
+{{- range $svc := $v.coreServices }}
+
+  - name: {{ $svc }}
+    namespace: {{ $ns }}
+    chart: digit3-core/{{ $svc }}
+    version: {{ index $v.versions $svc | quote }}
+    installed: {{ $v | get (printf "releases.%s.enabled" $svc) true }}
+    labels: {layer: core}
+    needs: [{{ $ns }}/kong]
+    values:
+      - ../values/global.yaml.gotmpl
+      - ../values/core/service.yaml.gotmpl
+      - {{ $v | get (printf "values.%s" $svc) dict | toYaml | nindent 8 }}
+{{- end }}

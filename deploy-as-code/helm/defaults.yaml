@@ -1,0 +1,132 @@
+# Platform defaults for the DIGIT one-click install (DIGIT core 3.0 + backbone + monitoring).
+#
+# Layered first by digit-helmfile.yaml.gotmpl, then the team's digit-config.yaml (repo
+# root), Terraform outputs and the generated, SOPS-encrypted digit-secrets.yaml. A team
+# overrides ANY key below from digit-config.yaml - it never edits this file or a chart
+# template. Derived values (DB URL, Kafka brokers,
+# service URLs, ...) are computed once in values/*.yaml.gotmpl from these keys.
+
+# Namespaces per tier. Every object of a tier lands in its namespace.
+namespaces:
+  core: egov            # DIGIT 3.0 services, Kong, Keycloak, cluster-configs objects
+  backbone: backbone    # ingress, Kafka, Redis, MinIO, Elasticsearch, Kibana
+  vault: vault
+  monitoring: monitoring
+
+# Turn whole groups (or single releases, via releases.<name>.enabled) on/off.
+components:
+  elasticsearch: true   # elasticsearch-master, elasticsearch-data, kibana
+  monitoring: true      # kube-prometheus-stack, grafana, loki, otel collector, jaeger, blackbox
+releases: {}            # e.g. releases: {jaeger: {enabled: false}}
+
+# Packaged chart repositories.
+repositories:
+  digit: https://helm.digit.org      # + /digit3/<module>
+  prometheusCommunity: https://prometheus-community.github.io/helm-charts
+  grafana: https://grafana.github.io/helm-charts
+  jaegertracing: https://jaegertracing.github.io/helm-charts
+  openTelemetry: https://open-telemetry.github.io/opentelemetry-helm-charts
+
+# Chart versions - pinned, bump here (or in digit-config.yaml).
+versions:
+  # helm.digit.org/digit3/backbone
+  cert-manager: 3.0.0
+  ingress-nginx: 3.0.0
+  redis: 3.0.0
+  kafka-kraft: 3.0.0
+  minio: 3.1.0
+  vault: 3.0.1
+  elasticsearch-master: 3.0.0
+  elasticsearch-data: 3.0.0
+  kibana: 3.0.0
+  prometheus-blackbox-exporter: 3.0.0
+  # helm.digit.org/digit3/cluster-configs and digit3/core
+  cluster-configs: 3.1.1
+  keycloak: 3.0.2
+  kong: 3.1.2
+  account: 3.1.2
+  apportion: 3.1.3
+  billing: 3.1.2
+  boundary: 3.1.2
+  boundary-management: 3.1.2
+  employee: 3.1.2
+  employee-onboarding: 3.0.1
+  filestore: 3.1.2
+  idgen: 3.1.2
+  individual: 3.1.2
+  localization: 3.1.2
+  localization-management: 3.0.1
+  mdms-v2: 3.1.2
+  notification: 3.1.2
+  notify: 3.1.2
+  otp: 3.1.2
+  pg-service: 3.1.2
+  registry: 3.1.2
+  template-config: 3.1.2
+  url-shortener: 3.1.2
+  workflow: 3.1.2
+  # community monitoring charts
+  kube-prometheus-stack: 56.6.2
+  grafana: 7.3.0
+  loki: 6.6.4
+  opentelemetry-collector: 0.147.0
+  jaeger: 4.4.7
+
+# DIGIT 3.0 core services deployed from helm.digit.org/digit3/core (besides kong + keycloak).
+coreServices:
+  - account
+  - apportion
+  - billing
+  - boundary
+  - boundary-management
+  - employee
+  - employee-onboarding
+  - filestore
+  - idgen
+  - individual
+  - localization
+  - localization-management
+  - mdms-v2
+  - notification
+  - notify
+  - otp
+  - pg-service
+  - registry
+  - template-config
+  - url-shortener
+  - workflow
+
+# Image tags: "prod" uses each chart's appVersion; set "dev" plus values.<svc>.image.tag
+# in digit-config.yaml to run other builds.
+imageMode: prod
+containerRegistry: egovio
+
+# TLS: cert-manager ClusterIssuer used by every ingress (letsencrypt-prod | letsencrypt-staging).
+# The ACME account email is `email` in digit-config.yaml.
+tls:
+  issuer: letsencrypt-prod
+
+# Filestore bucket on the in-cluster MinIO (filestore 3.x speaks S3 only).
+filestore:
+  bucket: digit-filestore
+
+# Sizing knobs (anything else: values.<release> in digit-config.yaml).
+sizing:
+  elasticsearch:
+    masterReplicas: 3
+    dataReplicas: 2
+    heap: "-Xmx1g -Xms1g"
+    dataDiskSize: 30Gi
+  kafka:
+    diskSize: 20Gi
+  minio:
+    diskSize: 20Gi
+  vault:
+    diskSize: 10Gi
+  monitoring:
+    prometheusRetention: 7d
+    lokiDiskSize: 20Gi
+    grafanaDiskSize: 5Gi
+
+# Per-release Helm value overrides. Teams set values.<release>.<key> in digit-config.yaml.
+values: {}

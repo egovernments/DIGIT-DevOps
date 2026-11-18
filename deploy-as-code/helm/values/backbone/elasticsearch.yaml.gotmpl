@@ -1,0 +1,18 @@
+{{- /* Shared by elasticsearch-master and elasticsearch-data; the release name picks the role. */ -}}
+{{- $sz := .Values.sizing.elasticsearch }}
+namespace: {{ .Release.Namespace }}
+esJavaOpts: {{ $sz.heap | quote }}
+{{- if eq .Release.Name "elasticsearch-master" }}
+replicas: {{ $sz.masterReplicas }}
+minimumMasterNodes: {{ add1 (div $sz.masterReplicas 2) }}
+# The password comes from Secret elasticsearch-master-credentials (cluster-configs).
+secret:
+  enabled: true
+  password: ""
+{{- else }}
+replicas: {{ $sz.dataReplicas }}
+volumeClaimTemplate:
+  resources:
+    requests:
+      storage: {{ $sz.dataDiskSize }}
+{{- end }}

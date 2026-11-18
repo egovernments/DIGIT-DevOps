@@ -16,6 +16,7 @@ Supporting material:
 
 - [Onboarding a new service](<Onboarding a new service.md>) - the single end-to-end runbook across all five stages (build -> package -> deploy), with the naming contract and per-gate checks.
 - [Templates](Templates/README.md) - ready-to-copy manifests and files for onboarding (Argo CD, Kargo, environments, access).
+- [One-click install on Azure](../ONE-CLICK-AZURE.md) - fork, fill in `digit-config.yaml`, add one secret, run one workflow.
 
 ## Architecture
 

@@ -1,0 +1,43 @@
+{{- $ns := .Values.namespaces.core }}
+namespace: {{ $ns }}
+env:
+  # Azure Database for PostgreSQL enforces TLS
+  pg_ssl: "on"
+  pg_ssl_verify: "off"
+# Same init container as the chart's, except KONG_DATABASE: the chart sets it from
+# egov-config db-name, but Kong expects the database TYPE ("postgres") there.
+initContainers:
+  extraInitContainers: |
+    - name: kong-migration
+      image: {{`{{ include "kong.image" (dict "Values" .Values "repository" .Values.image.repository "tag" .Values.image.tag) }}`}}
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/sh", "-c"]
+      args: ["kong migrations bootstrap && kong migrations up && kong migrations finish"]
+      env:
+      - name: KONG_DATABASE
+        value: postgres
+      - name: KONG_PG_SSL
+        value: "on"
+      - name: KONG_PG_SSL_VERIFY
+        value: "off"
+      - name: KONG_PG_HOST
+        valueFrom: {configMapKeyRef: {name: egov-config, key: db-host}}
+      - name: KONG_PG_PORT
+        value: "5432"
+      - name: KONG_PG_USER
+        valueFrom: {secretKeyRef: {name: db, key: username}}
+      - name: KONG_PG_PASSWORD
+        valueFrom: {secretKeyRef: {name: db, key: password}}
+      - name: KONG_PG_DATABASE
+        valueFrom: {configMapKeyRef: {name: egov-config, key: db-name}}
+# Routes: gateway-sync builds Kong services/routes from the gateway/* annotations on the
+# DIGIT services (post-install Job + CronJob).
+gatewaySync:
+  enabled: true
+  domain: {{ .Values.domain | quote }}
+  kongAdminUrl: "http://kong-admin.{{ $ns }}.svc.cluster.local:8001"
+  keycloakBaseUrl: "http://keycloak.{{ $ns }}.svc.cluster.local:8080/keycloak"
+  redis:
+    host: "redis.{{ .Values.namespaces.backbone }}.svc.cluster.local"
+    port: 6379
+  namespaces: [{{ $ns }}]

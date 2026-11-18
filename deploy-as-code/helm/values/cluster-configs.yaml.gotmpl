@@ -1,0 +1,104 @@
+{{- /*
+  digit3/cluster-configs: namespaces + the shared ConfigMaps/Secrets. Every derived value
+  is computed HERE from digit-config.yaml (domain, namespaces), Terraform outputs (infra.*)
+  and digit-secrets.yaml (secrets.*), so nothing is repeated across files.
+*/ -}}
+{{- $v := .Values }}
+{{- $ns := $v.namespaces }}
+{{- $s := $v.secrets }}
+{{- $dbHost := required "infra.dbHost (Terraform output) is missing" $v.infra.dbHost }}
+{{- $dbName := required "infra.dbName (Terraform output) is missing" $v.infra.dbName }}
+{{- $jdbc := printf "jdbc:postgresql://%s:5432" $dbHost }}
+{{- $kafka := printf "kafka-kraft-controller-headless.%s:9092" $ns.backbone }}
+{{- $redis := printf "redis.%s" $ns.backbone }}
+{{- $otel := printf "open-telemetry-opentelemetry-collector.%s:4318" $ns.monitoring }}
+cluster-configs:
+  # Namespaces other than this release's own (helmfile creates that one).
+  namespaces:
+    create: true
+    values: [{{ $ns.backbone }}, {{ $ns.vault }}, {{ $ns.monitoring }}]
+  configmaps:
+    egov-config:
+      namespace: [{{ $ns.core }}]
+      data:
+        db-host: {{ $dbHost | quote }}
+        db-port: "5432"
+        db-name: {{ $dbName | quote }}
+        # Azure Database for PostgreSQL enforces TLS
+        db-ssl-mode: "require"
+        db-url: "{{ $jdbc }}/{{ $dbName }}?sslmode=require"
+        flyway-locations: "filesystem:/flyway/sql"
+        kafka-brokers: {{ $kafka | quote }}
+        redis-host: {{ $redis | quote }}
+        redis-port: "6379"
+        redis-address: "{{ $redis }}:6379"
+        egov-services-fqdn-name: "https://{{ $v.domain }}/"
+        otel-exporter-otlp-endpoint: {{ $otel | quote }}
+        otel-tracing-export-otlp-endpoint: "http://{{ $otel }}/v1/traces"
+        keycloak-base-url: "http://keycloak.{{ $ns.core }}.svc.cluster.local:8080/keycloak"
+        keycloak-db-url: "{{ $jdbc }}/keycloak?sslmode=require"
+    egov-service-host:
+      namespace: [{{ $ns.core }}]
+      data:
+{{- range $svc := $v.coreServices }}
+        {{ $svc }}: "http://{{ $svc }}.{{ $ns.core }}:8080/"
+        # some services read the "<svc>-java" variant of the same URL
+        {{ $svc }}-java: "http://{{ $svc }}.{{ $ns.core }}:8080/"
+{{- end }}
+        vault: "http://vault.{{ $ns.vault }}:8200/"
+  secrets:
+    db:
+      namespace: [{{ $ns.core }}]
+      username: {{ $s.db.username | quote }}
+      password: {{ $s.db.password | quote }}
+      flyway-username: {{ $s.db.username | quote }}
+      flyway-password: {{ $s.db.password | quote }}
+    minio:
+      namespace: [{{ $ns.core }}]
+      accesskey: {{ $s.minio.username | quote }}
+      secretkey: {{ $s.minio.password | quote }}
+    kc-admin:
+      namespace: [{{ $ns.core }}]
+      username: {{ $s.keycloak.adminUsername | quote }}
+      password: {{ $s.keycloak.adminPassword | quote }}
+    kc-db:
+      namespace: [{{ $ns.core }}]
+      username: {{ $s.keycloak.dbUsername | quote }}
+      password: {{ $s.keycloak.dbPassword | quote }}
+    employee-iam-secret:
+      namespace: [{{ $ns.core }}]
+      employee-iam-client-secret: {{ $s.keycloak.employeeIamClientSecret | quote }}
+    citizen-broker-secret:
+      namespace: [{{ $ns.core }}]
+      citizen-broker-client-secret: {{ $s.keycloak.citizenBrokerClientSecret | quote }}
+    hmac-secret:
+      namespace: [{{ $ns.core }}]
+      hmac-secret: {{ $s.hmac | quote }}
+    egov-notification-mail:
+      namespace: [{{ $ns.core }}]
+      mailsenderusername: {{ $s.notification.mailUsername | quote }}
+      mailsenderpassword: {{ $s.notification.mailPassword | quote }}
+    egov-notification-sms:
+      namespace: [{{ $ns.core }}]
+      username: {{ $s.notification.smsUsername | quote }}
+      password: {{ $s.notification.smsPassword | quote }}
+    egov-pg-service:
+      namespace: [{{ $ns.core }}]
+      stripe-secret-key: {{ $s.stripeSecretKey | quote }}
+    docker-registry-secret:
+      namespace: [{{ $ns.core }}, {{ $ns.backbone }}]
+      dockerconfigjson: '{"auths":{}}'
+    # Written by scripts/vault-bootstrap.sh from the live Vault (no data here = not rendered).
+    vault-approle:
+      namespace: [{{ $ns.core }}]
+    # KRaft cluster id (kafka-kraft: kraft.existingClusterIdSecret)
+    kafka-kraft-cluster-id:
+      namespace: [{{ $ns.backbone }}]
+      kraft-cluster-id: {{ $s.kafka.clusterId | quote }}
+{{- if $v.components.elasticsearch }}
+    # Read by elasticsearch-master (bootstrap password), kibana and jaeger.
+    elasticsearch-master-credentials:
+      namespace: [{{ $ns.backbone }}]
+      username: "elastic"
+      password: {{ $s.elasticsearch.password | quote }}
+{{- end }}

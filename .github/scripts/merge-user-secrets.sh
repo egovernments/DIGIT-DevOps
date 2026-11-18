@@ -48,7 +48,7 @@ yq -r '.. | select(tag == "!!str" and test("^<[a-z_]+>$")) | path | join(".")' "
   done
 
 yq -e 'type == "!!map"' "$work/user.yaml" >/dev/null 2>&1 \
-  || err "is not valid YAML. Check the spaces at the start of each line (see ONE-CLICK-AZURE.md)."
+  || err "is not valid YAML. Check the spaces at the start of each line (see one-click/README.md)."
 
 # Mask every value line before anything else can print it.
 if [ -n "${GITHUB_ACTIONS:-}" ]; then
@@ -78,7 +78,7 @@ while IFS= read -r p; do
   case " $new " in *" $(cut -d. -f3 <<< "$p") "*) [[ $p == cluster-configs.secrets.* ]] && continue ;; esac
   [ "$(yq -r "$(q "$p") | tag" "$tmpl")" = "!!null" ] && unknown="$unknown $p"
 done < <(yq -r '.. | select(tag != "!!map" and tag != "!!seq") | path | join(".")' "$work/user.yaml")
-[ -z "$unknown" ] || err "unknown keys (typo?):$unknown. Use the paths in deploy-as-code/helm/environments/digit-template-secrets.yaml, or add a new Secret under cluster-configs.secrets."
+[ -z "$unknown" ] || err "unknown keys (typo?):$unknown. Use the paths in one-click/digit-template-secrets.yaml, or add a new Secret under cluster-configs.secrets."
 
 # shellcheck disable=SC2016  # $i is a yq variable
 ( umask 077

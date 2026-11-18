@@ -1,6 +1,6 @@
 name: DIGIT one-click (Azure)
-# Fork this repository, then follow ONE-CLICK-AZURE.md. A team changes ONE file,
-# deploy-as-code/helm/environments/<env>.yaml (egov-demo.yaml layout, renamed from
+# Fork this repository, then follow one-click/README.md. A team changes ONE file,
+# one-click/<env>.yaml (egov-demo.yaml layout, renamed from
 # digit-template.yaml), and adds ONE GitHub secret, AZURE_CREDENTIALS. Everything else is
 # created by this workflow. The helmfiles live in egovernments/helm-charts
 # (helmfile/digit3-one-click), pinned per environment by infra.helmfiles.ref, and read only
@@ -34,12 +34,12 @@ name: DIGIT one-click (Azure)
 on:
   push:
     paths:
-      - deploy-as-code/helm/environments/**
+      - one-click/*.yaml
       - infra-as-code/terraform/**
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment = name of your file deploy-as-code/helm/environments/<name>.yaml'
+        description: 'Environment = name of your file one-click/<name>.yaml'
         required: true
         type: string
       action:
@@ -86,7 +86,7 @@ jobs:
       - name: Use your own fork
         if: ${{ github.repository == 'egovernments/DIGIT-DevOps' }}
         run: |
-          echo "::error::Do not run this in egovernments/DIGIT-DevOps. Fork the repository and run it in your fork (ONE-CLICK-AZURE.md, step 1)."
+          echo "::error::Do not run this in egovernments/DIGIT-DevOps. Fork the repository and run it in your fork (one-click/README.md, step 1)."
           exit 1
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -100,7 +100,7 @@ jobs:
           if [ "$EVENT" = workflow_dispatch ]; then
             list=$(jq -cn --arg e "$INPUT_ENV" '[$e]')
           else
-            list=$(for f in deploy-as-code/helm/environments/*.yaml; do
+            list=$(for f in one-click/*.yaml; do
                      n=$(basename "$f" .yaml)
                      case "$n" in *-secrets|digit-template) continue ;; esac
                      yq -e '.infra | type == "!!map"' "$f" >/dev/null 2>&1 && echo "$n"
@@ -476,7 +476,7 @@ jobs:
             source:
               repoURL: https://github.com/${GITHUB_REPOSITORY}.git
               targetRevision: ${BRANCH}
-              path: deploy-as-code/helm/environments
+              path: one-click
               plugin:
                 name: digit-helmfile
                 env:

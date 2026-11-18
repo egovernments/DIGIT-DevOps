@@ -1,12 +1,12 @@
 name: Load environment file
 description: >
-  Validate deploy-as-code/helm/environments/<env>.yaml (the team's one file, egov-demo.yaml
+  Validate one-click/<env>.yaml (the team's one file, egov-demo.yaml
   layout), work out every Azure name from the environment name, and export them.
   Azure names are derived from <env> + fork + subscription, so nobody has to invent
   globally-unique storage or Key Vault names. Needs ARM_SUBSCRIPTION_ID (azure-login).
 inputs:
   environment:
-    description: Environment name = file name of deploy-as-code/helm/environments/<env>.yaml
+    description: Environment name = file name of one-click/<env>.yaml
     required: true
 runs:
   using: composite
@@ -16,13 +16,13 @@ runs:
         ENV_NAME: ${{ inputs.environment }}
       run: |
         set -euo pipefail
-        dir=deploy-as-code/helm/environments
+        dir=one-click
         f="$dir/$ENV_NAME.yaml"
         err() { echo "::error file=$f::$*"; exit 1; }
         [[ $ENV_NAME =~ ^[a-z][a-z0-9-]{1,18}[a-z0-9]$ && $ENV_NAME != *--* ]] \
           || { echo "::error::Environment name '$ENV_NAME' is not allowed. Use 3-20 small letters, numbers or '-', starting with a letter."; exit 1; }
         [ "$ENV_NAME" != digit-template ] || { echo "::error::digit-template is the template. Rename it to <your-name>.yaml and run with that name."; exit 1; }
-        [ -f "$f" ] || { echo "::error::$f not found. Rename $dir/digit-template.yaml to $ENV_NAME.yaml (step 5 of ONE-CLICK-AZURE.md)."; exit 1; }
+        [ -f "$f" ] || { echo "::error::$f not found. Rename $dir/digit-template.yaml to $ENV_NAME.yaml (step 5 of one-click/README.md)."; exit 1; }
         yq -e 'type == "!!map" and (.infra | type == "!!map")' "$f" >/dev/null 2>&1 \
           || err "$ENV_NAME.yaml is not valid YAML or has no infra: block. Check the spaces and quotes you changed."
 

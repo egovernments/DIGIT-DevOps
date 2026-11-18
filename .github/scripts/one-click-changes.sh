@@ -12,9 +12,9 @@
 # An unknown or unreachable commit (first run, force-push) means "run it" - always safe.
 set -euo pipefail
 env=${1:?environment}
-ENV_FILE="deploy-as-code/helm/environments/$env.yaml"
+ENV_FILE="one-click/$env.yaml"
 INFRA_RE='^infra-as-code/terraform/(azure/|modules/[^/]+/azure/|scripts/init\.go$)'
-DEPLOY_RE="^deploy-as-code/helm/environments/${env}-secrets\.yaml\$"
+DEPLOY_RE="^one-click/${env}-secrets\.yaml\$"
 INFRA_CFG='{"location": .infra.location, "terraform": .infra.terraform}'
 DEPLOY_CFG='del(.infra.location) | del(.infra.terraform)'
 

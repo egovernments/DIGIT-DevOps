@@ -76,7 +76,7 @@ If your Azure admin prefers one simple line, an **Owner** key also works:
 Your environment file has the same layout as `egov-demo.yaml`: a few settings at the top,
 then one block per service.
 
-1. In your copy, open the folder **`deploy-as-code/helm/environments/`** and click
+1. In your copy, open the folder **`one-click/`** and click
    **`digit-template.yaml`**.
 2. Click the **pencil** icon (Edit).
 3. At the top, change the file name from `digit-template.yaml` to **your environment name**,
@@ -242,7 +242,7 @@ Anything not listed here must not be changed.
 ## Rules (read first)
 
 1. Work only in a **fork**. The workflow refuses to run in `egovernments/DIGIT-DevOps`.
-2. A team changes exactly **one file**: `deploy-as-code/helm/environments/<env>.yaml`, made by
+2. A team changes exactly **one file**: `one-click/<env>.yaml`, made by
    renaming `digit-template.yaml`. Plus two GitHub **repository secrets**:
    `AZURE_CREDENTIALS` (required) and `DIGIT_SECRETS` (optional).
 3. **Never** write a password, key or token into `<env>.yaml` or any other file. The fork is
@@ -260,15 +260,17 @@ Anything not listed here must not be changed.
 
 Same layout as `egov-demo.yaml` / `egov-demo-secrets.yaml`. The helmfiles read **only** these two files.
 
-In this repository (DIGIT-DevOps) the one-click setup is only: the workflow and its actions/scripts in
-`.github/`, the environment templates, and the Terraform code. The helmfiles come from helm-charts.
+In this repository (DIGIT-DevOps) the one-click setup is only: the `one-click/` folder (this guide,
+the templates and the teams' environment files), the workflow and its actions/scripts in `.github/`,
+and the Terraform code in `infra-as-code/`. The helmfiles come from helm-charts.
 
 | Path | Who changes it | What it is |
 |---|---|---|
-| `deploy-as-code/helm/environments/digit-template.yaml` | nobody; teams rename it to `<env>.yaml` | starting point for an environment file |
-| `deploy-as-code/helm/environments/<env>.yaml` | the team | the environment: `infra`, `global`, then one block per release |
-| `deploy-as-code/helm/environments/<env>-secrets.yaml` | the workflow only | passwords, SOPS-encrypted with the team's Azure Key Vault key |
-| `deploy-as-code/helm/environments/digit-template-secrets.yaml` | nobody | the list of secrets and their layout (`DIGIT_SECRETS` may set these paths) |
+| `one-click/README.md` | nobody | this guide |
+| `one-click/digit-template.yaml` | nobody; teams rename it to `<env>.yaml` (same folder) | starting point for an environment file |
+| `one-click/<env>.yaml` | the team | the environment: `infra`, `global`, then one block per release |
+| `one-click/<env>-secrets.yaml` | the workflow only | passwords, SOPS-encrypted with the team's Azure Key Vault key |
+| `one-click/digit-template-secrets.yaml` | nobody | the list of secrets and their layout (`DIGIT_SECRETS` may set these paths) |
 | helm-charts `helmfile/digit3-one-click/` (`digit-helmfile.yaml.gotmpl`, `helmfiles/`, `scripts/`) | nobody (pinned by `infra.helmfiles.ref`) | which releases exist and in which order; Vault bootstrap; Argo CD plugin. Read the two files above |
 | `.github/scripts/` | nobody | secrets generation and `DIGIT_SECRETS` merge, commit-change detection |
 | `infra-as-code/terraform/azure/` | nobody | Azure infrastructure |
@@ -412,7 +414,7 @@ Any other path not in the template is rejected as a typo.
 ## Argo CD mode, in detail
 
 - **Install.** The workflow installs Argo CD (chart `argo-cd`) into namespace `argocd`, with a repo-server sidecar plugin `digit-helmfile` (helm-charts `helmfile/digit3-one-click/scripts/argocd-plugin.sh`).
-- **One root Application.** The workflow creates one Application, `digit`, pointing at the fork (`deploy-as-code/helm/environments`, default branch, plugin env `ENV=<env>`, `HELMFILES_REPO`, `HELMFILES_REF`). The plugin fetches the helmfiles from helm-charts at that ref (sparse, shallow) and reads the env files from the fork.
+- **One root Application.** The workflow creates one Application, `digit`, pointing at the fork (`one-click`, default branch, plugin env `ENV=<env>`, `HELMFILES_REPO`, `HELMFILES_REF`). The plugin fetches the helmfiles from helm-charts at that ref (sparse, shallow) and reads the env files from the fork.
 - **One Application per release.** The plugin turns the root into one Application per release, with the same names, namespaces and values as helmfile mode, because it is the same helmfiles reading the same two files.
 - **Order.** Sync waves follow the layers: `cluster-configs` → backbone → Keycloak → Kong → core services → monitoring.
 - **Sync.** All Applications use automated sync with prune and self-heal. `enabled: false` removes a release's Application and everything it deployed.

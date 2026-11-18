@@ -1,26 +1,21 @@
-name: DIGIT-Install workflow (Azure)
-# One-click DIGIT on Azure, reusable by many teams/products from one repo:
-#   1. Terraform: remote state -> AKS + PostgreSQL Flexible Server + filestore blob storage
-#   2. Helmfile : deploy DIGIT from packaged Helm charts, secrets decrypted by helm-secrets/SOPS
+name: DIGIT one-click (Azure)
+# Fork this repository, then follow ONE-CLICK-AZURE.md. A team only ever changes ONE file,
+# digit-config.yaml, and adds ONE GitHub secret, AZURE_CREDENTIALS. Everything else is
+# created and named by this workflow:
 #
-# Each environment is self-contained and owned by one team - two files only:
-#   deploy-as-code/environments/<env>/
-#     env.yaml      THE file a team edits: domain, chart repo, Azure names, sizing, Helm overrides
-#     secrets.yaml  generated + SOPS-encrypted with the team's own age key
-#   Create one with: deploy-as-code/environments/new-environment.sh <env> <age-public-key>
-#
-# GitHub Environment <env> (same name) holds that team's secrets, so one team's run can
-# never read another team's credentials:
-#   SOPS_AGE_KEY, ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_TENANT_ID, ARM_SUBSCRIPTION_ID
+#   install  1. Azure resource group, Terraform state storage and the team's own Key Vault
+#            2. digit-secrets.yaml: fresh random passwords, locked (SOPS-encrypted) with that
+#               Key Vault and committed to the fork - only on the first install
+#            3. Terraform: AKS + PostgreSQL Flexible Server + filestore storage
+#            4. Helmfile: DIGIT backbone, core 3.0 and monitoring from packaged Helm charts,
+#               secrets decrypted by helm-secrets
+#   deploy   step 4 only (after changing digit-config.yaml)
+#   destroy  Terraform destroy. The resource group (state + Key Vault) is kept.
 on:
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Environment = folder under deploy-as-code/environments and GitHub Environment name'
-        required: true
-        type: string
       action:
-        description: 'install = create infra + deploy DIGIT, deploy = helmfile only, destroy = tear down infra'
+        description: 'What do you want to do?'
         required: true
         type: choice
         default: install
@@ -28,17 +23,17 @@ on:
           - install
           - deploy
           - destroy
-      confirmDestroy:
-        description: 'When action = destroy, type the environment name again to confirm'
+      confirm:
+        description: 'Only for destroy: type the word  delete'
         required: false
         default: ''
 
 permissions:
   contents: read
 
-# One run at a time per environment; different teams' environments run in parallel.
+# One run at a time per fork + branch.
 concurrency:
-  group: digit-install-azure-${{ inputs.environment }}
+  group: digit-one-click-${{ github.repository }}-${{ github.ref_name }}
   cancel-in-progress: false
 
 env:
@@ -50,170 +45,206 @@ env:
   HELM_SECRETS_VERSION: "4.7.11"
   SOPS_VERSION: "3.13.3"
   TF_DIR: infra-as-code/terraform/azure
-  SECRETS_FILE: deploy-as-code/environments/${{ inputs.environment }}/secrets.yaml
 
 jobs:
-  Input_validation:
-    if: ${{ inputs.action != 'destroy' }}
+  Check:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-    env:
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
     steps:
+      - name: Use your own fork
+        if: ${{ github.repository == 'egovernments/DIGIT-DevOps' }}
+        run: |
+          echo "::error::Do not run this in egovernments/DIGIT-DevOps. Fork the repository and run it in your fork (ONE-CLICK-AZURE.md, step 1)."
+          exit 1
+      - name: Confirm destroy
+        if: ${{ inputs.action == 'destroy' && inputs.confirm != 'delete' }}
+        run: |
+          echo "::error::To delete your DIGIT, run again and type the word delete in the confirm box."
+          exit 1
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: Check Azure secrets
-        env:
-          ENV_NAME: ${{ inputs.environment }}
-        run: |
-          for v in ARM_CLIENT_ID ARM_CLIENT_SECRET ARM_TENANT_ID ARM_SUBSCRIPTION_ID; do
-            [ -n "${!v}" ] || { echo "::error::Missing secret $v in GitHub Environment $ENV_NAME"; exit 1; }
-          done
-      - name: Setup sops + decrypt DB credentials
-        uses: ./.github/actions/setup-sops
-        with:
-          version: ${{ env.SOPS_VERSION }}
-          age-key: ${{ secrets.SOPS_AGE_KEY }}
-          secrets-file: ${{ env.SECRETS_FILE }}
-      - name: Load environment
-        uses: ./.github/actions/load-environment
-        with:
-          environment: ${{ inputs.environment }}
-      - name: Install Terraform
-        uses: ./.github/actions/setup-terraform-azure
-        with:
-          version: ${{ env.TF_VERSION }}
-      - name: Substitute inputs into Terraform files
-        run: go run ../scripts/init.go
-        working-directory: ${{ env.TF_DIR }}
-      - name: Terraform validate (no backend)
-        run: |
-          terraform init -backend=false -input=false -no-color
-          terraform validate -no-color
-        working-directory: ${{ env.TF_DIR }}
-
-  Terraform_Infra_Creation:
-    if: ${{ inputs.action == 'install' }}
-    needs: Input_validation
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-    env:
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: Setup sops + decrypt DB credentials
-        uses: ./.github/actions/setup-sops
-        with:
-          version: ${{ env.SOPS_VERSION }}
-          age-key: ${{ secrets.SOPS_AGE_KEY }}
-          secrets-file: ${{ env.SECRETS_FILE }}
-      - name: Load environment
-        uses: ./.github/actions/load-environment
-        with:
-          environment: ${{ inputs.environment }}
-      - name: Install Terraform
-        uses: ./.github/actions/setup-terraform-azure
-        with:
-          version: ${{ env.TF_VERSION }}
-      - name: Substitute inputs into Terraform files
-        run: go run ../scripts/init.go
-        working-directory: ${{ env.TF_DIR }}
       - name: Azure login
-        run: |
-          az login --service-principal -u "$ARM_CLIENT_ID" -p "$ARM_CLIENT_SECRET" --tenant "$ARM_TENANT_ID" --output none
-          az account set --subscription "$ARM_SUBSCRIPTION_ID"
-          az account show --query '{subscription:name, id:id}' -o table
+        uses: ./.github/actions/azure-login
+        with:
+          credentials: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Check digit-config.yaml
+        uses: ./.github/actions/load-config
+      - name: Summary
+        run: cat "$RUNNER_TEMP/config-summary.md" >> "$GITHUB_STEP_SUMMARY"
 
-      # The remote-state module keeps its own state locally on the runner, so it can only
-      # be applied once. On re-runs the state account already exists and is reused.
-      - name: Terraform remote state (resource group + state storage account)
+  # Creates the Azure pieces that must exist before Terraform, then the team's secrets.
+  Prepare:
+    if: ${{ inputs.action == 'install' }}
+    needs: Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # commit the generated, encrypted digit-secrets.yaml to the fork
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Azure login
+        uses: ./.github/actions/azure-login
+        with:
+          credentials: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Load digit-config.yaml
+        uses: ./.github/actions/load-config
+
+      # The PostgreSQL server name (<name>-server) must be unique in all of Azure.
+      - name: Check the name is free in Azure
         run: |
-          if az storage account show -n "$STORAGE_ACCOUNT_NAME" -g "$RESOURCE_GROUP" --output none 2>/dev/null; then
-            echo "State storage account $STORAGE_ACCOUNT_NAME already exists - skipping remote-state apply"
-          else
-            terraform init -input=false -no-color
-            terraform apply -input=false -no-color -auto-approve
+          set -euo pipefail
+          srv="${ENVIRONMENT}-server"
+          if az postgres flexible-server show -g "$RESOURCE_GROUP" -n "$srv" -o none 2>/dev/null; then
+            echo "$srv already belongs to this install"; exit 0
           fi
-        working-directory: ${{ env.TF_DIR }}/remote-state
+          free=$(az rest --method post \
+            --url "https://management.azure.com/subscriptions/${ARM_SUBSCRIPTION_ID}/providers/Microsoft.DBforPostgreSQL/checkNameAvailability?api-version=2022-12-01" \
+            --body "{\"name\": \"$srv\", \"type\": \"Microsoft.DBforPostgreSQL/flexibleServers\"}" --query nameAvailable -o tsv)
+          [ "$free" = "true" ] || { echo "::error file=digit-config.yaml::The name '$ENVIRONMENT' is already used by someone else in Azure. Choose another name in digit-config.yaml."; exit 1; }
 
-      - name: Terraform init - Infra creation
+      # Idempotent: every re-run finds the same, already-created resources.
+      - name: Resource group, Terraform state storage and Key Vault
+        run: |
+          set -euo pipefail
+          az group create -n "$RESOURCE_GROUP" -l "$LOCATION" --tags environment="$ENVIRONMENT" -o none
+
+          if ! az storage account show -n "$STORAGE_ACCOUNT_NAME" -g "$RESOURCE_GROUP" -o none 2>/dev/null; then
+            echo "Creating Terraform state storage $STORAGE_ACCOUNT_NAME"
+            az storage account create -n "$STORAGE_ACCOUNT_NAME" -g "$RESOURCE_GROUP" -l "$LOCATION" \
+              --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 \
+              --allow-blob-public-access false --tags environment="$ENVIRONMENT" -o none
+          fi
+          key=$(az storage account keys list -n "$STORAGE_ACCOUNT_NAME" -g "$RESOURCE_GROUP" --query '[0].value' -o tsv)
+          echo "::add-mask::$key"
+          az storage container create -n "${ENVIRONMENT}-container" --account-name "$STORAGE_ACCOUNT_NAME" \
+            --account-key "$key" --public-access off -o none
+
+          # The team's own Key Vault + key that locks digit-secrets.yaml.
+          if ! az keyvault show -n "$KEY_VAULT_NAME" -g "$RESOURCE_GROUP" -o none 2>/dev/null; then
+            if [ -n "$(az keyvault list-deleted --query "[?name=='$KEY_VAULT_NAME'].name" -o tsv)" ]; then
+              echo "Recovering deleted Key Vault $KEY_VAULT_NAME (keeps the key, so old secrets still unlock)"
+              az keyvault recover -n "$KEY_VAULT_NAME" -o none
+            else
+              echo "Creating Key Vault $KEY_VAULT_NAME"
+              az keyvault create -n "$KEY_VAULT_NAME" -g "$RESOURCE_GROUP" -l "$LOCATION" \
+                --enable-rbac-authorization false --tags environment="$ENVIRONMENT" -o none
+            fi
+          fi
+          # Access policy for this service principal (object id from its own token: no Graph rights needed).
+          oid=$(az account get-access-token --query accessToken -o tsv | cut -d. -f2 |
+                python3 -c "import sys,base64,json; p=sys.stdin.read().strip(); print(json.loads(base64.urlsafe_b64decode(p+'='*(-len(p)%4)))['oid'])")
+          az keyvault set-policy -n "$KEY_VAULT_NAME" -g "$RESOURCE_GROUP" --object-id "$oid" \
+            --key-permissions get list create encrypt decrypt -o none
+          az keyvault key show --vault-name "$KEY_VAULT_NAME" -n sops -o none 2>/dev/null ||
+            az keyvault key create --vault-name "$KEY_VAULT_NAME" -n sops --kty RSA --size 4096 -o none
+          echo "SOPS_KEY_ID=$(az keyvault key show --vault-name "$KEY_VAULT_NAME" -n sops --query key.kid -o tsv)" >> "$GITHUB_ENV"
+
+      - name: Setup sops
+        uses: ./.github/actions/setup-sops
+        with:
+          version: ${{ env.SOPS_VERSION }}
+          required: "false"
+
+      # First install only: generate, lock and commit digit-secrets.yaml. Never overwritten.
+      - name: Create digit-secrets.yaml (first install only)
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ -f digit-secrets.yaml ]; then echo "digit-secrets.yaml already exists - kept"; exit 0; fi
+          bash deploy-as-code/helm/scripts/generate-secrets.sh deploy-as-code/helm/secrets.template.yaml digit-secrets.yaml "$SOPS_KEY_ID"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add digit-secrets.yaml
+          git commit -q -m "chore(one-click): locked secrets for $ENVIRONMENT [skip ci]"
+          git push -q origin "HEAD:$BRANCH"
+          echo "Committed digit-secrets.yaml (encrypted with Key Vault $KEY_VAULT_NAME)" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  Infra:
+    if: ${{ inputs.action == 'install' }}
+    needs: Prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.ref_name }}   # includes digit-secrets.yaml committed by Prepare
+      - name: Azure login
+        uses: ./.github/actions/azure-login
+        with:
+          credentials: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Load digit-config.yaml
+        uses: ./.github/actions/load-config
+      - name: Unlock digit-secrets.yaml
+        uses: ./.github/actions/setup-sops
+        with:
+          version: ${{ env.SOPS_VERSION }}
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-terraform-azure
+        with:
+          version: ${{ env.TF_VERSION }}
+      - name: Terraform init
         run: terraform init -input=false -no-color
         working-directory: ${{ env.TF_DIR }}
-      - name: Terraform plan - Infra creation
+      - name: Terraform plan
         run: terraform plan -input=false -no-color -out=tfplan
         working-directory: ${{ env.TF_DIR }}
-      - name: Terraform apply - Infra creation
+      - name: Terraform apply (AKS, PostgreSQL, storage - takes 15-25 minutes)
         run: terraform apply -input=false -no-color -auto-approve tfplan
         working-directory: ${{ env.TF_DIR }}
-      - name: Verify AKS access
+      - name: Check the cluster
         run: |
           az aks get-credentials -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --overwrite-existing
           kubectl get nodes -o wide
 
-  DIGIT_deployment:
+  Deploy:
     if: ${{ !failure() && !cancelled() && (inputs.action == 'install' || inputs.action == 'deploy') }}
-    needs: [Input_validation, Terraform_Infra_Creation]
+    needs: [Check, Prepare, Infra]
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-    env:
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: Setup sops + decrypt DB credentials
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Azure login
+        uses: ./.github/actions/azure-login
+        with:
+          credentials: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Load digit-config.yaml
+        uses: ./.github/actions/load-config
+      - name: Unlock digit-secrets.yaml
         uses: ./.github/actions/setup-sops
         with:
           version: ${{ env.SOPS_VERSION }}
-          age-key: ${{ secrets.SOPS_AGE_KEY }}
-          secrets-file: ${{ env.SECRETS_FILE }}
-      - name: Load environment
-        uses: ./.github/actions/load-environment
-        with:
-          environment: ${{ inputs.environment }}
-      - name: Install Terraform
+      - name: Setup Terraform
         uses: ./.github/actions/setup-terraform-azure
         with:
           version: ${{ env.TF_VERSION }}
-      - name: Substitute inputs into Terraform files
-        run: go run ../scripts/init.go
-        working-directory: ${{ env.TF_DIR }}
-      - name: Azure login + AKS credentials
+      - name: Connect to the cluster
         run: |
-          az login --service-principal -u "$ARM_CLIENT_ID" -p "$ARM_CLIENT_SECRET" --tenant "$ARM_TENANT_ID" --output none
-          az account set --subscription "$ARM_SUBSCRIPTION_ID"
-          az aks get-credentials -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --overwrite-existing
+          az aks get-credentials -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --overwrite-existing \
+            || { echo "::error::Cluster $ENVIRONMENT not found. Run the workflow with action = install first."; exit 1; }
           kubectl get nodes
 
-      # Infra-derived values come straight from Terraform state into a values file for
-      # helmfile - nothing is copied into committed files.
-      - name: Export Terraform outputs for helmfile
+      # Infra values go straight from Terraform state to helmfile - never into committed files.
+      - name: Read Terraform outputs
         run: |
           set -euo pipefail
           terraform init -input=false -no-color >/dev/null
           out="$RUNNER_TEMP/tf-outputs.yaml"
-          terraform output -json | yq -P '{"infra": {
+          terraform output -json | CLUSTER="$ENVIRONMENT" yq -P '{"infra": {
               "dbHost": .azurerm_postgresql_flexible_server.value,
               "dbName": .postgresql_flexible_server_database_name.value,
-              "filestoreContainer": .filestore_container_name.value,
-              "publicAssetsBaseUrl": .public_assets_base_url.value}}' > "$out"
+              "clusterName": strenv(CLUSTER)}}' > "$out"
           bad=$(yq -r '.infra | to_entries | .[] | select(.value == null or .value == "") | .key' "$out")
-          [ -z "$bad" ] || { echo "::error::Missing Terraform outputs: $bad"; exit 1; }
+          [ -z "$bad" ] || { echo "::error::Missing Terraform outputs: $bad. Run the workflow with action = install."; exit 1; }
           cat "$out"
           echo "TF_OUTPUTS_FILE=$out" >> "$GITHUB_ENV"
         working-directory: ${{ env.TF_DIR }}
 
-      # Helm pinned to v3: the runner image may ship Helm 4, whose plugin install/verification differs.
-      - name: Install Helm + Helmfile + helm-diff + helm-secrets
+      # Helm pinned to v3: the runner image may ship Helm 4, whose plugin install differs.
+      - name: Install Helm, Helmfile, helm-diff, helm-secrets
         run: |
           set -euo pipefail
           curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" | tar -xz -C "$RUNNER_TEMP" linux-amd64/helm
@@ -224,66 +255,89 @@ jobs:
           helm plugin install https://github.com/jkroepke/helm-secrets --version "v${HELM_SECRETS_VERSION}"
           helm version --short; helmfile --version; helm plugin list
 
-      # The helmfile reads DIGIT_ENV_DIR (env.yaml incl. its `values:` overrides, secrets.yaml via helm-secrets),
-      # TF_OUTPUTS_FILE and DIGIT_CHART_REPO_URL.
-      - name: Deploy DIGIT (helmfile)
-        run: helmfile -f digit-helmfile.yaml.gotmpl apply --include-needs --suppress-secrets
+      # helmfiles/backbone -> core -> monitoring, all from packaged charts.
+      # Values: defaults.yaml < digit-config.yaml < Terraform outputs < digit-secrets.yaml (helm-secrets).
+      - name: Deploy DIGIT (backbone, core, monitoring - takes 20-40 minutes)
+        run: helmfile -f digit-helmfile.yaml.gotmpl apply --suppress-secrets --skip-diff-on-install
         working-directory: deploy-as-code/helm
 
-      - name: Display LoadBalancer IP
+      # The postsync hook only runs when the vault release changes; re-check every deploy (idempotent).
+      - name: Vault check
         run: |
-          LB_IP=$(kubectl get svc ingress-nginx-controller -n backbone -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          echo "LoadBalancer IP: ${LB_IP}"
+          # namespaces as the helmfile sees them: defaults.yaml overridden by digit-config.yaml
+          # shellcheck disable=SC2016  # $i is a yq variable
+          ns() { yq eval-all -r '. as $i ireduce ({}; . * $i) | .namespaces.'"$1" defaults.yaml "$DIGIT_CONFIG"; }
+          bash scripts/vault-bootstrap.sh "$(ns vault)" "$(ns core)"
+        working-directory: deploy-as-code/helm
+
+      - name: Last step - point your domain at DIGIT
+        working-directory: deploy-as-code/helm
+        run: |
+          # shellcheck disable=SC2016  # $i is a yq variable
+          bb=$(yq eval-all -r '. as $i ireduce ({}; . * $i) | .namespaces.backbone' defaults.yaml "$DIGIT_CONFIG")
+          ip=""
+          for _ in $(seq 1 30); do
+            ip=$(kubectl get svc ingress-nginx-controller -n "$bb" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+            [ -n "$ip" ] && break; sleep 10
+          done
+          echo "Public IP: ${ip:-not ready yet}"
           {
-            echo "### DIGIT installed in \`${ENVIRONMENT}\` :rocket:"
-            echo "Point \`${DOMAIN_NAME}\` (A record) at \`${LB_IP}\`."
+            cat "$RUNNER_TEMP/config-summary.md"
+            echo
+            echo "## DIGIT is installed :rocket:"
+            echo
+            echo "**One last step:** go to the website where you bought your domain and add this DNS record:"
+            echo
+            echo "| Type | Name | Value |"
+            echo "|---|---|---|"
+            echo "| A | \`${DOMAIN_NAME}\` | \`${ip:-run deploy again to see it}\` |"
+            echo
+            echo "Wait 5 to 30 minutes, then open **https://${DOMAIN_NAME}**."
           } >> "$GITHUB_STEP_SUMMARY"
 
-  terraform_infra_destruction:
-    if: ${{ inputs.action == 'destroy' && inputs.confirmDestroy == inputs.environment }}
+  Destroy:
+    if: ${{ inputs.action == 'destroy' }}
+    needs: Check
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-    env:
-      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: Setup sops + decrypt DB credentials
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Azure login
+        uses: ./.github/actions/azure-login
+        with:
+          credentials: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Load digit-config.yaml
+        uses: ./.github/actions/load-config
+      - name: Unlock digit-secrets.yaml
         uses: ./.github/actions/setup-sops
         with:
           version: ${{ env.SOPS_VERSION }}
-          age-key: ${{ secrets.SOPS_AGE_KEY }}
-          secrets-file: ${{ env.SECRETS_FILE }}
-      - name: Load environment
-        uses: ./.github/actions/load-environment
-        with:
-          environment: ${{ inputs.environment }}
-      - name: Install Terraform
+      - name: Setup Terraform
         uses: ./.github/actions/setup-terraform-azure
         with:
           version: ${{ env.TF_VERSION }}
-      - name: Substitute inputs into Terraform files
-        run: go run ../scripts/init.go
-        working-directory: ${{ env.TF_DIR }}
-      - name: Azure login
-        run: |
-          az login --service-principal -u "$ARM_CLIENT_ID" -p "$ARM_CLIENT_SECRET" --tenant "$ARM_TENANT_ID" --output none
-          az account set --subscription "$ARM_SUBSCRIPTION_ID"
-      # Remove the ingress LoadBalancer first so its public IP is released before the VNet goes.
-      - name: Delete ingress LoadBalancer
+      # Remove the ingress LoadBalancer first so its public IP is released before the network goes.
+      - name: Delete the public IP
         continue-on-error: true
+        working-directory: deploy-as-code/helm
         run: |
+          # shellcheck disable=SC2016  # $i is a yq variable
+          bb=$(yq eval-all -r '. as $i ireduce ({}; . * $i) | .namespaces.backbone' defaults.yaml "$DIGIT_CONFIG")
           az aks get-credentials -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --overwrite-existing
-          kubectl delete svc ingress-nginx-controller -n backbone --wait=true --timeout=5m
-      - name: Terraform init - Infra destruction
+          kubectl delete svc ingress-nginx-controller -n "$bb" --wait=true --timeout=5m
+      - name: Terraform init
         run: terraform init -input=false -no-color
         working-directory: ${{ env.TF_DIR }}
-      - name: Terraform destroy - Infra
+      - name: Terraform destroy (takes 10-20 minutes)
         run: terraform destroy -input=false -no-color -auto-approve
         working-directory: ${{ env.TF_DIR }}
-      # The resource group and Terraform state account are left in place on purpose
-      # (they hold the state history). Delete them manually when no longer needed:
-      #   az group delete -n <resource_group>
+      - name: Summary
+        run: |
+          {
+            echo "## DIGIT \`$ENVIRONMENT\` is deleted"
+            echo "The resource group \`$RESOURCE_GROUP\` is kept. It holds the Terraform state and your Key Vault,"
+            echo "so **install** can bring the same DIGIT back with the same passwords."
+            echo "To remove everything, delete the resource group \`$RESOURCE_GROUP\` in the Azure portal."
+          } >> "$GITHUB_STEP_SUMMARY"

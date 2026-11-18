@@ -1,0 +1,35 @@
+# Shared base for backbone/core/monitoring helmfiles: layered values + chart repositories.
+#   1. ../defaults.yaml                   platform defaults (namespaces, versions, sizing)
+#   2. $DIGIT_CONFIG  (digit-config.yaml)  the team's ONE file (overrides anything)
+#   3. $TF_OUTPUTS_FILE                   infra.* from Terraform (DB host/name, ...)
+#   4. $DIGIT_SECRETS (digit-secrets.yaml) generated, SOPS/Azure Key Vault, decrypted by helm-secrets
+environments:
+  default:
+    values:
+      - ../defaults.yaml
+      - {{ requiredEnv "DIGIT_CONFIG" }}
+      - {{ requiredEnv "TF_OUTPUTS_FILE" }}
+    secrets:
+      - {{ requiredEnv "DIGIT_SECRETS" }}
+---
+repositories:
+  - name: digit3-backbone
+    url: {{ .Values.repositories.digit }}/digit3/backbone
+  - name: digit3-cluster-configs
+    url: {{ .Values.repositories.digit }}/digit3/cluster-configs
+  - name: digit3-core
+    url: {{ .Values.repositories.digit }}/digit3/core
+  - name: prometheus-community
+    url: {{ .Values.repositories.prometheusCommunity }}
+  - name: grafana
+    url: {{ .Values.repositories.grafana }}
+  - name: jaegertracing
+    url: {{ .Values.repositories.jaegertracing }}
+  - name: open-telemetry
+    url: {{ .Values.repositories.openTelemetry }}
+
+helmDefaults:
+  createNamespace: true
+  wait: true
+  waitForJobs: true
+  timeout: 900

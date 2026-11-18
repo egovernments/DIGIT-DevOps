@@ -1,5 +1,8 @@
 name: Setup Terraform
-description: Install a pinned Terraform CLI from releases.hashicorp.com
+description: >
+  Install a pinned Terraform CLI, write infra-as-code/terraform/azure/input.yaml from the
+  values load-config and setup-sops exported, and substitute it into the Terraform files
+  (scripts/init.go). Run after azure-login, load-config and setup-sops.
 inputs:
   version:
     description: Terraform version
@@ -8,10 +11,27 @@ runs:
   using: composite
   steps:
     - shell: bash
+      env:
+        TF_VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
-        cd "$RUNNER_TEMP"
-        curl -fsSLo terraform.zip "https://releases.hashicorp.com/terraform/${{ inputs.version }}/terraform_${{ inputs.version }}_linux_amd64.zip"
-        unzip -oq terraform.zip terraform
-        sudo mv terraform /usr/local/bin/terraform
+        ( cd "$RUNNER_TEMP"
+          curl -fsSLo terraform.zip "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip"
+          unzip -oq terraform.zip terraform
+          sudo mv terraform /usr/local/bin/terraform )
         terraform -version
+        for v in ENVIRONMENT RESOURCE_GROUP LOCATION ARM_SUBSCRIPTION_ID STORAGE_ACCOUNT_NAME FILESTORE_STORAGE_ACCOUNT_NAME SECRETS_DB_USER; do
+          [ -n "${!v:-}" ] || { echo "::error::$v not set - run azure-login, load-config and setup-sops first"; exit 1; }
+        done
+        # init.go only accepts flat key: "value" lines
+        cd infra-as-code/terraform/azure
+        {
+          printf 'environment: "%s"\n' "$ENVIRONMENT"
+          printf 'resource_group: "%s"\n' "$RESOURCE_GROUP"
+          printf 'location: "%s"\n' "$LOCATION"
+          printf 'subscription_id: "%s"\n' "$ARM_SUBSCRIPTION_ID"
+          printf 'storage_account_name: "%s"\n' "$STORAGE_ACCOUNT_NAME"
+          printf 'filestore_storage_account_name: "%s"\n' "$FILESTORE_STORAGE_ACCOUNT_NAME"
+          printf 'db_user: "%s"\n' "$SECRETS_DB_USER"
+        } > input.yaml
+        go run ../scripts/init.go

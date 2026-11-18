@@ -1,0 +1,99 @@
+# Layer 3 - monitoring: community charts (left as published by their communities) plus the
+# DIGIT blackbox exporter from https://helm.digit.org/digit3/backbone. Base values are the
+# shared files in charts/monitoring/values; environment-specific parts come from
+# ../values/monitoring/*.yaml.gotmpl. Jaeger stores traces in the backbone Elasticsearch.
+bases:
+  - _environment.yaml.gotmpl
+---
+{{- $v := .Values }}
+{{- $ns := $v.namespaces.monitoring }}
+{{- $on := $v.components.monitoring }}
+releases:
+  - name: kube-prometheus-stack
+    namespace: {{ $ns }}
+    chart: prometheus-community/kube-prometheus-stack
+    version: {{ index $v.versions "kube-prometheus-stack" }}
+    installed: {{ and $on ($v | get "releases.kube-prometheus-stack.enabled" true) }}
+    labels: {layer: monitoring}
+    disableValidation: true
+    values:
+      - ../charts/monitoring/values/prometheus.yaml
+      - ../values/monitoring/kube-prometheus-stack.yaml.gotmpl
+      - {{ $v | get "values.kube-prometheus-stack" dict | toYaml | nindent 8 }}
+
+  - name: loki
+    namespace: {{ $ns }}
+    chart: grafana/loki
+    version: {{ index $v.versions "loki" }}
+    installed: {{ and $on ($v | get "releases.loki.enabled" true) }}
+    labels: {layer: monitoring}
+    values:
+      - ../charts/monitoring/values/loki.yaml
+      - singleBinary:
+          persistence:
+            size: {{ $v.sizing.monitoring.lokiDiskSize }}
+        # Loki 6 requires an explicit schema (single binary, filesystem storage).
+        loki:
+          schemaConfig:
+            configs:
+              - from: "2024-04-01"
+                store: tsdb
+                object_store: filesystem
+                schema: v13
+                index:
+                  prefix: loki_index_
+                  period: 24h
+      - {{ $v | get "values.loki" dict | toYaml | nindent 8 }}
+
+  - name: grafana
+    namespace: {{ $ns }}
+    chart: grafana/grafana
+    version: {{ index $v.versions "grafana" }}
+    installed: {{ and $on ($v | get "releases.grafana.enabled" true) }}
+    labels: {layer: monitoring}
+    needs: [{{ $ns }}/kube-prometheus-stack]
+    values:
+      - ../charts/monitoring/values/grafana.yaml
+      - ../values/monitoring/grafana.yaml.gotmpl
+      - {{ $v | get "values.grafana" dict | toYaml | nindent 8 }}
+
+  - name: open-telemetry
+    namespace: {{ $ns }}
+    chart: open-telemetry/opentelemetry-collector
+    version: {{ index $v.versions "opentelemetry-collector" }}
+    installed: {{ and $on ($v | get "releases.open-telemetry.enabled" true) }}
+    labels: {layer: monitoring}
+    values:
+      - ../charts/monitoring/values/open-telemetry.yaml
+      - mode: deployment
+        image:
+          repository: otel/opentelemetry-collector-contrib
+        command:
+          name: otelcol-contrib
+        presets:
+          logsCollection:
+            enabled: true
+            includeCollectorLogs: true
+      - {{ $v | get "values.open-telemetry" dict | toYaml | nindent 8 }}
+
+  - name: jaeger
+    namespace: {{ $ns }}
+    chart: jaegertracing/jaeger
+    version: {{ index $v.versions "jaeger" }}
+    installed: {{ and $on $v.components.elasticsearch ($v | get "releases.jaeger.enabled" true) }}
+    labels: {layer: monitoring}
+    values:
+      - ../charts/monitoring/values/jaeger.yaml
+      - ../values/monitoring/jaeger.yaml.gotmpl
+      - {{ $v | get "values.jaeger" dict | toYaml | nindent 8 }}
+
+  - name: blackbox
+    namespace: {{ $ns }}
+    chart: digit3-backbone/prometheus-blackbox-exporter
+    version: {{ index $v.versions "prometheus-blackbox-exporter" }}
+    installed: {{ and $on ($v | get "releases.blackbox.enabled" true) }}
+    labels: {layer: monitoring}
+    values:
+      - ../charts/monitoring/values/blackbox-exporter.yaml
+      - namespace: {{ $ns }}
+      - {{ $v | get "values.blackbox" dict | toYaml | nindent 8 }}

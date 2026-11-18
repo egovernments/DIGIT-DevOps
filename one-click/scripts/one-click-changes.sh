@@ -6,26 +6,26 @@
 # The two commits are read from the environment's resource-group tags
 # (digit-infra-sha / digit-deploy-sha), written after every successful Infra / Deploy job.
 # Prints "infra=true|false" and "deploy=true|false" (reasons go to stderr).
-#   infra  : Terraform code changed, or infra.location / infra.terraform in <env>.yaml changed
-#   deploy : anything else in <env>.yaml (incl. infra.helmfiles.ref, the helmfile version from
-#            helm-charts) or <env>-secrets.yaml changed
+#   infra  : Terraform code changed, or location / terraform_* in one-click/input.yaml changed
+#   deploy : the rest of input.yaml (domain, email, helmfiles_ref, ...),
+#            one-click/<env>.yaml or one-click/<env>-secrets.yaml changed
 # An unknown or unreachable commit (first run, force-push) means "run it" - always safe.
 set -euo pipefail
 env=${1:?environment}
-ENV_FILE="one-click/$env.yaml"
+INPUT=one-click/input.yaml
 INFRA_RE='^infra-as-code/terraform/(azure/|modules/[^/]+/azure/|scripts/init\.go$)'
-DEPLOY_RE="^one-click/${env}-secrets\.yaml\$"
-INFRA_CFG='{"location": .infra.location, "terraform": .infra.terraform}'
-DEPLOY_CFG='del(.infra.location) | del(.infra.terraform)'
+DEPLOY_RE="^one-click/${env}(-secrets)?\\.yaml\$"
+INFRA_CFG='with_entries(select(.key == "location" or (.key | test("^terraform_"))))'
+DEPLOY_CFG='with_entries(select((.key == "location" or (.key | test("^terraform_"))) | not))'
 
 have() { # make sure commit $1 is available locally (shallow fetch of just that commit)
   [ -n "$1" ] || return 1
   git cat-file -e "$1^{commit}" 2>/dev/null && return 0
   git fetch -q --no-tags --depth=1 origin "$1" 2>/dev/null && git cat-file -e "$1^{commit}" 2>/dev/null
 }
-cfg() { git show "$1:$ENV_FILE" 2>/dev/null | yq -o=json -I0 "$2" 2>/dev/null || echo "<none>"; }
+cfg() { git show "$1:$INPUT" 2>/dev/null | yq -o=json -I0 "$2" 2>/dev/null || echo "<none>"; }
 
-decide() { # <what> <last-commit> <path-regex> <env-file-part>
+decide() { # <what> <last-commit> <path-regex> <input.yaml-part>
   local what=$1 last=$2 files
   if ! have "$last"; then
     echo "$what: last applied commit unknown (${last:-none}) - running" >&2; echo true; return
@@ -37,7 +37,7 @@ decide() { # <what> <last-commit> <path-regex> <env-file-part>
     echo true; return
   fi
   if [ "$(cfg "$last" "$4")" != "$(cfg HEAD "$4")" ]; then
-    echo "$what: $ENV_FILE changed since ${last:0:9}" >&2; echo true; return
+    echo "$what: $INPUT changed since ${last:0:9}" >&2; echo true; return
   fi
   echo "$what: nothing changed since ${last:0:9}" >&2; echo false
 }

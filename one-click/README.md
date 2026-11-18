@@ -1,6 +1,6 @@
 # Install DIGIT on Azure in one click
 
-You copy this project, change **one file** (your environment file), add **one secret**, and click **one button**.
+You copy this project, fill in **one file** (`one-click/input.yaml`), add **one secret**, and click **one button**.
 You do not need to install anything on your computer.
 
 This guide has two parts:
@@ -71,40 +71,32 @@ If your Azure admin prefers one simple line, an **Owner** key also works:
 4. **Secret:** paste the text from step 3.
 5. Click **Add secret**.
 
-## Step 5. Make your environment file
+## Step 5. Fill in input.yaml
 
-Your environment file has the same layout as `egov-demo.yaml`: a few settings at the top,
-then one block per service.
-
-1. In your copy, open the folder **`one-click/`** and click
-   **`digit-template.yaml`**.
+1. In your copy, open the folder **`one-click/`** and click **`input.yaml`**.
 2. Click the **pencil** icon (Edit).
-3. At the top, change the file name from `digit-template.yaml` to **your environment name**,
-   for example `team-a-digit.yaml`. Use 3 to 20 small letters, numbers or `-`, starting with a
-   letter. This name becomes your cluster's name.
-4. Change these 2 lines. Keep the quotes `" "`.
+3. Change these 3 lines. Keep the quotes `" "`.
 
    ```yaml
-   infra:
-     email: "you@example.com"        # your e-mail
-   global:
-     domain: "digit.example.com"     # your domain
+   environment: "team-a-digit"       # a short name: 3-20 small letters, numbers or -
+   domain: "digit.example.com"       # your domain
+   email: "you@example.com"          # your e-mail
    ```
 
-5. **Choose how DIGIT is deployed** (you cannot change this after the install):
+4. **Choose how DIGIT is deployed** (you cannot change this after the install):
 
    ```yaml
-   infra:
-     argocd:
-       enabled: false     # false = helmfile (simple, the default)
-                          # true  = Argo CD (adds a web screen that shows and syncs every service)
+   argocd_enabled: "false"   # "false" = helmfile (simple, the default)
+                             # "true"  = Argo CD (adds a web screen that shows and syncs every service)
    ```
 
-   Not sure? Keep `false`. See [Helmfile or Argo CD?](#helmfile-or-argo-cd).
+   Not sure? Keep `"false"`. See [Helmfile or Argo CD?](#helmfile-or-argo-cd).
 
-6. Click **Commit changes**, then **Commit changes** again.
+5. Click **Commit changes**, then **Commit changes** again.
 
-Leave every other `<...>` in the file as it is: the workflow fills them in for you.
+That is the only file you fill in. On the first install the workflow creates your environment
+file `one-click/<environment>.yaml` (from `digit-template.yaml`, the egov-demo layout) and puts
+your values into it on every deploy.
 
 ## Step 6 (optional). Your own passwords and keys
 
@@ -147,12 +139,12 @@ can use are in [Part 2, `DIGIT_SECRETS`](#digit_secrets).
 1. Click the **Actions** tab.
 2. On the left, click **DIGIT one-click (Azure)**.
 3. Click **Run workflow** (right side).
-4. In **environment**, type your environment name (the file name without `.yaml`,
-   for example `team-a-digit`). Keep **install** selected. Click the green **Run workflow**.
+4. Keep **install** selected. Click the green **Run workflow**.
 5. Wait about **1 hour**. A green tick means it is done.
 
-The install also creates **`<your-name>-secrets.yaml`** next to your file (your passwords,
-locked) and fills in your file. Both are committed to your copy for you.
+The install also creates **`one-click/<environment>.yaml`** (your environment file) and
+**`one-click/<environment>-secrets.yaml`** (your passwords, locked). Both are committed to your
+copy for you.
 
 ## Step 8. Connect your domain
 
@@ -167,34 +159,34 @@ locked) and fills in your file. Both are committed to your copy for you.
 
 ## After the install: you only commit
 
-Every commit to your copy starts the workflow by itself, for every environment file in it.
-It changes only what your commit changed:
+Every commit to your copy starts the workflow by itself. It changes only what your commit changed:
 
 | You commit a change to... | What runs by itself |
 |---|---|
-| `infra.terraform` or `infra.location` in your file, or the Terraform code | **infra** (Azure) only |
-| anything else in your file, your secrets file, or the helmfiles | **deploy** (DIGIT) only |
+| `terraform_*` or `location` in `input.yaml`, or the Terraform code | **infra** (Azure) only |
+| the rest of `input.yaml` (domain, e-mail, `helmfiles_ref`), your environment file, or your secrets file | **deploy** (DIGIT) only |
 | both | **infra**, then **deploy** |
 | anything else (docs, other folders, comments) | nothing |
 
 | I want to... | Do this |
 |---|---|
-| change the machines (number or size) | Edit `infra.terraform` in your file, commit. |
-| change a service (replicas, image, settings) | Edit that service's block in your file, commit. |
+| change the domain or e-mail | Change that line in `input.yaml`, commit. Then update your DNS record. |
+| change the machines (number or size) | Edit `terraform_node_count` (or add `terraform_main_vm_size`) in `input.yaml`, commit. |
+| change a service (replicas, image, settings) | Edit that service's block in `one-click/<environment>.yaml`, commit. |
 | turn a service off | Add `enabled: false` to its block, commit. |
 | add a DIGIT service | Add a block with its name and `chart-version` (a chart from `helm.digit.org/digit3/core`), commit. |
 | add or change a password or key | Edit the secret **`DIGIT_SECRETS`** (step 6), then **Actions → Run workflow → deploy**. (Changing a GitHub secret is not a commit, so it does not run by itself.) |
-| run infra or deploy again by hand | **Actions → Run workflow**, type your environment, choose **infra** or **deploy**. |
-| get the newest DIGIT version | Update the `chart-version` lines you want in your file (and `infra.helmfiles.ref` for newer helmfiles), commit. **Sync fork → Update branch** brings a newer workflow and templates. |
+| run infra or deploy again by hand | **Actions → Run workflow**, choose **infra** or **deploy**. |
+| get the newest DIGIT version | Update the `chart-version` lines you want in your environment file (and `helmfiles_ref` in `input.yaml` for newer helmfiles), commit. **Sync fork → Update branch** brings a newer workflow and templates. |
 | delete my DIGIT | **Run workflow** with **destroy**, type `delete` in **confirm**. |
 | delete everything in Azure | After destroy, delete the resource group `<your-name>-rg` in the Azure portal. |
 
 ## Helmfile or Argo CD?
 
 Both deploy exactly the same DIGIT (same charts, same environment file, same passwords). Only
-the tool that deploys differs. You choose once, in `infra.argocd.enabled`, before the first install.
+the tool that deploys differs. You choose once, with `argocd_enabled` in `input.yaml`, before the first install.
 
-| | Helmfile (`enabled: false`) | Argo CD (`enabled: true`) |
+| | Helmfile (`argocd_enabled: "false"`) | Argo CD (`argocd_enabled: "true"`) |
 |---|---|---|
 | Who deploys the services | the GitHub workflow runs helmfile | Argo CD, inside your cluster |
 | After a commit | the workflow deploys the change | Argo CD pulls the change from your copy within ~3 minutes; the workflow waits and reports |
@@ -213,15 +205,15 @@ Open the run with the red ❌ and click the red step. The red message says what 
 | The message says | Fix |
 |---|---|
 | `AZURE_CREDENTIALS is missing` / `is not valid` | Do steps 3 and 4 again. Copy **all** the text, from `{` to `}`. |
-| `... not found. Rename ... digit-template.yaml` | Do step 5, and type the same name in **environment** when you run the workflow. |
-| `global.domain ... must be your web address` / `infra.email ... must be your e-mail` | Do step 5: fill in both lines. |
-| `Fill in these lines first` | A line still has a `< >` placeholder the workflow cannot fill. Put your value there. |
-| `Environment name ... is not allowed` | File name: small letters, numbers and `-` only, start with a letter, 3 to 20 characters. |
-| `infra.argocd.enabled must be true or false` | Write `true` or `false` without quotes. |
+| `Fill in these lines first` | Do step 5: fill in `environment`, `domain` and `email` in `input.yaml`. |
+| `domain ... must be your web address` / `email ... must be your e-mail` | Fix that line in `input.yaml` (no `https://`, no `/`). |
+| `environment ... is not allowed` | Small letters, numbers and `-` only, start with a letter, 3 to 20 characters. |
+| `argocd_enabled must be "true" or "false"` | Write `"true"` or `"false"`. |
+| `unfilled placeholders` | A line in your environment file has a `< >` placeholder the workflow cannot fill. Put your value there. |
 | `chart-version is missing in the environment file` | Every service block needs a `chart-version:` line. |
 | `Do not run this in egovernments/DIGIT-DevOps` | You are in the original project. Use your own copy (step 1). |
-| `already exists but was not created by this fork` / `already used by someone else in Azure` | The name is taken. Rename your file (and its secrets file, if it exists) and use the new name. |
-| `It cannot be switched on a running DIGIT` | You changed `infra.argocd.enabled` after the install. Change it back, or run **destroy** and then **install**. |
+| `already exists but was not created by this fork` / `already used by someone else in Azure` | The name is taken. Choose another `environment` in `input.yaml` (before the first install). |
+| `It cannot be switched on a running DIGIT` | You changed `argocd_enabled` after the install. Change it back, or run **destroy** and then **install**. |
 | `would delete or replace` | Your change would rebuild the cluster, database or storage and can lose data. Undo it. Only if you are sure, run **infra** by hand with `replace` in **confirm**. |
 | `DIGIT_SECRETS: is not valid YAML` | Check the spaces at the start of each line of `DIGIT_SECRETS`. |
 | `DIGIT_SECRETS: unknown keys` | A name is misspelled. Use the paths in [Part 2](#digit_secrets). |
@@ -242,83 +234,88 @@ Anything not listed here must not be changed.
 ## Rules (read first)
 
 1. Work only in a **fork**. The workflow refuses to run in `egovernments/DIGIT-DevOps`.
-2. A team changes exactly **one file**: `one-click/<env>.yaml`, made by
-   renaming `digit-template.yaml`. Plus two GitHub **repository secrets**:
-   `AZURE_CREDENTIALS` (required) and `DIGIT_SECRETS` (optional).
-3. **Never** write a password, key or token into `<env>.yaml` or any other file. The fork is
-   public. Secrets go only into `DIGIT_SECRETS`.
-4. **Never** create or edit `<env>-secrets.yaml` by hand. The workflow creates it, locks it and
-   commits it.
-5. Do not edit `one-click/actions/`, `one-click/scripts/`, `one-click/digit-template-secrets.yaml`,
-   `.github/workflows/digit_install.yml` or `infra-as-code/`.
-   The helmfiles are not in this repository: they live in
+2. A team fills in exactly **one file**, `one-click/input.yaml`, plus two GitHub **repository
+   secrets**: `AZURE_CREDENTIALS` (required) and `DIGIT_SECRETS` (optional). Optionally it
+   tunes release blocks in `one-click/<environment>.yaml` after the first install.
+3. **Never** write a password, key or token into `input.yaml`, `<environment>.yaml` or any other
+   file. The fork is public. Secrets go only into `DIGIT_SECRETS`.
+4. **Never** create or edit `<environment>-secrets.yaml` by hand. The workflow creates it, locks it
+   and commits it.
+5. Do not edit `one-click/digit-template.yaml`, `one-click/digit-template-secrets.yaml`,
+   `one-click/actions/`, `one-click/scripts/`, `.github/workflows/digit_install.yml` or
+   `infra-as-code/`. The helmfiles are not in this repository: they live in
    [egovernments/helm-charts](https://github.com/egovernments/helm-charts/tree/master/helmfile/digit3-one-click)
-   (`helmfile/digit3-one-click`) and each environment pins their version with `infra.helmfiles.ref`.
-6. The file name (environment name) and `infra.argocd.enabled` are fixed after the first install.
-7. Several environments can live in one fork: one `<env>.yaml` per environment.
+   (`helmfile/digit3-one-click`), pinned by `helmfiles_ref` in `input.yaml`.
+6. `environment`, `location` and `argocd_enabled` are fixed after the first install.
+7. One environment per fork (the one named in `input.yaml`).
 
 ## Files
-
-Same layout as `egov-demo.yaml` / `egov-demo-secrets.yaml`. The helmfiles read **only** these two files.
 
 In this repository (DIGIT-DevOps) the one-click setup is only three places, easy to review:
 
 ```
-one-click/                            everything one-click (this guide, templates, environments, actions, scripts)
+one-click/                            everything one-click (this guide, input, templates, environment, actions, scripts)
 .github/workflows/digit_install.yml   the workflow (GitHub requires workflows in .github/workflows)
 infra-as-code/terraform/azure/        the Terraform code
 ```
 
-The helmfiles come from helm-charts.
+The environment files have the same layout as `egov-demo.yaml` / `egov-demo-secrets.yaml`; the
+helmfiles read **only** these two (the environment file with its placeholders filled in).
 
 | Path | Who changes it | What it is |
 |---|---|---|
+| `one-click/input.yaml` | **the team** | the mandatory values (environment, domain, email) and the workflow settings |
 | `one-click/README.md` | nobody | this guide |
-| `one-click/digit-template.yaml` | nobody; teams rename it to `<env>.yaml` (same folder) | starting point for an environment file |
-| `one-click/<env>.yaml` | the team | the environment: `infra`, `global`, then one block per release |
-| `one-click/<env>-secrets.yaml` | the workflow only | passwords, SOPS-encrypted with the team's Azure Key Vault key |
+| `one-click/digit-template.yaml` | nobody | the environment template (egov-demo layout, with placeholders) |
+| `one-click/<environment>.yaml` | the workflow creates it; the team may tune release blocks | the environment: `global`, then one block per release |
+| `one-click/<environment>-secrets.yaml` | the workflow only | passwords, SOPS-encrypted with the team's Azure Key Vault key |
 | `one-click/digit-template-secrets.yaml` | nobody | the list of secrets and their layout (`DIGIT_SECRETS` may set these paths) |
-| helm-charts `helmfile/digit3-one-click/` (`digit-helmfile.yaml.gotmpl`, `helmfiles/`, `scripts/`) | nobody (pinned by `infra.helmfiles.ref`) | which releases exist and in which order; Vault bootstrap; Argo CD plugin. Read the two files above |
-| `one-click/actions/` | nobody | the workflow's steps: Azure login, environment-file checks, sops, Terraform setup, `DIGIT_SECRETS`, committing to the fork |
+| `one-click/actions/` | nobody | the workflow's steps: Azure login, input checks, sops, Terraform setup, `DIGIT_SECRETS`, committing to the fork |
 | `one-click/scripts/` | nobody | secrets generation and `DIGIT_SECRETS` merge, commit-change detection |
+| helm-charts `helmfile/digit3-one-click/` | nobody (pinned by `helmfiles_ref`) | the helmfiles; `scripts/render-env.sh` (fills the placeholders), Vault bootstrap, Argo CD plugin |
 | `infra-as-code/terraform/azure/` | nobody | Azure infrastructure |
 | `.github/workflows/digit_install.yml` | nobody | the workflow |
 
-## `<env>.yaml`
+## `input.yaml`
+
+Flat `key: "value"` lines, like `infra-as-code/terraform/azure/input.yaml`. Every value in double quotes.
+
+| Key | Required | Default | Change after install? | Effect |
+|---|---|---|---|---|
+| `environment` | **yes** | - | **no** (a new name = a new environment) | AKS cluster `<environment>`; resource group `<environment>-rg`; DB server `<environment>-server` (must be free in all of Azure); files `one-click/<environment>.yaml` / `-secrets.yaml`. 3-20 small letters, numbers, `-`, starting with a letter |
+| `domain` | **yes** | - | yes (runs **deploy**; then update DNS) | public address; fills `<domain>` |
+| `email` | **yes** | - | yes (runs **deploy**) | Let's Encrypt account; fills `<email>` |
+| `location` | no | `centralindia` | **no** (rebuilds everything; blocked unless `confirm = replace`) | Azure region |
+| `argocd_enabled` | no | `"false"` | **no** | `"false"` = helmfile deploys; `"true"` = Argo CD deploys everything |
+| `terraform_<var>` | no | see `infra-as-code/terraform/azure/variables.tf` | yes (runs **infra**) | Terraform variable `<var>`, e.g. `terraform_node_count: "4"`, `terraform_main_vm_size: "Standard_D8s_v3"`, `terraform_scheduling: "false"` |
+| `helmfiles_repo` | no | `egovernments/helm-charts` | yes | where the helmfiles come from |
+| `helmfiles_ref` | no | `master` | yes (runs **deploy**) | which version of the helmfiles deploys this environment: a branch, tag or **full** 40-character commit SHA. Pin it for a reproducible environment |
+
+## `<environment>.yaml`
 
 ### Top-level blocks
 
 | Block | What it is |
 |---|---|
-| `infra` | read by the workflow only (not a release) - see below |
-| `global` | given to every DIGIT chart: `domain` (**fill in**), `mode` (`prod` = image tag from the chart, `dev` = `<release>.image.tag`), `containerRegistry`, `setup` |
+| `global` | given to every DIGIT chart: `domain` (`<domain>`), `mode` (`prod` = image tag from the chart, `dev` = `<release>.image.tag`), `containerRegistry`, `setup` |
 | `cluster-configs` | namespaces and the shared ConfigMaps (`egov-config`, `egov-service-host`) |
 | `<release>` | Helm values of that release, plus `chart-version` (required) and `enabled: false` (optional, do not deploy) |
 | `argo-cd` | Argo CD itself (Argo CD mode only) |
 
-### `infra`
+### Placeholders, filled on every deploy
 
-| Key | Type | Default | Change after install? | Effect |
-|---|---|---|---|---|
-| `email` | e-mail | - (**fill in**) | yes (also update the `cert-manager` block) | fills `<email>`: Let's Encrypt account |
-| `location` | Azure region | `centralindia` | **no** (rebuilds everything; blocked unless `confirm = replace`) | Azure region |
-| `argocd.enabled` | `true` / `false` | `false` | **no** | `false` = helmfile deploys; `true` = Argo CD deploys everything |
-| `helmfiles.repo` | `owner/repo` | `egovernments/helm-charts` | yes | where the helmfiles come from |
-| `helmfiles.ref` | branch, tag or **full** commit SHA | `master` | yes (runs **deploy**) | which version of the helmfiles deploys this environment. Pin it for a reproducible environment |
-| `terraform.<var>` | scalar | see `infra-as-code/terraform/azure/variables.tf` | yes (runs **infra**) | Terraform variable, e.g. `node_count: 4`, `main_vm_size: "Standard_D8s_v3"`, `scheduling: false` |
+The placeholders stay in the file in git. On every deploy (helmfile mode and Argo CD mode alike)
+`render-env.sh` writes a filled copy for helmfile:
 
-### Placeholders the workflow fills in
+| Placeholder | Filled with |
+|---|---|
+| `<domain>` | `domain` in `input.yaml` |
+| `<email>` | `email` in `input.yaml` |
+| `<env>` | `environment` in `input.yaml` |
+| `<db_host>`, `<db_name>` | the PostgreSQL server Terraform created |
 
-| Placeholder | Filled with | When |
-|---|---|---|
-| `<domain>` | `global.domain` | first install |
-| `<email>` | `infra.email` | first install |
-| `<env>` | the environment name | first install |
-| `<db_host>`, `<db_name>` | the PostgreSQL server Terraform created | after Terraform |
-
-Any other `<...>` left in the file stops the run (`Fill in these lines first`). After the first
-install the file contains real values only; to change the domain later, change it everywhere
-in the file.
+So changing the domain is one line in `input.yaml`. Any other `<...>` left in a value stops the
+deploy (`unfilled placeholders`).
 
 ### Releases (block names)
 
@@ -348,7 +345,7 @@ The full JSON printed by `az ad sp create-for-rbac ... --json-auth` (step 3). It
 | Role | Why |
 |---|---|
 | **Contributor** | creates `<name>-rg`, AKS, PostgreSQL, network, storage, Automation, the Key Vault and its access policies, and tags |
-| **Role Based Access Control Administrator**, with a condition: may assign and remove **only** Network Contributor and Azure Kubernetes Service Contributor Role | Terraform creates these 3 role assignments (Contributor alone cannot): Network Contributor on the AKS subnet for the AKS identity (`infra-as-code/terraform/azure/main.tf`); Azure Kubernetes Service Contributor Role on the cluster and Network Contributor on the AKS subnet for the node-scaling Automation account (`modules/scheduling/azure`, only when `infra.terraform.scheduling` is `true`, the default) |
+| **Role Based Access Control Administrator**, with a condition: may assign and remove **only** Network Contributor and Azure Kubernetes Service Contributor Role | Terraform creates these 3 role assignments (Contributor alone cannot): Network Contributor on the AKS subnet for the AKS identity (`infra-as-code/terraform/azure/main.tf`); Azure Kubernetes Service Contributor Role on the cluster and Network Contributor on the AKS subnet for the node-scaling Automation account (`modules/scheduling/azure`, only when `terraform_scheduling` is `"true"`, the default) |
 
 **Owner** on the subscription also works but gives far more than needed.
 
@@ -388,41 +385,41 @@ Any other path not in the template is rejected as a typo.
 
 ### How secrets are handled (nobody encrypts by hand)
 
-1. **install** creates an Azure Key Vault in `<env>-rg` with a key `sops`.
+1. **install** creates an Azure Key Vault in `<environment>-rg` with a key `sops`.
 2. It copies `digit-template-secrets.yaml` and gives every `<placeholder>` a fresh random value. The same placeholder gets the same value everywhere.
 3. It merges `DIGIT_SECRETS` over it, after checking the paths.
-4. It encrypts the result with SOPS and that Key Vault key, and commits `<env>-secrets.yaml` (`[skip ci]`).
+4. It encrypts the result with SOPS and that Key Vault key, and commits `<environment>-secrets.yaml` (`[skip ci]`).
 5. Every **deploy** repeats steps 3 and 4. A key added to the template in a newer version gets a random value. The file is committed only if something changed.
 6. **Helmfile mode:** helm-secrets decrypts the file during the deploy with the workflow's Azure login.
 7. **Argo CD mode:** the Argo CD plugin decrypts it with the cluster's own managed identity, which is allowed only to *get* and *decrypt* with that key.
 
 ## Workflow
 
-`Actions → DIGIT one-click (Azure) → Run workflow`, with **environment** = `<env>`:
+`Actions → DIGIT one-click (Azure) → Run workflow` (the environment is the one in `input.yaml`):
 
 | `action` | Does | `confirm` |
 |---|---|---|
-| `install` | first time, or re-run a failed install: resource group, state storage, Key Vault, fill-in, secrets, Terraform, deploy | - |
+| `install` | first time, or re-run a failed install: resource group, state storage, Key Vault, environment file, secrets, Terraform, deploy | - |
 | `infra` | Terraform only | `replace` only if it asks |
 | `deploy` | deploy only (helmfile, or Argo CD), and applies `DIGIT_SECRETS` | - |
-| `destroy` | Terraform destroy; keeps `<env>-rg` (state + Key Vault) | `delete` |
+| `destroy` | Terraform destroy; keeps `<environment>-rg` (state + Key Vault) | `delete` |
 
-**Commits run automatically.** A commit to the fork's default branch runs the workflow for
-**every** environment file in the fork (see [After the install](#after-the-install-you-only-commit)).
+**Commits run automatically.** A commit to `one-click/*.yaml` or the Terraform code on the fork's
+default branch runs the workflow (see [After the install](#after-the-install-you-only-commit)).
 
-**Tags on `<env>-rg`.** The commit last applied is stored as tags:
+**Tags on `<environment>-rg`.** The commit last applied is stored as tags:
 
 | Tag | Meaning |
 |---|---|
 | `digit-infra-sha`, `digit-deploy-sha` | commit last applied for infra / deploy |
 | `digit-state` | `installed` or `destroyed` |
 | `digit-deploy-mode` | `helmfile` or `argocd` |
-| `managed-by=digit-one-click`, `digit-repo=<owner>/<repo>`, `digit-name=<env>` | ownership |
+| `managed-by=digit-one-click`, `digit-repo=<owner>/<repo>`, `digit-name=<environment>` | ownership |
 
 ## Argo CD mode, in detail
 
 - **Install.** The workflow installs Argo CD (chart `argo-cd`) into namespace `argocd`, with a repo-server sidecar plugin `digit-helmfile` (helm-charts `helmfile/digit3-one-click/scripts/argocd-plugin.sh`).
-- **One root Application.** The workflow creates one Application, `digit`, pointing at the fork (`one-click`, default branch, plugin env `ENV=<env>`, `HELMFILES_REPO`, `HELMFILES_REF`). The plugin fetches the helmfiles from helm-charts at that ref (sparse, shallow) and reads the env files from the fork.
+- **One root Application.** The workflow creates one Application, `digit`, pointing at the fork (`one-click/`, default branch; plugin env `DB_HOST`, `DB_NAME` from Terraform). The plugin reads `input.yaml` from the fork, fetches the helmfiles from helm-charts at `helmfiles_ref` (sparse, shallow), fills the environment file with `render-env.sh`, and renders. A commit to `input.yaml` or the environment file is picked up by Argo CD directly.
 - **One Application per release.** The plugin turns the root into one Application per release, with the same names, namespaces and values as helmfile mode, because it is the same helmfiles reading the same two files.
 - **Order.** Sync waves follow the layers: `cluster-configs` → backbone → Keycloak → Kong → core services → monitoring.
 - **Sync.** All Applications use automated sync with prune and self-heal. `enabled: false` removes a release's Application and everything it deployed.
@@ -431,9 +428,9 @@ Any other path not in the template is rejected as a typo.
 
 ## What gets created
 
-- **Azure** (`<env>-rg`):
-  - AKS cluster `<env>`;
-  - PostgreSQL Flexible Server `<env>-server`;
+- **Azure** (`<environment>-rg`):
+  - AKS cluster `<environment>`;
+  - PostgreSQL Flexible Server `<environment>-server`;
   - network;
   - storage accounts (Terraform state, filestore);
   - Key Vault.

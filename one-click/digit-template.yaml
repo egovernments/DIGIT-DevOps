@@ -1,15 +1,12 @@
 # =====================================================================================
-#  DIGIT one-click environment  -  THE file you edit (same layout as egov-demo.yaml).
+#  DIGIT one-click environment (same layout as egov-demo.yaml).
 #
-#  1. Rename this file to <your-environment-name>.yaml  (3-20 small letters, numbers, "-",
-#     starting with a letter, e.g. team-a-digit.yaml). The name becomes your AKS cluster.
-#  2. Fill in the two lines marked FILL IN: global.domain and infra.email.
-#  3. Run the workflow with environment = <your-environment-name>.
+#  You do NOT edit this template. Fill in one-click/input.yaml instead. On the first install
+#  the workflow copies this file to one-click/<environment>.yaml; later you may tune the
+#  release blocks there (replicas, image tags, settings).
 #
-#  On the first install the workflow fills the remaining placeholders below with your
-#  domain, e-mail and environment name, adds the database address from Terraform, and
-#  commits this file. Your passwords go to <your-environment-name>-secrets.yaml, created
-#  and locked by the workflow.
+#  The placeholders <domain> <email> <env> (from input.yaml) and <db_host> <db_name>
+#  (the database Terraform created) stay in the file; they are filled in on every deploy.
 #
 #  Every block below is the Helm values of one release (block name = release name), plus:
 #    chart-version   the chart version deployed (required)
@@ -19,33 +16,10 @@
 # =====================================================================================
 
 # ============================================================================
-#  INFRA  -  read by the workflow only (Terraform, deploy method). Not a release.
-# ============================================================================
-infra:
-  email: "<email>"              # FILL IN: your e-mail, for the free HTTPS certificates
-  location: "centralindia"      # Azure region. Do not change after the first install.
-  argocd:
-    # How DIGIT is deployed. Choose ONCE, before the first install.
-    # false = the workflow deploys with helmfile.
-    # true  = the workflow installs Argo CD; Argo CD deploys every release below from this
-    #         repository and keeps it in sync. Screen: https://<domain>/argocd (user admin).
-    enabled: false
-  # The helmfiles that deploy this environment (egovernments/helm-charts,
-  # helmfile/digit3-one-click). Pin ref to a tag or a FULL 40-character commit SHA for a
-  # reproducible environment; changing ref and committing redeploys with that version.
-  helmfiles:
-    repo: "egovernments/helm-charts"
-    ref: "master"
-  terraform:                    # Terraform variables (infra-as-code/terraform/azure/variables.tf)
-    node_count: 4
-    # main_vm_size: "Standard_D8s_v3"
-    # scheduling: false         # true (default) scales nodes to 0 at night
-
-# ============================================================================
 #  GLOBAL  -  given to every DIGIT chart
 # ============================================================================
 global:
-  domain: "<domain>"            # FILL IN: e.g. digit.example.com (no https://, no /)
+  domain: "<domain>"            # from input.yaml
   mode: prod                    # prod = image tag from the chart; dev = <release>.image.tag
   containerRegistry: egovio
   setup: fullsetup
@@ -938,7 +912,7 @@ blackbox:
   chart-version: 3.0.0
 
 # ============================================================================
-#  ARGO CD  -  used only when infra.argocd.enabled is true
+#  ARGO CD  -  used only when argocd_enabled is "true" in input.yaml
 # ============================================================================
 argo-cd:
   chart-version: 3.0.0

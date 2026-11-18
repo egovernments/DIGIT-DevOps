@@ -1,36 +1,35 @@
 name: DIGIT one-click (Azure)
 # Fork this repository, then follow one-click/README.md. A team changes ONE file,
-# one-click/<env>.yaml (egov-demo.yaml layout, renamed from
-# digit-template.yaml), and adds ONE GitHub secret, AZURE_CREDENTIALS. Everything else is
-# created by this workflow. The helmfiles live in egovernments/helm-charts
-# (helmfile/digit3-one-click), pinned per environment by infra.helmfiles.ref, and read only
-# <env>.yaml and <env>-secrets.yaml.
+# one-click/input.yaml (environment, domain, email + optional settings), and adds ONE GitHub
+# secret, AZURE_CREDENTIALS. Everything else is created by this workflow. The helmfiles live
+# in egovernments/helm-charts (helmfile/digit3-one-click), pinned by helmfiles_ref, and read
+# only one-click/<environment>.yaml (filled from input.yaml + Terraform on every deploy) and
+# one-click/<environment>-secrets.yaml.
 #
 #   install  First time: a NEW environment. Refuses to touch Azure resources this fork did
 #            not create (ownership tags managed-by / digit-repo / digit-name).
 #            1. Azure resource group, Terraform state storage and the team's own Key Vault
-#            2. <env>.yaml: fills <domain> <email> <env>; <env>-secrets.yaml: fresh random
-#               passwords + DIGIT_SECRETS, locked (SOPS) with that Key Vault BY THIS WORKFLOW;
-#               both committed to the fork
-#            3. Terraform: AKS + PostgreSQL Flexible Server + storage; fills <db_host> <db_name>
+#            2. <environment>.yaml copied from digit-template.yaml; <environment>-secrets.yaml:
+#               fresh random passwords + DIGIT_SECRETS, locked (SOPS) with that Key Vault BY
+#               THIS WORKFLOW; both committed to the fork
+#            3. Terraform: AKS + PostgreSQL Flexible Server + storage
 #            4. Deploy DIGIT backbone, core 3.0 and monitoring from packaged Helm charts
 #   infra    step 3 only. Stops if the plan would delete/replace the cluster, database,
 #            storage, network or Key Vault, unless confirm = replace.
 #   deploy   step 4 only (also applies a changed DIGIT_SECRETS)
 #   destroy  Terraform destroy. The resource group (state + Key Vault) is kept.
 #
-# Two ways to deploy (infra.argocd.enabled in <env>.yaml, fixed at the first install):
+# Two ways to deploy (argocd_enabled in input.yaml, fixed at the first install):
 #   helmfile  the workflow runs `helmfile apply`
 #   argocd    the workflow installs Argo CD and one root Application "digit"; Argo CD deploys
-#             EVERY release via the digit-helmfile plugin (env files from this fork,
-#             helmfiles from helm-charts at the same pinned ref).
+#             EVERY release via the digit-helmfile plugin (input.yaml + env files from this
+#             fork, helmfiles from helm-charts at the same pinned ref).
 #
-# After the first install, every commit to the fork's default branch runs by itself, for
-# every environment file in it, and applies only what changed since the commit running in
-# Azure (resource-group tags digit-infra-sha / digit-deploy-sha,
-# one-click/scripts/one-click-changes.sh):
-#   Terraform code or infra.location/infra.terraform  -> infra
-#   the rest of <env>.yaml (incl. infra.helmfiles.ref), <env>-secrets.yaml -> deploy
+# After the first install, every commit to the fork's default branch runs by itself and
+# applies only what changed since the commit running in Azure (resource-group tags
+# digit-infra-sha / digit-deploy-sha, one-click/scripts/one-click-changes.sh):
+#   Terraform code, or location / terraform_* in input.yaml        -> infra
+#   the rest of input.yaml, <environment>.yaml, the secrets file   -> deploy
 on:
   push:
     paths:
@@ -38,10 +37,6 @@ on:
       - infra-as-code/terraform/**
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Environment = name of your file one-click/<name>.yaml'
-        required: true
-        type: string
       action:
         description: 'What do you want to do?'
         required: true
@@ -90,23 +85,21 @@ jobs:
           exit 1
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: List environments
+      # The environment is the one named in one-click/input.yaml. On a commit, nothing runs
+      # until input.yaml is filled in.
+      - name: Read the environment from input.yaml
         id: list
         env:
           EVENT: ${{ github.event_name }}
-          INPUT_ENV: ${{ inputs.environment }}
         run: |
           set -euo pipefail
-          if [ "$EVENT" = workflow_dispatch ]; then
-            list=$(jq -cn --arg e "$INPUT_ENV" '[$e]')
-          else
-            list=$(for f in one-click/*.yaml; do
-                     n=$(basename "$f" .yaml)
-                     case "$n" in *-secrets|digit-template) continue ;; esac
-                     yq -e '.infra | type == "!!map"' "$f" >/dev/null 2>&1 && echo "$n"
-                   done | jq -Rcs 'split("\n") | map(select(length > 0))')
+          env=$(yq -r '.environment // ""' one-click/input.yaml 2>/dev/null || true)
+          if [ "$EVENT" = push ] && [[ ! $env =~ ^[a-z][a-z0-9-]{1,18}[a-z0-9]$ ]]; then
+            echo "one-click/input.yaml is not filled in yet - nothing to do" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo 'list=[]' >> "$GITHUB_OUTPUT"; exit 0
           fi
-          echo "Environments: $list" | tee -a "$GITHUB_STEP_SUMMARY"
+          list=$(jq -cn --arg e "${env:-input.yaml}" '[$e]')
+          echo "Environment: $list" | tee -a "$GITHUB_STEP_SUMMARY"
           echo "list=$list" >> "$GITHUB_OUTPUT"
 
   DIGIT:
@@ -116,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 300
     permissions:
-      contents: write   # commit the generated secrets file and the values filled into <env>.yaml
+      contents: write   # commit the environment file (first install) and the secrets file
     strategy:
       fail-fast: false
       matrix:
@@ -135,10 +128,8 @@ jobs:
         uses: ./one-click/actions/azure-login
         with:
           credentials: ${{ secrets.AZURE_CREDENTIALS }}
-      - name: Check the environment file
+      - name: Check input.yaml
         uses: ./one-click/actions/load-config
-        with:
-          environment: ${{ matrix.environment }}
 
       # install = a NEW environment, or a re-run of this fork's own install.
       # Everything else = only an environment this fork installed and has not destroyed.
@@ -158,13 +149,13 @@ jobs:
           t() { printf '%s' "$tags" | jq -r --arg k "$1" '(. // {})[$k] // ""'; }
 
           if [ -n "$tags" ] && { [ "$(t managed-by)" != digit-one-click ] || [ "$(t digit-repo)" != "$repo" ] || [ "$(t digit-name)" != "$ENVIRONMENT" ]; }; then
-            echo "::error file=$ENV_FILE::The resource group $RESOURCE_GROUP already exists but was not created by this fork's one-click install (owner: '$(t digit-repo)'). Nothing was changed. Use a different environment name (rename the file)."
+            echo "::error file=$INPUT_FILE::The resource group $RESOURCE_GROUP already exists but was not created by this fork's one-click install (owner: '$(t digit-repo)'). Nothing was changed. Use a different environment name in input.yaml."
             exit 1
           fi
           state=$(t digit-state)   # installed | destroyed | "" (never finished an install)
           mode=$(t digit-deploy-mode)
           if [ "$state" = installed ] && [ -n "$mode" ] && [ "$mode" != "$DEPLOY_MODE" ] && [ "$ACTION" != destroy ]; then
-            echo "::error file=$ENV_FILE::This DIGIT was deployed with $mode, but infra.argocd.enabled now says $DEPLOY_MODE. It cannot be switched on a running DIGIT. Change it back, or run destroy and then install again."
+            echo "::error file=$INPUT_FILE::This DIGIT was deployed with $mode, but argocd_enabled in input.yaml now says $DEPLOY_MODE. It cannot be switched on a running DIGIT. Change it back, or run destroy and then install again."
             exit 1
           fi
 
@@ -211,7 +202,7 @@ jobs:
           free=$(az rest --method post \
             --url "https://management.azure.com/subscriptions/${ARM_SUBSCRIPTION_ID}/providers/Microsoft.DBforPostgreSQL/checkNameAvailability?api-version=2022-12-01" \
             --body "{\"name\": \"$srv\", \"type\": \"Microsoft.DBforPostgreSQL/flexibleServers\"}" --query nameAvailable -o tsv)
-          [ "$free" = "true" ] || { echo "::error file=$ENV_FILE::The name '$ENVIRONMENT' is already used by someone else in Azure. Use another environment name (rename the file)."; exit 1; }
+          [ "$free" = "true" ] || { echo "::error file=$INPUT_FILE::The name '$ENVIRONMENT' is already used by someone else in Azure. Use another environment name in input.yaml."; exit 1; }
 
       # Idempotent: every re-run finds the same, already-created resources.
       - name: Resource group, Terraform state storage and Key Vault
@@ -266,15 +257,13 @@ jobs:
             az keyvault key create --vault-name "$KEY_VAULT_NAME" -n sops --kty RSA --size 4096 -o none
           echo "SOPS_KEY_ID=$(az keyvault key show --vault-name "$KEY_VAULT_NAME" -n sops --query key.kid -o tsv)" >> "$GITHUB_ENV"
 
-      # <domain>, <email> and <env> in <env>.yaml -> the team's values. Plain text replace, so
-      # the file keeps exactly the layout and comments the team wrote.
-      - name: Fill in your domain and e-mail
+      # First install only: one-click/<environment>.yaml from digit-template.yaml. Its
+      # placeholders stay; they are filled from input.yaml + Terraform on every deploy.
+      - name: Create the environment file (first install only)
         if: steps.decide.outputs.prepare == 'true'
         run: |
-          esc() { printf '%s' "$1" | sed 's/[&|\\]/\\&/g'; }
-          sed -i -e "s|<domain>|$(esc "$DOMAIN_NAME")|g" -e "s|<email>|$(esc "$ACME_EMAIL")|g" \
-            -e "s|<env>|$(esc "$ENVIRONMENT")|g" "$ENV_FILE"
-          git diff --stat -- "$ENV_FILE"
+          if [ -f "$ENV_FILE" ]; then echo "$ENV_FILE already exists - kept"; exit 0; fi
+          cp "$ENV_TEMPLATE" "$ENV_FILE" && echo "Created $ENV_FILE from $ENV_TEMPLATE"
 
       # First install only: generate and lock <env>-secrets.yaml. Never overwritten.
       - name: Create the secrets file (first install only)
@@ -306,7 +295,7 @@ jobs:
 
       # ---------------- Infra (install, infra) ----------------
       - name: Setup Terraform
-        if: steps.decide.outputs.infra == 'true' || steps.decide.outputs.destroy == 'true'
+        if: steps.decide.outputs.infra == 'true' || steps.decide.outputs.deploy == 'true' || steps.decide.outputs.destroy == 'true'
         uses: ./one-click/actions/setup-terraform-azure
         with:
           version: ${{ env.TF_VERSION }}
@@ -346,25 +335,6 @@ jobs:
         if: steps.decide.outputs.infra == 'true'
         run: terraform apply -input=false -no-color -auto-approve tfplan
         working-directory: ${{ env.TF_DIR }}
-      # <db_host> / <db_name> in <env>.yaml -> the database Terraform created
-      - name: Fill in the database address
-        if: steps.decide.outputs.infra == 'true'
-        run: |
-          set -euo pipefail
-          out=$(terraform -chdir="$TF_DIR" output -json)
-          H=$(jq -r '.azurerm_postgresql_flexible_server.value // ""' <<< "$out")
-          B=$(jq -r '.postgresql_flexible_server_database_name.value // ""' <<< "$out")
-          [ -n "$H" ] && [ -n "$B" ] || { echo "::error::Terraform did not output the database host/name"; exit 1; }
-          sed -i -e "s|<db_host>|$H|g" -e "s|<db_name>|$B|g" "$ENV_FILE"
-          cur=$(yq -r '.["cluster-configs"].configmaps["egov-config"].data["db-host"] // ""' "$ENV_FILE")
-          [ "$cur" = "$H" ] || echo "::warning file=$ENV_FILE::cluster-configs db-host is '$cur' but the database is '$H'. Update it in $ENV_FILE."
-      - name: Commit the database address
-        if: steps.decide.outputs.infra == 'true'
-        uses: ./one-click/actions/commit-to-fork
-        with:
-          paths: ${{ env.ENV_FILE }}
-          message: "chore(one-click): database address for ${{ matrix.environment }}"
-          branch: ${{ github.ref_name }}
       - name: Remember the commit now running in Azure (infra)
         if: steps.decide.outputs.infra == 'true'
         run: |
@@ -388,15 +358,28 @@ jobs:
         if: steps.decide.outputs.deploy == 'true'
         run: |
           [ -f "$HELMFILE_DIR/digit-helmfile.yaml.gotmpl" ] || {
-            echo "::error file=$ENV_FILE::No helmfile/digit3-one-click in $HELMFILES_REPO@$HELMFILES_REF. Check infra.helmfiles in $ENV_FILE."; exit 1; }
+            echo "::error file=$INPUT_FILE::No helmfile/digit3-one-click in $HELMFILES_REPO@$HELMFILES_REF. Check helmfiles_repo / helmfiles_ref in input.yaml."; exit 1; }
           git -C .helmfiles log -1 --format="Helmfiles: $HELMFILES_REPO@%h (%s)" | tee -a "$GITHUB_STEP_SUMMARY"
+      # <environment>.yaml keeps its placeholders in git; fill them for this deploy:
+      # <domain> <email> <env> from input.yaml, <db_host> <db_name> from Terraform.
+      - name: Fill in the environment file
+        if: steps.decide.outputs.deploy == 'true'
+        run: |
+          set -euo pipefail
+          [ -f "$ENV_FILE" ] || { echo "::error::$ENV_FILE not found. Run the workflow with action = install first."; exit 1; }
+          terraform -chdir="$TF_DIR" init -input=false -no-color >/dev/null
+          out=$(terraform -chdir="$TF_DIR" output -json)
+          DB_HOST=$(jq -r '.azurerm_postgresql_flexible_server.value // ""' <<< "$out")
+          DB_NAME=$(jq -r '.postgresql_flexible_server_database_name.value // ""' <<< "$out")
+          [ -n "$DB_HOST" ] && [ -n "$DB_NAME" ] || { echo "::error::No database in Terraform state. Run the workflow with action = install."; exit 1; }
+          mkdir -p "$RUNNER_TEMP/env"
+          DB_HOST="$DB_HOST" DB_NAME="$DB_NAME" bash "$HELMFILE_DIR/scripts/render-env.sh" \
+            "$ENV_FILE" "$INPUT_FILE" "$RUNNER_TEMP/env/$ENVIRONMENT.yaml"
+          { echo "DB_HOST=$DB_HOST"; echo "DB_NAME=$DB_NAME"; echo "DIGIT_ENV_FILE=$RUNNER_TEMP/env/$ENVIRONMENT.yaml"; } >> "$GITHUB_ENV"
       - name: Connect to the cluster
         if: steps.decide.outputs.deploy == 'true'
         run: |
           set -euo pipefail
-          if grep -qE '<db_host>|<db_name>' "$ENV_FILE"; then
-            echo "::error file=$ENV_FILE::The database address is not filled in yet. Run the workflow with action = install."; exit 1
-          fi
           az aks get-credentials -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --overwrite-existing \
             || { echo "::error::Cluster $ENVIRONMENT not found. Run the workflow with action = install first."; exit 1; }
           kubectl get nodes
@@ -415,7 +398,7 @@ jobs:
           helm version --short; helmfile --version; helm plugin list
 
       # backbone -> core -> monitoring from packaged charts. The helmfiles read only
-      # DIGIT_ENV_FILE (<env>.yaml) and DIGIT_SECRETS_FILE (<env>-secrets.yaml, helm-secrets).
+      # DIGIT_ENV_FILE (<environment>.yaml, filled) and DIGIT_SECRETS_FILE (helm-secrets).
       - name: Deploy DIGIT with helmfile (backbone, core, monitoring - takes 20-40 minutes)
         if: steps.decide.outputs.deploy == 'true' && env.DEPLOY_MODE == 'helmfile'
         run: helmfile -f digit-helmfile.yaml.gotmpl apply --suppress-secrets --skip-diff-on-install
@@ -481,9 +464,8 @@ jobs:
                 name: digit-helmfile
                 env:
                   - {name: MODE, value: apps}
-                  - {name: ENV, value: "${ENVIRONMENT}"}
-                  - {name: HELMFILES_REPO, value: "${HELMFILES_REPO}"}
-                  - {name: HELMFILES_REF, value: "${HELMFILES_REF}"}
+                  - {name: DB_HOST, value: "${DB_HOST}"}
+                  - {name: DB_NAME, value: "${DB_NAME}"}
             destination:
               server: https://kubernetes.default.svc
               namespace: ${NS_ARGOCD}

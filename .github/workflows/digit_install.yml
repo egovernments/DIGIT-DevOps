@@ -16,7 +16,20 @@ name: DIGIT one-click (Azure)
 #            unless confirm = replace.
 #   deploy   step 4 only - update the DIGIT apps (everything else in digit-config.yaml)
 #   destroy  Terraform destroy. The resource group (state + Key Vault) is kept.
+#
+# After the first install, every commit to the fork's default branch runs by itself and
+# applies only what changed since the commit that is running in Azure (recorded in the
+# resource-group tags digit-infra-sha / digit-deploy-sha, see .github/scripts/one-click-changes.sh):
+#   Terraform code or terraform:/location in digit-config.yaml  -> Infra job
+#   helmfiles/values/defaults, digit-secrets.yaml, rest of config -> Deploy job
+#   both                                                         -> Infra, then Deploy
 on:
+  push:
+    paths:
+      - digit-config.yaml
+      - digit-secrets.yaml
+      - deploy-as-code/helm/**
+      - infra-as-code/terraform/**
   workflow_dispatch:
     inputs:
       action:
@@ -54,7 +67,14 @@ env:
 
 jobs:
   Check:
+    # Commits run only in forks, on the default branch; manual runs anywhere (refused upstream).
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.repository != 'egovernments/DIGIT-DevOps' && github.ref_name == github.event.repository.default_branch) }}
     runs-on: ubuntu-latest
+    outputs:
+      prepare: ${{ steps.decide.outputs.prepare }}
+      infra: ${{ steps.decide.outputs.infra }}
+      deploy: ${{ steps.decide.outputs.deploy }}
+      destroy: ${{ steps.decide.outputs.destroy }}
     steps:
       - name: Use your own fork
         if: ${{ github.repository == 'egovernments/DIGIT-DevOps' }}
@@ -76,31 +96,56 @@ jobs:
         uses: ./.github/actions/load-config
       # install = a NEW environment, or a re-run of this fork's own install.
       # infra / deploy / destroy = only an environment this fork installed.
-      - name: Check the environment belongs to this fork
+      # install = a NEW environment, or a re-run of this fork's own install.
+      # Everything else = only an environment this fork installed and has not destroyed.
+      # On a commit, only the jobs whose inputs changed since the running commit are run.
+      - name: Decide what to run
+        id: decide
         env:
+          EVENT: ${{ github.event_name }}
           ACTION: ${{ inputs.action }}
         run: |
           set -euo pipefail
+          out() { printf 'prepare=%s\ninfra=%s\ndeploy=%s\ndestroy=%s\n' "$1" "$2" "$3" "$4" >> "$GITHUB_OUTPUT"; }
+          note() { echo "$1" | tee -a "$GITHUB_STEP_SUMMARY"; }
           repo="${GITHUB_REPOSITORY,,}"
           tags=$(az group show -n "$RESOURCE_GROUP" --query tags -o json 2>/dev/null || true)
-          if [ -z "$tags" ]; then
-            if [ "$ACTION" = install ]; then
-              echo "New environment: $RESOURCE_GROUP will be created" | tee -a "$GITHUB_STEP_SUMMARY"; exit 0
-            fi
-            echo "::error::Nothing is installed for '$ENVIRONMENT' yet. Run the workflow with action = install first."; exit 1
-          fi
           t() { printf '%s' "$tags" | jq -r --arg k "$1" '(. // {})[$k] // ""'; }
-          if [ "$(t managed-by)" != digit-one-click ] || [ "$(t digit-repo)" != "$repo" ] || [ "$(t digit-name)" != "$ENVIRONMENT" ]; then
+
+          if [ -n "$tags" ] && { [ "$(t managed-by)" != digit-one-click ] || [ "$(t digit-repo)" != "$repo" ] || [ "$(t digit-name)" != "$ENVIRONMENT" ]; }; then
             echo "::error file=digit-config.yaml::The resource group $RESOURCE_GROUP already exists but was not created by this fork's one-click install (owner: '$(t digit-repo)'). Nothing was changed. Choose a different name in digit-config.yaml."
             exit 1
           fi
-          echo "Existing environment created by $repo: $RESOURCE_GROUP" | tee -a "$GITHUB_STEP_SUMMARY"
+          state=$(t digit-state)   # installed | destroyed | "" (never finished an install)
+
+          if [ "$EVENT" = push ]; then
+            if [ "$state" != installed ]; then
+              note "Not installed (or destroyed) - this commit changes nothing in Azure. Run the workflow with action = install."
+              out false false false false; exit 0
+            fi
+            res=$(bash .github/scripts/one-click-changes.sh "$(t digit-infra-sha)" "$(t digit-deploy-sha)")
+            infra=$(sed -n 's/^infra=//p' <<< "$res"); deploy=$(sed -n 's/^deploy=//p' <<< "$res")
+            note "This commit: infra=$infra, deploy=$deploy"
+            out false "$infra" "$deploy" false; exit 0
+          fi
+
+          case "$ACTION" in
+            install)
+              if [ -n "$tags" ]; then note "Existing environment of $repo: $RESOURCE_GROUP (re-run)"
+              else note "New environment: $RESOURCE_GROUP will be created"; fi
+              out true true true false ;;
+            infra|deploy|destroy)
+              if [ "$state" != installed ]; then
+                echo "::error::Nothing is installed for '$ENVIRONMENT' (or it was destroyed). Run the workflow with action = install first."; exit 1
+              fi
+              out false "$([ "$ACTION" = infra ] && echo true || echo false)" "$([ "$ACTION" = deploy ] && echo true || echo false)" "$([ "$ACTION" = destroy ] && echo true || echo false)" ;;
+          esac
       - name: Summary
         run: cat "$RUNNER_TEMP/config-summary.md" >> "$GITHUB_STEP_SUMMARY"
 
   # Creates the Azure pieces that must exist before Terraform, then the team's secrets.
   Prepare:
-    if: ${{ inputs.action == 'install' }}
+    if: ${{ needs.Check.outputs.prepare == 'true' }}
     needs: Check
     runs-on: ubuntu-latest
     permissions:
@@ -204,7 +249,7 @@ jobs:
           echo "Committed digit-secrets.yaml (encrypted with Key Vault $KEY_VAULT_NAME)" | tee -a "$GITHUB_STEP_SUMMARY"
 
   Infra:
-    if: ${{ !failure() && !cancelled() && (inputs.action == 'install' || inputs.action == 'infra') }}
+    if: ${{ !failure() && !cancelled() && needs.Check.outputs.infra == 'true' }}
     needs: [Check, Prepare]
     runs-on: ubuntu-latest
     steps:
@@ -262,9 +307,13 @@ jobs:
         run: |
           az aks get-credentials -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --overwrite-existing
           kubectl get nodes -o wide
+      - name: Remember the commit now running in Azure (infra)
+        run: |
+          az tag update --resource-id "$(az group show -n "$RESOURCE_GROUP" --query id -o tsv)" --operation merge \
+            --tags digit-state=installed digit-infra-sha="$(git rev-parse HEAD)" -o none
 
   Deploy:
-    if: ${{ !failure() && !cancelled() && (inputs.action == 'install' || inputs.action == 'deploy') }}
+    if: ${{ !failure() && !cancelled() && needs.Check.outputs.deploy == 'true' }}
     needs: [Check, Prepare, Infra]
     runs-on: ubuntu-latest
     steps:
@@ -335,6 +384,11 @@ jobs:
           bash scripts/vault-bootstrap.sh "$(ns vault)" "$(ns core)"
         working-directory: deploy-as-code/helm
 
+      - name: Remember the commit now running in Azure (apps)
+        run: |
+          az tag update --resource-id "$(az group show -n "$RESOURCE_GROUP" --query id -o tsv)" --operation merge \
+            --tags digit-deploy-sha="$(git rev-parse HEAD)" -o none
+
       - name: Last step - point your domain at DIGIT
         working-directory: deploy-as-code/helm
         run: |
@@ -361,7 +415,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   Destroy:
-    if: ${{ inputs.action == 'destroy' }}
+    if: ${{ needs.Check.outputs.destroy == 'true' }}
     needs: Check
     runs-on: ubuntu-latest
     steps:
@@ -398,6 +452,11 @@ jobs:
       - name: Terraform destroy (takes 10-20 minutes)
         run: terraform destroy -input=false -no-color -auto-approve
         working-directory: ${{ env.TF_DIR }}
+      # Commits no longer change anything until the next install.
+      - name: Mark the environment destroyed
+        run: |
+          az tag update --resource-id "$(az group show -n "$RESOURCE_GROUP" --query id -o tsv)" --operation merge \
+            --tags digit-state=destroyed digit-infra-sha= digit-deploy-sha= -o none
       - name: Summary
         run: |
           {

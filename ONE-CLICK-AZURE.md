@@ -85,13 +85,27 @@ Now you have your own copy at `https://github.com/<your-name>/DIGIT-DevOps`.
 
 ## Later
 
+After the first install, **you only commit**. Every commit to your copy starts the workflow by
+itself, and it changes only what your commit changed:
+
+| You commit a change to... | What runs by itself |
+|---|---|
+| the `terraform:` or `location:` part of `digit-config.yaml`, or the Terraform code | **infra** only (Azure). DIGIT is not redeployed. |
+| any other part of `digit-config.yaml`, `digit-secrets.yaml`, or the helmfiles / values | **deploy** only (DIGIT). Azure is not touched. |
+| both | **infra**, then **deploy** |
+| anything else (docs, other folders, comments) | nothing |
+
+The workflow remembers which commit is running in Azure, so it never misses a change, even
+if you commit several times quickly.
+
 | I want to... | Do this |
 |---|---|
-| change the machines (number or size) | Edit the `terraform:` part of `digit-config.yaml`, then run the workflow with **infra**. Only Azure changes; DIGIT is not redeployed. |
-| change a DIGIT setting | Edit any other part of `digit-config.yaml`, then run the workflow with **deploy**. Only DIGIT changes; Azure is not touched. |
+| change the machines (number or size) | Edit the `terraform:` part of `digit-config.yaml` and commit. |
+| change a DIGIT setting | Edit any other part of `digit-config.yaml` and commit. |
+| run infra or deploy again by hand | Actions, then **Run workflow**, choose **infra** or **deploy**. |
 | delete my DIGIT | Run the workflow with **destroy**, and type `delete` in the **confirm** box. |
 | delete everything in Azure | After **destroy**, delete the resource group `<name>-rg` in the Azure portal. |
-| get the newest version | On your copy's main page, click **Sync fork**, then **Update branch**. Then run **deploy**. |
+| get the newest version | On your copy's main page, click **Sync fork**, then **Update branch**. The new versions are applied by themselves. |
 
 ## If something goes wrong
 
@@ -106,7 +120,8 @@ Click the run with the red ❌, then click the red step. The red message tells y
 | `locked by someone else's Key Vault` | Delete `digit-secrets.yaml` in your copy, then run **install** again. |
 | `does not exist yet. Run ... install first` or `Nothing is installed` | Run the workflow with **install** before **infra** or **deploy**. |
 | `already exists but was not created by this fork` | That name is taken in your Azure. Pick a new `name` in `digit-config.yaml`. |
-| `would delete or replace` | Your change would rebuild the cluster, database or storage and can lose data. Undo the change. Only if you are sure, run **infra** again with `replace` in the **confirm** box. |
+| `would delete or replace` | Your change would rebuild the cluster, database or storage and can lose data. Undo the change (commit it back). Only if you are sure, run **infra** by hand with `replace` in the **confirm** box. |
+| `Not installed (or destroyed) - this commit changes nothing` | Not an error. Commits only update a running DIGIT. Run **install** first. |
 | anything else | Click **Re-run jobs**, then **Re-run failed jobs**. If it fails again, ask the DIGIT team and share the red message. |
 
 ---

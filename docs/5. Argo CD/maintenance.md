@@ -2,6 +2,14 @@
 
 <sub>[Argo CD](README.md) - Maintenance</sub>
 
+## Guardrails
+
+- Env files and manifests change by pull request only. The one exception is the Kargo-owned version keys (`chart-version`, `image.tag`, the migration tag), which move by promotion.
+- Preserve the env file's structure and key order. Edit values in place and add a new service section whole; do not reshape or reindent sections that are already there.
+- Do not `kubectl apply`, `edit` or `patch` a running cluster to make a change stick - `selfHeal: true` reverts it within minutes. Fix it in git.
+- `prune: false` means removals are deliberate. Delete an orphaned object by hand only after the pull request that drops it has merged, and look at what you are deleting first.
+- Secrets are SOPS-encrypted in git. Never commit a plaintext secret or print one into a log or an external request.
+
 ## Sync policy
 
 Generated Applications use:

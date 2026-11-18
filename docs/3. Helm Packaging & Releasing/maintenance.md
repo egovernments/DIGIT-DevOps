@@ -15,6 +15,13 @@ and [troubleshooting.md](https://github.com/egovernments/helm-charts/blob/master
 - Everything goes through a PR. No direct pushes to `master`, no manual packaging or
   tagging.
 - Leave the release form alone (the `<!-- RELEASE-FORM -->` block is workflow-managed).
+- A published chart version is immutable. Never overwrite or unpublish a version an
+  environment still uses - bump to a new version instead (unpublishing it breaks the
+  Argo CD render of every environment pinned to it).
+- Keep the `Chart.yaml` and `values.yaml` structure and key names stable - env files and
+  consumers bind to them. Add keys; do not rename or remove them in place.
+- Lint and `helm template` a chart before publishing, so a broken render is caught here
+  and not in an environment.
 
 ## Cutting a new version
 

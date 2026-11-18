@@ -14,6 +14,7 @@ How a service travels from source code to running in an environment, and how to 
 
 Supporting material:
 
+- [Onboarding a new service](<Onboarding a new service.md>) - the single end-to-end runbook across all five stages (build -> package -> deploy), with the naming contract and per-gate checks.
 - [Templates](Templates/README.md) - ready-to-copy manifests and files for onboarding (Argo CD, Kargo, environments, access).
 
 ## Architecture
@@ -80,6 +81,8 @@ Start at [Kargo Promotions - access and use](<4. Kargo Promotions/access-and-use
 
 ## Usage: onboarding a new service
 
+**Follow the single end-to-end runbook: [Onboarding a new service](<Onboarding a new service.md>).** It walks the whole path in order with the naming contract and a check at each gate. The summary below and each stage's onboarding page are the supporting detail.
+
 A new service is added once per stage, in order. The image and chart must exist before Kargo can promote them, and the Kargo entry must exist before Argo CD can generate its Application.
 
 ```mermaid
@@ -106,7 +109,7 @@ The model is used across environments. It can be adopted in full (Kargo + Argo C
 | Reader | Start with |
 |---|---|
 | Releasing or promoting an existing service | [Kargo Promotions - access and use](<4. Kargo Promotions/access-and-use.md>) |
-| Adding a new service | Each stage's onboarding page, in order (see above) |
+| Adding a new service | [Onboarding a new service](<Onboarding a new service.md>) (the end-to-end runbook) |
 | Setting up a new environment or module | [Argo CD - onboarding](<5. Argo CD/onboarding-a-service.md>) and [Kargo - onboarding](<4. Kargo Promotions/onboarding-a-service.md>) |
 | Triggering or debugging a build | [Workflows](<1. Workflows/README.md>) and [Code Build - access and use](<2. Code Build/access-and-use.md>) |
 | Debugging a deployment | [Argo CD - maintenance](<5. Argo CD/maintenance.md>) and [Kargo - maintenance](<4. Kargo Promotions/maintenance.md>) |

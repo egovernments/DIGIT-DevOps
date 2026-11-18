@@ -38,8 +38,11 @@ For `digit3` the published modules include:
 | `crest` | `helm.digit.org/digit3/crest` | CREST services (`crest`, `crest-ui`) |
 | `studio` | `helm.digit.org/digit3/studio` | DIGIT Studio services |
 | `health` | `helm.digit.org/digit3/health` | health services Studio and others depend on |
-| `backbone` | `helm.digit.org/digit3/backbone` | vendored infra (vault, postgresql) |
+| `cms` | `helm.digit.org/digit3/cms` | CMS / grievance services (`pgr-services`, `digit-ui`, `configurator`, ...) |
+| `backbone` | `helm.digit.org/digit3/backbone` | vendored infra (postgres, vault, minio, kafka, redis, ingress-nginx, ...) |
 | `cluster-configs` | `helm.digit.org/digit3/cluster-configs` | shared `egov-config` / `egov-service-host` / Secret declarations |
+
+Every DIGIT layer is now packaged this way - application services (`core`, `crest`, `studio`, `health`, `cms`), the shared `common` library and `cluster-configs`, and even the backbone infrastructure. Onboarding a new service follows the same process whichever module it belongs to.
 
 ## The 30-second version
 

@@ -7,7 +7,9 @@ name: DIGIT one-click (Azure)
 #            not create (ownership tags managed-by / digit-repo / digit-name).
 #            1. Azure resource group, Terraform state storage and the team's own Key Vault
 #            2. digit-secrets.yaml: fresh random passwords, generated and locked (SOPS-encrypted
-#               with that Key Vault) BY THIS WORKFLOW and committed to the fork - first install only
+#               with that Key Vault) BY THIS WORKFLOW and committed to the fork - first install only.
+#               The team's own credentials come from the optional GitHub secret DIGIT_SECRETS and
+#               are merged in + re-locked on every install/deploy (nobody encrypts by hand).
 #            3. Terraform: AKS + PostgreSQL Flexible Server + filestore storage
 #            4. Helmfile: DIGIT backbone, core 3.0 and monitoring from packaged Helm charts,
 #               secrets decrypted by helm-secrets
@@ -233,20 +235,19 @@ jobs:
           version: ${{ env.SOPS_VERSION }}
           required: "false"
 
-      # First install only: generate, lock and commit digit-secrets.yaml. Never overwritten.
+      # First install only: generate and lock digit-secrets.yaml. Never overwritten.
       - name: Create digit-secrets.yaml (first install only)
-        env:
-          BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           if [ -f digit-secrets.yaml ]; then echo "digit-secrets.yaml already exists - kept"; exit 0; fi
           bash deploy-as-code/helm/scripts/generate-secrets.sh deploy-as-code/helm/secrets.template.yaml digit-secrets.yaml "$SOPS_KEY_ID"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add digit-secrets.yaml
-          git commit -q -m "chore(one-click): locked secrets for $ENVIRONMENT [skip ci]"
-          git push -q origin "HEAD:$BRANCH"
-          echo "Committed digit-secrets.yaml (encrypted with Key Vault $KEY_VAULT_NAME)" | tee -a "$GITHUB_STEP_SUMMARY"
+      # The team's own credentials (optional GitHub secret DIGIT_SECRETS) are locked in too,
+      # so they are part of the very first deploy. Commits digit-secrets.yaml if it changed.
+      - name: Add your own credentials (DIGIT_SECRETS) and commit
+        uses: ./.github/actions/apply-user-secrets
+        with:
+          user-secrets: ${{ secrets.DIGIT_SECRETS }}
+          branch: ${{ github.ref_name }}
 
   Infra:
     if: ${{ !failure() && !cancelled() && needs.Check.outputs.infra == 'true' }}
@@ -316,6 +317,8 @@ jobs:
     if: ${{ !failure() && !cancelled() && needs.Check.outputs.deploy == 'true' }}
     needs: [Check, Prepare, Infra]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # commit digit-secrets.yaml when DIGIT_SECRETS changed
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -335,6 +338,13 @@ jobs:
         uses: ./.github/actions/setup-terraform-azure
         with:
           version: ${{ env.TF_VERSION }}
+      # Picks up DIGIT_SECRETS changes (editing a GitHub secret does not create a commit,
+      # so after changing it run the workflow with action = deploy).
+      - name: Add your own credentials (DIGIT_SECRETS)
+        uses: ./.github/actions/apply-user-secrets
+        with:
+          user-secrets: ${{ secrets.DIGIT_SECRETS }}
+          branch: ${{ github.ref_name }}
       - name: Connect to the cluster
         run: |
           az aks get-credentials -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --overwrite-existing \

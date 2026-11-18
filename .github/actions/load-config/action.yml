@@ -1,44 +1,48 @@
-name: Load digit-config.yaml
+name: Load environment file
 description: >
-  Validate the team's one file (digit-config.yaml at the repo root), work out every Azure
-  name from it, and export them. Azure names are derived from `name` + the subscription,
-  so nobody has to invent globally-unique storage or Key Vault names.
-  Needs ARM_SUBSCRIPTION_ID (azure-login).
+  Validate deploy-as-code/helm/environments/<env>.yaml (the team's one file, egov-demo.yaml
+  layout), work out every Azure name from the environment name, and export them.
+  Azure names are derived from <env> + fork + subscription, so nobody has to invent
+  globally-unique storage or Key Vault names. Needs ARM_SUBSCRIPTION_ID (azure-login).
+inputs:
+  environment:
+    description: Environment name = file name of deploy-as-code/helm/environments/<env>.yaml
+    required: true
 runs:
   using: composite
   steps:
     - shell: bash
+      env:
+        ENV_NAME: ${{ inputs.environment }}
       run: |
         set -euo pipefail
-        f=digit-config.yaml
+        dir=deploy-as-code/helm/environments
+        f="$dir/$ENV_NAME.yaml"
         err() { echo "::error file=$f::$*"; exit 1; }
-        [ -f "$f" ] || err "digit-config.yaml is missing at the top of the repository."
-        yq -e 'type == "!!map"' "$f" >/dev/null 2>&1 || err "digit-config.yaml is not valid YAML. Check the spaces and quotes you changed."
+        [[ $ENV_NAME =~ ^[a-z][a-z0-9-]{1,18}[a-z0-9]$ && $ENV_NAME != *--* ]] \
+          || { echo "::error::Environment name '$ENV_NAME' is not allowed. Use 3-20 small letters, numbers or '-', starting with a letter."; exit 1; }
+        [ "$ENV_NAME" != digit-template ] || { echo "::error::digit-template is the template. Rename it to <your-name>.yaml and run with that name."; exit 1; }
+        [ -f "$f" ] || { echo "::error::$f not found. Rename $dir/digit-template.yaml to $ENV_NAME.yaml (step 5 of ONE-CLICK-AZURE.md)."; exit 1; }
+        yq -e 'type == "!!map" and (.infra | type == "!!map")' "$f" >/dev/null 2>&1 \
+          || err "$ENV_NAME.yaml is not valid YAML or has no infra: block. Check the spaces and quotes you changed."
 
-        bad=$(yq -r '.. | select(tag == "!!str" and test("^<[a-z_]+>$")) | path | join(".")' "$f")
-        [ -z "$bad" ] || err "Fill in these lines first: $(echo "$bad" | tr '\n' ' ')"
-
-        name=$(yq -r '.name // ""' "$f"); domain=$(yq -r '.domain // ""' "$f")
-        email=$(yq -r '.email // ""' "$f"); location=$(yq -r '.location // "centralindia"' "$f")
-        [[ $name =~ ^[a-z][a-z0-9-]{1,18}[a-z0-9]$ && $name != *--* ]] \
-          || err "name '$name' is not allowed. Use 3-20 small letters, numbers or '-', starting with a letter."
+        domain=$(yq -r '.global.domain // ""' "$f"); email=$(yq -r '.infra.email // ""' "$f")
+        location=$(yq -r '.infra.location // "centralindia"' "$f"); argo=$(yq -r '.infra.argocd.enabled // false' "$f")
         [[ $domain =~ ^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$ ]] \
-          || err "domain '$domain' is not a web address like digit.example.com (no https://, no /)."
-        [[ $email =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || err "email '$email' is not an email address."
-        [[ $location =~ ^[a-z0-9]+$ ]] || err "location '$location' is not an Azure region like centralindia."
+          || err "global.domain '$domain' must be your web address, like digit.example.com (no https://, no /)."
+        [[ $email =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || err "infra.email '$email' must be your e-mail address."
+        [[ $location =~ ^[a-z0-9]+$ ]] || err "infra.location '$location' is not an Azure region like centralindia."
+        [[ $argo == true || $argo == false ]] || err "infra.argocd.enabled must be true or false (it is '$argo')."
+        if [ "$argo" = true ]; then mode=argocd; else mode=helmfile; fi
+        # The workflow fills <domain> <email> <env> <db_host> <db_name>; anything else is unfilled.
+        bad=$(yq -r '.. | select(tag == "!!str") | select(test("<[a-z_]+>")) | select(sub("<(domain|email|env|db_host|db_name)>"; "") | test("<[a-z_]+>")) | path | join(".")' "$f")
+        [ -z "$bad" ] || err "Fill in these lines first: $(echo "$bad" | paste -sd' ' -)"
         [ -n "${ARM_SUBSCRIPTION_ID:-}" ] || { echo "::error::Run azure-login first"; exit 1; }
 
-        # Settings as the helmfile sees them: deploy-as-code/helm/defaults.yaml < digit-config.yaml
-        # shellcheck disable=SC2016  # $i is a yq variable
-        merged=$(yq eval-all -o=json -I0 '. as $i ireduce ({}; . * $i)' deploy-as-code/helm/defaults.yaml "$f")
-        m() { printf '%s' "$merged" | yq -p=json -r "$1"; }
-        argo=$(m '.argocd.enabled')
-        [[ $argo == true || $argo == false ]] || err "argocd.enabled must be true or false (it is '$argo')."
-        if [ "$argo" = true ]; then mode=argocd; else mode=helmfile; fi
-
-        # Globally-unique Azure names: <name without '-'> + type + 6-char hash(subscription/fork/name).
-        # The same fork + name always gives the same names (re-runs find the same resources);
-        # a different fork or name never does.
+        # Globally-unique Azure names: <env without '-'> + type + 6-char hash(subscription/fork/env).
+        # The same fork + environment always gives the same names (re-runs find the same
+        # resources); a different fork or environment never does.
+        name=$ENV_NAME
         base=$(printf '%s' "${name//-/}" | cut -c1-14)
         h=$(printf '%s/%s/%s' "$ARM_SUBSCRIPTION_ID" "${GITHUB_REPOSITORY,,}" "$name" | sha256sum | cut -c1-6)
         rg="${name}-rg"
@@ -50,17 +54,20 @@ runs:
           echo "FILESTORE_STORAGE_ACCOUNT_NAME=${base}fs${h}"
           echo "KEY_VAULT_NAME=${base}kv${h}"
           echo "DOMAIN_NAME=$domain"
-          echo "DIGIT_CONFIG=$GITHUB_WORKSPACE/$f"
-          echo "DIGIT_SECRETS=$GITHUB_WORKSPACE/digit-secrets.yaml"
+          echo "ACME_EMAIL=$email"
+          echo "ENV_FILE=$f"
+          echo "SECRETS_FILE=$dir/$name-secrets.yaml"
+          echo "SECRETS_TEMPLATE=$dir/digit-template-secrets.yaml"
+          # absolute paths for helmfile (the only two values files it reads)
+          echo "DIGIT_ENV_FILE=$GITHUB_WORKSPACE/$f"
+          echo "DIGIT_SECRETS_FILE=$GITHUB_WORKSPACE/$dir/$name-secrets.yaml"
           echo "DEPLOY_MODE=$mode"
-          echo "NS_CORE=$(m .namespaces.core)"
-          echo "NS_BACKBONE=$(m .namespaces.backbone)"
-          echo "NS_VAULT=$(m .namespaces.vault)"
-          echo "NS_ARGOCD=$(m .argocd.namespace)"
+          # fixed namespaces (see the helmfiles)
+          echo "NS_CORE=egov"; echo "NS_BACKBONE=backbone"; echo "NS_VAULT=vault"; echo "NS_ARGOCD=argocd"
           # Ownership tags on every Azure resource this install creates
           echo "OWNER_TAGS=managed-by=digit-one-click digit-repo=${GITHUB_REPOSITORY,,} digit-name=$name"
-          # optional scalar Terraform overrides -> TF_VAR_<name>
-          yq -r '(.terraform // {}) | to_entries | .[] | select(.value | tag != "!!map" and tag != "!!seq") | "TF_VAR_" + .key + "=" + (.value | tostring)' "$f"
+          # Terraform variables from infra.terraform -> TF_VAR_<name>
+          yq -r '(.infra.terraform // {}) | to_entries | .[] | select(.value | tag != "!!map" and tag != "!!seq") | "TF_VAR_" + .key + "=" + (.value | tostring)' "$f"
         } >> "$GITHUB_ENV"
 
         {
@@ -72,4 +79,4 @@ runs:
           echo "| AKS cluster | \`$name\` |"
           echo "| Deployed with | $mode |"
         } > "$RUNNER_TEMP/config-summary.md"
-        echo "Loaded $f: name=$name domain=$domain location=$location resource-group=$rg"
+        echo "Loaded $f: domain=$domain location=$location resource-group=$rg mode=$mode"

@@ -1,110 +1,51 @@
-# Layer 3 - monitoring: community charts (left as published by their communities) plus the
-# DIGIT blackbox exporter from https://helm.digit.org/digit3/backbone. Base values are the
-# shared files in charts/monitoring/values; environment-specific parts come from
-# ../values/monitoring/*.yaml.gotmpl. Jaeger stores traces in the backbone Elasticsearch.
+# Layer 3 - monitoring: community charts as published by their communities, plus the DIGIT
+# blackbox exporter (helm.digit.org/digit3/backbone). Jaeger stores traces in Elasticsearch.
 bases:
   - _environment.yaml.gotmpl
 ---
+{{- /* Values of one release = its block in the env file (+ secrets file), without the keys
+       only the helmfile uses. DIGIT common-based charts also get "global" and their namespace. */ -}}
+{{- define "release-values" -}}
+{{- $b := omit (.v | get .r dict) "chart-version" "enabled" -}}
+{{- if hasKey . "common" }}{{ $b = merge (dict "global" (merge (dict "namespace" .ns) (.v | get "global" dict)) "namespace" .ns) $b }}{{ end -}}
+{{- if hasKey . "wrap" }}{{ $b = dict .r $b }}{{ end -}}
+{{- toYaml $b -}}
+{{- end -}}
+{{- define "chart-version" -}}
+{{- required (printf "%s.chart-version is missing in the environment file" .r) (.v | get (printf "%s.chart-version" .r) "") -}}
+{{- end -}}
 {{- $v := .Values }}
-{{- $ns := $v.namespaces.monitoring }}
-{{- $on := $v.components.monitoring }}
 repositories:
   - name: digit3-backbone
-    url: {{ $v.repositories.digit }}/digit3/backbone
+    url: https://helm.digit.org/digit3/backbone
   - name: prometheus-community
-    url: {{ $v.repositories.prometheusCommunity }}
+    url: https://prometheus-community.github.io/helm-charts
   - name: grafana
-    url: {{ $v.repositories.grafana }}
+    url: https://grafana.github.io/helm-charts
   - name: jaegertracing
-    url: {{ $v.repositories.jaegertracing }}
+    url: https://jaegertracing.github.io/helm-charts
   - name: open-telemetry
-    url: {{ $v.repositories.openTelemetry }}
+    url: https://open-telemetry.github.io/opentelemetry-helm-charts
 releases:
-  - name: kube-prometheus-stack
-    namespace: {{ $ns }}
-    chart: prometheus-community/kube-prometheus-stack
-    version: {{ index $v.versions "kube-prometheus-stack" }}
-    installed: {{ and $on ($v | get "releases.kube-prometheus-stack.enabled" true) }}
-    labels: {layer: monitoring, wave: "7"}
+{{- range $r := list
+      (dict "name" "kube-prometheus-stack" "chart" "prometheus-community/kube-prometheus-stack" "wave" "7")
+      (dict "name" "loki"                  "chart" "grafana/loki"                              "wave" "7")
+      (dict "name" "grafana"               "chart" "grafana/grafana"                           "wave" "8" "needs" "monitoring/kube-prometheus-stack")
+      (dict "name" "open-telemetry"        "chart" "open-telemetry/opentelemetry-collector"    "wave" "7")
+      (dict "name" "jaeger"                "chart" "jaegertracing/jaeger"                      "wave" "7")
+      (dict "name" "blackbox"              "chart" "digit3-backbone/prometheus-blackbox-exporter" "wave" "7") }}
+  - name: {{ $r.name }}
+    namespace: monitoring
+    chart: {{ $r.chart }}
+    version: {{ include "chart-version" (dict "v" $v "r" $r.name) }}
+    installed: {{ $v | get (printf "%s.enabled" $r.name) true }}
+    labels: {layer: monitoring, wave: "{{ $r.wave }}"}
+    {{- if hasKey $r "needs" }}
+    needs: [{{ $r.needs }}]
+    {{- end }}
+    {{- if eq $r.name "kube-prometheus-stack" }}
     disableValidation: true
+    {{- end }}
     values:
-      - ../charts/monitoring/values/prometheus.yaml
-      - ../values/monitoring/kube-prometheus-stack.yaml.gotmpl
-      - {{ $v | get "values.kube-prometheus-stack" dict | toYaml | nindent 8 }}
-
-  - name: loki
-    namespace: {{ $ns }}
-    chart: grafana/loki
-    version: {{ index $v.versions "loki" }}
-    installed: {{ and $on ($v | get "releases.loki.enabled" true) }}
-    labels: {layer: monitoring, wave: "7"}
-    values:
-      - ../charts/monitoring/values/loki.yaml
-      - singleBinary:
-          persistence:
-            size: {{ $v.sizing.monitoring.lokiDiskSize }}
-        # Loki 6 requires an explicit schema (single binary, filesystem storage).
-        loki:
-          schemaConfig:
-            configs:
-              - from: "2024-04-01"
-                store: tsdb
-                object_store: filesystem
-                schema: v13
-                index:
-                  prefix: loki_index_
-                  period: 24h
-      - {{ $v | get "values.loki" dict | toYaml | nindent 8 }}
-
-  - name: grafana
-    namespace: {{ $ns }}
-    chart: grafana/grafana
-    version: {{ index $v.versions "grafana" }}
-    installed: {{ and $on ($v | get "releases.grafana.enabled" true) }}
-    labels: {layer: monitoring, wave: "8"}
-    needs: [{{ $ns }}/kube-prometheus-stack]
-    values:
-      - ../charts/monitoring/values/grafana.yaml
-      - ../values/monitoring/grafana.yaml.gotmpl
-      - {{ $v | get "values.grafana" dict | toYaml | nindent 8 }}
-
-  - name: open-telemetry
-    namespace: {{ $ns }}
-    chart: open-telemetry/opentelemetry-collector
-    version: {{ index $v.versions "opentelemetry-collector" }}
-    installed: {{ and $on ($v | get "releases.open-telemetry.enabled" true) }}
-    labels: {layer: monitoring, wave: "7"}
-    values:
-      - ../charts/monitoring/values/open-telemetry.yaml
-      - mode: deployment
-        image:
-          repository: otel/opentelemetry-collector-contrib
-        command:
-          name: otelcol-contrib
-        presets:
-          logsCollection:
-            enabled: true
-            includeCollectorLogs: true
-      - {{ $v | get "values.open-telemetry" dict | toYaml | nindent 8 }}
-
-  - name: jaeger
-    namespace: {{ $ns }}
-    chart: jaegertracing/jaeger
-    version: {{ index $v.versions "jaeger" }}
-    installed: {{ and $on $v.components.elasticsearch ($v | get "releases.jaeger.enabled" true) }}
-    labels: {layer: monitoring, wave: "7"}
-    values:
-      - ../charts/monitoring/values/jaeger.yaml
-      - ../values/monitoring/jaeger.yaml.gotmpl
-      - {{ $v | get "values.jaeger" dict | toYaml | nindent 8 }}
-
-  - name: blackbox
-    namespace: {{ $ns }}
-    chart: digit3-backbone/prometheus-blackbox-exporter
-    version: {{ index $v.versions "prometheus-blackbox-exporter" }}
-    installed: {{ and $on ($v | get "releases.blackbox.enabled" true) }}
-    labels: {layer: monitoring, wave: "7"}
-    values:
-      - ../charts/monitoring/values/blackbox-exporter.yaml
-      - namespace: {{ $ns }}
-      - {{ $v | get "values.blackbox" dict | toYaml | nindent 8 }}
+      - {{ include "release-values" (dict "v" $v "r" $r.name "ns" "monitoring") | nindent 8 }}
+{{- end }}

@@ -1,47 +1,55 @@
-# Layer 2 - DIGIT core 3.0 from https://helm.digit.org/digit3/core: Keycloak, Kong (+ its
-# gateway-sync route reconciler) and the DIGIT 3.0 services. Needs layer 1 (backbone).
+# Layer 2 - DIGIT core 3.0 (helm.digit.org/digit3/core): Keycloak, Kong, then every DIGIT
+# service. A service = any block in the environment file with a chart-version that is not a
+# platform release below; to add one, add its block (name = chart name in digit3/core).
 bases:
   - _environment.yaml.gotmpl
 ---
+{{- /* Values of one release = its block in the env file (+ secrets file), without the keys
+       only the helmfile uses. DIGIT common-based charts also get "global" and their namespace. */ -}}
+{{- define "release-values" -}}
+{{- $b := omit (.v | get .r dict) "chart-version" "enabled" -}}
+{{- if hasKey . "common" }}{{ $b = merge (dict "global" (merge (dict "namespace" .ns) (.v | get "global" dict)) "namespace" .ns) $b }}{{ end -}}
+{{- if hasKey . "wrap" }}{{ $b = dict .r $b }}{{ end -}}
+{{- toYaml $b -}}
+{{- end -}}
+{{- define "chart-version" -}}
+{{- required (printf "%s.chart-version is missing in the environment file" .r) (.v | get (printf "%s.chart-version" .r) "") -}}
+{{- end -}}
 {{- $v := .Values }}
-{{- $ns := $v.namespaces.core }}
+{{- $platform := list "infra" "global" "argo-cd" "keycloak" "kong" "cluster-configs" "cert-manager" "ingress-nginx" "redis" "kafka-kraft" "minio" "vault" "elasticsearch-master" "elasticsearch-data" "kibana" "kube-prometheus-stack" "loki" "grafana" "open-telemetry" "jaeger" "blackbox" "argocd" }}
 repositories:
   - name: digit3-core
-    url: {{ $v.repositories.digit }}/digit3/core
+    url: https://helm.digit.org/digit3/core
 releases:
   - name: keycloak
-    namespace: {{ $ns }}
+    namespace: egov
     chart: digit3-core/keycloak
-    version: {{ index $v.versions "keycloak" }}
-    installed: {{ $v | get "releases.keycloak.enabled" true }}
+    version: {{ include "chart-version" (dict "v" $v "r" "keycloak") }}
+    installed: {{ $v | get "keycloak.enabled" true }}
     labels: {layer: core, wave: "4"}
     values:
-      - ../values/global.yaml.gotmpl
-      - ../values/core/keycloak.yaml.gotmpl
-      - {{ $v | get "values.keycloak" dict | toYaml | nindent 8 }}
+      - {{ include "release-values" (dict "v" $v "r" "keycloak" "ns" "egov" "common" true) | nindent 8 }}
 
   - name: kong
-    namespace: {{ $ns }}
+    namespace: egov
     chart: digit3-core/kong
-    version: {{ index $v.versions "kong" }}
-    installed: {{ $v | get "releases.kong.enabled" true }}
+    version: {{ include "chart-version" (dict "v" $v "r" "kong") }}
+    installed: {{ $v | get "kong.enabled" true }}
     labels: {layer: core, wave: "5"}
-    needs: [{{ $ns }}/keycloak]
+    needs: [egov/keycloak]
     values:
-      - ../values/core/kong.yaml.gotmpl
-      - {{ $v | get "values.kong" dict | toYaml | nindent 8 }}
-
-{{- range $svc := $v.coreServices }}
+      - {{ include "release-values" (dict "v" $v "r" "kong" "ns" "egov") | nindent 8 }}
+{{- range $svc := keys $v | sortAlpha }}
+{{- if and (not (has $svc $platform)) (kindIs "map" (index $v $svc)) (hasKey (index $v $svc) "chart-version") }}
 
   - name: {{ $svc }}
-    namespace: {{ $ns }}
+    namespace: egov
     chart: digit3-core/{{ $svc }}
-    version: {{ index $v.versions $svc | quote }}
-    installed: {{ $v | get (printf "releases.%s.enabled" $svc) true }}
+    version: {{ include "chart-version" (dict "v" $v "r" $svc) | quote }}
+    installed: {{ $v | get (printf "%s.enabled" $svc) true }}
     labels: {layer: core, wave: "6"}
-    needs: [{{ $ns }}/kong]
+    needs: [egov/kong]
     values:
-      - ../values/global.yaml.gotmpl
-      - ../values/core/service.yaml.gotmpl
-      - {{ $v | get (printf "values.%s" $svc) dict | toYaml | nindent 8 }}
+      - {{ include "release-values" (dict "v" $v "r" $svc "ns" "egov" "common" true) | nindent 8 }}
+{{- end }}
 {{- end }}

@@ -1,19 +1,14 @@
-# Shared base for backbone/core/monitoring helmfiles: layered values + chart repositories.
-#   1. ../defaults.yaml                   platform defaults (namespaces, versions, sizing)
-#   2. $DIGIT_CONFIG  (digit-config.yaml)  the team's ONE file (overrides anything)
-#   3. $TF_OUTPUTS_FILE                   infra.* from Terraform (DB host/name, ...)
-#   4. $DIGIT_SECRETS (digit-secrets.yaml) generated, SOPS/Azure Key Vault, decrypted by helm-secrets
+# Shared base of every layer helmfile. The ONLY inputs are the two environment files:
+#   DIGIT_ENV_FILE      deploy-as-code/helm/environments/<env>.yaml          (plain YAML)
+#   DIGIT_SECRETS_FILE  deploy-as-code/helm/environments/<env>-secrets.yaml  (SOPS, helm-secrets)
+# Both are merged into .Values; each release gets its own block (block name = release name).
 environments:
   default:
     values:
-      - ../defaults.yaml
-      - {{ requiredEnv "DIGIT_CONFIG" }}
-      - {{ requiredEnv "TF_OUTPUTS_FILE" }}
+      - {{ requiredEnv "DIGIT_ENV_FILE" }}
     secrets:
-      - {{ requiredEnv "DIGIT_SECRETS" }}
+      - {{ requiredEnv "DIGIT_SECRETS_FILE" }}
 ---
-# Chart repositories are declared in each layer helmfile (only the ones it uses), so
-# rendering one layer - or one release in Argo CD mode - downloads only those indexes.
 helmDefaults:
   createNamespace: true
   wait: true

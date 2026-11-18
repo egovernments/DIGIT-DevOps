@@ -1,6 +1,6 @@
 name: Setup SOPS (Azure Key Vault)
 description: >
-  Install a pinned sops binary. If digit-secrets.yaml exists, check that it is encrypted,
+  Install a pinned sops binary. If <env>-secrets.yaml exists, check that it is encrypted,
   fully filled in and locked with THIS team's Key Vault, then export the DB admin
   credentials from it for Terraform (TF_VAR_db_password, SECRETS_DB_USER).
   Needs AZURE_CLIENT_ID/SECRET/TENANT_ID (azure-login) to decrypt.
@@ -9,7 +9,7 @@ inputs:
     description: sops version (without the leading v)
     required: true
   required:
-    description: "true = fail when digit-secrets.yaml does not exist yet"
+    description: "true = fail when <env>-secrets.yaml does not exist yet"
     required: false
     default: "true"
 runs:
@@ -29,26 +29,25 @@ runs:
         sudo install -m 0755 "sops-v${SOPS_VERSION}.linux.amd64" /usr/local/bin/sops
         cd "$GITHUB_WORKSPACE"
 
-        f=digit-secrets.yaml
+        f=${SECRETS_FILE:?run load-config first}
+        n=$(basename "$f")
         if [ ! -f "$f" ]; then
-          [ "$REQUIRED" != "true" ] || { echo "::error::digit-secrets.yaml does not exist yet. Run the workflow with action = install first."; exit 1; }
-          echo "digit-secrets.yaml not created yet"; exit 0
+          [ "$REQUIRED" != "true" ] || { echo "::error::$n does not exist yet. Run the workflow with action = install first."; exit 1; }
+          echo "$n not created yet"; exit 0
         fi
         [ "$(sops filestatus "$f" | jq -r .encrypted)" = "true" ] \
-          || { echo "::error file=$f::digit-secrets.yaml is NOT locked (encrypted). Never commit plain passwords. Delete the file and run install again."; exit 1; }
+          || { echo "::error file=$f::$n is NOT locked (encrypted). Never commit plain passwords. Delete the file and run install again."; exit 1; }
 
         # Locked with this team's own Key Vault? (a file copied from another fork is not)
-        if [ -n "${KEY_VAULT_NAME:-}" ]; then
-          url=$(yq -r '.sops.azure_kv[0].vault_url // ""' "$f")
-          [ "${url%/}" = "https://${KEY_VAULT_NAME}.vault.azure.net" ] || {
-            echo "::error file=$f::digit-secrets.yaml was locked by someone else's Key Vault ($url), not yours ($KEY_VAULT_NAME). Delete digit-secrets.yaml from your fork and run install again."; exit 1; }
-        fi
+        url=$(yq -r '.sops.azure_kv[0].vault_url // ""' "$f")
+        [ "${url%/}" = "https://${KEY_VAULT_NAME}.vault.azure.net" ] || {
+          echo "::error file=$f::$n was locked by someone else's Key Vault ($url), not yours ($KEY_VAULT_NAME). Delete $n from your fork and run install again."; exit 1; }
 
         bad=$(sops -d "$f" | yq -r '.. | select(tag == "!!str" and test("^<[a-z_]+>$")) | path | join(".")')
         [ -z "$bad" ] || { echo "::error file=$f::Unfilled placeholders: $(echo "$bad" | tr '\n' ' ')"; exit 1; }
 
-        db_pwd=$(sops -d --extract '["secrets"]["db"]["password"]' "$f")
-        db_user=$(sops -d --extract '["secrets"]["db"]["username"]' "$f")
+        db_pwd=$(sops -d --extract '["cluster-configs"]["secrets"]["db"]["password"]' "$f")
+        db_user=$(sops -d --extract '["cluster-configs"]["secrets"]["db"]["username"]' "$f")
         echo "::add-mask::$db_pwd"
         { echo "TF_VAR_db_password=$db_pwd"; echo "SECRETS_DB_USER=$db_user"; } >> "$GITHUB_ENV"
-        echo "digit-secrets.yaml unlocked OK"
+        echo "$n unlocked OK"

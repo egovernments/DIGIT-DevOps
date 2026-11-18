@@ -1,135 +1,66 @@
-# Layer 1 - cluster-configs + backbone, all from https://helm.digit.org/digit3/{cluster-configs,backbone}.
-# cluster-configs goes first: it creates the namespaces and the ConfigMaps/Secrets every
-# other release reads (DB, MinIO, Elasticsearch credentials, ...).
+# Layer 1 - cluster-configs + backbone (helm.digit.org/digit3/{cluster-configs,backbone}).
+# cluster-configs goes first: it creates the namespaces and the shared ConfigMaps/Secrets.
 bases:
   - _environment.yaml.gotmpl
 ---
+{{- /* Values of one release = its block in the env file (+ secrets file), without the keys
+       only the helmfile uses. DIGIT common-based charts also get "global" and their namespace. */ -}}
+{{- define "release-values" -}}
+{{- $b := omit (.v | get .r dict) "chart-version" "enabled" -}}
+{{- if hasKey . "common" }}{{ $b = merge (dict "global" (merge (dict "namespace" .ns) (.v | get "global" dict)) "namespace" .ns) $b }}{{ end -}}
+{{- if hasKey . "wrap" }}{{ $b = dict .r $b }}{{ end -}}
+{{- toYaml $b -}}
+{{- end -}}
+{{- define "chart-version" -}}
+{{- required (printf "%s.chart-version is missing in the environment file" .r) (.v | get (printf "%s.chart-version" .r) "") -}}
+{{- end -}}
 {{- $v := .Values }}
-{{- $ns := $v.namespaces }}
-{{- $es := $v.components.elasticsearch }}
 repositories:
   - name: digit3-backbone
-    url: {{ $v.repositories.digit }}/digit3/backbone
+    url: https://helm.digit.org/digit3/backbone
   - name: digit3-cluster-configs
-    url: {{ $v.repositories.digit }}/digit3/cluster-configs
+    url: https://helm.digit.org/digit3/cluster-configs
 releases:
   - name: cluster-configs
-    namespace: {{ $ns.core }}
+    namespace: egov
     chart: digit3-cluster-configs/cluster-configs
-    version: {{ index $v.versions "cluster-configs" }}
+    version: {{ include "chart-version" (dict "v" $v "r" "cluster-configs") }}
     labels: {layer: backbone, wave: "0"}
     values:
-      - ../values/cluster-configs.yaml.gotmpl
-      - cluster-configs: {{ $v | get "values.cluster-configs" dict | toYaml | nindent 10 }}
-
-  - name: cert-manager
-    namespace: {{ $ns.backbone }}
-    chart: digit3-backbone/cert-manager
-    version: {{ index $v.versions "cert-manager" }}
-    installed: {{ $v | get "releases.cert-manager.enabled" true }}
-    labels: {layer: backbone, wave: "1"}
-    needs: [{{ $ns.core }}/cluster-configs]
+      - {{ include "release-values" (dict "v" $v "r" "cluster-configs" "ns" "egov" "wrap" true) | nindent 8 }}
+{{- range $r := list
+      (dict "name" "cert-manager"         "wave" "1" "needs" "egov/cluster-configs")
+      (dict "name" "ingress-nginx"        "wave" "2" "needs" "backbone/cert-manager")
+      (dict "name" "redis"                "wave" "1" "needs" "egov/cluster-configs" "common" true)
+      (dict "name" "kafka-kraft"          "wave" "1" "needs" "egov/cluster-configs")
+      (dict "name" "minio"                "wave" "1" "needs" "egov/cluster-configs" "common" true)
+      (dict "name" "elasticsearch-master" "wave" "1" "needs" "egov/cluster-configs")
+      (dict "name" "elasticsearch-data"   "wave" "2" "needs" "backbone/elasticsearch-master")
+      (dict "name" "kibana"               "wave" "3" "needs" "backbone/elasticsearch-data" "common" true) }}
+  - name: {{ $r.name }}
+    namespace: backbone
+    chart: digit3-backbone/{{ $r.name }}
+    version: {{ include "chart-version" (dict "v" $v "r" $r.name) }}
+    installed: {{ $v | get (printf "%s.enabled" $r.name) true }}
+    labels: {layer: backbone, wave: "{{ $r.wave }}"}
+    needs: [{{ $r.needs }}]
     values:
-      - ../values/backbone/cert-manager.yaml.gotmpl
-      - {{ $v | get "values.cert-manager" dict | toYaml | nindent 8 }}
-
-  - name: ingress-nginx
-    namespace: {{ $ns.backbone }}
-    chart: digit3-backbone/ingress-nginx
-    version: {{ index $v.versions "ingress-nginx" }}
-    installed: {{ $v | get "releases.ingress-nginx.enabled" true }}
-    labels: {layer: backbone, wave: "2"}
-    needs: [{{ $ns.backbone }}/cert-manager]
-    values:
-      - ../values/backbone/ingress-nginx.yaml.gotmpl
-      - {{ $v | get "values.ingress-nginx" dict | toYaml | nindent 8 }}
-
-  - name: redis
-    namespace: {{ $ns.backbone }}
-    chart: digit3-backbone/redis
-    version: {{ index $v.versions "redis" }}
-    installed: {{ $v | get "releases.redis.enabled" true }}
-    labels: {layer: backbone, wave: "1"}
-    needs: [{{ $ns.core }}/cluster-configs]
-    values:
-      - ../values/global.yaml.gotmpl
-      - {{ $v | get "values.redis" dict | toYaml | nindent 8 }}
-
-  - name: kafka-kraft
-    namespace: {{ $ns.backbone }}
-    chart: digit3-backbone/kafka-kraft
-    version: {{ index $v.versions "kafka-kraft" }}
-    installed: {{ $v | get "releases.kafka-kraft.enabled" true }}
-    labels: {layer: backbone, wave: "1"}
-    needs: [{{ $ns.core }}/cluster-configs]
-    values:
-      - ../values/backbone/kafka-kraft.yaml.gotmpl
-      - {{ $v | get "values.kafka-kraft" dict | toYaml | nindent 8 }}
-
-  - name: minio
-    namespace: {{ $ns.backbone }}
-    chart: digit3-backbone/minio
-    version: {{ index $v.versions "minio" }}
-    installed: {{ $v | get "releases.minio.enabled" true }}
-    labels: {layer: backbone, wave: "1"}
-    needs: [{{ $ns.core }}/cluster-configs]
-    values:
-      - ../values/global.yaml.gotmpl
-      - ../values/backbone/minio.yaml.gotmpl
-      - {{ $v | get "values.minio" dict | toYaml | nindent 8 }}
-
+      - {{ include "release-values" (merge (dict "v" $v "r" $r.name "ns" "backbone") (pick $r "common")) | nindent 8 }}
+{{- end }}
+  # Vault starts sealed and empty: the postsync hook initialises/unseals it and writes the
+  # AppRole the core services (otp, individual) log in with. Idempotent.
   - name: vault
-    namespace: {{ $ns.vault }}
+    namespace: vault
     chart: digit3-backbone/vault
-    version: {{ index $v.versions "vault" }}
-    installed: {{ $v | get "releases.vault.enabled" true }}
+    version: {{ include "chart-version" (dict "v" $v "r" "vault") }}
+    installed: {{ $v | get "vault.enabled" true }}
     labels: {layer: backbone, wave: "1"}
-    needs: [{{ $ns.core }}/cluster-configs]
-    # Vault starts sealed and empty: init/unseal it, enable transit + AppRole and write the
-    # vault-approle Secret the core services (otp, individual) log in with. Idempotent.
+    needs: [egov/cluster-configs]
     wait: false
     hooks:
       - events: ["postsync"]
         showlogs: true
         command: bash
-        args:
-          - ../scripts/vault-bootstrap.sh
-          - {{ $ns.vault }}
-          - {{ $ns.core }}
+        args: [../scripts/vault-bootstrap.sh, vault, egov]
     values:
-      - ../values/backbone/vault.yaml.gotmpl
-      - {{ $v | get "values.vault" dict | toYaml | nindent 8 }}
-
-  - name: elasticsearch-master
-    namespace: {{ $ns.backbone }}
-    chart: digit3-backbone/elasticsearch-master
-    version: {{ index $v.versions "elasticsearch-master" }}
-    installed: {{ and $es ($v | get "releases.elasticsearch-master.enabled" true) }}
-    labels: {layer: backbone, wave: "1"}
-    needs: [{{ $ns.core }}/cluster-configs]
-    values:
-      - ../values/backbone/elasticsearch.yaml.gotmpl
-      - {{ $v | get "values.elasticsearch-master" dict | toYaml | nindent 8 }}
-
-  - name: elasticsearch-data
-    namespace: {{ $ns.backbone }}
-    chart: digit3-backbone/elasticsearch-data
-    version: {{ index $v.versions "elasticsearch-data" }}
-    installed: {{ and $es ($v | get "releases.elasticsearch-data.enabled" true) }}
-    labels: {layer: backbone, wave: "2"}
-    needs: [{{ $ns.backbone }}/elasticsearch-master]
-    values:
-      - ../values/backbone/elasticsearch.yaml.gotmpl
-      - {{ $v | get "values.elasticsearch-data" dict | toYaml | nindent 8 }}
-
-  - name: kibana
-    namespace: {{ $ns.backbone }}
-    chart: digit3-backbone/kibana
-    version: {{ index $v.versions "kibana" }}
-    installed: {{ and $es ($v | get "releases.kibana.enabled" true) }}
-    labels: {layer: backbone, wave: "3"}
-    needs: [{{ $ns.backbone }}/elasticsearch-data]
-    values:
-      - ../values/global.yaml.gotmpl
-      - ../values/backbone/kibana.yaml.gotmpl
-      - {{ $v | get "values.kibana" dict | toYaml | nindent 8 }}
+      - {{ include "release-values" (dict "v" $v "r" "vault" "ns" "vault") | nindent 8 }}

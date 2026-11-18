@@ -1,0 +1,921 @@
+# =====================================================================================
+#  DIGIT one-click environment  -  THE file you edit (same layout as egov-demo.yaml).
+#
+#  1. Rename this file to <your-environment-name>.yaml  (3-20 small letters, numbers, "-",
+#     starting with a letter, e.g. team-a-digit.yaml). The name becomes your AKS cluster.
+#  2. Fill in the two lines marked FILL IN: global.domain and infra.email.
+#  3. Run the workflow with environment = <your-environment-name>.
+#
+#  On the first install the workflow fills the remaining placeholders below with your
+#  domain, e-mail and environment name, adds the database address from Terraform, and
+#  commits this file. Your passwords go to <your-environment-name>-secrets.yaml, created
+#  and locked by the workflow.
+#
+#  Every block below is the Helm values of one release (block name = release name), plus:
+#    chart-version   the chart version deployed (required)
+#    enabled: false  do not deploy this release
+#  NEVER put passwords here - this file is public. Use the GitHub secret DIGIT_SECRETS.
+#  Full reference: ONE-CLICK-AZURE.md (Part 2).
+# =====================================================================================
+
+# ============================================================================
+#  INFRA  -  read by the workflow only (Terraform, deploy method). Not a release.
+# ============================================================================
+infra:
+  email: "<email>"              # FILL IN: your e-mail, for the free HTTPS certificates
+  location: "centralindia"      # Azure region. Do not change after the first install.
+  argocd:
+    # How DIGIT is deployed. Choose ONCE, before the first install.
+    # false = the workflow deploys with helmfile.
+    # true  = the workflow installs Argo CD; Argo CD deploys every release below from this
+    #         repository and keeps it in sync. Screen: https://<domain>/argocd (user admin).
+    enabled: false
+  terraform:                    # Terraform variables (infra-as-code/terraform/azure/variables.tf)
+    node_count: 4
+    # main_vm_size: "Standard_D8s_v3"
+    # scheduling: false         # true (default) scales nodes to 0 at night
+
+# ============================================================================
+#  GLOBAL  -  given to every DIGIT chart
+# ============================================================================
+global:
+  domain: "<domain>"            # FILL IN: e.g. digit.example.com (no https://, no /)
+  mode: prod                    # prod = image tag from the chart; dev = <release>.image.tag
+  containerRegistry: egovio
+  setup: fullsetup
+
+# ============================================================================
+#  CLUSTER-CONFIGS
+#  Namespaces and the shared ConfigMaps every service reads (secrets: <env>-secrets.yaml)
+# ============================================================================
+
+cluster-configs:
+  chart-version: 3.1.1
+  configmaps:
+    egov-config:
+      data:
+        db-host: <db_host>
+        db-name: <db_name>
+        db-port: "5432"
+        db-ssl-mode: require
+        db-url: jdbc:postgresql://<db_host>:5432/<db_name>?sslmode=require
+        egov-services-fqdn-name: https://<domain>/
+        flyway-locations: filesystem:/flyway/sql
+        kafka-brokers: kafka-kraft-controller-headless.backbone:9092
+        keycloak-base-url: http://keycloak.egov.svc.cluster.local:8080/keycloak
+        keycloak-db-url: jdbc:postgresql://<db_host>:5432/keycloak?sslmode=require
+        otel-exporter-otlp-endpoint: open-telemetry-opentelemetry-collector.monitoring:4318
+        otel-tracing-export-otlp-endpoint: http://open-telemetry-opentelemetry-collector.monitoring:4318/v1/traces
+        redis-address: redis.backbone:6379
+        redis-host: redis.backbone
+        redis-port: "6379"
+      namespace:
+        - egov
+    egov-service-host:
+      data:
+        account: http://account.egov:8080/
+        account-java: http://account.egov:8080/
+        apportion: http://apportion.egov:8080/
+        apportion-java: http://apportion.egov:8080/
+        billing: http://billing.egov:8080/
+        billing-java: http://billing.egov:8080/
+        boundary: http://boundary.egov:8080/
+        boundary-java: http://boundary.egov:8080/
+        boundary-management: http://boundary-management.egov:8080/
+        boundary-management-java: http://boundary-management.egov:8080/
+        employee: http://employee.egov:8080/
+        employee-java: http://employee.egov:8080/
+        employee-onboarding: http://employee-onboarding.egov:8080/
+        employee-onboarding-java: http://employee-onboarding.egov:8080/
+        filestore: http://filestore.egov:8080/
+        filestore-java: http://filestore.egov:8080/
+        idgen: http://idgen.egov:8080/
+        idgen-java: http://idgen.egov:8080/
+        individual: http://individual.egov:8080/
+        individual-java: http://individual.egov:8080/
+        localization: http://localization.egov:8080/
+        localization-java: http://localization.egov:8080/
+        localization-management: http://localization-management.egov:8080/
+        localization-management-java: http://localization-management.egov:8080/
+        mdms-v2: http://mdms-v2.egov:8080/
+        mdms-v2-java: http://mdms-v2.egov:8080/
+        notification: http://notification.egov:8080/
+        notification-java: http://notification.egov:8080/
+        notify: http://notify.egov:8080/
+        notify-java: http://notify.egov:8080/
+        otp: http://otp.egov:8080/
+        otp-java: http://otp.egov:8080/
+        pg-service: http://pg-service.egov:8080/
+        pg-service-java: http://pg-service.egov:8080/
+        registry: http://registry.egov:8080/
+        registry-java: http://registry.egov:8080/
+        template-config: http://template-config.egov:8080/
+        template-config-java: http://template-config.egov:8080/
+        url-shortener: http://url-shortener.egov:8080/
+        url-shortener-java: http://url-shortener.egov:8080/
+        vault: http://vault.vault:8200/
+        workflow: http://workflow.egov:8080/
+        workflow-java: http://workflow.egov:8080/
+      namespace:
+        - egov
+  namespaces:
+    create: true
+    values:
+      - backbone
+      - vault
+      - monitoring
+
+# ============================================================================
+#  CORE SERVICES (helm.digit.org/digit3/core)
+#  Keycloak, Kong, then the DIGIT 3.0 services A-Z. Block = values for that chart.
+# ============================================================================
+
+# Identity provider (Keycloak)
+keycloak:
+  chart-version: 3.0.2
+  dbInit:
+    adminSecret:
+      key: password
+    adminUser: digitadmin
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+# API gateway (Kong) + gateway-sync route reconciler
+kong:
+  chart-version: 3.1.2
+  env:
+    pg_ssl: "on"
+    pg_ssl_verify: "off"
+  gatewaySync:
+    domain: <domain>
+    enabled: true
+    keycloakBaseUrl: http://keycloak.egov.svc.cluster.local:8080/keycloak
+    kongAdminUrl: http://kong-admin.egov.svc.cluster.local:8001
+    namespaces:
+      - egov
+  initContainers:
+    extraInitContainers: |
+      - name: kong-migration
+        image: {{ include "kong.image" (dict "Values" .Values "repository" .Values.image.repository "tag" .Values.image.tag) }}
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args: ["kong migrations bootstrap && kong migrations up && kong migrations finish"]
+        env:
+        - name: KONG_DATABASE
+          value: postgres
+        - name: KONG_PG_SSL
+          value: "on"
+        - name: KONG_PG_SSL_VERIFY
+          value: "off"
+        - name: KONG_PG_HOST
+          valueFrom: {configMapKeyRef: {name: egov-config, key: db-host}}
+        - name: KONG_PG_PORT
+          value: "5432"
+        - name: KONG_PG_USER
+          valueFrom: {secretKeyRef: {name: db, key: username}}
+        - name: KONG_PG_PASSWORD
+          valueFrom: {secretKeyRef: {name: db, key: password}}
+        - name: KONG_PG_DATABASE
+          valueFrom: {configMapKeyRef: {name: egov-config, key: db-name}}
+
+account:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+apportion:
+  chart-version: 3.1.3
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+billing:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+boundary:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+boundary-management:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+employee:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+employee-onboarding:
+  chart-version: 3.0.1
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+filestore:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+  s3-bucket: digit-filestore
+  s3-endpoint: minio.backbone.svc.cluster.local:9000
+  s3-use-ssl: "false"
+
+idgen:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+individual:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+localization:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+localization-management:
+  chart-version: 3.0.1
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+mdms-v2:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+notification:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+notify:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+otp:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+pg-service:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+registry:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+template-config:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+url-shortener:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+workflow:
+  chart-version: 3.1.2
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+# ============================================================================
+#  BACKBONE (helm.digit.org/digit3/backbone)
+#  Ingress, TLS, Kafka, Redis, MinIO, Vault, Elasticsearch, Kibana
+# ============================================================================
+
+# TLS certificates (Let's Encrypt)
+cert-manager:
+  chart-version: 3.0.0
+  clusterIssuer:
+    prod:
+      acme:
+        email: <email>
+    stage:
+      acme:
+        email: <email>
+
+# NGINX ingress controller (gzip on in the chart)
+ingress-nginx:
+  chart-version: 3.1.0
+  controller:
+    service:
+      annotations:
+        service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: /healthz
+
+# Redis cache
+redis:
+  chart-version: 3.0.0
+
+# Kafka (KRaft)
+kafka-kraft:
+  chart-version: 3.0.0
+  controller:
+    persistence:
+      size: 20Gi
+  kraft:
+    existingClusterIdSecret: kafka-kraft-cluster-id
+
+# MinIO object store (filestore S3). Root login: <env>-secrets.yaml
+minio:
+  chart-version: 3.1.0
+  buckets:
+    - name: digit-filestore
+      policy: none
+      purge: false
+  consoleIngress:
+    enabled: false
+  existingSecret: ""
+  mode: standalone
+  persistence:
+    size: 20Gi
+    storageClass: ""
+  replicas: 1
+
+# Vault (initialised and unsealed by the workflow)
+vault:
+  chart-version: 3.0.1
+  global:
+    namespace: vault
+  server:
+    postStart:
+      - /bin/sh
+      - -c
+      - '[ -f /vault/unseal/unseal-key ] || exit 0; for i in $(seq 1 60); do vault status >/dev/null 2>&1; rc=$?; [ "$rc" = 0 ] && exit 0; [ "$rc" = 2 ] && vault operator unseal "$(cat /vault/unseal/unseal-key)" >/dev/null 2>&1 && exit 0; sleep 2; done; exit 0'
+    volumeMounts:
+      - mountPath: /vault/unseal
+        name: vault-unseal
+        readOnly: true
+    volumes:
+      - name: vault-unseal
+        secret:
+          optional: true
+          secretName: vault-unseal
+
+# Elasticsearch master nodes
+elasticsearch-master:
+  chart-version: 3.0.0
+  esJavaOpts: -Xmx1g -Xms1g
+  secret:
+    password: ""
+
+# Elasticsearch data nodes
+elasticsearch-data:
+  chart-version: 3.0.0
+  replicas: 2
+  volumeClaimTemplate:
+    resources:
+      requests:
+        storage: 30Gi
+
+# Kibana
+kibana:
+  chart-version: 3.0.0
+
+# ============================================================================
+#  MONITORING
+#  Prometheus, Loki, Grafana, OpenTelemetry, Jaeger, blackbox
+# ============================================================================
+
+# Prometheus + Alertmanager. Alerts go nowhere until you add a receiver (Slack/e-mail) here.
+kube-prometheus-stack:
+  chart-version: 56.6.2
+  additionalPrometheusRules:
+    - groups:
+        - name: KubernetesPodAlerts
+          rules:
+            - alert: KubernetesContainerOomKiller
+              annotations:
+                description: |
+                  A Container in pod {{ $labels.pod }} has been OOMKilled {{ $value }} times in the last 10 minutes.
+                  - namespace: ({{ $labels.namespace }}
+                  - pod: {{ $labels.pod }}
+                  - container: {{ $labels.container }}
+                summary: Kubernetes container OOM Killed
+              expr: (kube_pod_container_status_restarts_total - kube_pod_container_status_restarts_total offset 10m >= 1) and ignoring (reason) min_over_time(kube_pod_container_status_last_terminated_reason{reason="OOMKilled", namespace!~"monitoring|kube-system|default|logging"}[10m]) >= 1
+              for: 1m
+              labels:
+                repeat_interval: 30m
+                severity: critical
+            - alert: KubernetesPodNotHealthy
+              annotations:
+                description: |
+                  Pod {{ $labels.pod }} has been in a non-running state for longer than 10 minutes.
+                  - namespace: {{ $labels.namespace }}
+                  - pod: {{ $labels.pod }}
+                  - status: {{ $labels.phase }}
+                summary: Kubernetes Pod not healthy ({{ $labels.namespace }}/{{ $labels.pod }})
+              expr: sum by (namespace, pod, phase) (kube_pod_status_phase{phase=~"Pending|Unknown|Failed", namespace!~"monitoring|kube-system|default|logging"}) > 0
+              for: 10m
+              labels:
+                repeat_interval: 30m
+                severity: critical
+            - alert: KubernetesPodCrashLooping
+              annotations:
+                description: |-
+                  Pod {{ $labels.pod }} is in CrashLoopBackOff for 10 minutes.
+                    VALUE = {{ $value }}
+                    LABELS = {{ $labels }}
+                summary: Kubernetes Pod {{ $labels.pod }} is in CrashLoopBackOff
+              expr: max_over_time(kube_pod_container_status_waiting_reason{job="kube-state-metrics", namespace!~"monitoring|kube-system|default|logging", reason="CrashLoopBackOff"}[10m]) >= 1
+              for: 1m
+              labels:
+                repeat_interval: 30m
+                severity: critical
+      name: podalerts
+    - groups:
+        - name: KubernetesNodeAlerts
+          rules:
+            - alert: KubernetesNodeNotReady
+              annotations:
+                description: Node {{ $labels.node }} has been unready for a long time
+                summary: Kubernetes Node ready (node {{ $labels.node }})
+              expr: kube_node_status_condition{condition="Ready", status="true"} == 0
+              for: 5m
+              labels:
+                repeat_interval: 30m
+                severity: critical
+            - alert: KubernetesNodeMemoryPressure
+              annotations:
+                description: Node {{ $labels.node }} has MemoryPressure condition
+                summary: Kubernetes memory pressure (node {{ $labels.node }})
+              expr: kube_node_status_condition{condition="MemoryPressure", status="true"} == 1
+              for: 2m
+              labels:
+                repeat_interval: 30m
+                severity: critical
+            - alert: KubernetesNodeDiskPressure
+              annotations:
+                description: Node {{ $labels.node }} has DiskPressure condition
+                summary: Kubernetes NODE disk pressure
+              expr: kube_node_status_condition{condition="DiskPressure", status="true"} == 1
+              for: 2m
+              labels:
+                repeat_interval: 30m
+                severity: critical
+            - alert: KubernetesNodeNetworkUnavailable
+              annotations:
+                description: |-
+                  Node {{ $labels.node }} has NetworkUnavailable condition
+                    VALUE = {{ $value }}
+                    LABELS = {{ $labels }}
+                summary: Kubernetes Node network unavailable (instance {{ $labels.instance }})
+              expr: kube_node_status_condition{condition="NetworkUnavailable", status="true"} == 1
+              for: 2m
+              labels:
+                repeat_interval: 30m
+                severity: critical
+      name: nodealerts
+    - groups:
+        - name: KubernetesVolumeAlerts
+          rules:
+            - alert: KubernetesVolumeOutOfDiskSpace
+              annotations:
+                description: |
+                  Volume is almost full (< 60% left)
+                  Current Usage = {{ $value | printf "%.2f" }}%
+                  LABELS:
+                    - namespace: {{ $labels.namespace }}
+                    - persistentvolumeclaim: {{ $labels.persistentvolumeclaim }}
+                    - node: {{ $labels.node }}
+                summary: Kubernetes Volume out of disk space (instance {{ $labels.instance }})
+              expr: (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes * 100) < 20
+              for: 10m
+              labels:
+                repeat_interval: 30m
+                severity: critical
+            - alert: KubernetesPersistentvolumeError
+              annotations:
+                description: |-
+                  Persistent volume {{ $labels.persistentvolume }} is in bad state
+                    VALUE = {{ $value }}
+                    LABELS = {{ $labels }}
+                summary: Kubernetes PersistentVolumeClaim pending ({{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }})
+              expr: kube_persistentvolume_status_phase{phase=~"Failed|Pending", job="kube-state-metrics", namespace!~"monitoring|kube-system|default|logging"} > 0
+              for: 5m
+              labels:
+                repeat_interval: 30m
+                severity: critical
+      name: volumealerts
+    - groups:
+        - name: SSLCertificateAlerts
+          rules:
+            - alert: SSLCertificateExpiringSoon
+              annotations:
+                description: SSL Certificate for {{`{{`}}$labels.instance{{`}}`}} expires in {{`{{`}} .Value | humanizeDuration {{`}}`}}.
+                summary: SSL certificate is about to expire
+              expr: probe_ssl_earliest_cert_expiry{job="blackbox", instance="prometheus-blackbox-exporter:9115"} - time() < 2*24*3600
+              for: 1m
+              labels:
+                repeat_interval: 30m
+                severity: critical
+            - alert: SSLCertificateExpired
+              annotations:
+                description: |-
+                  SSL Certificate for {{ $labels.instance }} has expired.
+                    VALUE = {{ $value }}
+                    LABELS = {{ $labels }}
+                summary: SSL certificate has expired
+              expr: probe_ssl_earliest_cert_expiry{job="blackbox", instance="prometheus-blackbox-exporter:9115"} - time() < 0
+              for: 1m
+              labels:
+                repeat_interval: 30m
+                severity: critical
+      name: sslalerts
+  alertmanager:
+    config:
+      route:
+        receiver: "null"
+        group_by:
+          - alertname
+        repeat_interval: 10m
+      receivers:
+        - name: "null"
+  defaultRules:
+    rules:
+      configReloaders: false
+      etcd: false
+      general: false
+      k8sContainerCpuUsageSecondsTotal: false
+      k8sContainerMemoryCache: false
+      k8sContainerMemoryRss: false
+      k8sContainerMemorySwap: false
+      k8sContainerMemoryWorkingSetBytes: false
+      k8sContainerResource: false
+      k8sPodOwner: false
+      kubeApiserverAvailability: false
+      kubeApiserverBurnrate: false
+      kubeApiserverHistogram: false
+      kubeApiserverSlos: false
+      kubeControllerManager: false
+      kubePrometheusGeneral: false
+      kubePrometheusNodeRecording: false
+      kubeProxy: false
+      kubeSchedulerAlerting: false
+      kubeSchedulerRecording: false
+      kubeStateMetrics: false
+      kubelet: false
+      kubernetesResources: false
+      kubernetesStorage: false
+      kubernetesSystem: false
+      network: false
+      node: false
+      nodeExporterAlerting: false
+      nodeExporterRecording: false
+      prometheus: false
+      prometheusOperator: false
+      windows: false
+  grafana:
+    enabled: false
+  kubeControllerManager:
+    enabled: false
+  kubeEtcd:
+    enabled: false
+  kubeProxy:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  prometheus:
+    evaluationInterval: 1m
+    prometheusSpec:
+      additionalScrapeConfigs:
+        - job_name: blackbox
+          metrics_path: /probe
+          params:
+            module:
+              - http_2xx
+          relabel_configs:
+            - source_labels:
+                - __address__
+              target_label: __param_target
+            - source_labels:
+                - __param_target
+              target_label: instance
+            - replacement: prometheus-blackbox-exporter.monitoring:9115
+              target_label: __address__
+          static_configs:
+            - targets:
+                - https://<domain>/keycloak/realms/master
+                - https://<domain>/kibana/api/status
+      enableFeatures:
+        - exemplar-storage
+      evaluationInterval: 30s
+      exemplars:
+        maxSize: 100000
+      externalLabels:
+        cluster: <env>
+      retention: 7d
+      scrapeInterval: 30s
+    scrapeInterval: 1m
+  prometheusOperator:
+    thanosImage:
+      tag: v0.33.0
+  thanosRuler:
+    thanosRulerSpec:
+      image:
+        tag: v0.33.0
+
+# Logs (single binary)
+loki:
+  chart-version: 6.6.4
+  backend:
+    replicas: 0
+  chunksCache:
+    enabled: false
+  deploymentMode: SingleBinary
+  gateway:
+    enabled: false
+  loki:
+    analytics:
+      reporting_enabled: false
+    auth_enabled: false
+    commonConfig:
+      replication_factor: 1
+    compactor:
+      delete_request_store: filesystem
+      retention_enabled: true
+      working_directory: /var/loki/boltdb-shipper-compactor
+    limits_config:
+      allow_structured_metadata: true
+    schemaConfig:
+      configs:
+        - from: "2024-04-01"
+          index:
+            period: 24h
+            prefix: loki_index_
+          object_store: filesystem
+          schema: v13
+          store: tsdb
+    storage:
+      type: filesystem
+    storage_config:
+      boltdb_shipper:
+        active_index_directory: /var/loki/index
+        cache_location: /var/loki/index_cache
+        cache_ttl: 24h
+      filesystem:
+        directory: /var/loki/chunks
+      tsdb_shipper:
+        active_index_directory: /var/loki/tsdb-index
+        cache_location: /var/loki/tsdb-cache
+        cache_ttl: 24h
+  read:
+    replicas: 0
+  resultsCache:
+    enabled: false
+  singleBinary:
+    persistence:
+      size: 20Gi
+    replicas: 1
+  test:
+    enabled: false
+  write:
+    replicas: 0
+
+# Dashboards. Admin password: <env>-secrets.yaml
+grafana:
+  chart-version: 7.3.0
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - disableDeletion: true
+          editable: true
+          folder: Kubernetes
+          name: grafana-dashboards-kubernetes
+          options:
+            path: /var/lib/grafana/dashboards/grafana-dashboards-kubernetes
+          orgId: 1
+          type: file
+  dashboards:
+    grafana-dashboards-kubernetes:
+      BlackBox:
+        token: ""
+        url: https://raw.githubusercontent.com/egovernments/configs/master/monitoring-dashboards/blackbox.json
+      Loki-Logs:
+        token: ""
+        url: https://raw.githubusercontent.com/egovernments/configs/master/monitoring-dashboards/loki.json
+      ingress-dashboard:
+        token: ""
+        url: https://raw.githubusercontent.com/egovernments/configs/master/monitoring-dashboards/k8s-ingress-dashbaord.json
+      k8s-views-global:
+        token: ""
+        url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-views-global.json
+      k8s-views-namespaces:
+        token: ""
+        url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-views-namespaces.json
+      k8s-views-nodes:
+        token: ""
+        url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/master/dashboards/k8s-views-nodes.json
+      k8s-views-pods:
+        token: ""
+        url: https://raw.githubusercontent.com/egovernments/configs/master/monitoring-dashboards/Kubernetes-Views-Pods.json
+      persistent-volumes:
+        token: ""
+        url: https://raw.githubusercontent.com/egovernments/configs/master/monitoring-dashboards/kubernetes-persistent-volumes.json
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - access: proxy
+          basicAuth: false
+          isDefault: true
+          name: Prometheus
+          type: prometheus
+          url: http://kube-prometheus-stack-prometheus:9090
+        - access: proxy
+          editable: false
+          name: Loki
+          type: loki
+          url: http://loki:3100
+  env:
+    JAEGER_AGENT_PORT: "5775"
+  grafana.ini:
+    auth.github:
+      allow_assign_grafana_admin: false
+      allow_sign_up: true
+      allowed_organizations:
+        - egovernments
+      api_url: https://api.github.com/user
+      auth_url: https://github.com/login/oauth/authorize
+      auto_login: false
+      enabled: false
+      role_attribute_path: '''Viewer'''
+      role_attribute_strict: true
+      scopes: user:email,read:org
+      token_url: https://github.com/login/oauth/access_token
+    server:
+      root_url: https://{{- if and .Values.ingress.enabled .Values.ingress.hosts -}}{{ .Values.ingress.hosts | first }}{{ end }}{{ .Values.ingress.path }}
+      serve_from_sub_path: true
+  ingress:
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      kubernetes.io/ingress.class: nginx
+    enabled: true
+    hosts:
+      - <domain>
+    path: /monitoring
+    tls:
+      - hosts:
+          - <domain>
+        secretName: <domain>-tls-certs
+  persistence:
+    enabled: true
+    size: 5Gi
+  service:
+    port: 3000
+
+# OpenTelemetry collector
+open-telemetry:
+  chart-version: 0.147.0
+  command:
+    name: otelcol-contrib
+  config:
+    exporters:
+      debug:
+        verbosity: detailed
+      otlp:
+        endpoint: jaeger:4317
+        tls:
+          insecure: true
+      otlphttp/loki:
+        endpoint: http://loki:3100/otlp
+        tls:
+          insecure: true
+      prometheus:
+        enable_open_metrics: true
+        endpoint: ${env:MY_POD_IP}:8889
+        resource_to_telemetry_conversion:
+          enabled: true
+    service:
+      pipelines:
+        logs:
+          exporters:
+            - debug
+            - otlphttp/loki
+        metrics:
+          exporters:
+            - debug
+            - prometheus
+        traces:
+          exporters:
+            - debug
+            - otlp
+  image:
+    repository: otel/opentelemetry-collector-contrib
+  mode: deployment
+  ports:
+    metrics:
+      containerPort: 8889
+      enabled: true
+      servicePort: 8889
+  presets:
+    logsCollection:
+      enabled: true
+      includeCollectorLogs: true
+  serviceMonitor:
+    enabled: true
+
+# Tracing (stores in Elasticsearch). Elasticsearch password: <env>-secrets.yaml
+jaeger:
+  chart-version: 4.4.7
+  esIndexCleaner:
+    enabled: true
+    numberOfDays: 3
+  storage:
+    elasticsearch:
+      url: http://elasticsearch-master.backbone:9200
+      user: elastic
+  userconfig:
+    exporters:
+      jaeger_storage_exporter:
+        trace_storage: primary_store_elasticsearch
+    extensions:
+      healthcheckv2:
+        http:
+          endpoint: 0.0.0.0:13133
+        use_v2: true
+      jaeger_query:
+        base_path: /jaeger
+        storage:
+          traces: primary_store_elasticsearch
+          traces_archive: archive_store_elasticsearch
+      jaeger_storage:
+        backends:
+          archive_store_elasticsearch:
+            elasticsearch:
+              auth:
+                basic:
+                  username: elastic
+              server_urls:
+                - http://elasticsearch-master.backbone:9200
+          primary_store_elasticsearch:
+            elasticsearch:
+              auth:
+                basic:
+                  username: elastic
+              server_urls:
+                - http://elasticsearch-master.backbone:9200
+    processors:
+      batch:
+        send_batch_size: 8192
+        timeout: 5s
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    service:
+      extensions:
+        - jaeger_storage
+        - jaeger_query
+        - healthcheckv2
+      pipelines:
+        traces:
+          exporters:
+            - jaeger_storage_exporter
+          processors:
+            - batch
+          receivers:
+            - otlp
+
+# Blackbox exporter (URL probes)
+blackbox:
+  chart-version: 3.0.0
+
+# ============================================================================
+#  ARGO CD  -  used only when infra.argocd.enabled is true
+# ============================================================================
+argo-cd:
+  chart-version: 3.0.0

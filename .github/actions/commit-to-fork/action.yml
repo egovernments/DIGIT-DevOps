@@ -1,0 +1,38 @@
+name: Commit to the fork
+description: >
+  Commit the given files to the branch if they changed ([skip ci]), retrying once on top of
+  a newer branch head. Used for the generated secrets file and for the values the workflow
+  fills into <env>.yaml (domain, e-mail, DB host). Job permission: contents: write.
+inputs:
+  paths:
+    description: Space-separated files to commit
+    required: true
+  message:
+    description: Commit message (without [skip ci])
+    required: true
+  branch:
+    description: Branch to push to
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        PATHS: ${{ inputs.paths }}
+        MSG: ${{ inputs.message }}
+        BRANCH: ${{ inputs.branch }}
+      run: |
+        set -euo pipefail
+        read -ra files <<< "$PATHS"
+        [ -n "$(git status --porcelain -- "${files[@]}")" ] || { echo "Nothing to commit"; exit 0; }
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add -- "${files[@]}"
+        git commit -q -m "$MSG [skip ci]"
+        if ! git push -q origin "HEAD:$BRANCH" 2>/dev/null; then
+          # someone committed meanwhile: replay this one commit on top and retry once
+          git fetch -q --depth=20 origin "$BRANCH"
+          git rebase -q FETCH_HEAD || { echo "::error::Your branch changed during this run and the files could not be committed. Run the workflow again."; exit 1; }
+          git push -q origin "HEAD:$BRANCH"
+        fi
+        echo "Committed: $PATHS" | tee -a "$GITHUB_STEP_SUMMARY"

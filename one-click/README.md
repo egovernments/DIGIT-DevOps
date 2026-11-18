@@ -37,9 +37,12 @@ You now have your own copy at `https://github.com/<your-name>/DIGIT-DevOps`.
 ## Step 3. Make a key for Azure
 
 1. Open https://shell.azure.com and sign in. If it asks, choose **Bash**.
+   The key is made for the subscription `az account show` prints. If that is not the one
+   DIGIT should go to, first run `az account set --subscription <subscription-id>`.
 2. Copy this whole block, paste it into the window, and press **Enter**:
 
    ```bash
+   set +H   # lets the "!" below through (interactive bash would treat it as history)
    SUB=$(az account show --query id -o tsv)
    CREDS=$(az ad sp create-for-rbac --name digit-one-click --role Contributor --scopes "/subscriptions/$SUB" --json-auth)
    APP=$(echo "$CREDS" | jq -r .clientId)

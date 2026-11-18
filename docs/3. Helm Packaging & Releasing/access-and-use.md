@@ -42,8 +42,10 @@ GitOps pipeline:
   to the cluster. See [Argo CD](<../5. Argo CD/>).
 
 So the chart version you publish here is the unit the rest of the platform promotes and
-deploys. The chart repo registry URLs used on digit-lts are `helm.digit.org/digit3/crest`,
-`helm.digit.org/digit3/studio` and `helm.digit.org/digit3/health`.
+deploys. An environment installs each service from `helm.digit.org/digit3/<module>` at the
+version pinned in its env file - the same mechanism for every published `digit3` module
+(`core`, `crest`, `studio`, `health`, `cms`, `backbone`, `cluster-configs`; see the
+[module table](README.md#where-the-charts-live)).
 
 ## The form-driven release process
 

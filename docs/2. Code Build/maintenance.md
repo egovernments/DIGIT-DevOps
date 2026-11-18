@@ -2,6 +2,13 @@
 
 Who owns what, how to change the engine, and how to debug a failed build.
 
+## Guardrails
+
+- Build and config changes go through a pull request. Let the automation move tags - do not hand-edit the generated image tags.
+- Keep the caller (`code-build.yaml`) and the build config using the field names the engine expects. Add inputs rather than renaming or removing them; an unknown key is ignored, so a typo silently does nothing.
+- Registry and signing credentials are secrets. Never echo them into logs or commit them in plaintext.
+- Let a failed build stay failed. Do not disable scans or gates to force a green run.
+
 ## Engine versioning
 
 Callers pin the engine with `@reusable-build-v1` (a moving major tag). An

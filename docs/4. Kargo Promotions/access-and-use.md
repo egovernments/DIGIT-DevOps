@@ -13,21 +13,37 @@ Open the control plane, for example `https://kargo-latest.digit.org`.
 
 ### Who can do what
 
-Access is granted per project in the project config `teams:` list. A team maps to a GitHub org team, and a role sets what it can do.
+Access is granted per project in the project config `teams:` list. A team maps to a GitHub org team (by `groups`) and/or named people (by `emails`), and a `role` sets what it can do.
+
+| Role | Can do |
+|---|---|
+| `viewer` | See the project: Warehouses, Freight, Stages. No changes |
+| `promoter` | View, plus **assemble Freight** (with `manageFreight: true`) and **promote** - but only to the stages listed in `promoteStages` |
+| `admin` | View, assemble Freight, and promote to **every** stage in the project |
 
 ```yaml
 teams:
-  - name: kargo-crest
-    role: admin                 # create Freight + promote
-    groups: [digitnxt:kargo-crest]
-  - name: kargo-studio
-    role: admin
-    groups: [egovernments:kargo-studio]
+  - name: kargo-platform
+    role: admin                       # full control of this project
+    groups: ["<org>:<platform-team>"]
+  - name: kargo-developers
+    role: viewer                      # watch only
+    groups: ["<org>:<developer-team>"]
+  - name: kargo-release
+    role: promoter
+    promoteStages: [dev]              # may promote to the dev stage only
+    manageFreight: true               # may assemble Freight
+    groups: ["<org>:<release-team>"]
+  - name: kargo-release-uat
+    role: promoter
+    promoteStages: [qa, uat]          # named people, promote to qa and uat
+    emails: ["<person>@<domain>"]
 ```
 
-- The control plane can trust more than one GitHub org at once. Group names are `<org>:<team-slug>`, so `crest` access can come from a team in one org and `studio` access from a team in another.
+- **`promoteStages` scopes promotion to specific stages.** It is named by environment (the entries under `stages:`), not by individual Stage object, so "may promote to dev" covers every `<service>-dev` Stage automatically - adding a service needs no RBAC edit. Omit it (or use `role: admin`) to allow every stage. An entry that is not a declared stage fails the render loudly, so a typo cannot silently grant nothing.
+- **`manageFreight` is a separate grant from promotion.** Freight is a project-level object, so whoever holds it can create, edit and delete any Freight in the project. A `promoter` needs it to assemble Freight; drop it to leave a team able to promote existing Freight but not create or delete it.
+- **The control plane can trust more than one GitHub org at once.** Group names are `<org>:<team-slug>`, so one project's access can come from a team in one org and another's from a team in another.
 - A user-owned GitHub OAuth app is third-party to each org. An org with OAuth-app access restrictions must approve the app before its private team membership can be read, or logins from that org see no teams.
-- `admin` on a project can assemble Freight and promote within that project. Use a `viewer`-style team where people only need to watch.
 
 ## Assemble Freight
 

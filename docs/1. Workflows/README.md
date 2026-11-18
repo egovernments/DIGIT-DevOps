@@ -61,3 +61,14 @@ The move is **automated**: `promote-reusable-tag.yaml` runs when `reusable-*.yam
 tip, and cuts the next immutable `reusable-build-v1.0.<N>` snapshot — so merging a change
 here rolls it out to every consumer with no manual tag move. Cut a new major tag
 `reusable-build-v2` by hand for a breaking change.
+
+## Guardrails
+
+Rules every change here follows. They keep the engine stable for the repos that
+call it, whoever (or whatever) makes the edit.
+
+- Every change to the engine or the consumer templates goes through a pull request. A merge here ships to **all** consumers on their next run, so review the blast radius first.
+- Keep the workflow YAML structure and the input names intact - callers bind to them. **Add** inputs; do not rename, reorder or drop existing ones, and do not invent inputs the engine does not read.
+- Pin by the published tag (`@reusable-build-v1`). Cut a new major tag by hand for a breaking change rather than repurposing an existing one.
+- Auth is a GitHub App plus a per-tab scoped PAT or OAuth. Never hard-code, log or commit a long-lived token.
+- Let a build fail loudly. Do not weaken a scan or a gate to force a green run.

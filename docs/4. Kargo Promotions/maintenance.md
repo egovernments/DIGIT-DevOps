@@ -12,6 +12,9 @@ These are the rules every change to a pipeline follows. **MUST** and **MUST NOT*
 - In a promotion chain, `masterOnlyStages` **MUST** keep the production-like stages. It rejects any non-`master-*` image loudly, before anything is written, with no per-service exemptions. A single standalone stage uses `masterOnlyStages: []`.
 - The chart version in a Freight **MUST** stay published while any environment uses it. Unpublishing it breaks Argo CD's render (see [Argo CD troubleshooting](<../5. Argo CD/maintenance.md#troubleshooting>)).
 - Tag filters **SHOULD** anchor on the trailing commit hash so `-amd64` / `-arm64` children never become Freight.
+- A project config **MUST** use only the fields in the [project template](../Templates/kargo/project-config.yaml) and the [field reference](#field-reference). Do not invent or rename keys - an unrecognised key is silently ignored, so a typo grants or configures nothing.
+- The keys Kargo owns (`<service>.chart-version`, `<service>.image.tag`, `<service>.initContainers.dbMigration.image.tag`) **MUST** move only by promotion. Never hand-edit them in an env file.
+- Render the pipeline chart (`helm template`) and read the diff before raising the pull request, so a bad config is caught before Argo CD applies it.
 
 ## Credentials
 
@@ -76,6 +79,7 @@ Promotion pushes a commit straight to the environment branch. Two setups:
 | `image` | `false` for chart-only services |
 | `repo` | Image repository name if different from `name` |
 | `valuesKey` | Env-file section to write (default `name`) |
+| `namespace` | Deploy namespace if not the project default (for example a shared `keycloak` or `health` namespace); must be an AppProject destination |
 | `dbMigration` | Also write the tag for the `<service>-db` migration image |
 | `allowTags`, `extraAllowTags` | Replace / extend the tag filter |
 | `freightCreationPolicy`, `interval`, `cacheByTag`, `discoveryLimit`, `imageSelectionStrategy` | Discovery behaviour |
@@ -89,3 +93,14 @@ Promotion pushes a commit straight to the environment branch. Two setups:
 | `branch`, `envFile` | Where the promotion writes |
 | `autoPromotion` | Keep `false` |
 | `color` | UI colour |
+
+### Team (`teams[]`)
+
+| Field | Meaning |
+|---|---|
+| `name` | Team name within the project |
+| `role` | `viewer`, `promoter`, or `admin` (see [who can do what](access-and-use.md#who-can-do-what)) |
+| `promoteStages` | For `promoter`: the stages (by environment name) this team may promote to. Omit to allow all |
+| `manageFreight` | `true` lets the team assemble / edit / delete Freight (needed to create Freight) |
+| `groups` | GitHub org teams that get this access, as `<org>:<team-slug>` |
+| `emails` | Named individuals that get this access (use instead of, or alongside, `groups`) |

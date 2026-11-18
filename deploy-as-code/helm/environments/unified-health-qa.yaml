@@ -1322,9 +1322,17 @@ hcm-flow-preview:
   # purely so the Kargo promotion can write to it. Kargo's yaml-update step
   # only REPLACES keys: without this block, promoting to hcm-flow-preview-qa
   # errors with "key path not found" and the Promotion fails. Kargo owns the
-  # tag from the next promotion onward; do not hand-bump it.
+  # tag from the next promotion onward; do not hand-bump it. resources came
+  # from #5658 and applies once the service is added to that ApplicationSet.
   image:
-    tag: hcm-flow-preview-embed-ee24ea9
+    tag: hcm-flow-preview-embed-f7ef8c8
+  resources: |
+    limits:
+      memory: 128Mi
+      cpu: 100m
+    requests:
+      cpu: 20m
+      memory: 32Mi
 
 worker-registry:
   image:
@@ -1333,16 +1341,3 @@ worker-registry:
     dbMigration:
       image:
         tag: master-b912a1c
-
-hcm-flow-preview:
-  # image.tag is Kargo's from here on: the unified-health/hcm-flow-preview
-  # Warehouse discovers egovio/hcm-flow-preview and the dev Stage rewrites this
-  # key on promotion. Seeded with the current build because the promotion step
-  # is yaml-update, which only replaces keys that already exist.
-  resources: |
-    limits:
-      memory: 128Mi
-      cpu: 100m
-    requests:
-      cpu: 20m
-      memory: 32Mi

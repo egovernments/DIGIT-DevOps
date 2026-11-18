@@ -559,16 +559,20 @@ jobs:
           az aks get-credentials -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --overwrite-existing
           # Argo CD mode: stop Argo CD first, or it would put the service straight back
           kubectl -n "$NS_ARGOCD" scale statefulset argocd-application-controller --replicas=0 2>/dev/null || true
-          # Azure drains the nodes when it deletes the node pool. PodDisruptionBudgets that allow
-          # no disruption (vault, elasticsearch) block that drain until Azure's drain timeout.
-          for ns in "$NS_CORE" "$NS_BACKBONE" "$NS_VAULT" monitoring; do
-            kubectl delete pdb --all -n "$ns" --ignore-not-found || true
-          done
           kubectl delete svc ingress-nginx-controller -n "$NS_BACKBONE" --wait=true --timeout=5m
       - name: Terraform destroy (takes 10-20 minutes)
         if: steps.decide.outputs.destroy == 'true'
         run: |
           terraform init -input=false -no-color
+          # Delete the AKS cluster first, as a whole: Azure then removes the nodes without draining
+          # them. Deleting the node pool on its own drains every node, which hangs on
+          # PodDisruptionBudgets (vault, elasticsearch) and fails once Terraform deletes the egov
+          # namespace at the same time ("unable to create new content in namespace egov because it
+          # is being terminated"). The in-cluster objects Terraform tracks go with the cluster.
+          terraform state list | grep '^kubernetes_' | while read -r r; do terraform state rm -no-color "$r"; done
+          if az aks show -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" -o none 2>/dev/null; then
+            az aks delete -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --yes
+          fi
           terraform destroy -input=false -no-color -auto-approve
         working-directory: ${{ env.TF_DIR }}
       # Commits no longer change anything until the next install.

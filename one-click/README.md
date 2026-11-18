@@ -37,9 +37,12 @@ You now have your own copy at `https://github.com/<your-name>/DIGIT-DevOps`.
 ## Step 3. Make a key for Azure
 
 1. Open https://shell.azure.com and sign in. If it asks, choose **Bash**.
+   The key is made for the subscription `az account show` prints. If that is not the one
+   DIGIT should go to, first run `az account set --subscription <subscription-id>`.
 2. Copy this whole block, paste it into the window, and press **Enter**:
 
    ```bash
+   set +H   # lets the "!" below through (interactive bash would treat it as history)
    SUB=$(az account show --query id -o tsv)
    CREDS=$(az ad sp create-for-rbac --name digit-one-click --role Contributor --scopes "/subscriptions/$SUB" --json-auth)
    APP=$(echo "$CREDS" | jq -r .clientId)
@@ -214,6 +217,7 @@ Open the run with the red ❌ and click the red step. The red message says what 
 | `Do not run this in egovernments/DIGIT-DevOps` | You are in the original project. Use your own copy (step 1). |
 | `already exists but was not created by this fork` / `already used by someone else in Azure` | The name is taken. Choose another `environment` in `input.yaml` (before the first install). |
 | `It cannot be switched on a running DIGIT` | You changed `argocd_enabled` after the install. Change it back, or run **destroy** and then **install**. |
+| `SkuNotAvailable` (PostgreSQL) | The database size is not offered in your region for your subscription. Pick one that is (`az postgres flexible-server list-skus -l <location> -o table`), set `terraform_db_sku_name` in `input.yaml`, commit, then run **install** again with `replace` in **confirm** (the failed server must be replaced). |
 | `would delete or replace` | Your change would rebuild the cluster, database or storage and can lose data. Undo it. Only if you are sure, run **infra** by hand with `replace` in **confirm**. |
 | `DIGIT_SECRETS: is not valid YAML` | Check the spaces at the start of each line of `DIGIT_SECRETS`. |
 | `DIGIT_SECRETS: unknown keys` | A name is misspelled. Use the paths in [Part 2](#digit_secrets). |
@@ -287,7 +291,7 @@ Flat `key: "value"` lines, like `infra-as-code/terraform/azure/input.yaml`. Ever
 | `email` | **yes** | - | yes (runs **deploy**) | Let's Encrypt account; fills `<email>` |
 | `location` | no | `centralindia` | **no** (rebuilds everything; blocked unless `confirm = replace`) | Azure region |
 | `argocd_enabled` | no | `"false"` | **no** | `"false"` = helmfile deploys; `"true"` = Argo CD deploys everything |
-| `terraform_<var>` | no | see `infra-as-code/terraform/azure/variables.tf` | yes (runs **infra**) | Terraform variable `<var>`, e.g. `terraform_node_count: "4"`, `terraform_main_vm_size: "Standard_D8s_v3"`, `terraform_scheduling: "false"` |
+| `terraform_<var>` | no | see `infra-as-code/terraform/azure/variables.tf`; `input.yaml` sets `terraform_node_count: "4"`, `terraform_scheduling: "false"`, `terraform_db_sku_name: "GP_Standard_D2ds_v5"` | yes (runs **infra**) | Terraform variable `<var>`, e.g. `terraform_main_vm_size: "Standard_D8s_v3"`. `terraform_scheduling: "true"` scales the nodes to 0 at night. `terraform_db_sku_name`: PostgreSQL size, must be offered in your region (`az postgres flexible-server list-skus -l <location> -o table`) |
 | `helmfiles_repo` | no | `egovernments/helm-charts` | yes | where the helmfiles come from |
 | `helmfiles_ref` | no | `master` | yes (runs **deploy**) | which version of the helmfiles deploys this environment: a branch, tag or **full** 40-character commit SHA. Pin it for a reproducible environment |
 
@@ -345,7 +349,7 @@ The full JSON printed by `az ad sp create-for-rbac ... --json-auth` (step 3). It
 | Role | Why |
 |---|---|
 | **Contributor** | creates `<name>-rg`, AKS, PostgreSQL, network, storage, Automation, the Key Vault and its access policies, and tags |
-| **Role Based Access Control Administrator**, with a condition: may assign and remove **only** Network Contributor and Azure Kubernetes Service Contributor Role | Terraform creates these 3 role assignments (Contributor alone cannot): Network Contributor on the AKS subnet for the AKS identity (`infra-as-code/terraform/azure/main.tf`); Azure Kubernetes Service Contributor Role on the cluster and Network Contributor on the AKS subnet for the node-scaling Automation account (`modules/scheduling/azure`, only when `terraform_scheduling` is `"true"`, the default) |
+| **Role Based Access Control Administrator**, with a condition: may assign and remove **only** Network Contributor and Azure Kubernetes Service Contributor Role | Terraform creates these 3 role assignments (Contributor alone cannot): Network Contributor on the AKS subnet for the AKS identity (`infra-as-code/terraform/azure/main.tf`); Azure Kubernetes Service Contributor Role on the cluster and Network Contributor on the AKS subnet for the node-scaling Automation account (`modules/scheduling/azure`, only when `terraform_scheduling` is `"true"`; the one-click default is `"false"`) |
 
 **Owner** on the subscription also works but gives far more than needed.
 

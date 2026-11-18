@@ -9,3 +9,7 @@ variable "environment" {}
 variable "db_version" {}
 variable "delegated_subnet_id" {}
 variable "private_dns_zone_id" {}
+variable "extensions" {
+  description = "Comma-separated azure.extensions allow-list, e.g. POSTGIS,UUID-OSSP (empty = server default)"
+  default     = ""
+}

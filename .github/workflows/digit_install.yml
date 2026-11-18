@@ -564,6 +564,15 @@ jobs:
         if: steps.decide.outputs.destroy == 'true'
         run: |
           terraform init -input=false -no-color
+          # Delete the AKS cluster first, as a whole: Azure then removes the nodes without draining
+          # them. Deleting the node pool on its own drains every node, which hangs on
+          # PodDisruptionBudgets (vault, elasticsearch) and fails once Terraform deletes the egov
+          # namespace at the same time ("unable to create new content in namespace egov because it
+          # is being terminated"). The in-cluster objects Terraform tracks go with the cluster.
+          terraform state list | grep '^kubernetes_' | while read -r r; do terraform state rm -no-color "$r"; done
+          if az aks show -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" -o none 2>/dev/null; then
+            az aks delete -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --yes
+          fi
           terraform destroy -input=false -no-color -auto-approve
         working-directory: ${{ env.TF_DIR }}
       # Commits no longer change anything until the next install.

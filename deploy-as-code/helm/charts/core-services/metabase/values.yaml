@@ -3,6 +3,27 @@ labels:
   app: "metabase"
   group: "rainmaker"
 
+# Creates the metabase role and database (templates/db-create-job.yaml).
+# Off by default; enable per env under the `metabase:` key.
+dbCreateJob:
+  enabled: false
+  # Any image carrying psql/pg_isready (same as keycloak's job).
+  image: "postgres:15-alpine"
+  port: 5432
+  maintenanceDb: "postgres"
+  # Must match MB_DB_DBNAME in env below.
+  dbName: "metabase_db"
+  # Superuser secret (CREATEROLE, CREATEDB), published to egov by cluster-configs.
+  adminSecretName: "db"
+  backoffLimit: 6
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
 # Ingress Configs
 ingress:
   enabled: true

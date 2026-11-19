@@ -1,0 +1,97 @@
+# db-create-job.yaml
+#
+# Metabase logs in to MB_DB_DBNAME (metabase_db) as the user in the `metabase`
+# secret, but nothing in the repo creates that role or database, so on a fresh
+# cluster Metabase fails with: password authentication failed for user "metabase".
+#
+# Same pattern as charts/core-services/keycloak/templates/db-create-job.yaml:
+# an Argo CD PreSync hook (and Helm pre-install/pre-upgrade hook) that creates
+# the role and database if missing and sets the role's password from the
+# secret. Safe to re-run on every sync. Off by default; an env turns it on with
+#   metabase:
+#     dbCreateJob:
+#       enabled: true
+#
+# Same chart-name override merge as keycloak's job, so environments/<env>.yaml
+# can set these values under the `metabase:` key.
+{{- $overrides := default dict (index .Values (default .Chart.Name .Values.name)) -}}
+{{- $v := mustMergeOverwrite (deepCopy .Values) $overrides -}}
+{{- if $v.dbCreateJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ default .Chart.Name $v.name }}-db-create
+  namespace: {{ default "egov" $v.namespace }}
+  labels:
+    app: {{ default .Chart.Name $v.name }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: {{ $v.dbCreateJob.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        app: {{ default .Chart.Name $v.name }}-db-create
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: create-db
+          image: {{ $v.dbCreateJob.image }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGHOST
+              value: {{ index $v "db-host" | quote }}
+            - name: PGPORT
+              value: {{ $v.dbCreateJob.port | quote }}
+            - name: PGDATABASE
+              value: {{ $v.dbCreateJob.maintenanceDb | quote }}
+            # Superuser: needs CREATEROLE and CREATEDB.
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $v.dbCreateJob.adminSecretName }}
+                  key: username
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $v.dbCreateJob.adminSecretName }}
+                  key: password
+            # The role Metabase logs in as (same secret the Deployment reads).
+            - name: MB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: metabase
+                  key: username
+            - name: MB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: metabase
+                  key: password
+            - name: TARGET_DB
+              value: {{ $v.dbCreateJob.dbName | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              until pg_isready -q; do
+                echo "waiting for ${PGHOST}:${PGPORT}"
+                sleep 2
+              done
+              # psql variables (:'x' / :"x") quote the values, so the password
+              # never needs shell or SQL escaping.
+              psql -v ON_ERROR_STOP=1 -v user="$MB_USER" -v pw="$MB_PASS" -v db="$TARGET_DB" <<'SQL'
+              SELECT format('CREATE ROLE %I LOGIN', :'user')
+                WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'user') \gexec
+              ALTER ROLE :"user" WITH LOGIN PASSWORD :'pw';
+              SELECT format('CREATE DATABASE %I OWNER %I', :'db', :'user')
+                WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'db') \gexec
+              SQL
+              echo "role and database ${TARGET_DB} are in place"
+          resources:
+{{ toYaml $v.dbCreateJob.resources | indent 12 }}
+{{- end }}

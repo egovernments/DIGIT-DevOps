@@ -359,6 +359,21 @@ jobs:
         if: steps.decide.outputs.infra == 'true'
         run: terraform apply -input=false -no-color -auto-approve tfplan
         working-directory: ${{ env.TF_DIR }}
+      # Terraform ignores the main pool's node_count (the night/morning schedule changes it), so
+      # it never corrects it, and a VM-size rotation rebuilds the pool with 1 node. Bring it back
+      # to terraform_node_count - unless the schedule has it at 0 for the night.
+      - name: Main node pool size
+        if: steps.decide.outputs.infra == 'true'
+        run: |
+          set -euo pipefail
+          want=${TF_VAR_node_count:-3}
+          have=$(az aks nodepool show -g "$RESOURCE_GROUP" --cluster-name "$ENVIRONMENT" -n mainpool --query count -o tsv 2>/dev/null \
+            || az aks nodepool show -g "$RESOURCE_GROUP" --cluster-name "$ENVIRONMENT" -n mainpool --query properties.count -o tsv)
+          echo "mainpool: $have node(s), terraform_node_count: $want"
+          if [ "$have" != "$want" ] && { [ "${TF_VAR_scheduling:-true}" != true ] || [ "$have" != 0 ]; }; then
+            az aks nodepool scale -g "$RESOURCE_GROUP" --cluster-name "$ENVIRONMENT" -n mainpool --node-count "$want" -o none
+            echo "::notice::mainpool scaled from $have to $want nodes"
+          fi
       - name: Remember the commit now running in Azure (infra)
         if: steps.decide.outputs.infra == 'true'
         run: |

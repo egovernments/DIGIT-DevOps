@@ -93,8 +93,18 @@ spec:
         {{- if .Values.initContainers.dbMigration.env }}               
         env: 
           {{- tpl  .Values.initContainers.dbMigration.env . | nindent 12 }}
+          {{- /* Opt-in per env (global.flywayBaselineVersion). On a fresh
+                 database every service migrates into the shared public
+                 schema, so all but the first find it non-empty; with
+                 baselineOnMigrate Flyway then records a baseline at version 1
+                 and silently skips V1. "0" makes V1 run. No effect once a
+                 service's history table exists. */}}
+          {{- with ($.Values.global).flywayBaselineVersion }}
+            - name: FLYWAY_BASELINE_VERSION
+              value: {{ . | quote }}
+          {{- end }}
         {{- end }}
-      {{- end }}        
+      {{- end }}
       {{- if .Values.initContainers.gitSync.enabled }}
       {{ with .Values.initContainers.gitSync }}
       - name: "git-sync"

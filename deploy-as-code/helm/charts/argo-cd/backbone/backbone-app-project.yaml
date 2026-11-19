@@ -1,0 +1,57 @@
+## Backbone services for k3s-deployment, modelled on unified-dev's
+## argo-cd/unified-dev/backbone/backbone-app-project.yaml but restricted to the
+## charts k3s-deployment-backbone-appset.yaml actually deploys.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: backbone-project
+  namespace: argocd
+spec:
+  description: backbone services for the single-node k3s-deployment sandbox
+  sourceRepos:
+    - https://github.com/egovernments/DIGIT-DevOps.git
+
+  ## Unlike unified-dev, this branch's charts keep the uat-saas layout that
+  ## environments/k3s-deployment.yaml was derived from:
+  ##   ingress-nginx  namespaceOverride: egov   (prometheus scrapes
+  ##                  ingress-nginx-controller-metrics.egov)
+  ##   cert-manager   namespace: egov
+  ##   elasticsearch-master/-data, kafka-kraft  namespace: backbone
+  ##                  (egov-config: elasticsearch-data.backbone,
+  ##                   release-name-kafka-controller-headless.backbone)
+  ## Both namespaces are created by cluster-configs, so no CreateNamespace.
+  destinations:
+    - namespace: 'backbone'
+      server: https://kubernetes.default.svc
+    - namespace: 'egov'
+      server: https://kubernetes.default.svc
+
+  ## An AppProject with no clusterResourceWhitelist permits no cluster-scoped
+  ## objects, and the Application fails with "one or more synchronization tasks
+  ## are not valid".
+  ##   ingress-nginx  ClusterRole, ClusterRoleBinding, IngressClass,
+  ##                  ValidatingWebhookConfiguration
+  ##   cert-manager   ClusterRole, ClusterRoleBinding, Mutating- and
+  ##                  ValidatingWebhookConfiguration, CustomResourceDefinition
+  ##                  (chart crds/ dir) and 2 ClusterIssuer
+  ## elasticsearch-master, elasticsearch-data and kafka-kraft render nothing
+  ## cluster-scoped.
+  clusterResourceWhitelist:
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+    - group: networking.k8s.io
+      kind: IngressClass
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+    - group: cert-manager.io
+      kind: ClusterIssuer
+
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

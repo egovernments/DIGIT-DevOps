@@ -1,0 +1,32 @@
+# kafka-kraft -- k3s-deployment (single-node k3s) overlay
+#
+# Third value file of backbone-kafka-kraft, after the chart's values.yaml and
+# environments/k3s-deployment.yaml.
+
+# Two names on this branch assume the Helm release is called "release-name"
+# (what `helm template` uses), while Argo CD names the release after the
+# Application, backbone-kafka-kraft:
+#   egov-config kafka-brokers  release-name-kafka-controller-headless.backbone:9092
+#   cluster-configs Secret     backbone/release-name-kafka-kraft-cluster-id
+#                              (read by the StatefulSet as <fullname>-kraft-cluster-id)
+# Pinning the fullname keeps both working without touching the env file.
+fullnameOverride: release-name-kafka
+
+# One broker. The chart's offsets_topic_replication_factor of 3 would stop
+# consumer groups from ever committing offsets on a single broker, and a
+# default_replication_factor of 2 would reject every auto-created topic.
+controller:
+  replicaCount: 1
+  persistence:
+    storageClass: local-path
+
+kraft:
+  configuration:
+    default_replication_factor: "1"
+    offsets_topic_replication_factor: "1"
+
+# Not covered by kraft.configuration; Kafka's default of 3 would break
+# transactional producers.
+extraConfig: |
+  transaction.state.log.replication.factor=1
+  transaction.state.log.min.isr=1

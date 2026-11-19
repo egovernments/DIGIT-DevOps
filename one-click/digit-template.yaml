@@ -116,7 +116,7 @@ cluster-configs:
 
 # Identity provider (Keycloak)
 keycloak:
-  chart-version: 3.0.2
+  chart-version: 3.1.0
   dbInit:
     adminSecret:
       key: password
@@ -236,7 +236,7 @@ employee:
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 employee-onboarding:
-  chart-version: 3.0.1
+  chart-version: 3.1.0
   # chart defaults point at an in-cluster postgres.egov / keycloak namespace
   db-host: <db_host>
   db-name: <db_name>
@@ -298,7 +298,7 @@ localization:
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 localization-management:
-  chart-version: 3.0.1
+  chart-version: 3.1.0
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
@@ -346,7 +346,7 @@ notify:
       cert-manager.io/cluster-issuer: letsencrypt-prod
 
 otp:
-  chart-version: 3.1.2
+  chart-version: 3.2.0
   vault-enabled: "true"         # the chart leaves VAULT_ENABLED empty otherwise (app fails to start)
   image:
     tag: v3.0.3-beta-1976d84
@@ -470,7 +470,10 @@ kafka-kraft:
 
 # MinIO object store (filestore S3). Root login: <env>-secrets.yaml
 minio:
-  chart-version: 3.4.0          # digit3/backbone/minio, based on the digit-lts chart
+  chart-version: 3.5.0          # digit3/backbone/minio, based on the digit-lts chart
+  # MinIO console at https://<domain>/minio/ (login: the minio secret, accesskey/secretkey)
+  ingress:
+    enabled: true
   replicas: 1                   # 1 = standalone; more = distributed (use 4+)
   # Root login = the "minio" Secret from the secrets file (shared with filestore)
   auth:
@@ -525,7 +528,25 @@ elasticsearch-data:
 
 # Kibana
 kibana:
-  chart-version: 3.0.0
+  chart-version: 3.1.0
+
+# pgAdmin at https://<domain>/pgadmin/ (login: the pgadmin secret). Its server list points at
+# the Azure database; connect with the db secret's password.
+pgadmin:
+  chart-version: 3.0.1
+  dbUrl: <db_host>
+  dbPort: "5432"
+  environment: <env>
+  db-admin-username: digitadmin
+  db-read-username: digitadmin
+  maintenance-db-name: <db_name>
+  persistence:
+    enabled: true
+    storageClassName: default
+    dataDirSize: 2Gi
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
 
 # ============================================================================
 #  MONITORING

@@ -17,7 +17,10 @@ name: DIGIT one-click (Azure)
 #   infra    step 3 only. Stops if the plan would delete/replace the cluster, database,
 #            storage, network or Key Vault, unless confirm = replace.
 #   deploy   step 4 only (also applies a changed DIGIT_SECRETS)
-#   destroy  Terraform destroy. The resource group (state + Key Vault) is kept.
+#   destroy  confirm = delete: Terraform destroy. The resource group (state + Key Vault) is
+#            kept, so install brings the same DIGIT back with the same passwords.
+#            confirm = delete-all: also deletes the resource group, purges the Key Vault and
+#            removes <environment>.yaml + <environment>-secrets.yaml from the fork.
 #
 # Two ways to deploy (argocd_enabled in input.yaml, fixed at the first install):
 #   helmfile  the workflow runs `helmfile apply`
@@ -48,7 +51,7 @@ on:
           - deploy
           - destroy
       confirm:
-        description: 'For destroy type: delete   (for infra, only if it asks: replace)'
+        description: 'destroy: type delete (keeps state + Key Vault) or delete-all (removes everything). infra: replace, only if it asks'
         required: false
         default: ''
 
@@ -116,9 +119,9 @@ jobs:
         environment: ${{ fromJSON(needs.Environments.outputs.list) }}
     steps:
       - name: Confirm destroy
-        if: ${{ inputs.action == 'destroy' && inputs.confirm != 'delete' }}
+        if: ${{ inputs.action == 'destroy' && inputs.confirm != 'delete' && inputs.confirm != 'delete-all' }}
         run: |
-          echo "::error::To delete your DIGIT, run again and type the word delete in the confirm box."
+          echo "::error::To delete your DIGIT, run again and type in the confirm box: delete (keeps the resource group, so install can bring it back) or delete-all (removes everything)."
           exit 1
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -139,6 +142,7 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           ACTION: ${{ inputs.action }}
+          CONFIRM: ${{ inputs.confirm }}
         run: |
           set -euo pipefail
           out() { printf 'prepare=%s\ninfra=%s\ndeploy=%s\ndestroy=%s\n' "$1" "$2" "$3" "$4" >> "$GITHUB_OUTPUT"; }
@@ -168,6 +172,16 @@ jobs:
             infra=$(sed -n 's/^infra=//p' <<< "$res"); deploy=$(sed -n 's/^deploy=//p' <<< "$res")
             note "This commit: infra=$infra, deploy=$deploy"
             out false "$infra" "$deploy" false; exit 0
+          fi
+
+          # delete-all: Terraform destroy when something is installed, then remove the resource
+          # group, Key Vault and environment files. Also cleans up after an earlier plain delete.
+          if [ "$ACTION" = destroy ] && [ "$CONFIRM" = delete-all ]; then
+            [ -n "$tags" ] || [ -f "$ENV_FILE" ] || [ -f "$SECRETS_FILE" ] || {
+              echo "::error::Nothing to delete: there is no resource group $RESOURCE_GROUP and no environment files."; exit 1; }
+            note "delete-all: everything of '$ENVIRONMENT' will be removed"
+            out false false false "$([ "$state" = installed ] && echo true || echo false)"
+            echo "destroy_all=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
 
           case "$ACTION" in
@@ -616,7 +630,7 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
       # Commits no longer change anything until the next install.
       - name: Mark the environment destroyed
-        if: steps.decide.outputs.destroy == 'true'
+        if: steps.decide.outputs.destroy == 'true' && steps.decide.outputs.destroy_all != 'true'
         run: |
           az tag update --resource-id "$(az group show -n "$RESOURCE_GROUP" --query id -o tsv)" --operation merge \
             --tags digit-state=destroyed digit-infra-sha= digit-deploy-sha= -o none
@@ -624,5 +638,37 @@ jobs:
             echo "## DIGIT \`$ENVIRONMENT\` is deleted"
             echo "The resource group \`$RESOURCE_GROUP\` is kept. It holds the Terraform state and your Key Vault,"
             echo "so **install** can bring the same DIGIT back with the same passwords."
-            echo "To remove everything, delete the resource group \`$RESOURCE_GROUP\` in the Azure portal."
+            echo "To remove everything as well, run destroy again with confirm = delete-all."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # delete-all: the resource group (Terraform state storage, Key Vault, anything left), the
+      # soft-deleted Key Vault (frees its name), and the environment files: the secrets file was
+      # locked with that Key Vault and can never be opened again.
+      - name: Delete the resource group and Key Vault (delete-all)
+        if: steps.decide.outputs.destroy_all == 'true'
+        run: |
+          set -euo pipefail
+          if az group show -n "$RESOURCE_GROUP" -o none 2>/dev/null; then
+            echo "Deleting resource group $RESOURCE_GROUP (5-15 minutes)"
+            az group delete -n "$RESOURCE_GROUP" --yes
+          fi
+          if az keyvault show-deleted -n "$KEY_VAULT_NAME" -o none 2>/dev/null; then
+            echo "Purging Key Vault $KEY_VAULT_NAME"
+            az keyvault purge -n "$KEY_VAULT_NAME" -o none
+          fi
+          rm -f "$ENV_FILE" "$SECRETS_FILE"
+      - name: Remove the environment files from the fork (delete-all)
+        if: steps.decide.outputs.destroy_all == 'true'
+        uses: ./one-click/actions/commit-to-fork
+        with:
+          paths: ${{ env.ENV_FILE }} ${{ env.SECRETS_FILE }}
+          message: "chore(one-click): remove environment files of ${{ matrix.environment }} (delete-all)"
+          branch: ${{ github.ref_name }}
+      - name: Summary (delete-all)
+        if: steps.decide.outputs.destroy_all == 'true'
+        run: |
+          {
+            echo "## DIGIT \`$ENVIRONMENT\` is deleted, with everything else"
+            echo "Removed: the cluster, database and network, the resource group \`$RESOURCE_GROUP\` (Terraform state, Key Vault),"
+            echo "and \`$ENV_FILE\` + \`$SECRETS_FILE\` from this fork. **install** now starts a new DIGIT with new passwords."
           } >> "$GITHUB_STEP_SUMMARY"

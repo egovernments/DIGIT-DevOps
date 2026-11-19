@@ -181,8 +181,8 @@ Every commit to your copy starts the workflow by itself. It changes only what yo
 | add or change a password or key | Edit the secret **`DIGIT_SECRETS`** (step 6), then **Actions → Run workflow → deploy**. (Changing a GitHub secret is not a commit, so it does not run by itself.) |
 | run infra or deploy again by hand | **Actions → Run workflow**, choose **infra** or **deploy**. |
 | get the newest DIGIT version | Update the `chart-version` lines you want in your environment file (and `helmfiles_ref` in `input.yaml` for newer helmfiles), commit. **Sync fork → Update branch** brings a newer workflow and templates. |
-| delete my DIGIT | **Run workflow** with **destroy**, type `delete` in **confirm**. |
-| delete everything in Azure | After destroy, delete the resource group `<your-name>-rg` in the Azure portal. |
+| delete my DIGIT | **Run workflow** with **destroy**, type `delete` in **confirm**. Keeps `<your-name>-rg` (state + Key Vault): **install** brings the same DIGIT back with the same passwords. |
+| delete everything in Azure | **Run workflow** with **destroy**, type `delete-all` in **confirm**. Also deletes `<your-name>-rg` (state storage, Key Vault) and removes `<environment>.yaml` + `<environment>-secrets.yaml` from your fork. Works after an earlier `delete` too. |
 
 ## Helmfile or Argo CD?
 
@@ -407,6 +407,7 @@ Any other path not in the template is rejected as a typo.
 | `infra` | Terraform only | `replace` only if it asks |
 | `deploy` | deploy only (helmfile, or Argo CD), and applies `DIGIT_SECRETS` | - |
 | `destroy` | Terraform destroy; keeps `<environment>-rg` (state + Key Vault) | `delete` |
+| `destroy` | everything: Terraform destroy, `<environment>-rg` (state + Key Vault, purged), and the environment files in the fork | `delete-all` |
 
 **Commits run automatically.** A commit to `one-click/*.yaml` or the Terraform code on the fork's
 default branch runs the workflow (see [After the install](#after-the-install-you-only-commit)).

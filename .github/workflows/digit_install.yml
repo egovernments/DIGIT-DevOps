@@ -619,6 +619,22 @@ jobs:
               -p '{"status":{"operationState":{"phase":"Terminating"}}}' >/dev/null
           fi
           kubectl -n "$NS_ARGOCD" annotate applications.argoproj.io --all argocd.argoproj.io/refresh=hard --overwrite >/dev/null
+          # Auto-sync never retries a commit whose last sync failed (a stopped sync counts), so start
+          # the root sync here, once the refresh has re-rendered it (Argo CD then drops the annotation).
+          for _ in $(seq 1 60); do
+            busy=$(kubectl -n "$NS_ARGOCD" get applications.argoproj.io digit -o json |
+              jq -r '[(.metadata.annotations["argocd.argoproj.io/refresh"] // empty),
+                      (.status.operationState.phase // "" | select(. == "Running" or . == "Terminating"))] | join(" ")')
+            [ -z "$busy" ] && break
+            sleep 10
+          done
+          if [ -z "$busy" ]; then
+            kubectl -n "$NS_ARGOCD" patch applications.argoproj.io digit --type merge \
+              -p "{\"operation\":{\"initiatedBy\":{\"username\":\"one-click-workflow\"},\"sync\":{\"revision\":\"${BRANCH}\"}}}" >/dev/null
+            echo "Started a sync of the root application"
+          else
+            echo "::warning::The root application is still busy ($busy); not starting another sync."
+          fi
 
       # Vault starts sealed: unseal it and write the AppRole (idempotent). In Argo CD mode this
       # waits until Argo CD has created Vault.

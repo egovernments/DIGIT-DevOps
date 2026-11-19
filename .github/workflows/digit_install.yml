@@ -608,8 +608,17 @@ jobs:
               automated: {prune: true, selfHeal: true}
               retry: {limit: 20, backoff: {duration: 30s, factor: 2, maxDuration: 10m}}
           EOF
-          # Do not wait for the 3-minute poll
-          kubectl -n "$NS_ARGOCD" annotate applications.argoproj.io --all argocd.argoproj.io/refresh=normal --overwrite >/dev/null
+          # A deploy re-renders everything now: the helmfiles (helmfiles_ref, often master) can change
+          # without a new commit in this fork, and Argo CD caches manifests per fork commit. A root
+          # sync still waiting on an older plan (e.g. a wave that can never turn healthy) is stopped;
+          # auto-sync starts again with the new manifests.
+          phase=$(kubectl -n "$NS_ARGOCD" get applications.argoproj.io digit -o jsonpath='{.status.operationState.phase}' 2>/dev/null || true)
+          if [ "$phase" = Running ]; then
+            echo "Stopping the running sync of the root application (it restarts with the new manifests)"
+            kubectl -n "$NS_ARGOCD" patch applications.argoproj.io digit --type merge \
+              -p '{"status":{"operationState":{"phase":"Terminating"}}}' >/dev/null
+          fi
+          kubectl -n "$NS_ARGOCD" annotate applications.argoproj.io --all argocd.argoproj.io/refresh=hard --overwrite >/dev/null
 
       # Vault starts sealed: unseal it and write the AppRole (idempotent). In Argo CD mode this
       # waits until Argo CD has created Vault.

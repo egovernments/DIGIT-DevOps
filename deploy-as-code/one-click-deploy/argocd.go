@@ -68,11 +68,44 @@ func (w *Workflow) runDeployer(ctx context.Context) error {
 	if err := w.prompt.Confirm(ctx, "Run the deployer now?"); err != nil {
 		return err
 	}
+	if err := w.applyArgoCRDs(ctx); err != nil {
+		return err
+	}
 	if err := w.run.Stream(ctx, dir, "go", args...); err != nil {
 		return stepErr("argocd: deployer",
 			"the deployer output above names the chart that failed; nothing after this step was run", err)
 	}
 	w.log.Successf("Deployer completed.")
+	return nil
+}
+
+// argoCRDTemplates are the Argo CD CRDs. The chart has crds.install: false
+// because the ApplicationSet CRD is too large for the deployer's client-side
+// `kubectl apply` (last-applied annotation limit), so they are installed here
+// with server-side apply. Without them argocd-server and the
+// applicationset-controller crash-loop.
+var argoCRDTemplates = []string{
+	"templates/crds/crd-application.yaml",
+	"templates/crds/crd-applicationset.yaml",
+	"templates/crds/crd-project.yaml",
+}
+
+func (w *Workflow) applyArgoCRDs(ctx context.Context) error {
+	const hint = "kubectl get crd applications.argoproj.io applicationsets.argoproj.io appprojects.argoproj.io"
+	chart := filepath.Join(w.repoRoot, "deploy-as-code", "helm", "charts", "backbone-services", "argo-cd")
+	args := []string{"template", "argocd", chart, "--set", "crds.install=true"}
+	for _, t := range argoCRDTemplates {
+		args = append(args, "-s", t)
+	}
+	w.log.Infof("Applying the Argo CD CRDs (server-side)")
+	crds, err := w.run.Output(ctx, "helm", args...)
+	if err != nil {
+		return stepErr("argocd: CRDs", hint, fmt.Errorf("rendering the Argo CD CRDs: %w", err))
+	}
+	if _, err := w.run.Input(ctx, crds, "kubectl", "apply", "--server-side", "--force-conflicts", "-f", "-"); err != nil {
+		return stepErr("argocd: CRDs", hint, fmt.Errorf("applying the Argo CD CRDs: %w", err))
+	}
+	w.log.Successf("Argo CD CRDs are in place.")
 	return nil
 }
 

@@ -237,6 +237,12 @@ employee:
 
 employee-onboarding:
   chart-version: 3.0.1
+  image:
+    tag: master-7859366
+  initContainers:
+    dbMigration:
+      image:
+        tag: master-7859366
   # chart defaults point at an in-cluster postgres.egov / keycloak namespace
   db-host: <db_host>
   db-name: <db_name>
@@ -299,6 +305,12 @@ localization:
 
 localization-management:
   chart-version: 3.0.1
+  image:
+    tag: develop-modulith-c1f10f6
+  initContainers:
+    dbMigration:
+      image:
+        tag: develop-modulith-c1f10f6
   ingress:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
@@ -471,6 +483,12 @@ kafka-kraft:
 # MinIO object store (filestore S3). Root login: <env>-secrets.yaml
 minio:
   chart-version: 3.4.0          # digit3/backbone/minio, based on the digit-lts chart
+  # MinIO console at https://<domain>/minio/ (login: the minio secret, accesskey/secretkey)
+  ingress:
+    enabled: true
+    host: <domain>
+  extraEnv:
+    MINIO_BROWSER_REDIRECT_URL: "https://<domain>/minio"
   replicas: 1                   # 1 = standalone; more = distributed (use 4+)
   # Root login = the "minio" Secret from the secrets file (shared with filestore)
   auth:
@@ -526,6 +544,33 @@ elasticsearch-data:
 # Kibana
 kibana:
   chart-version: 3.0.0
+  # The ingress sends its own Content-Security-Policy instead of Kibana's strict one, so
+  # Kibana's check fails ("Please upgrade your browser"): turn the strict check off.
+  extraEnvs:
+    - name: NODE_OPTIONS
+      value: "--max-old-space-size=1800"
+    - name: CSP_STRICT
+      value: "false"
+    - name: CSP_WARNLEGACYBROWSERS
+      value: "false"
+
+# pgAdmin at https://<domain>/pgadmin/ (login: the pgadmin secret). Its server list points at
+# the Azure database; connect with the db secret's password.
+pgadmin:
+  chart-version: 3.0.1
+  dbUrl: <db_host>
+  dbPort: "5432"
+  environment: <env>
+  db-admin-username: digitadmin
+  db-read-username: digitadmin
+  maintenance-db-name: <db_name>
+  persistence:
+    enabled: true
+    storageClassName: default
+    dataDirSize: 2Gi
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
 
 # ============================================================================
 #  MONITORING

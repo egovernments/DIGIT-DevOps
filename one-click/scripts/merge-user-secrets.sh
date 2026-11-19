@@ -38,10 +38,19 @@ work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
   sops -d "$f" > "$work/current.yaml"
   cp "$work/current.yaml" "$work/before.yaml" )
 
-# 1. Template placeholders missing from the file (newer repo version) -> fresh random value.
+# 1. Secrets added to the template since the first install (newer repo version): copy the
+#    whole Secret (namespaces, fixed values), then every placeholder still missing or unfilled
+#    gets a fresh random value.
+yq -r '(.["cluster-configs"].secrets // {}) | keys | .[]' "$tmpl" |
+  while IFS= read -r s; do
+    [ "$(yq -r "$(q "cluster-configs.secrets.$s") | tag" "$work/current.yaml")" = "!!null" ] || continue
+    ( umask 077; S="$s" yq -i ".[\"cluster-configs\"].secrets[strenv(S)] = load(\"$tmpl\")[\"cluster-configs\"].secrets[strenv(S)]" "$work/current.yaml" )
+    echo "added missing secret cluster-configs.secrets.$s" >&2
+  done
 yq -r '.. | select(tag == "!!str" and test("^<[a-z_]+>$")) | path | join(".")' "$tmpl" |
   while IFS= read -r p; do
-    [ "$(yq -r "$(q "$p") | tag" "$work/current.yaml")" = "!!null" ] || continue
+    cur=$(yq -r "$(q "$p")" "$work/current.yaml")
+    [[ $cur == null || $cur =~ ^\<[a-z_]+\>$ ]] || continue
     v=$(python3 -c "import secrets,string; a=string.ascii_letters+string.digits; print(''.join(secrets.choice(a) for _ in range(24)))")
     ( umask 077; V="$v" yq -i "$(q "$p") = strenv(V)" "$work/current.yaml" )
     echo "added missing secret $p" >&2

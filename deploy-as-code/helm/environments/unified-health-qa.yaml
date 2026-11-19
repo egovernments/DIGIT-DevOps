@@ -1317,13 +1317,12 @@ workbench-ui:
       ';" 
 
 hcm-flow-preview:
-  # Seed, not configuration. This service is not in the unified-qa health
-  # frontend ApplicationSet, so nothing deploys it here yet -- the key exists
-  # purely so the Kargo promotion can write to it. Kargo's yaml-update step
-  # only REPLACES keys: without this block, promoting to hcm-flow-preview-qa
-  # errors with "key path not found" and the Promotion fails. Kargo owns the
-  # tag from the next promotion onward; do not hand-bump it. resources came
-  # from #5658 and applies once the service is added to that ApplicationSet.
+  # image.tag is Kargo's: the hcm-flow-preview-qa Stage rewrites this key on
+  # promotion. Do not hand-bump it -- an edit here is reverted by the next
+  # promotion, and a PR branched before one will silently roll the tag back.
+  # The key must EXIST for that to work: the promotion step is yaml-update,
+  # which only REPLACES keys, so deleting this block makes promotions fail
+  # with "key path not found".
   image:
     tag: hcm-flow-preview-embed-ee24ea9
   resources: |

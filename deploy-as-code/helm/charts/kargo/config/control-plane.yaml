@@ -24,47 +24,24 @@ api:
     name: kargo-api
   oidc:
     enabled: true
-    # External (BYO) Dex deployed by argo-cd/kargo/kargo-dex-application.yaml, which uses
-    # persistent (storage: kubernetes) signing keys. The bundled Dex is disabled because it
-    # hardcodes storage: memory and regenerates keys on every restart, which breaks SSO after
-    # any node-pool roll. Issuer/clients/connector match the previous bundled config, so the
-    # groups claim (<org>:<team>) and all existing RBAC are unchanged.
-    issuerURL: https://kargo-latest.digit.org/dex
-    clientID: kargo-latest.digit.org
-    cliClientID: kargo-latest.digit.org-cli
-    usernameClaim: email
-    additionalScopes:
-      - groups
     dex:
-      enabled: false
-      byo:
-        enabled: true
-        serverAddress: https://kargo-dex.kargo.svc:5554
-        caCertPath: /etc/dex-ca/ca.crt
-  # Trust the self-signed cert the standalone Dex serves (ca.crt from the kargo-dex-cert secret).
-  volumes:
-    - name: dex-ca
-      secret:
-        secretName: kargo-dex-cert
-        items:
-          - key: ca.crt
-            path: ca.crt
-  volumeMounts:
-    - name: dex-ca
-      mountPath: /etc/dex-ca
-      readOnly: true
-  # Block API startup until Dex discovery is reachable so the OIDC key set initialises cleanly
-  # (the original outage began with an API-before-Dex startup race after a node-pool roll).
-  initContainers:
-    - name: wait-for-dex
-      image: curlimages/curl:8.11.1
-      command:
-        - sh
-        - -c
-        - |
-          until curl -sfk https://kargo-dex.kargo.svc:5554/dex/.well-known/openid-configuration >/dev/null; do
-            echo "waiting for dex..."; sleep 3;
-          done
+      enabled: true
+      envFrom:
+        - secretRef:
+            name: kargo-dex-github
+      connectors:
+        - type: github
+          id: github
+          name: GitHub
+          config:
+            clientID: $GITHUB_CLIENT_ID
+            clientSecret: $GITHUB_CLIENT_SECRET
+            redirectURI: https://kargo-latest.digit.org/dex/callback
+            # Both orgs; each must approve the OAuth app for private team reads.
+            orgs:
+              - name: egovernments
+              - name: digitnxt
+            teamNameField: slug   # groups claim = <org>:<team-slug>
   argocd:
     urls:
       "": https://test-lts.digit.org/argocd

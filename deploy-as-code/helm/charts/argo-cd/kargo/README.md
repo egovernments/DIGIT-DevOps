@@ -13,7 +13,6 @@ recursively, so merging to the `digit-lts` branch is enough; there is no manual 
 |---|---|
 | `kargo-app-project.yaml` | AppProject `kargo-project` (control-plane + pipeline namespaces, CRDs/webhooks/cluster-RBAC whitelist) |
 | `kargo-application.yaml` | The control plane: OCI chart `ghcr.io/akuity/kargo-charts` `1.11.4` + values from `charts/kargo/config/control-plane.yaml` |
-| `kargo-dex-application.yaml` | Standalone Dex (chart `dex` `0.24.1`) for SSO, with **persistent** (`storage: kubernetes`) signing keys. See **SSO / Dex** below |
 | `kargo-app-set-pipelines.yaml` | One `kargo-<project>` Application per element, each rendering `charts/kargo` + `config/projects/<project>.yaml` into that project's namespace |
 | `argo-rollouts-application.yaml` | Argo Rollouts (only a prerequisite for Kargo's deploy-state verification) |
 
@@ -65,25 +64,6 @@ published repo, so it is image-tag-only under Kargo (open design decision).
      `githubAppPrivateKey`, `repoURL`) -- reuse the values from `unified-dev-secrets.yaml`,
    - `adminSecret.passwordHash` (bcrypt) + `adminSecret.tokenSigningKey` (random),
    - `dexSecret.clientID` / `dexSecret.clientSecret` (after step 2).
-
-## SSO / Dex
-
-Kargo authenticates via Dex (GitHub connector, both `egovernments` and `digitnxt` orgs;
-groups claim `<org>:<team-slug>`). We run a **standalone** Dex (`kargo-dex-application.yaml`)
-instead of the one Kargo's chart bundles, because the bundled Dex hardcodes
-`storage: memory` and so **regenerates its signing keys on every pod restart**. A routine
-AKS node-pool roll therefore gave Dex new keys while the Kargo API kept verifying tokens
-against the old (cached) key set, so every SSO login failed with
-`failed to verify id token signature` until the API was manually restarted.
-
-The standalone Dex uses `storage: kubernetes` (keys persisted as `dex.coreos.com` CRDs), so
-keys survive restarts and node rolls and SSO is no longer disrupted. Kargo consumes it in
-BYO mode (`api.oidc.dex.byo` in `control-plane.yaml`): the API still serves `/dex` and
-reaches Dex in-cluster at `https://kargo-dex.kargo.svc:5554`, trusting the self-signed cert
-`kargo-dex-cert` (cert-manager, rendered by cluster-configs). The API also gets a
-`wait-for-dex` init container so its OIDC key set initialises cleanly on startup. Issuer,
-clients and the GitHub connector are identical to the bundled config, so all existing RBAC
-is unchanged. The GitHub OAuth app and its callback (`/dex/callback`) are unchanged too.
 
 ## Add a project later
 

@@ -168,8 +168,16 @@ Every commit to your copy starts the workflow by itself. It changes only what yo
 |---|---|
 | `terraform_*` or `location` in `input.yaml`, or the Terraform code | **infra** (Azure) only |
 | the rest of `input.yaml` (domain, e-mail, `helmfiles_ref`), your environment file, or your secrets file | **deploy** (DIGIT) only |
-| both | **infra**, then **deploy** |
+| both | **infra** and **deploy** |
 | anything else (docs, other folders, comments) | nothing |
+
+Each run shows three jobs: **Plan → Infra → Deploy**. A part with nothing to do is grey
+(skipped). **Plan**'s summary says what runs and which change caused it.
+
+- **Infra and Deploy don't block each other on a commit.** If Infra fails, Deploy still applies
+  your app changes. (On **install**, Deploy waits for Infra: there is no cluster before it.)
+- **A failed part runs again on your next commit**, even if that commit doesn't touch it, until
+  it succeeds. Or re-run it by hand: **Actions → Run workflow → infra** (or **deploy**).
 
 | I want to... | Do this |
 |---|---|

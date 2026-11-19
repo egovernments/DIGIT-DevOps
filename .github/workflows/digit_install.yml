@@ -331,6 +331,30 @@ jobs:
           fi
           echo "::warning::confirm = replace given - applying a plan that deletes/replaces: $(echo "$risky" | tr '\n' ' ')"
         working-directory: ${{ env.TF_DIR }}
+      # A new VM size (or disk size, ...) rotates the node pool: AKS drains every node, and
+      # PodDisruptionBudgets that allow no disruption (vault, elasticsearch) block that drain.
+      # The next deploy recreates them (and unseals Vault on its new node).
+      - name: Let the nodes drain (node pool change only)
+        if: steps.decide.outputs.infra == 'true'
+        run: |
+          set -euo pipefail
+          moved=$(terraform show -json tfplan | jq -r '.resource_changes[]?
+            | select(.type == "azurerm_kubernetes_cluster_node_pool" or .type == "azurerm_kubernetes_cluster")
+            | select(.change.actions != ["no-op"] and .change.actions != ["create"])
+            | select(.change.before.vm_size != .change.after.vm_size
+                     or (.change.before.default_node_pool // [] | tostring) != (.change.after.default_node_pool // [] | tostring)
+                     or (.change.actions | index("delete")))
+            | .address')
+          [ -n "$moved" ] || exit 0
+          az aks show -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" -o none 2>/dev/null || exit 0
+          echo "Node pool rebuild ($(echo $moved)): removing PodDisruptionBudgets so the nodes can drain"
+          az aks get-credentials -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --overwrite-existing
+          kubectl -n "$NS_ARGOCD" scale statefulset argocd-application-controller --replicas=0 2>/dev/null || true
+          for ns in "$NS_CORE" "$NS_BACKBONE" "$NS_VAULT" monitoring; do
+            kubectl delete pdb --all -n "$ns" --ignore-not-found
+          done
+          echo "::warning::The node pool is rebuilt: run the workflow with action = deploy afterwards (it unseals Vault and recreates the PodDisruptionBudgets)."
+        working-directory: ${{ env.TF_DIR }}
       - name: Terraform apply (AKS, PostgreSQL, storage - first time takes 15-25 minutes)
         if: steps.decide.outputs.infra == 'true'
         run: terraform apply -input=false -no-color -auto-approve tfplan

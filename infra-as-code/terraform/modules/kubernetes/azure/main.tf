@@ -54,6 +54,9 @@ resource "azurerm_kubernetes_cluster_node_pool" "main" {
   vnet_subnet_id        = var.vnet_subnet_id
   os_disk_size_gb       = var.os_disk_size_gb
   orchestrator_version  = var.kubernetes_version
+  # vm_size, os_disk_size_gb, max_pods, ... can only change by rotation: AKS adds this temporary
+  # pool, moves the pods to it, rebuilds "mainpool" and removes the temporary pool again.
+  temporary_name_for_rotation = "tempmainpool"
 
   # The scheduling runbook changes node_count out-of-band (0 at night / desired in
   # the morning), so ignore it here to stop Terraform fighting the schedule.

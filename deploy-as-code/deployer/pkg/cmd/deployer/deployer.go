@@ -146,13 +146,12 @@ func deployClusterConfigs(index map[string]string, configDir string, envOverride
 	// Clean up folder after function exists
 	defer os.RemoveAll(tmpDir)
 	args = append(args, fmt.Sprintf("--output-dir %s", tmpDir))
-	fmt.Println("Before Trimming" + configDir)
-
-	sopsDir := strings.Trim(configDir, "helm")
-	fmt.Println("path too sops" + sopsDir)
-	if _, err := os.Stat(sopsDir + "/.sops.yaml"); os.IsNotExist(err) {
-		fmt.Println("Error Condition: ")
-		fmt.Println(err)
+	// .sops.yaml lives in the helm dir (configDir). The old lookup,
+	// strings.Trim(configDir, "helm"), looked one level up, never found it,
+	// and applied the still-encrypted secrets file (ENC[...] in every Secret).
+	sopsConfig := filepath.Join(configDir, ".sops.yaml")
+	if _, err := os.Stat(sopsConfig); os.IsNotExist(err) {
+		log.Printf("No %s: using %s as plain values", sopsConfig, envSecretFile)
 		args = append(args, fmt.Sprintf("-f %s", envSecretFile))
 	} else {
 		sopsDecryptCmd := fmt.Sprintf("sops -d --output %s %s", tmpDecFile.Name(), envSecretFile)

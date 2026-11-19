@@ -20,8 +20,11 @@ namespace: egov
 # NOTE: the Bitnami legacy image (docker.io/bitnamilegacy/postgresql) is deprecated
 # and has been replaced with the official PostgreSQL 15 image.
 image:
-  repository: "docker.io/postgres"
-  tag: "15"
+  # PostGIS build of the same Postgres 15 (Debian) image: boundary's migrations
+  # run CREATE EXTENSION postgis. Same data format as docker.io/postgres:15,
+  # so an existing volume keeps working.
+  repository: "docker.io/postgis/postgis"
+  tag: "15-3.4"
   pullPolicy: IfNotPresent
 
 replicas: 1
@@ -50,7 +53,10 @@ auth:
   secretKey: "password"
 
 # Requests == limits, same as the in-cluster deployment.
-resources:
+# Not called `resources`: common.name merges the common chart's values into
+# .Values, and its `resources` (a template string for Java services) would
+# replace this map, leaving the StatefulSet permanently OutOfSync in Argo CD.
+postgresResources:
   requests:
     cpu: 500m
     memory: 1Gi

@@ -20,7 +20,7 @@
 # ============================================================================
 global:
   domain: "<domain>"            # from input.yaml
-  mode: prod                    # prod = image tag from the chart; dev = <release>.image.tag
+  mode: dev                     # dev = use <release>.image.tag (pinned below); prod = the chart appVersion
   containerRegistry: egovio
   setup: fullsetup
 
@@ -347,6 +347,7 @@ notify:
 
 otp:
   chart-version: 3.1.2
+  vault-enabled: "true"         # the chart leaves VAULT_ENABLED empty otherwise (app fails to start)
   image:
     tag: v3.0.3-beta-1976d84
   initContainers:
@@ -407,6 +408,19 @@ url-shortener:
 
 workflow:
   chart-version: 3.1.2
+  # workflow (like notify) fails binding spring.datasource.hikari.* ("pool is sealed"):
+  # plain driver DataSource; stringtype=unspecified (an app Hikari property) moves to the URL.
+  extraEnv:
+    app: |
+      - name: DIGIT_DB_URL
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: db-url
+      - name: SPRING_DATASOURCE_URL
+        value: "${DIGIT_DB_URL}?stringtype=unspecified"
+      - name: SPRING_DATASOURCE_TYPE
+        value: "org.springframework.jdbc.datasource.SimpleDriverDataSource"
   image:
     tag: v3.0.3-beta-1976d84
   initContainers:

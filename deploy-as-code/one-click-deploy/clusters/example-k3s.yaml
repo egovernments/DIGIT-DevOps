@@ -1,0 +1,66 @@
+# Template: k3s on a single VM.
+#
+# Copy to clusters/<name>.yaml and replace every <placeholder> in the first
+# section. The second section holds the standard DIGIT values; leave them
+# unless this environment differs. The tool has no built-in defaults: every
+# field must be present, and a missing value or a leftover <placeholder>
+# stops the run at startup with the full list.
+#
+#   go run . all -f clusters/<name>.yaml
+#
+# Never put secret values here, only paths to key files.
+
+# --- Fill in for this deployment ---------------------------------------------
+
+name: <cluster-name>                 # shown when you confirm the target cluster, e.g. k3s-sandbox
+env: <env>                           # environments/<env>.yaml on the branch, e.g. k3s-deployment
+branch: <branch>                     # branch Argo CD syncs from, e.g. k3s-deployment
+domain: <domain>                     # public domain, e.g. k3s-deployment.digit.org
+
+cluster:
+  provider: k3s
+  k3s:
+    host: <vm-public-ip>             # the VM's STATIC public IP (from the VM owner)
+    sshUser: <ssh-user>              # e.g. azureuser (from the VM owner)
+    sshKeyFile: <path-to-ssh-key>    # private key, e.g. ~/.ssh/k3s-sandbox-key (from the VM owner)
+    sshPort: 22
+    apiPort: 6443                    # k3s must be started with --tls-san <host>
+
+secrets:
+  method: age                        # k3s environments use an age key
+  ageKeyFile: <path-to-age-key>      # private key, e.g. ~/k3s-deployment.agekey (from the SaaS admin)
+
+# --- Standard DIGIT values (change only if this environment differs) ----------
+
+namespace: egov                      # namespace of the DIGIT services
+
+argocd:
+  timeout: 10m
+
+waitFor:                             # apps that must be healthy before Kong; {env} = env above
+  appSets:
+    - "{env}-backbone-appset"
+    - "{env}-egov-appset-platform"
+  timeout: 20m
+
+ingress:                             # the ingress-nginx Service, used by the DNS check
+  namespace: egov
+  service: ingress-nginx-controller
+
+kong:                                # set enabled: false to skip the Kong step
+  enabled: true
+  adminService: kong-kong-admin
+  localPort: 18001
+  keycloakBaseURL: http://keycloak.keycloak.svc.cluster.local:8080/keycloak
+  services:                          # exposed on https://<domain>/<path>
+    - { name: license-certificate, k8sService: license-certificate, path: license, stripPath: false, auth: true }
+    - { name: schema-registry, k8sService: schema-registry, path: schema, stripPath: false, auth: true }
+    - { name: metabase, k8sService: metabase, path: metabase, stripPath: true, auth: false }
+    - { name: pdf-v3, k8sService: pdf-v3, path: pdf-v3, stripPath: false, auth: true }
+    - { name: calculator, k8sService: calculator, path: calculator, stripPath: false, auth: true }
+    - { name: vc, k8sService: vc, path: credential, stripPath: false, auth: true }
+    - { name: ui-access-control, k8sService: ui-access-control, path: ui-access-control, stripPath: false, auth: true }
+
+options:
+  assumeYes: false                   # true: no prompts at all, not even the cluster confirmation
+  skipGitCheck: false                # true: allow a checkout that differs from origin (testing only)

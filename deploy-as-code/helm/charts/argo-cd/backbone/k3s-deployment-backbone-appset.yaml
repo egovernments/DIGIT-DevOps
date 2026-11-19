@@ -1,0 +1,95 @@
+## Backbone services for k3s-deployment, following unified-dev's
+## argo-cd/unified-dev/backbone/backbone-app-set-backbone.yaml.
+##
+## Deploys ingress-nginx, cert-manager, Elasticsearch and Kafka. Postgres,
+## Keycloak and Kong are deployed by k3s-deployment-egov-appset-platform.yaml.
+##
+## Picked up by k3s-deployment-bootstrap.yaml (it syncs argo-cd/ recursively),
+## so merging this file is enough -- no kubectl apply.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: k3s-deployment-backbone-appset
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        # `namespace` is substituted into the template below. This generator is
+        # not goTemplate-enabled, so every element must set it explicitly --
+        # an element missing the key would render the literal `{{namespace}}`.
+        # Each namespace matches the chart's own `namespace:`/`namespaceOverride`
+        # on this branch; see backbone-app-project.yaml.
+        elements:
+          - name: ingress-nginx
+            namespace: egov
+          - name: cert-manager
+            namespace: egov
+          - name: elasticsearch-master
+            namespace: backbone
+          - name: elasticsearch-data
+            namespace: backbone
+          - name: kafka-kraft
+            namespace: backbone
+  template:
+    metadata:
+      name: 'backbone-{{name}}'
+      annotations:
+        # Diff-only: it changes how drift is DETECTED, never what is applied.
+        argocd.argoproj.io/compare-options: ServerSideDiff=true
+
+    spec:
+      project: backbone-project
+
+      source:
+        repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+        targetRevision: k3s-deployment
+        path: deploy-as-code/helm/charts/backbone-services/{{name}}
+        helm:
+          valueFiles:
+            - values.yaml
+            - ../../../environments/k3s-deployment.yaml
+            # Single-node k3s overrides, one file per element. Every element
+            # has a file, even if it only carries comments, so a missing file
+            # is a real error rather than something to ignore.
+            - ../../../environments/k3s-deployment-backbone/{{name}}.yaml
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+          # Lets cert-manager's ClusterIssuers pass dry-run before its CRDs
+          # are registered on a first sync.
+          - SkipDryRunOnMissingResource=true
+          # Without this, ignoreDifferences below only hides the diff; a sync
+          # would still apply the rendered value over the live one.
+          - RespectIgnoreDifferences=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+        # elasticsearch-master/templates/secret-cert.yaml generates the
+        # transport-TLS CA and certificate with genCA, so every render yields
+        # a new one. Left alone, selfHeal would rewrite the Secret on each
+        # refresh, and any ES pod restarted after that would present a cert
+        # the still-running nodes do not trust. Create it once, then keep the
+        # live value.
+        - group: ''
+          kind: Secret
+          name: elasticsearch-master-certs
+          jsonPointers:
+            - /data

@@ -1,0 +1,65 @@
+# Template: Amazon EKS.
+#
+# Copy to clusters/<name>.yaml and replace every <placeholder> in the first
+# section. The second section holds the standard DIGIT values; leave them
+# unless this environment differs. The tool has no built-in defaults: every
+# field must be present, and a missing value or a leftover <placeholder>
+# stops the run at startup with the full list.
+#
+#   go run . all -f clusters/<name>.yaml
+#
+# Before running: log in with the AWS CLI (aws sso login / aws configure).
+
+# --- Fill in for this deployment ---------------------------------------------
+
+name: <cluster-name>                 # shown when you confirm the target cluster
+env: <env>                           # environments/<env>.yaml on the branch
+branch: <branch>                     # branch Argo CD syncs from
+domain: <domain>                     # public domain of the environment
+
+cluster:
+  provider: eks
+  eks:
+    name: <eks-cluster-name>         # aws eks list-clusters --region <region> --profile <profile>
+    region: <aws-region>             # e.g. ap-south-1
+    profile: <aws-profile>           # AWS CLI profile with cluster-admin (aws configure list-profiles)
+    # roleArn: <role-arn>            # optional: uncomment only if access is through an assumed role
+
+secrets:
+  method: kms                        # EKS environments use AWS KMS
+  awsProfile: <aws-profile>          # profile with kms:Decrypt on the key in <env>-secrets.yaml (often the same as above)
+
+# --- Standard DIGIT values (change only if this environment differs) ----------
+
+namespace: egov                      # namespace of the DIGIT services
+
+argocd:
+  timeout: 10m
+
+waitFor:                             # apps that must be healthy before Kong; {env} = env above
+  appSets:
+    - "{env}-backbone-appset"
+    - "{env}-egov-appset-platform"
+  timeout: 20m
+
+ingress:                             # its load balancer hostname is the DNS (CNAME) target
+  namespace: egov
+  service: ingress-nginx-controller
+
+kong:                                # set enabled: false to skip the Kong step
+  enabled: true
+  adminService: kong-kong-admin
+  localPort: 18001
+  keycloakBaseURL: http://keycloak.keycloak.svc.cluster.local:8080/keycloak
+  services:                          # exposed on https://<domain>/<path>
+    - { name: license-certificate, k8sService: license-certificate, path: license, stripPath: false, auth: true }
+    - { name: schema-registry, k8sService: schema-registry, path: schema, stripPath: false, auth: true }
+    - { name: metabase, k8sService: metabase, path: metabase, stripPath: true, auth: false }
+    - { name: pdf-v3, k8sService: pdf-v3, path: pdf-v3, stripPath: false, auth: true }
+    - { name: calculator, k8sService: calculator, path: calculator, stripPath: false, auth: true }
+    - { name: vc, k8sService: vc, path: credential, stripPath: false, auth: true }
+    - { name: ui-access-control, k8sService: ui-access-control, path: ui-access-control, stripPath: false, auth: true }
+
+options:
+  assumeYes: false                   # true: no prompts at all, not even the cluster confirmation
+  skipGitCheck: false                # true: allow a checkout that differs from origin (testing only)

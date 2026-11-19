@@ -1,0 +1,19 @@
+# elasticsearch-data -- k3s-deployment (single-node k3s) overlay
+#
+# Third value file of backbone-elasticsearch-data, after the chart's
+# values.yaml and environments/k3s-deployment.yaml. Services reach it as
+# elasticsearch-data.backbone (egov-config es-host).
+
+# antiAffinity "hard" would leave 2 of the chart's 3 replicas Pending on one
+# node. With a single data node, indices with replicas > 0 report yellow;
+# that is expected here.
+replicas: 1
+antiAffinity: soft
+
+volumeClaimTemplate:
+  storageClassName: local-path
+  resources:
+    requests:
+      # local-path does not enforce this -- the volume is a directory on the
+      # node's 128 GiB OS disk. ES's own disk watermarks apply to that disk.
+      storage: 20Gi

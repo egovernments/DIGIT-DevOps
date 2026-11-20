@@ -2474,13 +2474,9 @@ server:
       # plain HTTP. The server serves the whole app under /argocd via --rootpath, so no
       # rewrite/regex is needed.
       nginx.ingress.kubernetes.io/backend-protocol: HTTP
-      # Gate the UI behind oauth2-proxy — only GitHub org "egovernments" / team
-      # "digit-lts" (per the oauth2-proxy config) can reach it. auth-url uses the
-      # INTERNAL oauth2-proxy service (avoids hairpinning the public LB); auth-signin is the
-      # public login redirect. Requires a REAL GitHub OAuth App client-id/secret in the
-      # oauth2-proxy secret (callback https://test-lts.digit.org/oauth2/callback).
-      nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.egov.svc.cluster.local:4180/oauth2/auth"
-      nginx.ingress.kubernetes.io/auth-signin: "https://$host/oauth2/start?rd=$escaped_request_uri"
+      # No oauth2-proxy gate (auth-url / auth-signin) on k3s-deployment:
+      # oauth2-proxy is not deployed here, so nginx returned 500 for /argocd.
+      # The UI is protected by Argo CD's own admin login instead.
 
     # -- Defines which ingress controller will implement the resource
     ingressClassName: "nginx"

@@ -13,7 +13,12 @@ Tested: Azure VM (Ubuntu 22.04), run from macOS.
 | DNS admin | A record → VM IP ([Step 8](#step-8-open-the-environment)) |
 | You | Everything else |
 
+- **[Part 1: Set up an environment](#part-1-set-up-an-environment):** deploy `k3s-deployment` (or any branch already set up) on a VM
+- **[Part 2: Create a new k3s environment](#part-2-create-a-new-k3s-environment):** a new branch with its own name, domain and secrets; then do Part 1
+
 ---
+
+# Part 1: Set up an environment
 
 ## Step 1: Prepare the VM
 
@@ -222,3 +227,106 @@ sudo /usr/local/bin/k3s-uninstall.sh          # deletes the cluster and all data
 ```
 
 Then Step 1 (install and check), [kubectl from your Mac](#kubectl-from-your-mac), and Step 7.
+
+---
+
+# Part 2: Create a new k3s environment
+
+A new environment `<env>` with its own branch, domain and secrets, copied
+from `k3s-deployment`. Here `<env>` is both the environment and the branch
+name, `<domain>` its domain. Afterwards, run Part 1 with the new names.
+
+## Step 1: Create the branch and rename the files
+
+```bash
+git checkout k3s-deployment && git pull
+git checkout -b <env>
+cd deploy-as-code/helm
+
+# Rename the environment's files
+git mv environments/k3s-deployment.yaml               environments/<env>.yaml
+git mv environments/k3s-deployment-backbone           environments/<env>-backbone
+git mv charts/monitoring/values/k3s-deployment        charts/monitoring/values/<env>
+git mv charts/argo-cd/bootstrap/k3s-deployment-bootstrap.yaml       charts/argo-cd/bootstrap/<env>-bootstrap.yaml
+git mv charts/argo-cd/backbone/k3s-deployment-backbone-appset.yaml  charts/argo-cd/backbone/<env>-backbone-appset.yaml
+for f in charts/argo-cd/egov/k3s-deployment-egov-appset-*.yaml; do git mv "$f" "${f/k3s-deployment/<env>}"; done
+
+# Replace the domain first, then the environment / branch name
+grep -rl 'k3s-deployment\.digit\.org' charts environments | xargs sed -i '' 's/k3s-deployment\.digit\.org/<domain>/g'
+grep -rl 'k3s-deployment' charts/argo-cd charts/monitoring/values/<env> environments/<env>.yaml environments/<env>-backbone \
+  | xargs sed -i '' 's/k3s-deployment/<env>/g'
+
+# Check: only comments may be left
+grep -rn 'k3s-deployment' charts/argo-cd environments/<env>.yaml environments/<env>-backbone charts/monitoring/values/<env>
+```
+
+The domain is also hard-coded in 4 chart values files (account, employee,
+keycloak, ui-access-control); the domain replacement covers them.
+
+## Step 2: Create the secrets
+
+**What:** `environments/<env>-secrets.yaml` holds the environment's passwords
+and tokens (database, Keycloak, Kafka, Elasticsearch, ...). It is committed
+**encrypted** with SOPS. Each environment has its **own age key**; whoever
+has the key can read and edit the file, nobody else can.
+
+**Who:** the secrets owner. Run from `deploy-as-code/helm`.
+
+1. **Create the key**
+
+   ```bash
+   brew install age                    # once, for age-keygen
+   age-keygen -o ~/<env>.agekey        # prints "Public key: age1..."
+   chmod 600 ~/<env>.agekey
+   ```
+
+   The **public key** (`age1...`) goes in git. The **key file** never does:
+   keep it safe and send it to the operator only through a password manager
+   or vault.
+
+2. **Tell SOPS to use it.** Add a rule to `.sops.yaml`, next to the `k3s-deployment` one (same indentation):
+
+   ```yaml
+   - path_regex: environments/<env>\-secrets\.yaml$
+     age: '<public key>'
+   ```
+
+3. **Create the file from the k3s one** (needs the `k3s-deployment` age key):
+
+   ```bash
+   SOPS_AGE_KEY_FILE=~/k3s-deployment.agekey \
+     sops -d environments/k3s-deployment-secrets.yaml > environments/<env>-secrets.yaml
+   ```
+
+   This file is **plain text**: do not commit it yet. Open it and give every
+   password and token a new value. Keep the keys and structure as they are.
+
+4. **Encrypt it with the new key**
+
+   ```bash
+   sops --encrypt --in-place environments/<env>-secrets.yaml
+   SOPS_AGE_KEY_FILE=~/<env>.agekey sops -d environments/<env>-secrets.yaml > /dev/null && echo "decrypts OK"
+   ```
+
+5. **Remove the k3s copy** from the new branch:
+
+   ```bash
+   git rm environments/k3s-deployment-secrets.yaml
+   ```
+
+**Before committing:** `git diff --cached environments/<env>-secrets.yaml`
+must show only `ENC[...]` values. If you see a plain password, stop and
+encrypt (step 4).
+
+Argo CD needs nothing extra: the tool loads the age key into the cluster on
+every run (Part 1, Step 7).
+
+## Step 3: Push and run
+
+```bash
+git add -A && git commit -m "feat(<env>): new k3s environment"
+git push -u origin <env>
+```
+
+Then Part 1 with the new values: `secrets.ageKeyFile: ~/<env>.agekey` (Step 4),
+and `env`, `branch`, `domain` in the config file (Step 5).

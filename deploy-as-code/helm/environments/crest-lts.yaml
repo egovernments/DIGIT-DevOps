@@ -111,6 +111,40 @@ crest:
     dbMigration:
       image:
         tag: "main-0c68b6e"
+  # Front the API with kong on the main domain: test-lts.digit.org/crest. hostName
+  # overrides global.domain (crest-ui stays on the subdomain until its own move). The
+  # backend ingress (crest ns) points at the local kong-proxy ExternalName the
+  # gateway-sync reconciler creates; route + keycloak plugins come from the Service
+  # annotations below. context crest -> path /crest and Service gateway/route-path crest.
+  ingress:
+    gateway: true
+    hostName: test-lts.digit.org
+    context: crest
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/upstream-vhost: test-lts.digit.org
+  service:
+    additionalAnnotations: |
+      gateway/route-auth: protected
+  # Probes hit the pod directly; context-path /crest moves them under /crest.
+  healthChecks:
+    enabled: true
+    livenessProbe: |
+      httpGet:
+        path: "/crest/health/liveness"
+        port: {{ .Values.httpPort }}
+      initialDelaySeconds: 30
+      timeoutSeconds: 3
+      periodSeconds: 60
+      failureThreshold: 5
+    readinessProbe: |
+      httpGet:
+        path: "/crest/health/readiness"
+        port: {{ .Values.httpPort }}
+      initialDelaySeconds: 30
+      timeoutSeconds: 3
+      periodSeconds: 30
+      failureThreshold: 5
   # common merges extraEnv.app onto the chart's own `env` block by name, last wins, so
   # this adds the key without a chart release. Chart 3.0.1 declares no OpenAI env of its
   # own; move this into the chart's values once it does.
@@ -121,6 +155,8 @@ crest:
           secretKeyRef:
             name: crest
             key: openai-api-key
+      - name: SERVER_SERVLET_CONTEXT_PATH
+        value: /crest
 crest-ui:
   chart-version: "3.0.1"
   image:

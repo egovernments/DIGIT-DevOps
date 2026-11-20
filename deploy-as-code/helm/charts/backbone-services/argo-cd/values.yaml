@@ -950,10 +950,14 @@ controller:
   podLabels: {}
 
   # -- Resource limits and requests for the application controller pods
+  ## Memory limit 1Gi, same as test-lts (requests unchanged: CPU requests are
+  ## nearly full on k3s). At 512Mi the controller was OOMKilled while tracking
+  ## ~60 apps on a first install, so syncs failed and retried and their hooks
+  ## got stuck.
   resources:
    limits:
      cpu: 500m
-     memory: 512Mi
+     memory: 1Gi
    requests:
      cpu: 250m
      memory: 256Mi
@@ -3081,10 +3085,12 @@ repoServer:
   ## limit was throttling manifest generation badly enough that the repo
   ## server missed its liveness probe and crash-looped continuously,
   ## blocking ArgoCD syncs cluster-wide.
+  ## Raised again to test-lts's limits (requests unchanged): at 500m / 1Gi it
+  ## was still killed (exit 137) while rendering ~60 apps on a first install.
   resources:
    limits:
-     cpu: 500m
-     memory: 1Gi
+     cpu: "2"
+     memory: 2Gi
    requests:
      cpu: 50m
      memory: 64Mi

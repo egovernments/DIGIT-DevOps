@@ -102,8 +102,11 @@ func (w *Workflow) pinContext(ctx context.Context) error {
 	w.log.Infof("Server:  %s", w.log.Bold(string(server)))
 	w.log.Block(string(nodes))
 	fmt.Fprintln(w.log.out)
-	if err := w.prompt.Confirm(ctx, fmt.Sprintf("Is %q the right cluster?", name)); err != nil {
-		return err
+	// Asked even with options.assumeYes; only the read-only status command skips it.
+	if w.cfg.Command != "status" {
+		if err := w.prompt.ConfirmAlways(ctx, fmt.Sprintf("Is %q the right cluster?", name)); err != nil {
+			return err
+		}
 	}
 	w.log.Successf("All commands in this run are pinned to %q.", name)
 	return nil

@@ -270,8 +270,8 @@ templates are committed.
 
 Two options:
 
-- `options.assumeYes: true` skips all questions, including the cluster confirmation.
-  Only for unattended runs.
+- `options.assumeYes: true` answers yes to every question except the cluster
+  confirmation, which is always asked.
 - `options.skipGitCheck: true` allows a local checkout that differs from
   GitHub. Testing only.
 

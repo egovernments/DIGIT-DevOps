@@ -45,8 +45,7 @@ func (w *Workflow) Run(ctx context.Context) error {
 	case "kong":
 		steps = []step{w.preflightCluster, w.configureKong}
 	case "status":
-		// Read-only, so the cluster confirmation is not needed.
-		w.prompt.assumeYes = true
+		// Read-only, so preflightCluster skips the cluster confirmation.
 		steps = []step{w.preflightCluster, w.showStatus}
 	}
 	for _, s := range steps {

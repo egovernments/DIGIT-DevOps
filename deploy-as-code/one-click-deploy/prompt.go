@@ -10,7 +10,8 @@ import (
 )
 
 // Prompter asks the operator before every step that changes the cluster.
-// With assumeYes every question is answered yes without reading stdin.
+// With assumeYes every Confirm question is answered yes without reading
+// stdin; ConfirmAlways (the cluster confirmation) is still asked.
 type Prompter struct {
 	in        *bufio.Reader
 	out       io.Writer
@@ -26,6 +27,12 @@ func (p *Prompter) Confirm(ctx context.Context, question string) error {
 	if p.assumeYes {
 		return nil
 	}
+	return p.ConfirmAlways(ctx, question)
+}
+
+// ConfirmAlways asks even with assumeYes, so a run never changes a cluster
+// the operator did not confirm.
+func (p *Prompter) ConfirmAlways(ctx context.Context, question string) error {
 	answer, err := p.readLine(ctx, question+" [y/N]: ")
 	if err != nil {
 		return err
@@ -56,7 +63,7 @@ func (p *Prompter) readLine(ctx context.Context, prompt string) (string, error) 
 		return "", ctx.Err()
 	case r := <-ch:
 		if r.err != nil && !(errors.Is(r.err, io.EOF) && r.line != "") {
-			return "", fmt.Errorf("reading answer from stdin: %w (set options.assumeYes: true for unattended runs)", r.err)
+			return "", fmt.Errorf("reading answer from stdin: %w (run it from a terminal; the cluster confirmation is always asked)", r.err)
 		}
 		return strings.TrimSpace(r.line), nil
 	}

@@ -12,9 +12,18 @@ labels:
   group: "care"
 
 # Docker image configuration
+# egovio/superset is ghcr.io/care-ecosystem/superset with the six Python
+# packages below already installed into /python-packages (which PYTHONPATH puts
+# first). They used to be pip-installed by an init container on EVERY pod start,
+# so web/worker/beat could not start unless pypi.org was reachable at that
+# moment -- on 2026-11-20 PyPI blocked unified-dev's egress IP and all three
+# pods hung in Init:1/2, silently, with no crash-loop and no alert.
+# Rebuild: see charts/care/superset/image/ (Dockerfile + README). It is
+# pinned to a base digest, so a rebuild reproduces this image.
+# Use a dated tag, never :latest -- the whole point is a reproducible pod start.
 image:
-  repository: ghcr.io/care-ecosystem/superset
-  tag: latest
+  repository: egovio/superset
+  tag: care-20261120
   pullPolicy: IfNotPresent
 
 # Database configuration — host is environment-specific, overridden from
@@ -200,28 +209,21 @@ auth:
     syncRolesAtLogin: true
 
 # Init containers configuration
+# Only the wait-for-postgres-redis container remains. The former
+# install-python-packages container is gone: psycopg2-binary==2.9.13,
+# clickhouse-connect==1.13.0, lz4==4.4.5, backports.zstd==1.8.0,
+# authlib==1.9.8 and joserfc==1.8.0 are baked into the image (see image
+# above) instead of being downloaded at every pod start.
+#
+# Why they are pinned and installed --no-deps, in case they are ever changed:
+# clickhouse-connect[sqlalchemy] would drag SQLAlchemy 2.x over the 1.4.54
+# Superset is built against; lz4 and backports.zstd are clickhouse-connect's
+# compression codecs, which the base image does not ship; authlib and joserfc
+# are required by AUTH_TYPE = AUTH_OAUTH, because FAB's BaseSecurityManager
+# imports authlib.integrations.flask_client at init. Changing the list means
+# rebuilding and repushing the image, then bumping image.tag above.
 initContainers:
   waitImage: busybox:latest
-  # Installed into the shared /python-packages volume, which the web and worker
-  # containers put FIRST on PYTHONPATH. Anything listed here therefore shadows the
-  # image's own copy of the same package, which is why the install uses --no-deps:
-  # clickhouse-connect[sqlalchemy] would otherwise drag SQLAlchemy 2.x over the
-  # 1.4.54 Superset is built against and break it. For the same reason the added
-  # packages are pinned -- with --no-deps a newly required dependency would not be
-  # picked up on its own. lz4 and backports.zstd are clickhouse-connect's
-  # compression codecs; the image ships neither.
-  packages:
-    - psycopg2-binary
-    - clickhouse-connect==1.13.0
-    - lz4==4.4.5
-    - backports.zstd==1.8.0
-    # Required by AUTH_TYPE = AUTH_OAUTH: FAB's BaseSecurityManager.__init__
-    # imports authlib.integrations.flask_client, and the image does not ship it.
-    # Without these the web, worker and beat pods all fail to start, not just
-    # the login. joserfc is authlib's own dependency; cryptography (its other
-    # one) is already in the image at a satisfying version.
-    - authlib==1.9.8
-    - joserfc==1.8.0
   resources:
     requests:
       cpu: "250m"

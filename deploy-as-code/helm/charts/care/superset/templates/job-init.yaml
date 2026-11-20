@@ -20,21 +20,6 @@ spec:
         - name: docker-registry-secret
       restartPolicy: OnFailure
       initContainers:
-        - name: install-python-packages
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
-          command:
-            - /bin/sh
-            - -c
-            - |
-              set -e
-              echo "Installing Python packages to shared volume..."
-              pip install --no-cache-dir --target=/python-packages --no-deps {{ join " " .Values.initContainers.packages }}
-              echo "Python packages installed successfully!"
-          volumeMounts:
-            - name: python-packages
-              mountPath: /python-packages
-          resources:
-            {{- toYaml .Values.initContainers.resources | nindent 12 }}
       containers:
         - name: init-db
           image: {{ .Values.image.repository }}:{{ .Values.image.tag | default "latest" }}
@@ -45,9 +30,6 @@ spec:
           volumeMounts:
             - name: superset-config
               mountPath: /app/pythonpath
-              readOnly: true
-            - name: python-packages
-              mountPath: /python-packages
               readOnly: true
           command:
             - /bin/sh
@@ -82,6 +64,4 @@ spec:
         - name: superset-config
           configMap:
             name: {{ .Values.name }}-config
-        - name: python-packages
-          emptyDir: {}
 {{- end }}

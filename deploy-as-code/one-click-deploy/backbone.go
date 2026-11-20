@@ -199,6 +199,7 @@ func (w *Workflow) waitBackbone(ctx context.Context) error {
 		failures int
 		lastErr  error
 	)
+	hooks := newHookWatch()
 	for {
 		snap, err := w.backboneSnapshot(ctx)
 		switch {
@@ -216,6 +217,7 @@ func (w *Workflow) waitBackbone(ctx context.Context) error {
 				w.log.Successf("All %d backbone Applications are Synced and Healthy.", len(states))
 				return nil
 			}
+			w.recoverStuckHooks(ctx, hooks, states)
 		case errors.Is(err, errNotYet):
 			if lastErr == nil || lastErr.Error() != err.Error() {
 				w.log.Infof("%v", err)

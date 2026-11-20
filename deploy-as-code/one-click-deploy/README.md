@@ -372,6 +372,11 @@ the same command again.
 | Waiting for platform apps (timed out) | Fix the app in git and push, then run `backbone` |
 | Kong | Run `kong` |
 
+While waiting, the tool also fixes one known Argo CD problem on first
+installs: an app stuck on `waiting for completion of hook <Job>` after that
+Job was deleted. If the hook stays missing for a minute, the tool restarts
+that app's sync (at most twice per app) and logs a warning.
+
 Common messages:
 
 | Message | What to do |

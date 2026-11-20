@@ -615,6 +615,29 @@ workflow-java:
       image:
         repository: "egovio/workflow-db"
         tag: "develop-a5f4ac3"
+kong:
+  chart-version: "3.1.3"
+  ingressController:
+    enabled: true
+    image:
+      tag: "2.12"
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 5
+  # egov-config db-host carries :5432; kong needs host-only (port is pg_port)
+  env:
+    pg_host: "postgres.egov"
+  # DB already migrated by the live kong (same image); wait-for-db gates readiness
+  initContainers:
+    extraInitContainers: ""
+  customEnv:
+    employee_iam_client_secret:
+      valueFrom:
+        secretKeyRef:
+          name: employee-iam-secret
+          key: employee-iam-client-secret
+  gatewaySync:
+    enabled: false
 postgres:
   tag: "14"
 egov-user:

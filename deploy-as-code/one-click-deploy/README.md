@@ -1,473 +1,332 @@
-# One-click deploy
+# One-click deploy on k3s (single VM, from a Mac)
 
-Sets up a DIGIT environment on Kubernetes from one YAML config file.
+Sets up a full DIGIT environment on k3s on one VM with one command. The tool
+installs Argo CD; Argo CD deploys everything else from the `k3s-deployment`
+branch.
 
-- **Platforms:** k3s on a VM, Amazon EKS, Azure AKS
-- **Tested:** k3s only, ran on macOS. EKS, AKS, Linux and Windows (WSL2) are not yet tested
+Tested: Azure VM (Ubuntu 22.04), run from macOS.
 
-## How to use this guide
+| Who | Does |
+|---|---|
+| Server owner | VM, k3s, ports, SSH access ([Step 1](#step-1-prepare-the-vm)) |
+| Secrets owner | Age key ([Step 4](#step-4-get-the-age-key)) |
+| DNS admin | A record → VM IP ([Step 8](#step-8-open-the-environment)) |
+| You | Everything else |
 
-- **k3s on a single VM?** Use the shorter k3s-only guide: [README-k3s.md](README-k3s.md).
-- **Setting up an environment?** Follow [Part 1](#part-1-set-up-an-environment) from Step 1 to Step 8, in order.
-- **Setting up a new branch / environment for the first time?** Do [Part 2](#part-2-set-it-up-on-another-branch) first, then Part 1.
-
-**Who does what**
-
-| Who | Does | Step |
-|---|---|---|
-| Operator (you) | Installs tools, writes the config file, runs the tool | All steps |
-| Cluster admin (EKS, AKS only) | Gives you cluster-admin access | [Step 3](#step-3-get-cluster-access) |
-| Secrets owner | Prepares the encrypted secrets and gives you and Argo CD access | [Step 4](#step-4-make-sure-the-secrets-are-ready) |
-
-**Contents**
-
-- [Part 1: Set up an environment](#part-1-set-up-an-environment)
-  - [Step 1: Install the tools](#step-1-install-the-tools)
-  - [Step 2: Get the repository](#step-2-get-the-repository)
-  - [Step 3: Get cluster access](#step-3-get-cluster-access)
-  - [Step 4: Make sure the secrets are ready](#step-4-make-sure-the-secrets-are-ready)
-  - [Step 5: Write the config file](#step-5-write-the-config-file)
-  - [Step 6: Check the cluster (read-only)](#step-6-check-the-cluster-read-only)
-  - [Step 7: Run the setup](#step-7-run-the-setup)
-  - [Step 8: Verify and set DNS](#step-8-verify-and-set-dns)
-  - [If something fails](#if-something-fails)
-- [Part 2: Set it up on another branch](#part-2-set-it-up-on-another-branch)
-  - [2.1 Files the branch needs](#21-files-the-branch-needs)
-  - [2.2 Differences by cluster type](#22-differences-by-cluster-type)
-  - [2.3 Test the branch before merging](#23-test-the-branch-before-merging)
+- **[Part 1: Set up an environment](#part-1-set-up-an-environment):** deploy `k3s-deployment` (or any branch already set up) on a VM
+- **[Part 2: Create a new k3s environment](#part-2-create-a-new-k3s-environment):** a new branch with its own name, domain and secrets; then do Part 1
 
 ---
 
-## Part 1: Set up an environment
+# Part 1: Set up an environment
 
-### Step 1: Install the tools
+## Step 1: Prepare the VM
 
-| Your computer | Supported |
+**VM:** Ubuntu 22.04, 8 vCPU, 32 GB RAM, 128 GB disk (do not go smaller).
+
+**Ports:**
+
+| Port | Open to |
 |---|---|
-| macOS (Intel or Apple silicon) | Yes (tested) |
-| Linux (Ubuntu, Debian, RHEL, …) | Yes (not yet tested) |
-| Windows 10/11 | Yes (not yet tested), **through WSL2**: run `wsl --install -d Ubuntu` in an admin PowerShell, then follow the Linux steps inside Ubuntu. Keep the repo and keys under `~/`, not `/mnt/c/` |
-| Windows without WSL2 | No |
+| 22, 6443 | Your IP |
+| 80, 443 | Everyone |
 
-Any of these can set up any cluster type.
-
-**Install the tools**
-
-Everyone needs:
-
-| Tool | Version |
-|---|---|
-| `git` | any |
-| `go` | 1.22 or later |
-| `kubectl` | within one minor version of the cluster |
-| `helm` | 3.x |
-| `sops` | 3.8 or later |
-
-Plus, only for your cluster type:
-
-| Cluster type | Extra tool | Why |
-|---|---|---|
-| k3s on a VM | `ssh` (already on macOS and Linux) | To log in to the VM and fetch the cluster's kubeconfig |
-| EKS | `aws` (AWS CLI v2) | To log in to AWS and get the cluster's kubeconfig |
-| AKS | `az` (Azure CLI) and `kubelogin` | To log in to Azure and get the cluster's kubeconfig |
-
-macOS:
+**On the VM:**
 
 ```bash
-brew install git go kubectl helm sops               # everyone
-                                                    # k3s: nothing extra (ssh is built in)
-brew install awscli                                 # EKS only
-brew install azure-cli Azure/kubelogin/kubelogin    # AKS only
+# 1. New VM only: needed by Elasticsearch (kept across reboots and k3s reinstalls)
+echo 'vm.max_map_count=262144' | sudo tee /etc/sysctl.d/99-digit-k3s.conf
+sudo sysctl --system
+
+# 2. Install k3s
+curl -sfL https://get.k3s.io | sudo \
+  INSTALL_K3S_VERSION=v1.35.9+k3s1 \
+  INSTALL_K3S_EXEC="server --disable traefik --write-kubeconfig-mode 644 --tls-san <VM IP>" \
+  sh -
+
+# 3. Check
+sudo k3s kubectl get node                     # Ready, v1.35.9+k3s1
+sudo systemctl cat k3s | grep -A8 ExecStart    # shows --tls-san <VM IP>
 ```
 
-Linux / WSL2:
+> The settings must come **after** `sudo`. Placed before it, sudo drops them
+> and k3s installs with defaults (wrong version, no `--tls-san`, then an
+> `x509` error from your Mac).
+
+Optional, for `kubectl` on the VM itself:
 
 ```bash
-sudo apt-get update && sudo apt-get install -y git openssh-client curl unzip
-# Go:      https://go.dev/doc/install (the apt package is often too old)
-# kubectl: https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/
-curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-# sops:    linux binary from https://github.com/getsops/sops/releases into /usr/local/bin
-# k3s:     nothing extra (ssh comes from openssh-client above)
-# EKS only: AWS CLI v2 from https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
-# AKS only: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash && sudo az aks install-cli
+mkdir -p ~/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown $USER:$USER ~/.kube/config && chmod 600 ~/.kube/config
 ```
 
-**Done when:** `git --version && go version && kubectl version --client && helm version && sops --version` all print a version.
+---
 
-### Step 2: Get the repository
+## Step 2: Install the tools (Mac)
 
 ```bash
-cd ~
-git clone https://github.com/egovernments/DIGIT-DevOps.git
-cd DIGIT-DevOps
-git checkout <branch>        # e.g. k3s-deployment
-git pull
+brew install git go kubectl helm sops
 ```
 
-Already cloned? Just `git checkout <branch> && git pull`.
+---
 
-**Done when:** `git status` says your branch is up to date with `origin/<branch>`, with no local changes.
-
-### Step 3: Get cluster access
-
-Follow the part for your cluster type.
-
-#### k3s on a VM
-
-| You need | Who provides it |
-|---|---|
-| The VM's static public IP, SSH user and private SSH key | VM owner |
-| Ports 22 and 6443 open to your IP; 80 and 443 open to everyone | VM owner |
-| k3s installed with `--disable traefik --tls-san <public IP>` | VM owner |
-| DNS **A record**: domain → VM public IP | DNS admin |
-
-Check from your computer:
+## Step 3: Get the repo and check SSH
 
 ```bash
-chmod 600 <ssh key>
-ssh -i <ssh key> <user>@<ip> 'echo ok'
+git clone https://github.com/egovernments/DIGIT-DevOps.git ~/DIGIT-DevOps
+cd ~/DIGIT-DevOps && git checkout k3s-deployment && git pull
+
+chmod 600 ~/.ssh/k3s-sandbox-key
+ssh -i ~/.ssh/k3s-sandbox-key <ssh user>@<VM IP> 'echo ok'      # prints ok
 ```
 
-#### Amazon EKS
+`git status` must show no changes: the tool refuses to run if your checkout
+differs from GitHub.
 
-Done once by the **AWS / cluster admin**:
+---
 
-1. Give the operator an AWS identity (SSO user or an IAM role) allowed to
-   `eks:DescribeCluster` and `eks:ListClusters`.
-2. Make that identity cluster-admin:
+## Step 4: Get the age key
 
-   ```bash
-   aws eks create-access-entry --cluster-name <cluster> --region <region> \
-     --principal-arn <operator role ARN>
-   aws eks associate-access-policy --cluster-name <cluster> --region <region> \
-     --principal-arn <operator role ARN> \
-     --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy \
-     --access-scope type=cluster
-   ```
-
-3. The cluster has the EBS CSI driver (storage class `gp3`) and its API
-   endpoint is reachable from the operator's network.
-4. After the first run: a DNS **CNAME** domain → load balancer hostname (the
-   tool prints it).
-
-Check from your computer:
+Get the age private key file from the secrets owner (sent securely, never by
+email, chat or git) and check it:
 
 ```bash
-aws sso login --profile <profile>
-aws sts get-caller-identity --profile <profile>
-aws eks describe-cluster --name <cluster> --region <region> --profile <profile> --query cluster.status
+chmod 600 ~/k3s-deployment.agekey
+cd ~/DIGIT-DevOps/deploy-as-code/helm
+SOPS_AGE_KEY_FILE=~/k3s-deployment.agekey \
+  sops -d environments/k3s-deployment-secrets.yaml > /dev/null && echo "decrypts OK"
 ```
 
-#### Azure AKS
+To edit a secret later: `SOPS_AGE_KEY_FILE=~/k3s-deployment.agekey sops environments/k3s-deployment-secrets.yaml`,
+check `git diff` shows only `ENC[...]`, then commit and push.
 
-Done once by the **subscription / cluster admin**:
+---
 
-1. Give the operator two roles on the AKS cluster:
-
-   ```bash
-   AKS_ID=$(az aks show -g <rg> -n <cluster> --query id -o tsv)
-   az role assignment create --assignee <operator email> \
-     --role "Azure Kubernetes Service Cluster User Role" --scope $AKS_ID
-   az role assignment create --assignee <operator email> \
-     --role "Azure Kubernetes Service RBAC Cluster Admin" --scope $AKS_ID
-   ```
-
-   (Clusters with Kubernetes RBAC instead of Azure RBAC: a `ClusterRoleBinding`
-   to `cluster-admin` for the operator.)
-2. The cluster has the `managed-csi` storage class and its API server is
-   reachable from the operator's IP.
-3. After the first run: a DNS **A record** domain → load balancer IP (the
-   tool prints it).
-
-Check from your computer:
-
-```bash
-az login
-az account set --subscription <subscription id>
-az aks show -g <rg> -n <cluster> --query provisioningState -o tsv
-```
-
-**Done when:** the check commands above work.
-
-### Step 4: Make sure the secrets are ready
-
-The secrets owner does this once per environment. **Already set up for `k3s-deployment`: skip to Step 5** (you only need the age key file from the secrets owner).
-
-The environment's secrets file (`helm/environments/<env>-secrets.yaml`) is
-encrypted with SOPS. Before the first run, the secrets owner makes sure both
-the **operator** (on their computer) and **Argo CD** (in the cluster) can
-decrypt it. Secret values and private keys never go into git, email or chat.
-
-**Steps (all cluster types)**
-
-1. Create the key (see the table below).
-2. Add a rule to `deploy-as-code/helm/.sops.yaml`:
-
-   ```yaml
-   - path_regex: environments/<env>\-secrets\.yaml$
-     age: '<age public key>'           # k3s
-     # kms: '<KMS key ARN>'            # EKS
-     # azure_keyvault: '<key URL>'     # AKS
-   ```
-
-3. Encrypt the file and commit only the encrypted version:
-
-   ```bash
-   cd deploy-as-code/helm
-   sops --encrypt --in-place environments/<env>-secrets.yaml                 # first time
-   sops environments/<env>-secrets.yaml                                      # later edits
-   sops -d environments/<env>-secrets.yaml > /dev/null && echo "decrypts OK"  # check
-   ```
-
-4. Give access to the operator and to Argo CD (table below), then push.
-
-| | k3s on a VM | EKS | AKS |
-|---|---|---|---|
-| Key | age key | AWS KMS key | Azure Key Vault RSA key |
-| Create it | `age-keygen -o <env>.agekey` (prints the public key) | `aws kms create-key --description "<env> SOPS"` | `az keyvault key create --vault-name <vault> --name sops-key --kty RSA` |
-| Operator access | Send the private key file securely (password manager / vault) | `kms:Decrypt` on the key | **Key Vault Crypto User** on the vault |
-| Argo CD access | Nothing to do: the tool loads the operator's key into the cluster | An IAM role for `argocd:argocd-repo-server` with `kms:Decrypt` (via the cluster's OIDC provider); its ARN goes in `AWS_ROLE_ARN` in `helm/charts/backbone-services/argo-cd/values.yaml` | A managed identity with Key Vault Crypto User, federated to `argocd:argocd-repo-server`; its client ID goes in `argo-cd-values.yaml` (see [2.2](#22-differences-by-cluster-type)) |
-
-Then tell the operator it is done and which method to use (`age`, `kms` or
-`azure_kv`). The tool checks all of this again before changing anything.
-
-To change a secret later: `sops environments/<env>-secrets.yaml`, save, push.
-Argo CD picks it up; no need to run the tool again.
-
-**Done when:** the secrets owner confirms it is done and tells you the method (`age`, `kms` or `azure_kv`). For k3s, you have the age key file on your computer (`chmod 600` it).
-
-### Step 5: Write the config file
-
-The config file is the tool's only input. Every field must be filled; if
-anything is missing or still a `<placeholder>`, the run stops at the start
-and lists every problem.
-
-Copy the template for your cluster type and replace every `<placeholder>`.
-The standard DIGIT values (namespaces, Kong services, timeouts) are already
-filled in.
+## Step 5: Write the config file
 
 ```bash
 cd ~/DIGIT-DevOps/deploy-as-code/one-click-deploy
-cp clusters/example-k3s.yaml clusters/<name>.yaml     # or example-eks.yaml / example-aks.yaml
+cp clusters/example-k3s.yaml clusters/<name>.yaml        # git ignores it
 ```
 
-Your `clusters/<name>.yaml` stays on your computer: only the `example-*`
-templates are committed.
+Fill in every `<placeholder>`:
 
-| Field | k3s | EKS | AKS | What to put |
-|---|---|---|---|---|
-| `name` | yes | yes | yes | Any name; shown when you confirm the cluster |
-| `env` | yes | yes | yes | The environment, e.g. `k3s-deployment` |
-| `branch` | yes | yes | yes | The git branch Argo CD deploys from |
-| `domain` | yes | yes | yes | The environment's public domain |
-| `cluster.k3s.host`, `sshUser`, `sshKeyFile` | yes | | | VM IP, SSH user, path to the SSH key |
-| `secrets.ageKeyFile` | yes | | | Path to the age key |
-| `cluster.eks.name`, `region`, `profile` | | yes | | Cluster name, region, AWS CLI profile |
-| `cluster.eks.roleArn` | | optional | | Only if access is through an assumed role |
-| `secrets.awsProfile` | | yes | | AWS profile with `kms:Decrypt` (often the same) |
-| `cluster.aks.name`, `resourceGroup`, `subscription` | | | yes | From `az aks list -o table` |
+| Field | Example |
+|---|---|
+| `name` | `k3s-sandbox` |
+| `env`, `branch` | `k3s-deployment` |
+| `domain` | `k3s-deployment.digit.org` |
+| `cluster.k3s.host` | VM IP |
+| `cluster.k3s.sshUser` | `azureuser` |
+| `cluster.k3s.sshKeyFile` | `~/.ssh/k3s-sandbox-key` |
+| `secrets.ageKeyFile` | `~/k3s-deployment.agekey` |
 
-Two options:
+For a one-click run set `options.assumeYes: true`: only *"Is the right
+cluster?"* is asked. Keep `skipGitCheck: false`.
 
-- `options.assumeYes: true` answers yes to every question except the cluster
-  confirmation, which is always asked.
-- `options.skipGitCheck: true` allows a local checkout that differs from
-  GitHub. Testing only.
+---
 
-**Done when:** you have `clusters/<name>.yaml` with no `<placeholder>` left.
-
-### Step 6: Check the cluster (read-only)
+## Step 6: Check the cluster (read-only)
 
 ```bash
-cd ~/DIGIT-DevOps/deploy-as-code/one-click-deploy
 go run . status -f clusters/<name>.yaml
 ```
 
-This changes nothing. It:
+Shows the node, apps, DNS and Kong. On a new VM "Argo CD not installed" is
+expected.
 
-- connects to the cluster and shows its nodes
-- shows the nodes, Argo CD apps and platform apps (healthy or not)
-- shows whether your domain points at the cluster:
-  - k3s: compares the domain with the VM's IP
-  - EKS / AKS: compares the domain with the load balancer's address. On a new cluster the load balancer does not exist yet, so it says *"Skipping the DNS check"*. That is expected
-- shows the Kong routes
+---
 
-On a new cluster it reports that Argo CD is not installed. That is expected.
-
-**Done when:** it connects and lists the cluster's nodes. If not, see [If something fails](#if-something-fails).
-
-### Step 7: Run the setup
+## Step 7: Run the setup
 
 ```bash
 go run . all -f clusters/<name>.yaml
 ```
 
-What happens, in order:
+About 15–25 minutes:
 
-1. Shows the cluster and its nodes and asks *"Is "<name>" the right cluster?"*
-2. Checks you are cluster-admin, the branch matches GitHub, and the secrets decrypt
-3. Asks *"Run the deployer now?"* → installs Argo CD
-4. Asks *"Apply the bootstrap now?"* → Argo CD starts deploying from GitHub
-5. Shows a table of the platform apps until all are healthy (up to 20 minutes, a progress line every minute)
-6. Checks DNS (a warning only, never stops the run). If the domain does not point at the cluster yet, it prints the exact record to ask for:
-   - k3s: *"Ask the DNS admin for an A record `<domain>` -> `<VM IP>`"*
-   - EKS: *"Ask the DNS admin for a CNAME record `<domain>` -> `<xxxx.elb.amazonaws.com>`"*
-   - AKS: *"Ask the DNS admin for an A record `<domain>` -> `<load balancer IP>`"*
-7. Asks before configuring Kong, then prints a summary
+1. Confirms the cluster (always asked)
+2. Checks tools, cluster-admin, git and the age key (nothing changes before this passes)
+3. Installs Argo CD and cluster configs, then the bootstrap; Argo CD deploys the rest from GitHub
+4. Waits until the platform apps are healthy (up to 20 min)
+5. Checks DNS (warning only), then configures Kong
 
-Good to know:
-
-- Nothing changes in the cluster until the checks (2) pass
-- Answering "no" to any question stops the run
-- It never deletes anything; safe to rerun
-
-**Done when:** it prints `Done.`
-
-### Step 8: Verify and set DNS
-
-1. Run `status` again and check every app is Synced and Healthy:
-
-   ```bash
-   go run . status -f clusters/<name>.yaml
-   ```
-
-2. If the DNS line is a warning, ask the DNS admin for the record it shows:
-
-   | Cluster | Record | Points to |
-   |---|---|---|
-   | k3s | A | The VM's public IP (known before the run) |
-   | EKS | CNAME | The load balancer hostname, e.g. `xxxx.elb.amazonaws.com` (known only after Step 7) |
-   | AKS | A | The load balancer IP (known only after Step 7) |
-
-   On EKS and AKS the cloud creates the load balancer during Step 7, so the
-   DNS record can only be requested after the run. That is normal.
-
-   Once DNS is set, run `status` again: the DNS line should say the domain
-   *"resolves to ..., which is the ingress load balancer"* (EKS / AKS) or
-   the VM (k3s). The HTTPS certificate is then issued automatically.
-
-3. Open `https://<domain>` in a browser.
-
-**After this:** changes to the environment are made in git: push to the branch and Argo CD applies them. Run the tool again only to reconfigure Kong (`go run . kong -f clusters/<name>.yaml`).
-
-Other commands, if you need to rerun one part:
-
-| Command | Runs |
-|---|---|
-| `go run . argocd -f clusters/<name>.yaml` | Only the checks, Argo CD install and bootstrap |
-| `go run . backbone -f clusters/<name>.yaml` | Only waits for the platform apps |
-| `go run . kong -f clusters/<name>.yaml` | Only configures Kong |
-
-### If something fails
-
-
-Every failure says what failed and what to do next (`Next:`). Fix it and run
-the same command again.
-
-| Failed at | What to do |
-|---|---|
-| Checks at the start | Nothing was changed. Fix what it reports and rerun |
-| Argo CD install or bootstrap | Rerun `all` (or `argocd`) |
-| Waiting for platform apps (timed out) | Fix the app in git and push, then run `backbone` |
-| Kong | Run `kong` |
-
-While waiting, the tool also fixes one known Argo CD problem on first
-installs: an app stuck on `waiting for completion of hook <Job>` after that
-Job was deleted. If the hook stays missing for a minute, the tool restarts
-that app's sync (at most twice per app) and logs a warning.
-
-Common messages:
-
-| Message | What to do |
-|---|---|
-| `config file ... is not complete` | Fill in every field it lists |
-| `cannot reach the API server` (k3s) | Port 6443 open to you; k3s started with `--tls-san <IP>` |
-| `no valid AWS credentials` | `aws sso login --profile <profile>` |
-| `not logged in to Azure` | `az login` |
-| `this identity is not cluster-admin` | Ask the cluster admin ([Step 3](#step-3-get-cluster-access)) |
-| `local ... differs from origin` | `git pull`, or push your changes |
-| `cannot decrypt ...` | Your key or identity has no access to the secrets key ([Step 4](#step-4-make-sure-the-secrets-are-ready)) |
-| `secrets.method is ..., but the file is encrypted with ...` | Set `secrets.method` to how the file is actually encrypted |
-| `does not mount the sops-age Secret` / `set no AWS role` / `no Workload Identity` | Argo CD's decrypt access is not set up on the branch ([2.2](#22-differences-by-cluster-type)) |
-| `ApplicationSet ... does not exist` | The branch is not pushed yet, or Argo CD has not synced it |
-| No HTTPS certificate | Check DNS (`status`) and that ports 80/443 are open |
-| `Service egov/kong-kong-admin not found` | Kong is not deployed yet; run `all` first |
-
-Avoid: two runs against the same cluster at once, fixing things by hand in
-the cluster (Argo CD puts back what is in git), and running with unpushed
-changes.
+Ends with the Kong summary. Safe to rerun; it never deletes anything. If
+Argo CD gets stuck *waiting for completion of hook* on a first install, the
+tool restarts that app's sync by itself.
 
 ---
 
-## Part 2: Set it up on another branch
+## Step 8: Open the environment
 
-To use the tool for a new environment `<env>` on branch `<branch>`, the branch
-needs the files below. Copy them from `k3s-deployment` (the reference branch)
-and rename `k3s-deployment` to `<env>` inside them. Paths are under
-`deploy-as-code/`.
+If Step 7 warned about DNS, ask for an **A record** `<domain>` → `<VM IP>`.
+HTTPS is issued automatically after that.
 
-### 2.1 Files the branch needs
+| What | URL | Login |
+|---|---|---|
+| DIGIT | `https://<domain>` | |
+| Argo CD | `https://<domain>/argocd` | `admin` (change the password after first login) |
+| Grafana | `https://<domain>/monitoring` | see below |
+| Jaeger | `https://<domain>/jaeger` | |
 
-| File | What to do |
+Passwords (need [kubectl from your Mac](#kubectl-from-your-mac)):
+
+```bash
+kubectl --context <name> -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
+kubectl --context <name> -n monitoring get secret grafana-oauth -o jsonpath='{.data.admin-user}' | base64 -d; echo
+kubectl --context <name> -n monitoring get secret grafana-oauth -o jsonpath='{.data.admin-password}' | base64 -d; echo
+```
+
+From now on, change things in git (push to `k3s-deployment`); Argo CD applies
+them.
+
+---
+
+## kubectl from your Mac
+
+```bash
+kubectl config delete-context <name>; kubectl config delete-cluster <name>; kubectl config delete-user <name>   # after a reinstall
+
+ssh -i ~/.ssh/k3s-sandbox-key <ssh user>@<VM IP> 'sudo cat /etc/rancher/k3s/k3s.yaml' \
+  | sed -e 's/127.0.0.1/<VM IP>/' -e 's/: default$/: <name>/' > ~/.kube/<name>.yaml
+KUBECONFIG=~/.kube/config:~/.kube/<name>.yaml kubectl config view --flatten > ~/.kube/merged \
+  && mv ~/.kube/merged ~/.kube/config
+
+kubectl --context <name> get nodes
+```
+
+---
+
+## If something fails
+
+The error says what to do next (`Next:`). Fix it and rerun the same command.
+
+| Error | Fix |
 |---|---|
-| `one-click-deploy/` | Copy the whole folder |
-| `helm/environments/<env>.yaml` | The environment's values. Set the storage class for the cluster type (`local-path` on k3s, `gp3` on EKS, `managed-csi` on AKS). It must include `keycloak` in the cluster-configs namespaces and `db.namespace: [ egov, health, keycloak ]` in the cluster-configs secrets |
-| `helm/environments/<env>-secrets.yaml` | The secrets, encrypted ([Step 4](#step-4-make-sure-the-secrets-are-ready)) |
-| `helm/.sops.yaml` | A rule for `<env>-secrets.yaml` ([Step 4](#step-4-make-sure-the-secrets-are-ready)) |
-| `helm/charts/argo-cd/bootstrap/<env>-bootstrap.yaml` | Copy `k3s-deployment-bootstrap.yaml`; set the name to `<env>-bootstrap` and `targetRevision` to `<branch>` |
-| `helm/charts/argo-cd/backbone/backbone-app-project.yaml` | Copy unchanged |
-| `helm/charts/argo-cd/backbone/<env>-backbone-appset.yaml` | Copy `k3s-deployment-backbone-appset.yaml`; set the name, `targetRevision: <branch>`, and the value file names to `<env>` |
-| `helm/environments/<env>-backbone/` | Copy `k3s-deployment-backbone/` (one file per backbone chart; adjust per [2.2](#22-differences-by-cluster-type)) |
-| `helm/charts/argo-cd/egov/<env>-egov-appset-*.yaml` | The DIGIT appsets, including `-platform` (Postgres, Keycloak, Kong); set the name, `targetRevision: <branch>` and value file `<env>.yaml` |
-| `helm/charts/argo-cd/egov/egov-app-project.yaml` | Must allow both the `egov` and `keycloak` namespaces |
-| `helm/charts/core-services/gateway-kong/values.yaml` | Kong in database mode with the DIGIT image (as on `k3s-deployment`). Or set `kong.enabled: false` in the config to skip Kong |
+| `config file ... is not complete` | Fill in the listed fields |
+| `reading k3s.yaml over SSH` | SSH check in Step 3; port 22 open to you |
+| `cannot reach the API server` / `x509` | Port 6443 open to you; k3s installed with `--tls-san` (Step 1) |
+| `differs from origin` / `uncommitted changes` | `git pull`; commit or discard local changes |
+| `cannot decrypt ... with age` | Wrong age key (Step 4) |
+| Platform apps timed out | `status` shows which app; fix in git, push, then `go run . backbone -f clusters/<name>.yaml` |
+| Elasticsearch keeps restarting | `vm.max_map_count` missing (Step 1) |
+| No HTTPS certificate | DNS record, and ports 80/443 open to everyone |
+| Kong failed | `go run . kong -f clusters/<name>.yaml` |
 
-If the branch already has its own platform appsets under other names, keep
-them and list their names under `waitFor.appSets` in the config file.
+Don't run two at once, and don't fix things by hand in the cluster (Argo CD
+puts back what is in git).
 
-### 2.2 Differences by cluster type
+---
 
-| | k3s on a VM | EKS | AKS |
-|---|---|---|---|
-| `helm/charts/backbone-services/argo-cd/argo-cd-values.yaml` | Copy from `k3s-deployment` | Must **not** exist | Copy `values-azure-keyvault-sops.yaml` to this name and set the managed identity's client ID and tenant ID |
-| Argo CD decrypt access | Nothing extra | IAM role ARN in `AWS_ROLE_ARN` in `argo-cd/values.yaml` | The managed identity above |
-| `<env>-backbone/elasticsearch-*.yaml` | Keep (1 replica, `local-path`) | Remove the single-node settings; storage class `gp3` | Same as EKS with `managed-csi` |
-| `<env>-backbone/kafka-kraft.yaml` | Keep | Keep `fullnameOverride: release-name-kafka`; remove the single-node settings; set the storage class | Same as EKS |
-| `<env>-backbone/cert-manager.yaml`, `ingress-nginx.yaml` | Keep | Keep | Keep |
-| DNS record | A → VM IP | CNAME → load balancer hostname | A → load balancer IP |
-| Config `secrets.method` | `age` | `kms` | `azure_kv` |
-
-### 2.3 Test the branch before merging
-
-Argo CD always deploys from GitHub, from the branch named in `targetRevision`.
-To test a feature branch before it is merged into `<branch>`:
+## Start over
 
 ```bash
-# 1. Commit your changes on the feature branch
-git add <changed paths>
-git commit -m "<message>"
-
-# 2. Point Argo CD at the feature branch, as a separate temporary commit
-grep -rl 'targetRevision: <branch>$' deploy-as-code/helm/charts/argo-cd \
-  | xargs sed -i '' 's/targetRevision: <branch>$/targetRevision: <feature-branch>/'   # Linux: sed -i
-git commit -am "TEMP: point Argo CD at <feature-branch> for testing"
-
-# 3. Push
-git push -u origin <feature-branch>
+ssh -i ~/.ssh/k3s-sandbox-key <ssh user>@<VM IP>
+sudo /usr/local/bin/k3s-uninstall.sh          # deletes the cluster and all data
 ```
 
-Set `branch: <feature-branch>` in your config file and run `status`, then
-`all`.
+Then Step 1 (install and check), [kubectl from your Mac](#kubectl-from-your-mac), and Step 7.
 
-Before raising the PR, undo the temporary commit:
+---
+
+# Part 2: Create a new k3s environment
+
+A new environment `<env>` with its own branch, domain and secrets, copied
+from `k3s-deployment`. Here `<env>` is both the environment and the branch
+name, `<domain>` its domain. Afterwards, run Part 1 with the new names.
+
+## Step 1: Create the branch and rename the files
 
 ```bash
-git log --oneline -3          # find the TEMP commit
-git revert <TEMP commit sha>
-git push
+git checkout k3s-deployment && git pull
+git checkout -b <env>
+cd deploy-as-code/helm
+
+# Rename the environment's files
+git mv environments/k3s-deployment.yaml               environments/<env>.yaml
+git mv environments/k3s-deployment-backbone           environments/<env>-backbone
+git mv charts/monitoring/values/k3s-deployment        charts/monitoring/values/<env>
+git mv charts/argo-cd/bootstrap/k3s-deployment-bootstrap.yaml       charts/argo-cd/bootstrap/<env>-bootstrap.yaml
+git mv charts/argo-cd/backbone/k3s-deployment-backbone-appset.yaml  charts/argo-cd/backbone/<env>-backbone-appset.yaml
+for f in charts/argo-cd/egov/k3s-deployment-egov-appset-*.yaml; do git mv "$f" "${f/k3s-deployment/<env>}"; done
+
+# Replace the domain first, then the environment / branch name
+grep -rl 'k3s-deployment\.digit\.org' charts environments | xargs sed -i '' 's/k3s-deployment\.digit\.org/<domain>/g'
+grep -rl 'k3s-deployment' charts/argo-cd charts/monitoring/values/<env> environments/<env>.yaml environments/<env>-backbone \
+  | xargs sed -i '' 's/k3s-deployment/<env>/g'
+
+# Check: only comments may be left
+grep -rn 'k3s-deployment' charts/argo-cd environments/<env>.yaml environments/<env>-backbone charts/monitoring/values/<env>
 ```
 
-After the PR is merged: check out `<branch>`, `git pull`, set
-`branch: <branch>` in the config file and run `go run . argocd -f clusters/<name>.yaml`,
-so the cluster follows `<branch>` again. Then delete the feature branch.
+The domain is also hard-coded in 4 chart values files (account, employee,
+keycloak, ui-access-control); the domain replacement covers them.
+
+## Step 2: Create the secrets
+
+**What:** `environments/<env>-secrets.yaml` holds the environment's passwords
+and tokens (database, Keycloak, Kafka, Elasticsearch, ...). It is committed
+**encrypted** with SOPS. Each environment has its **own age key**; whoever
+has the key can read and edit the file, nobody else can.
+
+**Who:** the secrets owner. Run from `deploy-as-code/helm`.
+
+1. **Create the key**
+
+   ```bash
+   brew install age                    # once, for age-keygen
+   age-keygen -o ~/<env>.agekey        # prints "Public key: age1..."
+   chmod 600 ~/<env>.agekey
+   ```
+
+   The **public key** (`age1...`) goes in git. The **key file** never does:
+   keep it safe and send it to the operator only through a password manager
+   or vault.
+
+2. **Tell SOPS to use it.** Add a rule to `.sops.yaml`, next to the `k3s-deployment` one (same indentation):
+
+   ```yaml
+   - path_regex: environments/<env>\-secrets\.yaml$
+     age: '<public key>'
+   ```
+
+3. **Create the file from the k3s one** (needs the `k3s-deployment` age key):
+
+   ```bash
+   SOPS_AGE_KEY_FILE=~/k3s-deployment.agekey \
+     sops -d environments/k3s-deployment-secrets.yaml > environments/<env>-secrets.yaml
+   ```
+
+   This file is **plain text**: do not commit it yet. Open it and give every
+   password and token a new value. Keep the keys and structure as they are.
+
+4. **Encrypt it with the new key**
+
+   ```bash
+   sops --encrypt --in-place environments/<env>-secrets.yaml
+   SOPS_AGE_KEY_FILE=~/<env>.agekey sops -d environments/<env>-secrets.yaml > /dev/null && echo "decrypts OK"
+   ```
+
+5. **Remove the k3s copy** from the new branch:
+
+   ```bash
+   git rm environments/k3s-deployment-secrets.yaml
+   ```
+
+**Before committing:** `git diff --cached environments/<env>-secrets.yaml`
+must show only `ENC[...]` values. If you see a plain password, stop and
+encrypt (step 4).
+
+Argo CD needs nothing extra: the tool loads the age key into the cluster on
+every run (Part 1, Step 7).
+
+## Step 3: Push and run
+
+```bash
+git add -A && git commit -m "feat(<env>): new k3s environment"
+git push -u origin <env>
+```
+
+Then Part 1 with the new values: `secrets.ageKeyFile: ~/<env>.agekey` (Step 4),
+and `env`, `branch`, `domain` in the config file (Step 5).

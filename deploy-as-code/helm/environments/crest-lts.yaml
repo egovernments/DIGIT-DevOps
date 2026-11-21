@@ -12,8 +12,8 @@
 # here; the charts carry only platform-neutral defaults.
 
 global:
-  # Both charts render their Ingress against this. crest-ui takes "/" and crest takes
-  # "/api" on the same host, because the UI bundle fetches same-origin /api/v1.
+  # The UI's host. crest-ui takes "/" here; the API lives on test-lts.digit.org/crest
+  # (crest.ingress.hostName below) and the UI calls it cross-origin, see crest-ui.
   # *.test-lts.digit.org already resolves (wildcard A record), so no DNS change is needed;
   # cert-manager issues crest.test-lts.digit.org-tls-certs on first sync.
   domain: crest.test-lts.digit.org
@@ -57,6 +57,20 @@ cluster-configs:
         db-url: jdbc:postgresql://postgresql.backbone:5432/crest
         # The crest-db image ships its migrations at /flyway/sql.
         flyway-locations: "filesystem:/flyway/sql"
+        # crest-ui's runtime settings, mounted as /config.js (see crest-ui below).
+        # One UI image runs everywhere; only this file differs per environment.
+        # keycloak switches sign-in on: console uses the employee client, worker
+        # the citizen client. apiBaseUrl is where the browser calls the API.
+        config.js: |
+          window.crestConfig = {
+            apiBaseUrl: 'https://test-lts.digit.org/crest',
+            keycloak: {
+              url: 'https://test-lts.digit.org/keycloak',
+              realm: 'CREST',
+              consoleClientId: 'employee',
+              workerClientId: 'citizen',
+            },
+          };
         # Everything below is read by nobody today and kept only so this file still
         # describes the environment if CREST later opts back into the shared block.
         # chart 3.0.1 sets appType "" (its application.yml owns the Hikari pool and
@@ -123,6 +137,15 @@ crest:
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
       nginx.ingress.kubernetes.io/upstream-vhost: test-lts.digit.org
+      # The UI (crest.test-lts.digit.org) calls this API cross-origin with a bearer
+      # token. The Ingress answers the CORS preflight itself, before kong, whose
+      # dynamic-jwt would reject the token-less OPTIONS. Do not also add kong's cors
+      # plugin: duplicate CORS headers make browsers reject the response.
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+      nginx.ingress.kubernetes.io/cors-allow-origin: "https://crest.test-lts.digit.org"
+      nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+      nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, Accept"
+      nginx.ingress.kubernetes.io/cors-max-age: "3600"
   service:
     additionalAnnotations: |
       gateway/route-auth: protected
@@ -161,3 +184,18 @@ crest-ui:
   chart-version: "3.0.1"
   image:
     tag: "main-533cea7"
+  # Serve the environment's settings at /config.js from egov-config (rendered by
+  # cluster-configs above). subPath mounts do not follow ConfigMap edits: restart the
+  # pod after changing config.js.
+  extraVolumes: |
+    - name: runtime-config
+      configMap:
+        name: egov-config
+        items:
+          - key: config.js
+            path: config.js
+  extraVolumeMounts: |
+    - name: runtime-config
+      mountPath: /usr/share/nginx/html/config.js
+      subPath: config.js
+      readOnly: true

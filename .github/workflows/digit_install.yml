@@ -17,6 +17,8 @@ name: DIGIT one-click (Azure)
 #   infra    step 3 only. Stops if the plan would delete/replace the cluster, database,
 #            storage, network or Key Vault, unless confirm = replace.
 #   deploy   step 4 only (also applies a changed DIGIT_SECRETS)
+#   products only the team products listed under `products` in <environment>.yaml (each a
+#            helmfile of packaged charts; helm-charts helmfile/digit3-one-click/products/README.md)
 #   destroy  confirm = delete: Terraform destroy. The resource group (state + Key Vault) is
 #            kept, so install brings the same DIGIT back with the same passwords.
 #            confirm = delete-all: also deletes the resource group, purges the Key Vault and
@@ -28,19 +30,21 @@ name: DIGIT one-click (Azure)
 #             EVERY release via the digit-helmfile plugin (input.yaml + env files from this
 #             fork, helmfiles from helm-charts at the same pinned ref).
 #
-# Jobs:  Plan -> Infra -> Deploy        (Destroy instead, for destroy)
-#   Plan    decides what runs and writes why in its summary.
-#   Infra   Terraform (and, on install, the resource group, Key Vault and files first).
-#   Deploy  the DIGIT apps. On a commit it runs even if Infra failed, so an apps change is
-#           never stuck behind an infra problem; on install it waits for Infra.
+# Jobs:  Plan -> Infra -> Deploy -> Products        (Destroy instead, for destroy)
+#   Plan     decides what runs and writes why in its summary.
+#   Infra    Terraform (and, on install, the resource group, Key Vault and files first).
+#   Deploy   the DIGIT platform. On a commit it runs even if Infra failed, so an apps change
+#            is never stuck behind an infra problem; on install it waits for Infra.
+#   Products the team products, separately: a broken product never fails the platform. On a
+#            commit it runs even if Deploy failed; on install it waits for Deploy.
 #
 # After the first install, every commit to the fork's default branch runs by itself and
-# applies only what changed since the last successful Infra / Deploy (resource-group tags
-# digit-infra-sha / digit-deploy-sha, one-click/scripts/one-click-changes.sh):
-#   Terraform code, or location / terraform_* in input.yaml        -> Infra
-#   the rest of input.yaml, <environment>.yaml, the secrets file   -> Deploy
-#   both                                                           -> Infra and Deploy
-# A failed Infra or Deploy runs again on the next commit (its tag was not moved).
+# applies only what changed since the last successful Infra / Deploy / Products (resource-group
+# tags digit-infra-sha / digit-deploy-sha / digit-products-sha, one-click/scripts/one-click-changes.sh):
+#   Terraform code, or location / terraform_* in input.yaml                  -> Infra
+#   the rest of input.yaml, <environment>.yaml (not products), secrets file  -> Deploy
+#   the products block of <environment>.yaml (or domain, helmfiles_ref, ...) -> Products
+# A failed Infra, Deploy or Products runs again on the next commit (its tag was not moved).
 on:
   push:
     paths:
@@ -57,6 +61,7 @@ on:
           - install
           - infra
           - deploy
+          - products
           - destroy
       confirm:
         description: 'destroy: type delete (keeps state + Key Vault) or delete-all (removes everything). infra: replace, only if it asks'
@@ -127,6 +132,7 @@ jobs:
       deploy: ${{ steps.decide.outputs.deploy }}
       destroy: ${{ steps.decide.outputs.destroy }}
       destroy_all: ${{ steps.decide.outputs.destroy_all }}
+      products: ${{ steps.decide.outputs.products }}
     strategy:
       fail-fast: false
       matrix:
@@ -171,6 +177,9 @@ jobs:
             exit 1
           fi
           state=$(t digit-state)   # installed | destroyed | "" (never finished an install)
+          # products listed in the environment file (enabled or switched off: off = uninstall)
+          nprod=$( { [ -f "$ENV_FILE" ] && yq -r '(.products // {}) | length' "$ENV_FILE"; } 2>/dev/null || echo 0)
+          prod() { echo "products=$1" >> "$GITHUB_OUTPUT"; }
           mode=$(t digit-deploy-mode)
           if [ "$state" = installed ] && [ -n "$mode" ] && [ "$mode" != "$DEPLOY_MODE" ] && [ "$ACTION" != destroy ]; then
             echo "::error file=$INPUT_FILE::This DIGIT was deployed with $mode, but argocd_enabled in input.yaml now says $DEPLOY_MODE. It cannot be switched on a running DIGIT. Change it back, or run destroy and then install again."
@@ -182,8 +191,9 @@ jobs:
               note "Not installed (or destroyed) - this commit changes nothing in Azure. Run the workflow with action = install."
               out false false false false; exit 0
             fi
-            res=$(bash one-click/scripts/one-click-changes.sh "$ENVIRONMENT" "$(t digit-infra-sha)" "$(t digit-deploy-sha)" 2> "$RUNNER_TEMP/why.txt")
+            res=$(bash one-click/scripts/one-click-changes.sh "$ENVIRONMENT" "$(t digit-infra-sha)" "$(t digit-deploy-sha)" "$(t digit-products-sha)" 2> "$RUNNER_TEMP/why.txt")
             infra=$(sed -n 's/^infra=//p' <<< "$res"); deploy=$(sed -n 's/^deploy=//p' <<< "$res")
+            products=$(sed -n 's/^products=//p' <<< "$res"); [ "$nprod" -gt 0 ] || products=false
             yn() { [ "$1" = true ] && echo "**runs**" || echo "skipped (nothing changed)"; }
             {
               echo "### This commit"
@@ -191,6 +201,7 @@ jobs:
               echo "|---|---|"
               echo "| Infra (Terraform) | $(yn "$infra") |"
               echo "| Deploy (DIGIT apps) | $(yn "$deploy") |"
+              echo "| Products | $([ "$nprod" -gt 0 ] && yn "$products" || echo "skipped (no products in $ENV_FILE)") |"
               echo
               echo "Why:"
               echo '```'
@@ -198,7 +209,7 @@ jobs:
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
             cat "$RUNNER_TEMP/why.txt"
-            out false "$infra" "$deploy" false; exit 0
+            out false "$infra" "$deploy" false; prod "$products"; exit 0
           fi
 
           # delete-all: Terraform destroy when something is installed, then remove the resource
@@ -215,7 +226,13 @@ jobs:
             install)
               if [ -n "$tags" ]; then note "Existing environment of $repo: $RESOURCE_GROUP (re-run)"
               else note "New environment: $RESOURCE_GROUP will be created"; fi
-              out true true true false ;;
+              out true true true false; prod "$([ "$nprod" -gt 0 ] && echo true || echo false)" ;;
+            products)
+              if [ "$state" != installed ]; then
+                echo "::error::Nothing is installed for '$ENVIRONMENT' (or it was destroyed). Run the workflow with action = install first."; exit 1
+              fi
+              [ "$nprod" -gt 0 ] || { echo "::error file=$ENV_FILE::No products in $ENV_FILE. Add a products block (one-click/README.md, Products)."; exit 1; }
+              out false false false false; prod true ;;
             infra|deploy|destroy)
               if [ "$state" != installed ]; then
                 echo "::error::Nothing is installed for '$ENVIRONMENT' (or it was destroyed). Run the workflow with action = install first."; exit 1
@@ -615,13 +632,15 @@ jobs:
           # 2. Hard-refresh every Application.
           # 3. Start a sync of the root app and of every app whose last sync failed or was stopped:
           #    auto-sync never retries a commit whose last sync failed.
-          apps() { kubectl -n "$NS_ARGOCD" get applications.argoproj.io -o json; }
+          # platform apps only: product apps (label digit.org/layer=products, root digit-products)
+          # belong to the Products job
+          apps() { kubectl -n "$NS_ARGOCD" get applications.argoproj.io -l 'digit.org/layer!=products' -o json; }
           for a in $(apps | jq -r '.items[] | select(.status.operationState.phase == "Running") | .metadata.name'); do
             echo "Stopping the running sync of $a (it starts again with the new manifests)"
             kubectl -n "$NS_ARGOCD" patch applications.argoproj.io "$a" --type merge \
               -p '{"status":{"operationState":{"phase":"Terminating"}}}' >/dev/null
           done
-          kubectl -n "$NS_ARGOCD" annotate applications.argoproj.io --all argocd.argoproj.io/refresh=hard --overwrite >/dev/null
+          kubectl -n "$NS_ARGOCD" annotate applications.argoproj.io -l 'digit.org/layer!=products' argocd.argoproj.io/refresh=hard --overwrite >/dev/null
           # wait until Argo CD has re-rendered every app (it drops the annotation) and stopped the syncs
           for _ in $(seq 1 60); do
             busy=$(apps | jq -r '[.items[] | select(.metadata.annotations["argocd.argoproj.io/refresh"] != null
@@ -654,7 +673,7 @@ jobs:
           head=$(git rev-parse HEAD)
           deadline=$((SECONDS + 3600)); next_print=0
           while :; do
-            apps=$(kubectl -n "$NS_ARGOCD" get applications.argoproj.io -o json)
+            apps=$(kubectl -n "$NS_ARGOCD" get applications.argoproj.io -l 'digit.org/layer!=products' -o json)
             rev=$(printf '%s' "$apps" | jq -r '.items[] | select(.metadata.name == "digit") | .status.sync.revision // ""')
             # ok when Argo CD runs this commit, or a newer one that contains it
             if [ "$rev" != "$head" ] && [ -n "$rev" ]; then
@@ -710,6 +729,193 @@ jobs:
             echo "Wait 5 to 30 minutes, then open **https://${DOMAIN_NAME}**."
           } >> "$GITHUB_STEP_SUMMARY"
 
+
+  # Team products (products block of <environment>.yaml): deployed after, and separately from,
+  # the platform. On a commit it runs even if Deploy failed; on install it waits for Deploy.
+  Products:
+    needs: [Environments, Plan, Infra, Deploy]
+    if: ${{ !cancelled() && needs.Plan.outputs.products == 'true' && (needs.Deploy.result == 'success' || needs.Deploy.result == 'skipped' || github.event_name == 'push') && (needs.Infra.result != 'failure' || github.event_name == 'push') }}
+    name: Products (${{ matrix.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.Environments.outputs.list) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Azure login
+        uses: ./one-click/actions/azure-login
+        with:
+          credentials: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Check input.yaml
+        uses: ./one-click/actions/load-config
+      - name: Setup sops
+        uses: ./one-click/actions/setup-sops
+        with:
+          version: ${{ env.SOPS_VERSION }}
+          required: true
+      - name: Setup Terraform
+        uses: ./one-click/actions/setup-terraform-azure
+        with:
+          version: ${{ env.TF_VERSION }}
+      - name: Get the helmfiles (${{ env.HELMFILES_REPO }}@${{ env.HELMFILES_REF }})
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ env.HELMFILES_REPO }}
+          ref: ${{ env.HELMFILES_REF }}
+          path: .helmfiles
+          sparse-checkout: helmfile/digit3-one-click
+          persist-credentials: false
+      - name: Check the helmfiles
+        run: |
+          [ -f "$HELMFILE_DIR/digit-helmfile.yaml.gotmpl" ] || {
+            echo "::error file=$INPUT_FILE::No helmfile/digit3-one-click in $HELMFILES_REPO@$HELMFILES_REF. Check helmfiles_repo / helmfiles_ref in input.yaml."; exit 1; }
+          git -C .helmfiles log -1 --format="Helmfiles: $HELMFILES_REPO@%h (%s)" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Fill in the environment file
+        run: |
+          set -euo pipefail
+          [ -f "$ENV_FILE" ] || { echo "::error::$ENV_FILE not found. Run the workflow with action = install first."; exit 1; }
+          terraform -chdir="$TF_DIR" init -input=false -no-color >/dev/null
+          out=$(terraform -chdir="$TF_DIR" output -json)
+          DB_HOST=$(jq -r '.azurerm_postgresql_flexible_server.value // ""' <<< "$out")
+          DB_NAME=$(jq -r '.postgresql_flexible_server_database_name.value // ""' <<< "$out")
+          [ -n "$DB_HOST" ] && [ -n "$DB_NAME" ] || { echo "::error::No database in Terraform state. Run the workflow with action = install."; exit 1; }
+          mkdir -p "$RUNNER_TEMP/env"
+          DB_HOST="$DB_HOST" DB_NAME="$DB_NAME" bash "$HELMFILE_DIR/scripts/render-env.sh" \
+            "$ENV_FILE" "$INPUT_FILE" "$RUNNER_TEMP/env/$ENVIRONMENT.yaml"
+          { echo "DB_HOST=$DB_HOST"; echo "DB_NAME=$DB_NAME"; echo "DIGIT_ENV_FILE=$RUNNER_TEMP/env/$ENVIRONMENT.yaml"; } >> "$GITHUB_ENV"
+      - name: Connect to the cluster
+        run: |
+          set -euo pipefail
+          az aks get-credentials -g "$RESOURCE_GROUP" -n "$ENVIRONMENT" --overwrite-existing \
+            || { echo "::error::Cluster $ENVIRONMENT not found. Run the workflow with action = install first."; exit 1; }
+          kubectl get nodes
+      - name: Install Helm, Helmfile, helm-diff, helm-secrets
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" | tar -xz -C "$RUNNER_TEMP" linux-amd64/helm
+          sudo install -m 0755 "$RUNNER_TEMP/linux-amd64/helm" /usr/local/bin/helm
+          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/v${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_linux_amd64.tar.gz" | tar -xz -C "$RUNNER_TEMP" helmfile
+          sudo install -m 0755 "$RUNNER_TEMP/helmfile" /usr/local/bin/helmfile
+          helm plugin install https://github.com/databus23/helm-diff --version "v${HELM_DIFF_VERSION}"
+          helm plugin install https://github.com/jkroepke/helm-secrets --version "v${HELM_SECRETS_VERSION}"
+          helm version --short; helmfile --version; helm plugin list
+
+      - name: Products to deploy
+        run: |
+          set -euo pipefail
+          {
+            echo "### Products"
+            echo "| Product | Namespace | Helmfile | |"
+            echo "|---|---|---|---|"
+            yq -o=json '.products // {}' "$ENV_FILE" | jq -r 'to_entries[] | "| \(.key) | \(.value.namespace // "egov") | `\(.value.helmfile // "products/\(.key)/helmfile.yaml.gotmpl")` | \(if .value.enabled == false then "switched off (uninstall)" else "deploy" end) |"'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # A product in its own namespace needs that namespace and the shared egov-config / db
+      # from cluster-configs (platform). Created by Deploy; this only checks.
+      - name: Product namespaces are ready
+        run: |
+          set -euo pipefail
+          for ns in $(yq -r '(.products // {}) | to_entries[] | select(.value.enabled != false) | .value.namespace // "egov"' "$ENV_FILE" | sort -u); do
+            kubectl get ns "$ns" -o name >/dev/null 2>&1 && kubectl -n "$ns" get secret db -o name >/dev/null 2>&1 || {
+              echo "::error file=$ENV_FILE::Namespace $ns (or its db Secret) does not exist yet. It is created by the platform: run the workflow with action = deploy, then products."; exit 1; }
+          done
+
+      - name: Deploy the products with helmfile
+        if: env.DEPLOY_MODE == 'helmfile'
+        run: helmfile -f products.yaml.gotmpl apply --suppress-secrets --skip-diff-on-install
+        working-directory: ${{ env.HELMFILE_DIR }}
+
+      # Argo CD mode: a second root app, digit-products, gives one Application per product release
+      # (label digit.org/layer=products). Same restart rules as the platform root app.
+      - name: Argo CD - hand the products over to Argo CD
+        if: env.DEPLOY_MODE == 'argocd'
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          kubectl apply -f - <<EOF
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: digit-products
+            namespace: ${NS_ARGOCD}
+            labels:
+              digit.org/layer: products
+          spec:
+            project: default
+            source:
+              repoURL: https://github.com/${GITHUB_REPOSITORY}.git
+              targetRevision: ${BRANCH}
+              path: one-click
+              plugin:
+                name: digit-helmfile
+                env:
+                  - {name: MODE, value: apps}
+                  - {name: ROOT_HELMFILE, value: products.yaml.gotmpl}
+                  - {name: DB_HOST, value: "${DB_HOST}"}
+                  - {name: DB_NAME, value: "${DB_NAME}"}
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: ${NS_ARGOCD}
+            syncPolicy:
+              automated: {prune: true, selfHeal: true}
+              retry: {limit: 20, backoff: {duration: 30s, factor: 2, maxDuration: 10m}}
+          EOF
+          apps() { kubectl -n "$NS_ARGOCD" get applications.argoproj.io -l digit.org/layer=products -o json; }
+          for a in $(apps | jq -r '.items[] | select(.status.operationState.phase == "Running") | .metadata.name'); do
+            echo "Stopping the running sync of $a (it starts again with the new manifests)"
+            kubectl -n "$NS_ARGOCD" patch applications.argoproj.io "$a" --type merge \
+              -p '{"status":{"operationState":{"phase":"Terminating"}}}' >/dev/null
+          done
+          kubectl -n "$NS_ARGOCD" annotate applications.argoproj.io -l digit.org/layer=products argocd.argoproj.io/refresh=hard --overwrite >/dev/null
+          for _ in $(seq 1 60); do
+            busy=$(apps | jq -r '[.items[] | select(.metadata.annotations["argocd.argoproj.io/refresh"] != null
+                     or .status.operationState.phase == "Terminating") | .metadata.name] | join(" ")')
+            [ -z "$busy" ] && break
+            sleep 10
+          done
+          [ -z "$busy" ] || echo "::warning::Still refreshing or stopping after 10 minutes: $busy"
+          for a in $(apps | jq -r '.items[]
+                | select(.metadata.name == "digit-products" or ((.status.operationState.phase // "") | test("^(Failed|Error)$")))
+                | select((.status.operationState.phase // "") | test("^(Running|Terminating)$") | not)
+                | .metadata.name'); do
+            kubectl -n "$NS_ARGOCD" patch applications.argoproj.io "$a" --type merge \
+              -p "{\"operation\":{\"initiatedBy\":{\"username\":\"one-click-workflow\"},\"sync\":{\"revision\":\"${BRANCH}\"}}}" >/dev/null
+            echo "Started a sync of $a"
+          done
+
+      - name: Argo CD - wait until every product application is synced and healthy
+        if: env.DEPLOY_MODE == 'argocd'
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 2400)); next_print=0
+          while :; do
+            apps=$(kubectl -n "$NS_ARGOCD" get applications.argoproj.io -l digit.org/layer=products -o json)
+            total=$(printf '%s' "$apps" | jq '.items | length')
+            pending=$(printf '%s' "$apps" | jq -r '.items[]
+              | select(.status.sync.status != "Synced" or .status.health.status != "Healthy")
+              | "\(.metadata.name)  sync=\(.status.sync.status // "-")  health=\(.status.health.status // "-")"')
+            if [ "$total" -gt 0 ] && [ -z "$pending" ]; then echo "All $total product applications are synced and healthy"; break; fi
+            if [ $SECONDS -ge "$next_print" ]; then
+              echo "--- $(date -u +%H:%M:%S) waiting for:"; printf '%s\n' "$pending"; next_print=$((SECONDS + 120))
+            fi
+            if [ $SECONDS -ge $deadline ]; then
+              echo "::error::The products did not finish within 40 minutes. Still waiting for:"; printf '%s\n' "$pending"
+              printf '%s' "$apps" | jq -r '.items[] | select(.status.conditions != null) | "\(.metadata.name): \(.status.conditions | map(.message) | join(" | "))"' | cut -c1-400
+              exit 1
+            fi
+            sleep 20
+          done
+
+      - name: Remember the commit now running in Azure (products)
+        run: |
+          az tag update --resource-id "$(az group show -n "$RESOURCE_GROUP" --query id -o tsv)" --operation merge \
+            --tags digit-products-sha="$(git rev-parse HEAD)" -o none
   Destroy:
     needs: [Environments, Plan]
     if: ${{ needs.Plan.outputs.destroy == 'true' || needs.Plan.outputs.destroy_all == 'true' }}

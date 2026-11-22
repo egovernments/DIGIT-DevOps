@@ -168,10 +168,11 @@ Every commit to your copy starts the workflow by itself. It changes only what yo
 |---|---|
 | `terraform_*` or `location` in `input.yaml`, or the Terraform code | **infra** (Azure) only |
 | the rest of `input.yaml` (domain, e-mail, `helmfiles_ref`), your environment file, or your secrets file | **deploy** (DIGIT) only |
+| the `products` block of your environment file | **products** only (and **deploy** first, when a product's namespace or `shared-secrets` changed); see [Products](#products-your-own-helmfile-on-the-platform) |
 | both | **infra** and **deploy** |
 | anything else (docs, other folders, comments) | nothing |
 
-Each run shows three jobs: **Plan → Infra → Deploy**. A part with nothing to do is grey
+Each run shows four jobs: **Plan → Infra → Deploy → Products**. A part with nothing to do is grey
 (skipped). **Plan**'s summary says what runs and which change caused it.
 
 - **Infra and Deploy don't block each other on a commit.** If Infra fails, Deploy still applies
@@ -191,6 +192,27 @@ Each run shows three jobs: **Plan → Infra → Deploy**. A part with nothing to
 | get the newest DIGIT version | Update the `chart-version` lines you want in your environment file (and `helmfiles_ref` in `input.yaml` for newer helmfiles), commit. **Sync fork → Update branch** brings a newer workflow and templates. |
 | delete my DIGIT | **Run workflow** with **destroy**, type `delete` in **confirm**. Keeps `<your-name>-rg` (state + Key Vault): **install** brings the same DIGIT back with the same passwords. |
 | delete everything in Azure | **Run workflow** with **destroy**, type `delete-all` in **confirm**. Also deletes `<your-name>-rg` (state storage, Key Vault) and removes `<environment>.yaml` + `<environment>-secrets.yaml` from your fork. Works after an earlier `delete` too. |
+
+## Products: your own helmfile on the platform
+
+The install gives you the **platform** (backbone, DIGIT core, monitoring). A team adds its **product** with its own helmfile of packaged Helm charts (from `helm.digit.org` or any Helm repository). Add it to your environment file:
+
+```yaml
+products:
+  health:
+    helmfile: git::https://github.com/<org>/<repo>.git@deploy/helmfile.yaml.gotmpl?ref=v1.4.0   # your repo, pinned
+    # or keep it in egovernments/helm-charts: helmfile/digit3-one-click/products/health/ (the default path)
+    namespace: health              # optional, default egov
+    values:                        # what your helmfile gets as .Values
+      health-service-request: {chart-version: 3.0.1}
+```
+
+Commit. Only the **Products** job runs: the platform is not touched, and a failing product never fails the platform. (When you add a product in its **own namespace**, or change its namespace or `shared-secrets`, **Deploy** runs first: the platform creates the namespace and copies `egov-config` and the `db` Secret into it.)
+- **Run it by hand:** **Actions → Run workflow → products**.
+- **Remove a product:** set `enabled: false`, commit. Its releases are uninstalled.
+- **Product passwords:** add a Secret in `DIGIT_SECRETS` with `namespace: [<product namespace>]`, then run **deploy**.
+
+What a product helmfile gets and must do (the contract), plus an example: [helm-charts `helmfile/digit3-one-click/products/README.md`](https://github.com/egovernments/helm-charts/tree/master/helmfile/digit3-one-click/products).
 
 ## Helmfile or Argo CD?
 
@@ -414,6 +436,7 @@ Any other path not in the template is rejected as a typo.
 | `install` | first time, or re-run a failed install: resource group, state storage, Key Vault, environment file, secrets, Terraform, deploy | - |
 | `infra` | Terraform only | `replace` only if it asks |
 | `deploy` | deploy only (helmfile, or Argo CD), and applies `DIGIT_SECRETS` | - |
+| `products` | the products in your environment file only | - |
 | `destroy` | Terraform destroy; keeps `<environment>-rg` (state + Key Vault) | `delete` |
 | `destroy` | everything: Terraform destroy, `<environment>-rg` (state + Key Vault, purged), and the environment files in the fork | `delete-all` |
 
@@ -424,7 +447,7 @@ default branch runs the workflow (see [After the install](#after-the-install-you
 
 | Tag | Meaning |
 |---|---|
-| `digit-infra-sha`, `digit-deploy-sha` | commit last applied for infra / deploy |
+| `digit-infra-sha`, `digit-deploy-sha`, `digit-products-sha` | commit last applied for infra / deploy / products |
 | `digit-state` | `installed` or `destroyed` |
 | `digit-deploy-mode` | `helmfile` or `argocd` |
 | `managed-by=digit-one-click`, `digit-repo=<owner>/<repo>`, `digit-name=<environment>` | ownership |

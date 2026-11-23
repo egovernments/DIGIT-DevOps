@@ -1539,11 +1539,11 @@ clickhouse:
 # points at the ingress; cert-manager issues the certificate on first sync).
 superset:
   namespace: superset
-  # Metadata database on the shared PostgreSQL 18 (CloudNativePG) in backbone.
-  # Role + database `superset` are created once by hand (see
-  # charts/argo-cd/analytics/README.md); the connection itself is in superset-secret.
+  # Metadata database on postgres.egov (PostgreSQL 15, egov/postgres-0). Role +
+  # database `superset` were created by hand (see charts/argo-cd/analytics/README.md);
+  # the connection itself is in superset-secret.
   database:
-    host: postgresql.backbone
+    host: postgres.egov
     name: superset
     user: superset
   # Redis db0 is used by the platform; 2/3 are free.
@@ -1553,11 +1553,23 @@ superset:
     resultsDb: "3"
   branding:
     appName: "DIGIT Analytics"
-  # Username/password login only. GitHub team SSO (auth.oauth) needs a GitHub OAuth
-  # app for this host, with OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET in superset-secret.
   auth:
+    # GitHub sign-in plus username/password on the same login page.
+    # OAuth app callback: https://superset.test-lts.digit.org/oauth-authorized/github
+    # Client ID/secret: OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET in superset-secret
+    # (cluster-configs.secrets.generic in test-lts-secrets.yaml).
     oauth:
-      enabled: false
+      enabled: true
+      githubOrg: egovernments
+      # GitHub team slug -> Superset roles. Only members of these teams can
+      # sign in with GitHub; everyone also gets defaultRole.
+      teamRoles:
+        digit-lts-superset-admins: [ Admin ]
+        digit-lts-superset-users: [ Alpha, sql_lab ]
+      defaultRole: Gamma
+      syncRolesAtLogin: true
+    passwordLogin:
+      enabled: true
   web:
     resources:
       requests:

@@ -1,54 +1,19 @@
 # Analytics (Superset + ClickHouse) on the digit-lts AKS cluster.
 #
-# Read by:
-#   digit-lts-cluster-configs-analytics  this file + analytics-lts-secrets.yaml with the
-#                                        cluster-configs chart: the namespaces and the
-#                                        superset-secret / clickhouse-users Secrets
-#   digit-lts-analytics-appset           one Application analytics-<service> per section
-#                                        below that has a chart-version, with that
-#                                        section (minus chart-version) + global as the
-#                                        chart's root values
+# Read by digit-lts-analytics-appset: one Application analytics-<service> per section
+# below that has a chart-version, with that section (minus chart-version) + global as
+# the chart's root values.
+#
+# Namespaces superset, clickhouse, clickhouse-operator and the Secrets superset-secret
+# and clickhouse-users come from digit-lts-cluster-configs: test-lts.yaml
+# (cluster-configs.namespaces) and test-lts-secrets.yaml (cluster-configs.secrets.generic).
 #
 # chart-version (and superset.image.tag) are written by Kargo project `analytics`
 # (charts/kargo/config/projects/analytics.yaml) on promotion -- do not edit them by
 # hand. Everything else here is ordinary configuration, changed by PR.
-#
-# Never layered onto test-lts.yaml: its egov-config/secrets are not for these namespaces.
 
 global:
   domain: test-lts.digit.org
-
-cluster-configs:
-  # Only the three analytics namespaces and two Secrets. Everything the chart renders
-  # for the whole cluster belongs to digit-lts-cluster-configs, so it is off here.
-  cluster-roles:
-    enabled: false
-  root-ingress: null
-  db: null
-  nginx-errors: null
-  namespaces:
-    create: true
-    values: [superset, clickhouse, clickhouse-operator]
-  configmaps:
-    egov-config: null
-    egov-service-host: null
-    hcm-moz-impl: null
-  secrets:
-    db: null
-    kc-db: null
-    kc-admin: null
-    egov-notification-sms: null
-    egov-notification-mail: null
-    wordpress: null
-    kafka-kraft: null
-    hmac-secret: null
-    minio: null
-    vault-approle: null
-    # superset-secret (namespace superset): SECRET_KEY, SQLALCHEMY_DATABASE_URI,
-    #   DB_HOST, DB_PORT, REDIS_HOST, REDIS_PORT, ADMIN_PASSWORD
-    # clickhouse-users (namespace clickhouse): default-password, app-password,
-    #   otelcollector-password
-    # are cluster-configs.secrets.generic in analytics-lts-secrets.yaml.
 
 # ── ClickHouse operator (namespace clickhouse-operator) ─────────────────────────
 # Chart defaults: operator v0.0.8, webhooks + metrics certs from cert-manager.

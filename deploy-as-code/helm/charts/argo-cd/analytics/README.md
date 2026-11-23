@@ -21,7 +21,7 @@ https://superset.test-lts.digit.org — username/password login (`admin`, passwo
 | `environments/analytics-lts.yaml` | All values. Kargo merges `<service>.chart-version` (and `superset.image.tag`) into it on promotion |
 | `analytics-app-set.yaml` | One Application `analytics-<service>` per section **with a chart-version**; values = that section + `global` as root values |
 | `analytics-app-project.yaml` | `analytics-project`: the registry, the three namespaces, the operator's cluster-scoped kinds |
-| `../cluster-configs/cluster-configs-analytics-application.yaml` | Namespaces + Secrets `superset-secret`, `clickhouse-users` (`cluster-configs.secrets.generic` in `environments/analytics-lts-secrets.yaml`, SOPS/Azure Key Vault) |
+| `environments/test-lts.yaml` + `test-lts-secrets.yaml` | Through `digit-lts-cluster-configs`: the three namespaces (`cluster-configs.namespaces`) and Secrets `superset-secret`, `clickhouse-users` (`cluster-configs.secrets.generic`, SOPS/Azure Key Vault) |
 
 All of it syncs from git through `digit-lts-bootstrap`; nothing is applied by hand.
 A service has no Application until its first promotion.

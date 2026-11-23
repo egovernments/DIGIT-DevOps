@@ -1,0 +1,88 @@
+# Analytics Kargo pipeline on digit-lts: Superset + ClickHouse from
+# helm.digit.org/digit3/analytics. See ../../../argo-cd/kargo/README.md and
+# ../../../argo-cd/analytics/.
+#
+# Promotion merges <service>.chart-version (and superset.image.tag) into
+# environments/test-lts.yaml on digit-lts; ApplicationSet
+# digit-lts-analytics-appset creates/updates analytics-<service> from that.
+# A service has no Application until its first promotion.
+#
+# First promotion order: clickhouse-operator, then clickhouse, then superset (the
+# operator owns the ClickHouse CRDs; Superset's check pings ClickHouse).
+kargo:
+  # Kargo project namespace. The workloads run in superset, clickhouse and
+  # clickhouse-operator, never here (Kargo creates and labels this namespace itself).
+  project: analytics
+  registry: docker.io/egovio
+  argocdAppPrefix: analytics-
+  git:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+  chartRepo: https://helm.digit.org/digit3/analytics
+  chartSemver: "^3.0.0"
+  masterOnlyStages: []
+  envFileWrite: merge
+  verify:
+    enabled: true
+    namespace: superset
+
+  services:
+    # ClickHouse Inc. operator (CRDs + admission webhooks). Chart-only: the image is
+    # pinned by the chart.
+    - name: clickhouse-operator
+      chart: clickhouse-operator
+      image: false
+      namespace: clickhouse-operator
+      freightCreationPolicy: Manual
+      discoveryLimit: 20
+      interval: 5m0s
+      functionalCheck:
+        script: clickhouse-operator.sh
+        settleSeconds: 90
+
+    # One ClickHouse server + one Keeper. Chart-only: server/Keeper images are pinned
+    # by the chart (25.7.8.71).
+    - name: clickhouse
+      chart: clickhouse
+      image: false
+      namespace: clickhouse
+      freightCreationPolicy: Manual
+      discoveryLimit: 20
+      interval: 5m0s
+      functionalCheck:
+        script: clickhouse.sh
+        settleSeconds: 90
+        env:
+          READONLY_USER: app          # what Superset connects as
+          USERS: otelcollector
+          MIN_FREE_PCT: "15"
+
+    # Superset: chart + image egovio/superset (care-YYYYMMDD builds of image/Dockerfile).
+    - name: superset
+      chart: superset
+      namespace: superset
+      deploymentName: superset-web    # deploy-state check; the functional check covers worker/beat too
+      allowTags: '^care-[0-9]{8}(-[0-9]+)?$'
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+      functionalCheck:
+        script: superset.sh
+        env:
+          PUBLIC_URL: https://superset.test-lts.digit.org
+          CLICKHOUSE_URL: http://clickhouse-clickhouse-headless.clickhouse.svc.cluster.local:8123
+          ADMIN_USERNAME: admin
+
+  stages:
+    - name: digit-lts
+      color: "#7B3BC2"
+      branch: digit-lts
+      envFile: deploy-as-code/helm/environments/test-lts.yaml
+      verifyKubeconfigSecret: verify-kubeconfig-digit-lts
+      autoPromotion: false
+
+  teams:
+    - name: devops
+      role: admin
+      groups: [egovernments:micro-service-devops]

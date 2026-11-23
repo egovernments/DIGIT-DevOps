@@ -1,0 +1,90 @@
+## Analytics services on digit-lts, deployed by Kargo (project `analytics`).
+##
+## One Application analytics-<service> per section of environments/test-lts.yaml
+## that has a chart-version. Kargo writes chart-version (and superset.image.tag) there on
+## promotion, so a service gets its Application at its first promotion, and every later
+## promotion is just a new chart-version/image.tag that this set re-reads (~60s).
+##
+##   chart   <service> from helm.digit.org/digit3/analytics at <service>.chart-version
+##   values  that section, minus chart-version, plus `global`, AS THE ROOT values (the
+##           "root" layout, as crest); toJson keeps every value a literal
+##   ns      fixed per service below
+##
+## preserveResourcesOnDeletion: if a section ever loses its chart-version (a bad edit),
+## the Application goes but the workloads -- and ClickHouse's volumes -- stay.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: digit-lts-analytics-appset
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  syncPolicy:
+    preserveResourcesOnDeletion: true
+  generators:
+    - matrix:
+        generators:
+          - git:
+              repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+              revision: digit-lts
+              files:
+                - path: deploy-as-code/helm/environments/test-lts.yaml
+              requeueAfterSeconds: 60
+          # One element per promoted service.
+          - list:
+              elementsYaml: |
+                {{- $p := . }}
+                {{- $out := list }}
+                {{- range $s := list (dict "name" "clickhouse-operator" "namespace" "clickhouse-operator") (dict "name" "clickhouse" "namespace" "clickhouse") (dict "name" "superset" "namespace" "superset") }}
+                {{- $vals := get $p $s.name }}
+                {{- if and (kindIs "map" $vals) (hasKey $vals "chart-version") }}
+                {{- $v := omit $vals "chart-version" }}
+                {{- $_ := set $v "global" (get $p "global" | default dict) }}
+                {{- $out = append $out (dict "svc" (dict "name" $s.name "namespace" $s.namespace "chartVersion" (toString (get $vals "chart-version")) "values" $v)) }}
+                {{- end }}
+                {{- end }}
+                {{- toJson $out }}
+
+  template:
+    metadata:
+      name: 'analytics-{{ .svc.name }}'
+    spec:
+      project: analytics-project
+      source:
+        repoURL: https://helm.digit.org/digit3/analytics
+        chart: '{{ .svc.name }}'
+        targetRevision: '{{ .svc.chartVersion }}'
+        helm:
+          releaseName: '{{ .svc.name }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .svc.namespace }}'
+      syncPolicy:
+        automated:
+          # prune stays false: clickhouse owns data volumes.
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - ApplyOutOfSyncOnly=true
+          # the operator's CRDs are too large for client-side apply
+          - ServerSideApply=true
+          # clickhouse may sync before the operator has installed the CRDs; it retries
+          - SkipDryRunOnMissingResource=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m0s
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+
+  templatePatch: |
+    spec:
+      source:
+        helm:
+          valuesObject: {{ toJson .svc.values }}

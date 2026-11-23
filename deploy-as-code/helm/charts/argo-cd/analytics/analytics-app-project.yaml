@@ -1,0 +1,52 @@
+## AppProject for analytics (Superset + ClickHouse) on the Azure AKS digit-lts
+## (test-lts.digit.org) environment. Values: environments/test-lts.yaml.
+##
+## The charts are pulled from the published registry
+## (helm.digit.org/digit3/analytics); the Applications get their values inline from the
+## ApplicationSet, so the registry is the only source.
+##
+## Namespaces superset, clickhouse and clickhouse-operator are created by
+## digit-lts-cluster-configs (test-lts.yaml), not here.
+##
+## The cluster-scoped kinds are the ClickHouse operator's: its two CRDs, the ClusterRoles
+## it runs under, and the admission webhooks that validate ClickHouseCluster and
+## KeeperCluster.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: analytics-project
+  namespace: argocd
+spec:
+  description: Analytics (Superset, ClickHouse) for the Azure AKS digit-lts environment
+
+  sourceRepos:
+    - https://helm.digit.org/digit3/analytics
+
+  destinations:
+    - namespace: superset
+      server: https://kubernetes.default.svc
+    - namespace: clickhouse
+      server: https://kubernetes.default.svc
+    - namespace: clickhouse-operator
+      server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+
+  ## Everything namespaced inside the three destinations: the charts render Deployments,
+  ## Services, ConfigMaps, Ingress, Job, HPA/PDB (superset), cert-manager Issuer and
+  ## Certificates, Roles (operator) and ClickHouseCluster/KeeperCluster (clickhouse);
+  ## the operator then creates StatefulSets, PVCs and Pods, which the UI must be
+  ## allowed to show.
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

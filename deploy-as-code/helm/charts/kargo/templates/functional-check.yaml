@@ -1,0 +1,84 @@
+{{- $k := .Values.kargo }}
+{{- if and $k.project $k.verify.enabled }}
+{{- range $svc := $k.services }}
+{{- with $svc.functionalCheck }}
+{{- $hasImage := ne (toString $svc.image) "false" }}
+{{- $script := $.Files.Get (printf "checks/%s" .script) }}
+{{- if not $script }}
+{{- fail (printf "kargo.services[%s].functionalCheck.script %q: no such file under charts/kargo/checks/" $svc.name .script) }}
+{{- end }}
+---
+# Functional check for {{ $svc.name }}: checks/{{ .script }} run as a Job against the
+# stage's cluster (read-only kubeconfig), after the promotion and on every Reverify.
+# Passes only when the service is configured and ready to use, not merely Running.
+# {{ `{{args.*}}` }} are resolved by Argo Rollouts.
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: functional-check-{{ $svc.name }}
+  namespace: {{ $k.project }}
+spec:
+  args:
+    - name: kubeconfigSecret
+    {{- if $hasImage }}
+    - name: expectedTag
+    {{- end }}
+  metrics:
+    - name: functional
+      count: 1
+      provider:
+        job:
+          spec:
+            backoffLimit: 0
+            activeDeadlineSeconds: {{ add (.timeoutSeconds | default $k.verify.timeoutSeconds) (.settleSeconds | default 0) 120 }}
+            ttlSecondsAfterFinished: 600
+            template:
+              spec:
+                restartPolicy: Never
+                securityContext:
+                  runAsNonRoot: true
+                  seccompProfile:
+                    type: RuntimeDefault
+                volumes:
+                  - name: kubeconfig
+                    secret:
+                      secretName: {{ `{{args.kubeconfigSecret}}` | quote }}
+                containers:
+                  - name: check
+                    image: {{ $k.verify.image | quote }}
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      runAsNonRoot: true
+                      runAsUser: 65532
+                      capabilities:
+                        drop: [ALL]
+                    env:
+                      - name: KUBECONFIG
+                        value: /kc/config
+                      - name: HOME              # kubectl cache dir must be writable by non-root
+                        value: /tmp
+                      - name: NS
+                        value: {{ $svc.namespace | default $k.verify.namespace | quote }}
+                      - name: TIMEOUT
+                        value: {{ .timeoutSeconds | default $k.verify.timeoutSeconds | quote }}
+                      - name: SETTLE_SECONDS
+                        value: {{ .settleSeconds | default 0 | quote }}
+                      {{- if $hasImage }}
+                      - name: EXPECTED_TAG
+                        value: {{ `{{args.expectedTag}}` | quote }}
+                      {{- end }}
+                      {{- range $name, $value := (.env | default dict) }}
+                      - name: {{ $name }}
+                        value: {{ $value | toString | quote }}
+                      {{- end }}
+                    volumeMounts:
+                      - name: kubeconfig
+                        mountPath: /kc
+                        readOnly: true
+                    command: ["/bin/sh", "-c"]
+                    args:
+                      - |
+{{ $script | indent 24 }}
+{{- end }}
+{{- end }}
+{{- end }}

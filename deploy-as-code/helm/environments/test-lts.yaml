@@ -5,7 +5,7 @@ global:
 cluster-configs:
   namespaces:
     create: true
-    values: [backbone, egov, es-cluster, kafka-cluster, monitoring, playground, health, inji]
+    values: [backbone, egov, es-cluster, kafka-cluster, monitoring, playground, health, inji, superset, clickhouse, clickhouse-operator]
   root-ingress:
     cert-issuer: letsencrypt-prod
   configmaps:
@@ -234,7 +234,7 @@ cluster-configs:
       name: mimotooidc
       namespace: [inji]
     kargo:
-      projects: [crest-lts, studio-lts, core-lts]
+      projects: [crest-lts, studio-lts, core-lts, analytics]
       adminSecret:
         enabled: true
         name: kargo-api
@@ -1491,3 +1491,88 @@ inji-ingress:
       enabled: true
     injiverify:
       enabled: false
+
+# ═══ Analytics: Superset + ClickHouse ═════════════════════════════════════════════
+# Deployed by Kargo project `analytics` (charts/kargo/config/projects/analytics.yaml)
+# through ApplicationSet digit-lts-analytics-appset (charts/argo-cd/analytics/): one
+# Application analytics-<service> per section below that has a chart-version, with that
+# section (minus chart-version) + global as the chart's root values.
+# chart-version (and superset.image.tag) are written by Kargo on promotion -- do not
+# edit them by hand. Namespaces: cluster-configs.namespaces above; Secrets
+# superset-secret / clickhouse-users: cluster-configs.secrets.generic in
+# test-lts-secrets.yaml.
+
+# ── ClickHouse operator (namespace clickhouse-operator) ─────────────────────────
+# Chart defaults: operator v0.0.8, webhooks + metrics certs from cert-manager.
+clickhouse-operator: {}
+
+# ── ClickHouse (namespace clickhouse) ───────────────────────────────────────────
+# One server + one Keeper, 25.7.8.71. Users default/app/otelcollector, passwords from
+# Secret clickhouse-users. Superset connects as `app` (read-only) to
+#   clickhousedb://app:<app-password>@clickhouse-clickhouse-headless.clickhouse.svc.cluster.local:8123/default
+clickhouse:
+  cluster:
+    spec:
+      # Chart default 1 CPU / 2Gi requested, 4 CPU / 8Gi limit. Nodes here run at
+      # 65-85% CPU requested, so request less; the limit still allows bursts.
+      containerTemplate:
+        resources:
+          requests:
+            cpu: 500m
+            memory: 2Gi
+          limits:
+            cpu: "2"
+            memory: 4Gi
+      dataVolumeClaimSpec:
+        resources:
+          requests:
+            storage: 20Gi
+  keeper:
+    spec:
+      containerTemplate:
+        resources:
+          requests:
+            cpu: 100m
+
+# ── Superset (namespace superset) ───────────────────────────────────────────────
+# https://superset.test-lts.digit.org (the *.test-lts.digit.org wildcard record already
+# points at the ingress; cert-manager issues the certificate on first sync).
+superset:
+  namespace: superset
+  # Metadata database on the shared PostgreSQL 18 (CloudNativePG) in backbone.
+  # Role + database `superset` are created once by hand (see
+  # charts/argo-cd/analytics/README.md); the connection itself is in superset-secret.
+  database:
+    host: postgresql.backbone
+    name: superset
+    user: superset
+  # Redis db0 is used by the platform; 2/3 are free.
+  redis:
+    host: redis.backbone.svc.cluster.local
+    celeryDb: "2"
+    resultsDb: "3"
+  branding:
+    appName: "DIGIT Analytics"
+  # Username/password login only. GitHub team SSO (auth.oauth) needs a GitHub OAuth
+  # app for this host, with OAUTH_CLIENT_ID / OAUTH_CLIENT_SECRET in superset-secret.
+  auth:
+    oauth:
+      enabled: false
+  web:
+    resources:
+      requests:
+        cpu: 300m
+  worker:
+    resources:
+      requests:
+        cpu: 100m
+  beat:
+    resources:
+      requests:
+        cpu: 50m
+  initJob:
+    adminUsername: admin
+    adminEmail: admin@test-lts.digit.org
+  ingress:
+    enabled: true
+    hostName: superset.test-lts.digit.org

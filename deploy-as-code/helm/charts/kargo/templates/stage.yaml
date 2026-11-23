@@ -61,19 +61,29 @@ spec:
       {{- else }}
         direct: true
       {{- end }}
-  {{- if and $k.verify.enabled $stage.verifyKubeconfigSecret $hasImage }}
+  {{- /* Deploy-state check for image services; plus the service's functional check
+         (templates/functional-check.yaml) when it sets functionalCheck, which also
+         gives a chart-only service a verification. */}}
+  {{- if and $k.verify.enabled $stage.verifyKubeconfigSecret (or $hasImage $svc.functionalCheck) }}
   verification:
     analysisTemplates:
+      {{- if $hasImage }}
       - name: deploy-state-check
+      {{- end }}
+      {{- if $svc.functionalCheck }}
+      - name: functional-check-{{ $svc.name }}
+      {{- end }}
     args:
       - name: kubeconfigSecret
         value: {{ $stage.verifyKubeconfigSecret | quote }}
+      {{- if $hasImage }}
       - name: namespace
         value: {{ $svc.namespace | default $k.verify.namespace | quote }}
       - name: deployment
         value: {{ $svc.deploymentName | default $svc.name | quote }}
       - name: expectedTag
         value: {{ printf "${{ imageFrom(\"%s/%s\").Tag }}" $k.registry $repo | quote }}
+      {{- end }}
   {{- end }}
   promotionTemplate:
     spec:

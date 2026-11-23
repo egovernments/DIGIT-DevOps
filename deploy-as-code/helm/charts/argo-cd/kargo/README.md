@@ -40,6 +40,18 @@ Pipeline chart + per-project configs: `deploy-as-code/helm/charts/kargo/`
 | Project (namespace) | Module | Chart source | Services |
 |---|---|---|---|
 | `crest-lts` | crest | `helm.digit.org/digit3/crest` (root layout) | `crest`, `crest-ui` |
+| `analytics` | analytics | `helm.digit.org/digit3/analytics` (root layout, `charts/argo-cd/analytics/`) | `clickhouse-operator`, `clickhouse` (chart-only), `superset` |
+
+### Functional checks
+
+A service may set `functionalCheck` (see `charts/kargo/values.yaml`): a script under
+`charts/kargo/checks/` that Kargo runs as a verification Job after each promotion
+and on every **Reverify**, next to the deploy-state check. It passes only when the
+service actually works (logins, permissions, dependencies, public URL), so a green
+stage means ready to use, not just Running. It also gives chart-only services a
+verification. `analytics` uses `superset.sh`, `clickhouse.sh` and
+`clickhouse-operator.sh`; see `charts/argo-cd/analytics/README.md` for what each
+asserts.
 
 Studio is intentionally not here yet: its charts deploy from in-repo git paths, not the
 published repo, so it is image-tag-only under Kargo (open design decision).

@@ -18,10 +18,10 @@ https://superset.test-lts.digit.org — username/password login (`admin`, passwo
 | File | Role |
 |---|---|
 | `charts/kargo/config/projects/analytics.yaml` | Kargo project: one Warehouse + one Stage (`<service>-digit-lts`) per service, the functional checks |
-| `environments/analytics-lts.yaml` | All values. Kargo merges `<service>.chart-version` (and `superset.image.tag`) into it on promotion |
+| `environments/test-lts.yaml` | All values (sections `clickhouse-operator`, `clickhouse`, `superset`). Kargo merges `<service>.chart-version` (and `superset.image.tag`) into it on promotion |
 | `analytics-app-set.yaml` | One Application `analytics-<service>` per section **with a chart-version**; values = that section + `global` as root values |
 | `analytics-app-project.yaml` | `analytics-project`: the registry, the three namespaces, the operator's cluster-scoped kinds |
-| `environments/test-lts.yaml` + `test-lts-secrets.yaml` | Through `digit-lts-cluster-configs`: the three namespaces (`cluster-configs.namespaces`) and Secrets `superset-secret`, `clickhouse-users` (`cluster-configs.secrets.generic`, SOPS/Azure Key Vault) |
+| `environments/test-lts.yaml` + `test-lts-secrets.yaml` (cluster-configs) | Through `digit-lts-cluster-configs`: the three namespaces (`cluster-configs.namespaces`) and Secrets `superset-secret`, `clickhouse-users` (`cluster-configs.secrets.generic`, SOPS/Azure Key Vault) |
 
 All of it syncs from git through `digit-lts-bootstrap`; nothing is applied by hand.
 A service has no Application until its first promotion.
@@ -94,4 +94,4 @@ clickhousedb://app:<app-password>@clickhouse-clickhouse-headless.clickhouse.svc.
 - **GitHub team SSO.** Needs a GitHub OAuth app with callback
   `https://superset.test-lts.digit.org/oauth-authorized/github`; put
   `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` in `superset-secret` and set
-  `superset.auth.oauth` (enabled, githubOrg, teamRoles) in `analytics-lts.yaml`.
+  `superset.auth.oauth` (enabled, githubOrg, teamRoles) in `test-lts.yaml`.

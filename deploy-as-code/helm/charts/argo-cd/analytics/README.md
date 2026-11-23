@@ -10,8 +10,9 @@ packaged charts at `https://helm.digit.org/digit3/analytics`
 | `clickhouse` | `clickhouse` (1 server + 1 Keeper, 25.7.8.71) | `clickhouse` | chart version |
 | `superset` | `superset` | `superset` | chart version + `egovio/superset` tag (`care-YYYYMMDD`) |
 
-https://superset.test-lts.digit.org — username/password login (`admin`, password
-`ADMIN_PASSWORD` in `superset-secret`).
+https://superset.test-lts.digit.org — GitHub sign-in (teams `digit-lts-superset-admins` → Admin,
+`digit-lts-superset-users` → Alpha + sql_lab) and username/password (`admin`, password
+`ADMIN_PASSWORD` in `superset-secret`) on the same page.
 
 ## How it fits together
 
@@ -28,13 +29,18 @@ A service has no Application until its first promotion.
 
 ## First deployment
 
-1. **Metadata database (once).** Role and database `superset` on the shared PostgreSQL 18
-   (`postgresql.backbone`, CloudNativePG), with the password from
-   `SQLALCHEMY_DATABASE_URI` in `superset-secret`:
+1. **Metadata database (once, done 2026-11-23).** Role and database `superset` on
+   `postgres.egov` (PostgreSQL 15, `egov/postgres-0`), with the password from
+   `SQLALCHEMY_DATABASE_URI` in `superset-secret`. Created from `template0`:
+   `template1` carries a stale collation version (2.41 vs the OS's 2.31) and
+   PostgreSQL refuses to copy it:
 
    ```sql
-   CREATE ROLE superset LOGIN PASSWORD '<password>';
-   CREATE DATABASE superset OWNER superset;
+   CREATE ROLE superset LOGIN PASSWORD '<password>' CONNECTION LIMIT 50;
+   CREATE DATABASE superset OWNER superset TEMPLATE template0 ENCODING 'UTF8'
+     LC_COLLATE 'en_US.utf8' LC_CTYPE 'en_US.utf8';
+   REVOKE CONNECT ON DATABASE superset FROM PUBLIC;
+   GRANT CONNECT ON DATABASE superset TO superset;
    ```
 
 2. **Promote in order**, each after the previous one verified: `clickhouse-operator`
@@ -88,10 +94,3 @@ clickhousedb://app:<app-password>@clickhouse-clickhouse-headless.clickhouse.svc.
 ```
 
 `app-password` is in Secret `clickhouse-users` (namespace `clickhouse`).
-
-## Not set up
-
-- **GitHub team SSO.** Needs a GitHub OAuth app with callback
-  `https://superset.test-lts.digit.org/oauth-authorized/github`; put
-  `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` in `superset-secret` and set
-  `superset.auth.oauth` (enabled, githubOrg, teamRoles) in `test-lts.yaml`.

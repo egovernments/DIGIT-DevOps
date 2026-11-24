@@ -26,10 +26,15 @@ metadata:
     app: {{ default .Chart.Name $v.name }}
   annotations:
     argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    # HookSucceeded: delete the Job once it succeeds, so the next sync never
+    # finds an old one. With only BeforeHookCreation, Argo CD deletes the old
+    # Job and server-side applies the new one onto it while it is still being
+    # deleted, reads the OLD Job's "Succeeded" status, and the new script never
+    # runs.
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "-5"
-    "helm.sh/hook-delete-policy": before-hook-creation
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   backoffLimit: {{ $v.dbCreateJob.backoffLimit }}
   template:

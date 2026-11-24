@@ -1,0 +1,194 @@
+{{- /*
+digit-bootstrap.yaml -- Vault that sets itself up (single-node clusters, e.g. k3s)
+
+otp and vc (through walt) log in with AppRole credentials from the
+`vault-approle` secret and use the transit engine (otp: encrypt/decrypt;
+walt: create Ed25519 keys and sign). On test-lts that Vault was initialised
+and configured by hand and unseals itself with Azure Key Vault. A single VM
+has no cloud key service, so this CronJob does all of it, every minute,
+idempotently:
+
+  1. initialise Vault if it is not (1 key share) and keep the unseal key and
+     root token in Secret <namespace>/<initSecretName>
+  2. unseal it if it is sealed (after a pod restart or VM reboot)
+  3. enable approle + transit, write the policy, create the AppRole role
+  4. write role-id / secret-id into Secret <approleSecret.name> in each
+     namespace listed; a new secret-id is only issued when the current one
+     no longer logs in
+
+It is a plain CronJob, not an Argo CD hook: a sealed Vault is never Healthy,
+so a PostSync hook would never run.
+
+Trade-off: the unseal key and root token live in a Kubernetes Secret, so
+anyone who can read secrets in this namespace can open Vault. Fine for a
+sandbox; for production use cloud auto-unseal (server.seal / raft config).
+
+Off by default (digitBootstrap.enabled: false).
+*/ -}}
+{{- if .Values.digitBootstrap.enabled }}
+{{- $ns := include "vault.namespace" . }}
+{{- $b := .Values.digitBootstrap }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-bootstrap
+  namespace: {{ $ns }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vault-bootstrap
+  namespace: {{ $ns }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vault-bootstrap
+  namespace: {{ $ns }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vault-bootstrap
+subjects:
+  - kind: ServiceAccount
+    name: vault-bootstrap
+    namespace: {{ $ns }}
+{{- range $b.approleSecret.namespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vault-bootstrap
+  namespace: {{ . }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vault-bootstrap
+  namespace: {{ . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vault-bootstrap
+subjects:
+  - kind: ServiceAccount
+    name: vault-bootstrap
+    namespace: {{ $ns }}
+{{- end }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vault-bootstrap
+  namespace: {{ $ns }}
+spec:
+  schedule: {{ $b.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 600
+      template:
+        spec:
+          serviceAccountName: vault-bootstrap
+          restartPolicy: Never
+          containers:
+            - name: bootstrap
+              image: {{ $b.image | quote }}
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: VAULT_ADDR
+                  value: "http://{{ template "vault.fullname" $ }}-0.{{ template "vault.fullname" $ }}-internal.{{ $ns }}.svc.cluster.local:8200"
+                - name: NS
+                  value: {{ $ns | quote }}
+                - name: INIT_SECRET
+                  value: {{ $b.initSecretName | quote }}
+                - name: POLICY_NAME
+                  value: {{ $b.policyName | quote }}
+                - name: POLICY
+                  value: {{ $b.policy | quote }}
+                - name: ROLE
+                  value: {{ $b.roleName | quote }}
+                - name: APPROLE_SECRET
+                  value: {{ $b.approleSecret.name | quote }}
+                - name: APPROLE_NAMESPACES
+                  value: {{ join " " $b.approleSecret.namespaces | quote }}
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  V="$VAULT_ADDR"
+                  code=$(curl -s -o /dev/null -w '%{http_code}' "$V/v1/sys/health" || true)
+                  case "$code" in
+                    200|429|472|473|501|503) ;;
+                    *) echo "vault not reachable yet (http $code); next run will retry"; exit 0 ;;
+                  esac
+
+                  # 1. initialise
+                  if [ "$(curl -fsS "$V/v1/sys/init" | jq -r .initialized)" != "true" ]; then
+                    echo "initialising vault"
+                    curl -fsS -X PUT -d '{"secret_shares":1,"secret_threshold":1}' "$V/v1/sys/init" > /tmp/init.json
+                    # Keep the full response too: init happens once, and a key
+                    # lost here cannot be recovered.
+                    kubectl -n "$NS" create secret generic "$INIT_SECRET" \
+                      --from-file=init.json=/tmp/init.json \
+                      --from-literal=unseal-key="$(jq -r '.keys_base64[0]' /tmp/init.json)" \
+                      --from-literal=root-token="$(jq -r '.root_token' /tmp/init.json)"
+                    rm -f /tmp/init.json
+                  fi
+                  KEY=$(kubectl -n "$NS" get secret "$INIT_SECRET" -o jsonpath='{.data.unseal-key}' | base64 -d)
+                  TOKEN=$(kubectl -n "$NS" get secret "$INIT_SECRET" -o jsonpath='{.data.root-token}' | base64 -d)
+
+                  # 2. unseal
+                  if [ "$(curl -fsS "$V/v1/sys/seal-status" | jq -r .sealed)" = "true" ]; then
+                    echo "unsealing vault"
+                    jq -n --arg k "$KEY" '{key: $k}' | curl -fsS -X PUT -d @- "$V/v1/sys/unseal" > /dev/null
+                  fi
+                  i=0
+                  until [ "$(curl -s -o /dev/null -w '%{http_code}' "$V/v1/sys/health")" = "200" ]; do
+                    i=$((i + 1)); [ "$i" -ge 30 ] && { echo "vault not active after unseal"; exit 1; }
+                    sleep 2
+                  done
+
+                  # 3. approle, transit, policy, role
+                  H="X-Vault-Token: $TOKEN"
+                  curl -fsS -H "$H" "$V/v1/sys/auth" | jq -e '.data["approle/"]' > /dev/null \
+                    || curl -fsS -H "$H" -X POST -d '{"type":"approle"}' "$V/v1/sys/auth/approle"
+                  curl -fsS -H "$H" "$V/v1/sys/mounts" | jq -e '.data["transit/"]' > /dev/null \
+                    || curl -fsS -H "$H" -X POST -d '{"type":"transit"}' "$V/v1/sys/mounts/transit"
+                  jq -n --arg p "$POLICY" '{policy: $p}' \
+                    | curl -fsS -H "$H" -X PUT -d @- "$V/v1/sys/policies/acl/$POLICY_NAME"
+                  jq -n --arg p "$POLICY_NAME" '{token_policies: [$p], token_ttl: "1h", token_max_ttl: "24h"}' \
+                    | curl -fsS -H "$H" -X POST -d @- "$V/v1/auth/approle/role/$ROLE"
+                  ROLE_ID=$(curl -fsS -H "$H" "$V/v1/auth/approle/role/$ROLE/role-id" | jq -r .data.role_id)
+
+                  # 4. AppRole credentials for the services
+                  for ns in $APPROLE_NAMESPACES; do
+                    CUR_R=$(kubectl -n "$ns" get secret "$APPROLE_SECRET" -o jsonpath='{.data.role-id}' 2>/dev/null | base64 -d || true)
+                    CUR_S=$(kubectl -n "$ns" get secret "$APPROLE_SECRET" -o jsonpath='{.data.secret-id}' 2>/dev/null | base64 -d || true)
+                    if [ "$CUR_R" = "$ROLE_ID" ] && [ -n "$CUR_S" ] \
+                      && jq -n --arg r "$CUR_R" --arg s "$CUR_S" '{role_id: $r, secret_id: $s}' \
+                         | curl -fsS -X POST -d @- "$V/v1/auth/approle/login" > /dev/null; then
+                      continue
+                    fi
+                    SECRET_ID=$(curl -fsS -H "$H" -X POST "$V/v1/auth/approle/role/$ROLE/secret-id" | jq -r .data.secret_id)
+                    kubectl -n "$ns" create secret generic "$APPROLE_SECRET" \
+                      --from-literal=role-id="$ROLE_ID" --from-literal=secret-id="$SECRET_ID" \
+                      --dry-run=client -o yaml | kubectl apply -f -
+                    echo "wrote $ns/$APPROLE_SECRET"
+                  done
+                  echo "vault is initialised, unsealed and configured"
+              resources:
+{{ toYaml $b.resources | indent 16 }}
+{{- end }}

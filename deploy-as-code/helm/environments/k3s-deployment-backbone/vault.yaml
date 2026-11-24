@@ -1,0 +1,51 @@
+# vault -- k3s-deployment (single-node k3s) overlay
+#
+# Third value file of backbone-vault, after the chart's values.yaml and
+# environments/k3s-deployment.yaml.
+#
+# otp (transit encrypt/decrypt) and vc via walt (transit Ed25519 sign) need
+# Vault at vault.vault-new:8200 with the vault-approle secret, as on test-lts.
+# test-lts unseals with Azure Key Vault; a single VM has none, so the seal
+# stanza is dropped (Shamir) and digitBootstrap initialises, unseals and
+# configures Vault and writes egov/vault-approle.
+
+injector:
+  enabled: false            # no Vault Agent sidecars are used
+
+server:
+  ingress:
+    enabled: false          # nothing needs the UI from outside
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  dataStorage:
+    size: 2Gi
+    storageClass: local-path
+  ha:
+    # One replica: a PodDisruptionBudget would only block node drains.
+    disruptionBudget:
+      enabled: false
+    raft:
+      # The chart default plus an AWS KMS seal; no seal here (Shamir), unsealed
+      # by digitBootstrap. No comments inside: it becomes the ConfigMap as is.
+      config: |
+        ui = true
+
+        listener "tcp" {
+          tls_disable = true
+          address     = "0.0.0.0:8200"
+          cluster_address = "0.0.0.0:8201"
+        }
+
+        storage "raft" {
+          path = "/vault/data"
+        }
+
+        service_registration "kubernetes" {}
+
+digitBootstrap:
+  enabled: true

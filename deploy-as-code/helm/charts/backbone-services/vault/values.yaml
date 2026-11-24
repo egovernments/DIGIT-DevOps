@@ -1378,3 +1378,32 @@ serverTelemetry:
       #    for: 5m
       #    labels:
       #      severity: critical
+
+# Self-setup for single-node clusters with no cloud auto-unseal (k3s): a
+# CronJob that initialises, unseals and configures Vault (approle + transit)
+# and writes the AppRole credentials otp and vc read. See
+# templates/digit-bootstrap.yaml. Off by default.
+digitBootstrap:
+  enabled: false
+  schedule: "* * * * *"
+  # kubectl + curl + jq
+  image: "alpine/k8s:1.35.9"
+  initSecretName: vault-init
+  policyName: vault-policy
+  roleName: egov-role
+  # otp: transit/encrypt, transit/decrypt. walt (vc): create/read Ed25519
+  # keys under transit/keys, transit/sign, transit/verify.
+  policy: |
+    path "transit/*" {
+      capabilities = ["create", "read", "update", "list"]
+    }
+  approleSecret:
+    name: vault-approle
+    namespaces: [egov]
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi

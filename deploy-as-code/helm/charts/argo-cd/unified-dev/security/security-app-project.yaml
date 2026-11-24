@@ -1,0 +1,38 @@
+## Cluster security scanning (Kubescape) for unified-dev.
+##
+## Separate from every other project because this is the only one that needs
+## cluster-scoped objects: the scanner reads every resource kind in the cluster
+## (ClusterRole/Binding), registers an aggregated API server for its results
+## (APIService + the CRD behind it) and runs at a non-default priority so a
+## busy node does not evict it (PriorityClass).
+##
+## The whitelist is exhaustive on purpose -- it is exactly what
+## digit3/security/kubescape renders and nothing else, so a future chart
+## version that starts creating something cluster-scoped fails the sync loudly
+## instead of silently gaining privilege.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: security-project
+  namespace: argocd
+spec:
+  description: Cluster security posture and vulnerability scanning for unified-dev
+  sourceRepos:
+    - https://helm.digit.org/digit3/security
+  destinations:
+    - namespace: kubescape
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: scheduling.k8s.io
+      kind: PriorityClass
+    - group: apiregistration.k8s.io
+      kind: APIService
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

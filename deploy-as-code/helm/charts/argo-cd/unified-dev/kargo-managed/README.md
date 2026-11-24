@@ -79,5 +79,16 @@ unknown layout or a namespace outside `kargo.argocd.namespaces`.
 3. An AppProject in `../<module>/<module>-app-project.yaml` whose destinations match
    `kargo.argocd.namespaces`. It stays hand-written: it is what limits where the
    project can deploy.
+4. **The project's own namespace added to `kargo-project`'s destinations** in
+   `../kargo/kargo-app-project.yaml`. Kargo's `Project` resource creates that
+   namespace, and the Application that applies the pipeline is itself in
+   `kargo-project` -- so without this the pipeline Application never syncs. It
+   fails as `InvalidSpecError`, not a sync error, so it shows up in Argo CD as
+   `Unknown`/`Unknown` with nothing in its operation state:
+
+   ```
+   application destination server 'https://kubernetes.default.svc' and namespace
+   '<project>' do not match any of the allowed destinations in project 'kargo-project'
+   ```
 
 App names must stay unique across projects: give each project its own `argocdAppPrefix`.

@@ -1072,13 +1072,28 @@ controller:
   podLabels: {}
 
   # -- Resource limits and requests for the application controller pods
+  #
+  # 512Mi was never enough and the shortfall is silent until it isn't: the
+  # controller is OOMKilled (exit 137), restarts, and while it is down NOTHING
+  # in the cluster reconciles -- no sync, no self-heal, no hook ever observed
+  # to finish. Applications simply sit OutOfSync with an empty operation and
+  # no error anywhere to explain it.
+  #
+  # Measured on unified-dev, which carries the same app set: 671Mi at rest,
+  # above the old limit on its own. Installing Kyverno (22 CRDs) pushed
+  # unified-qa and -uat over and both crashlooped -- 12 and 9 restarts.
+  #
+  # The ceiling is 2Gi rather than 1Gi because the controller's footprint
+  # tracks the number of API resources it watches, so each new CRD-heavy
+  # component raises the floor; 1Gi would be the next thing to breach.
+  # The request is the observed working set, not the ceiling.
   resources:
    limits:
      cpu: 500m
-     memory: 512Mi
+     memory: 2Gi
    requests:
      cpu: 250m
-     memory: 256Mi
+     memory: 512Mi
 
   # Application controller container ports
   containerPorts:

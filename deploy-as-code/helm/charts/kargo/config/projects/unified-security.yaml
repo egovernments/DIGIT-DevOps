@@ -47,15 +47,33 @@ kargo:
 
   chartRepo: https://helm.digit.org/digit3/security
 
-  # envFileWrite is left at its default (`update`, i.e. yaml-update), which
-  # edits the node in place and so leaves the rest of the shared env file --
-  # its comments, its blank lines, its list formatting -- untouched. It also
-  # CREATES `kubescape.chart-version` on the first promotion, so no placeholder
-  # is needed and an unpromoted environment still renders no Application.
+  # yaml-merge, NOT the default yaml-update, because the promoted key must be
+  # CREATED rather than replaced.
   #
-  # Do NOT switch this to `merge` here: yaml-merge re-serializes the WHOLE
-  # document, and on these 2000-line shared env files that is a ~570-line
-  # cosmetic diff (semantically identical, comments kept) on every promotion.
+  # At the deployed Kargo (v1.11.4) the yaml-update step calls
+  # pkg/yaml.SetValuesInBytes, which locates an existing scalar by line and
+  # column and rewrites it in place. A key that is not already in the file
+  # fails the promotion outright:
+  #
+  #   error finding key kubescape.chart-version: key path not found
+  #
+  # (pkg/yaml/update.go in the same release has an UpdateField that *does*
+  # create missing keys, but the yaml-update step does not call it. Do not
+  # switch to `update` on the strength of that doc comment -- check which
+  # function the step actually uses in the version you run.)
+  #
+  # Seeding a placeholder instead is not an option: the cluster-layout
+  # ApplicationSet reads the presence of `chart-version` as "this environment
+  # has been promoted to", so a placeholder would deploy an unpromoted
+  # environment.
+  #
+  # The cost of merge is that kyaml re-serializes the whole document. On these
+  # shared env files the FIRST promotion is a ~570-line cosmetic diff -- blank
+  # lines dropped, lists reflowed, indentation normalized. It is semantically
+  # identical and every comment survives (verified against Kargo's own
+  # yaml.Merge), and it is one-time: once the file is in kyaml's normal form,
+  # later promotions diff only the chart-version line.
+  envFileWrite: merge
 
   # No post-promotion verification. The deploy-state AnalysisTemplate checks
   # that a Deployment is running the promoted IMAGE TAG, and a chart-only

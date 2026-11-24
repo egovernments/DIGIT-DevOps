@@ -35,7 +35,7 @@ kargo:
   argocd:
     project: security-project
     namespace: kubescape
-    namespaces: [kubescape]
+    namespaces: [kubescape, kyverno]
     layout: cluster
 
   # Chart-only project: every service here subscribes to a Helm repo and not to
@@ -96,6 +96,26 @@ kargo:
       discoveryLimit: 20
       # A chart release is a deliberate, infrequent act -- unlike an image
       # build there is no stream of them, so a slow poll is enough.
+      interval: 30m0s
+
+    # digit3/security/kyverno -- the policy engine plus the Pod Security
+    # Standards policy set, reported not enforced. Same shape as kubescape:
+    # no env file of its own, promotion writes `kyverno.chart-version` into
+    # environments/unified-<env>.yaml and the cluster-layout ApplicationSet on
+    # that branch deploys it.
+    #
+    # `deploy.namespace` is the one thing that differs. Every other service
+    # here inherits `kargo.argocd.namespace` (kubescape); Kyverno owns its own
+    # namespace, so it overrides it. That namespace must also be in
+    # `argocd.namespaces` above AND in the hand-written AppProject's
+    # destinations, or the Application is rejected before it syncs.
+    - name: kyverno
+      image: false
+      chart: kyverno
+      deploy:
+        namespace: kyverno
+      freightCreationPolicy: Manual
+      discoveryLimit: 20
       interval: 30m0s
 
   # BRANCH-PER-ENVIRONMENT, as in unified-core and unified-sdip: each stage

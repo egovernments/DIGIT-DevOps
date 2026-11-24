@@ -1,0 +1,136 @@
+# unified-security Kargo pipeline: cluster security scanning, DEV -> QA -> UAT.
+#
+# One chart-only service. Freight is a Helm chart version and nothing else --
+# there is no egovio image here, because the chart wraps upstream Kubescape and
+# pins its images itself. So what gets promoted through the three environments
+# is "chart digit3/security/kubescape at version X", and promoting is how a new
+# scanner version reaches qa and then uat after it has been watched on dev.
+#
+# Deployed by the shared kargo-managed ApplicationSets, layout "cluster" --
+# added with this project, because the three existing layouts all set
+# `skipCrds: true` and Kubescape registers an aggregated API server whose
+# APIService is backed by its own CRD. Declaring a service here is all it takes;
+# no per-service ApplicationSet exists or should be written.
+#
+# The project's AppProject (charts/argo-cd/unified-<env>/security/) is the one
+# hand-written Argo object, one per project as everywhere else. It has to be:
+# layout "cluster" means the chart installs cluster-scoped objects, and the
+# whitelist naming exactly which ones is the privilege boundary.
+kargo:
+  project: unified-security
+  git:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+
+  # Application is named plainly `kubescape`, with no product prefix.
+  argocdAppPrefix: ""
+
+  # Read by the kargo-managed ApplicationSets.
+  #   Application  <argocdAppPrefix><service>   -> kubescape
+  #   project      argocd.project               -> security-project
+  #   namespace    argocd.namespace             -> kubescape
+  #   layout       argocd.layout                -> cluster (root values + CRDs)
+  # namespaces must match security-project's destinations; the kargo chart's
+  # templates/argocd-deploy.yaml fails this project's render for a layout or
+  # namespace outside them.
+  argocd:
+    project: security-project
+    namespace: kubescape
+    namespaces: [kubescape]
+    layout: cluster
+
+  # Chart-only project: every service here subscribes to a Helm repo and not to
+  # Docker Hub, so a Docker Hub webhook receiver would fire for nothing. It also
+  # needs a `kargo-webhook-dockerhub` Secret in the project namespace that does
+  # not exist for this project. Chart versions are picked up by the Warehouse
+  # interval below.
+  webhookReceivers: []
+
+  chartRepo: https://helm.digit.org/digit3/security
+
+  # yaml-merge, NOT the default yaml-update, because the promoted key must be
+  # CREATED rather than replaced.
+  #
+  # At the deployed Kargo (v1.11.4) the yaml-update step calls
+  # pkg/yaml.SetValuesInBytes, which locates an existing scalar by line and
+  # column and rewrites it in place. A key that is not already in the file
+  # fails the promotion outright:
+  #
+  #   error finding key kubescape.chart-version: key path not found
+  #
+  # (pkg/yaml/update.go in the same release has an UpdateField that *does*
+  # create missing keys, but the yaml-update step does not call it. Do not
+  # switch to `update` on the strength of that doc comment -- check which
+  # function the step actually uses in the version you run.)
+  #
+  # Seeding a placeholder instead is not an option: the cluster-layout
+  # ApplicationSet reads the presence of `chart-version` as "this environment
+  # has been promoted to", so a placeholder would deploy an unpromoted
+  # environment.
+  #
+  # The cost of merge is that kyaml re-serializes the whole document. On these
+  # shared env files the FIRST promotion is a ~570-line cosmetic diff -- blank
+  # lines dropped, lists reflowed, indentation normalized. It is semantically
+  # identical and every comment survives (verified against Kargo's own
+  # yaml.Merge), and it is one-time: once the file is in kyaml's normal form,
+  # later promotions diff only the chart-version line.
+  envFileWrite: merge
+
+  # No post-promotion verification. The deploy-state AnalysisTemplate checks
+  # that a Deployment is running the promoted IMAGE TAG, and a chart-only
+  # service carries no tag -- the same reason vault and cluster-configs are
+  # unverified in digit-core3-0. Health is visible instead through the Argo CD
+  # Application and the scan results themselves.
+  verify:
+    enabled: false
+
+  services:
+    # digit3/security/kubescape -- the operator wrapper. Values live under
+    # `kubescape` in each stage's own environments/unified-<env>.yaml, beside
+    # every other product in that cluster -- no env file of its own; promotion
+    # writes `kubescape.chart-version` there and the cluster-layout
+    # ApplicationSet on that branch deploys it.
+    - name: kubescape
+      image: false
+      chart: kubescape
+      freightCreationPolicy: Manual
+      discoveryLimit: 20
+      # A chart release is a deliberate, infrequent act -- unlike an image
+      # build there is no stream of them, so a slow poll is enough.
+      interval: 30m0s
+
+  # BRANCH-PER-ENVIRONMENT, as in unified-core and unified-sdip: each stage
+  # writes to the branch that environment's own Argo CD tracks, so a promotion
+  # is a commit onto that branch. Promotion is linear and manual: dev takes
+  # Freight from the Warehouse, qa only from dev, uat only from qa.
+  #
+  # argocdUpdate is deliberately NOT set on dev. The kargo-managed appset
+  # requeues its git generators every 60s, so the Application picks the new
+  # version up on its own; an argocd-update step would instead fail the FIRST
+  # promotion to each environment, because the Application does not exist until
+  # the appset has seen the commit that promotion is still making.
+  #
+  # masterOnlyStages (chart default [uat]) does not apply: the guard is derived
+  # from the image tag, and a chart-only service has no image.
+  stages:
+    - name: dev
+      color: "#3BA9C2"
+      branch: unified-dev
+      envFile: deploy-as-code/helm/environments/unified-dev.yaml
+      autoPromotion: false
+    - name: qa
+      color: "#D64550"
+      from: dev
+      branch: unified-qa
+      envFile: deploy-as-code/helm/environments/unified-qa.yaml
+      autoPromotion: false
+    - name: uat
+      color: "#F2C230"
+      from: qa
+      branch: unified-uat
+      envFile: deploy-as-code/helm/environments/unified-uat.yaml
+      autoPromotion: false
+
+  teams:
+    - name: devops
+      role: admin
+      groups: [egovernments:micro-service-devops]

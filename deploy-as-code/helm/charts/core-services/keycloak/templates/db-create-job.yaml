@@ -6,10 +6,15 @@
 # comes up with just 'postgres'. On uat-saas new_keycloak was created by hand,
 # which is why a fresh cluster has no equivalent and Keycloak cannot start.
 #
+# It also creates Keycloak's login role (username/password from the kc-db
+# secret, e.g. keycloak_latest) and makes it the database owner. That role was
+# created by hand on the old clusters too, so on a fresh cluster Keycloak failed
+# with: password authentication failed for user "keycloak_latest".
+#
 # Runs as an Argo CD PreSync hook (and a Helm pre-install/pre-upgrade hook) so
-# it lands before the Deployment rolls. CREATE DATABASE has no IF NOT EXISTS,
-# so existence is checked first and the create skipped when already present --
-# safe to re-run on every sync.
+# it lands before the Deployment rolls. Every statement is guarded or
+# idempotent, so it is safe to re-run on every sync; the role's password is
+# reset to the secret's value each time.
 #
 # This is not a "common" template, so it does not get the chart-name override
 # merge that common.* helpers perform. The same merge is replicated here so
@@ -63,6 +68,17 @@ spec:
                 secretKeyRef:
                   name: {{ $v.dbCreateJob.secretName }}
                   key: password
+            # The role Keycloak logs in as (same secret the Deployment reads).
+            - name: KC_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $v.dbCreateJob.loginSecretName }}
+                  key: username
+            - name: KC_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $v.dbCreateJob.loginSecretName }}
+                  key: password
             - name: TARGET_DB
               value: {{ $v.dbName | quote }}
           command:
@@ -74,12 +90,17 @@ spec:
                 echo "waiting for ${PGHOST}:${PGPORT}"
                 sleep 2
               done
-              if [ "$(psql -tAc "select 1 from pg_database where datname = '${TARGET_DB}'")" = "1" ]; then
-                echo "database ${TARGET_DB} already exists, nothing to do"
-              else
-                echo "creating database ${TARGET_DB}"
-                psql -c "CREATE DATABASE \"${TARGET_DB}\""
-              fi
+              # psql variables (:'x' / :"x") quote the values, so the password
+              # never needs shell or SQL escaping.
+              psql -v ON_ERROR_STOP=1 -v user="$KC_USER" -v pw="$KC_PASS" -v db="$TARGET_DB" <<'SQL'
+              SELECT format('CREATE ROLE %I LOGIN', :'user')
+                WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'user') \gexec
+              ALTER ROLE :"user" WITH LOGIN PASSWORD :'pw';
+              SELECT format('CREATE DATABASE %I OWNER %I', :'db', :'user')
+                WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'db') \gexec
+              ALTER DATABASE :"db" OWNER TO :"user";
+              SQL
+              echo "role and database ${TARGET_DB} are in place"
           resources:
 {{ toYaml $v.dbCreateJob.resources | indent 12 }}
 {{- end }}

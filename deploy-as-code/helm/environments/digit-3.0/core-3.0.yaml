@@ -1,25 +1,28 @@
-# DIGIT 3.0 core module -- unified-dev (Kargo project digit-core3-0).
+# DIGIT 3.0 module -- unified-dev (Kargo project digit-3-0). Covers core-3.0 (services,
+# kong, keycloak, cluster-configs in namespace core-3-0) and backbone-3.0 (postgresql-18,
+# vault in namespace backbone-3-0).
 #
 # Its own env file, separate from environments/unified-dev.yaml: the DIGIT 2.x charts
 # share these names (filestore, boundary, workflow, billing, ...) and read that file's
 # top-level <name>: sections, and egov-config / secrets here hold DIGIT 3.0 values.
 # Top-level keys are chart names -- the common chart reads .Values.<chart-name> -- so
-# this is exactly `helm ... -f unified-digit3-core-dev.yaml`.
+# this is exactly `helm ... -f environments/digit-3.0/core-3.0.yaml`.
 #
-# Argo CD (charts/argo-cd/unified-dev/kargo-managed/) deploys from this file, one
-# Application per service of the Kargo project (its config sets the layout), once
-# Kargo has merged the service's chart-version:
+# Argo CD (charts/argo-cd/unified-dev/kargo-managed/ + digit-3.0/backbone-3.0/) deploys
+# from this file, one Application per service of the Kargo project (its config sets the
+# layout), once Kargo has merged the service's chart-version:
 #   digit3-<service>              chart <service> from https://helm.digit.org/digit3/core
 #                                 at <service>.chart-version, values {global, <service>}
 #   digit3-kong, digit3-vault     same chart source, values = the section as root values
-#   digit3-core-cluster-configs   chart cluster-configs at cluster-configs.chart-version,
-#                                 values this file + unified-digit3-core-dev-secrets.yaml (SOPS)
+#   core-3-0-cluster-configs      chart cluster-configs at cluster-configs.chart-version,
+#                                 values this file + core-3.0-secrets.yaml (SOPS)
+#   digit3-postgresql-18          git-path chart backbone-services/postgresql-18 (backbone-3-0)
 #
 # Kargo MERGES <service>.chart-version, <service>.image.tag and
 # <service>.initContainers.dbMigration.image.tag on promotion, creating them if absent.
 # Do not seed tags here. Everything else is edited by PR.
 global:
-  namespace: digit3-core
+  namespace: core-3-0
   # The digit3 common chart (3.0.x) picks the image tag by mode: prod (its default)
   # ALWAYS uses the chart's appVersion and ignores image.tag; dev uses image.tag when
   # set. Kargo promotes image.tag separately from the chart, so dev must be in dev mode
@@ -357,7 +360,7 @@ kong:
   chart-version: 3.1.1
   # Service kong-kong-proxy: the backend of every zuul: true ingress.
   fullnameOverride: kong-kong
-  namespace: digit3-core
+  namespace: core-3-0
   # The chart's kong-migration init container sets KONG_DATABASE from egov-config
   # db-name ("coredb"); Kong wants the database TYPE there ("postgres"), and the name in
   # KONG_PG_DATABASE. Same container as the chart's (kong 3.1.1), with that one fix.
@@ -415,52 +418,83 @@ keycloak:
   chart-version: '3.0.0'
   image:
     tag: 'keycloak-spi-custom-build-3348b03'
-# Vault (chart vault, app digit3-vault) in its own namespace, vault -- egov-service-host's
-# vault key points at vault.vault:8200. The HashiCorp chart reads ROOT values, so Argo CD
+# Vault (chart vault, app digit3-vault) in the backbone-3-0 namespace -- egov-service-host's
+# vault key points at vault.backbone-3-0:8200. The HashiCorp chart reads ROOT values, so Argo CD
 # passes this section, minus chart-version, as the chart's values (layout root, namespace
-# vault in the Kargo config). Kargo merges vault.chart-version; the Application waits for
+# backbone-3-0 in the Kargo config). Kargo merges vault.chart-version; the Application waits for
 # it like keycloak.
 # Chart from https://helm.digit.org/digit3/backbone (kargo vault.chartRepo).
+#
+# Raft storage + Azure Key Vault auto-unseal: the pod unseals itself from the KMS key on
+# every restart (no manual `vault operator unseal`). Auth is Azure Workload Identity -- the
+# server ServiceAccount is federated to the user-assigned identity below, so no client secret
+# is stored. The identity, the federated credential and the key are created at cutover; set
+# serviceAccount client-id then (tracked in DIGIT-DevOps#5762).
 vault:
   global:
-    namespace: vault
+    namespace: backbone-3-0
   server:
     # The auth-delegator ClusterRoleBinding is only for Kubernetes auth; services use
-    # AppRole, and the digit3-core AppProject allows no cluster-scoped objects.
+    # AppRole, and the core-3-0 AppProject allows no cluster-scoped objects.
     authDelegator:
       enabled: false
+    serviceAccount:
+      annotations:
+        azure.workload.identity/client-id: "SET-AT-CUTOVER"  # vault-kms-unseal MI (DIGIT-DevOps#5762)
+    extraLabels:
+      azure.workload.identity/use: "true"
     ha:
+      enabled: true
       replicas: 1
+      raft:
+        enabled: true
+        setNodeId: true
+        config: |
+          ui = true
+          listener "tcp" {
+            tls_disable = 1
+            address = "[::]:8200"
+            cluster_address = "[::]:8201"
+          }
+          storage "raft" {
+            path = "/vault/data"
+          }
+          seal "azurekeyvault" {
+            tenant_id  = "593ce202-d1a9-4760-ba26-ae35417c00cb"
+            vault_name = "unified-dev-sops-kv"
+            key_name   = "vault-unseal"
+          }
+          service_registration "kubernetes" {}
   chart-version: '3.0.1'
 # Namespace-scoped ConfigMaps/Secrets for this module, rendered by the cluster-configs
-# chart (app digit3-core-cluster-configs). Every object pins namespace: [digit3-core] --
+# chart (app core-3-0-cluster-configs). Every object pins namespace: [core-3-0] --
 # the chart's defaults point at shared namespaces (egov, health, ...), and the
-# digit3-core AppProject only permits digit3-core, so a missing namespace fails the sync
-# instead of touching another module. Secret VALUES live in unified-digit3-core-dev-secrets.yaml
+# core-3-0 AppProject only permits core-3-0, so a missing namespace fails the sync
+# instead of touching another module. Secret VALUES live in core-3.0-secrets.yaml
 # (SOPS, unified-dev Azure Key Vault).
 cluster-configs:
   chart-version: 3.1.0
   namespaces:
-    create: false # digit3-core is created by cluster-configs-unified-dev
+    create: false # core-3-0 / backbone-3-0 are created by cluster-configs-unified-dev (namespaces.values)
   configmaps:
     egov-config:
-      namespace: [digit3-core]
+      namespace: [core-3-0]
       data:
         # DIGIT 3.0 uses its own PostgreSQL 18 (CloudNativePG, backbone/postgresql-18),
         # database coredb -- never the DIGIT 2.x unified-dev-db.
-        db-host: postgresql-18-rw.backbone
+        db-host: postgresql-18-rw.backbone-3-0
         db-name: coredb
-        db-url: jdbc:postgresql://postgresql-18-rw.backbone:5432/coredb
+        db-url: jdbc:postgresql://postgresql-18-rw.backbone-3-0:5432/coredb
         flyway-locations: filesystem:/flyway/sql,filesystem:/flyway/seed,filesystem:/flyway/qa
         kafka-brokers: kafka-kraft-controller-headless.backbone:9092
         timezone: Asia/Kolkata
         egov-services-fqdn-name: https://digit3.digit.org/
         # Keycloak's own database on the same server; its db-init container creates
         # it (and the kc-db role) before Keycloak starts.
-        keycloak-db-url: jdbc:postgresql://postgresql-18-rw.backbone:5432/keycloak
+        keycloak-db-url: jdbc:postgresql://postgresql-18-rw.backbone-3-0:5432/keycloak
         # account, employee. The chart default (keycloak.keycloak.svc) is not this
         # module's Keycloak: app digit3-keycloak serves under KC_HTTP_RELATIVE_PATH /keycloak.
-        keycloak-base-url: http://keycloak.digit3-core:8080/keycloak
+        keycloak-base-url: http://keycloak.core-3-0:8080/keycloak
         # mdms-v2 (same values as DIGIT 2.x on unified-dev)
         server-tomcat-max-connections: "500"
         server-tomcat-max-threads: "10"
@@ -481,60 +515,128 @@ cluster-configs:
         mail-sender-name: eGov Foundation
         sms-provider-url: http://api.smscountry.com/SMSCwebservice_bulk.aspx
         platform-tenant: default
-    # Internal service URLs. Every DIGIT 3.0 service is <name>:8080 in digit3-core; the
+    # Internal service URLs. Every DIGIT 3.0 service is <name>:8080 in core-3-0; the
     # *-java keys (boundary-management) point at the DIGIT 3.0 services of that name.
     egov-service-host:
-      namespace: [digit3-core]
+      namespace: [core-3-0]
       data:
         # account, boundary-management, employee, notify, pg-service, url-shortener and
         # workflow: added by cluster-configs 3.1.1 with 2.x egov-namespace defaults
-        # (account.egov, ...); these are the DIGIT 3.0 services in digit3-core.
-        account: http://account.digit3-core:8080/
-        apportion: http://apportion.digit3-core:8080/
-        billing: http://billing.digit3-core:8080/
-        boundary: http://boundary.digit3-core:8080/
-        boundary-java: http://boundary.digit3-core:8080/
-        boundary-management: http://boundary-management.digit3-core:8080/
-        employee: http://employee.digit3-core:8080/
-        filestore: http://filestore.digit3-core:8080/
-        filestore-java: http://filestore.digit3-core:8080/
-        idgen: http://idgen.digit3-core:8080/
-        individual: http://individual.digit3-core:8080/
+        # (account.egov, ...); these are the DIGIT 3.0 services in core-3-0.
+        account: http://account.core-3-0:8080/
+        apportion: http://apportion.core-3-0:8080/
+        billing: http://billing.core-3-0:8080/
+        boundary: http://boundary.core-3-0:8080/
+        boundary-java: http://boundary.core-3-0:8080/
+        boundary-management: http://boundary-management.core-3-0:8080/
+        employee: http://employee.core-3-0:8080/
+        filestore: http://filestore.core-3-0:8080/
+        filestore-java: http://filestore.core-3-0:8080/
+        idgen: http://idgen.core-3-0:8080/
+        individual: http://individual.core-3-0:8080/
         # cluster-configs 3.1.0 adds localization, defaulting to the 2.x egov namespace.
-        localization: http://localization.digit3-core:8080/
-        localization-java: http://localization.digit3-core:8080/
-        mdms-v2: http://mdms-v2.digit3-core:8080/
-        notification: http://notification.digit3-core:8080/
-        notify: http://notify.digit3-core:8080/
-        otp: http://otp.digit3-core:8080/
-        pg-service: http://pg-service.digit3-core:8080/
-        registry: http://registry.digit3-core:8080/
-        template-config: http://template-config.digit3-core:8080/
-        url-shortener: http://url-shortener.digit3-core:8080/
-        workflow: http://workflow.digit3-core:8080/
-        vault: http://vault.vault:8200/
+        localization: http://localization.core-3-0:8080/
+        localization-java: http://localization.core-3-0:8080/
+        mdms-v2: http://mdms-v2.core-3-0:8080/
+        notification: http://notification.core-3-0:8080/
+        notify: http://notify.core-3-0:8080/
+        otp: http://otp.core-3-0:8080/
+        pg-service: http://pg-service.core-3-0:8080/
+        registry: http://registry.core-3-0:8080/
+        template-config: http://template-config.core-3-0:8080/
+        url-shortener: http://url-shortener.core-3-0:8080/
+        workflow: http://workflow.core-3-0:8080/
+        vault: http://vault.backbone-3-0:8200/
   secrets:
     db:
-      namespace: [digit3-core] # username/password/flyway-*/superuserPassword
+      namespace: [core-3-0] # username/password/flyway-*/superuserPassword
     minio:
-      namespace: [digit3-core] # accesskey/secretkey/rootUser/rootPassword
+      namespace: [core-3-0] # accesskey/secretkey/rootUser/rootPassword
     docker-registry-secret:
-      namespace: [digit3-core] # dockerconfigjson
+      namespace: [core-3-0] # dockerconfigjson
     egov-notification-mail:
-      namespace: [digit3-core] # mailsenderusername/-password (account, notification)
+      namespace: [core-3-0] # mailsenderusername/-password (account, notification)
     egov-notification-sms:
-      namespace: [digit3-core] # username/password (notification)
+      namespace: [core-3-0] # username/password (notification)
     # Keycloak: admin account and the clients account/employee use.
     kc-admin:
-      namespace: [digit3-core] # username/password (account, keycloak)
+      namespace: [core-3-0] # username/password (account, keycloak)
     kc-db:
-      namespace: [digit3-core] # username/password: keycloak's role on postgresql-18
+      namespace: [core-3-0] # username/password: keycloak's role on postgresql-18
     employee-iam-secret:
-      namespace: [digit3-core] # employee-iam-client-secret (account, employee)
+      namespace: [core-3-0] # employee-iam-client-secret (account, employee)
     citizen-broker-secret:
-      namespace: [digit3-core] # citizen-broker-client-secret (account)
-    # AppRole unified-dev-digit3-core (policy unified-dev-digit3-core-transit) on vault.vault
+      namespace: [core-3-0] # citizen-broker-client-secret (account)
+    # AppRole unified-dev-core-3-0 (policy unified-dev-core-3-0-transit) on vault.backbone-3-0
     vault-approle:
-      namespace: [digit3-core] # role-id/secret-id (otp, individual)
+      namespace: [core-3-0] # role-id/secret-id (otp, individual)
     hmac-secret:
-      namespace: [digit3-core] # hmac-secret (otp, individual blind-index hashes)
+      namespace: [core-3-0] # hmac-secret (otp, individual blind-index hashes)
+    # PostgreSQL 18 (CloudNativePG) credentials, rendered into backbone-3-0 where the
+    # database runs: postgresql-18-db (owner coredev, bootstrap) + postgresql-18-superuser-db.
+    postgresql-18:
+      name: postgresql-18-db
+      superuserName: postgresql-18-superuser-db
+      namespace: [backbone-3-0] # username/password/superuserPassword
+
+# PostgreSQL 18 (CloudNativePG). Overrides charts/backbone-services/postgresql-18.
+postgresql-18:
+  # DIGIT 3.0's own database namespace (the chart default is the shared `backbone`).
+  namespace: backbone-3-0
+  # Single instance: this node pool is tight -- a node recently sat at 103% CPU
+  # and restart-looped every Java service on it. Raise to 3 once three
+  # schedulable nodes have headroom; that is what buys automated failover.
+  instances: 1
+  storage:
+    size: 50Gi
+    # Azure managed disk. The chart default is empty (cluster default class),
+    # named here so it cannot move if the default-class annotation is changed.
+    storageClass: managed-csi
+  affinity:
+    # AKS labels nodes with zone, so replicas spread across availability zones
+    # rather than merely across nodes. The chart defaults to hostname because
+    # on-prem clusters have no zone labels.
+    topologyKey: topology.kubernetes.io/zone
+  monitoring:
+    # kube-prometheus-stack is installed here, so the PodMonitor CRD exists.
+    enabled: true
+  bootstrap:
+    # owner MUST equal the `username` in the postgresql-18-db secret
+    # (cluster-configs.secrets.postgresql-18.username). If they differ, the
+    # database is created owned by a role those credentials cannot authenticate
+    # as -- and because initdb runs ONCE, it cannot be corrected without
+    # recreating the cluster.
+    owner: coredev
+    database: coredb
+
+  auth:
+    # Secrets rendered by cluster-configs from unified-dev-secrets.yaml
+    # (cluster-configs.secrets.postgresql-18). Without these the operator
+    # generates its own random passwords instead.
+    existingSecret: postgresql-18-db
+    superuserSecret: postgresql-18-superuser-db
+  postgresql:
+    # PostGIS for digit3 boundary (migration V20260818120000 adds a geometry
+    # column). Mounted as an image volume; the PostgreSQL image is unchanged.
+    # Pinned to a dated build: the plain 3.7.0-18-trixie tag is rebuilt in place.
+    # GDAL_DATA/PROJ_DATA use ${image_root} (CloudNativePG 1.29+).
+    extensions:
+      - name: postgis
+        image:
+          reference: ghcr.io/cloudnative-pg/postgis-extension:3.7.0-202611091303-18-trixie
+        ld_library_path:
+          - system
+        env:
+          - name: GDAL_DATA
+            value: ${image_root}/share/gdal
+          - name: PROJ_DATA
+            value: ${image_root}/share/proj
+  # coredb is the bootstrap database (adopted, not recreated). The operator
+  # creates postgis as superuser; the boundary migration runs as coredev, which
+  # may not, and its CREATE EXTENSION IF NOT EXISTS then finds it present.
+  databases:
+    - name: coredb
+      owner: coredev
+      extensions:
+        - name: postgis
+          version: "3.7.0"

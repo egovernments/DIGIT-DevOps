@@ -29,7 +29,7 @@ cluster-configs:
     ## posthog: created here, not only by the backbone ApplicationSet's
     ## CreateNamespace, because this Application also renders the posthog-*
     ## Secrets into it (secrets/posthog-secret.yaml).
-    values: [ backbone, egov, monitoring, playground, temporal, kargo, unified-core, unified-health, unified-studio, digit-core3-0, digit3-core, vault, sdip, unified-sdip, posthog ]
+    values: [ backbone, egov, monitoring, playground, temporal, kargo, unified-core, unified-health, unified-studio, digit-core3-0, digit3-core, vault, digit-3-0, core-3-0, backbone-3-0, sdip, unified-sdip, posthog ]
     ## Kargo will not adopt a namespace that already exists without this label:
     ## the Project goes Stalled/ExistingNamespaceMissingLabel. These namespaces
     ## are created here, so they are labeled here too -- the kargo-pipelines
@@ -42,6 +42,8 @@ cluster-configs:
       unified-studio:
         kargo.akuity.io/project: "true"
       digit-core3-0:
+        kargo.akuity.io/project: "true"
+      digit-3-0:
         kargo.akuity.io/project: "true"
       unified-sdip:
         kargo.akuity.io/project: "true"
@@ -220,6 +222,12 @@ cluster-configs:
         worker-registry-host: 'http://worker-registry.health:8080/'
 
   secrets:
+    # Kargo project namespaces that receive image-creds/git-creds/verify-kubeconfig.
+    # Override of the chart default to carry the renamed digit-3-0 project alongside the
+    # legacy digit-core3-0 during the digit-3.0 restructure (DIGIT-DevOps#5762); drop
+    # digit-core3-0 at teardown.
+    kargo:
+      projects: [ unified-core, unified-health, unified-studio, digit-core3-0, digit-3-0, unified-sdip ]
     db:
       ## `backbone` added so the `debezium-postgres-connector-registrar`
       ## CronJob can read DB credentials via secretKeyRef in that namespace.

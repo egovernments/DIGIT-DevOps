@@ -1,13 +1,11 @@
 global:
-   domain: unified-dev.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
-   setup: fullsetup
-
+  domain: unified-dev.digit.org ## Add your Domain Name "Eg: site.mydomain.com" Do not use the dummy domain
+  setup: fullsetup
 # Overrides for the minio chart (charts/backbone-services/minio).
 minio:
   s3Domain: minio-dev.digit.org
-
 cluster-configs:
-  namespaces:  
+  namespaces:
     create: true
     ## care, health, studio and urban added for the Azure AKS unified-dev
     ## environment: workloads run in those namespaces on EKS unified-dev, and the
@@ -29,7 +27,7 @@ cluster-configs:
     ## posthog: created here, not only by the backbone ApplicationSet's
     ## CreateNamespace, because this Application also renders the posthog-*
     ## Secrets into it (secrets/posthog-secret.yaml).
-    values: [ backbone, egov, monitoring, playground, temporal, kargo, unified-core, unified-health, unified-studio, digit-core3-0, digit3-core, vault, sdip, unified-sdip, posthog ]
+    values: [backbone, egov, monitoring, playground, temporal, kargo, unified-core, unified-health, unified-studio, digit-core3-0, digit3-core, vault, sdip, unified-sdip, posthog]
     ## Kargo will not adopt a namespace that already exists without this label:
     ## the Project goes Stalled/ExistingNamespaceMissingLabel. These namespaces
     ## are created here, so they are labeled here too -- the kargo-pipelines
@@ -45,14 +43,13 @@ cluster-configs:
         kargo.akuity.io/project: "true"
       unified-sdip:
         kargo.akuity.io/project: "true"
-
   root-ingress:
     cert-issuer: letsencrypt-prod
   configmaps:
     egov-config:
       ## `backbone` added so the `debezium-postgres-connector-registrar`
       ## CronJob can read db-host/db-name via configMapKeyRef in that namespace.
-      namespace: [ egov, temporal, backbone ]
+      namespace: [egov, temporal, backbone]
       data:
         db-host: unified-dev-server.postgres.database.azure.com ## Add db-host name eg: egov-demo.database.azure.com
         db-name: unified-dev-db ## Add db-name
@@ -84,9 +81,8 @@ cluster-configs:
         egov-bnd-live-citizen-tenants: "pg.testing"
         kafka-tenant-id-pattern: ''
         boundary-hierarchy: 'NEWTEST00222'
-
     egov-service-host:
-      namespace: [ egov ]
+      namespace: [egov]
       data:
         asset-services: "http://asset-services:8080/"
         asset-services-maha: "http://asset-services-maha:8080/"
@@ -218,21 +214,20 @@ cluster-configs:
         digit-config-service: "http://digit-config-service.egov:8080/"
         novu-bridge: "http://novu-bridge.egov:8080/"
         worker-registry-host: 'http://worker-registry.health:8080/'
-
   secrets:
     db:
       ## `backbone` added so the `debezium-postgres-connector-registrar`
       ## CronJob can read DB credentials via secretKeyRef in that namespace.
-      namespace: [ egov, temporal, backbone ]
+      namespace: [egov, temporal, backbone]
       name: db
     keycloak:
-      namespace: [ egov ]
+      namespace: [egov]
       name: keycloak
     kafka-kraft:
       name: kafka-kraft-kraft-cluster-id
       namespace: backbone
     git-sync:
-      namespace: [ egov ]
+      namespace: [egov]
       name: git-creds
     elasticsearch-master-creds:
       ## `es-upgrade` replaced with `backbone`.
@@ -252,11 +247,11 @@ cluster-configs:
       ## credentials. Secrets are namespace-scoped, so jaeger in monitoring
       ## cannot read the backbone copy. The monitoring namespace already
       ## exists, so this does not risk the abort described above.
-      namespace: [ egov, backbone, temporal, monitoring ]
+      namespace: [egov, backbone, temporal, monitoring]
       name: elasticsearch-master-credentials
     egov-notification-sms:
       name: egov-notification-sms
-      namespace: [ egov ]
+      namespace: [egov]
     egov-pg-service:
       # chart default puts this in `urban`, but egov-pg-service runs in egov;
       # secrets are namespace-scoped so the pod got CreateContainerConfigError
@@ -264,7 +259,7 @@ cluster-configs:
     minio:
       # chart default is backbone only; egov-malware-detection (egov) reads
       # AWS_KEY/AWS_SECRETKEY from this Secret, so it needs a copy in egov too
-      namespace: [ backbone, egov ]
+      namespace: [backbone, egov]
       name: minio
     oauth2-proxy:
       ## Overrides the chart default of `egov` (charts/cluster-configs/values.yaml).
@@ -282,7 +277,6 @@ cluster-configs:
       ## posthog-app / posthog-db / posthog-clickhouse-users for the posthog chart
       ## (backbone ApplicationSet). Values come from unified-dev-secrets.yaml.
       namespace: posthog
-
 employee:
   image:
     tag: "multiarch"
@@ -302,101 +296,51 @@ digit-ui:
 workbench-ui:
   image:
     tag: "master-37deada"
-  custom-js-injection: |
-    sub_filter.conf: "
-      sub_filter  '<head>' '<head>        
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsWorkbenchDev.js type=text/javascript ></script>
-      ';"     
-
+  custom-js-injection: "sub_filter.conf: \"\n  sub_filter  '<head>' '<head>        \n  <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsWorkbenchDev.js type=text/javascript ></script>\n  ';\"     \n"
 wavemaker-ui:
   image:
     tag: "10.0"
-  custom-js-injection: |
-    sub_filter.conf: "
-      sub_filter  '<head>' '<head>
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsWorkbenchHCMMZ.js type=text/javascript></script>';" 
-
+  custom-js-injection: "sub_filter.conf: \"\n  sub_filter  '<head>' '<head>\n  <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsWorkbenchHCMMZ.js type=text/javascript></script>';\" \n"
 core-ui:
   image:
     tag: "multiarch-console-stable-arm-fcf1fa94-1062"
-  custom-js-injection: |
-    sub_filter.conf: "
-      sub_filter  '<head>' '<head>
-      <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigsCore.js type=text/javascript></script>';"     
-
+  custom-js-injection: "sub_filter.conf: \"\n  sub_filter  '<head>' '<head>\n  <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigsCore.js type=text/javascript></script>';\"     \n"
 program-ui:
   image:
     tag: "frontend-5bee258-7"
-  custom-js-injection: |
-    sub_filter.conf: "
-      sub_filter  '<head>' '<head>
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/selco/globalConfigProgram.js type=text/javascript></script>';" 
-
-
+  custom-js-injection: "sub_filter.conf: \"\n  sub_filter  '<head>' '<head>\n  <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/selco/globalConfigProgram.js type=text/javascript></script>';\" \n"
 sandbox-ui:
   image:
     tag: "multiarch"
-  custom-js-injection: |
-    sub_filter.conf: "
-      sub_filter  '<head>' '<head>
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsSandbox.js type=text/javascript></script>';"     
-
+  custom-js-injection: "sub_filter.conf: \"\n  sub_filter  '<head>' '<head>\n  <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsSandbox.js type=text/javascript></script>';\"     \n"
 storybook:
   image:
     tag: "develop-d44ae84"
-  custom-js-injection: |
-    sub_filter.conf: "
-      sub_filter  '<head>' '<head>
-      <link rel=icon href=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/browser-icon.png />
-      <title>DIGIT StoryBook</title>
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsStorybook.js type=text/javascript></script>';"  
-
+  custom-js-injection: "sub_filter.conf: \"\n  sub_filter  '<head>' '<head>\n  <link rel=icon href=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/browser-icon.png />\n  <title>DIGIT StoryBook</title>\n  <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsStorybook.js type=text/javascript></script>';\"  \n"
 story-book-flutter:
   image:
     tag: "develop-d87b1a1"
-  custom-js-injection: |
-    sub_filter.conf: "
-      sub_filter  '<head>' '<head>
-      <link rel=icon href=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/browser-icon.png />
-      <title>StoryBook Flutter</title>
-      <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigsWorkbench.js type=text/javascript></script>';"  
-
+  custom-js-injection: "sub_filter.conf: \"\n  sub_filter  '<head>' '<head>\n  <link rel=icon href=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/browser-icon.png />\n  <title>StoryBook Flutter</title>\n  <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigsWorkbench.js type=text/javascript></script>';\"  \n"
 route-map:
   image:
     tag: "HLM-5602-vehicle-tracking-web-copy-386d22bb8e-4"
-  custom-js-injection: |
-    sub_filter.conf: "
-      sub_filter  '<head>' '<head>
-      <link rel=icon href=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/browser-icon.png />
-      <title>Vehicle tracker</title>
-      <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigsWorkbench.js type=text/javascript></script>';"  
-
-
+  custom-js-injection: "sub_filter.conf: \"\n  sub_filter  '<head>' '<head>\n  <link rel=icon href=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/browser-icon.png />\n  <title>Vehicle tracker</title>\n  <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigsWorkbench.js type=text/javascript></script>';\"  \n"
 storybook-svg:
   image:
     tag: "digit-ui-core-v2-06064c17aa-2"
-  custom-js-injection: |
-    sub_filter.conf: "
-      sub_filter  '<head>' '<head>
-      <link rel=icon href=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/browser-icon.png />
-      <title>DIGIT SVG StoryBook</title>
-      <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigsWorkbench.js type=text/javascript></script>';"     
-
+  custom-js-injection: "sub_filter.conf: \"\n  sub_filter  '<head>' '<head>\n  <link rel=icon href=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/browser-icon.png />\n  <title>DIGIT SVG StoryBook</title>\n  <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigsWorkbench.js type=text/javascript></script>';\"     \n"
 core-digit-ui:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
       ';"
-
 dss-ui:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
       ';"
-
-
 hrms-ui:
   image:
     tag: "mfe-css-8197fcab-194"
@@ -405,23 +349,18 @@ hrms-ui:
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
       ';"
-
 engagement-ui:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
       ';"
-
-
 workbench-web:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
       ';"
-
-
 pgr-ui:
   image:
     tag: "mfe-css-6bbcd400-143"
@@ -430,61 +369,42 @@ pgr-ui:
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
       ';"
-
 qr-scanner-ui:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
       ';"
-
 workbench-mfe:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
       ';"
-
 microplan-mfe:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
       ';"
-
 campaign-mfe:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
       ';"
-
 tqm-ui:
-  custom-js-injection: |
-    sub_filter.conf: "
-      sub_filter  '<head>' '<head>
-      <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
-      ';"
-      
+  custom-js-injection: "sub_filter.conf: \"\n  sub_filter  '<head>' '<head>\n  <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>\n  ';\"\n  \n"
 digit-studio:
   image:
     tag: "studio-dev-ui-rc19-3-c3e3c69-1149"
-  custom-js-injection: |
-    sub_filter.conf: "
-      sub_filter  '<head>' '<head>
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/analytics/analytics.js type=text/javascript async></script>     
-      <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsDigitStudio.js type=text/javascript></script>
-      ';"
-
-
+  custom-js-injection: "sub_filter.conf: \"\n  sub_filter  '<head>' '<head>\n  <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/analytics/analytics.js type=text/javascript async></script>     \n  <script src=https://egov-dev-assets.s3.ap-south-1.amazonaws.com/globalConfigsDigitStudio.js type=text/javascript></script>\n  ';\"\n"
 fsm-ui:
   custom-js-injection: |
     sub_filter.conf: "
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
       ';"
-
-
 common-ui:
   image:
     tag: "develop-mfe-campaign-microplan-9e8ad321-124"
@@ -493,8 +413,6 @@ common-ui:
       sub_filter  '<head>' '<head>
       <script src=https://s3.ap-south-1.amazonaws.com/egov-dev-assets/globalConfigs.js type=text/javascript></script>
       ';"
-
-
 citizen:
   image:
     tag: "multiarch"
@@ -513,8 +431,8 @@ egov-filestore:
     tag: "security-patch-b62174b"
   volume: /opt/eGov/filestore
   is-bucket-fixed: "true"
-  minio.url : "http://minio.backbone:9000/"
-  aws.s3.url : "https://s3.amazonaws.com"
+  minio.url: "http://minio.backbone:9000/"
+  aws.s3.url: "https://s3.amazonaws.com"
   is-s3-enabled: false
   is-azure-enabled: true
   minio-enabled: false
@@ -526,7 +444,6 @@ egov-filestore:
   filestore-url-validity: 3600
   fixed-bucketname: "unified-dev-filestore"
   heap: "-Xmx256m -Xms256m"
-
 egov-malware-detection:
   initContainers:
     dbMigration:
@@ -565,7 +482,6 @@ egov-malware-detection:
   # JVM Settings
   heap: "-Xmx512m -Xms512m"
   memory_limits: "768Mi"
-
 egov-url-shortening:
   initContainers:
     dbMigration:
@@ -578,7 +494,6 @@ egov-url-shortening:
   egov-url-shortner-endpoint: "/eus/shortener"
   hashids-salt: "randomsalt"
   hashids-min-length: "2"
-
 inbox:
   image:
     tag: "base-docker-upgrade-VAPTCompliance-f44f104"
@@ -587,8 +502,8 @@ inbox:
   heap: "-Xmx512m -Xms256m"
   java-debug: true
   tracing-enabled: "true"
-  service-map : '{}'
-  bs-service-map : '{}'
+  service-map: '{}'
+  bs-service-map: '{}'
   show-closed-applications: "true"
   mdmsV1SearchEndpoint: "/egov-mdms-service/v1/_search"
   # Startup here takes ~120s (Spring context alone ~60s, then the
@@ -603,24 +518,23 @@ inbox:
     livenessProbePath: "/inbox/health"
     readinessProbePath: "/inbox/health"
     livenessProbe: |
-        httpGet:
-            path: "{{ .Values.healthChecks.livenessProbePath }}"
-            port: {{ default .Values.httpPort .Values.healthPort }}
-        initialDelaySeconds: 180
-        timeoutSeconds: 5
-        periodSeconds: 30
-        successThreshold: 1
-        failureThreshold: 10
+      httpGet:
+          path: "{{ .Values.healthChecks.livenessProbePath }}"
+          port: {{ default .Values.httpPort .Values.healthPort }}
+      initialDelaySeconds: 180
+      timeoutSeconds: 5
+      periodSeconds: 30
+      successThreshold: 1
+      failureThreshold: 10
     readinessProbe: |
-        httpGet:
-            path: "{{ .Values.healthChecks.readinessProbePath }}"
-            port: {{ default .Values.httpPort .Values.healthPort }}
-        initialDelaySeconds: 30
-        timeoutSeconds: 5
-        periodSeconds: 15
-        successThreshold: 1
-        failureThreshold: 20
-
+      httpGet:
+          path: "{{ .Values.healthChecks.readinessProbePath }}"
+          port: {{ default .Values.httpPort .Values.healthPort }}
+      initialDelaySeconds: 30
+      timeoutSeconds: 5
+      periodSeconds: 15
+      successThreshold: 1
+      failureThreshold: 20
 egov-idgen:
   initContainers:
     dbMigration:
@@ -634,7 +548,6 @@ egov-idgen:
   autocreate-new-seq: "true"
   mdms-cache-ttl-minutes: "120"
   mdms-cache-max-size: "1000"
-
 mdms-v2:
   initContainers:
     dbMigration:
@@ -658,7 +571,6 @@ mdms-v2:
   healthChecks:
     livenessProbePath: "/egov-mdms-service/health"
     readinessProbePath: "/egov-mdms-service/health"
-
 boundary-service:
   initContainers:
     dbMigration:
@@ -670,13 +582,10 @@ boundary-service:
   heap: '-Xmx512m -Xms512m'
   memory_limits: 1024Mi
   cpu_limits: 500m
-
-
 health-hrms:
   replicas: 1
   heap: '-Xmx256m -Xms256m'
   memory_limits: 512Mi
-
 public-service:
   initContainers:
     dbMigration:
@@ -693,7 +602,6 @@ public-service:
   mdms-v2-create-endpoint: "egov-mdms-service/v2/_create"
   mdms-service-host: "http://mdms-v2.egov:8080/"
   mdms-v2-update-endpoint: "egov-mdms-service/v2/_update"
-
 public-service-init:
   initContainers:
     dbMigration:
@@ -709,19 +617,17 @@ public-service-init:
   mdms-v2-search-endpoint: "egov-mdms-service/v2/_search"
   mdms-v2-create-endpoint: "egov-mdms-service/v2/_create"
   mdms-service-host: "http://mdms-v2.egov:8080/"
-  mdms-v2-update-endpoint: "egov-mdms-service/v2/_update"  
-
+  mdms-v2-update-endpoint: "egov-mdms-service/v2/_update"
 facility:
   replicas: 1
   heap: '-Xmx256m -Xms256m'
   memory_limits: 512Mi
-
 egov-notification-sms:
   image:
     tag: sandbox-mobile-number-da1c7af
   sms-provider-url: "sms provider url" ## Add sms provider url
   sms.provider.class: "Console"
-  sms.provider.contentType:  "application/x-www-form-urlencoded"
+  sms.provider.contentType: "application/x-www-form-urlencoded"
   sms-config-map: "{'User':'$username', 'passwd': '$password', 'sid':'$senderid', 'mobilenumber':'$mobileno', 'message':'$message', 'mtype':'N', 'DR':'N', 'smsservicetype':'singlemsg'}"
   sms-gateway-to-use: "sms provider name" ## Add sms provider name
   sms-sender: "sms sender" ## Add sms sender
@@ -734,9 +640,8 @@ egov-notification-sms:
   sms-destination-mobile-req-param-name: "mobilenumber"
   sms-message-req-param-name: "message"
   sms-error-codes: "401,403,404,405,406,407,408,409,410,411,412,413,414"
-  sms.mobile.validation.pattern: "^[6-9][0-9]{9}$"                                                                                                                                      
+  sms.mobile.validation.pattern: "^[6-9][0-9]{9}$"
   sms.mobile.validation.error.message: "Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9."
-
 egov-otp:
   initContainers:
     dbMigration:
@@ -750,7 +655,6 @@ egov-otp:
   db-schema-names: "kano,kebbi"
   memory_limits: "512Mi"
   heap: "-Xmx256m -Xms256m"
-
 keycloak:
   image:
     tag: "keycloak-spi-custom-build-aardhya-78019f9"
@@ -763,7 +667,6 @@ keycloak:
   ## Non-production: skip real SMS/e-mail delivery for the citizen-registration
   ## SPI, matching `citizen-otp-fixed` used by the rest of this environment.
   otp-default-otp: "123456"
-
 egov-user:
   ## SQLi fix, commit 6fdc55b. Digest-pinned -- the tag is kept alongside for
   ## readability, but the digest is what resolves, so the deployed bits cannot
@@ -796,13 +699,11 @@ egov-user:
   user-status-change-event-enabled: "true"
   egov-mdms-v2-create-schema-endpoint: "egov-mdms-service/schema/v1/_create"
   egov-mdms-v2-create-data-endpoint: "egov-mdms-service/v2/_create"
-
 chatbot:
   kafka-topics-partition-count: 3
   kafka-topics-replication-factor: 2
   kafka-consumer-poll-ms: 10
   kafka-producer-linger-ms: 5
-
   contact-card-whatsapp-number: "+918744960111"
   contact-card-whatsapp-name: "mSeva Punjab"
   valuefirst-whatsapp-number: "918744960111"
@@ -814,9 +715,7 @@ chatbot:
   valuefirst-notification-welcome-templateid: "194791"
   valuefirst-notification-root-templateid: "194795"
   valuefirst-send-message-url: "https://api.myvaluefirst.com/psms/servlet/psms.JsonEservice"
-
   user-service-chatbot-citizen-passwrord: "123456"
-
 xstate-chatbot:
   initContainers:
     dbMigration:
@@ -840,7 +739,6 @@ xstate-chatbot:
   bill-supported-modules: "WS, PT, TL, FIRENOC, BPA"
   pgr-version: "v2"
   pgr-update-topic: "update-pgr-request"
-
 ws-services:
   initContainers:
     dbMigration:
@@ -850,24 +748,20 @@ ws-services:
     tag: "central-instance-WnS-with_master-c44b49f489-4"
   wcid-format: "WS/[CITY.CODE]/[fy:yyyy-yy]/[SEQ_EGOV_COMMON]"
   is-external-workflow-enabled: "true"
-
 bpa-services:
   memory_limits: 384Mi
   java-args: -Dspring.profiles.active=monitoring
   java-debug: true
   tracing-enabled: "true"
   egov.idgen.bpa.applicationNum.format: PB-BP-[cy:yyyy-MM-dd]-[SEQ_EG_BP_APN]
-
 bpa-calculator:
   memory_limits: 384Mi
   java-args: -Dspring.profiles.active=monitoring
   java-debug: true
   tracing-enabled: "true"
-
 sw-services:
   scid-format: "SW/[CITY.CODE]/[fy:yyyy-yy]/[SEQ_EGOV_COMMON]"
-  is-external-workflow-enabled: "true" 
-
+  is-external-workflow-enabled: "true"
 egov-pg-service:
   initContainers:
     dbMigration:
@@ -875,13 +769,11 @@ egov-pg-service:
         tag: "base-docker-upgrade-ddfcec3"
   image:
     tag: "base-docker-upgrade-ddfcec3"
-  axis: true  
+  axis: true
   egov-pg-reconciliation-system-user-uuid: "db4fe8ed-c0e0-4c2a-829b-72296d8d156f"
   heap: "-Xmx256m -Xms256m"
   memory_limits: 512Mi
-
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
 egov-indexer:
   image:
     tag: "base-docker-upgrade-ce613c1"
@@ -891,10 +783,9 @@ egov-indexer:
       image:
         tag: "base-docker-upgrade-ce613c1"
     gitSync:
-      repo: "git@github.com:egovernments/configs"        ##### Change repo url with Your fork Repo url
-      branch: "UNIFIED-DEV"                                      ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs" ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV" ##### Change repo branch with Your fork Repo branch
   egov-indexer-yaml-repo-path: "file:///work-dir/configs/fsm/egov-indexer/egov-vehicle.yaml,file:///work-dir/configs/fsm/egov-indexer/egov-vendor.yaml,file:///work-dir/configs/fsm/egov-indexer/egov-fsm.yml,file:///work-dir/configs/egov-indexer/privacy-audit.yaml,file:///work-dir/configs/egov-indexer/billingservices-indexer.yml,file:///work-dir/configs/egov-indexer/collection-indexer.yml,file:///work-dir/configs/egov-indexer/egov-telemetry-indexer.yml,file:///work-dir/configs/egov-indexer/egov-uploader-indexer.yml,file:///work-dir/configs/egov-indexer/error-queue.yml,file:///work-dir/configs/egov-indexer/finance-rolloutadotpion-indexer.yml,file:///work-dir/configs/egov-indexer/payment-indexer.yml,file:///work-dir/configs/egov-indexer/pgr-services.yml,file:///work-dir/configs/egov-indexer/rainmaker-pgr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-pt-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-tl-indexer.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry.yaml,file:///work-dir/configs/egov-indexer/water-service.yml,file:///work-dir/configs/egov-indexer/water-services-meter.yml,file:///work-dir/configs/egov-indexer/sewerage-service.yml,file:///work-dir/configs/egov-indexer/property-services.yml,file:///work-dir/configs/egov-indexer/chatbot-telemetry-v2.yaml,file:///work-dir/configs/egov-indexer/egov-vehicle.yaml,file:///work-dir/configs/egov-indexer/egov-vendor.yaml,file:///work-dir/configs/egov-indexer/egov-url-shortening-indexer.yaml,file:///work-dir/configs/egov-indexer/fire-noc-service.yml,file:///work-dir/configs/egov-indexer/egov-echallan.yml,file:///work-dir/configs/egov-indexer/egov-bpa-indexer.yml,file:///work-dir/configs/egov-indexer/edcr-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-birth-indexer.yml,file:///work-dir/configs/egov-indexer/rainmaker-death-indexer.yml,file:///work-dir/configs/egov-indexer/ws-event-indexer.yml,file:///work-dir/configs/egov-indexer/egov-error-queue-indexer.yml,file:///work-dir/configs/egov-indexer/citizen-feedback-indexer.yml,file:///work-dir/configs/egov-indexer/egov-fsm.yml,file:///work-dir/configs/egov-indexer/fsm-inbox-indexer.yml,file:///work-dir/configs/works/egov-indexer/contractservices-indexer.yml,file:///work-dir/configs/works/egov-indexer/estimateservices-indexer.yml,file:///work-dir/configs/works/egov-indexer/expensebill-indexer.yml,file:///work-dir/configs/works/egov-indexer/individual-indexer.yml,file:///work-dir/configs/works/egov-indexer/musterservices-indexer.yml,file:///work-dir/configs/works/egov-indexer/organisationservices-indexer.yml,file:///work-dir/configs/works/egov-indexer/project-indexer.yml,file:///work-dir/configs/egov-indexer/product-indexer.yml,file:///work-dir/configs/egov-indexer/individual-indexer.yml,file:///work-dir/configs/egov-indexer/household-indexer.yml,file:///work-dir/configs/egov-indexer/project-task-indexer.yml,file:///work-dir/configs/egov-indexer/stock-indexer.yml,file:///work-dir/configs/egov-indexer/facility-indexer.yml,file:///work-dir/configs/egov-indexer/project-staff-indexer.yml,file:///work-dir/configs/egov-indexer/service-request-indexer.yml,file:///work-dir/configs/works/egov-indexer/measurement-indexer.yml,file:///work-dir/configs/works/egov-indexer/ifms-pi-indexer.yml,file:///work-dir/configs/works/egov-indexer/expensepayment-indexer.yml,file:///work-dir/configs/egov-indexer/egov-pqm-service.yml,file:///work-dir/configs/egov-indexer/pqm-service-indexer.yml,file:///work-dir/configs/egov-indexer/pqm-anomaly-finder-indexer.yml,file:///work-dir/configs/ifix/egov-indexer/digit-exchange-indexer.yml, file:///work-dir/configs/works/egov-indexer/mukta-pi-indexer.yml,file:///work-dir/configs/health/egov-indexer/census-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/plan-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/household-indexer.yml,file:///work-dir/configs/health/egov-indexer/facility-indexer.yml,file:///work-dir/configs/health/egov-indexer/individual-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-staff-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-task-indexer.yml,file:///work-dir/configs/health/egov-indexer/referral-management-indexer.yml,file:///work-dir/configs/health/egov-indexer/stock-indexer.yml,file:///work-dir/configs/health/egov-indexer/transformer-pgr-services.yml,file:///work-dir/configs/health/egov-indexer/attendance-service-indexer.yml,file:///work-dir/configs/egov-indexer/public-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/pgr-services.yml,file:///work-dir/configs/health/egov-indexer/transformer-pgr-services.yml,file:///work-dir/configs/egov-indexer/pgr-inbox-indexer.yml,file:///work-dir/configs/health/egov-indexer/health-notification-service-indexer.yml,file:///work-dir/configs/health/egov-indexer/project-beneficiary-indexer.yml"
-
 egov-persister:
   image:
     tag: "master-perf-fe334d2"
@@ -902,12 +793,12 @@ egov-persister:
   heap: "-Xmx1536m -Xms1536m"
   memory_limits: 2Gi
   images:
-    - egovio/egov-persister
+  - egovio/egov-persister
   persist-yml-path: "file:///work-dir/configs/fsm/egov-persister/fsm-persister.yaml,file:///work-dir/configs/fsm/egov-persister/vehicle-persister.yaml,file:///work-dir/configs/fsm/egov-persister/vendor-persister.yaml,file:///work-dir/configs/fsm/egov-persister/fsm-calculator-persister.yaml,file:///work-dir/configs/egov-persister/pt-mutation-calculator-persister.yml,file:///work-dir/configs/egov-persister/apportion-persister.yml,file:///work-dir/configs/egov-persister/billing-services-persist.yml,file:///work-dir/configs/egov-persister/egf-bill.yaml,file:///work-dir/configs/egov-persister/egov-user-event-persister.yml,file:///work-dir/configs/egov-persister/egov-workflow-v2-persister.yml,file:///work-dir/configs/egov-persister/firenoc_persiter.yaml,file:///work-dir/configs/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/egov-persister/pdf-generator.yml,file:///work-dir/configs/egov-persister/pg-service-persister.yml,file:///work-dir/configs/egov-persister/pgr.v3.yml,file:///work-dir/configs/egov-persister/property-services.yml,file:///work-dir/configs/egov-persister/pt-calculator-v2-persister.yml,file:///work-dir/configs/egov-persister/pt-drafts.yml,file:///work-dir/configs/egov-persister/pt-persist.yml,file:///work-dir/configs/egov-persister/tl-billing-slab-persister.yml,file:///work-dir/configs/egov-persister/tl-calculation-persister.yml,file:///work-dir/configs/egov-persister/uploader-persister.yml,file:///work-dir/configs/egov-persister/collection-migration-persister.yml,file:///work-dir/configs/egov-persister/property-services-registry.yml,file:///work-dir/configs/egov-persister/tradelicense.yml,file:///work-dir/configs/egov-persister/sewerage-persist.yml,file:///work-dir/configs/egov-persister/water-persist.yml,file:///work-dir/configs/egov-persister/water-meter.yml,file:///work-dir/configs/egov-persister/bpa-persister.yml,file:///work-dir/configs/egov-persister/assessment-persister.yml,file:///work-dir/configs/egov-persister/chatbot.yml,file:///work-dir/configs/egov-persister/fsm-persister.yaml,file:///work-dir/configs/egov-persister/vehicle-persister.yaml,file:///work-dir/configs/egov-persister/vendor-persister.yaml,file:///work-dir/configs/egov-persister/fsm-calculator-persister.yaml,file:///work-dir/configs/egov-persister/mdms-persister.yml,file:///work-dir/configs/works/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/works/egov-persister/audit-service-persister.yml,file:///work-dir/configs/works/egov-persister/bankaccounts-persister.yml,file:///work-dir/configs/works/egov-persister/btr-persister.yml,file:///work-dir/configs/works/egov-persister/contract-service-persister.yml,file:///work-dir/configs/works/egov-persister/estimate-service.yml,file:///work-dir/configs/works/egov-persister/expence-calculator-service-persister.yml,file:///work-dir/configs/works/egov-persister/expense-bill-payment-persister.yaml,file:///work-dir/configs/health/egov-persister/expense-bill-payment-persister.yaml,file:///work-dir/configs/works/egov-persister/expense-billarray-payment-persister.yaml,file:///work-dir/configs/works/egov-persister/expensebilling-service-persister.yml,file:///work-dir/configs/works/egov-persister/muster-service-persister.yml,file:///work-dir/configs/health/egov-persister/muster-service-persister.yml,file:///work-dir/configs/works/egov-persister/organisation-persister.yml,file:///work-dir/configs/egov-persister/project-persister.yml,file:///work-dir/configs/health/egov-persister/product-persister.yml,file:///work-dir/configs/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/household-persister.yml,file:///work-dir/configs/egov-persister/project-task-persister.yml,file:///work-dir/configs/egov-persister/boundary-bulk-persister.yml,file:///work-dir/configs/egov-persister/mdms-bulk-persister.yml,file:///work-dir/configs/health/egov-persister/stock-persister.yml,file:///work-dir/configs/health/egov-persister/facility-persister.yml,file:///work-dir/configs/egov-persister/service-request-persister.yml,file:///work-dir/configs/health/egov-persister/service-request-persister.yml,file:///work-dir/configs/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/works/egov-persister/measurement-persister.yml,file:///work-dir/configs/works/egov-persister/measurement-service-persister.yml,file:///work-dir/configs/egov-persister/pqm-persister.yaml,file:///work-dir/configs/health/egov-persister/referral-management-persister.yml,file:///work-dir/configs/egov-persister/pqm-anomaly-finder-persister.yaml,file:///work-dir/configs/egov-persister/boundary-persister.yml,file:///work-dir/configs/health/egov-persister/individual-persister.yml,file:///work-dir/configs/health/egov-persister/project-persister.yml,file:///work-dir/configs/health/egov-persister/project-task-persister.yml,file:///work-dir/configs/health/egov-persister/attendance-service-persister.yml,file:///work-dir/configs/works/egov-persister/mukta-ifix-adapter-persister.yml,file:///work-dir/configs/health/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/health/egov-persister/plan-service-persister.yml,file:///work-dir/configs/health/egov-persister/project-factory-persister.yml,file:///work-dir/configs/egov-persister/sunbirdrc-credential-persister.yml,file:///work-dir/configs/works/egov-persister/rate-analysis-service-persister.yml, file:///work-dir/configs/egov-persister/statement-persister.yml, file:///work-dir/configs/health/egov-persister/irs-persister.yml, file:///work-dir/configs/egov-persister/tenant-management.yml, file:///work-dir/configs/works/egov-persister/wms-report-persister.yml,file:///work-dir/configs/uba/egov-persister/application-service-persister.yml,file:///work-dir/configs/uba/egov-persister/disbursal-service-persister.yml,file:///work-dir/configs/health/egov-persister/census-service-persister.yml,file:///work-dir/configs/egov-persister/public-service-persister.yml,file:///work-dir/configs/health/egov-persister/pgr-services-persister.yml,file:///work-dir/configs/health/egov-persister/id-pool-persister.yml,file:///work-dir/configs/health/egov-persister/id-pool-dispatch-log-persister.yml,file:///work-dir/configs/egov-persister/college-persister.yml,file:///work-dir/configs/egov-persister/studio-pdf-helper-persister.yml,file:///work-dir/configs/health/egov-persister/abha-persister.yml,file:///work-dir/configs/health/egov-persister/excel-ingestion-persister.yml,file:///work-dir/configs/health/egov-persister/boundary-management-persister.yml,file:///work-dir/configs/egov-persister/boundary-management-urban-persister.yml,file:///work-dir/configs/health/egov-persister/egov-notification-push-persister.yml,file:///work-dir/configs/health/egov-persister/health-notification-persister.yml,file:///work-dir/configs/health/egov-persister/reports-metadata-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/household-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/household-member-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/project-beneficiary-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/project-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/project-staff-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/project-task-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/stock-reconciliation-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/pgr-complaints-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/stock-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/side-effect-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/hf-referral-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/user-action-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/referral-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/attendance-log-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/attendance-register-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/attendance-staff-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/attendee-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/muster-roll-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/bill-detail-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/bill-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/bill-report-enriched-persister.yml,file:///work-dir/configs/health/egov-persister/analytics-persister/muster-roll-enriched-persister.yml,file:///work-dir/configs/studio/egov-persister/individual-persister.yml,file:///work-dir/configs/studio/egov-persister/service-request-persister.yml,file:///work-dir/configs/studio/egov-persister/hrms-employee-persister.yml,file:///work-dir/configs/health/egov-persister/dst-report-metadata-persister.yml,file:///work-dir/configs/health/egov-persister/dst-healer-audit-persister.yml"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
-      branch: "UNIFIED-DEV"                                    ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs" ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV" ##### Change repo branch with Your fork Repo branch
 audit-service:
   image:
     tag: "base-docker-upgrade-44e5f63"
@@ -919,7 +810,6 @@ audit-service:
     gitSync:
       repo: "git@github.com:egovernments/configs"
       branch: "UNIFIED-DEV"
-
 egov-localization:
   initContainers:
     dbMigration:
@@ -932,8 +822,6 @@ egov-localization:
   memory_limits: 8Gi
   cpu_limits: 1200m
   memory_requests: 6Gi
-
-
 project-factory:
   logLevel: 'debug'
   defaultLocale: 'en_MZ'
@@ -942,7 +830,6 @@ project-factory:
   namespace: 'health'
   mdmsV2SearchEndpoint: 'mdms-v2/v2/_search'
   mdmsV1SearchEndpoint: 'mdms-v2/v1/_search'
-
 project:
   initContainers:
     dbMigration:
@@ -959,7 +846,6 @@ project:
   project-search-max-limit: 200
   egov-boundary-hierarchy: ADMIN
   kafka-mdc-enabled: "true"
-
 individual:
   replicas: 0
   initContainers:
@@ -977,7 +863,6 @@ individual:
   notification-sms-disabled-roles: "ORG_ADMIN"
   egov-boundary-hierarchy: ADMIN
   kafka-mdc-enabled: "true"
-
 health-project:
   heap: "-Xmx1024m -Xms1024m"
   memory_limits: 1Gi
@@ -986,7 +871,6 @@ health-project:
   project-default-offset: 0
   project-default-limit: 100
   project-search-max-limit: 200
-
 health-individual:
   heap: "-Xmx256m -Xms256m"
   memory_limits: 512Mi
@@ -995,43 +879,37 @@ health-individual:
   aadhaar-pattern: "\\d{12}"
   mobile-pattern: "\\d+"
   notification-sms-disabled-roles: "ORG_ADMIN"
-
 egov-data-uploader:
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
-      branch: "UNIFIED-DEV"                                    ##### Change repo branch with Your fork Repo branch
-
+      repo: "git@github.com:egovernments/configs" ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV" ##### Change repo branch with Your fork Repo branch
 egov-searcher:
   image:
     tag: "v1.1.5-72f8a8f87b-16"
   search-yaml-path: "file:///work-dir/configs/egov-searcher/rainmaker-pgr-v2.yml,file:///work-dir/configs/egov-searcher/weekly-impact-emailer-searcher.yml,file:///work-dir/configs/egov-searcher/PTDemandBasedSearcher.yml,file:///work-dir/configs/egov-searcher/bill-genie.yml,file:///work-dir/configs/egov-searcher/rainmaker-tl.yml,file:///work-dir/configs/egov-searcher/localitySearcher.yml"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/configs"     ##### Change repo url with Your fork Repo url
-      branch: "UNIFIED-DEV"                                   ##### Change repo branch with Your fork Repo branch
-
+      repo: "git@github.com:egovernments/configs" ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV" ##### Change repo branch with Your fork Repo branch
 dashboard-analytics:
   image:
     tag: "worker-area-dashboard-6158cee"
   config-schema-paths: "file:///work-dir/configs/egov-dss-dashboards/dashboard-analytics/*.json"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
-      branch: "UNIFIED-DEV"                                    ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs" ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV" ##### Change repo branch with Your fork Repo branch
   cache-expiry-time-in-minutes: 0
-
 dashboard-ingest:
   image:
     tag: "develop-9ca69e70c4-4"
   config-schema-paths: "file:///work-dir/configs/egov-dss-dashboards/dashboard-ingest/*.json"
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/configs"      ##### Change repo url with Your fork Repo url
-      branch: "UNIFIED-DEV"                                    ##### Change repo branch with Your fork Repo branch
-
+      repo: "git@github.com:egovernments/configs" ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV" ##### Change repo branch with Your fork Repo branch
 # reportinfra >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
 national-dashboard-ingest:
   initContainers:
     dbMigration:
@@ -1047,7 +925,6 @@ national-dashboard-ingest:
   module-fields-mapping: '{"PT":{"transactions":"array::number","todaysTotalApplications":"number","todaysClosedApplications":"number","assessments":"number","assessedProperties":"array::number","propertiesRegistered":"array::number","todaysCollection":"array::number","propertyTax":"array::number","cess":"array::number","rebate":"array::number","penalty":"array::number","interest":"array::number"},"TL":{"transactions":"number","todaysApplications":"number","todaysLicenseIssuedWithinSLA":"number","tlTax":"number","adhocPenalty":"number","adhocRebate":"number","todaysCollection":"array::number","todaysTradeLicenses":"array::number","applicationsMovedToday":"array::number"},"PGR":{"uniqueCitizens":"number","todaysComplaints":"array::number","todaysReopenedComplaints":"array::number","todaysOpenComplaints":"array::number","todaysAssignedComplaints":"array::number","todaysRejectedComplaints":"array::number","todaysReassignedComplaints":"array::number","todaysReassignRequestedComplaints":"array::number","todaysClosedComplaints":"array::number","todaysResolvedComplaints":"array::number","slaAchievement":"array::number","completionRate":"array::number","averageSolutionTime":"array::number"},"WS":{"transactions":"number","connectionsCreated":"array::number","todaysCollection":"array::number","sewerageConnections":"array::number","waterConnections":"array::number","pendingConnections":"array::number","slaCompliance":"number","todaysTotalApplications":"number","todaysClosedApplications":"number","todaysCompletedApplicationsWithinSLA":"number"},"MCOLLECT":{"numberOfCategories":"number","todaysCollection":"array::number","numberOfReceipts":"array::number","numberOfChallans":"array::number"},"OBPS":{"ocPlansScrutinized":"number","plansScrutinized":"number","ocSubmitted":"number","applicationsSubmitted":"number","ocIssued":"number","landAreaAppliedInSystemForBPA":"number","averageDaysToIssuePermit":"number","averageDaysToIssueOC":"number","todaysCollection":"array::number","permitsIssued":"array::number","todaysClosedApplicationsOC":"number","todaysCompletedApplicationsWithinSLAOC":"number","todaysClosedApplicationsPermit":"number","todaysCompletedApplicationsWithinSLAPermit":"number","slaComplianceOC":"number","slaCompliancePermit":"number","applicationsWithDeviation":"number","averageDeviation":"number","ocWithDeviation":"number"},"FIRENOC":{"todaysApplications":"array::number","todaysCollection":"array::number","nocIssuedToday":"array::number","provisionalNOCIssued":"array::number","actualNOCIssued":"array::number","avgDaysToIssueProvisionalNOC":"array::number","slaComplianceActual":"array::number","slaComplianceProvisional":"array::number","avgDaysToIssueActualNOC":"array::number","todaysClosedApplications":"number","todaysCompletedApplicationsWithinSLA":"number"},"COMMON":{"onboardedUlbsCount":"number","totalCitizensCount":"number","slaAchievement":"number","liveUlbsCount":"array::number","status":"string","totalLiveUlbsCount":"number","totalUlbCount":"number"},"BIRTH":{"todaysCollection":"array::number","numberOfCertificatesDownloadedToday":"array::number","numberOfBirthsToday":"array::number"},"DEATH":{"todaysCollection":"array::number","numberOfCertificatesDownloadedToday":"array::number","numberOfDeathsToday":"array::number"}}'
   master-module-fields-mapping: '{"PT":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"PGR":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"TL":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"WS":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"MCOLLECT":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"OBPS":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"FIRENOC":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"BIRTH":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"},"DEATH":{"snoForMunicipalCorporation":"string","ulbName":"string","date":"string","budgetProposedForMunicipalCorporation":"number"}}'
   module-allowed-groupby-fields-mapping: '{"PT":{"financialYear","usageCategory"},"WS":{"connectionType","channelType","usageType","paymentChannelType","taxHeads","meterType","duration"},"FIRENOC":{"applicationType","department","paymentMode","type","usageType"},"OBPS":{"paymentMode","riskType","occupancyType","subOccupancyType"},"PGR":{"status","channel","department","category"},"TL":{"tradeType","status"},"MCOLLECT":{"paymentMode","status","category","challanStatus"},"COMMON":{"serviceModuleCode"},"BIRTH":{"channel","gender","boundary"},"DEATH":{"channel","gender","boundary","age"}}'
-
 report:
   image:
     tag: "v1.3.5-6cfa52c1f9-1"
@@ -1056,10 +933,9 @@ report:
   spring-datasource-tomcat-max-active: 5
   initContainers:
     gitSync:
-      repo: "git@github.com:egovernments/configs"     ##### Change repo url with Your fork Repo url
-      branch: "UNIFIED-DEV"                                   ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs" ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV" ##### Change repo branch with Your fork Repo branch
   report-locationsfile-path: "file:///work-dir/configs/reports/reportFileLocationsv1.txt"
-
 pdf-service:
   image:
     tag: "pdf-service-security-fixes-1eacb70"
@@ -1068,15 +944,13 @@ pdf-service:
       image:
         tag: "v4.4.0"
     gitSync:
-      repo: "git@github.com:egovernments/configs"     ##### Change repo url with Your fork Repo url
-      branch: "UNIFIED-DEV"                                   ##### Change repo branch with Your fork Repo branch
+      repo: "git@github.com:egovernments/configs" ##### Change repo url with Your fork Repo url
+      branch: "UNIFIED-DEV" ##### Change repo branch with Your fork Repo branch
   data-config-urls: "file:///work-dir/configs/pdf-service/data-config/studio-application.json,file:///work-dir/configs/pdf-service/data-config/studio-blank-application.json,file:///work-dir/configs/pdf-service/data-config/tradelicense-receipt.json,file:///work-dir/configs/pdf-service/data-config/property-receipt.json,file:///work-dir/configs/pdf-service/data-config/property-bill.json,file:///work-dir/configs/pdf-service/data-config/tradelicense-bill.json,file:///work-dir/configs/pdf-service/data-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/data-config/pt-receipt.json,file:///work-dir/configs/pdf-service/data-config/tl-receipt.json,file:///work-dir/configs/pdf-service/data-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/data-config/consolidatedreceipt.json,file:///work-dir/configs/pdf-service/data-config/tlapplication.json,file:///work-dir/configs/pdf-service/data-config/passvehicle-certificate.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedacknowlegment.json,file:///work-dir/configs/pdf-service/data-config/ws-consolidatedsewerageconnection.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit.json,file:///work-dir/configs/pdf-service/data-config/ptmutationcertificate.json,file:///work-dir/configs/pdf-service/data-config/tlrenewalcertificate.json,file:///work-dir/configs/pdf-service/data-config/bpa-revocation.json,file:///work-dir/configs/pdf-service/data-config/buildingpermit-low.json,file:///work-dir/configs/pdf-service/data-config/misc-receipt.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationwater.json,file:///work-dir/configs/pdf-service/data-config/ws-sanctionletter.json,file:///work-dir/configs/pdf-service/data-config/ws-estimationnotice.json,file:///work-dir/configs/pdf-service/data-config/ws-applicationsewerage.json,file:///work-dir/configs/pdf-service/data-config/tlcertificate.json,file:///work-dir/configs/pdf-service/data-config/fsm-receipt.json,file:///work-dir/configs/pdf-service/data-config/deviation-statement.json,file:///work-dir/configs/pdf-service/data-config/measurement-book.json,file:///work-dir/configs/pdf-service/data-config/detailed-estimate.json,file:///work-dir/configs/pdf-service/data-config/pqm-adhoctest.json,file:///work-dir/configs/health/pdf-service/data-config/health-bill-payment.json,file:///work-dir/configs/pdf-service/data-config/series-Marvel-pdf1.json,file:///work-dir/configs/pdf-service/data-config/series-Marvel-pdf2.json,file:///work-dir/configs/pdf-service/data-config/series-Marvel-pdf3.json,file:///work-dir/configs/pdf-service/data-config/series-Marvel-pdf4.json,file:///work-dir/configs/pdf-service/data-config/series-Marvel-pdf5.json,file:///work-dir/configs/pdf-service/data-config/series-Marvel-pdf6.json,file:///work-dir/configs/pdf-service/data-config/series-Marvel-pdf7.json,file:///work-dir/configs/pdf-service/data-config/series-Marvel-pdf8.json,file:///work-dir/configs/pdf-service/data-config/series-Marvel-pdf9.json"
   format-config-urls: "file:///work-dir/configs/pdf-service/format-config/studio-application.json,file:///work-dir/configs/pdf-service/format-config/studio-blank-application.json,file:///work-dir/configs/pdf-service/format-config/tradelicense-receipt.json,file:///work-dir/configs/pdf-service/format-config/property-receipt.json,file:///work-dir/configs/pdf-service/format-config/property-bill.json,file:///work-dir/configs/pdf-service/format-config/tradelicense-bill.json,file:///work-dir/configs/pdf-service/format-config/firenoc-receipt.json,file:///work-dir/configs/pdf-service/format-config/pt-receipt.json,file:///work-dir/configs/pdf-service/format-config/tl-receipt.json,file:///work-dir/configs/pdf-service/format-config/consolidatedbill.json,file:///work-dir/configs/pdf-service/format-config/consolidatedreceipt.json,file:///work-dir/configs/pdf-service/format-config/tlapplication.json,file:///work-dir/configs/pdf-service/format-config/passvehicle-certificate.json,file:///work-dir/configs/pdf-service/format-config/ws-consolidatedacknowlegment.json,file:///work-dir/configs/pdf-service/format-config/ws-consolidatedsewerageconnection.json,file:///work-dir/configs/pdf-service/format-config/buildingpermit.json,file:///work-dir/configs/pdf-service/format-config/ptmutationcertificate.json,file:///work-dir/configs/pdf-service/format-config/tlrenewalcertificate.json,file:///work-dir/configs/pdf-service/format-config/bpa-revocation.json,file:///work-dir/configs/pdf-service/format-config/buildingpermit-low.json,file:///work-dir/configs/pdf-service/format-config/misc-receipt.json,file:///work-dir/configs/pdf-service/format-config/ws-applicationwater.json,file:///work-dir/configs/pdf-service/format-config/ws-sanctionletter.json,file:///work-dir/configs/pdf-service/format-config/ws-estimationnotice.json,file:///work-dir/configs/pdf-service/format-config/ws-applicationsewerage.json,file:///work-dir/configs/pdf-service/format-config/tlcertificate.json,file:///work-dir/configs/pdf-service/format-config/fsm-receipt.json,file:///work-dir/configs/pdf-service/format-config/deviation-statement.json,file:///work-dir/configs/pdf-service/format-config/measurement-book.json,file:///work-dir/configs/pdf-service/format-config/detailed-estimate.json,file:///work-dir/configs/pdf-service/format-config/pqm-adhoctest.json,file:///work-dir/configs/health/pdf-service/format-config/health-bill-payment.json,file:///work-dir/configs/pdf-service/format-config/series-Marvel-pdf1.json,file:///work-dir/configs/pdf-service/format-config/series-Marvel-pdf2.json,file:///work-dir/configs/pdf-service/format-config/series-Marvel-pdf3.json,file:///work-dir/configs/pdf-service/format-config/series-Marvel-pdf4.json,file:///work-dir/configs/pdf-service/format-config/series-Marvel-pdf5.json,file:///work-dir/configs/pdf-service/format-config/series-Marvel-pdf6.json,file:///work-dir/configs/pdf-service/format-config/series-Marvel-pdf7.json,file:///work-dir/configs/pdf-service/format-config/series-Marvel-pdf8.json,file:///work-dir/configs/pdf-service/format-config/series-Marvel-pdf9.json"
-
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 # financials >>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
 egf-master:
   initContainers:
     dbMigration:
@@ -1089,7 +963,6 @@ egf-master:
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 egov-custom-consumer:
   erp-host: "https://mohali-qa.egovernments.org/"
-
 egov-apportion-service:
   initContainers:
     dbMigration:
@@ -1099,30 +972,25 @@ egov-apportion-service:
     tag: "hrms-boundary-0a4e737"
   memory_limits: 256Mi
   heap: -Xmx128m -Xms128m
-
 fsm:
   memory_limits: 384Mi
-  heap: -Xmx384m -Xms256m  
-
+  heap: -Xmx384m -Xms256m
 # docs >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 redoc:
   replicas: 1
   images:
-    - egovio/redoc:v1.0.5
+  - egovio/redoc:v1.0.5
   service_type: LoadBalancer
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # gateway >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
 ingress-nginx:
   replicas: 1
   controller:
     service:
       externalTrafficPolicy: "Local"
-
 cert-manager:
-  email: "devops@egovernments.org"     ### Add email-id which used by cert-manager for certificates validation.
-  
+  email: "devops@egovernments.org" ### Add email-id which used by cert-manager for certificates validation.
 prometheus-blackbox-exporter:
   namespace: monitoring
 gateway:
@@ -1138,9 +1006,7 @@ gateway:
   egov-open-endpoints-whitelist: "/user/v1/_validate,/user/v1/_switch,/user/oauth/token,/user-otp/v1/_send,/otp/v1/_validate,/user/citizen/_create,/localization/messages,/localization/messages/v1/_search,/user/password/nologin/_update,/pgr/servicedefinition/v1/_search,/pgr/servicecategories/v1/_search,/pgr/v1/otp/_send,/pgr-master/receivingmode/v1/_search,/tenant/v1/tenant/_search,/egov-location/boundarys,/egov-location/boundarys/boundariesByBndryTypeNameAndHierarchyTypeName,/pgr-master/service/v1/_search,/egov-location/boundarys/getLocationByLocationName,/pgr-master/OTPConfig/_search,/pgr-master/serviceGroup/v1/_search,/egov-location/boundarys/isshapefileexist,/pgr/services/v1/_search,/hr-masters/hrconfigurations/_search,/collection-services/receipts/_view,/pgr-master/service/v2/_search,/pgr-master/servicedefinition/v1/_search,/citizen-services,/citizen-services/v1/requests/receipt/_create,/citizen-services/v1/pgresponse,/citizen-services/v1/requests/anonymous/_search,/egov-mdms-service/v1/_search,/egov-mdms-service/v1/_get,/egov-mdms-service/v1/_reload,/egov-mdms-service/v1/_reloadobj,/egov-location/boundarys/getshapefile,/egov-indexer/index-operations/_index,/egov-indexer/index-operations/_reload,/egov-mdms-service-test/v1/_search,/egov-mdms-create/v1/_update,/egov-mdms-create/v1/_create,/egov-mdms-service-test/v1/_reload,/filestore/v1/files/url,/eus,/whatsapp-webhook/messages,/edcr/rest/dcr/downloadfile,/dashboard-ingest/ingest/upload,/egov-searcher/water-services/wateropensearch/_get,/egov-searcher/sewerage-services/sewerageopensearch/_get,/xstate-chatbot/status,/xstate-chatbot/reminder,/nlp-engine/fuzzy/city,/nlp-engine/fuzzy/locality,/user/oauth/token,/user-otp/v1/_send,/otp/v1/_validate,/localization/messages,/localization/messages/v1/_search,/user/password/nologin/_update,/tenant/v1/tenant/_search,/egov-location/boundarys,/egov-location/boundarys/boundariesByBndryTypeNameAndHierarchyTypeName,/egov-location/boundarys/getLocationByLocationName,/egov-location/boundarys/isshapefileexist,/hr-masters/hrconfigurations/_search,/egov-mdms-service/v1/_search,/egov-mdms-service/v1/_get,/egov-location/boundarys/getshapefile,/egov-indexer/index-operations/_index,/egov-indexer/index-operations/_reload,/egov-mdms-service-test/v1/_search,/egov-mdms-create/v1/_update,/egov-mdms-create/v1/_create,/egov-mdms-service-test/v1/_reload,/filestore/v1/files/url,/egov-url-shortening,/mdms-v2/schema/v1/_search,/mdms-v2/v1/_search,/mdms-v2/v2/_search,/mukta/digit-exchange/v1/exchange/program,/mukta/digit-exchange/v1/exchange/on-program,/mukta/digit-exchange/v1/exchange/sanction,/mukta/digit-exchange/v1/exchange/on-sanction,/mukta/digit-exchange/v1/exchange/allocation,/mukta/digit-exchange/v1/exchange/on-allocation,/mukta/digit-exchange/v1/exchange/disburse,/mukta/digit-exchange/v1/exchange/on-disburse,/ifms/digit-exchange/v1/exchange/program,/ifms/digit-exchange/v1/exchange/on-program,/ifms/digit-exchange/v1/exchange/sanction,/ifms/digit-exchange/v1/exchange/on-sanction,/ifms/digit-exchange/v1/exchange/allocation,/ifms/digit-exchange/v1/exchange/on-allocation,/ifms/digit-exchange/v1/exchange/disburse,/ifms/digit-exchange/v1/exchange/on-disburse,/filestore/v1/files/id,/filestore/v1/files,/uba-bff-service/benefit/_apply,/uba-bff-service/payment/_export_csv,/health-individual/v1/_register,/default-data-handler/tenant/new,/fhiradapter/fhir/Patient,/fhiradapter/fhir/Group,/fhiradapter/fhir/Task,/fhiradapter/fhir/Practitioner,/fhir-supplychain-transformer/fhir-api/health,/fhir-supplychain-transformer/fhir-api/validate,/fhir-supplychain-transformer/fhir-api/fetchAllFacilities,/fhir-supplychain-transformer/fhir-api/fetchAllProductVariants,/fhir-supplychain-transformer/fhir-api/fetchAllStocks,/fhir-supplychain-transformer/fhir-api/fetchAllStockReconciliation,/fhir-supplychain-transformer/fhir-api/fetchAllBoundaries,/fhir-supplychain-transformer/fhir-api/consumeFHIR,/user-sso/oauth/token,/egov-mdms-service/v2/_search,/studio-pdf-helper-service/_scanQR,/studio-individual/v1/_register,/studio-user-otp/v1/_send"
   egov-mixed-mode-endpoints-whitelist: "/pgr/seva/v1/_create,/pgr/seva/v1/_search,/pgr/seva/v1/_count,/workflow/history/v1/_search,/filestore/v1/files/tag,/egov-common-masters/departments/_search,/pt-property/property/propertytypes/_search,/pt-property/properties/_search,/pt-property/property/usages/_search,/egov-idgen/id/_generate,/egf-masters/financialyears/_search,/egov-common-workflows/process/_start,/egov-common-workflows/process/_search,/egov-common-workflows/tasks,/egov-common-workflows/tasks/{id}/_update,/billing-service/demand/_dues,/billing-service/bill/_generate,/billing-service/demand/_create,/wcms/masters/waterchargesconfig/_search,/wcms/masters/usagetypes/_search,/wcms/masters/pipesizes/_search,/wcms-connection/connection/_getbillingtypes,/wcms-connection/connection/_getconnectiontypes,/wcms/masters/sourcetypes/_search,/wcms/masters/supplytypes/_search,/wcms/masters/storagereservoirs/_search,/wcms/masters/treatmentplants/_search,/wcms/masters/documenttypes-applicationtypes/_search,/wcms/masters/donations/_search,/wcms/masters/nonmeterwaterrates/_search,/wcms-connection/connection/_create,/egov-common-masters/genders/_search,/egov-common-workflows/designations/_search,/access/v1/actions/mdms/_get,/tl-services/v1/BPAREG/_create,/tl-services/v1/BPAREG/_update,/tl-calculator/v1/BPAREG/_getbill,/property-services/property/_search,/billing-service/bill/v2/_search,/egov-location/location/v11/boundarys/_search,/pg-service/transaction/v1/_create,/collection-services/payments/_search,/pdf-service/v1/_create,/billing-service/bill/v2/_fetchbill,/pg-service/transaction/v1/_update,/ws-services/wc/_search,/sw-services/swc/_search,/edcr/rest/dcr/scrutinydetails,/edcr/rest/dcr/occomparison,/egov-pdf/download/PAYMENT/consolidatedreceipt,/collection-services/payments/PT/_search,/collection-services/payments/WS/_search,/collection-services/payments/SW/_search,/collection-services/payments/WS.ONE_TIME_FEE/_search,/collection-services/payments/SW.ONE_TIME_FEE/_search,/turn-io-adapter/_transform,/egov-user-event/v1/events/_search,/egov-mdms-service/v2/_search,/user/_search"
   tenant-propagation-enabled: "true"
-
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
 collection-services:
   initContainers:
     dbMigration:
@@ -1154,7 +1020,6 @@ collection-services:
   user-create-enabled: "true"
   heap: "-Xmx512m -Xms256m"
   memory_limits: 768Mi
-
 collection-receipt-voucher-consumer:
   jalandhar-erp-host: "https://jalandhar-qa.egovernments.org/"
   mohali-erp-host: "https://mohali-qa.egovernments.org/"
@@ -1162,7 +1027,6 @@ collection-receipt-voucher-consumer:
   amritsar-erp-host: "https://amritsar-qa.egovernments.org/"
   kharar-erp-host: "https://kharar-qa.egovernments.org/"
   zirakpur-erp-host: "https://zirakpur-qa.egovernments.org/"
-
 finance-collections-voucher-consumer:
   initContainers:
     dbMigration:
@@ -1174,7 +1038,6 @@ finance-collections-voucher-consumer:
   erp-domain-name: "egovernments.org"
   heap: "-Xmx256m -Xms256m"
   memory_limits: 512Mi
-
 # rainmaker-pgr >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 rainmaker-pgr:
   initContainers:
@@ -1190,7 +1053,6 @@ rainmaker-pgr:
   reopen-complaint-enabled: "true"
   comment-by-employee-notif-enabled: "false"
   notification-allowed-status: "open,assigned,rejected,resolved"
-
 property-services:
   initContainers:
     dbMigration:
@@ -1207,10 +1069,8 @@ property-services:
   egov-idgen-assm-format: "PB-AS-[cy:yyyy-MM-dd]-[SEQ_EG_PT_ASSM]"
   property-userevents-pay-link: "digit-ui/citizen/payment/my-bills/$businessService/$propertyId?tenantId=$tenantId"
   property-decryption-abac-enabled: "true"
-  
 pt-services-v2:
   pt-userevents-pay-link: "/citizen/otpLogin?mobileNo=$mobile&redirectTo=egov-common/pay?consumerCode=$consumerCode&tenantId=$tenantId"
-
 pt-calculator-v2:
   initContainers:
     dbMigration:
@@ -1219,7 +1079,6 @@ pt-calculator-v2:
   image:
     tag: "develop-d20577934f-5"
   logging-level: "DEBUG"
-
 tl-services:
   heap: "-Xmx128m -Xms64m"
   memory_limits: 384Mi
@@ -1234,7 +1093,6 @@ tl-services:
   mdms-search-enpoint: "/egov-mdms-service/v1/_search"
   egov-location-context-path: "/boundary-service/boundary/"
   egov-location-endpoint: "_search"
-
 egov-workflow-v2:
   initContainers:
     dbMigration:
@@ -1254,7 +1112,6 @@ egov-workflow-v2:
   host-link: "https://egov-demo.egovernments.org/citizen/"
   pdf-link: "/download/epass?tenantId={TENANTID}&ids={UUID}"
   mdms-search-endpoint: "/egov-mdms-service/v1/_search"
-
 egov-hrms:
   initContainers:
     dbMigration:
@@ -1265,25 +1122,18 @@ egov-hrms:
   java-args: -Dspring.profiles.active=monitoring
   employee-applink: "https://egov-demo.egovernments.org/employee/user/login"
   heap: "-Xmx256m -Xms256m"
-
-
 egov-weekly-impact-notifier:
   mail-to-address: "lata.naik@egovernments.org"
-
   mail-interval-in-secs: "604800"
   schedule: "30 07 * * *"
-
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
 kafka-config:
   topics: "egov.pgr.validated:1:1,egov.pgr.locationupdated:1:1,egov.pgr.workflowupdated:1:1,egov.pgr.saved:1:1,egov.pgr.indexing:1:1,egov.core.notification.email:1:1,egov.core.notification.sms:1:1,attendance-save-db:1:1,egov.employee:1:1,save-asset-db:1:1,update-asset-db:1:1,save-assetcategory-db:1:1,agreement-save-db:1:1,agreement-update-db:1:1,lams-workflow-start:1:1,lams-workflow-update:1:1,egov-common-holiday:1:1,egov.leaveopeningbalance-create:1:1,egov.leaveopeningbalance-update:1:1,egov-hr-leavetype:1:1,egov.leaveallotment-create:1:1,egov.leaveallotment-update:1:1,egov.designation-create:1:1,egov.designation-update:1:1,egov.position-create:1:1,egov.position-update:1:1,egov.egf.masters.validated.topic:1:1,egov.egf.masters.completed:1:1,egov.wcms.category-create:1:1,property-create-validated:1:1,property-create-tax-calculated:1:1,property-create-user-validated:1:1,property-create-workflow-started:1:1,property-create-workflow-updated:1:1,save-bill-db:1:1,update-bill-db:1:1,save-bill:1:1,update-bill:1:1,save-demand:1:1,update-demand:1:1,egov.collection.receipt-create:1:1,save-taxHeadMaster-db:1:1,update-taxHeadMaster:1:1,save-glCodeMaster-db:1:1,save-glCodeMaster:1:1,update-glCodeMaster-db:1:1,update-glCodeMaster:1:1,save-taxperiod-db:1:1,save-taxperiod:1:1,update-taxperiod-db:1:1,update-taxperiod:1:1,save-businessservicedetail-db:1:1,save-businessservicedetail:1:1,update-businessservicedetail-db:1:1,update-businessservicedetail:1:1,property-update-workflow-approved:1:1,property-update-user-validated:1:1,property-update-workflow-started:1:1,property-titletransfer-create-user-validated:1:1,property-titletransfer-update-user-validated:1:1,property-titletransfer-create-workflow-started:1:1,property-titletransfer-approved:1:1,property-titletransfer-workflow-updated:1:1,property-update-tax-calculated:1:1,property-update-validated:1:1,property-titletransfer-cretae-validated:1:1,property-titletransfer-update-validated:1:1,property-create-tax-generated:1:1,create-legacy-tradelicense-validated:1:1,egov.pgr.servicedefinition-create:1:1,demand-bill-update:1:1,egov.pgr.servicedefinition-update:1:1,egov-common-department-create:1:1,egov-common-department-update:1:1,egov.services.tl-services.create.legacy.tradelicense.validated:1:1,save-service-db:1:1,update-service-db:1:1,update-legacy-tradelicense-validated:1:1,tradelicense-validated:1:1,tradelicense-persisted:1:1,tradelicense-workflow-populated:1:1,demand-bill-update:1:1,egov.wcms.newconnection-create:1:1,egov.wcms.newconnection-update:1:1,update-newconn-workflow:1:1,initiated-newconn-workflow:1:1,works-offlinestatus-create-validated:1:1,works-offlinestatus-update-validated:1:1,works-contractor-create-validated:1:1,works-contractor-update-validated:1:1,works-letterofacceptance-create-validated:1:1,works-letterofacceptance-update-validated:1:1,works-measurementbook-create-update:1:1,works-revision-detailed-estimate-create-update:1:1,works-workorder-createupdate-validated:1:1,lcms-create-summon-validated:1:1,lcms-create-case:1:1,lcms-create-vakalatnama:1:1,lcms-parawisecomment-create:1:1,lcms-parawisecomment-update:1:1,lcms-assign-advocate:1:1,lcms-update-assign-advocate:1:1,lcms-advocate-create:1:1,lcms-advocate-update:1:1,advocate-payment-create:1:1,advocate-payment-update:1:1,lcms-opinion-create:1:1,lcms-opinion-update:1:1,legacy-case-create:1:1,legacy-hearing-create:1:1,legacy-case-voucher-create:1:1,legacy-case-advocate-create:1:1,lcms-hearingdetails-create:1:1,lcms-hearingdetails-update:1:1,lcms-notice-create:1:1,lcms-notice-update:1:1,lcms-register-create:1:1,lcms-register-update:1:1,lcms-evidence-create:1:1,lcms-evidence-update:1:1,lcms-agency-create:1:1,lcms-agency-update:1:1,lcms-personal-details-create:1:1,Lcms-event-create:1:1,lcms-create-summon-indexer:1:1,lcms-legacy-casecreate-indexer:1:1,works-abstract-estimate-createandupdate:1:1,works-detailed-estimate-createandupdate:1:1,works-revision-loa-create-update:1:1,works-sorrate-saveorupdate-validated:1:1,works-estimatetemplate-saveorupdate-validated:1:1,lcms-update-summon-validated:1:1,mdms.create.gitpushprocess:1:1,works-contractoradvance-saveorupdate-validated:1:1,works-qualitytesting-createandupdate:1:1,works-abstract-estimate-backupdate:1:1,works-detailedestimate-backupdate:1:1,works-abstract-estimate-backupdate-oncreate-detailedestimate:1:1,works-abstract-estimate-backupdate-oncancel-detailedestimate:1:1,works-detailedestimate-backupdate-oncreate-loa:1:1,works-detailedestimate-backupdate-oncancel-loa:1:1,swm-vehicleschedule-save-topic:1:1,works-projectcode-create:1:1,works-projectcode-update:1:1,works-masters-remarks-createandupdate:1:1,works-milestonetemplate-saveorupdate-validated:1:1,works-contractorbill-create-update:1:1,works-measurementbook-backupdate-for-billstatus:1:1,works-notice-createupdate-validated:1:1,works-milestone-saveorupdate-validated:1:1,works-trackmilestone-saveorupdate-validated:1:1,swm-shift-save-topic:1:1,swm-shift-update-topic:1:1,swm-shift-indexer-topic:1:1,works-letterofacceptance-backupdate-oncreate-workorder:1:1,works-letterofacceptance-backupdate-oncancel-workorder:1:1,works-loa-backupdate-oncreate-milestone:1:1,works-loa-backupdate-oncancel-milestone:1:1,works-loa-backupdate-oncreate-contractoradvance:1:1,works-loa-backupdate-oncancel-contractoradvance:1:1,works-loa-backupdate-onupdate-withallofflinestatusandworkorder:1:1,works-workorder-backupdate-oncreate-milestone:1:1,works-workorder-backupdate-oncancel-contractoradvance:1:1,works-loa-backupdate-onupdate-offlinestatus:1:1,works-workorder-backupdate-onupdate-offlinestatus:1:1,works-loa-backupdate-onupdate-withallofflinestatus:1:1,works-workorder-backupdate-onupdate-withallofflinestatus:1:1,works-loa-backupdate-oncreate-bill:1:1,works-loa-backupdate-oncancel-bill:1:1,works-loa-backupdate-oncreatemb:1:1,works-loa-backupdate-oncancelmb:1:1,works-loa-backupdate-oncreatembandnobill:1:1,works-loa-backupdate-oncreatembandbill:1:1,works-workorder-backupdate-oncreate-bill:1:1,works-workorder-backupdate-oncancel-bill:1:1,works-workorder-backupdate-oncreatembandnobill:1:1,works-workorder-backupdate-oncreatembandbill:1:1,egov.error:1:1,save-pt-property:1:1,update-pt-property:1:1,save-pt-billingslab:1:1,update-pt-billingslab:1:1,save-pg-txns:1:1,update-pg-txns:1:1,save-pg-txns-dump:1:1,update-pg-txns-dump:1:1,save-pt-drafts:1:1,update-pt-drafts:1:1,egov.collectionmasters.bankaccountservicemapping-create:1:1,bankaccountservicemapping-create:1:1,update-pt-property-index:1:1"
   zookeeper-connect: "zookeeper-v2.zookeeper-cluster:2181"
   kafka-brokers: "kafka-v2.kafka-cluster:9092"
-
 logging-config:
   es-host: "elasticsearch-data.es-upgrade"
   es-port: "9200"
-
 jaeger:
   host: "jaeger-agent.monitoring"
   port: "6831"
@@ -1349,23 +1199,21 @@ jaeger:
           "param": 0.05
         }
       }
-
 # redis >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 redis:
   replicas: 1
   images:
-    - egovio/redis:7.2.4
+  - egovio/redis:7.2.4
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 playground:
   replicas: 1
   image:
     tag: "2.0"
-
 # fluent-bit >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 fluent-bit:
   images:
-    - fluent/fluent-bit:1.0.6
+  - fluent/fluent-bit:1.0.6
   egov-services-log-topic: "egov-services-logs"
   egov-infra-log-topic: "egov-infra-logs"
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -1385,14 +1233,13 @@ kafka-v2:
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-005465716b9ca6a9e" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
-      - volumeId: "vol-03252f4474ddb7300" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
-      - volumeId: "vol-0945c7000265a6390" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
+    - volumeId: "vol-005465716b9ca6a9e" ## add your respective volume id eg. vol-0085073c65f76dre5
+      zone: ap-south-1b ## add your respective zone eg. ap-south-1a
+    - volumeId: "vol-03252f4474ddb7300" ## add your respective volume id eg. vol-0085073c65f76dre5
+      zone: ap-south-1b ## add your respective zone eg. ap-south-1a
+    - volumeId: "vol-0945c7000265a6390" ## add your respective volume id eg. vol-0085073c65f76dre5
+      zone: ap-south-1b ## add your respective zone eg. ap-south-1a
   zookeeperHosts: "zookeeper-v2.zookeeper-cluster:2181/kafka-v2"
-
   heapOptions: "-Xms704M -Xmx704M"
   memory_limits: 1408Mi
   lingerMs: "250"
@@ -1400,13 +1247,10 @@ kafka-v2:
   replicationFactor: "2"
   minInsyncReplicas: "1"
   offsetsReplicationFactor: "3"
-
 ### Kafka Connect <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 kafka-connect:
   image:
-    tag: "5.4.1-automerge-bot-test"  
-
-
+    tag: "5.4.1-automerge-bot-test"
 # zookeeper-v2 AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 zookeeper-v2:
   image:
@@ -1414,13 +1258,12 @@ zookeeper-v2:
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-04ab05c5b41096c6a" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
-      - volumeId: "vol-0f7e8dcf98e087983" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
-      - volumeId: "vol-08a42f187f978e5f7" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
-
+    - volumeId: "vol-04ab05c5b41096c6a" ## add your respective volume id eg. vol-0085073c65f76dre5
+      zone: ap-south-1b ## add your respective zone eg. ap-south-1a
+    - volumeId: "vol-0f7e8dcf98e087983" ## add your respective volume id eg. vol-0085073c65f76dre5
+      zone: ap-south-1b ## add your respective zone eg. ap-south-1a
+    - volumeId: "vol-08a42f187f978e5f7" ## add your respective volume id eg. vol-0085073c65f76dre5
+      zone: ap-south-1b ## add your respective zone eg. ap-south-1a
   ## Zookeeper JVM Heap Option
   heapOptions: "-Xms256M -Xmx256M"
   resources:
@@ -1430,8 +1273,6 @@ zookeeper-v2:
     requests:
       cpu: 300m
       memory: 384Mi
-
-
 # es-v1-cluster AWS >>>>>>>>>>>>>>>>>>>>>>>>>>>>
 elasticsearch-data-v1:
   image:
@@ -1439,13 +1280,12 @@ elasticsearch-data-v1:
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-093ea5986f5b46a71" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
-      - volumeId: "vol-046900000f8ffe60d" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
-      - volumeId: "vol-0a718b7e384a2870c" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
-
+    - volumeId: "vol-093ea5986f5b46a71" ## add your respective volume id eg. vol-0085073c65f76dre5
+      zone: ap-south-1b ## add your respective zone eg. ap-south-1a
+    - volumeId: "vol-046900000f8ffe60d" ## add your respective volume id eg. vol-0085073c65f76dre5
+      zone: ap-south-1b ## add your respective zone eg. ap-south-1a
+    - volumeId: "vol-0a718b7e384a2870c" ## add your respective volume id eg. vol-0085073c65f76dre5
+      zone: ap-south-1b ## add your respective zone eg. ap-south-1a
   esJavaOpts: "-Xmx2048m -Xms2048m"
   resources:
     requests:
@@ -1454,9 +1294,7 @@ elasticsearch-data-v1:
     limits:
       memory: "3Gi"
       cpu: "1000m"
-
 ### es-master-v1 AWS >>>>>>>>>>>>>>>>>>>>
-
 elasticsearch-master-v1:
   replicas: 3
   image:
@@ -1464,21 +1302,18 @@ elasticsearch-master-v1:
   persistence:
     enabled: true
     aws:
-      - volumeId: "vol-0dfb25024c9e8f35e" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b           ## add your respective zone eg. ap-south-1a
-      - volumeId: "vol-0a83e7431f2d5a2c2" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
-      - volumeId: "vol-03f793c66e07e9111" ## add your respective volume id eg. vol-0085073c65f76dre5
-        zone: ap-south-1b            ## add your respective zone eg. ap-south-1a
- 
+    - volumeId: "vol-0dfb25024c9e8f35e" ## add your respective volume id eg. vol-0085073c65f76dre5
+      zone: ap-south-1b ## add your respective zone eg. ap-south-1a
+    - volumeId: "vol-0a83e7431f2d5a2c2" ## add your respective volume id eg. vol-0085073c65f76dre5
+      zone: ap-south-1b ## add your respective zone eg. ap-south-1a
+    - volumeId: "vol-03f793c66e07e9111" ## add your respective volume id eg. vol-0085073c65f76dre5
+      zone: ap-south-1b ## add your respective zone eg. ap-south-1a
   esJavaOpts: "-Xmx448m -Xms448m"
   resources:
     requests:
       memory: "896Mi"
     limits:
       memory: "896Mi"
-
-
 pgadmin:
   # Azure Postgres flexible server (unified-dev-rg), matches cluster-configs db-host
   dbUrl: "unified-dev-server.postgres.database.azure.com"
@@ -1498,12 +1333,10 @@ pgadmin:
     storageClassName: default
     # dynamic provisioning via disk.csi.azure.com; the old `aws` block pinned EBS
     # volume vol-0c86db1778f9a3b9a in ap-south-1b, which cannot attach on AKS
-
-
 es-curator:
   schedule: "45 18 * * *"
   images:
-    - bobrik/curator:5.6.0
+  - bobrik/curator:5.6.0
   es-host: "elasticsearch-client-v1.es-cluster"
   logs-cleanup-enabled: "true"
   jaeger-cleanup-enabled: "true"
@@ -1518,16 +1351,13 @@ sunbirdrc-credential-service:
   image:
     tag: "sunbirdrc-mithun-028afe44b4-100"
   memory_limits: 512Mi
-
-
 kafka-ui:
   yamlApplicationConfig:
     kafka:
       clusters:
       - name: unified-dev
         bootstrapServers: release-name-kafka-controller-headless.kafka-kraft:9092
-        readonly: true  
-
+        readonly: true
 airflow:
   config:
     AIRFLOW__WEBSERVER__BASE_URL: "https://unified-dev.digit.org/airflow"
@@ -1535,17 +1365,16 @@ airflow:
 externalDatabase:
   database: airflow_uat
 dags:
-   gitSync:
-     repo:  "https://github.com/egovernments/health-campaign-services.git"
-     repoSubPath: "utilities/airflow-dags/dags"
-     branch: airflow-analysis
+  gitSync:
+    repo: "https://github.com/egovernments/health-campaign-services.git"
+    repoSubPath: "utilities/airflow-dags/dags"
+    branch: airflow-analysis
 # HCM Database Migrations (Alembic)
 # Runs automatically on helm install/upgrade via Helm hooks
 hcm-db-migrations:
   git:
     repo: "git@github.com:egovernments/health-campaign-services"
     branch: "airflow-analysis"
-
 ### Grafana >>>>>>>>>>>>>>>>>>>>
 grafana:
   github:
@@ -1569,32 +1398,31 @@ prometheus:
   externalLabels:
     cluster: unified-dev
   additionalScrapeConfigs:
-    - job_name: 'nginx-ingress-metrics'
-      static_configs:
-        - targets: [ 'ingress-nginx-controller-metrics.backbone:10254' ]
-    - job_name: 'redis-exporter'
-      static_configs:
-        - targets: [ 'prometheus-redis-exporter.backbone:9121' ]
-    - job_name: 'blackbox'
-      metrics_path: /probe
-      params:
-        module: [ http_2xx ]
-      static_configs:
-        - targets:
-            - https://unified-dev.digit.org/monitoring/ 
-            - https://unified-dev.digit.org/pgadmin/login?next=%2Fpgadmin%2F
-            - https://unified-dev.digit.org/kibana/
-      relabel_configs:
-        - source_labels: [ __address__ ]
-          target_label: __param_target
-        - source_labels: [ __param_target ]
-          target_label: instance
-        - target_label: __address__
-          replacement: prometheus-blackbox-exporter:9115
-    - job_name: 'blackbox_exporter'
-      static_configs:
-        - targets: [ 'prometheus-blackbox-exporter:9115' ]
-
+  - job_name: 'nginx-ingress-metrics'
+    static_configs:
+    - targets: ['ingress-nginx-controller-metrics.backbone:10254']
+  - job_name: 'redis-exporter'
+    static_configs:
+    - targets: ['prometheus-redis-exporter.backbone:9121']
+  - job_name: 'blackbox'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+    - targets:
+      - https://unified-dev.digit.org/monitoring/
+      - https://unified-dev.digit.org/pgadmin/login?next=%2Fpgadmin%2F
+      - https://unified-dev.digit.org/kibana/
+    relabel_configs:
+    - source_labels: [__address__]
+      target_label: __param_target
+    - source_labels: [__param_target]
+      target_label: instance
+    - target_label: __address__
+      replacement: prometheus-blackbox-exporter:9115
+  - job_name: 'blackbox_exporter'
+    static_configs:
+    - targets: ['prometheus-blackbox-exporter:9115']
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 ### loki-stack >>>>>>>>>>>>>>>>>>>>
@@ -1602,17 +1430,17 @@ loki:
   persistence:
     enabled: true
     accessModes:
-      - ReadWriteOnce
+    - ReadWriteOnce
     size: 30Gi
   serviceAccount:
     annotations: {}
   nodeSelector:
     workload-type: stateful
   tolerations:
-    - key: workload-type
-      operator: Equal
-      value: stateful
-      effect: NoSchedule
+  - key: workload-type
+    operator: Equal
+    value: stateful
+    effect: NoSchedule
   securityContext:
     fsGroupChangePolicy: OnRootMismatch
   livenessProbe:
@@ -1625,26 +1453,26 @@ loki:
   additionalConfigs:
     schema_config:
       configs:
-        - from: 2020-10-24
-          store: boltdb-shipper
-          object_store: filesystem
-          schema: v11
-          index:
-            prefix: index_
-            period: 24h
+      - from: 2020-10-24
+        store: boltdb-shipper
+        object_store: filesystem
+        schema: v11
+        index:
+          prefix: index_
+          period: 24h
     storage_config:
       boltdb_shipper:
         active_index_directory: /data/loki/index
         cache_location: /data/loki/index_cache
         shared_store: filesystem
-        cache_ttl: 72h  # keep 3 days of index cached locally for faster queries
+        cache_ttl: 72h # keep 3 days of index cached locally for faster queries
       filesystem:
         directory: /data/loki/chunks
     limits_config:
-      retention_period: 720h    # delete logs after 30 days
-      max_query_lookback: 720h  # allow querying the full 30-day window
+      retention_period: 720h # delete logs after 30 days
+      max_query_lookback: 720h # allow querying the full 30-day window
     chunk_store_config:
-      max_look_back_period: 720h  # 30 days (overrides the 7-day chart default)
+      max_look_back_period: 720h # 30 days (overrides the 7-day chart default)
     compactor:
       working_directory: /data/loki/boltdb-shipper-compactor
       shared_store: filesystem
@@ -1653,17 +1481,15 @@ loki:
       compaction_interval: 10m
     table_manager:
       retention_deletes_enabled: true
-      retention_period: 720h  # 30 days
-
+      retention_period: 720h # 30 days
 promtail:
   tolerations:
-    - operator: Exists
+  - operator: Exists
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 # PGR Services
 pgr-services:
   egov.mdms.search.endpoint: "/egov-mdms-service/v1/_search"
-
 # User Preferences Service (Go)
 digit-user-preferences-service:
   image:
@@ -1673,13 +1499,11 @@ digit-user-preferences-service:
   db-ssl-mode: "require"
   memory_limits: "256Mi"
   namespace: egov
-
 # Config Service (Java/Spring Boot)
 digit-config-service:
   replicas: 1
   heap: "-Xmx256m -Xms256m"
   memory_limits: "512Mi"
-
 # Novu Bridge (Java/Spring Boot) - WhatsApp notifications via Novu/Twilio
 novu-bridge:
   replicas: 1
@@ -1689,28 +1513,23 @@ novu-bridge:
   user-host: "http://egov-user.egov:8080"
   preference-host: "http://digit-user-preferences-service.egov:8080/user-preference"
   novu-base-url: "http://novu-api.novu:3000"
-
 # JupyterNotebook configuration
 jupyterhub:
   hub:
     config:
       Authenticator:
         admin_users:
-          - unified-dev               # Provide admin username, use the same in step 5 (first-time sign-up)
+        - unified-dev # Provide admin username, use the same in step 5 (first-time sign-up)
       NativeAuthenticator:
-        minimum_password_length: 8     # Minimum password length
-        check_common_password: false   # Checks & restricts common passwords
-        allowed_failed_logins: 5       # Locks user after failed attempts
+        minimum_password_length: 8 # Minimum password length
+        check_common_password: false # Checks & restricts common passwords
+        allowed_failed_logins: 5 # Locks user after failed attempts
         seconds_before_next_try: 300
       JupyterHub:
         admin_access: true
-
-
-
 ## ---- Image tags for services deployed via Argo CD on Azure AKS unified-dev.
 ## Added because the charts ship image.repository but no tag; under GitOps the
 ## tag has to live in git rather than being injected by the deployer.
-
 billing:
   image:
     tag: "billing-conformance-changes-9e397a9"
@@ -1718,7 +1537,6 @@ billing:
     dbMigration:
       image:
         tag: "billing-conformance-changes-9e397a9"
-
 billing-service:
   image:
     tag: "hrms-boundary-0a4e737"
@@ -1726,7 +1544,6 @@ billing-service:
     dbMigration:
       image:
         tag: "hrms-boundary-0a4e737"
-
 boundary:
   image:
     tag: "boundary-caching-issue-ec65e76"
@@ -1734,7 +1551,6 @@ boundary:
     dbMigration:
       image:
         tag: "boundary-caching-issue-ec65e76"
-
 boundary-bulk-bff:
   image:
     tag: "boundary-bulk-bff-b1a02d94-43"
@@ -1742,15 +1558,12 @@ boundary-bulk-bff:
     dbMigration:
       image:
         tag: "boundary-bulk-bff-b1a02d94-43"
-
 console:
   image:
     tag: "console-upgrade-d2e5f00"
-
 digit-ui-flutter:
   image:
     tag: "DPG-2263-timeline-steps-b63c9c960b-101"
-
 egf-instrument:
   image:
     tag: "v1.1.4-72f8a8f87b-4"
@@ -1758,7 +1571,6 @@ egf-instrument:
     dbMigration:
       image:
         tag: "v1.1.4-72f8a8f87b-4"
-
 egov-accesscontrol:
   ## SQLi fix, commit 6fdc55b. Digest-pinned -- the tag is kept alongside for
   ## readability, but the digest is what resolves, so the deployed bits cannot
@@ -1768,11 +1580,9 @@ egov-accesscontrol:
   ## egov-accesscontrol-db image is published, but deliberately not deployed.
   image:
     tag: "fix-sqli-user-accesscontrol-6fdc55b@sha256:da24d2d9e58dcc668604f9d14d9a7481b8ee97f3b06f783794b2ff49626b32ce"
-
 egov-bff:
   image:
     tag: "user-analytics-bef79d01fd-126"
-
 egov-document-uploader:
   image:
     tag: "v1.1.0-75d461a4d2-4"
@@ -1780,7 +1590,6 @@ egov-document-uploader:
     dbMigration:
       image:
         tag: "v1.1.0-75d461a4d2-4"
-
 egov-location:
   image:
     tag: "base-docker-upgrade-ce613c1"
@@ -1788,23 +1597,18 @@ egov-location:
     dbMigration:
       image:
         tag: "base-docker-upgrade-ce613c1"
-
 egov-mdms-service:
   image:
     tag: "base-docker-upgrade-ce613c1"
-
 egov-notification-mail:
   image:
     tag: master-1e8d2bb
-
 egov-pdf:
   image:
     tag: "v1.2.1-cb236eaf66-8"
-
 egov-user-chatbot:
   image:
     tag: "v1.2.6-96b24b0d72-4"
-
 egov-user-event:
   image:
     tag: "master-0f67ed9"
@@ -1812,7 +1616,6 @@ egov-user-event:
     dbMigration:
       image:
         tag: "master-0f67ed9"
-
 filestore:
   image:
     tag: "develop-eae753d"
@@ -1820,11 +1623,9 @@ filestore:
     dbMigration:
       image:
         tag: "develop-eae753d"
-
 health-ui:
   image:
     tag: "health-dev-4789311325-559"
-
 idgen:
   image:
     tag: "develop-90ee41f"
@@ -1832,7 +1633,6 @@ idgen:
     dbMigration:
       image:
         tag: "develop-90ee41f"
-
 localization:
   image:
     tag: "localization-optimization-9675408"
@@ -1840,19 +1640,15 @@ localization:
     dbMigration:
       image:
         tag: "localization-optimization-9675408"
-
 microplan-ui:
   image:
     tag: "mp-de1253c58c-5"
-
 national-dashboard-kafka-pipeline:
   image:
     tag: "develop-8a48565d2e-1"
-
 nlp-engine:
   image:
     tag: "v1.0.0-fbea6fba-21"
-
 notification:
   image:
     tag: "develop-notification-version-update-6b58bcb"
@@ -1860,17 +1656,11 @@ notification:
     dbMigration:
       image:
         tag: "develop-notification-version-update-6b58bcb"
-
 oauth2-proxy:
   image:
     tag: "v5.1.0"
   config:
-    configFile: |-
-      email_domains = [ "*" ]
-      github_org = "egovernments" 
-      github_team = "unified-dev-deploy"
-      upstreams = [ "file:///dev/null" ]
-
+    configFile: "email_domains = [ \"*\" ]\ngithub_org = \"egovernments\" \ngithub_team = \"unified-dev-deploy\"\nupstreams = [ \"file:///dev/null\" ]"
 registry:
   image:
     tag: "registry-service-de36392"
@@ -1878,15 +1668,12 @@ registry:
     dbMigration:
       image:
         tag: "registry-service-de36392"
-
 sample-ui:
   image:
     tag: "sandbox-exploration-ae4813c3-18"
-
 semantic-indexer:
   image:
     tag: "latest-debug"
-
 service-request:
   image:
     tag: "base-docker-upgrade-0aec2ff"
@@ -1894,11 +1681,9 @@ service-request:
     dbMigration:
       image:
         tag: "base-docker-upgrade-0aec2ff"
-
 studio-pdf:
   image:
     tag: "develop-16d12f1"
-
 studio-pdf-helper-service:
   image:
     tag: "public-service-7524b89"
@@ -1906,7 +1691,6 @@ studio-pdf-helper-service:
     dbMigration:
       image:
         tag: "public-service-7524b89"
-
 tenant-management:
   image:
     tag: "sandbox-69a29dc"
@@ -1914,7 +1698,6 @@ tenant-management:
     dbMigration:
       image:
         tag: "sandbox-69a29dc"
-
 url-shortener:
   image:
     tag: "develop-eae753d"
@@ -1922,11 +1705,9 @@ url-shortener:
     dbMigration:
       image:
         tag: "develop-eae753d"
-
 user-otp:
   image:
     tag: "master-e22c7c5"
-
 workflow:
   image:
     tag: "workflow-optimization-3a503c3"
@@ -1934,7 +1715,6 @@ workflow:
     dbMigration:
       image:
         tag: "workflow-optimization-3a503c3"
-
 ws-calculator:
   image:
     tag: "central-instance-WnS-with_master-085ee5b812-2"
@@ -1942,11 +1722,9 @@ ws-calculator:
     dbMigration:
       image:
         tag: "central-instance-WnS-with_master-085ee5b812-2"
-
 argo-cd:
   global:
     sopsRoleArn: arn:aws:iam::218381940040:role/argocd-rs-unified-dev-sops-web-identity
-
 # Temporal (charts/backbone-services/temporal).
 # The chart's defaults already match what EKS runs -- temporalio/server:1.31.0,
 # NUM_HISTORY_SHARDS 512, DB postgres12 / DBNAME temporal, SQL_TLS_ENABLED true
@@ -1961,7 +1739,6 @@ temporal:
     # On AKS Elasticsearch runs in the backbone namespace; this matches
     # egov-config.es-host in the temporal namespace on this cluster.
     host: elasticsearch-master.backbone
-
 # PostgreSQL 18 (CloudNativePG). Overrides charts/backbone-services/postgresql-18.
 postgresql-18:
   # Single instance: this node pool is tight -- a node recently sat at 103% CPU
@@ -1989,7 +1766,6 @@ postgresql-18:
     # recreating the cluster.
     owner: coredev
     database: coredb
-
   auth:
     # Secrets rendered by cluster-configs from unified-dev-secrets.yaml
     # (cluster-configs.secrets.postgresql-18). Without these the operator
@@ -2002,26 +1778,25 @@ postgresql-18:
     # Pinned to a dated build: the plain 3.7.0-18-trixie tag is rebuilt in place.
     # GDAL_DATA/PROJ_DATA use ${image_root} (CloudNativePG 1.29+).
     extensions:
-      - name: postgis
-        image:
-          reference: ghcr.io/cloudnative-pg/postgis-extension:3.7.0-202611091303-18-trixie
-        ld_library_path:
-          - system
-        env:
-          - name: GDAL_DATA
-            value: ${image_root}/share/gdal
-          - name: PROJ_DATA
-            value: ${image_root}/share/proj
+    - name: postgis
+      image:
+        reference: ghcr.io/cloudnative-pg/postgis-extension:3.7.0-202611091303-18-trixie
+      ld_library_path:
+      - system
+      env:
+      - name: GDAL_DATA
+        value: ${image_root}/share/gdal
+      - name: PROJ_DATA
+        value: ${image_root}/share/proj
   # coredb is the bootstrap database (adopted, not recreated). The operator
   # creates postgis as superuser; the boundary migration runs as coredev, which
   # may not, and its CREATE EXTENSION IF NOT EXISTS then finds it present.
   databases:
-    - name: coredb
-      owner: coredev
-      extensions:
-        - name: postgis
-          version: "3.7.0"
-
+  - name: coredb
+    owner: coredev
+    extensions:
+    - name: postgis
+      version: "3.7.0"
 # Overrides for the posthog chart (charts/backbone-services/posthog). The block
 # is passed to the vendored community chart in its charts/posthog, whose
 # values.yaml holds the defaults.
@@ -2042,7 +1817,6 @@ posthog:
     # (cluster-configs.secrets.posthog). ENCRYPTION_SALT_KEYS must never change
     # once data exists.
     existingSecret: posthog-app
-
   # Argo CD renders with `helm template`, so the chart's lookup-based generation
   # would produce new passwords on every sync. Every random secret is therefore
   # mapped to an existing Secret below. `generate` stays true only because the
@@ -2059,16 +1833,13 @@ posthog:
       CLICKHOUSE_BILLING_PASSWORD: {secret: posthog-clickhouse-users}
       CLICKHOUSE_DICT_READER_PASSWORD: {secret: posthog-clickhouse-users}
       CLICKHOUSE_SIGNALS_PASSWORD: {secret: posthog-clickhouse-users}
-
   postgresql:
     persistence:
       size: 20Gi
-
   objectStorage:
     bundled:
       persistence:
         size: 20Gi
-
   router:
     replicas: 1
     podDisruptionBudget:
@@ -2082,9 +1853,8 @@ posthog:
         cert-manager.io/cluster-issuer: letsencrypt-prod
       # Empty hosts -> siteUrl on the app listener (UI, API and SDK ingestion).
       tls:
-        - hosts: [posthog.unified-dev.digit.org]
-          secretName: posthog.unified-dev.digit.org-tls-certs
-
+      - hosts: [posthog.unified-dev.digit.org]
+        secretName: posthog.unified-dev.digit.org-tls-certs
   # Shared kafka-kraft instead of the bundled Redpanda. `brokers` turns Redpanda
   # off and feeds the ClickHouse Kafka tables; `host` is what the services'
   # KAFKA_HOSTS are built from (the vendored chart needs both). FQDN, because
@@ -2096,12 +1866,10 @@ posthog:
     external:
       host: kafka-kraft-controller-headless.backbone.svc.cluster.local
       brokers: kafka-kraft-controller-headless.backbone.svc.cluster.local:9092
-
   # Replay Vision only. Needs a Localhost seccomp profile on the nodes for
   # Chromium's sandbox, which the AKS pools do not have.
   rasterizer:
     enabled: false
-
   services:
     web:
       replicas: 1
@@ -2115,7 +1883,6 @@ posthog:
       persistence: {size: 50Gi}
     kafka:
       persistence: {size: 20Gi}
-
 # Kubescape -- cluster security posture and image vulnerability scanning.
 # Chart digit3/security/kubescape, deployed by the unified-security Kargo
 # pipeline via the kargo-managed "cluster" layout.
@@ -2135,3 +1902,4 @@ kubescape:
     # Results are filed under this name, and the report and rating key off it.
     # It must differ per environment or the three clusters overwrite each other.
     clusterName: unified-dev
+  chart-version: '1.1.0'

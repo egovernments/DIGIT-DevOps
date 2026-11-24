@@ -91,4 +91,14 @@ unknown layout or a namespace outside `kargo.argocd.namespaces`.
    '<project>' do not match any of the allowed destinations in project 'kargo-project'
    ```
 
+5. **The project's namespace added to `cluster-configs`' kargo project list**
+   (`charts/cluster-configs/values.yaml`, `secrets.kargo.projects`). That is
+   what renders `git-creds-*`, `image-creds-*` and `verify-kubeconfig-*` into
+   the namespace. Without it the Warehouse cannot authenticate to the registry
+   and promotion fails at `git-push`:
+
+   ```
+   fatal: could not read Username for 'https://github.com': No such device or address
+   ```
+
 App names must stay unique across projects: give each project its own `argocdAppPrefix`.

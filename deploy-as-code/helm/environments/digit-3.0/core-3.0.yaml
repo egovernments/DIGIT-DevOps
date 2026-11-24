@@ -419,12 +419,12 @@ keycloak:
   chart-version: '3.0.0'
   image:
     tag: 'keycloak-spi-custom-build-3348b03'
-# Vault (chart vault, app digit3-vault) in the backbone-3-0 namespace -- egov-service-host's
-# vault key points at vault.backbone-3-0:8200. The HashiCorp chart reads ROOT values, so Argo CD
-# passes this section, minus chart-version, as the chart's values (layout root, namespace
-# backbone-3-0 in the Kargo config). Kargo merges vault.chart-version; the Application waits for
-# it like keycloak.
-# Chart from https://helm.digit.org/digit3/backbone (kargo vault.chartRepo).
+# Vault (app digit3-vault) in the backbone-3-0 namespace -- egov-service-host's
+# vault key points at vault.backbone-3-0:8200. Static git-path Application
+# (argo-cd/unified-dev/digit-3.0/backbone-3.0/vault-application.yaml), NOT a Kargo
+# service: backbone is non-promotable infra, so there is no chart-version here.
+# Chart charts/backbone-services/vault, re-rooted to a nested vault: key, so Argo CD
+# passes this section below as the chart's values.
 #
 # Raft storage + Azure Key Vault auto-unseal: the pod unseals itself from the KMS key on
 # every restart (no manual `vault operator unseal`). Auth is Azure Workload Identity -- the
@@ -485,7 +485,7 @@ cluster-configs:
     egov-config:
       namespace: [core-3-0]
       data:
-        # DIGIT 3.0 uses its own PostgreSQL 18 (CloudNativePG, backbone/postgresql-18),
+        # DIGIT 3.0 uses its own PostgreSQL 18 (CloudNativePG, backbone-3-0/postgresql-18),
         # database coredb -- never the DIGIT 2.x unified-dev-db.
         db-host: postgresql-18-rw.backbone-3-0
         db-name: coredb

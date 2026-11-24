@@ -76,6 +76,11 @@ on:
         required: false
         type: boolean
         default: true
+      publish_dashboard:
+        description: "Publish Trivy results to the gh-pages dashboard via .trivy/dashboard/publish.sh. Set false for consumers without GitHub Pages (e.g. a private repo on the free plan): the CRITICAL gate still blocks the push and the findings are written to the job summary instead."
+        required: false
+        type: boolean
+        default: true
     secrets:
       DOCKER_USERNAME:
         required: true
@@ -204,17 +209,33 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{ inputs.build_branch || github.ref_name }}
           PUBLISH_HOME: ${{ inputs.publish_home && '1' || '0' }}
+          PUBLISH_DASHBOARD: ${{ inputs.publish_dashboard && '1' || '0' }}
         run: |
           SERVICE="${{ needs.resolve-config.outputs.image_name }}"
           CRIT=$(jq '[.Results[]? | (.Vulnerabilities[]?, .Secrets[]?) | select(.Severity=="CRITICAL")] | length' code-scan.json)
           GATE=pass; [ "$CRIT" -gt 0 ] && GATE=fail
-          URL=$(bash .trivy/dashboard/publish.sh code "$SERVICE" "${{ github.run_id }}" code-scan.json "$GATE")
+          if [ "$PUBLISH_DASHBOARD" = "1" ]; then
+            URL=$(bash .trivy/dashboard/publish.sh code "$SERVICE" "${{ github.run_id }}" code-scan.json "$GATE")
+          else
+            URL="(dashboard off — findings in this job summary)"
+          fi
           {
             echo "### Trivy code scan · $SERVICE"
             echo ""
             echo "- Critical findings: **$CRIT**"
             echo "- Report: [$URL]($URL)"
           } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$PUBLISH_DASHBOARD" != "1" ] && [ "$CRIT" -gt 0 ]; then
+            {
+              echo ""
+              echo "<details><summary>Critical findings</summary>"
+              echo ""
+              echo '```'
+              jq -r '.Results[]? | (.Vulnerabilities[]?, .Secrets[]?) | select(.Severity=="CRITICAL") | "- " + (.VulnerabilityID // .RuleID // "secret") + "  " + (.PkgName // .Title // "")' code-scan.json
+              echo '```'
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
           if [ "$CRIT" -gt 0 ]; then
             echo "::error title=Code scan blocked::$CRIT critical finding(s) in the source of $SERVICE. Build aborted. Report: $URL"
             exit 1
@@ -324,6 +345,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{ inputs.build_branch || github.ref_name }}
           PUBLISH_HOME: ${{ inputs.publish_home && '1' || '0' }}
+          PUBLISH_DASHBOARD: ${{ inputs.publish_dashboard && '1' || '0' }}
           HAS_DB: ${{ needs.resolve-config.outputs.db_work_dir != '' }}
         run: |
           set -euo pipefail
@@ -340,13 +362,28 @@ jobs:
           fi
           CRIT=$(jq '[.Results[]? | (.Vulnerabilities[]?, .Secrets[]?) | select(.Severity=="CRITICAL")] | length' image-scan.json)
           GATE=pass; [ "$CRIT" -gt 0 ] && GATE=fail
-          URL=$(bash .trivy/dashboard/publish.sh image "$SERVICE" "${{ github.run_id }}" image-scan.json "$GATE")
+          if [ "$PUBLISH_DASHBOARD" = "1" ]; then
+            URL=$(bash .trivy/dashboard/publish.sh image "$SERVICE" "${{ github.run_id }}" image-scan.json "$GATE")
+          else
+            URL="(dashboard off — findings in this job summary)"
+          fi
           {
             echo "### Trivy image scan · $SERVICE"
             echo ""
             echo "- Critical findings (app + db): **$CRIT**"
             echo "- Report: [$URL]($URL)"
           } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$PUBLISH_DASHBOARD" != "1" ] && [ "$CRIT" -gt 0 ]; then
+            {
+              echo ""
+              echo "<details><summary>Critical findings</summary>"
+              echo ""
+              echo '```'
+              jq -r '.Results[]? | (.Vulnerabilities[]?, .Secrets[]?) | select(.Severity=="CRITICAL") | "- " + (.VulnerabilityID // .RuleID // "secret") + "  " + (.PkgName // .Title // "")' image-scan.json
+              echo '```'
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
           if [ "$CRIT" -gt 0 ]; then
             echo "::error title=Image scan blocked::$CRIT critical finding(s) in the image(s) for $SERVICE. Nothing pushed. Report: $URL"
             exit 1

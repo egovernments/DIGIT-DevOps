@@ -84,6 +84,7 @@ See [actions-ui.md](actions-ui.md).
 | `scan_branches` | `""` | Branches to scan + gate (comma/space/newline list, e.g. the `TRIVY_SCAN_BRANCHES` var); empty = default branch only |
 | `enable_cosign` | `true` | Sign pushed images with cosign keyless; needs `id-token: write` from the caller |
 | `publish_home` | `true` | Also regenerate the Trivy dashboard landing index in this run; `false` for parallel all-services legs (a final `home` run rebuilds it once) |
+| `publish_dashboard` | `true` | Publish Trivy results to the gh-pages dashboard. `false` for consumers **without GitHub Pages** (e.g. a private repo on the free plan): the CRITICAL gate still blocks the push and the findings are written to the job summary instead |
 
 Secrets: `DOCKER_USERNAME`, `DOCKER_ACCESS_TOKEN`.
 

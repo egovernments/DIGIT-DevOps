@@ -87,6 +87,13 @@ on:
         type: choice
         options: [full, sync]
         default: full
+      profile:                   # full mode: which layers to scaffold
+        type: choice
+        options: [build-only, delivery]   # build-only = build CI; delivery = + Helm/Kargo/Argo (incremental)
+        default: build-only
+      dashboard:                 # full mode: Trivy dashboard on Pages; off = private/Pages-less repo
+        type: boolean
+        default: true
       sync_branch:               # sync mode: pull a branch's new services into the dropdown
         type: choice
         default: master
@@ -100,12 +107,26 @@ jobs:
     uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-setup.yaml@reusable-build-v1
     with:
       mode: ${{ inputs.mode }}
+      profile: ${{ inputs.profile }}
+      dashboard: ${{ inputs.dashboard }}
       sync_branch: ${{ inputs.sync_branch }}
       auth_mode: ${{ inputs.auth_mode }}
     secrets:
       APP_CLIENT_ID: ${{ secrets.BUILD_APP_CLIENT_ID }}
       APP_PRIVATE_KEY: ${{ secrets.BUILD_APP_PRIVATE_KEY }}
 ```
+
+**Profiles & dashboard (full mode).** Setup composes the scaffold from layers:
+
+| Input | Choice | What you get |
+|---|---|---|
+| `profile` | `build-only` *(default)* | the build CI only (Build — Code / Setup) |
+| `profile` | `delivery` | build **+** Helm/Kargo/Argo (added incrementally) |
+| `dashboard` | `true` *(default)* | Trivy dashboard + landing page on GitHub Pages |
+| `dashboard` | `false` | **no Pages** — the Trivy gate still blocks CRITICALs, findings go to the build job summary (use for a **private** repo, since Pages on a private repo is **public** on the Team plan) |
+
+A repo can start `build-only` and adopt delivery later by re-running Setup with
+`profile: delivery` — the build layer is left untouched.
 
 ### 4. Run **Build — Setup** (mode: full)
 

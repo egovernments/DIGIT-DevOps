@@ -23,9 +23,9 @@ spec:
   podManagementPolicy: Parallel
   replicas: {{ template "vault.replicas" . }}
   updateStrategy:
-    type: {{ .Values.vault.server.updateStrategyType }}
-  {{- if and (semverCompare ">= 1.23-0" .Capabilities.KubeVersion.Version) (.Values.vault.server.persistentVolumeClaimRetentionPolicy) }}
-  persistentVolumeClaimRetentionPolicy: {{ toYaml .Values.vault.server.persistentVolumeClaimRetentionPolicy | nindent 4 }}
+    type: {{ .Values.server.updateStrategyType }}
+  {{- if and (semverCompare ">= 1.23-0" .Capabilities.KubeVersion.Version) (.Values.server.persistentVolumeClaimRetentionPolicy) }}
+  persistentVolumeClaimRetentionPolicy: {{ toYaml .Values.server.persistentVolumeClaimRetentionPolicy | nindent 4 }}
   {{- end }}
   selector:
     matchLabels:
@@ -39,8 +39,8 @@ spec:
         app.kubernetes.io/name: {{ template "vault.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
         component: server
-        {{- if  .Values.vault.server.extraLabels -}}
-          {{- toYaml .Values.vault.server.extraLabels | nindent 8 -}}
+        {{- if  .Values.server.extraLabels -}}
+          {{- toYaml .Values.server.extraLabels | nindent 8 -}}
         {{- end -}}
       {{ template "vault.annotations" . }}
     spec:
@@ -48,35 +48,35 @@ spec:
       {{ template "vault.topologySpreadConstraints" . }}
       {{ template "vault.tolerations" . }}
       {{ template "vault.nodeselector" . }}
-      {{- if .Values.vault.server.priorityClassName }}
-      priorityClassName: {{ .Values.vault.server.priorityClassName }}
+      {{- if .Values.server.priorityClassName }}
+      priorityClassName: {{ .Values.server.priorityClassName }}
       {{- end }}
-      terminationGracePeriodSeconds: {{ .Values.vault.server.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.server.terminationGracePeriodSeconds }}
       serviceAccountName: {{ template "vault.serviceAccount.name" . }}
-      {{ if  .Values.vault.server.shareProcessNamespace }}
+      {{ if  .Values.server.shareProcessNamespace }}
       shareProcessNamespace: true
       {{ end }}
       {{- template "server.statefulSet.securityContext.pod" . }}
-      {{- if not .Values.vault.global.openshift }}
-      hostNetwork: {{ .Values.vault.server.hostNetwork }}
+      {{- if not .Values.global.openshift }}
+      hostNetwork: {{ .Values.server.hostNetwork }}
       {{- end }}
       volumes:
         {{ template "vault.volumes" . }}
         - name: home
           emptyDir: {}
-      {{- if .Values.vault.server.hostAliases }}
+      {{- if .Values.server.hostAliases }}
       hostAliases:
-        {{ toYaml .Values.vault.server.hostAliases | nindent 8}}
+        {{ toYaml .Values.server.hostAliases | nindent 8}}
       {{- end }}
-      {{- if .Values.vault.server.extraInitContainers }}
+      {{- if .Values.server.extraInitContainers }}
       initContainers:
-        {{ toYaml .Values.vault.server.extraInitContainers | nindent 8}}
+        {{ toYaml .Values.server.extraInitContainers | nindent 8}}
       {{- end }}
       containers:
         - name: vault
           {{ template "vault.resources" . }}
-          image: {{ .Values.vault.server.image.repository }}:{{ .Values.vault.server.image.tag | default "latest" }}
-          imagePullPolicy: {{ .Values.vault.server.image.pullPolicy }}
+          image: {{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default "latest" }}
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
           command:
           - "/bin/sh"
           - "-ec"
@@ -102,8 +102,8 @@ spec:
             - name: VAULT_ADDR
               value: "{{ include "vault.scheme" . }}://127.0.0.1:8200"
             - name: VAULT_API_ADDR
-              {{- if .Values.vault.server.ha.apiAddr }}
-              value: {{ .Values.vault.server.ha.apiAddr }}
+              {{- if .Values.server.ha.apiAddr }}
+              value: {{ .Values.server.ha.apiAddr }}
               {{- else }}
               value: "{{ include "vault.scheme" . }}://$(POD_IP):8200"
               {{- end }}
@@ -116,12 +116,12 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: VAULT_CLUSTER_ADDR
-              {{- if .Values.vault.server.ha.clusterAddr }}
-              value: {{ .Values.vault.server.ha.clusterAddr | quote }}
+              {{- if .Values.server.ha.clusterAddr }}
+              value: {{ .Values.server.ha.clusterAddr | quote }}
               {{- else }}
               value: "https://$(HOSTNAME).{{ template "vault.fullname" . }}-internal:8201"
               {{- end }}
-            {{- if and (eq (.Values.vault.server.ha.raft.enabled | toString) "true") (eq (.Values.vault.server.ha.raft.setNodeId | toString) "true") }}
+            {{- if and (eq (.Values.server.ha.raft.enabled | toString) "true") (eq (.Values.server.ha.raft.setNodeId | toString) "true") }}
             - name: VAULT_RAFT_NODE_ID
               valueFrom:
                 fieldRef:
@@ -129,21 +129,21 @@ spec:
             {{- end }}
             - name: HOME
               value: "/home/vault"
-            {{- if .Values.vault.server.logLevel }}
+            {{- if .Values.server.logLevel }}
             - name: VAULT_LOG_LEVEL
-              value: "{{ .Values.vault.server.logLevel }}"
+              value: "{{ .Values.server.logLevel }}"
             {{- end }}
-            {{- if .Values.vault.server.logFormat }}
+            {{- if .Values.server.logFormat }}
             - name: VAULT_LOG_FORMAT
-              value: "{{ .Values.vault.server.logFormat }}"
+              value: "{{ .Values.server.logFormat }}"
             {{- end }}
-            {{- if (and .Values.vault.server.enterpriseLicense.secretName .Values.vault.server.enterpriseLicense.secretKey) }}
+            {{- if (and .Values.server.enterpriseLicense.secretName .Values.server.enterpriseLicense.secretKey) }}
             - name: VAULT_LICENSE_PATH
-              value: /vault/license/{{ .Values.vault.server.enterpriseLicense.secretKey }}
+              value: /vault/license/{{ .Values.server.enterpriseLicense.secretKey }}
             {{- end }}
             {{ template "vault.envs" . }}
-            {{- include "vault.extraEnvironmentVars" .Values.vault.server | nindent 12 }}
-            {{- include "vault.extraSecretEnvironmentVars" .Values.vault.server | nindent 12 }}
+            {{- include "vault.extraEnvironmentVars" .Values.server | nindent 12 }}
+            {{- include "vault.extraSecretEnvironmentVars" .Values.server | nindent 12 }}
           volumeMounts:
           {{ template "vault.mounts" . }}
             - name: home
@@ -155,15 +155,15 @@ spec:
               name: https-internal
             - containerPort: 8202
               name: {{ include "vault.scheme" . }}-rep
-          {{- if .Values.vault.server.extraPorts -}}
-          {{ toYaml .Values.vault.server.extraPorts | nindent 12}}
+          {{- if .Values.server.extraPorts -}}
+          {{ toYaml .Values.server.extraPorts | nindent 12}}
           {{- end }}
-          {{- if .Values.vault.server.readinessProbe.enabled }}
+          {{- if .Values.server.readinessProbe.enabled }}
           readinessProbe:
-            {{- if .Values.vault.server.readinessProbe.path }}
+            {{- if .Values.server.readinessProbe.path }}
             httpGet:
-              path: {{ .Values.vault.server.readinessProbe.path | quote }}
-              port: {{ .Values.vault.server.readinessProbe.port }}
+              path: {{ .Values.server.readinessProbe.path | quote }}
+              port: {{ .Values.server.readinessProbe.port }}
               scheme: {{ include "vault.scheme" . | upper }}
             {{- else }}
             # Check status; unsealed vault servers return 0
@@ -174,31 +174,31 @@ spec:
             exec:
               command: ["/bin/sh", "-ec", "vault status -tls-skip-verify"]
             {{- end }}
-            failureThreshold: {{ .Values.vault.server.readinessProbe.failureThreshold }}
-            initialDelaySeconds: {{ .Values.vault.server.readinessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.vault.server.readinessProbe.periodSeconds }}
-            successThreshold: {{ .Values.vault.server.readinessProbe.successThreshold }}
-            timeoutSeconds: {{ .Values.vault.server.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.server.readinessProbe.failureThreshold }}
+            initialDelaySeconds: {{ .Values.server.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.server.readinessProbe.periodSeconds }}
+            successThreshold: {{ .Values.server.readinessProbe.successThreshold }}
+            timeoutSeconds: {{ .Values.server.readinessProbe.timeoutSeconds }}
           {{- end }}
-          {{- if .Values.vault.server.livenessProbe.enabled }}
+          {{- if .Values.server.livenessProbe.enabled }}
           livenessProbe:
-            {{- if .Values.vault.server.livenessProbe.execCommand }}
+            {{- if .Values.server.livenessProbe.execCommand }}
             exec:
               command:
-                {{- range (.Values.vault.server.livenessProbe.execCommand) }}
+                {{- range (.Values.server.livenessProbe.execCommand) }}
                 - {{ . | quote }}
                 {{- end }}
             {{- else }}
             httpGet:
-              path: {{ .Values.vault.server.livenessProbe.path | quote }}
-              port: {{ .Values.vault.server.livenessProbe.port }}
+              path: {{ .Values.server.livenessProbe.path | quote }}
+              port: {{ .Values.server.livenessProbe.port }}
               scheme: {{ include "vault.scheme" . | upper }}
             {{- end }}
-            failureThreshold: {{ .Values.vault.server.livenessProbe.failureThreshold }}
-            initialDelaySeconds: {{ .Values.vault.server.livenessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.vault.server.livenessProbe.periodSeconds }}
-            successThreshold: {{ .Values.vault.server.livenessProbe.successThreshold }}
-            timeoutSeconds: {{ .Values.vault.server.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.server.livenessProbe.failureThreshold }}
+            initialDelaySeconds: {{ .Values.server.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.server.livenessProbe.periodSeconds }}
+            successThreshold: {{ .Values.server.livenessProbe.successThreshold }}
+            timeoutSeconds: {{ .Values.server.livenessProbe.timeoutSeconds }}
           {{- end }}
           lifecycle:
             # Vault container doesn't receive SIGTERM from Kubernetes
@@ -212,18 +212,18 @@ spec:
                   # Adding a sleep here to give the pod eviction a
                   # chance to propagate, so requests will not be made
                   # to this pod while it's terminating
-                  "sleep {{ .Values.vault.server.preStopSleepSeconds }} && kill -SIGTERM $(pidof vault)",
+                  "sleep {{ .Values.server.preStopSleepSeconds }} && kill -SIGTERM $(pidof vault)",
                 ]
-            {{- if .Values.vault.server.postStart }}
+            {{- if .Values.server.postStart }}
             postStart:
               exec:
                 command:
-                {{- range (.Values.vault.server.postStart) }}
+                {{- range (.Values.server.postStart) }}
                 - {{ . | quote }}
                 {{- end }}
             {{- end }}
-        {{- if .Values.vault.server.extraContainers }}
-          {{ toYaml .Values.vault.server.extraContainers | nindent 8}}
+        {{- if .Values.server.extraContainers }}
+          {{ toYaml .Values.server.extraContainers | nindent 8}}
         {{- end }}
       {{- include "imagePullSecrets" . | nindent 6 }}
   {{ template "vault.volumeclaims" . }}

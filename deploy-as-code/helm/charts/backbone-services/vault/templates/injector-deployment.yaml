@@ -17,7 +17,7 @@ metadata:
     app.kubernetes.io/managed-by: {{ .Release.Service }}
     component: webhook
 spec:
-  replicas: {{ .Values.vault.injector.replicas }}
+  replicas: {{ .Values.injector.replicas }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ template "vault.name" . }}-agent-injector
@@ -30,8 +30,8 @@ spec:
         app.kubernetes.io/name: {{ template "vault.name" . }}-agent-injector
         app.kubernetes.io/instance: {{ .Release.Name }}
         component: webhook
-        {{- if  .Values.vault.injector.extraLabels -}}
-          {{- toYaml .Values.vault.injector.extraLabels | nindent 8 -}}
+        {{- if  .Values.injector.extraLabels -}}
+          {{- toYaml .Values.injector.extraLabels | nindent 8 -}}
         {{- end -}}
       {{ template "injector.annotations" . }}
     spec:
@@ -39,42 +39,42 @@ spec:
       {{ template "injector.topologySpreadConstraints" . }}
       {{ template "injector.tolerations" . }}
       {{ template "injector.nodeselector" . }}
-      {{- if .Values.vault.injector.priorityClassName }}
-      priorityClassName: {{ .Values.vault.injector.priorityClassName }}
+      {{- if .Values.injector.priorityClassName }}
+      priorityClassName: {{ .Values.injector.priorityClassName }}
       {{- end }}
       serviceAccountName: "{{ template "vault.fullname" . }}-agent-injector"
       {{ template "injector.securityContext.pod" . -}}
-      {{- if not .Values.vault.global.openshift }}
-      hostNetwork: {{ .Values.vault.injector.hostNetwork }}
+      {{- if not .Values.global.openshift }}
+      hostNetwork: {{ .Values.injector.hostNetwork }}
       {{- end }}
       containers:
         - name: sidecar-injector
           {{ template "injector.resources" . }}
-          image: "{{ .Values.vault.injector.image.repository }}:{{ .Values.vault.injector.image.tag }}"
-          imagePullPolicy: "{{ .Values.vault.injector.image.pullPolicy }}"
+          image: "{{ .Values.injector.image.repository }}:{{ .Values.injector.image.tag }}"
+          imagePullPolicy: "{{ .Values.injector.image.pullPolicy }}"
           {{- template "injector.securityContext.container" . }}
           env:
             - name: AGENT_INJECT_LISTEN
-              value: {{ printf ":%v" .Values.vault.injector.port  }}
+              value: {{ printf ":%v" .Values.injector.port  }}
             - name: AGENT_INJECT_LOG_LEVEL
-              value: {{ .Values.vault.injector.logLevel | default "info" }}
+              value: {{ .Values.injector.logLevel | default "info" }}
             - name: AGENT_INJECT_VAULT_ADDR
-            {{- if .Values.vault.global.externalVaultAddr }}
-              value: "{{ .Values.vault.global.externalVaultAddr }}"
-            {{- else if .Values.vault.injector.externalVaultAddr }}
-              value: "{{ .Values.vault.injector.externalVaultAddr }}"
+            {{- if .Values.global.externalVaultAddr }}
+              value: "{{ .Values.global.externalVaultAddr }}"
+            {{- else if .Values.injector.externalVaultAddr }}
+              value: "{{ .Values.injector.externalVaultAddr }}"
             {{- else }}
-              value: {{ include "vault.scheme" . }}://{{ template "vault.fullname" . }}.{{ include "vault.namespace" . }}.svc:{{ .Values.vault.server.service.port }}
+              value: {{ include "vault.scheme" . }}://{{ template "vault.fullname" . }}.{{ include "vault.namespace" . }}.svc:{{ .Values.server.service.port }}
             {{- end }}
             - name: AGENT_INJECT_VAULT_AUTH_PATH
-              value: {{ .Values.vault.injector.authPath }}
+              value: {{ .Values.injector.authPath }}
             - name: AGENT_INJECT_VAULT_IMAGE
-              value: "{{ .Values.vault.injector.agentImage.repository }}:{{ .Values.vault.injector.agentImage.tag }}"
-            {{- if .Values.vault.injector.certs.secretName }}
+              value: "{{ .Values.injector.agentImage.repository }}:{{ .Values.injector.agentImage.tag }}"
+            {{- if .Values.injector.certs.secretName }}
             - name: AGENT_INJECT_TLS_CERT_FILE
-              value: "/etc/webhook/certs/{{ .Values.vault.injector.certs.certName }}"
+              value: "/etc/webhook/certs/{{ .Values.injector.certs.certName }}"
             - name: AGENT_INJECT_TLS_KEY_FILE
-              value: "/etc/webhook/certs/{{ .Values.vault.injector.certs.keyName }}"
+              value: "/etc/webhook/certs/{{ .Values.injector.certs.keyName }}"
             {{- else }}
             - name: AGENT_INJECT_TLS_AUTO
               value: {{ template "vault.fullname" . }}-agent-injector-cfg
@@ -82,18 +82,18 @@ spec:
               value: {{ template "vault.fullname" . }}-agent-injector-svc,{{ template "vault.fullname" . }}-agent-injector-svc.{{ include "vault.namespace" . }},{{ template "vault.fullname" . }}-agent-injector-svc.{{ include "vault.namespace" . }}.svc
             {{- end }}
             - name: AGENT_INJECT_LOG_FORMAT
-              value: {{ .Values.vault.injector.logFormat | default "standard" }}
+              value: {{ .Values.injector.logFormat | default "standard" }}
             - name: AGENT_INJECT_REVOKE_ON_SHUTDOWN
-              value: "{{ .Values.vault.injector.revokeOnShutdown | default false }}"
-            {{- if .Values.vault.global.openshift }}
+              value: "{{ .Values.injector.revokeOnShutdown | default false }}"
+            {{- if .Values.global.openshift }}
             - name: AGENT_INJECT_SET_SECURITY_CONTEXT
               value: "false"
             {{- end }}
-            {{- if .Values.vault.injector.metrics.enabled }}
+            {{- if .Values.injector.metrics.enabled }}
             - name: AGENT_INJECT_TELEMETRY_PATH
               value: "/metrics"
             {{- end }}
-            {{- if and (eq (.Values.vault.injector.leaderElector.enabled | toString) "true") (gt (.Values.vault.injector.replicas | int) 1) }}
+            {{- if and (eq (.Values.injector.leaderElector.enabled | toString) "true") (gt (.Values.injector.replicas | int) 1) }}
             - name: AGENT_INJECT_USE_LEADER_ELECTOR
               value: "true"
             - name: NAMESPACE
@@ -102,30 +102,30 @@ spec:
                   fieldPath: metadata.namespace
             {{- end }}
             - name: AGENT_INJECT_CPU_REQUEST
-              value: "{{ .Values.vault.injector.agentDefaults.cpuRequest }}"
+              value: "{{ .Values.injector.agentDefaults.cpuRequest }}"
             - name: AGENT_INJECT_CPU_LIMIT
-              value: "{{ .Values.vault.injector.agentDefaults.cpuLimit }}"
+              value: "{{ .Values.injector.agentDefaults.cpuLimit }}"
             - name: AGENT_INJECT_MEM_REQUEST
-              value: "{{ .Values.vault.injector.agentDefaults.memRequest }}"
+              value: "{{ .Values.injector.agentDefaults.memRequest }}"
             - name: AGENT_INJECT_MEM_LIMIT
-              value: "{{ .Values.vault.injector.agentDefaults.memLimit }}"
-            {{- if .Values.vault.injector.agentDefaults.ephemeralRequest }}
+              value: "{{ .Values.injector.agentDefaults.memLimit }}"
+            {{- if .Values.injector.agentDefaults.ephemeralRequest }}
             - name: AGENT_INJECT_EPHEMERAL_REQUEST
-              value: "{{ .Values.vault.injector.agentDefaults.ephemeralRequest }}"
+              value: "{{ .Values.injector.agentDefaults.ephemeralRequest }}"
             {{- end }}
-            {{- if .Values.vault.injector.agentDefaults.ephemeralLimit }}
+            {{- if .Values.injector.agentDefaults.ephemeralLimit }}
             - name: AGENT_INJECT_EPHEMERAL_LIMIT
-              value: "{{ .Values.vault.injector.agentDefaults.ephemeralLimit }}"
+              value: "{{ .Values.injector.agentDefaults.ephemeralLimit }}"
             {{- end }}
             - name: AGENT_INJECT_DEFAULT_TEMPLATE
-              value: "{{ .Values.vault.injector.agentDefaults.template }}"
+              value: "{{ .Values.injector.agentDefaults.template }}"
             - name: AGENT_INJECT_TEMPLATE_CONFIG_EXIT_ON_RETRY_FAILURE
-              value: "{{ .Values.vault.injector.agentDefaults.templateConfig.exitOnRetryFailure }}"
-            {{- if .Values.vault.injector.agentDefaults.templateConfig.staticSecretRenderInterval }}
+              value: "{{ .Values.injector.agentDefaults.templateConfig.exitOnRetryFailure }}"
+            {{- if .Values.injector.agentDefaults.templateConfig.staticSecretRenderInterval }}
             - name: AGENT_INJECT_TEMPLATE_STATIC_SECRET_RENDER_INTERVAL
-              value: "{{ .Values.vault.injector.agentDefaults.templateConfig.staticSecretRenderInterval }}"
+              value: "{{ .Values.injector.agentDefaults.templateConfig.staticSecretRenderInterval }}"
             {{- end }}
-            {{- include "vault.extraEnvironmentVars" .Values.vault.injector | nindent 12 }}
+            {{- include "vault.extraEnvironmentVars" .Values.injector | nindent 12 }}
             - name: POD_NAME
               valueFrom:
                 fieldRef:
@@ -136,44 +136,44 @@ spec:
           livenessProbe:
             httpGet:
               path: /health/ready
-              port: {{ .Values.vault.injector.port }}
+              port: {{ .Values.injector.port }}
               scheme: HTTPS
-            failureThreshold: {{ .Values.vault.injector.livenessProbe.failureThreshold }}
-            initialDelaySeconds: {{ .Values.vault.injector.livenessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.vault.injector.livenessProbe.periodSeconds }}
-            successThreshold: {{ .Values.vault.injector.livenessProbe.successThreshold }}
-            timeoutSeconds: {{ .Values.vault.injector.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.injector.livenessProbe.failureThreshold }}
+            initialDelaySeconds: {{ .Values.injector.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.injector.livenessProbe.periodSeconds }}
+            successThreshold: {{ .Values.injector.livenessProbe.successThreshold }}
+            timeoutSeconds: {{ .Values.injector.livenessProbe.timeoutSeconds }}
           readinessProbe:
             httpGet:
               path: /health/ready
-              port: {{ .Values.vault.injector.port }}
+              port: {{ .Values.injector.port }}
               scheme: HTTPS
-            failureThreshold: {{ .Values.vault.injector.readinessProbe.failureThreshold }}
-            initialDelaySeconds: {{ .Values.vault.injector.readinessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.vault.injector.readinessProbe.periodSeconds }}
-            successThreshold: {{ .Values.vault.injector.readinessProbe.successThreshold }}
-            timeoutSeconds: {{ .Values.vault.injector.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.injector.readinessProbe.failureThreshold }}
+            initialDelaySeconds: {{ .Values.injector.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.injector.readinessProbe.periodSeconds }}
+            successThreshold: {{ .Values.injector.readinessProbe.successThreshold }}
+            timeoutSeconds: {{ .Values.injector.readinessProbe.timeoutSeconds }}
           startupProbe:
             httpGet:
               path: /health/ready
-              port: {{ .Values.vault.injector.port }}
+              port: {{ .Values.injector.port }}
               scheme: HTTPS
-            failureThreshold: {{ .Values.vault.injector.startupProbe.failureThreshold }}
-            initialDelaySeconds: {{ .Values.vault.injector.startupProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.vault.injector.startupProbe.periodSeconds }}
-            successThreshold: {{ .Values.vault.injector.startupProbe.successThreshold }}
-            timeoutSeconds: {{ .Values.vault.injector.startupProbe.timeoutSeconds }}
-{{- if .Values.vault.injector.certs.secretName }}
+            failureThreshold: {{ .Values.injector.startupProbe.failureThreshold }}
+            initialDelaySeconds: {{ .Values.injector.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.injector.startupProbe.periodSeconds }}
+            successThreshold: {{ .Values.injector.startupProbe.successThreshold }}
+            timeoutSeconds: {{ .Values.injector.startupProbe.timeoutSeconds }}
+{{- if .Values.injector.certs.secretName }}
           volumeMounts:
             - name: webhook-certs
               mountPath: /etc/webhook/certs
               readOnly: true
 {{- end }}
-{{- if .Values.vault.injector.certs.secretName }}
+{{- if .Values.injector.certs.secretName }}
       volumes:
         - name: webhook-certs
           secret:
-            secretName: "{{ .Values.vault.injector.certs.secretName }}"
+            secretName: "{{ .Values.injector.certs.secretName }}"
 {{- end }}
       {{- include "imagePullSecrets" . | nindent 6 }}
 {{ end }}

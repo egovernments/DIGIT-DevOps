@@ -8,7 +8,7 @@ SPDX-License-Identifier: MPL-2.0
 {{- template "vault.serverServiceEnabled" . -}}
 {{- if .serverServiceEnabled -}}
 {{- if eq .mode "ha" }}
-{{- if eq (.Values.vault.server.service.standby.enabled | toString) "true" }}
+{{- if eq (.Values.server.service.standby.enabled | toString) "true" }}
 # Service for standby Vault pod
 apiVersion: v1
 kind: Service
@@ -24,35 +24,35 @@ metadata:
 {{- template "vault.service.standby.annotations" . }}
 {{- template "vault.service.annotations" . }}
 spec:
-  {{- if .Values.vault.server.service.type}}
-  type: {{ .Values.vault.server.service.type }}
+  {{- if .Values.server.service.type}}
+  type: {{ .Values.server.service.type }}
   {{- end}}
   {{- if (semverCompare ">= 1.23-0" .Capabilities.KubeVersion.Version) }}
-  {{- if .Values.vault.server.service.ipFamilyPolicy }}
-  ipFamilyPolicy: {{ .Values.vault.server.service.ipFamilyPolicy }}
+  {{- if .Values.server.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ .Values.server.service.ipFamilyPolicy }}
   {{- end }}
-  {{- if .Values.vault.server.service.ipFamilies }}
-  ipFamilies: {{ .Values.vault.server.service.ipFamilies | toYaml | nindent 2 }}
+  {{- if .Values.server.service.ipFamilies }}
+  ipFamilies: {{ .Values.server.service.ipFamilies | toYaml | nindent 2 }}
   {{- end }}
   {{- end }}
-  {{- if .Values.vault.server.service.clusterIP }}
-  clusterIP: {{ .Values.vault.server.service.clusterIP }}
+  {{- if .Values.server.service.clusterIP }}
+  clusterIP: {{ .Values.server.service.clusterIP }}
   {{- end }}
-  {{- include "service.externalTrafficPolicy" .Values.vault.server.service }}
-  publishNotReadyAddresses: {{ .Values.vault.server.service.publishNotReadyAddresses }}
+  {{- include "service.externalTrafficPolicy" .Values.server.service }}
+  publishNotReadyAddresses: {{ .Values.server.service.publishNotReadyAddresses }}
   ports:
     - name: {{ include "vault.scheme" . }}
-      port: {{ .Values.vault.server.service.port }}
-      targetPort: {{ .Values.vault.server.service.targetPort }}
-      {{- if and (.Values.vault.server.service.standbyNodePort) (eq (.Values.vault.server.service.type | toString) "NodePort") }}
-      nodePort: {{ .Values.vault.server.service.standbyNodePort }}
+      port: {{ .Values.server.service.port }}
+      targetPort: {{ .Values.server.service.targetPort }}
+      {{- if and (.Values.server.service.standbyNodePort) (eq (.Values.server.service.type | toString) "NodePort") }}
+      nodePort: {{ .Values.server.service.standbyNodePort }}
       {{- end }}
     - name: https-internal
       port: 8201
       targetPort: 8201
   selector:
     app.kubernetes.io/name: {{ include "vault.name" . }}
-    {{- if eq (.Values.vault.server.service.instanceSelector.enabled | toString) "true" }}
+    {{- if eq (.Values.server.service.instanceSelector.enabled | toString) "true" }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     {{- end }}
     component: server

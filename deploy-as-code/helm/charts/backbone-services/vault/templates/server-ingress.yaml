@@ -3,19 +3,19 @@ Copyright (c) HashiCorp, Inc.
 SPDX-License-Identifier: MPL-2.0
 */}}
 
-{{- if not .Values.vault.global.openshift }}
+{{- if not .Values.global.openshift }}
 {{ template "vault.mode" . }}
 {{- if ne .mode "external" }}
-{{- if .Values.vault.server.ingress.enabled -}}
-{{- $extraPaths := .Values.vault.server.ingress.extraPaths -}}
+{{- if .Values.server.ingress.enabled -}}
+{{- $extraPaths := .Values.server.ingress.extraPaths -}}
 {{- $serviceName := include "vault.fullname" . -}}
 {{- template "vault.serverServiceEnabled" . -}}
 {{- if .serverServiceEnabled -}}
-{{- if and (eq .mode "ha" ) (eq (.Values.vault.server.ingress.activeService | toString) "true") }}
+{{- if and (eq .mode "ha" ) (eq (.Values.server.ingress.activeService | toString) "true") }}
 {{- $serviceName = printf "%s-%s" $serviceName "active" -}}
 {{- end }}
-{{- $servicePort := .Values.vault.server.service.port -}}
-{{- $pathType := .Values.vault.server.ingress.pathType -}}
+{{- $servicePort := .Values.server.service.port -}}
+{{- $pathType := .Values.server.ingress.pathType -}}
 {{- $kubeVersion := .Capabilities.KubeVersion.Version }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -27,14 +27,14 @@ metadata:
     app.kubernetes.io/name: {{ include "vault.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
-    {{- with .Values.vault.server.ingress.labels }}
+    {{- with .Values.server.ingress.labels }}
       {{- toYaml . | nindent 4 }}
     {{- end }}
   {{- template "vault.ingress.annotations" . }}
 spec:
-{{- if .Values.vault.server.ingress.tls }}
+{{- if .Values.server.ingress.tls }}
   tls:
-  {{- range .Values.vault.server.ingress.tls }}
+  {{- range .Values.server.ingress.tls }}
     - hosts:
       {{- range .hosts }}
         - {{ . | quote }}
@@ -42,11 +42,11 @@ spec:
       secretName: {{ .secretName }}
   {{- end }}
 {{- end }}
-{{- if .Values.vault.server.ingress.ingressClassName }}
-  ingressClassName: {{ .Values.vault.server.ingress.ingressClassName }}
+{{- if .Values.server.ingress.ingressClassName }}
+  ingressClassName: {{ .Values.server.ingress.ingressClassName }}
 {{- end }}
   rules:
-  {{- range .Values.vault.server.ingress.hosts }}
+  {{- range .Values.server.ingress.hosts }}
     - host: {{ .host | quote }}
       http:
         paths:

@@ -4,7 +4,7 @@ SPDX-License-Identifier: MPL-2.0
 */}}
 
 {{ template "vault.mode" . }}
-{{ if or (.Values.vault.global.serverTelemetry.prometheusOperator) (.Values.vault.serverTelemetry.serviceMonitor.enabled) }}
+{{ if or (.Values.global.serverTelemetry.prometheusOperator) (.Values.serverTelemetry.serviceMonitor.enabled) }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
@@ -16,7 +16,7 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
     {{- /* update the selectors docs in values.yaml whenever the defaults below change. */ -}}
-    {{- $selectors := .Values.vault.serverTelemetry.serviceMonitor.selectors }}
+    {{- $selectors := .Values.serverTelemetry.serviceMonitor.selectors }}
     {{- if $selectors }}
     {{- toYaml $selectors | nindent 4 }}
     {{- else }}
@@ -34,21 +34,21 @@ spec:
       {{- end }}
   endpoints:
   - port: {{ include "vault.scheme" . }}
-    interval: {{ .Values.vault.serverTelemetry.serviceMonitor.interval }}
-    scrapeTimeout: {{ .Values.vault.serverTelemetry.serviceMonitor.scrapeTimeout }}
+    interval: {{ .Values.serverTelemetry.serviceMonitor.interval }}
+    scrapeTimeout: {{ .Values.serverTelemetry.serviceMonitor.scrapeTimeout }}
     scheme: {{ include "vault.scheme" . | lower }}
     path: /v1/sys/metrics
     params:
       format:
       - prometheus
-    {{- with .Values.vault.serverTelemetry.serviceMonitor.tlsConfig }}
+    {{- with .Values.serverTelemetry.serviceMonitor.tlsConfig }}
     tlsConfig:
     {{- toYaml . | nindent 6 }}
     {{- else }}
     tlsConfig:
       insecureSkipVerify: true
     {{- end }}
-    {{- with .Values.vault.serverTelemetry.serviceMonitor.authorization }}
+    {{- with .Values.serverTelemetry.serviceMonitor.authorization }}
     authorization:
     {{- toYaml . | nindent 6 }}
     {{- end }}

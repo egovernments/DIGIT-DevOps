@@ -5,7 +5,7 @@ config** (`charts/kargo/config/projects/<project>.yaml`). A service is declared 
 there, and appears in Argo CD after its first promotion. No ApplicationSet edit is
 needed per service.
 
-`core-3-0` and `unified-security` opt in. Projects without a `kargo.argocd`
+`core-3-0`, `backbone-3-0` and `unified-security` opt in. Projects without a `kargo.argocd`
 block are ignored here and keep their own ApplicationSets (egov, health,
 studio, ...).
 

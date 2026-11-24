@@ -1,6 +1,6 @@
-# DIGIT 3.0 module -- unified-dev (Kargo project core-3-0). Covers core-3.0 (services,
-# kong, keycloak, cluster-configs in namespace core-3-0) and backbone-3.0 (postgresql-18,
-# vault in namespace backbone-3-0, deployed as static, non-promotable Applications).
+# DIGIT 3.0 module -- unified-dev. Shared by two Kargo projects that both read this file:
+# core-3-0 (services, kong, keycloak, cluster-configs in namespace core-3-0) and backbone-3-0
+# (postgresql-18, vault in namespace backbone-3-0, chart-only published backbone charts).
 #
 # Its own env file, separate from environments/unified-dev.yaml: the DIGIT 2.x charts
 # share these names (filestore, boundary, workflow, billing, ...) and read that file's
@@ -8,16 +8,16 @@
 # Top-level keys are chart names -- the common chart reads .Values.<chart-name> -- so
 # this is exactly `helm ... -f environments/digit-3.0/core-3.0.yaml`.
 #
-# Argo CD (charts/argo-cd/unified-dev/kargo-managed/ + digit-3.0/backbone-3.0/) deploys
-# from this file, one Application per service of the Kargo project (its config sets the
+# Argo CD (charts/argo-cd/unified-dev/kargo-managed/) deploys from this file, one Application
+# per service of the core-3-0 and backbone-3-0 Kargo projects (each service's config sets the
 # layout), once Kargo has merged the service's chart-version:
 #   digit3-<service>              chart <service> from https://helm.digit.org/digit3/core
 #                                 at <service>.chart-version, values {global, <service>}
 #   digit3-kong                   same chart source, values = the section as root values
 #   core-3-0-cluster-configs      chart cluster-configs at cluster-configs.chart-version,
 #                                 values this file + core-3.0-secrets.yaml (SOPS)
-#   digit3-postgresql-18          git-path chart backbone-services/postgresql-18 (backbone-3-0)
-#   digit3-vault                  git-path chart backbone-services/vault, nested vault: key (backbone-3-0)
+#   digit3-postgresql-18          chart postgresql from https://helm.digit.org/digit3/backbone, root values (backbone-3-0)
+#   digit3-vault                  chart vault from https://helm.digit.org/digit3/backbone, root values (backbone-3-0)
 #
 # Kargo MERGES <service>.chart-version, <service>.image.tag and
 # <service>.initContainers.dbMigration.image.tag on promotion, creating them if absent.
@@ -420,11 +420,11 @@ keycloak:
   image:
     tag: 'keycloak-spi-custom-build-3348b03'
 # Vault (app digit3-vault) in the backbone-3-0 namespace -- egov-service-host's
-# vault key points at vault.backbone-3-0:8200. Static git-path Application
-# (argo-cd/unified-dev/digit-3.0/backbone-3.0/vault-application.yaml), NOT a Kargo
-# service: backbone is non-promotable infra, so there is no chart-version here.
-# Chart charts/backbone-services/vault, re-rooted to a nested vault: key, so Argo CD
-# passes this section below as the chart's values.
+# vault key points at vault.backbone-3-0:8200. Root-layout service of the backbone-3-0
+# Kargo project: the kargo-managed appset installs the published chart vault from
+# https://helm.digit.org/digit3/backbone and passes this section (minus chart-version)
+# as the chart's ROOT values. Chart-only (image: false); the version is pinned and
+# moves only on a deliberate backbone upgrade.
 #
 # Raft storage + Azure Key Vault auto-unseal: the pod unseals itself from the KMS key on
 # every restart (no manual `vault operator unseal`). Auth is Azure Workload Identity -- the
@@ -432,6 +432,7 @@ keycloak:
 # is stored. The identity, the federated credential and the key are created at cutover; set
 # serviceAccount client-id then (tracked in DIGIT-DevOps#5762).
 vault:
+  chart-version: '3.0.1'
   global:
     namespace: backbone-3-0
   # Vault Agent injector not used: services read secrets via AppRole, not sidecar
@@ -584,64 +585,72 @@ cluster-configs:
       superuserName: postgresql-18-superuser-db
       namespace: [backbone-3-0] # username/password/superuserPassword
 
-# PostgreSQL 18 (CloudNativePG). Overrides charts/backbone-services/postgresql-18.
+# PostgreSQL 18: published chart postgresql from https://helm.digit.org/digit3/backbone
+# (CloudNativePG Cluster + DIGIT additions). Root-layout service of the backbone-3-0 Kargo
+# project: the kargo-managed appset passes this section (minus chart-version) as the chart's
+# ROOT values. Chart-only (image: false); the version is pinned. The published chart uses the
+# CNPG cluster schema (cluster.*), unlike the old flattened git-path chart.
 postgresql-18:
-  # DIGIT 3.0's own database namespace (the chart default is the shared `backbone`).
-  namespace: backbone-3-0
-  # Single instance: this node pool is tight -- a node recently sat at 103% CPU
-  # and restart-looped every Java service on it. Raise to 3 once three
-  # schedulable nodes have headroom; that is what buys automated failover.
-  instances: 1
-  storage:
-    size: 50Gi
-    # Azure managed disk. The chart default is empty (cluster default class),
-    # named here so it cannot move if the default-class annotation is changed.
-    storageClass: managed-csi
-  affinity:
-    # AKS labels nodes with zone, so replicas spread across availability zones
-    # rather than merely across nodes. The chart defaults to hostname because
-    # on-prem clusters have no zone labels.
-    topologyKey: topology.kubernetes.io/zone
-  monitoring:
-    # kube-prometheus-stack is installed here, so the PodMonitor CRD exists.
-    enabled: true
-  bootstrap:
-    # owner MUST equal the `username` in the postgresql-18-db secret
-    # (cluster-configs.secrets.postgresql-18.username). If they differ, the
-    # database is created owned by a role those credentials cannot authenticate
-    # as -- and because initdb runs ONCE, it cannot be corrected without
-    # recreating the cluster.
-    owner: coredev
-    database: coredb
-
-  auth:
-    # Secrets rendered by cluster-configs from unified-dev-secrets.yaml
-    # (cluster-configs.secrets.postgresql-18). Without these the operator
-    # generates its own random passwords instead.
-    existingSecret: postgresql-18-db
+  chart-version: '3.0.3'
+  # -rw/-ro/-r Services keep the postgresql-18- prefix so the egov-config db-host
+  # (postgresql-18-rw.backbone-3-0) stays valid.
+  fullnameOverride: postgresql-18
+  namespaceOverride: backbone-3-0
+  cluster:
+    # Single instance: this node pool is tight -- a node recently sat at 103% CPU and
+    # restart-looped every Java service on it. Raise to 3 once three schedulable nodes
+    # have headroom; that is what buys automated failover.
+    instances: 1
+    storage:
+      size: 50Gi
+      # Azure managed disk. The chart default is empty (cluster default class), named
+      # here so it cannot move if the default-class annotation is changed.
+      storageClass: managed-csi
+    affinity:
+      # AKS labels nodes with zone, so replicas spread across availability zones rather
+      # than merely across nodes. The chart defaults to hostname (on-prem has no zones).
+      topologyKey: topology.kubernetes.io/zone
+    monitoring:
+      # kube-prometheus-stack is installed here, so the PodMonitor CRD exists.
+      enabled: true
+    # Superuser password from the postgresql-18-superuser-db secret (cluster-configs,
+    # rendered into backbone-3-0). Without it the operator generates a random one.
+    enableSuperuserAccess: true
     superuserSecret: postgresql-18-superuser-db
-  postgresql:
-    # PostGIS for digit3 boundary (migration V20260818120000 adds a geometry
-    # column). Mounted as an image volume; the PostgreSQL image is unchanged.
-    # Pinned to a dated build: the plain 3.7.0-18-trixie tag is rebuilt in place.
-    # GDAL_DATA/PROJ_DATA use ${image_root} (CloudNativePG 1.29+).
-    extensions:
-      - name: postgis
-        image:
-          reference: ghcr.io/cloudnative-pg/postgis-extension:3.7.0-202611091303-18-trixie
-        ld_library_path:
-          - system
-        env:
-          - name: GDAL_DATA
-            value: ${image_root}/share/gdal
-          - name: PROJ_DATA
-            value: ${image_root}/share/proj
-  # coredb is the bootstrap database (adopted, not recreated). The operator
-  # creates postgis as superuser; the boundary migration runs as coredev, which
-  # may not, and its CREATE EXTENSION IF NOT EXISTS then finds it present.
+    initdb:
+      # coredb owned by coredev, bootstrapped from the postgresql-18-db secret.
+      # owner MUST equal the `username` in that secret (cluster-configs.secrets.postgresql-18);
+      # if they differ the role cannot authenticate, and initdb runs ONCE so it cannot be
+      # fixed without recreating the cluster.
+      database: coredb
+      owner: coredev
+      secret:
+        name: postgresql-18-db
+    postgresql:
+      # PostGIS for digit3 boundary (migration V20260818120000 adds a geometry column),
+      # supplied as an image volume (CloudNativePG 1.29+); the PostgreSQL image is unchanged.
+      # Pinned to a dated build: the plain 3.7.0-18-trixie tag is rebuilt in place.
+      # GDAL_DATA/PROJ_DATA use ${image_root}. Needs chart postgresql >= 3.0.3 (extensions passthrough).
+      extensions:
+        - name: postgis
+          image:
+            reference: ghcr.io/cloudnative-pg/postgis-extension:3.7.0-202611091303-18-trixie
+          ld_library_path:
+            - system
+          env:
+            - name: GDAL_DATA
+              value: ${image_root}/share/gdal
+            - name: PROJ_DATA
+              value: ${image_root}/share/proj
+  # coredb (adopted, not recreated). The operator creates postgis as superuser; the boundary
+  # migration runs as coredev, whose CREATE EXTENSION IF NOT EXISTS then finds it present.
   databases:
     - name: coredb
       owner: coredev
       extensions:
         - name: postgis
           version: "3.7.0"
+  # The published chart's post-ready reconciler is off: initdb already bootstraps the role +
+  # database, matching the previous behavior and keeping backbone-3-0-project out of core-3-0.
+  reconciler:
+    enabled: false

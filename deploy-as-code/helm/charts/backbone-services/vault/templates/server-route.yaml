@@ -3,11 +3,11 @@ Copyright (c) HashiCorp, Inc.
 SPDX-License-Identifier: MPL-2.0
 */}}
 
-{{- if .Values.vault.global.openshift }}
+{{- if .Values.global.openshift }}
 {{- if ne .mode "external" }}
-{{- if .Values.vault.server.route.enabled -}}
+{{- if .Values.server.route.enabled -}}
 {{- $serviceName := include "vault.fullname" . -}}
-{{- if and (eq .mode "ha" ) (eq (.Values.vault.server.route.activeService | toString) "true") }}
+{{- if and (eq .mode "ha" ) (eq (.Values.server.route.activeService | toString) "true") }}
 {{- $serviceName = printf "%s-%s" $serviceName "active" -}}
 {{- end }}
 kind: Route
@@ -20,12 +20,12 @@ metadata:
     app.kubernetes.io/name: {{ include "vault.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
-    {{- with .Values.vault.server.route.labels }}
+    {{- with .Values.server.route.labels }}
       {{- toYaml . | nindent 4 }}
     {{- end }}
   {{- template "vault.route.annotations" . }}
 spec:
-  host: {{ .Values.vault.server.route.host }}
+  host: {{ .Values.server.route.host }}
   to:
     kind: Service
     name: {{ $serviceName }}
@@ -33,7 +33,7 @@ spec:
   port:
     targetPort: 8200
   tls:
-    {{- toYaml .Values.vault.server.route.tls | nindent  4 }}
+    {{- toYaml .Values.server.route.tls | nindent  4 }}
 {{- end }}
 {{- end }}
 {{- end }}

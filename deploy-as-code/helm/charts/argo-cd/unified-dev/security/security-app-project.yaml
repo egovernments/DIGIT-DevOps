@@ -41,6 +41,10 @@ spec:
     ## storage-auth-reader only -- see the header.
     - namespace: kube-system
       server: https://kubernetes.default.svc
+    ## Kyverno owns its own namespace; every other chart in this project
+    ## deploys into kubescape.
+    - namespace: kyverno
+      server: https://kubernetes.default.svc
   clusterResourceWhitelist:
     ## Not rendered by the chart -- Argo CD synthesizes a Namespace task from
     ## the Application's CreateNamespace=true syncOption, and that synthetic
@@ -65,6 +69,12 @@ spec:
       kind: APIService
     - group: apiextensions.k8s.io
       kind: CustomResourceDefinition
+    ## Kyverno's policies. The Pod Security set renders 11 of these.
+    ## Kyverno creates its Validating/MutatingWebhookConfiguration objects at
+    ## RUNTIME, not from the chart, so those are not Argo-managed and are
+    ## deliberately absent here.
+    - group: policies.kyverno.io
+      kind: ValidatingPolicy
   ## Exactly the ten namespaced kinds the chart renders.
   namespaceResourceWhitelist:
     - group: ''
@@ -81,6 +91,9 @@ spec:
       kind: Deployment
     - group: batch
       kind: CronJob
+    ## Kyverno's pre-install / pre-delete Helm hooks.
+    - group: batch
+      kind: Job
     - group: networking.k8s.io
       kind: NetworkPolicy
     - group: rbac.authorization.k8s.io

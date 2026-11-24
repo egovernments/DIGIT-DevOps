@@ -1,6 +1,6 @@
-# DIGIT 3.0 module -- unified-dev (Kargo project digit-3-0). Covers core-3.0 (services,
+# DIGIT 3.0 module -- unified-dev (Kargo project core-3-0). Covers core-3.0 (services,
 # kong, keycloak, cluster-configs in namespace core-3-0) and backbone-3.0 (postgresql-18,
-# vault in namespace backbone-3-0).
+# vault in namespace backbone-3-0, deployed as static, non-promotable Applications).
 #
 # Its own env file, separate from environments/unified-dev.yaml: the DIGIT 2.x charts
 # share these names (filestore, boundary, workflow, billing, ...) and read that file's
@@ -13,10 +13,11 @@
 # layout), once Kargo has merged the service's chart-version:
 #   digit3-<service>              chart <service> from https://helm.digit.org/digit3/core
 #                                 at <service>.chart-version, values {global, <service>}
-#   digit3-kong, digit3-vault     same chart source, values = the section as root values
+#   digit3-kong                   same chart source, values = the section as root values
 #   core-3-0-cluster-configs      chart cluster-configs at cluster-configs.chart-version,
 #                                 values this file + core-3.0-secrets.yaml (SOPS)
 #   digit3-postgresql-18          git-path chart backbone-services/postgresql-18 (backbone-3-0)
+#   digit3-vault                  git-path chart backbone-services/vault, nested vault: key (backbone-3-0)
 #
 # Kargo MERGES <service>.chart-version, <service>.image.tag and
 # <service>.initContainers.dbMigration.image.tag on promotion, creating them if absent.
@@ -433,9 +434,14 @@ keycloak:
 vault:
   global:
     namespace: backbone-3-0
+  # Vault Agent injector not used: services read secrets via AppRole, not sidecar
+  # injection. Disabling it drops the injector Deployment and its cluster-scoped
+  # ClusterRole/ClusterRoleBinding, so backbone-3-0-project needs no cluster whitelist.
+  injector:
+    enabled: false
   server:
     # The auth-delegator ClusterRoleBinding is only for Kubernetes auth; services use
-    # AppRole, and the core-3-0 AppProject allows no cluster-scoped objects.
+    # AppRole, and the backbone-3-0 AppProject allows no cluster-scoped objects.
     authDelegator:
       enabled: false
     serviceAccount:
@@ -465,7 +471,6 @@ vault:
             key_name   = "vault-unseal"
           }
           service_registration "kubernetes" {}
-  chart-version: '3.0.1'
 # Namespace-scoped ConfigMaps/Secrets for this module, rendered by the cluster-configs
 # chart (app core-3-0-cluster-configs). Every object pins namespace: [core-3-0] --
 # the chart's defaults point at shared namespaces (egov, health, ...), and the

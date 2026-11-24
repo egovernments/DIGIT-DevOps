@@ -1,0 +1,24 @@
+## DIGIT 3.0 backbone. AppProject for the shared, non-promotable infra in backbone-3-0:
+## postgresql-18 (CloudNativePG) and vault. These are plain git-path Applications, not
+## Kargo services -- a database and a secrets engine are infra, not images promoted
+## dev -> qa -> uat -- so they are decoupled from the core-3.0 / health-3.0 pipelines and
+## shared by both modules.
+##
+## Single destination backbone-3-0. No cluster-scoped kinds are whitelisted: the CNPG
+## Cluster CR is namespaced, and vault runs with the agent injector and CSI provider
+## disabled (services use AppRole) and auth-delegator off, so it renders nothing
+## cluster-scoped. The cluster-wide CloudNativePG operator is a separate Application
+## (backbone-project) that owns the postgresql.cnpg.io CRDs.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: backbone-3-0-project
+  namespace: argocd
+spec:
+  description: DIGIT 3.0 backbone (postgresql-18 + vault) for the Azure AKS unified-dev environment
+  sourceRepos:
+    - https://github.com/egovernments/DIGIT-DevOps.git      # values + backbone-services charts
+
+  destinations:
+    - namespace: 'backbone-3-0'
+      server: https://kubernetes.default.svc

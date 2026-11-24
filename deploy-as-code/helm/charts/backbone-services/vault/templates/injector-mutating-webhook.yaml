@@ -20,26 +20,26 @@ metadata:
   {{- template "injector.webhookAnnotations" . }}
 webhooks:
   - name: vault.hashicorp.com
-    failurePolicy: {{ ((.Values.injector.webhook)).failurePolicy | default .Values.injector.failurePolicy }}
-    matchPolicy: {{ ((.Values.injector.webhook)).matchPolicy | default "Exact" }}
+    failurePolicy: {{ ((.Values.vault.injector.webhook)).failurePolicy | default .Values.vault.injector.failurePolicy }}
+    matchPolicy: {{ ((.Values.vault.injector.webhook)).matchPolicy | default "Exact" }}
     sideEffects: None
-    timeoutSeconds: {{ ((.Values.injector.webhook)).timeoutSeconds | default "30" }}
+    timeoutSeconds: {{ ((.Values.vault.injector.webhook)).timeoutSeconds | default "30" }}
     admissionReviewVersions: ["v1", "v1beta1"]
     clientConfig:
       service:
         name: {{ template "vault.fullname" . }}-agent-injector-svc
         namespace: {{ include "vault.namespace" . }}
         path: "/mutate"
-      caBundle: {{ .Values.injector.certs.caBundle | quote }}
+      caBundle: {{ .Values.vault.injector.certs.caBundle | quote }}
     rules:
       - operations: ["CREATE"]
         apiGroups: [""]
         apiVersions: ["v1"]
         resources: ["pods"]
         scope: "Namespaced"
-{{- if or (.Values.injector.namespaceSelector) (((.Values.injector.webhook)).namespaceSelector) }}
+{{- if or (.Values.vault.injector.namespaceSelector) (((.Values.vault.injector.webhook)).namespaceSelector) }}
     namespaceSelector:
-{{ toYaml (((.Values.injector.webhook)).namespaceSelector | default .Values.injector.namespaceSelector) | indent 6}}
+{{ toYaml (((.Values.vault.injector.webhook)).namespaceSelector | default .Values.vault.injector.namespaceSelector) | indent 6}}
 {{ end }}
 {{- template "injector.objectSelector" . -}}
 {{ end }}

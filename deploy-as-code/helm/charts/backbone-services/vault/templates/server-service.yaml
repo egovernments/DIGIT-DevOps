@@ -21,37 +21,37 @@ metadata:
   annotations:
 {{ template "vault.service.annotations" .}}
 spec:
-  {{- if .Values.server.service.type}}
-  type: {{ .Values.server.service.type }}
+  {{- if .Values.vault.server.service.type}}
+  type: {{ .Values.vault.server.service.type }}
   {{- end}}
   {{- if (semverCompare ">= 1.23-0" .Capabilities.KubeVersion.Version) }}
-  {{- if .Values.server.service.ipFamilyPolicy }}
-  ipFamilyPolicy: {{ .Values.server.service.ipFamilyPolicy }}
+  {{- if .Values.vault.server.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ .Values.vault.server.service.ipFamilyPolicy }}
   {{- end }}
-  {{- if .Values.server.service.ipFamilies }}
-  ipFamilies: {{ .Values.server.service.ipFamilies | toYaml | nindent 2 }}
+  {{- if .Values.vault.server.service.ipFamilies }}
+  ipFamilies: {{ .Values.vault.server.service.ipFamilies | toYaml | nindent 2 }}
   {{- end }}
   {{- end }}
-  {{- if .Values.server.service.clusterIP }}
-  clusterIP: {{ .Values.server.service.clusterIP }}
+  {{- if .Values.vault.server.service.clusterIP }}
+  clusterIP: {{ .Values.vault.server.service.clusterIP }}
   {{- end }}
-  {{- include "service.externalTrafficPolicy" .Values.server.service }}
+  {{- include "service.externalTrafficPolicy" .Values.vault.server.service }}
   # We want the servers to become available even if they're not ready
   # since this DNS is also used for join operations.
-  publishNotReadyAddresses: {{ .Values.server.service.publishNotReadyAddresses }}
+  publishNotReadyAddresses: {{ .Values.vault.server.service.publishNotReadyAddresses }}
   ports:
     - name: {{ include "vault.scheme" . }}
-      port: {{ .Values.server.service.port }}
-      targetPort: {{ .Values.server.service.targetPort }}
-      {{- if and (.Values.server.service.nodePort) (eq (.Values.server.service.type | toString) "NodePort") }}
-      nodePort: {{ .Values.server.service.nodePort }}
+      port: {{ .Values.vault.server.service.port }}
+      targetPort: {{ .Values.vault.server.service.targetPort }}
+      {{- if and (.Values.vault.server.service.nodePort) (eq (.Values.vault.server.service.type | toString) "NodePort") }}
+      nodePort: {{ .Values.vault.server.service.nodePort }}
       {{- end }}
     - name: https-internal
       port: 8201
       targetPort: 8201
   selector:
     app.kubernetes.io/name: {{ include "vault.name" . }}
-    {{- if eq (.Values.server.service.instanceSelector.enabled | toString) "true" }}
+    {{- if eq (.Values.vault.server.service.instanceSelector.enabled | toString) "true" }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     {{- end }}
     component: server

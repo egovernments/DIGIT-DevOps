@@ -1,0 +1,48 @@
+## Vault for DIGIT 3.0, in the backbone-3-0 namespace.
+##
+## Secrets engine for the core services (otp, individual, registry) via AppRole. It was
+## previously a Kargo service (published chart, root layout); here it moves under the
+## digit-3.0 group as a plain git-path Application -- a secrets engine is infra, not an
+## image promoted dev -> qa -> uat, so Kargo adds nothing and it is shared by core-3.0
+## and health-3.0.
+##
+## The chart (charts/backbone-services/vault) reads its values from a nested `vault:` key
+## -- the same convention as postgresql-18 -- so its config lives in the module env file
+## alongside core. Raft storage + Azure Key Vault auto-unseal (Workload Identity); the
+## managed-identity client-id is SET-AT-CUTOVER (DIGIT-DevOps#5762). Agent injector and
+## CSI provider are disabled, so nothing cluster-scoped is rendered.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: digit3-vault
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: backbone-3-0-project
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: unified-dev
+    path: deploy-as-code/helm/charts/backbone-services/vault
+    helm:
+      releaseName: vault
+      valueFiles:
+        - values.yaml
+        - ../../../environments/digit-3.0/core-3.0.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: backbone-3-0
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+      - CreateNamespace=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

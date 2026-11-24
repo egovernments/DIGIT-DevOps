@@ -1,7 +1,9 @@
-# digit-3-0 Kargo pipeline: DIGIT 3.0 module, DEV -> QA -> UAT.
-# (Project name is "digit-3.0" with the dot replaced: a Kargo Project is a
-# Kubernetes namespace, and namespace names cannot contain ".". Likewise the
-# runtime namespaces core-3.0 / backbone-3.0 are core-3-0 / backbone-3-0.)
+# core-3-0 Kargo pipeline: DIGIT 3.0 core module, DEV -> QA -> UAT.
+# (Project name is "core-3.0" with the dot replaced: a Kargo Project is a Kubernetes
+# namespace, and namespace names cannot contain ".". The core services run in this same
+# namespace core-3-0 (pipeline and workloads co-located). backbone-3.0 (postgresql-18 +
+# vault) is a separate runtime namespace backbone-3-0, deployed as static, non-promotable
+# Applications under argo-cd/unified-dev/digit-3.0/backbone-3.0/ -- not Kargo services.)
 #
 # Freight per service = image tag + packaged Helm chart version. No git artifact.
 # Promotion MERGES them into the module's own env file on the stage's branch,
@@ -13,7 +15,6 @@
 #     <service>.initContainers.dbMigration.image.tag      <- same tag, <service>-db image
 #     kong.chart-version, kong.image.tag                  <- chart, image (Freight)
 #     keycloak.chart-version, keycloak.image.tag          <- chart, image (Freight)
-#     vault.chart-version                                 <- chart (Freight)
 #     cluster-configs.chart-version                       <- chart (Freight)
 #
 # A separate file, not environments/unified-<env>.yaml: the DIGIT 2.x charts share
@@ -29,7 +30,7 @@
 # linear: dev takes Freight from the Warehouse, qa only from dev, uat only from qa;
 # uat also takes master-* builds only.
 kargo:
-  project: digit-3-0
+  project: core-3-0
   registry: docker.io/egovio
   argocdAppPrefix: digit3-
   # Argo CD side, read by the kargo-managed ApplicationSets (one per layout):
@@ -43,7 +44,7 @@ kargo:
   # namespaces must match digit-3-0-project's destinations; templates/argocd-deploy.yaml
   # fails the render for a layout or namespace outside them.
   argocd:
-    project: digit-3-0-project
+    project: core-3-0-project
     namespace: core-3-0
     namespaces: [core-3-0, backbone-3-0]
     layout: common
@@ -63,7 +64,8 @@ kargo:
   # in core-3-0 must run the promoted tag and be healthy. Enabled on dev only: qa and
   # uat run no digit3 services yet, so a check there could never pass and would block
   # promotion -- add verifyKubeconfigSecret to those stages once digit3 is deployed there.
-  # Chart-only services (vault, cluster-configs) are never verified.
+  # The chart-only service (cluster-configs) is never verified; vault and postgresql-18
+  # are static backbone Applications, outside this pipeline.
   verify:
     enabled: true
     namespace: core-3-0
@@ -250,19 +252,6 @@ kargo:
       freightCreationPolicy: Manual
       imageSelectionStrategy: NewestBuild
       cacheByTag: true
-      discoveryLimit: 20
-      interval: 5m0s
-    # Secrets engine (otp, individual, registry). Chart only: the HashiCorp image comes
-    # from the chart (there is no egovio/vault build yet). Packaged in the backbone
-    # repo, not digit3/core.
-    - name: vault
-      image: false
-      chart: vault
-      chartRepo: https://helm.digit.org/digit3/backbone
-      deploy:
-        layout: root
-        namespace: backbone-3-0
-      freightCreationPolicy: Manual
       discoveryLimit: 20
       interval: 5m0s
     # The module's namespace-scoped ConfigMaps/Secrets (core-3-0-cluster-configs),

@@ -42,6 +42,19 @@ spec:
     - namespace: kube-system
       server: https://kubernetes.default.svc
   clusterResourceWhitelist:
+    ## Not rendered by the chart -- Argo CD synthesizes a Namespace task from
+    ## the Application's CreateNamespace=true syncOption, and that synthetic
+    ## task is checked against this whitelist like any other. Without it a
+    ## FIRST install fails with
+    ##
+    ##   Namespace/kubescape: resource :Namespace is not permitted in project
+    ##   security-project
+    ##
+    ## while an environment whose namespace already exists syncs fine, because
+    ## there is nothing for Argo to create. Enumerating the chart's own objects
+    ## does not find this one.
+    - group: ''
+      kind: Namespace
     - group: rbac.authorization.k8s.io
       kind: ClusterRole
     - group: rbac.authorization.k8s.io

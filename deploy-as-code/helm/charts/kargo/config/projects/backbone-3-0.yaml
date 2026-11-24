@@ -1,54 +1,23 @@
-# backbone-3-0 Kargo pipeline: DIGIT 3.0 shared backbone (postgresql + vault), DEV -> QA -> UAT.
-# (Project name is "backbone-3.0" with the dot replaced: a Kargo Project is a Kubernetes
-# namespace, and namespace names cannot contain ".". The backbone runs in this same
-# namespace backbone-3-0, shared by core-3.0 and (soon) health-3.0.)
-#
-# Both services are CHART-ONLY (image: false): the images ship inside the published
-# charts (postgresql = CloudNativePG + the DIGIT reconciler; vault = HashiCorp). Freight
-# carries just the chart version, and promotion MERGES <valuesKey>.chart-version into the
-# env file on the stage's branch (creating the key if absent):
-#
-#   deploy-as-code/helm/environments/digit-3.0/core-3.0.yaml   (shared with core-3-0)
-#     postgresql-18.chart-version    <- chart postgresql  from helm.digit.org/digit3/backbone
-#     vault.chart-version            <- chart vault       from helm.digit.org/digit3/backbone
-#
-# Layout "root": the kargo-managed root ApplicationSet installs Application digit3-<service>
-# and passes that file's <valuesKey> section (minus chart-version) AS THE ROOT values, so the
-# published charts read their plain root values (no re-rooting). The config lives in the SAME
-# env file as core so backbone and core hosts/namespaces stay in one place.
-#
-# NOTHING IS AUTOMATIC: Freight is assembled by hand (freightCreationPolicy: Manual) and every
-# promotion is clicked by a person (autoPromotion: false). Backbone is not routinely promoted;
-# the chart versions are pinned and move only on a deliberate backbone upgrade.
+# backbone-3-0 Kargo pipeline: DIGIT 3.0 backbone (postgresql + vault), chart-only, root layout.
+# Published charts from helm.digit.org/digit3/backbone; config shared with core (core-3.0.yaml).
 kargo:
   project: backbone-3-0
   registry: docker.io/egovio
   argocdAppPrefix: digit3-
-  # Argo CD side, read by the kargo-managed ApplicationSets (layout root here):
-  #   Application  <argocdAppPrefix><service>
-  #   project      argocd.project
-  #   namespace    deploy.namespace, else argocd.namespace
-  #   layout       deploy.layout, else argocd.layout
-  # namespaces must match backbone-3-0-project's destinations.
   argocd:
     project: backbone-3-0-project
     namespace: backbone-3-0
     namespaces: [backbone-3-0]
     layout: root
-  # Write promoted keys by merge -- creates them in the env file, no seeding needed.
   envFileWrite: merge
   git:
     repoURL: https://github.com/egovernments/DIGIT-DevOps.git
-  # Published backbone charts. https://helm.digit.org/digit3/backbone/index.yaml holds
-  # every version; each Warehouse subscribes by chart name and lists its own versions.
   chartRepo: https://helm.digit.org/digit3/backbone
-  # Chart-only services (image: false); no image promotion, so no deploy-state verify.
+  # Chart-only services; no image promotion, so no deploy-state verify.
   verify:
     enabled: false
 
-  # Both services: Freight = chart only. Warehouses re-scan the Helm repo every 5 minutes.
   services:
-    # PostgreSQL 18 (CloudNativePG + DIGIT application-DB reconciler). coredb owner coredev.
     # valuesKey postgresql-18 keeps the env-file section name and the postgresql-18-rw host.
     - name: postgresql-18
       image: false
@@ -59,7 +28,6 @@ kargo:
       freightCreationPolicy: Manual
       discoveryLimit: 20
       interval: 5m0s
-    # HashiCorp Vault: Raft + Azure Key Vault auto-unseal, AppRole for services.
     - name: vault
       image: false
       chart: vault

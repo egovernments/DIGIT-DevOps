@@ -419,35 +419,21 @@ keycloak:
   chart-version: '3.0.0'
   image:
     tag: 'keycloak-spi-custom-build-3348b03'
-# Vault (app digit3-vault) in the backbone-3-0 namespace -- egov-service-host's
-# vault key points at vault.backbone-3-0:8200. Root-layout service of the backbone-3-0
-# Kargo project: the kargo-managed appset installs the published chart vault from
-# https://helm.digit.org/digit3/backbone and passes this section (minus chart-version)
-# as the chart's ROOT values. Chart-only (image: false); the version is pinned and
-# moves only on a deliberate backbone upgrade.
-#
-# Raft storage + Azure Key Vault auto-unseal: the pod unseals itself from the KMS key on
-# every restart (no manual `vault operator unseal`). Auth is Azure Workload Identity -- the
-# server ServiceAccount is federated to the user-assigned identity below, so no client secret
-# is stored. The identity, the federated credential and the key are created at cutover; set
-# serviceAccount client-id then (tracked in DIGIT-DevOps#5762).
+# Vault (digit3-vault, backbone-3-0 Kargo project): published chart, root layout. Raft +
+# Azure Key Vault auto-unseal via Workload Identity. See digit-3.0/README.md.
 vault:
   chart-version: '3.0.1'
   global:
     namespace: backbone-3-0
-  # Vault Agent injector not used: services read secrets via AppRole, not sidecar
-  # injection. Disabling it drops the injector Deployment and its cluster-scoped
-  # ClusterRole/ClusterRoleBinding, so backbone-3-0-project needs no cluster whitelist.
+  # Services use AppRole, not sidecar injection; disabling drops all cluster-scoped kinds.
   injector:
     enabled: false
   server:
-    # The auth-delegator ClusterRoleBinding is only for Kubernetes auth; services use
-    # AppRole, and the backbone-3-0 AppProject allows no cluster-scoped objects.
     authDelegator:
       enabled: false
     serviceAccount:
       annotations:
-        azure.workload.identity/client-id: "SET-AT-CUTOVER"  # vault-kms-unseal MI (DIGIT-DevOps#5762)
+        azure.workload.identity/client-id: "SET-AT-CUTOVER"  # vault-kms-unseal MI (#5762)
     extraLabels:
       azure.workload.identity/use: "true"
     ha:
@@ -585,52 +571,31 @@ cluster-configs:
       superuserName: postgresql-18-superuser-db
       namespace: [backbone-3-0] # username/password/superuserPassword
 
-# PostgreSQL 18: published chart postgresql from https://helm.digit.org/digit3/backbone
-# (CloudNativePG Cluster + DIGIT additions). Root-layout service of the backbone-3-0 Kargo
-# project: the kargo-managed appset passes this section (minus chart-version) as the chart's
-# ROOT values. Chart-only (image: false); the version is pinned. The published chart uses the
-# CNPG cluster schema (cluster.*), unlike the old flattened git-path chart.
+# PostgreSQL 18 (digit3-postgresql-18, backbone-3-0 Kargo project): published chart, root
+# layout, CNPG cluster.* schema. See digit-3.0/README.md. Needs chart postgresql >= 3.0.3.
 postgresql-18:
   chart-version: '3.0.3'
-  # -rw/-ro/-r Services keep the postgresql-18- prefix so the egov-config db-host
-  # (postgresql-18-rw.backbone-3-0) stays valid.
-  fullnameOverride: postgresql-18
+  fullnameOverride: postgresql-18   # keeps the postgresql-18-rw host
   namespaceOverride: backbone-3-0
   cluster:
-    # Single instance: this node pool is tight -- a node recently sat at 103% CPU and
-    # restart-looped every Java service on it. Raise to 3 once three schedulable nodes
-    # have headroom; that is what buys automated failover.
-    instances: 1
+    instances: 1   # raise to 3 once three schedulable nodes have headroom
     storage:
       size: 50Gi
-      # Azure managed disk. The chart default is empty (cluster default class), named
-      # here so it cannot move if the default-class annotation is changed.
       storageClass: managed-csi
     affinity:
-      # AKS labels nodes with zone, so replicas spread across availability zones rather
-      # than merely across nodes. The chart defaults to hostname (on-prem has no zones).
       topologyKey: topology.kubernetes.io/zone
     monitoring:
-      # kube-prometheus-stack is installed here, so the PodMonitor CRD exists.
       enabled: true
-    # Superuser password from the postgresql-18-superuser-db secret (cluster-configs,
-    # rendered into backbone-3-0). Without it the operator generates a random one.
     enableSuperuserAccess: true
     superuserSecret: postgresql-18-superuser-db
     initdb:
-      # coredb owned by coredev, bootstrapped from the postgresql-18-db secret.
-      # owner MUST equal the `username` in that secret (cluster-configs.secrets.postgresql-18);
-      # if they differ the role cannot authenticate, and initdb runs ONCE so it cannot be
-      # fixed without recreating the cluster.
+      # owner MUST equal the username in postgresql-18-db; initdb runs ONCE.
       database: coredb
       owner: coredev
       secret:
         name: postgresql-18-db
     postgresql:
-      # PostGIS for digit3 boundary (migration V20260818120000 adds a geometry column),
-      # supplied as an image volume (CloudNativePG 1.29+); the PostgreSQL image is unchanged.
-      # Pinned to a dated build: the plain 3.7.0-18-trixie tag is rebuilt in place.
-      # GDAL_DATA/PROJ_DATA use ${image_root}. Needs chart postgresql >= 3.0.3 (extensions passthrough).
+      # PostGIS for digit3 boundary, as an image volume (CNPG 1.29+).
       extensions:
         - name: postgis
           image:
@@ -642,15 +607,11 @@ postgresql-18:
               value: ${image_root}/share/gdal
             - name: PROJ_DATA
               value: ${image_root}/share/proj
-  # coredb (adopted, not recreated). The operator creates postgis as superuser; the boundary
-  # migration runs as coredev, whose CREATE EXTENSION IF NOT EXISTS then finds it present.
   databases:
     - name: coredb
       owner: coredev
       extensions:
         - name: postgis
           version: "3.7.0"
-  # The published chart's post-ready reconciler is off: initdb already bootstraps the role +
-  # database, matching the previous behavior and keeping backbone-3-0-project out of core-3-0.
   reconciler:
-    enabled: false
+    enabled: false   # initdb bootstraps the role + database

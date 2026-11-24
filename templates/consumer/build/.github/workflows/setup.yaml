@@ -19,6 +19,17 @@ on:
           - full
           - sync
         default: full
+      profile:
+        description: "Which layers to scaffold (full mode). build-only = just the build CI; delivery = build + Helm/Kargo/Argo (added incrementally)"
+        type: choice
+        options:
+          - build-only
+          - delivery
+        default: build-only
+      dashboard:
+        description: "Publish the Trivy dashboard to GitHub Pages (full mode). Turn OFF for a private repo without Pages — the gate still runs, findings go to the job summary"
+        type: boolean
+        default: true
       sync_branch:
         description: "Sync from Branch — pull a branch's new services into the dropdown (sync mode); leave on default for a normal refresh"
         type: choice
@@ -38,6 +49,8 @@ jobs:
     uses: egovernments/DIGIT-DevOps/.github/workflows/reusable-setup.yaml@reusable-build-v1
     with:
       mode: ${{ inputs.mode }}
+      profile: ${{ inputs.profile }}
+      dashboard: ${{ inputs.dashboard }}
       sync_branch: ${{ inputs.sync_branch }}
       auth_mode: ${{ inputs.auth_mode }}
     secrets:

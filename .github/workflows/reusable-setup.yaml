@@ -1,10 +1,15 @@
 # Setup for a consumer repo, in two modes:
-#   mode: full  — scaffold the Code Build caller + the Trivy dashboard toolkit,
-#                 seed the dropdowns, commit to the default branch, and publish
-#                 the landing page + /actions UI to gh-pages. (provision / upgrade)
+#   mode: full  — scaffold the selected layers, seed the dropdowns, commit to the
+#                 default branch, and (dashboard on) publish the landing page +
+#                 /actions UI to gh-pages. (provision / upgrade)
 #   mode: sync  — ONLY refresh the Code Build dropdowns (service list from
 #                 build-config.yml, branch lists from live branches) and commit if
 #                 changed. No scaffold, no Pages. (what the old Build — Sync did)
+# full mode composes from layers (hybrid profiles):
+#   profile: build-only — the build CI only (default; preserves the old layout).
+#   profile: delivery   — build + Helm/Kargo/Argo (added incrementally).
+#   dashboard: true|false — the Trivy dashboard + Pages. Off = a private/Pages-less
+#                 repo; the gate still runs, findings go to the build job summary.
 # Auth is a GitHub App token minted in-run from APP_CLIENT_ID + APP_PRIVATE_KEY. The App
 # needs Contents + Workflows + Pages write, must be installed on this repo, and
 # must be on the default-branch ruleset bypass list so it can push directly.
@@ -19,6 +24,16 @@ on:
         required: false
         type: string
         default: "full"
+      profile:
+        description: "full mode: which layers to scaffold. 'build-only' = the build CI only; 'delivery' = build + Helm/Kargo/Argo (added incrementally). Default preserves the build-only layout."
+        required: false
+        type: string
+        default: "build-only"
+      dashboard:
+        description: "full mode: scaffold + publish the Trivy dashboard to GitHub Pages. Set false for a private repo without Pages — the Trivy gate still runs and findings go to the build job summary."
+        required: false
+        type: boolean
+        default: true
       sync_branch:
         description: "sync mode: read build-config.yml from this branch to pull its new services into the dropdown; empty = the default branch"
         required: false
@@ -93,18 +108,39 @@ jobs:
           WF: .github/workflows/code-build.yaml
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           AUTH_MODE: ${{ inputs.auth_mode }}
+          PROFILE: ${{ inputs.profile }}
+          DASHBOARD: ${{ inputs.dashboard }}
         run: |
           set -euo pipefail
-          cp -R _devops/templates/consumer/. ./
+          # Compose the scaffold from layers. The build layer is always copied; the
+          # dashboard layer (.trivy + pages) only when dashboard is on; the delivery
+          # layers (Helm/Kargo/Argo) only for profile=delivery.
+          cp -R _devops/templates/consumer/build/. ./
+          if [ "$DASHBOARD" = "true" ]; then
+            cp -R _devops/templates/consumer/build-dashboard/. ./
+          fi
+          if [ "$PROFILE" = "delivery" ]; then
+            if find _devops/templates/consumer/delivery -mindepth 1 -maxdepth 1 -not -name README.md 2>/dev/null | grep -q .; then
+              cp -R _devops/templates/consumer/delivery/. ./
+            else
+              echo "::warning::profile 'delivery' selected, but the Helm/Kargo/Argo layers are not available yet — scaffolding the build layer only. Re-run Setup once they land."
+            fi
+          fi
           rm -rf _devops
           # Drop legacy sync workflows (dropdown sync now runs as Setup's sync mode).
           rm -f .github/workflows/sync-dropdown.yaml .github/workflows/sync-branches.yaml .github/workflows/sync-code-build.yaml
+          # Build-only / no dashboard: the engine still gates on CRITICAL but skips
+          # the Pages publish; findings go to the build job summary instead.
+          if [ "$DASHBOARD" != "true" ]; then
+            yq -i '.jobs.build.with.publish_dashboard = false' "$WF"
+          fi
           # The pages/ tree (landing page + /actions UI) is GitHub Pages content:
-          # it is published to the gh-pages branch (served by Pages), not committed
-          # to the source tree. Stash it for the gh-pages step and keep it out of
-          # the setup commit.
-          rm -rf "$RUNNER_TEMP/pages"
-          mv pages "$RUNNER_TEMP/pages"
+          # published to gh-pages (served by Pages), not committed to the source
+          # tree. Stash it for the gh-pages step; absent when dashboard is off.
+          if [ -d pages ]; then
+            rm -rf "$RUNNER_TEMP/pages"
+            mv pages "$RUNNER_TEMP/pages"
+          fi
           # Seed the Code Build service dropdown from build-config (sync keeps it current).
           if [ -f "$CONFIG" ]; then
             SVC=$(yq eval '.config[].build[]."image-name"' "$CONFIG" | grep -vE -- '-db$' | grep -vxF placeholder | sort -u)
@@ -224,7 +260,7 @@ jobs:
           echo "SCAFFOLD=committed" >> "$GITHUB_ENV"
 
       - name: Publish landing page + /actions UI to gh-pages
-        if: ${{ inputs.mode != 'sync' }}
+        if: ${{ inputs.mode != 'sync' && inputs.dashboard }}
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           AUTH_MODE: ${{ inputs.auth_mode }}
@@ -265,7 +301,7 @@ jobs:
           echo "Published landing page + /actions to gh-pages."
 
       - name: Enable Pages (best effort)
-        if: ${{ inputs.mode != 'sync' && inputs.enable_pages }}
+        if: ${{ inputs.mode != 'sync' && inputs.dashboard && inputs.enable_pages }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -277,6 +313,8 @@ jobs:
       - name: Summary
         env:
           MODE: ${{ inputs.mode }}
+          PROFILE: ${{ inputs.profile }}
+          DASHBOARD: ${{ inputs.dashboard }}
         run: |
           if [ "$MODE" = "sync" ]; then
             {
@@ -285,10 +323,17 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           else
             {
-              echo "### Code Build setup — full"
+              echo "### Code Build setup — full ($PROFILE)"
               echo "- Scaffold → ${SCAFFOLD:-committed} on the default branch (direct push via the App)"
-              echo "- Landing page → gh-pages \`/\`; Code Build dispatcher → \`/actions/\`"
-              echo "- Trivy dashboard → gh-pages \`/security/trivy\`"
+              if [ "$DASHBOARD" = "true" ]; then
+                echo "- Landing page → gh-pages \`/\`; Code Build dispatcher → \`/actions/\`"
+                echo "- Trivy dashboard → gh-pages \`/security/trivy\`"
+              else
+                echo "- Dashboard off (build-only): the Trivy gate still blocks CRITICALs; findings go to the build job summary. No Pages published."
+              fi
               echo "- Ensure repo has \`DOCKER_USERNAME\` (var) + \`DOCKER_ACCESS_TOKEN\` (secret)."
+              if [ "$PROFILE" = "delivery" ]; then
+                echo "- Delivery layers (Helm/Kargo/Argo) are added incrementally — re-run Setup once they land."
+              fi
             } >> "$GITHUB_STEP_SUMMARY"
           fi

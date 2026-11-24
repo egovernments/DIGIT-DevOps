@@ -1361,3 +1361,23 @@ workflow:
       image:
         tag: workflow-optimization-3a503c3
 
+
+# Kubescape -- cluster security posture and image vulnerability scanning.
+# Chart digit3/security/kubescape, deployed by the unified-security Kargo
+# pipeline via the kargo-managed "cluster" layout.
+#
+# KARGO OWNS ONE KEY HERE: `kubescape.chart-version`, written by the
+# pipeline's promotion to the uat stage. It is deliberately absent until the
+# first promotion -- the ApplicationSet yields no Application without it, so
+# an unpromoted environment deploys nothing rather than silently tracking
+# whatever version happened to be latest.
+#
+# Everything else is a plain override of the chart's defaults; the chart
+# ships the full scan-only profile (no eBPF node agent, no admission webhook,
+# read-only RBAC), so this stays small on purpose. Anything the upstream
+# operator exposes can be added under `kubescape-operator`.
+kubescape:
+  kubescape-operator:
+    # Results are filed under this name, and the report and rating key off it.
+    # It must differ per environment or the three clusters overwrite each other.
+    clusterName: unified-uat

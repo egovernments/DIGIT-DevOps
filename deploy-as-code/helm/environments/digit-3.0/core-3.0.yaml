@@ -1,9 +1,100 @@
 # DIGIT 3.0 (unified-dev) env values for the core-3-0 and backbone-3-0 Kargo projects.
+
 # See charts/argo-cd/unified-dev/digit-3.0/README.md.
 global:
   namespace: core-3-0
   mode: prod
   domain: digit-3.unified-dev.digit.org
+cluster-configs:
+  chart-version: 3.1.1
+  namespaces:
+    create: false
+  configmaps:
+    egov-config:
+      namespace: [core-3-0]
+      data:
+        db-host: postgresql-18-rw.backbone-3-0
+        db-name: coredb
+        db-url: jdbc:postgresql://postgresql-18-rw.backbone-3-0:5432/coredb
+        flyway-locations: filesystem:/flyway/sql,filesystem:/flyway/seed,filesystem:/flyway/qa
+        kafka-brokers: kafka-kraft-controller-headless.backbone:9092
+        timezone: Asia/Kolkata
+        egov-services-fqdn-name: https://digit-3.unified-dev.digit.org/
+        keycloak-db-url: jdbc:postgresql://postgresql-18-rw.backbone-3-0:5432/keycloak
+        keycloak-base-url: http://keycloak.core-3-0:8080/keycloak
+        server-tomcat-max-connections: "500"
+        server-tomcat-max-threads: "10"
+        spring-datasource-tomcat-initialSize: "1"
+        spring-datasource-tomcat-max-active: "2"
+        spring-jpa-show-sql: "true"
+        redis-host: redis.backbone
+        redis-port: "6379"
+        redis-address: redis.backbone:6379
+        otel-tracing-export-otlp-endpoint: http://open-telemetry-opentelemetry-collector.monitoring:4318/v1/traces
+        smtp-host: smtp.gmail.com
+        smtp-port: "587"
+        mail-sender-name: eGov Foundation
+        sms-provider-url: http://api.smscountry.com/SMSCwebservice_bulk.aspx
+        platform-tenant: default
+    egov-service-host:
+      namespace: [core-3-0]
+      data:
+        account: http://account.core-3-0:8080/
+        apportion: http://apportion.core-3-0:8080/
+        billing: http://billing.core-3-0:8080/
+        boundary: http://boundary.core-3-0:8080/
+        boundary-java: http://boundary.core-3-0:8080/
+        boundary-management: http://boundary-management.core-3-0:8080/
+        employee: http://employee.core-3-0:8080/
+        filestore: http://filestore.core-3-0:8080/
+        filestore-java: http://filestore.core-3-0:8080/
+        idgen: http://idgen.core-3-0:8080/
+        individual: http://individual.core-3-0:8080/
+        localization: http://localization.core-3-0:8080/
+        localization-java: http://localization.core-3-0:8080/
+        mdms-v2: http://mdms-v2.core-3-0:8080/
+        notification: http://notification.core-3-0:8080/
+        notify: http://notify.core-3-0:8080/
+        otp: http://otp.core-3-0:8080/
+        pg-service: http://pg-service.core-3-0:8080/
+        registry: http://registry.core-3-0:8080/
+        template-config: http://template-config.core-3-0:8080/
+        url-shortener: http://url-shortener.core-3-0:8080/
+        workflow: http://workflow.core-3-0:8080/
+        vault: http://vault.backbone-3-0:8200/
+  secrets:
+    db:
+      namespace: [core-3-0]
+    minio:
+      namespace: [backbone-3-0]
+    docker-registry-secret:
+      namespace: [core-3-0]
+    egov-notification-mail:
+      namespace: [core-3-0]
+    egov-notification-sms:
+      namespace: [core-3-0]
+    kc-admin:
+      namespace: [core-3-0]
+    kc-db:
+      namespace: [core-3-0]
+    employee-iam-secret:
+      namespace: [core-3-0]
+    citizen-broker-secret:
+      namespace: [core-3-0]
+    vault-approle:
+      namespace: [core-3-0]
+    hmac-secret:
+      namespace: [core-3-0]
+    postgresql-18:
+      name: postgresql-18-db
+      namespace: [backbone-3-0]
+    # CNPG superuser (postgres) secret; keycloak db-init connects as postgres with this.
+    postgresql-18-superuser:
+      name: postgresql-18-superuser-db
+      type: kubernetes.io/basic-auth
+      namespace: [backbone-3-0]
+
+# core services
 idgen:
   initContainers:
     dbMigration:
@@ -303,6 +394,8 @@ mdms-v2:
   chart-version: '3.1.4'
   image:
     tag: 'master-154c0db'
+
+# api gateway + identity
 kong:
   chart-version: 3.1.7
   fullnameOverride: kong-kong
@@ -354,6 +447,8 @@ keycloak:
   chart-version: '3.1.1'
   image:
     tag: 'keycloak-spi-custom-build-3348b03'
+
+# backbone
 vault:
   chart-version: '3.0.1'
   global:
@@ -390,94 +485,6 @@ vault:
             key_name   = "vault-unseal"
           }
           service_registration "kubernetes" {}
-cluster-configs:
-  chart-version: 3.1.1
-  namespaces:
-    create: false
-  configmaps:
-    egov-config:
-      namespace: [core-3-0]
-      data:
-        db-host: postgresql-18-rw.backbone-3-0
-        db-name: coredb
-        db-url: jdbc:postgresql://postgresql-18-rw.backbone-3-0:5432/coredb
-        flyway-locations: filesystem:/flyway/sql,filesystem:/flyway/seed,filesystem:/flyway/qa
-        kafka-brokers: kafka-kraft-controller-headless.backbone:9092
-        timezone: Asia/Kolkata
-        egov-services-fqdn-name: https://digit-3.unified-dev.digit.org/
-        keycloak-db-url: jdbc:postgresql://postgresql-18-rw.backbone-3-0:5432/keycloak
-        keycloak-base-url: http://keycloak.core-3-0:8080/keycloak
-        server-tomcat-max-connections: "500"
-        server-tomcat-max-threads: "10"
-        spring-datasource-tomcat-initialSize: "1"
-        spring-datasource-tomcat-max-active: "2"
-        spring-jpa-show-sql: "true"
-        redis-host: redis.backbone
-        redis-port: "6379"
-        redis-address: redis.backbone:6379
-        otel-tracing-export-otlp-endpoint: http://open-telemetry-opentelemetry-collector.monitoring:4318/v1/traces
-        smtp-host: smtp.gmail.com
-        smtp-port: "587"
-        mail-sender-name: eGov Foundation
-        sms-provider-url: http://api.smscountry.com/SMSCwebservice_bulk.aspx
-        platform-tenant: default
-    egov-service-host:
-      namespace: [core-3-0]
-      data:
-        account: http://account.core-3-0:8080/
-        apportion: http://apportion.core-3-0:8080/
-        billing: http://billing.core-3-0:8080/
-        boundary: http://boundary.core-3-0:8080/
-        boundary-java: http://boundary.core-3-0:8080/
-        boundary-management: http://boundary-management.core-3-0:8080/
-        employee: http://employee.core-3-0:8080/
-        filestore: http://filestore.core-3-0:8080/
-        filestore-java: http://filestore.core-3-0:8080/
-        idgen: http://idgen.core-3-0:8080/
-        individual: http://individual.core-3-0:8080/
-        localization: http://localization.core-3-0:8080/
-        localization-java: http://localization.core-3-0:8080/
-        mdms-v2: http://mdms-v2.core-3-0:8080/
-        notification: http://notification.core-3-0:8080/
-        notify: http://notify.core-3-0:8080/
-        otp: http://otp.core-3-0:8080/
-        pg-service: http://pg-service.core-3-0:8080/
-        registry: http://registry.core-3-0:8080/
-        template-config: http://template-config.core-3-0:8080/
-        url-shortener: http://url-shortener.core-3-0:8080/
-        workflow: http://workflow.core-3-0:8080/
-        vault: http://vault.backbone-3-0:8200/
-  secrets:
-    db:
-      namespace: [core-3-0]
-    minio:
-      namespace: [backbone-3-0]
-    docker-registry-secret:
-      namespace: [core-3-0]
-    egov-notification-mail:
-      namespace: [core-3-0]
-    egov-notification-sms:
-      namespace: [core-3-0]
-    kc-admin:
-      namespace: [core-3-0]
-    kc-db:
-      namespace: [core-3-0]
-    employee-iam-secret:
-      namespace: [core-3-0]
-    citizen-broker-secret:
-      namespace: [core-3-0]
-    vault-approle:
-      namespace: [core-3-0]
-    hmac-secret:
-      namespace: [core-3-0]
-    postgresql-18:
-      name: postgresql-18-db
-      namespace: [backbone-3-0]
-    # CNPG superuser (postgres) secret; keycloak db-init connects as postgres with this.
-    postgresql-18-superuser:
-      name: postgresql-18-superuser-db
-      type: kubernetes.io/basic-auth
-      namespace: [backbone-3-0]
 postgresql-18:
   chart-version: '3.0.3'
   fullnameOverride: postgresql-18
@@ -532,11 +539,14 @@ minio:
       rootPassword: rootPassword
   ingress:
     enabled: false
+
+# jobs
 employee-onboarding:
   chart-version: '3.1.2'
 localization-management:
   chart-version: '3.1.2'
 # CDC audit trail. Vault transit signing points at the backbone-3-0 vault; it also
+
 # needs a cdc-audit vault-token secret, an ecdsa transit key, and postgres logical replication.
 cdc-audit:
   chart-version: '3.0.0'

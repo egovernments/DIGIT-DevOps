@@ -518,6 +518,15 @@ postgresql-18:  # In-cluster Postgres 18
       enabled: true
     enableSuperuserAccess: true
     superuserSecret: postgresql-18-superuser-db
+    # coredev needs REPLICATION so cdc-audit's Debezium can create its logical slot.
+    # passwordSecret pins the existing password so CNPG does not reset it.
+    roles:
+      - name: coredev
+        ensure: present
+        login: true
+        replication: true
+        passwordSecret:
+          name: postgresql-18-db
     initdb:
       # owner MUST equal the username in postgresql-18-db; initdb runs ONCE.
       database: coredb

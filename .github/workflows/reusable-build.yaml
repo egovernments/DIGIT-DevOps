@@ -126,13 +126,13 @@ jobs:
           DEFAULT_DOCKERFILE: ${{ inputs.default_dockerfile }}
         run: |
           set -euo pipefail
-          APP_WORK_DIR=$(yq eval ".config[].build[] | select(.\"image-name\" == \"$SERVICE\") | .\"work-dir\" // \"\"" "$CONFIG" | head -n1)
-          APP_DOCKERFILE=$(yq eval ".config[].build[] | select(.\"image-name\" == \"$SERVICE\") | .dockerfile // \"\"" "$CONFIG" | head -n1)
+          APP_WORK_DIR=$(yq eval "([.config[].build[] | select(.\"image-name\" == \"$SERVICE\") | .\"work-dir\"] | .[0]) // \"\"" "$CONFIG")
+          APP_DOCKERFILE=$(yq eval "([.config[].build[] | select(.\"image-name\" == \"$SERVICE\") | .dockerfile] | .[0]) // \"\"" "$CONFIG")
           [ -n "$APP_WORK_DIR" ] || APP_WORK_DIR="${FALLBACK_WORK_DIR#/}"
           [ -n "$APP_DOCKERFILE" ] || APP_DOCKERFILE="$DEFAULT_DOCKERFILE"
 
-          DB_WORK_DIR=$(yq eval ".config[].build[] | select(.\"image-name\" == \"${SERVICE}-db\") | .\"work-dir\" // \"\"" "$CONFIG" | head -n1)
-          DB_DOCKERFILE=$(yq eval ".config[].build[] | select(.\"image-name\" == \"${SERVICE}-db\") | .dockerfile // \"\"" "$CONFIG" | head -n1)
+          DB_WORK_DIR=$(yq eval "([.config[].build[] | select(.\"image-name\" == \"${SERVICE}-db\") | .\"work-dir\"] | .[0]) // \"\"" "$CONFIG")
+          DB_DOCKERFILE=$(yq eval "([.config[].build[] | select(.\"image-name\" == \"${SERVICE}-db\") | .dockerfile] | .[0]) // \"\"" "$CONFIG")
           [ -n "$DB_DOCKERFILE" ] || DB_DOCKERFILE="${DB_WORK_DIR}/Dockerfile"
 
           {

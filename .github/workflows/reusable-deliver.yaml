@@ -117,28 +117,53 @@ jobs:
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/bin/kargo" version --client || true
 
-      - name: Promote the build's freight to the stage
+      - name: Create this build's Freight and promote it
         env:
           TAG: ${{ inputs.image_tag }}
+          SVC: ${{ inputs.service }}
         run: |
           set -euo pipefail
-          # Automatic policy mints a Freight for the new image; select the Freight from THIS
-          # service's Warehouse that carries the built tag (not the latest / not a manual one).
-          FREIGHT=""
+          # Deterministic delivery: discover the freshly pushed tag, then CREATE the Freight that
+          # carries exactly this build's image+chart and promote it. Auto-selection (NewestBuild)
+          # is unreliable when every image shares a build timestamp, so we never wait for it.
+          DIGEST=""; WH='{}'
           for attempt in 1 2 3 4 5 6; do
-            kargo refresh warehouse "${{ inputs.service }}" --project "$KARGO_PROJECT" --wait || true
-            FREIGHT=$(kargo get freight --project "$KARGO_PROJECT" --output json 2>/dev/null | jq -r --arg t "$TAG" --arg wh "${{ inputs.service }}" '
-              [ (.items // []) [] ]
-              | map(select((.origin.name // .warehouse // "") == $wh))
-              | map(select([.. | .tag? // empty] | index($t)))
-              | sort_by(.metadata.creationTimestamp) | (last // empty) | .metadata.name // empty')
-            [ -n "$FREIGHT" ] && break
-            echo "No Freight carrying image tag '$TAG' yet (attempt ${attempt}); waiting for discovery..."
+            kargo refresh warehouse "$SVC" --project "$KARGO_PROJECT" --wait || true
+            WH=$(kargo get warehouse "$SVC" --project "$KARGO_PROJECT" -o json 2>/dev/null || echo '{}')
+            DIGEST=$(jq -r --arg t "$TAG" '[.status.discoveredArtifacts.images[]?.references[]? | select(.tag==$t) | .digest] | first // ""' <<<"$WH")
+            [ -n "$DIGEST" ] && break
+            echo "tag '$TAG' not discovered in warehouse '$SVC' yet (attempt ${attempt})..."
             sleep 15
           done
-          [ -n "$FREIGHT" ] || { echo "::error::no Freight carrying image tag '$TAG' for ${{ inputs.service }} in $KARGO_PROJECT (is the Warehouse freightCreationPolicy: Automatic?)"; exit 1; }
-          echo "Promoting freight $FREIGHT (image $TAG) -> $KARGO_STAGE"
-          kargo promote --project "$KARGO_PROJECT" --freight "$FREIGHT" --stage "$KARGO_STAGE"
+          [ -n "$DIGEST" ] || { echo "::error::tag '$TAG' never discovered in warehouse '$SVC' for $KARGO_PROJECT"; exit 1; }
+          IMG_REPO=$(jq -r --arg t "$TAG" '[.status.discoveredArtifacts.images[]? | select(any(.references[]?; .tag==$t)) | .repoURL] | first // ""' <<<"$WH")
+          CHART_REPO=$(jq -r '.status.discoveredArtifacts.charts[0].repoURL // ""' <<<"$WH")
+          CHART_NAME=$(jq -r '.status.discoveredArtifacts.charts[0].name // ""' <<<"$WH")
+          CHART_VER=$(jq -r '.status.discoveredArtifacts.charts[0].versions[0] // ""' <<<"$WH")
+          # Freight name = Kargo's content hash: sha1("Warehouse/<svc>:<sorted '|'-joined parts>"),
+          # image part "<repo>:<tag>@<digest>", chart part "<path.Join(repo,name)>:<version>".
+          IMG_PART="${IMG_REPO}:${TAG}@${DIGEST}"
+          if [ -n "$CHART_REPO" ]; then
+            CHART_PATH=$(printf '%s/%s' "$CHART_REPO" "$CHART_NAME" | tr '[:upper:]' '[:lower:]' | sed 's#//*#/#g')
+            PARTS=$(printf '%s\n%s:%s\n' "$IMG_PART" "$CHART_PATH" "$CHART_VER" | sort | paste -sd'|' -)
+          else
+            PARTS="$IMG_PART"
+          fi
+          NAME=$(printf 'Warehouse/%s:%s' "$SVC" "$PARTS" | sha1sum | cut -d' ' -f1)
+          echo "Freight $NAME  image=${IMG_REPO}:${TAG}  chart=${CHART_NAME:-<none>}:${CHART_VER:-<none>}"
+          {
+            echo "apiVersion: kargo.akuity.io/v1alpha1"
+            echo "kind: Freight"
+            echo "metadata: { name: ${NAME}, namespace: ${KARGO_PROJECT} }"
+            echo "origin: { kind: Warehouse, name: ${SVC} }"
+            echo "images:"
+            echo "- { repoURL: ${IMG_REPO}, tag: ${TAG}, digest: ${DIGEST} }"
+            [ -n "$CHART_REPO" ] && { echo "charts:"; echo "- { repoURL: ${CHART_REPO}, name: ${CHART_NAME}, version: ${CHART_VER} }"; }
+          } > "$RUNNER_TEMP/freight.yaml"
+          # Idempotent: same content -> same name, so an existing Freight is fine.
+          kargo create -f "$RUNNER_TEMP/freight.yaml" 2>&1 | tail -2 || echo "freight already exists; continuing"
+          echo "Promoting freight $NAME (image $TAG) -> $KARGO_STAGE"
+          kargo promote --project "$KARGO_PROJECT" --freight "$NAME" --stage "$KARGO_STAGE"
 
       - name: Verify rollout on the target cluster
         if: ${{ env.DELIVER_KUBECONFIG != '' }}

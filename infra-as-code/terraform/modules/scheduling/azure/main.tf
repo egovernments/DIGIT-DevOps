@@ -71,7 +71,7 @@ resource "azurerm_automation_runbook" "scaler" {
   automation_account_name = azurerm_automation_account.this.name
   log_verbose             = true
   log_progress            = true
-  runbook_type            = "PowerShell"
+  runbook_type            = "PowerShell72" # 5.1 sandbox: managed-identity login broken since 2026-11-24
   description             = "Scale the AKS main node pool to a target count (0 at night / desired in the morning)."
 
   content = file("${path.module}/runbook.ps1")

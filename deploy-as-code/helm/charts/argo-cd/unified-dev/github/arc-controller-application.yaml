@@ -1,0 +1,43 @@
+## ARC controller `arc`, brought under GitOps and upgraded 0.14.2 -> 0.15.1.
+##
+## Adopts the live hand-installed Helm release in place: releaseName `arc` makes
+## rendered names match (arc-gha-rs-controller), ServerSideApply takes ownership
+## without recreating. The CRD schema update (listenerConfig etc.) is applied via
+## SSA. prune:false while adopting.
+##
+## Version rule: controller and every runner scale set must match. This bumps the
+## controller to 0.15.1; arc-runner-egovernments and arc-runner-digitnxt move to
+## 0.15.1 in the same change.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-controller
+  namespace: argocd
+spec:
+  project: arc-controller-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-dev
+      path: "deploy-as-code/helm/charts/github/arc-controller"
+      helm:
+        releaseName: arc
+        valueFiles:
+          - values-arc.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-systems
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=false
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

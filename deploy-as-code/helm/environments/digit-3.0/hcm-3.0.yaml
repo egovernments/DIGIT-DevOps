@@ -1,45 +1,21 @@
 # DIGIT 3.0 (unified-dev) env values for the hcm-3-0 Kargo project.
+
 # Reuses the shared backbone + core-3-0 kong; secret values in hcm-3.0-secrets.yaml (SOPS).
+
+# ==========================================================================
+#  GLOBAL
+#  Namespace, mode and public domain
+# ==========================================================================
+
 global:
   namespace: hcm-3-0
   mode: prod
   domain: hcm-3.unified-dev.digit.org
 
-product:
-  chart-version: "3.0.0"
-  replicas: 1
-  initContainers:
-    dbMigration:
-      enabled: true
-  ingress:
-    enabled: true
-    gateway: true
-    additionalAnnotations: |
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-
-facility:
-  chart-version: "3.0.0"
-  replicas: 1
-  initContainers:
-    dbMigration:
-      enabled: true
-  ingress:
-    enabled: true
-    gateway: true
-    additionalAnnotations: |
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-
-project-factory:
-  chart-version: "3.0.0"
-  replicas: 1
-  initContainers:
-    dbMigration:
-      enabled: true
-  ingress:
-    enabled: true
-    gateway: true
-    additionalAnnotations: |
-      cert-manager.io/cluster-issuer: letsencrypt-prod
+# ==========================================================================
+#  CLUSTER-CONFIGS
+#  Namespaces, shared config, service-host maps and secrets
+# ==========================================================================
 
 cluster-configs:
   chart-version: "3.1.1"
@@ -69,17 +45,80 @@ cluster-configs:
     egov-service-host:
       namespace: [hcm-3-0]
       data:
-        product: http://product.hcm-3-0:8080/
-        facility: http://facility.hcm-3-0:8080/
-        project-factory: http://project-factory.hcm-3-0:8080/
-        idgen: http://idgen.core-3-0:8080/
-        mdms-v2: http://mdms-v2.core-3-0:8080/
-        boundary-management: http://boundary-management.core-3-0:8080/
-        individual: http://individual.core-3-0:8080/
-        localization: http://localization.core-3-0:8080/
-        filestore: http://filestore.core-3-0:8080/
+        # core-3-0
+        account: "http://account.core-3-0:8080/"
+        apportion: "http://apportion.core-3-0:8080/"
+        billing: "http://billing.core-3-0:8080/"
+        boundary: "http://boundary.core-3-0:8080/"
+        boundary-java: "http://boundary.core-3-0:8080/"
+        boundary-management: "http://boundary-management.core-3-0:8080/"
+        employee: "http://employee.core-3-0:8080/"
+        filestore: "http://filestore.core-3-0:8080/"
+        filestore-java: "http://filestore.core-3-0:8080/"
+        idgen: "http://idgen.core-3-0:8080/"
+        individual: "http://individual.core-3-0:8080/"
+        localization: "http://localization.core-3-0:8080/"
+        localization-java: "http://localization.core-3-0:8080/"
+        mdms-v2: "http://mdms-v2.core-3-0:8080/"
+        notification: "http://notification.core-3-0:8080/"
+        notify: "http://notify.core-3-0:8080/"
+        otp: "http://otp.core-3-0:8080/"
+        pg-service: "http://pg-service.core-3-0:8080/"
+        registry: "http://registry.core-3-0:8080/"
+        template-config: "http://template-config.core-3-0:8080/"
+        url-shortener: "http://url-shortener.core-3-0:8080/"
+        workflow: "http://workflow.core-3-0:8080/"
+
+        # backbone-3-0
+        vault: "http://vault.backbone-3-0:8200/"
+
+        # hcm-3-0
+        facility: "http://facility.hcm-3-0:8080/"
+        product: "http://product.hcm-3-0:8080/"
+        project-factory: "http://project-factory.hcm-3-0:8080/"
   secrets:
     db:
       namespace: [hcm-3-0]
     project-factory:
       namespace: [hcm-3-0]
+
+# ==========================================================================
+#  HCM SERVICES
+#  Application micro-services (alphabetical)
+# ==========================================================================
+
+facility:  # Facility master data & project mapping
+  chart-version: "3.0.1"
+  replicas: 1
+  initContainers:
+    dbMigration:
+      enabled: true
+  ingress:
+    enabled: true
+    gateway: true
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+product:  # Product & product-variant master data
+  chart-version: "3.0.1"
+  replicas: 1
+  initContainers:
+    dbMigration:
+      enabled: true
+  ingress:
+    enabled: true
+    gateway: true
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+project-factory:  # Campaign setup (projects / facilities / resources)
+  chart-version: "3.0.1"
+  replicas: 1
+  initContainers:
+    dbMigration:
+      enabled: true
+  ingress:
+    enabled: true
+    gateway: true
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod

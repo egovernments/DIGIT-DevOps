@@ -1,0 +1,42 @@
+# Promotion guard: govern which branch may open a PR into the release (default) branch.
+# GitHub rulesets cannot restrict a PR's head branch, so this required check does it.
+# No-op until the repo sets var PROMOTION_SOURCE_BRANCH (e.g. develop), so it is safe
+# to scaffold into every consumer. When set, only that branch (or dependabot) may PR
+# into the default branch, enforcing the flow: feature -> <source> -> default.
+name: Promotion guard
+run-name: "Promotion guard · ${{ github.head_ref }} -> ${{ github.base_ref }}"
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce promotion source
+        env:
+          SRC: ${{ vars.PROMOTION_SOURCE_BRANCH }}
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+          DEFAULT: ${{ github.event.repository.default_branch }}
+          ACTOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SRC}" ]; then
+            echo "PROMOTION_SOURCE_BRANCH not set: promotion guard disabled. Passing."; exit 0
+          fi
+          if [ "${BASE}" != "${DEFAULT}" ]; then
+            echo "PR targets '${BASE}', not the release branch '${DEFAULT}'. Guard not applicable. Passing."; exit 0
+          fi
+          if [ "${ACTOR}" = "dependabot[bot]" ]; then
+            echo "PR by dependabot[bot]: exempt (security PRs always target the default branch). Passing."; exit 0
+          fi
+          if [ "${HEAD}" = "${SRC}" ]; then
+            echo "PR head '${HEAD}' is the allowed source '${SRC}'. Passing."; exit 0
+          fi
+          echo "::error title=Promotion guard::Only '${SRC}' may open a PR into '${DEFAULT}'. This PR is from '${HEAD}'. Open it against '${SRC}' first, then promote '${SRC}' -> '${DEFAULT}'."
+          exit 1

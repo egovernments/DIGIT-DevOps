@@ -8,9 +8,9 @@
 ## while everything else lands in core-3-0. The postgres Cluster CR and vault live in
 ## backbone-3-0 but belong to backbone-3-0-project (static, non-promotable infra).
 ##
-## No cluster-scoped kinds are whitelisted: cluster-configs defaults some objects to shared
-## namespaces (egov, health, ...), so anything rendered outside core-3-0 / backbone-3-0
-## fails the sync here instead of overwriting another module's objects.
+## Only ClusterRole/ClusterRoleBinding are cluster-scoped-whitelisted (kong gateway-sync);
+## destinations stay core-3-0 / backbone-3-0 so stray namespaced objects fail instead of
+## overwriting another module.
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
@@ -28,3 +28,9 @@ spec:
       server: https://kubernetes.default.svc
     - namespace: 'backbone-3-0'
       server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding

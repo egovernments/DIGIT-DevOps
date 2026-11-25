@@ -1,0 +1,32 @@
+## Overrides for the `digitnxt` org runner scale set (ns arc-runners).
+## Faithful reproduction of the live hand-installed release; upgraded to 0.15.1
+## to match the controller. No tool hook here (the eGov build/scan workflows run
+## on the egovernments scale set); dind is kept as on the live release.
+githubConfigUrl: https://github.com/digitnxt
+githubConfigSecret: gha-app-secret
+minRunners: 0
+maxRunners: 4
+
+## Pinned so ArgoCD renders without a cluster lookup (see values-egovernments).
+controllerServiceAccount:
+  namespace: arc-systems
+  name: arc-gha-rs-controller
+
+containerMode:
+  type: dind
+
+template:
+  spec:
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["/home/runner/run.sh"]
+        # Right-sized from Prometheus (7d): digitnxt runner usage is light
+        # (<0.4 CPU peak). Same conservative envelope as egovernments.
+        resources:
+          requests:
+            cpu: "1"
+            memory: 1Gi
+          limits:
+            cpu: "3"
+            memory: 4Gi

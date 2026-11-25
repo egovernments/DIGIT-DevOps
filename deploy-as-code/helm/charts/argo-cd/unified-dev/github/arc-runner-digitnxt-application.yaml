@@ -1,0 +1,37 @@
+## `digitnxt` org runner scale set, brought under GitOps and upgraded to 0.15.1
+## (to match the controller). Adopts the live Helm release in place via
+## releaseName `digitnxt` + ServerSideApply. Shares arc-runner-project and the
+## arc-runner chart; only the value file differs from egovernments.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-runner-digitnxt
+  namespace: argocd
+spec:
+  project: arc-runner-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-dev
+      path: "deploy-as-code/helm/charts/github/arc-runner"
+      helm:
+        releaseName: digitnxt
+        valueFiles:
+          - values-digitnxt.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-runners
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=false
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

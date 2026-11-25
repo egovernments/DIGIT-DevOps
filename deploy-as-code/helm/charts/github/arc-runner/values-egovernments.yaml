@@ -1,0 +1,57 @@
+## Overrides for the `egovernments` org runner scale set (ns arc-runners).
+## Reproduces the live hand-installed release, plus a startup hook that installs
+## the CLI tools the eGov build/scan workflows call in shell `run:` steps.
+## containerMode: dind already supplies Docker/buildx/qemu and every container
+## action (e.g. aquasecurity/trivy-action), so only shell-called tools are added.
+githubConfigUrl: https://github.com/egovernments
+githubConfigSecret: gha-app-secret-egov
+minRunners: 0
+maxRunners: 8
+
+## Set explicitly so manifest generation needs no cluster lookup (ArgoCD's
+## repo-server renders without it). Points at the arc controller release.
+controllerServiceAccount:
+  namespace: arc-systems
+  name: arc-gha-rs-controller
+
+containerMode:
+  type: dind
+
+template:
+  spec:
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            set -euo pipefail
+            # gh / jq / yq as static binaries into a dir already on PATH (no PATH surgery).
+            if ! command -v gh >/dev/null 2>&1; then
+              GH_VERSION=2.63.2
+              curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" \
+                | sudo tar -xz -C /usr/local/bin --strip-components=2 "gh_${GH_VERSION}_linux_amd64/bin/gh"
+            fi
+            if ! command -v jq >/dev/null 2>&1; then
+              sudo curl -fsSL "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64" -o /usr/local/bin/jq
+              sudo chmod +x /usr/local/bin/jq
+            fi
+            if ! command -v yq >/dev/null 2>&1; then
+              sudo curl -fsSL "https://github.com/mikefarah/yq/releases/download/v4.54.1/yq_linux_amd64" -o /usr/local/bin/yq
+              sudo chmod +x /usr/local/bin/yq
+            fi
+            # python3 only drives the non-fatal dashboard home refresh; best effort.
+            if ! command -v python3 >/dev/null 2>&1; then
+              { sudo apt-get update -y && sudo apt-get install -y --no-install-recommends python3; } || echo "::warning::python3 install skipped"
+            fi
+            exec /home/runner/run.sh
+        # Right-sized from Prometheus (7d): runner container p95-peak ~1.9 CPU /
+        # 0.77 GiB, max ~2.7 CPU / 1.6 GiB; dind is near-idle. Limits fit a
+        # ~3.86-CPU node and leave headroom over the observed max.
+        resources:
+          requests:
+            cpu: "1"
+            memory: 1Gi
+          limits:
+            cpu: "3"
+            memory: 4Gi

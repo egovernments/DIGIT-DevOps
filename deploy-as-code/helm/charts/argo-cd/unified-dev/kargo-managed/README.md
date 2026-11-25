@@ -101,4 +101,27 @@ unknown layout or a namespace outside `kargo.argocd.namespaces`.
    fatal: could not read Username for 'https://github.com': No such device or address
    ```
 
+6. **The Kargo config copied to every branch the project promotes to.** Step 1
+   puts it on `unified-dev`, but each cluster's layout ApplicationSet reads
+   `kargo/config/projects/*.yaml` from *its own* branch, so a promotion to qa or
+   uat lands the `chart-version` in the env file and still yields no
+   Application. The Kargo control plane runs only on dev -- these copies are
+   generator input, and render no second Project, Warehouse or Stage.
+
+   Nothing reports an error. An empty generation is a valid one, so the
+   ApplicationSet shows:
+
+   ```
+   ErrorOccurred=False:      All applications have been generated successfully
+   ParametersGenerated=True: Successfully generated parameters for all Applications
+   ```
+
+   The only symptom is an Application that never appears. If a promotion
+   succeeded and nothing showed up, check this before anything else:
+
+   ```
+   git ls-tree --name-only origin/unified-<env> \
+     deploy-as-code/helm/charts/kargo/config/projects/
+   ```
+
 App names must stay unique across projects: give each project its own `argocdAppPrefix`.

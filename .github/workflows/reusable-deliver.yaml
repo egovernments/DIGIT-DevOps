@@ -7,13 +7,14 @@ on:
   workflow_call:
     inputs:
       service:
-        description: "Service/chart to promote (must match its Kargo Warehouse + <service>-<stage> Stage)"
+        description: "Service to promote (must match its Kargo Warehouse + <service>-<stage> Stage)"
         required: true
         type: string
       image_tag:
-        description: "The freshly built image tag to deliver (used to pick the matching Freight)"
-        required: true
+        description: "The freshly built image tag (used for logging; Kargo promotes the latest Freight)"
+        required: false
         type: string
+        default: ""
       environment:
         description: "Target env key in KARGO_STAGES (e.g. DEV, QA, UAT)"
         required: true
@@ -94,46 +95,37 @@ jobs:
           # Kubeconfig: <ENV>_KUBECONFIG (no default)
           KCVAR="${ENV}_KUBECONFIG"; KCFG="${!KCVAR:-}"
           STAGE="${{ inputs.stage }}"; [ -n "$STAGE" ] || STAGE=$(printf '%s' "$ENV" | tr '[:upper:]' '[:lower:]')
+          # kargo CLI authenticates from KARGO_API_ADDRESS + KARGO_API_TOKEN (no login step).
           {
             echo "KARGO_PROJECT=$PROJECT"
-            echo "KARGO_RESOLVED_URL=$KURL"
-            echo "KARGO_APIKEY=$APIKEY"
+            echo "KARGO_API_ADDRESS=$KURL"
+            echo "KARGO_API_TOKEN=$APIKEY"
             echo "KARGO_STAGE=${{ inputs.service }}-$STAGE"
           } >> "$GITHUB_ENV"
           if [ -n "$KCFG" ]; then
             printf '%s' "$KCFG" > "$RUNNER_TEMP/kubeconfig"; chmod 600 "$RUNNER_TEMP/kubeconfig"
             echo "DELIVER_KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
           fi
-          echo "Delivering ${{ inputs.service }} (tag ${{ inputs.image_tag }}) -> project $PROJECT stage ${{ inputs.service }}-$STAGE @ $KURL"
+          echo "Delivering ${{ inputs.service }} (tag ${{ inputs.image_tag }}) -> $PROJECT / ${{ inputs.service }}-$STAGE @ $KURL"
 
       - name: Install Kargo CLI
         run: |
           set -euo pipefail
-          curl -fsSL -o /usr/local/bin/kargo \
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -fsSL -o "$RUNNER_TEMP/bin/kargo" \
             "https://github.com/akuity/kargo/releases/download/${{ inputs.kargo_version }}/kargo-linux-amd64"
-          chmod +x /usr/local/bin/kargo
-          kargo version --client || true
+          chmod +x "$RUNNER_TEMP/bin/kargo"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/kargo" version --client || true
 
-      - name: Promote freight to the stage
+      - name: Promote latest freight to the stage
         run: |
           set -euo pipefail
-          kargo login "$KARGO_RESOLVED_URL" --token "$KARGO_APIKEY"
-          # Discover the freight the just-built image produced.
+          # Discover the latest artifacts; the Warehouse must use freightCreationPolicy: Automatic
+          # so a Freight is minted from the new build for --warehouse to promote.
           kargo refresh warehouse "${{ inputs.service }}" --project "$KARGO_PROJECT" --wait --timeout 3m || true
-          # Pick the newest Freight carrying the built image tag (fallback: newest Freight).
-          TAG="${{ inputs.image_tag }}"
-          FREIGHT=$(kargo get freight --project "$KARGO_PROJECT" --output json \
-            | jq -r --arg t "$TAG" '
-                [ (.items // [.]) [] ]
-                | map(select([.. | .tag? // empty] | index($t)))
-                | sort_by(.metadata.creationTimestamp) | (last // empty) | .metadata.name // empty')
-          if [ -z "$FREIGHT" ]; then
-            FREIGHT=$(kargo get freight --project "$KARGO_PROJECT" --output json \
-              | jq -r '[ (.items // [.]) [] ] | sort_by(.metadata.creationTimestamp) | (last // empty) | .metadata.name // empty')
-          fi
-          [ -n "$FREIGHT" ] || { echo "::error::no Freight found for ${{ inputs.service }} in $KARGO_PROJECT"; exit 1; }
-          echo "Promoting freight $FREIGHT -> $KARGO_STAGE"
-          kargo promote --project "$KARGO_PROJECT" --stage "$KARGO_STAGE" --freight "$FREIGHT"
+          echo "Promoting latest freight: warehouse ${{ inputs.service }} -> $KARGO_STAGE"
+          kargo promote --project "$KARGO_PROJECT" --warehouse "${{ inputs.service }}" --stage "$KARGO_STAGE"
 
       - name: Verify rollout on the target cluster
         if: ${{ env.DELIVER_KUBECONFIG != '' }}

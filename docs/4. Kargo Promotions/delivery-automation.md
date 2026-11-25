@@ -52,14 +52,23 @@ env secrets are declared explicitly; add another environment by extending the wo
 
 1. Resolves the environment: `kargo-project` + URL from `KARGO_STAGES`, the API key
    (`<ENV>_API_KEY` else `KARGO_API_KEY`), and the kubeconfig (`<ENV>_KUBECONFIG`).
-2. `kargo login <url> --token <key>`.
-3. Refreshes the service's Warehouse, finds the newest Freight carrying `image_tag`
-   (falls back to the newest Freight), and `kargo promote`s it to `<service>-<stage>`.
+2. Authenticates the `kargo` CLI with env vars `KARGO_API_ADDRESS` + `KARGO_API_TOKEN`
+   (there is no `--token` login flag). The token is a Kargo API bearer token - a Kubernetes
+   ServiceAccount token (e.g. `github-actions-promoter` in the `kargo` namespace) with
+   promote RBAC.
+3. `kargo refresh warehouse <service>` to discover the new build, then
+   `kargo promote --warehouse <service> --stage <service>-<stage>` - this promotes the latest
+   Freight the Warehouse produced, the same selection auto-promotion would make.
 4. If a kubeconfig was provided, waits for the Deployment to roll out on that cluster.
 
 Kargo writes the promoted image + chart version into the module's `environments/digit-3.0/`
 values file; Argo CD then reconciles the cluster. Promotion is linear - `dev` takes from the
 Warehouse, `qa` only from `dev`, `uat` only from `qa`.
+
+> **Warehouses must mint Freight automatically.** `--warehouse` promotes the latest Freight, so
+> the service Warehouses need `freightCreationPolicy: Automatic` in the Kargo project
+> (`charts/kargo/config/projects/<ns>.yaml`). With the default `Manual`, a build is discovered
+> but no Freight is created, so there is nothing to promote.
 
 ## Wiring it into a build (the generic template)
 

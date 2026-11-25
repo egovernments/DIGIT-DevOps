@@ -1,0 +1,36 @@
+# GitHub Actions -> Kargo bot RBAC. Renders the ServiceAccount + token Secret (in kargo)
+# and a kargo-admin RoleBinding in each digit-3.0 project namespace. Picked up by the
+# unified-dev-kargo-bootstrap app (include {kargo/*.yaml}); the manifests live in the
+# subdirectory this Application syncs, so the bootstrap does not also apply them.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kargo-github-actions-promoter
+  namespace: argocd
+spec:
+  project: kargo-project
+  source:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+    targetRevision: unified-dev
+    path: deploy-as-code/helm/charts/argo-cd/unified-dev/kargo/github-actions-promoter
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kargo
+  # Kubernetes populates the ServiceAccount token into the Secret's data; ignore it so
+  # selfHeal does not try to blank it and fight the token controller.
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: github-actions-promoter-token
+      namespace: kargo
+      jsonPointers:
+        - /data
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true

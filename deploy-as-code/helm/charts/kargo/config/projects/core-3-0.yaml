@@ -1,18 +1,20 @@
-# digit-core3-0 Kargo pipeline: DIGIT 3.0 core module, DEV -> QA -> UAT.
-# (Project name is "digit-core3.0" with the dot replaced: a Kargo Project is a
-# Kubernetes namespace, and namespace names cannot contain ".")
+# core-3-0 Kargo pipeline: DIGIT 3.0 core module, DEV -> QA -> UAT.
+# (Project name is "core-3.0" with the dot replaced: a Kargo Project is a Kubernetes
+# namespace, and namespace names cannot contain ".". The core services run in this same
+# namespace core-3-0 (pipeline and workloads co-located). backbone-3.0 (postgresql-18 +
+# vault) is a separate Kargo project backbone-3-0 (config/projects/backbone-3-0.yaml) in its
+# own namespace backbone-3-0, sharing this same env file.)
 #
 # Freight per service = image tag + packaged Helm chart version. No git artifact.
 # Promotion MERGES them into the module's own env file on the stage's branch,
 # creating the keys if absent (nothing is seeded):
 #
-#   deploy-as-code/helm/environments/unified-digit3-core-<env>.yaml
+#   deploy-as-code/helm/environments/digit-3.0/core-3.0.yaml
 #     <service>.chart-version                             <- chart (Freight)
 #     <service>.image.tag                                 <- image (Freight)
 #     <service>.initContainers.dbMigration.image.tag      <- same tag, <service>-db image
 #     kong.chart-version, kong.image.tag                  <- chart, image (Freight)
 #     keycloak.chart-version, keycloak.image.tag          <- chart, image (Freight)
-#     vault.chart-version                                 <- chart (Freight)
 #     cluster-configs.chart-version                       <- chart (Freight)
 #
 # A separate file, not environments/unified-<env>.yaml: the DIGIT 2.x charts share
@@ -28,7 +30,7 @@
 # linear: dev takes Freight from the Warehouse, qa only from dev, uat only from qa;
 # uat also takes master-* builds only.
 kargo:
-  project: digit-core3-0
+  project: core-3-0
   registry: docker.io/egovio
   argocdAppPrefix: digit3-
   # Argo CD side, read by the kargo-managed ApplicationSets (one per layout):
@@ -39,12 +41,12 @@ kargo:
   #                  common   DIGIT common chart: {global, <service>} from the env file
   #                  root     the <service> section (minus chart-version) as root values
   #                  configs  the env file + its -secrets.yaml (cluster-configs chart)
-  # namespaces must match digit3-core-project's destinations; templates/argocd-deploy.yaml
+  # namespaces must match digit-3-0-project's destinations; templates/argocd-deploy.yaml
   # fails the render for a layout or namespace outside them.
   argocd:
-    project: digit3-core-project
-    namespace: digit3-core
-    namespaces: [digit3-core, vault]
+    project: core-3-0-project
+    namespace: core-3-0
+    namespaces: [core-3-0, backbone-3-0]
     layout: common
   # Write promoted keys by merge -- creates them in the env file, no seeding needed.
   envFileWrite: merge
@@ -59,13 +61,14 @@ kargo:
   allowTags: '^(master|flyway-branch)-.*[0-9a-f]{7,}$'
   # masterOnlyStages: [uat] (chart default) -- flyway-branch builds reach dev/qa only.
   # Post-promotion deploy-state check (templates/analysistemplate.yaml): the Deployment
-  # in digit3-core must run the promoted tag and be healthy. Enabled on dev only: qa and
+  # in core-3-0 must run the promoted tag and be healthy. Enabled on dev only: qa and
   # uat run no digit3 services yet, so a check there could never pass and would block
   # promotion -- add verifyKubeconfigSecret to those stages once digit3 is deployed there.
-  # Chart-only services (vault, cluster-configs) are never verified.
+  # The chart-only service (cluster-configs) is never verified; vault and postgresql-18
+  # are chart-only services of the separate backbone-3-0 Kargo project, outside this pipeline.
   verify:
     enabled: true
-    namespace: digit3-core
+    namespace: core-3-0
 
   # Every service: Freight = egovio/<service> image tag (written to the app AND the
   # <service>-db migration image) + chart <service> from chartRepo. Warehouses re-scan
@@ -251,20 +254,8 @@ kargo:
       cacheByTag: true
       discoveryLimit: 20
       interval: 5m0s
-    # Secrets engine (otp, individual, registry). Chart only: the HashiCorp image comes
-    # from the chart (there is no egovio/vault build yet). Packaged in the backbone
-    # repo, not digit3/core.
-    - name: vault
-      image: false
-      chart: vault
-      chartRepo: https://helm.digit.org/digit3/backbone
-      deploy:
-        layout: root
-        namespace: vault
-      freightCreationPolicy: Manual
-      discoveryLimit: 20
-      interval: 5m0s
-    # The module's namespace-scoped ConfigMaps/Secrets (digit3-core-cluster-configs).
+    # The module's namespace-scoped ConfigMaps/Secrets (core-3-0-cluster-configs),
+    # rendered into core-3-0 and backbone-3-0 (the postgresql-18 secret).
     # Chart only: Freight carries just the chart version.
     - name: cluster-configs
       image: false
@@ -273,8 +264,8 @@ kargo:
       valuesKey: cluster-configs
       deploy:
         layout: configs
-        app: digit3-core-cluster-configs
-        releaseName: digit3-core-cluster-configs
+        app: core-3-0-cluster-configs
+        releaseName: core-3-0-cluster-configs
       freightCreationPolicy: Manual
       discoveryLimit: 20
       interval: 5m0s
@@ -283,20 +274,20 @@ kargo:
     - name: dev
       color: "#3BA9C2"
       branch: unified-dev
-      envFile: deploy-as-code/helm/environments/unified-digit3-core-dev.yaml
+      envFile: deploy-as-code/helm/environments/digit-3.0/core-3.0.yaml
       autoPromotion: false
       verifyKubeconfigSecret: verify-kubeconfig-dev
     - name: qa
       color: "#D64550"
       from: dev
       branch: unified-qa
-      envFile: deploy-as-code/helm/environments/unified-digit3-core-qa.yaml
+      envFile: deploy-as-code/helm/environments/digit-3.0/core-3.0.yaml
       autoPromotion: false
     - name: uat
       color: "#F2C230"
       from: qa
       branch: unified-uat
-      envFile: deploy-as-code/helm/environments/unified-digit3-core-uat.yaml
+      envFile: deploy-as-code/helm/environments/digit-3.0/core-3.0.yaml
       autoPromotion: false
 
   teams:

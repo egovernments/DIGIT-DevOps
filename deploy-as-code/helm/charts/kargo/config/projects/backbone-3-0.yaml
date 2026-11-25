@@ -1,0 +1,63 @@
+# backbone-3-0 Kargo pipeline: DIGIT 3.0 backbone (postgresql + vault), chart-only, root layout.
+# Published charts from helm.digit.org/digit3/backbone; config shared with core (core-3.0.yaml).
+kargo:
+  project: backbone-3-0
+  registry: docker.io/egovio
+  argocdAppPrefix: digit3-
+  argocd:
+    project: backbone-3-0-project
+    namespace: backbone-3-0
+    namespaces: [backbone-3-0]
+    layout: root
+  envFileWrite: merge
+  git:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+  chartRepo: https://helm.digit.org/digit3/backbone
+  # Chart-only services; no image promotion, so no deploy-state verify.
+  verify:
+    enabled: false
+
+  services:
+    # valuesKey postgresql-18 keeps the env-file section name and the postgresql-18-rw host.
+    - name: postgresql-18
+      image: false
+      chart: postgresql
+      valuesKey: postgresql-18
+      deploy:
+        layout: root
+      freightCreationPolicy: Manual
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: vault
+      image: false
+      chart: vault
+      valuesKey: vault
+      deploy:
+        layout: root
+      freightCreationPolicy: Manual
+      discoveryLimit: 20
+      interval: 5m0s
+
+  stages:
+    - name: dev
+      color: "#6E56CF"
+      branch: unified-dev
+      envFile: deploy-as-code/helm/environments/digit-3.0/core-3.0.yaml
+      autoPromotion: false
+    - name: qa
+      color: "#D64550"
+      from: dev
+      branch: unified-qa
+      envFile: deploy-as-code/helm/environments/digit-3.0/core-3.0.yaml
+      autoPromotion: false
+    - name: uat
+      color: "#F2C230"
+      from: qa
+      branch: unified-uat
+      envFile: deploy-as-code/helm/environments/digit-3.0/core-3.0.yaml
+      autoPromotion: false
+
+  teams:
+    - name: devops
+      role: admin
+      groups: [egovernments:micro-service-devops]

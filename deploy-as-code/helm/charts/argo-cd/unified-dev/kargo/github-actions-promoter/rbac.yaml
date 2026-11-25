@@ -1,0 +1,62 @@
+# Bot identity for GitHub Actions to drive Kargo (create Freight + promote) via the
+# Kargo API: a ServiceAccount token used as a Bearer token against https://kargo.digit.org.
+# Scoped to the digit-3.0 Kargo projects by binding kargo-admin in each project namespace.
+# The token value is populated by Kubernetes into the Secret below; it is never in git.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: github-actions-promoter
+  namespace: kargo
+---
+# Long-lived (non-expiring) ServiceAccount token. Kubernetes fills .data.token; the
+# Application ignores that field so Argo CD does not fight the token controller.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-actions-promoter-token
+  namespace: kargo
+  annotations:
+    kubernetes.io/service-account.name: github-actions-promoter
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-actions-promoter
+  namespace: core-3-0
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kargo-admin
+subjects:
+  - kind: ServiceAccount
+    name: github-actions-promoter
+    namespace: kargo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-actions-promoter
+  namespace: backbone-3-0
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kargo-admin
+subjects:
+  - kind: ServiceAccount
+    name: github-actions-promoter
+    namespace: kargo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-actions-promoter
+  namespace: hcm-3-0
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kargo-admin
+subjects:
+  - kind: ServiceAccount
+    name: github-actions-promoter
+    namespace: kargo

@@ -1,0 +1,145 @@
+# Reusable delivery: promote a freshly built service to an environment's Kargo stage.
+# Config comes from repo env (generic, multi-env): vars KARGO_URL + KARGO_STAGES (JSON),
+# secrets <ENV>_API_KEY (else KARGO_API_KEY) and <ENV>_KUBECONFIG. See docs/4. Kargo Promotions.
+name: Reusable — Deliver
+
+on:
+  workflow_call:
+    inputs:
+      service:
+        description: "Service/chart to promote (must match its Kargo Warehouse + <service>-<stage> Stage)"
+        required: true
+        type: string
+      image_tag:
+        description: "The freshly built image tag to deliver (used to pick the matching Freight)"
+        required: true
+        type: string
+      environment:
+        description: "Target env key in KARGO_STAGES (e.g. DEV, QA, UAT)"
+        required: true
+        type: string
+      stage:
+        description: "Kargo stage suffix; the stage promoted is <service>-<stage>. Empty = lowercased environment"
+        required: false
+        type: string
+        default: ""
+      kargo_url:
+        description: "Default Kargo API URL (repo var KARGO_URL); a per-env kargo-url in KARGO_STAGES overrides it"
+        required: false
+        type: string
+        default: ""
+      kargo_stages:
+        description: 'JSON map env -> {kargo-project, kargo-url} (repo var KARGO_STAGES), e.g. {"DEV":{"kargo-project":"hcm-3-0","kargo-url":""}}'
+        required: true
+        type: string
+      kargo_version:
+        description: "Kargo CLI version to install (match the server)"
+        required: false
+        type: string
+        default: "v1.11.4"
+      runs_on:
+        description: "Runner label"
+        required: false
+        type: string
+        default: "ubuntu-latest"
+    secrets:
+      KARGO_API_KEY:
+        description: "Default Kargo API bearer token (fallback when <ENV>_API_KEY is unset)"
+        required: false
+      DEV_API_KEY:
+        required: false
+      QA_API_KEY:
+        required: false
+      UAT_API_KEY:
+        required: false
+      DEV_KUBECONFIG:
+        required: false
+      QA_KUBECONFIG:
+        required: false
+      UAT_KUBECONFIG:
+        required: false
+
+jobs:
+  deliver:
+    runs-on: ${{ inputs.runs_on }}
+    env:
+      # Mapped statically because Actions cannot index secrets by a computed name;
+      # the step below selects the right one by ${ENVIRONMENT} via bash indirection.
+      ENVIRONMENT: ${{ inputs.environment }}
+      KARGO_API_KEY: ${{ secrets.KARGO_API_KEY }}
+      DEV_API_KEY: ${{ secrets.DEV_API_KEY }}
+      QA_API_KEY: ${{ secrets.QA_API_KEY }}
+      UAT_API_KEY: ${{ secrets.UAT_API_KEY }}
+      DEV_KUBECONFIG: ${{ secrets.DEV_KUBECONFIG }}
+      QA_KUBECONFIG: ${{ secrets.QA_KUBECONFIG }}
+      UAT_KUBECONFIG: ${{ secrets.UAT_KUBECONFIG }}
+    steps:
+      - name: Resolve environment config
+        env:
+          KARGO_STAGES: ${{ inputs.kargo_stages }}
+          DEFAULT_URL: ${{ inputs.kargo_url }}
+        run: |
+          set -euo pipefail
+          ENV="${ENVIRONMENT}"
+          PROJECT=$(jq -r --arg e "$ENV" '.[$e]["kargo-project"] // empty' <<<"$KARGO_STAGES")
+          URL_OVERRIDE=$(jq -r --arg e "$ENV" '.[$e]["kargo-url"] // empty' <<<"$KARGO_STAGES")
+          [ -n "$PROJECT" ] || { echo "::error::environment '$ENV' is not defined in KARGO_STAGES"; exit 1; }
+          KURL="${URL_OVERRIDE:-$DEFAULT_URL}"
+          [ -n "$KURL" ] || { echo "::error::no Kargo URL: set KARGO_URL or a kargo-url for '$ENV' in KARGO_STAGES"; exit 1; }
+          # API key: <ENV>_API_KEY else KARGO_API_KEY
+          KEYVAR="${ENV}_API_KEY"; APIKEY="${!KEYVAR:-}"
+          [ -n "$APIKEY" ] || APIKEY="${KARGO_API_KEY:-}"
+          [ -n "$APIKEY" ] || { echo "::error::no API key: set ${ENV}_API_KEY or KARGO_API_KEY"; exit 1; }
+          echo "::add-mask::$APIKEY"
+          # Kubeconfig: <ENV>_KUBECONFIG (no default)
+          KCVAR="${ENV}_KUBECONFIG"; KCFG="${!KCVAR:-}"
+          STAGE="${{ inputs.stage }}"; [ -n "$STAGE" ] || STAGE=$(printf '%s' "$ENV" | tr '[:upper:]' '[:lower:]')
+          {
+            echo "KARGO_PROJECT=$PROJECT"
+            echo "KARGO_RESOLVED_URL=$KURL"
+            echo "KARGO_APIKEY=$APIKEY"
+            echo "KARGO_STAGE=${{ inputs.service }}-$STAGE"
+          } >> "$GITHUB_ENV"
+          if [ -n "$KCFG" ]; then
+            printf '%s' "$KCFG" > "$RUNNER_TEMP/kubeconfig"; chmod 600 "$RUNNER_TEMP/kubeconfig"
+            echo "DELIVER_KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+          fi
+          echo "Delivering ${{ inputs.service }} (tag ${{ inputs.image_tag }}) -> project $PROJECT stage ${{ inputs.service }}-$STAGE @ $KURL"
+
+      - name: Install Kargo CLI
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /usr/local/bin/kargo \
+            "https://github.com/akuity/kargo/releases/download/${{ inputs.kargo_version }}/kargo-linux-amd64"
+          chmod +x /usr/local/bin/kargo
+          kargo version --client || true
+
+      - name: Promote freight to the stage
+        run: |
+          set -euo pipefail
+          kargo login "$KARGO_RESOLVED_URL" --token "$KARGO_APIKEY"
+          # Discover the freight the just-built image produced.
+          kargo refresh warehouse "${{ inputs.service }}" --project "$KARGO_PROJECT" --wait --timeout 3m || true
+          # Pick the newest Freight carrying the built image tag (fallback: newest Freight).
+          TAG="${{ inputs.image_tag }}"
+          FREIGHT=$(kargo get freight --project "$KARGO_PROJECT" --output json \
+            | jq -r --arg t "$TAG" '
+                [ (.items // [.]) [] ]
+                | map(select([.. | .tag? // empty] | index($t)))
+                | sort_by(.metadata.creationTimestamp) | (last // empty) | .metadata.name // empty')
+          if [ -z "$FREIGHT" ]; then
+            FREIGHT=$(kargo get freight --project "$KARGO_PROJECT" --output json \
+              | jq -r '[ (.items // [.]) [] ] | sort_by(.metadata.creationTimestamp) | (last // empty) | .metadata.name // empty')
+          fi
+          [ -n "$FREIGHT" ] || { echo "::error::no Freight found for ${{ inputs.service }} in $KARGO_PROJECT"; exit 1; }
+          echo "Promoting freight $FREIGHT -> $KARGO_STAGE"
+          kargo promote --project "$KARGO_PROJECT" --stage "$KARGO_STAGE" --freight "$FREIGHT"
+
+      - name: Verify rollout on the target cluster
+        if: ${{ env.DELIVER_KUBECONFIG != '' }}
+        env:
+          KUBECONFIG: ${{ env.DELIVER_KUBECONFIG }}
+        run: |
+          set -euo pipefail
+          kubectl -n "$KARGO_PROJECT" rollout status "deploy/${{ inputs.service }}" --timeout=300s || \
+            echo "::warning::rollout not confirmed within timeout; check Argo CD / Kargo for ${{ inputs.service }}"

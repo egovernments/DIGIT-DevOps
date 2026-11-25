@@ -11,6 +11,7 @@ Use this section once a service already has images in the registry (see [Code Bu
 | Understand the model and find the control plane | [getting-started.md](getting-started.md) |
 | Add a new service or a new project to a pipeline | [onboarding-a-service.md](onboarding-a-service.md) |
 | Log in, assemble Freight, and promote a release | [access-and-use.md](access-and-use.md) |
+| Auto-deliver a build to an environment (CI) | [delivery-automation.md](delivery-automation.md) |
 | Rotate credentials, apply guardrails, fix a stuck pipeline | [maintenance.md](maintenance.md) |
 
 ## The objects

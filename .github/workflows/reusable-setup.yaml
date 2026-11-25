@@ -258,10 +258,23 @@ jobs:
           fi
           git config user.name  "digit-devops-workflows[bot]"
           git config user.email "digit-devops-workflows[bot]@users.noreply.github.com"
-          git commit -m "chore: scaffold Code Build from DIGIT-DevOps"
-          # Direct push to the default branch; the App is on the ruleset bypass list.
-          git push origin "HEAD:${GITHUB_REF_NAME}"
-          echo "Pushed scaffold directly to ${GITHUB_REF_NAME}."
+          git commit -q -m "chore: scaffold Code Build from DIGIT-DevOps"
+          # Push to the default branch (the App bypasses the ruleset). If it moved under
+          # us (a concurrent run or a dependabot merge), restage onto the latest tip and retry.
+          pushed=false
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then pushed=true; break; fi
+            echo "Push rejected (attempt ${attempt}); restaging onto the latest ${GITHUB_REF_NAME}."
+            git fetch -q origin "${GITHUB_REF_NAME}"
+            git reset -q --soft "origin/${GITHUB_REF_NAME}"
+            if git diff --cached --quiet; then
+              echo "Scaffold already present on ${GITHUB_REF_NAME}; nothing to push."
+              pushed=true; break
+            fi
+            git commit -q -m "chore: scaffold Code Build from DIGIT-DevOps"
+          done
+          [ "$pushed" = true ] || { echo "::error::Could not push the scaffold to ${GITHUB_REF_NAME} after retries."; exit 1; }
+          echo "Pushed scaffold to ${GITHUB_REF_NAME}."
           echo "SCAFFOLD=committed" >> "$GITHUB_ENV"
 
       - name: Publish landing page + /actions UI to gh-pages

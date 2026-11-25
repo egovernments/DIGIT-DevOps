@@ -37,6 +37,9 @@ jobs:
   # Resolve the build matrix: every service when all_services is on, else the one
   # picked. Read from the branch being built so new services need no re-sync.
   resolve:
+    # Repo switch DELIVERY_MODE=automatic enables auto build+deliver on a push; manual (default)
+    # means a merge does nothing (you still dispatch builds by hand). Dispatch always runs.
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.DELIVERY_MODE == 'automatic' }}
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     outputs:
       services: ${{ steps.list.outputs.services }}
@@ -134,7 +137,7 @@ jobs:
   # stage. No-op unless KARGO_STAGES is set. Auto-promotes to DEV (unified-dev).
   deliver:
     needs: [resolve, build]
-    if: ${{ needs.build.result == 'success' && vars.KARGO_STAGES != '' && contains(fromJSON('["develop","master"]'), inputs.build_branch || github.ref_name) }}
+    if: ${{ needs.build.result == 'success' && vars.DELIVERY_MODE == 'automatic' && vars.KARGO_STAGES != '' && contains(fromJSON('["develop","master"]'), inputs.build_branch || github.ref_name) }}
     strategy:
       fail-fast: false
       matrix:

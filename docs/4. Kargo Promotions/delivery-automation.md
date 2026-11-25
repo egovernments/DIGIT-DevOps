@@ -25,6 +25,9 @@ kubeconfig come from the consumer repo's own variables and secrets.
 
 **Variables**
 
+- `DELIVERY_MODE` - repo switch: `automatic` enables auto build+deliver on a push to
+  develop/master (and auto-deliver after a dispatched build); anything else (default) is
+  `manual` - a merge does nothing and a dispatched build only builds, you promote in Kargo.
 - `KARGO_URL` - default Kargo API URL, e.g. `https://kargo.digit.org`.
 - `KARGO_STAGES` - JSON mapping each environment to its Kargo project and an optional
   per-env URL override (empty = use `KARGO_URL`):

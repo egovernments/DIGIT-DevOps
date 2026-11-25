@@ -14,7 +14,7 @@ kubeconfig come from the consumer repo's own variables and secrets.
 | Input | From | Meaning |
 |---|---|---|
 | `service` | the build | service/chart name; promotes the `<service>-<stage>` Kargo stage |
-| `image_tag` | the build output | the built tag, used to pick the matching Freight |
+| `image_tag` | the build output | **required**; the Freight carrying this exact tag is promoted (not the latest) |
 | `environment` | the caller | which env in `KARGO_STAGES` to deliver to (e.g. `DEV`) |
 | `stage` | optional | stage suffix; empty = lowercased `environment` |
 | `kargo_url` | `vars.KARGO_URL` | default Kargo API URL |
@@ -56,9 +56,10 @@ env secrets are declared explicitly; add another environment by extending the wo
    (there is no `--token` login flag). The token is a Kargo API bearer token - a Kubernetes
    ServiceAccount token (e.g. `github-actions-promoter` in the `kargo` namespace) with
    promote RBAC.
-3. `kargo refresh warehouse <service>` to discover the new build, then
-   `kargo promote --warehouse <service> --stage <service>-<stage>` - this promotes the latest
-   Freight the Warehouse produced, the same selection auto-promotion would make.
+3. `kargo refresh warehouse <service>`, then selects the Freight from that Warehouse whose
+   image artifact equals `image_tag` and `kargo promote --freight <name> --stage <service>-<stage>`.
+   It promotes **the Freight carrying this build's image** - never the latest or a manually
+   assembled one - and retries while discovery catches up.
 4. If a kubeconfig was provided, waits for the Deployment to roll out on that cluster.
 
 Kargo writes the promoted image + chart version into the module's `environments/digit-3.0/`

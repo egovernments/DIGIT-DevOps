@@ -80,7 +80,7 @@ jobs:
             while read -r IMG WD; do
               { [ -n "$IMG" ] && [ -n "$WD" ]; } || continue
               case "$IMG" in *-db) continue;; esac
-              printf '%s\n' "$CHANGED" | grep -q "^$WD/" && SVC="$SVC$IMG"$'\n'
+              if printf '%s\n' "$CHANGED" | grep -q "^$WD/"; then SVC="$SVC$IMG"$'\n'; fi
             done < <(yq eval '.config[].build[] | .["image-name"] + " " + .["work-dir"]' "$CONFIG" 2>/dev/null)
             SVC=$(printf '%s' "$SVC" | grep -v '^$' | grep -vxF placeholder | sort -u)
             if [ -z "$SVC" ]; then

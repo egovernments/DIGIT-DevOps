@@ -1,37 +1,9 @@
-# DIGIT 3.0 module -- unified-dev. Shared by two Kargo projects that both read this file:
-# core-3-0 (services, kong, keycloak, cluster-configs in namespace core-3-0) and backbone-3-0
-# (postgresql-18, vault in namespace backbone-3-0, chart-only published backbone charts).
-#
-# Its own env file, separate from environments/unified-dev.yaml: the DIGIT 2.x charts
-# share these names (filestore, boundary, workflow, billing, ...) and read that file's
-# top-level <name>: sections, and egov-config / secrets here hold DIGIT 3.0 values.
-# Top-level keys are chart names -- the common chart reads .Values.<chart-name> -- so
-# this is exactly `helm ... -f environments/digit-3.0/core-3.0.yaml`.
-#
-# Argo CD (charts/argo-cd/unified-dev/kargo-managed/) deploys from this file, one Application
-# per service of the core-3-0 and backbone-3-0 Kargo projects (each service's config sets the
-# layout), once Kargo has merged the service's chart-version:
-#   digit3-<service>              chart <service> from https://helm.digit.org/digit3/core
-#                                 at <service>.chart-version, values {global, <service>}
-#   digit3-kong                   same chart source, values = the section as root values
-#   core-3-0-cluster-configs      chart cluster-configs at cluster-configs.chart-version,
-#                                 values this file + core-3.0-secrets.yaml (SOPS)
-#   digit3-postgresql-18          chart postgresql from https://helm.digit.org/digit3/backbone, root values (backbone-3-0)
-#   digit3-vault                  chart vault from https://helm.digit.org/digit3/backbone, root values (backbone-3-0)
-#
-# Kargo MERGES <service>.chart-version, <service>.image.tag and
-# <service>.initContainers.dbMigration.image.tag on promotion, creating them if absent.
-# Do not seed tags here. Everything else is edited by PR.
+# DIGIT 3.0 (unified-dev) env values, shared by the core-3-0 and backbone-3-0 Kargo projects.
+# See charts/argo-cd/unified-dev/digit-3.0/README.md. Kargo merges chart-version/image.tag on
+# promotion (do not seed tags); edit everything else by PR.
 global:
   namespace: core-3-0
-  # The digit3 common chart (3.0.x) picks the image tag by mode: prod (its default)
-  # ALWAYS uses the chart's appVersion and ignores image.tag; dev uses image.tag when
-  # set. Kargo promotes image.tag separately from the chart, so dev must be in dev mode
-  # or every promoted tag is ignored.
-  mode: dev
-  # DIGIT 3.0 has its own host, so its routes (/localization, /filestore, ...) never
-  # clash with the DIGIT 2.x paths on unified-dev.digit.org. Ingress hosts and the TLS
-  # secret (digit3.digit.org-tls-certs) derive from this.
+  mode: dev   # dev honors the promoted image.tag; prod ignores it
   domain: digit3.digit.org
 idgen:
   initContainers:
@@ -43,7 +15,6 @@ idgen:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
@@ -62,7 +33,6 @@ localization:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   extraEnv:
@@ -81,7 +51,6 @@ url-shortener:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
@@ -97,7 +66,6 @@ notification:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
@@ -113,7 +81,6 @@ template-config:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
@@ -129,7 +96,6 @@ workflow:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
@@ -145,7 +111,6 @@ account:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
@@ -161,7 +126,6 @@ boundary:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
@@ -178,7 +142,6 @@ filestore:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   image:
@@ -193,7 +156,6 @@ registry:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
@@ -209,7 +171,6 @@ individual:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
@@ -225,7 +186,6 @@ employee:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
@@ -242,7 +202,6 @@ otp:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
@@ -258,7 +217,6 @@ billing:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
@@ -274,7 +232,6 @@ apportion:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
@@ -290,7 +247,6 @@ pg-service:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
@@ -306,7 +262,6 @@ notify:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
@@ -322,16 +277,13 @@ boundary-management:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
   image:
     tag: 'master-154c0db'
 mdms-v2:
-  # The common chart gives mdms-v2 only OTEL_EXPORTER_OTLP_ENDPOINT (host:port, no
-  # scheme), which the app turns into its trace URL; OtlpHttpSpanExporter rejects it
-  # ("must start with http://"). Set the full trace URL the way idgen/otp get it.
+  # Full OTLP trace URL; the common chart gives only host:port, which the exporter rejects.
   extraEnv:
     app: |
       - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
@@ -348,24 +300,17 @@ mdms-v2:
   ingress:
     enabled: true
     zuul: true
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.1.1'
   image:
     tag: 'master-154c0db'
-# API gateway (chart kong, app digit3-kong). Unlike the DIGIT service charts it reads
-# ROOT values, so Argo CD passes this section, minus chart-version, as the chart's
-# values (layout root in the Kargo config). Kargo merges kong.chart-version and kong.image.tag.
+# Kong API gateway (digit3-kong): root layout; backend of every zuul: true ingress.
 kong:
   chart-version: 3.1.1
-  # Service kong-kong-proxy: the backend of every zuul: true ingress.
   fullnameOverride: kong-kong
   namespace: core-3-0
-  # The chart's kong-migration init container sets KONG_DATABASE from egov-config
-  # db-name ("coredb"); Kong wants the database TYPE there ("postgres"), and the name in
-  # KONG_PG_DATABASE. Same container as the chart's (kong 3.1.1), with that one fix.
-  # Drop this override once the chart is fixed.
+  # kong-migration: fixes KONG_DATABASE=postgres vs KONG_PG_DATABASE (chart bug); drop when fixed.
   initContainers:
     extraInitContainers: |
       - name: kong-migration
@@ -403,17 +348,12 @@ kong:
               key: db-name
   image:
     tag: 'master-154c0db'
-# Keycloak (chart keycloak, app digit3-keycloak), a common-chart service like the ones
-# above: it lands in global.namespace. Database URL from egov-config keycloak-db-url;
-# the chart's db-init container creates that database and the kc-db role (as postgres,
-# db/superuserPassword). Kargo merges keycloak.chart-version and keycloak.image.tag; the
-# Application appears once chart-version exists.
+# Keycloak (digit3-keycloak): common-chart service; db-init creates its DB + the kc-db role.
 keycloak:
   replicas: 1
   ingress:
     enabled: true
     zuul: false
-    # cert-manager (ClusterIssuer letsencrypt-prod, HTTP-01) issues digit3.digit.org-tls-certs
     additionalAnnotations: |
       cert-manager.io/cluster-issuer: letsencrypt-prod
   chart-version: '3.0.0'
@@ -458,22 +398,16 @@ vault:
             key_name   = "vault-unseal"
           }
           service_registration "kubernetes" {}
-# Namespace-scoped ConfigMaps/Secrets for this module, rendered by the cluster-configs
-# chart (app core-3-0-cluster-configs). Every object pins namespace: [core-3-0] --
-# the chart's defaults point at shared namespaces (egov, health, ...), and the
-# core-3-0 AppProject only permits core-3-0, so a missing namespace fails the sync
-# instead of touching another module. Secret VALUES live in core-3.0-secrets.yaml
-# (SOPS, unified-dev Azure Key Vault).
+# Module ConfigMaps/Secrets (core-3-0-cluster-configs), pinned to core-3-0 (backbone-3-0 for
+# the postgres secret). Secret VALUES in core-3.0-secrets.yaml (SOPS).
 cluster-configs:
   chart-version: 3.1.0
   namespaces:
-    create: false # core-3-0 / backbone-3-0 are created by cluster-configs-unified-dev (namespaces.values)
+    create: false # core-3-0 / backbone-3-0 created by cluster-configs-unified-dev
   configmaps:
     egov-config:
       namespace: [core-3-0]
       data:
-        # DIGIT 3.0 uses its own PostgreSQL 18 (CloudNativePG, backbone-3-0/postgresql-18),
-        # database coredb -- never the DIGIT 2.x unified-dev-db.
         db-host: postgresql-18-rw.backbone-3-0
         db-name: coredb
         db-url: jdbc:postgresql://postgresql-18-rw.backbone-3-0:5432/coredb
@@ -481,23 +415,13 @@ cluster-configs:
         kafka-brokers: kafka-kraft-controller-headless.backbone:9092
         timezone: Asia/Kolkata
         egov-services-fqdn-name: https://digit3.digit.org/
-        # Keycloak's own database on the same server; its db-init container creates
-        # it (and the kc-db role) before Keycloak starts.
         keycloak-db-url: jdbc:postgresql://postgresql-18-rw.backbone-3-0:5432/keycloak
-        # account, employee. The chart default (keycloak.keycloak.svc) is not this
-        # module's Keycloak: app digit3-keycloak serves under KC_HTTP_RELATIVE_PATH /keycloak.
         keycloak-base-url: http://keycloak.core-3-0:8080/keycloak
-        # mdms-v2 (same values as DIGIT 2.x on unified-dev)
         server-tomcat-max-connections: "500"
         server-tomcat-max-threads: "10"
         spring-datasource-tomcat-initialSize: "1"
         spring-datasource-tomcat-max-active: "2"
         spring-jpa-show-sql: "true"
-        # Read by the 3.1.1 service charts (redis: boundary-management, employee,
-        # filestore, idgen, individual, localization, notify, otp, registry,
-        # url-shortener, workflow; smtp/mail: account, notification; otel: apportion,
-        # pg-service, template-config). Same values as the cluster-configs 3.1.1
-        # defaults, set here so they apply whatever cluster-configs version is promoted.
         redis-host: redis.backbone
         redis-port: "6379"
         redis-address: redis.backbone:6379
@@ -507,14 +431,9 @@ cluster-configs:
         mail-sender-name: eGov Foundation
         sms-provider-url: http://api.smscountry.com/SMSCwebservice_bulk.aspx
         platform-tenant: default
-    # Internal service URLs. Every DIGIT 3.0 service is <name>:8080 in core-3-0; the
-    # *-java keys (boundary-management) point at the DIGIT 3.0 services of that name.
     egov-service-host:
       namespace: [core-3-0]
       data:
-        # account, boundary-management, employee, notify, pg-service, url-shortener and
-        # workflow: added by cluster-configs 3.1.1 with 2.x egov-namespace defaults
-        # (account.egov, ...); these are the DIGIT 3.0 services in core-3-0.
         account: http://account.core-3-0:8080/
         apportion: http://apportion.core-3-0:8080/
         billing: http://billing.core-3-0:8080/
@@ -526,7 +445,6 @@ cluster-configs:
         filestore-java: http://filestore.core-3-0:8080/
         idgen: http://idgen.core-3-0:8080/
         individual: http://individual.core-3-0:8080/
-        # cluster-configs 3.1.0 adds localization, defaulting to the 2.x egov namespace.
         localization: http://localization.core-3-0:8080/
         localization-java: http://localization.core-3-0:8080/
         mdms-v2: http://mdms-v2.core-3-0:8080/
@@ -541,35 +459,32 @@ cluster-configs:
         vault: http://vault.backbone-3-0:8200/
   secrets:
     db:
-      namespace: [core-3-0] # username/password/flyway-*/superuserPassword
+      namespace: [core-3-0]
     minio:
-      namespace: [core-3-0] # accesskey/secretkey/rootUser/rootPassword
+      namespace: [core-3-0]
     docker-registry-secret:
-      namespace: [core-3-0] # dockerconfigjson
+      namespace: [core-3-0]
     egov-notification-mail:
-      namespace: [core-3-0] # mailsenderusername/-password (account, notification)
+      namespace: [core-3-0]
     egov-notification-sms:
-      namespace: [core-3-0] # username/password (notification)
-    # Keycloak: admin account and the clients account/employee use.
+      namespace: [core-3-0]
     kc-admin:
-      namespace: [core-3-0] # username/password (account, keycloak)
+      namespace: [core-3-0]
     kc-db:
-      namespace: [core-3-0] # username/password: keycloak's role on postgresql-18
+      namespace: [core-3-0]
     employee-iam-secret:
-      namespace: [core-3-0] # employee-iam-client-secret (account, employee)
+      namespace: [core-3-0]
     citizen-broker-secret:
-      namespace: [core-3-0] # citizen-broker-client-secret (account)
-    # AppRole unified-dev-core-3-0 (policy unified-dev-core-3-0-transit) on vault.backbone-3-0
+      namespace: [core-3-0]
     vault-approle:
-      namespace: [core-3-0] # role-id/secret-id (otp, individual)
+      namespace: [core-3-0]
     hmac-secret:
-      namespace: [core-3-0] # hmac-secret (otp, individual blind-index hashes)
-    # PostgreSQL 18 (CloudNativePG) credentials, rendered into backbone-3-0 where the
-    # database runs: postgresql-18-db (owner coredev, bootstrap) + postgresql-18-superuser-db.
+      namespace: [core-3-0]
+    # postgres credentials, rendered into backbone-3-0 where the database runs.
     postgresql-18:
       name: postgresql-18-db
       superuserName: postgresql-18-superuser-db
-      namespace: [backbone-3-0] # username/password/superuserPassword
+      namespace: [backbone-3-0]
 
 # PostgreSQL 18 (digit3-postgresql-18, backbone-3-0 Kargo project): published chart, root
 # layout, CNPG cluster.* schema. See digit-3.0/README.md. Needs chart postgresql >= 3.0.3.

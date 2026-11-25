@@ -1,0 +1,40 @@
+## `egovernments` org runner scale set, brought under GitOps.
+##
+## Adopts the existing hand-installed Helm release in place: releaseName
+## `egovernments` makes the rendered object names match the live ones, and
+## ServerSideApply lets Argo take ownership without recreating the runners.
+## prune:false while adopting; the githubConfigSecret (gha-app-secret-egov) is a
+## pre-existing secret the chart only references, so it is never managed here.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-runner-egovernments
+  namespace: argocd
+spec:
+  project: arc-runner-project
+  sources:
+    - repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+      targetRevision: unified-dev
+      path: "deploy-as-code/helm/charts/github/arc-runner"
+      helm:
+        releaseName: egovernments
+        valueFiles:
+          - values-egovernments.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-runners
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=false
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

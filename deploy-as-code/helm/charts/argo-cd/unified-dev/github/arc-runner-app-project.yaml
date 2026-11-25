@@ -1,0 +1,31 @@
+## AppProject for the GitHub ARC self-hosted runner scale sets (ns arc-runners).
+## The gha-runner-scale-set chart creates only namespaced objects
+## (AutoscalingRunnerSet + its listener RBAC/SA), so destinations are scoped to
+## arc-runners and no cluster-scoped resources are whitelisted.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: arc-runner-project
+  namespace: argocd
+spec:
+  description: GitHub Actions Runner Controller scale sets on unified-dev
+  sourceRepos:
+    - https://github.com/egovernments/DIGIT-DevOps.git
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: arc-runners
+
+  namespaceResourceWhitelist:
+    - group: actions.github.com
+      kind: AutoscalingRunnerSet
+    - group: ""
+      kind: ServiceAccount
+    - group: ""
+      kind: Secret
+    - group: ""
+      kind: ConfigMap
+    - group: rbac.authorization.k8s.io
+      kind: Role
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding

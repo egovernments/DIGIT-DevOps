@@ -29,6 +29,10 @@ on:
         options:
           - placeholder
 
+  # Auto-build on merge: only the services whose paths changed (see the resolve job).
+  push:
+    branches: [develop, master]
+
 jobs:
   # Resolve the build matrix: every service when all_services is on, else the one
   # picked. Read from the branch being built so new services need no re-sync.
@@ -41,7 +45,7 @@ jobs:
       - name: Checkout build branch
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          ref: ${{ inputs.build_branch }}
+          ref: ${{ inputs.build_branch || github.ref_name }}
       - name: Install yq
         run: |
           VERSION="v4.54.1"
@@ -53,10 +57,36 @@ jobs:
           ALL: ${{ inputs.all_services }}
           SERVICE: ${{ inputs.service }}
           CONFIG: build/build-config.yml
-          BRANCH: ${{ inputs.build_branch }}
+          BRANCH: ${{ inputs.build_branch || github.ref_name }}
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [ "$ALL" = "true" ]; then
+          if [ "$EVENT" = "push" ]; then
+            test -f "$CONFIG" || { echo "::error::$CONFIG not found on $BRANCH"; exit 1; }
+            # Changed files in this push; on a first push (no before) fall back to HEAD~1.
+            if printf '%s' "$BEFORE" | grep -qE '^0+$' || [ -z "$BEFORE" ]; then
+              CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || true)
+            else
+              CHANGED=$(gh api "repos/$REPO/compare/$BEFORE...$SHA" --jq '.files[].filename' 2>/dev/null || true)
+            fi
+            SVC=""
+            while read -r IMG WD; do
+              { [ -n "$IMG" ] && [ -n "$WD" ]; } || continue
+              case "$IMG" in *-db) continue;; esac
+              printf '%s\n' "$CHANGED" | grep -q "^$WD/" && SVC="$SVC$IMG"$'\n'
+            done < <(yq eval '.config[].build[] | .["image-name"] + " " + .["work-dir"]' "$CONFIG" 2>/dev/null)
+            SVC=$(printf '%s' "$SVC" | grep -v '^$' | grep -vxF placeholder | sort -u)
+            if [ -z "$SVC" ]; then
+              echo "No service paths changed on $BRANCH; nothing to build or deliver."
+              echo "services=[]" >> "$GITHUB_OUTPUT"
+              echo "image_tag=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          elif [ "$ALL" = "true" ]; then
             test -f "$CONFIG" || { echo "::error::$CONFIG not found on $BRANCH"; exit 1; }
             SVC=$(yq eval '.config[].build[]."image-name"' "$CONFIG" | grep -vE -- '-db$' | grep -vxF placeholder | sort -u)
             [ -n "$SVC" ] || { echo "::error::no services found in $CONFIG"; exit 1; }
@@ -104,7 +134,7 @@ jobs:
   # stage. No-op unless KARGO_STAGES is set. Auto-promotes to DEV (unified-dev).
   deliver:
     needs: [resolve, build]
-    if: ${{ needs.build.result == 'success' && (inputs.build_branch == 'develop' || inputs.build_branch == 'master') && vars.KARGO_STAGES != '' }}
+    if: ${{ needs.build.result == 'success' && vars.KARGO_STAGES != '' && contains(fromJSON('["develop","master"]'), inputs.build_branch || github.ref_name) }}
     strategy:
       fail-fast: false
       matrix:

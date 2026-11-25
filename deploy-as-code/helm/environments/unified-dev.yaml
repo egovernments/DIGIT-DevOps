@@ -27,7 +27,7 @@ cluster-configs:
     ## posthog: created here, not only by the backbone ApplicationSet's
     ## CreateNamespace, because this Application also renders the posthog-*
     ## Secrets into it (secrets/posthog-secret.yaml).
-    values: [ backbone, egov, monitoring, playground, temporal, kargo, unified-core, unified-health, unified-studio, digit-core3-0, digit3-core, vault, core-3-0, backbone-3-0, sdip, unified-sdip, posthog ]
+    values: [ backbone, egov, monitoring, playground, temporal, kargo, unified-core, unified-health, unified-studio, core-3-0, backbone-3-0, sdip, unified-sdip, posthog ]
     ## Kargo will not adopt a namespace that already exists without this label:
     ## the Project goes Stalled/ExistingNamespaceMissingLabel. These namespaces
     ## are created here, so they are labeled here too -- the kargo-pipelines
@@ -38,8 +38,6 @@ cluster-configs:
       unified-health:
         kargo.akuity.io/project: "true"
       unified-studio:
-        kargo.akuity.io/project: "true"
-      digit-core3-0:
         kargo.akuity.io/project: "true"
       core-3-0:
         kargo.akuity.io/project: "true"
@@ -282,8 +280,8 @@ cluster-configs:
       ## (backbone ApplicationSet). Values come from unified-dev-secrets.yaml.
       namespace: posthog
     kargo:
-      ## Kargo project list override (chart keeps adminSecret/dexSecret); digit-core3-0 kept until cutover (#5762).
-      projects: [ unified-core, unified-health, unified-studio, digit-core3-0, core-3-0, backbone-3-0, unified-sdip, unified-security ]
+      ## Kargo project list override (chart keeps adminSecret/dexSecret).
+      projects: [ unified-core, unified-health, unified-studio, core-3-0, backbone-3-0, unified-sdip, unified-security ]
 employee:
   image:
     tag: "multiarch"
@@ -1746,64 +1744,6 @@ temporal:
     # On AKS Elasticsearch runs in the backbone namespace; this matches
     # egov-config.es-host in the temporal namespace on this cluster.
     host: elasticsearch-master.backbone
-# PostgreSQL 18 (CloudNativePG). Overrides charts/backbone-services/postgresql-18.
-postgresql-18:
-  # Single instance: this node pool is tight -- a node recently sat at 103% CPU
-  # and restart-looped every Java service on it. Raise to 3 once three
-  # schedulable nodes have headroom; that is what buys automated failover.
-  instances: 1
-  storage:
-    size: 50Gi
-    # Azure managed disk. The chart default is empty (cluster default class),
-    # named here so it cannot move if the default-class annotation is changed.
-    storageClass: managed-csi
-  affinity:
-    # AKS labels nodes with zone, so replicas spread across availability zones
-    # rather than merely across nodes. The chart defaults to hostname because
-    # on-prem clusters have no zone labels.
-    topologyKey: topology.kubernetes.io/zone
-  monitoring:
-    # kube-prometheus-stack is installed here, so the PodMonitor CRD exists.
-    enabled: true
-  bootstrap:
-    # owner MUST equal the `username` in the postgresql-18-db secret
-    # (cluster-configs.secrets.postgresql-18.username). If they differ, the
-    # database is created owned by a role those credentials cannot authenticate
-    # as -- and because initdb runs ONCE, it cannot be corrected without
-    # recreating the cluster.
-    owner: coredev
-    database: coredb
-  auth:
-    # Secrets rendered by cluster-configs from unified-dev-secrets.yaml
-    # (cluster-configs.secrets.postgresql-18). Without these the operator
-    # generates its own random passwords instead.
-    existingSecret: postgresql-18-db
-    superuserSecret: postgresql-18-superuser-db
-  postgresql:
-    # PostGIS for digit3 boundary (migration V20260818120000 adds a geometry
-    # column). Mounted as an image volume; the PostgreSQL image is unchanged.
-    # Pinned to a dated build: the plain 3.7.0-18-trixie tag is rebuilt in place.
-    # GDAL_DATA/PROJ_DATA use ${image_root} (CloudNativePG 1.29+).
-    extensions:
-    - name: postgis
-      image:
-        reference: ghcr.io/cloudnative-pg/postgis-extension:3.7.0-202611091303-18-trixie
-      ld_library_path:
-      - system
-      env:
-      - name: GDAL_DATA
-        value: ${image_root}/share/gdal
-      - name: PROJ_DATA
-        value: ${image_root}/share/proj
-  # coredb is the bootstrap database (adopted, not recreated). The operator
-  # creates postgis as superuser; the boundary migration runs as coredev, which
-  # may not, and its CREATE EXTENSION IF NOT EXISTS then finds it present.
-  databases:
-  - name: coredb
-    owner: coredev
-    extensions:
-    - name: postgis
-      version: "3.7.0"
 # Overrides for the posthog chart (charts/backbone-services/posthog). The block
 # is passed to the vendored community chart in its charts/posthog, whose
 # values.yaml holds the defaults.

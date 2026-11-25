@@ -11,10 +11,9 @@ on:
         required: true
         type: string
       image_tag:
-        description: "The freshly built image tag (used for logging; Kargo promotes the latest Freight)"
-        required: false
+        description: "The freshly built image tag; the Freight carrying THIS tag is promoted (not the latest)"
+        required: true
         type: string
-        default: ""
       environment:
         description: "Target env key in KARGO_STAGES (e.g. DEV, QA, UAT)"
         required: true
@@ -118,14 +117,28 @@ jobs:
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/bin/kargo" version --client || true
 
-      - name: Promote latest freight to the stage
+      - name: Promote the build's freight to the stage
+        env:
+          TAG: ${{ inputs.image_tag }}
         run: |
           set -euo pipefail
-          # Discover the latest artifacts; the Warehouse must use freightCreationPolicy: Automatic
-          # so a Freight is minted from the new build for --warehouse to promote.
-          kargo refresh warehouse "${{ inputs.service }}" --project "$KARGO_PROJECT" --wait --timeout 3m || true
-          echo "Promoting latest freight: warehouse ${{ inputs.service }} -> $KARGO_STAGE"
-          kargo promote --project "$KARGO_PROJECT" --warehouse "${{ inputs.service }}" --stage "$KARGO_STAGE"
+          # Automatic policy mints a Freight for the new image; select the Freight from THIS
+          # service's Warehouse that carries the built tag (not the latest / not a manual one).
+          FREIGHT=""
+          for attempt in 1 2 3 4 5 6; do
+            kargo refresh warehouse "${{ inputs.service }}" --project "$KARGO_PROJECT" --wait --timeout 2m || true
+            FREIGHT=$(kargo get freight --project "$KARGO_PROJECT" --output json 2>/dev/null | jq -r --arg t "$TAG" --arg wh "${{ inputs.service }}" '
+              [ (.items // []) [] ]
+              | map(select((.origin.name // .warehouse // "") == $wh))
+              | map(select([.. | .tag? // empty] | index($t)))
+              | sort_by(.metadata.creationTimestamp) | (last // empty) | .metadata.name // empty')
+            [ -n "$FREIGHT" ] && break
+            echo "No Freight carrying image tag '$TAG' yet (attempt ${attempt}); waiting for discovery..."
+            sleep 15
+          done
+          [ -n "$FREIGHT" ] || { echo "::error::no Freight carrying image tag '$TAG' for ${{ inputs.service }} in $KARGO_PROJECT (is the Warehouse freightCreationPolicy: Automatic?)"; exit 1; }
+          echo "Promoting freight $FREIGHT (image $TAG) -> $KARGO_STAGE"
+          kargo promote --project "$KARGO_PROJECT" --freight "$FREIGHT" --stage "$KARGO_STAGE"
 
       - name: Verify rollout on the target cluster
         if: ${{ env.DELIVER_KUBECONFIG != '' }}

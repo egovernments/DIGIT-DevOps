@@ -1,0 +1,83 @@
+# hcm-3-0 Kargo pipeline: DIGIT 3.0 HCM module (dev -> qa -> uat).
+# Reuses the shared backbone (backbone-3-0) and core-3-0's kong; no kong/keycloak of its own.
+kargo:
+  project: hcm-3-0
+  registry: docker.io/egovio
+  argocdAppPrefix: digit3-
+  argocd:
+    project: hcm-3-0-project
+    namespace: hcm-3-0
+    namespaces: [hcm-3-0]
+    layout: common
+  envFileWrite: merge
+  git:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+  chartRepo: https://helm.digit.org/digit3/hcm
+  allowTags: '^(master|flyway-branch)-.*[0-9a-f]{7,}$'
+  verify:
+    enabled: true
+    namespace: hcm-3-0
+
+  services:
+    - name: product
+      chart: product
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: facility
+      chart: facility
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    - name: project-factory
+      chart: project-factory
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 5m0s
+    # Chart-only: module ConfigMaps/Secrets, rendered into hcm-3-0.
+    - name: cluster-configs
+      image: false
+      chart: cluster-configs
+      chartRepo: https://helm.digit.org/digit3/cluster-configs
+      valuesKey: cluster-configs
+      deploy:
+        layout: configs
+        app: hcm-3-0-cluster-configs
+        releaseName: hcm-3-0-cluster-configs
+      freightCreationPolicy: Manual
+      discoveryLimit: 20
+      interval: 5m0s
+
+  stages:
+    - name: dev
+      color: "#3BA9C2"
+      branch: unified-dev
+      envFile: deploy-as-code/helm/environments/digit-3.0/hcm-3.0.yaml
+      autoPromotion: false
+      verifyKubeconfigSecret: verify-kubeconfig-dev
+    - name: qa
+      color: "#D64550"
+      from: dev
+      branch: unified-qa
+      envFile: deploy-as-code/helm/environments/digit-3.0/hcm-3.0.yaml
+      autoPromotion: false
+    - name: uat
+      color: "#F2C230"
+      from: qa
+      branch: unified-uat
+      envFile: deploy-as-code/helm/environments/digit-3.0/hcm-3.0.yaml
+      autoPromotion: false
+
+  teams:
+    - name: devops
+      role: admin
+      groups: [egovernments:micro-service-devops]

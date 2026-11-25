@@ -1,0 +1,85 @@
+# DIGIT 3.0 (unified-dev) env values for the hcm-3-0 Kargo project.
+# Reuses the shared backbone + core-3-0 kong; secret values in hcm-3.0-secrets.yaml (SOPS).
+global:
+  namespace: hcm-3-0
+  mode: prod
+  domain: hcm-3.unified-dev.digit.org
+
+product:
+  chart-version: "3.0.0"
+  replicas: 1
+  initContainers:
+    dbMigration:
+      enabled: true
+  ingress:
+    enabled: true
+    gateway: true
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+facility:
+  chart-version: "3.0.0"
+  replicas: 1
+  initContainers:
+    dbMigration:
+      enabled: true
+  ingress:
+    enabled: true
+    gateway: true
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+project-factory:
+  chart-version: "3.0.0"
+  replicas: 1
+  initContainers:
+    dbMigration:
+      enabled: true
+  ingress:
+    enabled: true
+    gateway: true
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+
+cluster-configs:
+  chart-version: "3.1.1"
+  namespaces:
+    create: false
+  configmaps:
+    egov-config:
+      namespace: [hcm-3-0]
+      data:
+        # Shared backbone postgres; db-name reuses coredb (dedicated hcmdb later).
+        db-host: postgresql-18-rw.backbone-3-0
+        db-name: coredb
+        db-url: jdbc:postgresql://postgresql-18-rw.backbone-3-0:5432/coredb
+        flyway-locations: filesystem:/flyway/sql
+        kafka-brokers: kafka-kraft-controller-headless.backbone:9092
+        timezone: Asia/Kolkata
+        egov-services-fqdn-name: https://hcm-3.unified-dev.digit.org/
+        redis-host: redis.backbone
+        redis-port: "6379"
+        redis-address: redis.backbone:6379
+        server-tomcat-max-connections: "500"
+        server-tomcat-max-threads: "10"
+        spring-datasource-tomcat-initialSize: "1"
+        spring-datasource-tomcat-max-active: "2"
+        otel-tracing-export-otlp-endpoint: http://open-telemetry-opentelemetry-collector.monitoring:4318/v1/traces
+        platform-tenant: default
+    egov-service-host:
+      namespace: [hcm-3-0]
+      data:
+        product: http://product.hcm-3-0:8080/
+        facility: http://facility.hcm-3-0:8080/
+        project-factory: http://project-factory.hcm-3-0:8080/
+        idgen: http://idgen.core-3-0:8080/
+        mdms-v2: http://mdms-v2.core-3-0:8080/
+        boundary-management: http://boundary-management.core-3-0:8080/
+        individual: http://individual.core-3-0:8080/
+        localization: http://localization.core-3-0:8080/
+        filestore: http://filestore.core-3-0:8080/
+  secrets:
+    db:
+      namespace: [hcm-3-0]
+    project-factory:
+      namespace: [hcm-3-0]

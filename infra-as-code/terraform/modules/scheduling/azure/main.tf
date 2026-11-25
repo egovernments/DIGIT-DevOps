@@ -71,7 +71,7 @@ resource "azurerm_automation_runbook" "scaler" {
   automation_account_name = azurerm_automation_account.this.name
   log_verbose             = true
   log_progress            = true
-  runbook_type            = "PowerShell"
+  runbook_type            = "PowerShell72" # 5.1 sandbox: managed-identity login broken since 2026-11-24
   description             = "Stop the AKS cluster at night and start it in the morning. Cluster stop/start is used instead of draining the node pool to 0, because draining cannot satisfy the Elasticsearch PDBs."
 
   content = file("${path.module}/runbook.ps1")

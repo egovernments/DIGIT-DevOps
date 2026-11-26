@@ -183,6 +183,55 @@ them.
 
 ---
 
+## Step 9: Set the Metabase keys (after the first run)
+
+Used by **license-certificate** only. They exist only after Metabase is set
+up, so the values in sops are not valid on a new install.
+
+| sops key (`environments/k3s-deployment-secrets.yaml`) | Kubernetes secret / key | Env var in license-certificate |
+|---|---|---|
+| `cluster-configs.secrets.egov-metabase.egov-metabase-api-key` | `egov/egov-metabase` / `egov-metabase-api-key` | `EGOV_METABASE_API_KEY` |
+| `cluster-configs.secrets.egov-metabase.egov-metabase-secret-key` | `egov/egov-metabase` / `egov-metabase-secret-key` | `EGOV_METABASE_SECRET_KEY` |
+
+Plus 2 IDs (not secrets) in `helm/charts/core-services/license-certificate/values.yaml`:
+`EGOV_METABASE_DATABASE_ID` (`2`) and `EGOV_METABASE_COLLECTION_ID` (`5`).
+
+**Get the values** (`https://<domain>/metabase`):
+
+- Create the admin user.
+- Add a database: PostgreSQL, host `postgres.egov`, port `5432`, database
+  `postgres`, login from the `db` secret
+  (`kubectl --context <name> -n egov get secret db -o jsonpath='{.data.username}' | base64 -d`, same for `.data.password`).
+- Settings → Admin settings → **API keys** → Create API key (Admin group)
+  → copy it → `egov-metabase-api-key`.
+- Admin settings → **Embedding** → create the **embedding secret key** →
+  copy it → `egov-metabase-secret-key`.
+- Create a collection for the certificate dashboards.
+- Check the IDs in the URLs (`/admin/databases/<id>`, `/collection/<id>-...`).
+  If they are not `2` and `5`, change them in the values file above.
+
+**Save and apply:**
+
+```bash
+cd ~/DIGIT-DevOps/deploy-as-code/helm
+git checkout k3s-deployment && git pull && git checkout -b fix/metabase-keys
+SOPS_AGE_KEY_FILE=~/k3s-deployment.agekey sops environments/k3s-deployment-secrets.yaml
+#   under cluster-configs.secrets.egov-metabase: paste the 2 values, save
+git diff                          # only ENC[...] lines changed
+git commit -am "fix(k3s-deployment): Metabase keys for license-certificate"
+git push -u origin fix/metabase-keys            # PR to k3s-deployment, merge
+```
+
+After the merge:
+
+```bash
+kubectl --context <name> -n argocd annotate application k3s-deployment-cluster-configs argocd.argoproj.io/refresh=hard --overwrite
+kubectl --context <name> -n egov rollout restart deploy/license-certificate
+kubectl --context <name> -n egov logs deploy/license-certificate | grep -i metabase | grep -iE "error|401|403"   # prints nothing
+```
+
+---
+
 ## kubectl from your Mac
 
 ```bash

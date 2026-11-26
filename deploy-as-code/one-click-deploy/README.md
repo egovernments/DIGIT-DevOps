@@ -183,7 +183,29 @@ them.
 
 ---
 
-## Step 9: Set the Metabase keys (after the first run)
+## Step 9: Set up license-certificate (after the first run)
+
+### Master tenant
+
+license-certificate needs the code of the master tenant (base tenant). It only
+exists after you create it, so set it after the first run.
+
+- Create the base tenant: `POST https://<domain>/accounts/v3/tenants`. Note
+  its tenant code (e.g. `BASETENANT`).
+- In `helm/environments/k3s-deployment.yaml`, under `license-certificate:`, set
+  both to that code:
+
+  ```yaml
+  license-certificate:
+    master-tenant-schema: "<tenant code>"              # MASTER_TENANT_SCHEMA
+    certificate-master-tenant-schema: "<tenant code>"  # CERTIFICATE_MASTER_TENANT_SCHEMA
+  ```
+
+- Commit on a branch, PR to `k3s-deployment`, merge. Argo CD restarts
+  license-certificate with the new value. Check:
+  `kubectl --context <name> -n egov get deploy license-certificate -o yaml | grep -A1 MASTER_TENANT_SCHEMA`
+
+### Metabase keys
 
 Used by **license-certificate** only. They exist only after Metabase is set
 up, so the values in sops are not valid on a new install.

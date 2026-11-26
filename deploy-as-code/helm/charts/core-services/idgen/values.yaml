@@ -16,6 +16,75 @@ ingress:
 # in-boot Flyway disabled (SPRING_FLYWAY_ENABLED=false below). History table
 # idgen_schema matches migrate.sh's -table setting.
 initContainers:
+  # Runs before db-migration. registry-db (V202606010001__create_idgen_tables)
+  # also creates public.idgen_templates, already with the final camelCase
+  # columns. If registry migrates first on a fresh database, idgen's
+  # V20260427120000__standardize_audit_fields fails ("column lastmodifiedby
+  # does not exist"). Until idgen's V20260427 has run, this makes sure the
+  # table exists with the column names that migration renames, so idgen
+  # migrates the same way whichever service starts first. Registry only does
+  # CREATE TABLE IF NOT EXISTS, so it is unaffected. Does nothing once
+  # V20260427 is recorded.
+  extraInitContainers: |
+    - name: idgen-table-prepare
+      image: "postgis/postgis:15-3.4"
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: DB_URL
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+      command:
+        - /bin/sh
+        - -c
+        - |
+          set -eu
+          u="${DB_URL#jdbc:postgresql://}"; hp="${u%%/*}"; db="${u#*/}"; db="${db%%\?*}"
+          export PGHOST="${hp%%:*}" PGPORT="${hp##*:}" PGDATABASE="$db"
+          psql -v ON_ERROR_STOP=1 -q <<'SQL'
+          DO $$
+          BEGIN
+            IF to_regclass('public.idgen_schema') IS NOT NULL THEN
+              IF EXISTS (SELECT 1 FROM public.idgen_schema WHERE version = '20260427120000' AND success) THEN
+                RETURN;
+              END IF;
+            END IF;
+            -- Same as idgen's V20250923144005 (it uses IF NOT EXISTS too).
+            CREATE TABLE IF NOT EXISTS public.idgen_templates (
+              id UUID PRIMARY KEY,
+              templatecode VARCHAR(64) NOT NULL,
+              version INTEGER NOT NULL CHECK (version > 0),
+              tenantid VARCHAR(64) NOT NULL,
+              config JSONB NOT NULL,
+              createdtime BIGINT,
+              createdby VARCHAR(64),
+              lastmodifiedtime BIGINT,
+              lastmodifiedby VARCHAR(64),
+              UNIQUE (tenantid, templatecode, version)
+            );
+            -- Created by registry first: put back the names V20260427 renames.
+            IF EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_schema = 'public' AND table_name = 'idgen_templates'
+                         AND column_name = 'createdTime') THEN
+              ALTER TABLE public.idgen_templates RENAME COLUMN "createdTime"  TO createdtime;
+              ALTER TABLE public.idgen_templates RENAME COLUMN "createdBy"    TO createdby;
+              ALTER TABLE public.idgen_templates RENAME COLUMN "modifiedTime" TO lastmodifiedtime;
+              ALTER TABLE public.idgen_templates RENAME COLUMN "modifiedBy"   TO lastmodifiedby;
+            END IF;
+          END $$;
+          SQL
+          echo "idgen_templates ready for idgen's migrations"
   dbMigration:
     enabled: true
     schemaTable: "idgen_schema"

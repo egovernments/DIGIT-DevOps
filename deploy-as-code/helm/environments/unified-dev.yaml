@@ -1863,7 +1863,33 @@ dashboard:
   collector:
     # What this cluster is called in the report.
     localClusterName: unified-dev
-  chart-version: '1.2.1'
+
+    # Central roll-up: one page covering all three unified environments.
+    #
+    # Each entry reads the OTHER cluster with a token for its read-only
+    # `security-dashboard` ServiceAccount -- get/list on Kubescape's
+    # aggregated API and on PolicyReports, nothing else, never an admin
+    # credential.
+    #
+    # The Secrets are created out of band, not from git: they hold a
+    # cluster-wide read token and this environment's secrets are SOPS-sealed
+    # against a Key Vault. Each carries `token` AND `ca.crt`, copied from a
+    # kubernetes.io/service-account-token Secret on the source cluster. The
+    # ca.crt is not optional -- the connection crosses the public internet and
+    # an AKS API server presents a certificate signed by its own cluster CA,
+    # which the system trust store cannot validate. A remote with no ca.crt is
+    # marked unreachable rather than trusted blindly.
+    #
+    # unified-qa and unified-uat are stopped overnight on a schedule. While
+    # they are down they are reported UNREACHABLE, never as clean.
+    remoteClusters:
+      - name: unified-qa
+        server: https://unified-qa-teq1w3mb.hcp.centralindia.azmk8s.io:443
+        tokenSecret: dashboard-collector-unified-qa
+      - name: unified-uat
+        server: https://unified-uat-am8zcruu.hcp.centralindia.azmk8s.io:443
+        tokenSecret: dashboard-collector-unified-uat
+  chart-version: '1.2.2'
 kyverno:
   chart-version: '1.0.1'
   kyverno:

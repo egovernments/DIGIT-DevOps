@@ -132,12 +132,13 @@ env: |
       secretKeyRef:
         name: vault-approle
         key: secret-id
-  # Same as test-lts (digit-lts branch, VAULT_ENABLED=false on the live
-  # deployment): no Vault is deployed on
-  # k3s-deployment, and with "true" the pod crashes at start-up on the AppRole
-  # login ("vault auth request failed").
+  # Encrypts mobileNumber, email, address and identifiers at rest with Vault
+  # transit (AppRole login from vault-approle). k3s-deployment deploys Vault
+  # (backbone-vault, which configures itself), so this is on. test-lts runs
+  # individual with it off. Turning it off later makes already-encrypted
+  # records unreadable, and turning it on makes plain-text ones unreadable.
   - name: VAULT_ENABLED
-    value: "false"
+    value: "true"
 
   - name: HMAC_SECRET
     valueFrom:

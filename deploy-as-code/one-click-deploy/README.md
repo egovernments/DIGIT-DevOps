@@ -205,6 +205,55 @@ exists after you create it, so set it after the first run.
   license-certificate with the new value. Check:
   `kubectl --context <name> -n egov get deploy license-certificate -o yaml | grep -A1 MASTER_TENANT_SCHEMA`
 
+### OTP templates (check)
+
+Login needs the tenant's OTP templates in notify (missing: Keycloak logs `OTP generate failed HTTP 503`).
+
+```bash
+# Terminal 1: tunnel to notify (keep running)
+kubectl --context <name> -n egov port-forward svc/notify 18080:8080
+```
+
+```bash
+# Terminal 2: variables
+T=<tenant code>
+N=http://localhost:18080/notify/v3
+H=(-H "Content-Type: application/json" -H "X-Tenant-ID: $T" -H "X-User-Id: admin")
+
+# Check: otp-login and otp-generic listed = done, stop here
+curl -s -H "X-Tenant-ID: $T" $N/notification-configs | jq -r '.[].templateCode'
+
+# Provider for each channel
+curl -s "${H[@]}" -X POST $N/provider-mappings -d '{"channel":"EMAIL","providers":["gmail"]}'; echo
+curl -s "${H[@]}" -X POST $N/provider-mappings -d '{"channel":"SMS","providers":["smscountry"]}'; echo
+
+# OTP messages (login, registration)
+for code in otp-login otp-generic; do
+curl -s "${H[@]}" -X POST $N/notification-configs -d '{
+  "templateCode": "'$code'",
+  "isActive": true,
+  "channels": {
+    "email": {
+      "enabled": true,
+      "format": "text",
+      "subject": {"default": "Your OTP"},
+      "body": {"default": "Your OTP is {{otp}}. It is valid for 5 minutes."},
+      "payloadBindings": {"otp": "$.otp"}
+    },
+    "sms": {
+      "enabled": true,
+      "body": {"default": "Your OTP is {{otp}}. It is valid for 5 minutes."},
+      "payloadBindings": {"otp": "$.otp"}
+    }
+  }
+}'; echo
+done
+
+# Check
+curl -s -H "X-Tenant-ID: $T" $N/notification-configs | jq -r '.[].templateCode'          # otp-login, otp-generic
+curl -s -H "X-Tenant-ID: $T" $N/provider-mappings | jq -c '.[] | {channel, providers}'    # EMAIL gmail, SMS smscountry
+```
+
 ### Metabase keys
 
 Used by **license-certificate** only. They exist only after Metabase is set
@@ -287,6 +336,7 @@ The error says what to do next (`Next:`). Fix it and rerun the same command.
 | Elasticsearch keeps restarting | `vm.max_map_count` missing (Step 1) |
 | No HTTPS certificate | DNS record, and ports 80/443 open to everyone |
 | Kong failed | `go run . kong -f clusters/<name>.yaml` |
+| Login fails, Keycloak log `OTP generate failed HTTP 503` | The tenant has no OTP templates in notify, see [Step 9](#otp-templates-check) |
 
 Don't run two at once, and don't fix things by hand in the cluster (Argo CD
 puts back what is in git).

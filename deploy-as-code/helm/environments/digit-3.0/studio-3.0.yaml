@@ -1,0 +1,308 @@
+# DIGIT 3.0 (unified-dev) env values for the studio-3-0 Kargo project: DIGIT Studio on DIGIT 3.0.
+# Same settings as DIGIT Studio on digit-lts (environments/digit-studio-lts.yaml, digit-lts branch),
+# pointed at core-3-0 (core services, kong, keycloak) and backbone-3-0 (postgres, kafka).
+# Runs beside DIGIT Studio on DIGIT 2.9 (namespace studio, environments/unified-studio-dev.yaml).
+# Secret values in studio-3.0-secrets.yaml (SOPS).
+
+# ==========================================================================
+#  GLOBAL
+# ==========================================================================
+global:
+  namespace: studio-3-0
+  # services run image.tag (not the chart's appVersion), so Kargo image promotions deploy
+  mode: dev
+  # The core host, not studio-3.unified-dev.digit.org: the Studio UI has no API host setting
+  # (globalConfigsStudioLTS.js) and calls the platform (/keycloak, /mdms-v2, ...) and Studio's own
+  # APIs on the origin it is served from, so it must be served from the host the platform is on.
+  domain: digit-3.unified-dev.digit.org
+
+# ==========================================================================
+#  CLUSTER-CONFIGS
+#  Shared config, service-host maps and secrets, all in studio-3-0
+# ==========================================================================
+cluster-configs:
+  chart-version: "3.1.1"
+  namespaces:
+    create: false
+  configmaps:
+    egov-config:
+      namespace: [studio-3-0]
+      data:
+        # backbone-3-0 postgres, database coredb (as core-3-0 and hcm-3-0). Studio's tables are
+        # in each tenant's schema (schema per tenant); studio-db-url's schema "studio" holds only
+        # what is not per tenant (Flyway history of services that keep it there).
+        db-host: postgresql-18-rw.backbone-3-0
+        db-name: coredb
+        db-port: "5432"
+        db-ssl-mode: disable
+        db-url: jdbc:postgresql://postgresql-18-rw.backbone-3-0:5432/coredb
+        db-url-no-schema: jdbc:postgresql://postgresql-18-rw.backbone-3-0:5432/coredb
+        studio-db-url: jdbc:postgresql://postgresql-18-rw.backbone-3-0:5432/coredb?currentSchema=studio
+        studio-db-url-no-schema: jdbc:postgresql://postgresql-18-rw.backbone-3-0:5432/coredb
+        domain: "https://digit-3.unified-dev.digit.org"
+        egov-services-fqdn-name: "https://digit-3.unified-dev.digit.org/"
+        flyway-locations: "filesystem:/flyway/sql,filesystem:/flyway/seed,filesystem:/flyway/qa"
+        # DIGIT 3.0's own Kafka (as core-3-0 and hcm-3-0); DIGIT 2.9 uses backbone's.
+        kafka-brokers: kafka-kraft-controller-headless.backbone-3-0:9092
+        redis-host: redis.backbone
+        redis-port: "6379"
+        redis-address: redis.backbone:6379
+        timezone: Asia/Kolkata
+        platform-tenant: default
+        # Keys the published common-3.1.1 charts require (datasource/tomcat/otel).
+        server-tomcat-max-connections: "500"
+        server-tomcat-max-threads: "10"
+        server-tomcat-threads-max: "10"
+        db-pool-max-size: "10"
+        db-pool-min-idle: "2"
+        db-pool-connection-timeout-ms: "5000"
+        spring-datasource-tomcat-initialSize: "1"
+        spring-datasource-tomcat-max-active: "2"
+        spring-jpa-show-sql: "false"
+        otel-enabled: "false"
+        otel-exporter-otlp-endpoint: "http://open-telemetry-opentelemetry-collector.monitoring:4318"
+        otel-tracing-export-otlp-endpoint: "http://open-telemetry-opentelemetry-collector.monitoring:4318/v1/traces"
+        tracer-errors-provideexceptionindetails: "true"
+        # Read by the charts' 2.9 settings; no meaning on DIGIT 3.0 (flat tenants).
+        egov-state-level-tenant-id: "STUDIO"
+        state-level-tenantid-length: "1"
+        state-schema-index-position-tenantid: "0"
+        is-environment-central-instance: "false"
+    egov-service-host:
+      namespace: [studio-3-0]
+      data:
+        # core-3-0
+        account: "http://account.core-3-0:8080/"
+        account-java: "http://account.core-3-0:8080/"
+        billing: "http://billing.core-3-0:8080/"
+        billing-service: "http://billing.core-3-0:8080/"
+        boundary: "http://boundary.core-3-0:8080/"
+        boundary-service: "http://boundary.core-3-0:8080/"
+        employee: "http://employee.core-3-0:8080/"
+        filestore: "http://filestore.core-3-0:8080/"
+        egov-filestore: "http://filestore.core-3-0:8080/"
+        idgen: "http://idgen.core-3-0:8080/"
+        egov-idgen: "http://idgen.core-3-0:8080/"
+        individual: "http://individual.core-3-0:8080/"
+        individual-java: "http://individual.core-3-0:8080/"
+        keycloak: "http://keycloak.core-3-0:8080/"
+        localization: "http://localization.core-3-0:8080/"
+        egov-localization: "http://localization.core-3-0:8080/"
+        mdms-v2: "http://mdms-v2.core-3-0:8080/"
+        mdms-service-v2: "http://mdms-v2.core-3-0:8080/"
+        egov-mdms-service: "http://mdms-v2.core-3-0:8080/"
+        notification: "http://notification.core-3-0:8080/"
+        notify: "http://notify.core-3-0:8080/"
+        otp: "http://otp.core-3-0:8080/"
+        egov-otp: "http://otp.core-3-0:8080/"
+        workflow: "http://workflow.core-3-0:8080/"
+        egov-workflow-v2: "http://workflow.core-3-0:8080/"
+        # studio-3-0
+        public-service: "http://public-service.studio-3-0:8080/"
+        public-service-init: "http://public-service-init.studio-3-0:8080/"
+        studio-calculator-service: "http://studio-calculator-service.studio-3-0:8080/"
+        studio-pdf-helper-service: "http://studio-pdf-helper-service.studio-3-0:8080/"
+        service-request: "http://studio-service-request.studio-3-0:8080/"
+        # Not deployed yet (no published chart): inbox and pdf-v3 (digitnxt/license-certificate,
+        # DIGIT 3.0's PDF service, read by studio-pdf). Until they are, the inbox is empty and
+        # PDFs fail.
+        inbox: "http://inbox.studio-3-0:8080/"
+        pdf-service: "http://pdf-v3.studio-3-0:8080/"
+        # Read by the charts' DIGIT 2.9 settings; no such service on DIGIT 3.0.
+        egov-user: "http://not-used-on-digit3:8080/"
+        egov-searcher: "http://not-used-on-digit3:8080/"
+        collection-services: "http://not-used-on-digit3:8080/"
+        vehicle: "http://not-used-on-digit3:8080/"
+  secrets:
+    db:
+      namespace: [studio-3-0]
+    # Secret of Studio's Keycloak client (studio-service), the same in every tenant's realm;
+    # read by public-service and public-service-init.
+    studio-keycloak:
+      namespace: [studio-3-0]
+      name: studio-keycloak
+    # Required by the studio-pdf-helper-service chart; unused on DIGIT 3.0 (no GitHub, no restart).
+    github-config:
+      namespace: [studio-3-0]
+      name: github-config
+
+# ==========================================================================
+#  STUDIO SERVICES (published charts helm.digit.org/digit3/studio)
+#  Image tags = the builds running on digit-lts on 2026-11-26; Kargo promotes newer ones.
+# ==========================================================================
+digit-studio:
+  chart-version: "3.0.2"
+  # The chart's default js-injection loads globalConfigsStudioLTS.js (tenant STUDIO); the
+  # tenant on this environment is STUDIO too, so it is used as is.
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+  resources: |
+    limits:
+      cpu: "100m"
+      memory: "256Mi"
+    requests:
+      cpu: "30m"
+      memory: "100Mi"
+  image:
+    tag: studio-keycloak-ui-f7289b3-2150
+public-service:
+  chart-version: "3.0.2"
+  db-sslmode: disable
+  replicas: 1
+  heap: '-Xmx256m -Xms118m'
+  memory_limits: 512Mi
+  mdms-search-enpoint: "mdms-v2/v1/_search"
+  mdms-search-v2-endpoint: "mdms-v2/v2"
+  mdms-v2-search-endpoint: "mdms-v2/v2"
+  mdms-v2-create-endpoint: "mdms-v2/v2/_create"
+  mdms-service-host: "http://mdms-v2.core-3-0:8080/"
+  mdms-v2-update-endpoint: "mdms-v2/v2/_update"
+  # TODO before the first escalation: a system user of the tenant (digit-lts value is STUDIO's there).
+  auto-escalation-system-user-uuid: "069bcd98-8ee2-4a60-9a44-9716da096527"
+  # Schema per tenant, the same as public-service-init (they share tables, init creates them).
+  tenant-migration-enabled: true
+  keycloak-client-secret:
+    name: studio-keycloak
+    key: client-secret
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+  # SMS and email through DIGIT 3.0 notify (in-cluster). Every saved application goes to the
+  # inbox (Postgres store) as an item, on topic inbox-item-upsert.
+  extraEnv:
+    app: |
+      - name: NOTIFY_BASE_URL
+        value: "http://notify.core-3-0:8080/"
+      - name: INBOX_ITEM_TOPIC
+        value: "inbox-item-upsert"
+  image:
+    tag: studio-digit3-migration-57655bf
+  initContainers:
+    dbMigration:
+      image:
+        tag: studio-digit3-migration-57655bf
+public-service-init:
+  chart-version: "3.0.2"
+  db-sslmode: disable
+  replicas: 1
+  heap: '-Xmx256m -Xms118m'
+  memory_limits: 512Mi
+  mdms-search-enpoint: "mdms-v2/v1/_search"
+  mdms-search-v2-endpoint: "mdms-v2/v2"
+  mdms-v2-search-endpoint: "mdms-v2/v2/_search"
+  mdms-v2-create-endpoint: "mdms-v2/v2/_create"
+  mdms-service-host: "http://mdms-v2.core-3-0:8080/"
+  mdms-v2-update-endpoint: "mdms-v2/v2/_update"
+  # A tenant's schema is created when account publishes account-migration; deploy Studio before
+  # creating the tenant. A tenant that existed before needs one in-cluster POST /internal/migrate.
+  tenant-migration-enabled: true
+  keycloak-client-secret:
+    name: studio-keycloak
+    key: client-secret
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+  image:
+    tag: studio-digit3-migration-f90dad4
+  initContainers:
+    dbMigration:
+      image:
+        tag: studio-digit3-migration-f90dad4
+studio-pdf:
+  chart-version: "3.0.2"
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+  resources: |
+    limits:
+      cpu: "100m"
+      memory: "512Mi"
+    requests:
+      cpu: "50m"
+      memory: "256Mi"
+  image:
+    tag: studio-digit3-migration-bb034bb
+studio-pdf-helper-service:
+  chart-version: "3.0.1"
+  db-sslmode: disable
+  # Saves the designer's PDF designs as pdf-v3 templates (EGOV_PDF_HOST below; pdf-v3 is not
+  # deployed yet) and embeds their
+  # images, downloading them only from PDF_IMAGE_HOSTS: the hosts filestore's file links point
+  # to. core-3-0 filestore stores in AWS S3 (S3_ENDPOINT s3.ap-south-1.amazonaws.com, bucket
+  # digit-filestore-bucket): both URL styles listed; check one real download link.
+  extraEnv:
+    app: |
+      - name: EGOV_PDF_HOST
+        value: "http://pdf-v3.studio-3-0:8080"
+      - name: PDF_IMAGE_HOSTS
+        value: "digit-filestore-bucket.s3.ap-south-1.amazonaws.com,s3.ap-south-1.amazonaws.com"
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+  resources: |
+    limits:
+      cpu: "100m"
+      memory: "512Mi"
+    requests:
+      cpu: "50m"
+      memory: "256Mi"
+  image:
+    tag: studio-digit3-migration-1d58fef
+  initContainers:
+    dbMigration:
+      image:
+        tag: studio-digit3-migration-1d58fef
+studio-calculator-service:
+  chart-version: "3.0.0"
+  replicas: 1
+  memory_limits: 256Mi
+  # The chart prefixes /<ingress context>: /studio-calculator-service/v1/health.
+  healthChecks:
+    enabled: true
+    livenessProbePath: "/v1/health"
+    readinessProbePath: "/v1/health"
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+  image:
+    tag: studio-digit3-migration-8f35f13
+  resources: |
+    limits:
+      cpu: "200m"
+      memory: "512Mi"
+    requests:
+      cpu: "50m"
+      memory: "256Mi"
+studio-service-request:
+  chart-version: "3.0.1"
+  mdmsV1SearchEndpoint: "/mdms-v2/v1/_search"
+  # Writes its own rows in each tenant's schema. Chart 3.0.1 has no tenant-migration setting, so
+  # it goes in extraEnv.app, which replaces the chart's own extraEnv.app: its
+  # SPRING_DATASOURCE_URL is repeated.
+  extraEnv:
+    app: |
+      - name: SPRING_DATASOURCE_URL
+        valueFrom:
+          configMapKeyRef:
+            name: egov-config
+            key: studio-db-url
+      - name: TENANT_MIGRATION_ENABLED
+        value: "true"
+  # The chart prefixes /<ingress context>: /studio-service-request/health/liveness.
+  healthChecks:
+    enabled: true
+    livenessProbePath: "/health/liveness"
+    readinessProbePath: "/health/readiness"
+  ingress:
+    additionalAnnotations: |
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+  image:
+    tag: studio-digit3-migration-4474490
+  initContainers:
+    dbMigration:
+      image:
+        tag: studio-digit3-migration-4474490
+  heap: "-Xmx320m -Xms256m"
+  memory_limits: "512Mi"
+  cpu_limits: "200m"

@@ -1326,3 +1326,96 @@ extraObjects: []
 #   config:
 #     per_consumer: false
 #   plugin: prometheus
+
+# Gateway-sync, from the kong chart 3.1.6 that test-lts runs. A small reconciler
+# creates the Kong services, routes and plugins from the gateway/* annotations on
+# each Service (route-path, route-auth, open-paths, protected-paths, ...). It only
+# touches Kong entities tagged "gateway-sync". Off by default; on per environment.
+gatewaySync:
+  enabled: false
+  # Reconciler image: any image with python3 >= 3.8 (the script is pure stdlib, no pip).
+  image:
+    repository: python
+    tag: "3.12-slim"
+    pullPolicy: IfNotPresent
+  rbac:
+    create: true
+  dryRun: false               # true = reconciler logs intended changes without writing (safe first pass)
+  resyncSeconds: 120          # safety-net full resync cadence (the watch drives the rest, event-driven)
+  debounceSeconds: 2          # coalesce a burst of Service changes into one reconcile pass
+  ensureGatewayProxy: false   # create a local kong-proxy ExternalName in each module namespace
+  gatewayProxyName: "kong-proxy"
+  gatewayProxyUpstream: "kong-proxy.egov.svc.cluster.local"
+  gatewayProxyPort: 80
+  # Public API host; every route matches on this host (REQUIRED - gotcha #1). Per-env.
+  domain: "test-lts.digit.org"
+  tag: "gateway-sync"          # ownership tag; the reconciler only touches tagged entities
+  kongAdminUrl: "http://kong-admin.egov.svc.cluster.local:8001"
+  keycloakBaseUrl: "http://keycloak.keycloak.svc.cluster.local:8080/keycloak"
+  clientId: "auth-server"
+  redis:
+    host: "redis.backbone.svc.cluster.local"
+    port: 6379
+  servicePort: 8080            # fallback upstream port if the Service exposes none
+  # Namespaces searched for annotated Services (host/port derived from them). Must
+  # cover every ns holding a gateway-managed Service - services are spread across egov,
+  # studio and keycloak.
+  namespaces:
+    - egov
+    - studio
+    - keycloak
+  # regex open/mixed paths (annotation value starting "~") are created as regex routes
+  # with this priority, so they out-match the protected main route.
+  regexPriority: 1000
+  # Plugin stacks per tier. Protected = full auth; mixed = same minus keycloak-rbac.
+  protectedPlugins: [dynamic-jwt, keycloak-rbac, header-enrichment, metadata-enrichment, token-revocation]
+  mixedPlugins: [dynamic-jwt, header-enrichment, metadata-enrichment, token-revocation]
+  # dynamic-jwt config delta for MIXED routes (validate token if present, pass through
+  # if absent). Confirm the flag the custom plugin uses, then set it here (gotcha #8).
+  mixedAnonymousFlag: {}
+  # Plugin configs verbatim from live, MINUS keycloak_base_url / client_id / redis_*
+  # (the reconciler injects those from the values above so they live in one place).
+  pluginConfigs:
+    dynamic-jwt:
+      header_names: [authorization]
+      uri_param_names: [jwt]
+      claims_to_verify: [exp]
+      cache_ttl: 3600
+    keycloak-rbac:
+      enable_plugin: true
+      cache_ttl: 300
+      timeout: 5000
+      max_cache_entries: 10000
+      collapse_uuid_in_cache_key: true
+    header-enrichment:
+      tenant_header_sources: [X-JWT-tenant, X-JWT-organization, X-Tenant-ID]
+      enable_jwt_headers: true
+      enable_api_headers: true
+      default_tenant: default
+    metadata-enrichment:
+      enrich_tenant_id: true
+      enrich_user_info: true
+      enrich_timestamp: true
+      enrich_tracing_ids: true
+      metadata_keys: [RequestMetadata, requestMetadata]
+      max_body_bytes: 1048576
+      canonical_path_segments: ["/v3/canonical/"]
+    token-revocation:
+      enable_plugin: true
+      fail_open: false
+      revocation_ttl: 50400
+      terminate_on_logout: true
+      logout_path_segment: logout
+      redis_database: 0
+      redis_timeout: 1000
+  # Routing is annotation-driven: the reconciler discovers Services carrying
+  # <annotationPrefix>/route-path and reads the contract from their annotations.
+  # There is deliberately NO central services[] list here - each service chart
+  # declares its own routing, which is the single source of truth. Annotations
+  # (put on the backing Service in that service's own chart):
+  #   gateway/route-path:  accounts                        # protected route -> /accounts
+  #   gateway/open-paths:  /accounts/v3/config,/...        # no-auth (comma-separated)
+  #   gateway/mixed-paths: ""                              # optional-auth (comma-separated)
+  #   gateway/methods:     ""                              # optional HTTP method allowlist
+  annotationPrefix: "gateway"
+  resources: {}

@@ -1,0 +1,40 @@
+{{- if and .Values.gatewaySync.enabled .Values.gatewaySync.rbac.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "kong.fullname" . }}-gateway-sync
+  namespace: {{ template "kong.namespace" . }}
+  labels:
+    {{- include "kong.metaLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway-sync
+---
+# Reads Services to derive upstream host/port, and (when ensureGatewayProxy) creates the
+# per-namespace kong-proxy ExternalName; cluster-scoped to cover the target namespaces.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ template "kong.fullname" . }}-gateway-sync
+  labels:
+    {{- include "kong.metaLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway-sync
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "kong.fullname" . }}-gateway-sync
+  labels:
+    {{- include "kong.metaLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway-sync
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "kong.fullname" . }}-gateway-sync
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "kong.fullname" . }}-gateway-sync
+    namespace: {{ template "kong.namespace" . }}
+{{- end }}

@@ -98,7 +98,7 @@ SOPS_AGE_KEY_FILE=~/k3s-deployment.agekey \
   sops -d environments/k3s-deployment-secrets.yaml > /dev/null && echo "decrypts OK"
 ```
 
-To edit a secret later: `SOPS_AGE_KEY_FILE=~/k3s-deployment.agekey sops environments/k3s-deployment-secrets.yaml`,
+To edit a secret later (from `deploy-as-code/helm`, where `.sops.yaml` is): `SOPS_AGE_KEY_FILE=~/k3s-deployment.agekey sops environments/k3s-deployment-secrets.yaml`,
 check `git diff` shows only `ENC[...]`, then commit and push.
 
 ---
@@ -170,7 +170,7 @@ HTTPS is issued automatically after that.
 | Grafana | `https://<domain>/monitoring` | see below |
 | Jaeger | `https://<domain>/jaeger` | |
 
-Passwords (need [kubectl from your Mac](#kubectl-from-your-mac)):
+Passwords (need [kubectl from your Mac](#reference-kubectl-from-your-mac)):
 
 ```bash
 kubectl --context <name> -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
@@ -254,7 +254,10 @@ kubectl --context <name> -n egov logs deploy/license-certificate | grep -i metab
 
 ---
 
-## kubectl from your Mac
+> **The setup is complete.** The sections below are reference: use them only
+> when you need them (kubectl access, errors, reinstall).
+
+## Reference: kubectl from your Mac
 
 ```bash
 kubectl config delete-context <name>; kubectl config delete-cluster <name>; kubectl config delete-user <name>   # after a reinstall
@@ -269,7 +272,7 @@ kubectl --context <name> get nodes
 
 ---
 
-## If something fails
+## Reference: If something fails
 
 The error says what to do next (`Next:`). Fix it and rerun the same command.
 
@@ -290,14 +293,14 @@ puts back what is in git).
 
 ---
 
-## Start over
+## Reference: Start over
 
 ```bash
 ssh -i ~/.ssh/k3s-sandbox-key <ssh user>@<VM IP>
 sudo /usr/local/bin/k3s-uninstall.sh          # deletes the cluster and all data
 ```
 
-Then Step 1 (install and check), [kubectl from your Mac](#kubectl-from-your-mac), and Step 7.
+Then Step 1 (install and check), [kubectl from your Mac](#reference-kubectl-from-your-mac), and Step 7.
 
 ---
 

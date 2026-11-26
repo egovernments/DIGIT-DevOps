@@ -1,0 +1,36 @@
+{{- if .Values.gatewaySync.enabled }}
+{{- $gs := .Values.gatewaySync }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "kong.fullname" . }}-gateway-sync
+  namespace: {{ template "kong.namespace" . }}
+  labels:
+    {{- include "kong.metaLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway-sync
+data:
+  config.json: |
+    {
+      "domain": {{ $gs.domain | quote }},
+      "tag": {{ $gs.tag | quote }},
+      "kongAdminUrl": {{ $gs.kongAdminUrl | quote }},
+      "keycloakBaseUrl": {{ $gs.keycloakBaseUrl | quote }},
+      "clientId": {{ $gs.clientId | quote }},
+      "servicePort": {{ $gs.servicePort }},
+      "annotationPrefix": {{ $gs.annotationPrefix | quote }},
+      "regexPriority": {{ $gs.regexPriority }},
+      "ensureGatewayProxy": {{ $gs.ensureGatewayProxy }},
+      "gatewayProxyName": {{ $gs.gatewayProxyName | quote }},
+      "gatewayProxyUpstream": {{ $gs.gatewayProxyUpstream | quote }},
+      "gatewayProxyPort": {{ $gs.gatewayProxyPort }},
+      "kongNamespace": {{ include "kong.namespace" . | quote }},
+      "redis": {{ $gs.redis | toJson }},
+      "namespaces": {{ $gs.namespaces | toJson }},
+      "protectedPlugins": {{ $gs.protectedPlugins | toJson }},
+      "mixedPlugins": {{ $gs.mixedPlugins | toJson }},
+      "pluginConfigs": {{ $gs.pluginConfigs | toJson }},
+      "mixedAnonymousFlag": {{ $gs.mixedAnonymousFlag | toJson }}
+    }
+  gateway-sync-reconcile.py: |
+{{ .Files.Get "files/gateway-sync-reconcile.py" | indent 4 }}
+{{- end }}

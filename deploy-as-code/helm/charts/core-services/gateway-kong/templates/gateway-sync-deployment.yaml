@@ -1,0 +1,70 @@
+{{- if .Values.gatewaySync.enabled }}
+{{- $gs := .Values.gatewaySync }}
+# Single-replica controller: watches Services and reconciles Kong on change, with a periodic
+# safety-net resync. Recreate strategy + one replica keep a single writer against Kong at all times.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "kong.fullname" . }}-gateway-sync
+  namespace: {{ template "kong.namespace" . }}
+  labels:
+    {{- include "kong.metaLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway-sync
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ template "kong.name" . }}
+      app.kubernetes.io/instance: "{{ .Release.Name }}"
+      app.kubernetes.io/component: gateway-sync
+  template:
+    metadata:
+      labels:
+        {{- include "kong.metaLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gateway-sync
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/gateway-sync-configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ template "kong.fullname" . }}-gateway-sync
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: reconciler
+          image: {{ $gs.image.repository }}:{{ $gs.image.tag }}
+          imagePullPolicy: {{ $gs.image.pullPolicy }}
+          command: ["python3", "-u", "/etc/gateway-sync/gateway-sync-reconcile.py"]  # -u: unbuffered stdout, so logs stream from the long-running controller
+          env:
+            - name: CONFIG_PATH
+              value: /etc/gateway-sync/config.json
+            - name: WATCH
+              value: "true"
+            - name: DRY_RUN
+              value: {{ $gs.dryRun | quote }}
+            - name: RESYNC_SECONDS
+              value: {{ $gs.resyncSeconds | quote }}
+            - name: DEBOUNCE_SECONDS
+              value: {{ $gs.debounceSeconds | quote }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/gateway-sync
+              readOnly: true
+          livenessProbe:
+            exec:
+              command:
+                - python3
+                - -c
+                - import os,time,sys; sys.exit(0 if time.time()-os.path.getmtime('/tmp/gateway-sync.heartbeat') < {{ mul $gs.resyncSeconds 3 }} else 1)
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            failureThreshold: 3
+          resources:
+            {{- toYaml $gs.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ template "kong.fullname" . }}-gateway-sync
+{{- end }}

@@ -45,6 +45,7 @@ initContainers:
             secretKeyRef:
               name: db
               key: flyway-password
+      # $prep$ quotes the DO block: Kubernetes turns $$ into $ in a command.
       command:
         - /bin/sh
         - -c
@@ -53,7 +54,7 @@ initContainers:
           u="${DB_URL#jdbc:postgresql://}"; hp="${u%%/*}"; db="${u#*/}"; db="${db%%\?*}"
           export PGHOST="${hp%%:*}" PGPORT="${hp##*:}" PGDATABASE="$db"
           psql -v ON_ERROR_STOP=1 -q <<'SQL'
-          DO $$
+          DO $prep$
           BEGIN
             IF to_regclass('public.idgen_schema') IS NOT NULL THEN
               IF EXISTS (SELECT 1 FROM public.idgen_schema WHERE version = '20260427120000' AND success) THEN
@@ -82,7 +83,7 @@ initContainers:
               ALTER TABLE public.idgen_templates RENAME COLUMN "modifiedTime" TO lastmodifiedtime;
               ALTER TABLE public.idgen_templates RENAME COLUMN "modifiedBy"   TO lastmodifiedby;
             END IF;
-          END $$;
+          END $prep$;
           SQL
           echo "idgen_templates ready for idgen's migrations"
   dbMigration:

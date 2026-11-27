@@ -90,11 +90,13 @@ def load_json(p, default=None):
 # --------------------------------------------------------------------------- #
 # scoring — vulnerability posture, 0..10 (10 = clean)
 # --------------------------------------------------------------------------- #
-# Per-finding decay: each finding multiplies the section score by its factor, so
-# the count of every severity moves the needle (a flat "1 critical => ~5 forever"
-# curve was the old problem). A lone critical ~ halves the section; highs and
-# mediums keep discriminating below that. Any finding floors the section at 1.
-DECAY = {"CRITICAL": 0.40, "HIGH": 0.80, "MEDIUM": 0.96, "LOW": 0.985, "secrets": 0.45}
+# Severity weights: a critical dominates (it is the gate-blocker, ~RCE class), a
+# high counts far less, mediums barely, and a hard-coded secret ~ a critical. One
+# critical outweighs ~20 highs, so a section with no criticals always scores well
+# above one with criticals — multiplicative decay used to crush any high-heavy
+# section straight to the floor (0C/8H and 2C/62H both bottomed at 1).
+SEV_WEIGHT = {"CRITICAL": 40.0, "HIGH": 2.0, "MEDIUM": 0.3, "LOW": 0.05, "secrets": 40.0}
+SCORE_K = 25.0            # penalty scale: 10 (clean) -> curve -> asymptotes to 1
 
 # Section weights for the overall score. Code and image are scored independently
 # 0..10, then blended: a clean code section alone lifts the overall to ~CODE_W*10
@@ -104,16 +106,17 @@ CODE_W, IMAGE_W = 0.40, 0.60
 
 
 def section_score(t):
-    """0..10 for one scanned section (10 = clean); None when the section is absent."""
+    """0..10 for one scanned section (10 = clean); None when the section is absent.
+    Weighted severity penalty mapped through 1 + 9/(1 + penalty/K): smooth, so it
+    discriminates across the whole range without collapsing to a floor, and
+    critical-weighted, so e.g. 2C/62H (~2) sits well below 0C/8H (~6)."""
     if not t:
         return None
-    total = sum(t.get(k, 0) for k in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "secrets"))
+    total = sum(t.get(k, 0) for k in SEV_WEIGHT)
     if total == 0:
         return 10.0
-    s = 10.0
-    for k, f in DECAY.items():
-        s *= f ** t.get(k, 0)
-    return max(1.0, s)
+    penalty = sum(t.get(k, 0) * w for k, w in SEV_WEIGHT.items())
+    return 1.0 + 9.0 / (1.0 + penalty / SCORE_K)
 
 
 def score_of(t):

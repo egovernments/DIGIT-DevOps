@@ -7,6 +7,7 @@
 # ==========================================================================
 #  GLOBAL
 # ==========================================================================
+
 global:
   namespace: studio-3-0
   # services run image.tag (not the chart's appVersion), so Kargo image promotions deploy
@@ -20,10 +21,13 @@ global:
 #  CLUSTER-CONFIGS
 #  Shared config, service-host maps and secrets, all in studio-3-0
 # ==========================================================================
+
 cluster-configs:
   chart-version: "3.1.1"
+
   namespaces:
     create: false
+
   configmaps:
     egov-config:
       namespace: [studio-3-0]
@@ -68,6 +72,7 @@ cluster-configs:
         state-level-tenantid-length: "1"
         state-schema-index-position-tenantid: "0"
         is-environment-central-instance: "false"
+
     egov-service-host:
       namespace: [studio-3-0]
       data:
@@ -113,6 +118,7 @@ cluster-configs:
         egov-searcher: "http://not-used-on-digit3:8080/"
         collection-services: "http://not-used-on-digit3:8080/"
         vehicle: "http://not-used-on-digit3:8080/"
+
   secrets:
     db:
       namespace: [studio-3-0]
@@ -130,6 +136,7 @@ cluster-configs:
 #  STUDIO SERVICES (published charts helm.digit.org/digit3/studio)
 #  Image tags = the builds running on digit-lts on 2026-11-26; Kargo promotes newer ones.
 # ==========================================================================
+
 digit-studio:
   chart-version: "3.0.2"
   # The chart's default js-injection loads globalConfigsStudioLTS.js (tenant STUDIO); the
@@ -146,6 +153,7 @@ digit-studio:
       memory: "100Mi"
   image:
     tag: studio-keycloak-ui-f7289b3-2150
+
 public-service:
   chart-version: "3.0.2"
   db-sslmode: disable
@@ -165,9 +173,6 @@ public-service:
   keycloak-client-secret:
     name: studio-keycloak
     key: client-secret
-  ingress:
-    additionalAnnotations: |
-      cert-manager.io/cluster-issuer: letsencrypt-prod
   # SMS and email through DIGIT 3.0 notify (in-cluster). Every saved application goes to the
   # inbox (Postgres store) as an item, on topic inbox-item-upsert.
   extraEnv:
@@ -182,6 +187,7 @@ public-service:
     dbMigration:
       image:
         tag: studio-digit3-migration-57655bf
+
 public-service-init:
   chart-version: "3.0.2"
   db-sslmode: disable
@@ -200,20 +206,15 @@ public-service-init:
   keycloak-client-secret:
     name: studio-keycloak
     key: client-secret
-  ingress:
-    additionalAnnotations: |
-      cert-manager.io/cluster-issuer: letsencrypt-prod
   image:
     tag: studio-digit3-migration-f90dad4
   initContainers:
     dbMigration:
       image:
         tag: studio-digit3-migration-f90dad4
+
 studio-pdf:
   chart-version: "3.0.2"
-  ingress:
-    additionalAnnotations: |
-      cert-manager.io/cluster-issuer: letsencrypt-prod
   resources: |
     limits:
       cpu: "100m"
@@ -223,6 +224,7 @@ studio-pdf:
       memory: "256Mi"
   image:
     tag: studio-digit3-migration-bb034bb
+
 studio-pdf-helper-service:
   chart-version: "3.0.1"
   db-sslmode: disable
@@ -237,9 +239,6 @@ studio-pdf-helper-service:
         value: "http://pdf-v3.studio-3-0:8080"
       - name: PDF_IMAGE_HOSTS
         value: "digit-filestore-bucket.s3.ap-south-1.amazonaws.com,s3.ap-south-1.amazonaws.com"
-  ingress:
-    additionalAnnotations: |
-      cert-manager.io/cluster-issuer: letsencrypt-prod
   resources: |
     limits:
       cpu: "100m"
@@ -253,6 +252,7 @@ studio-pdf-helper-service:
     dbMigration:
       image:
         tag: studio-digit3-migration-1d58fef
+
 studio-calculator-service:
   chart-version: "3.0.0"
   replicas: 1
@@ -262,9 +262,6 @@ studio-calculator-service:
     enabled: true
     livenessProbePath: "/v1/health"
     readinessProbePath: "/v1/health"
-  ingress:
-    additionalAnnotations: |
-      cert-manager.io/cluster-issuer: letsencrypt-prod
   image:
     tag: studio-digit3-migration-8f35f13
   resources: |
@@ -274,6 +271,7 @@ studio-calculator-service:
     requests:
       cpu: "50m"
       memory: "256Mi"
+
 studio-service-request:
   chart-version: "3.0.1"
   mdmsV1SearchEndpoint: "/mdms-v2/v1/_search"
@@ -294,9 +292,6 @@ studio-service-request:
     enabled: true
     livenessProbePath: "/health/liveness"
     readinessProbePath: "/health/readiness"
-  ingress:
-    additionalAnnotations: |
-      cert-manager.io/cluster-issuer: letsencrypt-prod
   image:
     tag: studio-digit3-migration-4474490
   initContainers:

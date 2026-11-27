@@ -80,6 +80,7 @@
   .st-complete{color:var(--good);background:color-mix(in srgb,var(--good) 14%,transparent)}
   .st-pending{color:var(--med);background:color-mix(in srgb,var(--med) 15%,transparent)}
   .st-fail{color:var(--crit);background:color-mix(in srgb,var(--crit) 14%,transparent)}
+  .st-buildfail{color:var(--ink-2);background:color-mix(in srgb,var(--ink-2) 13%,transparent)}
 
   .cbody{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center}
   .gauge{position:relative;width:96px;height:96px;flex:none}
@@ -170,20 +171,24 @@ function scanRow(label,ic,m,blocked){
   const gate=m.gate==="fail"?`<span class="sc" style="color:var(--crit)">blocked</span>`:`<span class="sc">score ${m.score}/10</span>`;
   return `<div class="scan"><div class="sl">${svg(ic)} ${label} ${gate}</div>${svblock(m)}</div>`;
 }
+function buildFailRow(){
+  return `<div class="scan na"><div class="sl">${svg(IMG_IC)} Image</div><div class="nam">Build failed - error unrelated to scan findings; image not built or scanned</div></div>`;
+}
 const svg=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 
 function statusChip(s){
-  if(s.status==="code-failed")return `<span class="stchip st-fail">code failed</span>`;
+  if(s.status==="code-failed")return `<span class="stchip st-fail">code blocked</span>`;
   if(s.status==="image-failed")return `<span class="stchip st-fail">image blocked</span>`;
+  if(s.status==="build-failed")return `<span class="stchip st-buildfail">build failed</span>`;
   if(s.status==="image-pending")return `<span class="stchip st-pending">image pending</span>`;
   return `<span class="stchip st-complete">passing</span>`;
 }
 function card(s){
   const g=gauge(s.score);
   const codeFailed=s.status==="code-failed";
-  const imageBlocked=s.status==="image-failed";
+  const buildFailed=s.status==="build-failed";
   const codeRow=scanRow("Code",CODE_IC,s.code,false);
-  const imageRow=codeFailed?scanRow("",IMG_IC,null,true):scanRow("Image",IMG_IC,s.image,false);
+  const imageRow=codeFailed?scanRow("",IMG_IC,null,true):buildFailed?buildFailRow():scanRow("Image",IMG_IC,s.image,false);
   return `<a class="card" href="${encodeURIComponent(s.service)}/" style="--band:var(${g.band})" data-name="${esc(s.service).toLowerCase()}">
     <div class="ch"><span class="ci">${svg('<path d="M20 7h-9M14 17H5M20 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM10 17a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>')}</span>
       <div class="nm"><b title="${esc(s.service)}">${esc(s.service)}</b><span>${s.commit?("commit "+esc(String(s.commit).slice(0,7))):"—"}</span></div>
@@ -193,17 +198,19 @@ function card(s){
   </a>`;
 }
 function hero(){
-  let C=0,H=0,blocked=0,passing=0;
+  let C=0,H=0,blocked=0,buildfailed=0;
   SERVICES.forEach(s=>{
     C+=((s.code||{}).critical||0)+((s.image||{}).critical||0);
     H+=((s.code||{}).high||0)+((s.image||{}).high||0);
-    if(s.status==="code-failed"||s.status==="image-failed")blocked++;else passing++;
+    if(s.status==="code-failed"||s.status==="image-failed")blocked++;
+    else if(s.status==="build-failed")buildfailed++;
   });
   document.getElementById("hrow").innerHTML=`
     <div class="hstat"><b>${fmt(SERVICES.length)}</b><span>Services</span></div>
     <div class="hstat c"><b>${fmt(C)}</b><span>Critical</span></div>
     <div class="hstat h"><b>${fmt(H)}</b><span>High</span></div>
-    <div class="hstat"><b>${fmt(blocked)}</b><span>Builds blocked</span></div>`;
+    <div class="hstat"><b>${fmt(blocked)}</b><span>Builds blocked</span></div>`+
+    (buildfailed?`<div class="hstat"><b>${fmt(buildfailed)}</b><span>Build failures</span></div>`:"");
 }
 let Q="";
 function draw(){

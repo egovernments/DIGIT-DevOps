@@ -369,6 +369,7 @@ function buildMetaLine(b){
   else bits.push("code —");
   if(b.image)bits.push(`image ${b.image.critical}C/${b.image.high}H`);
   else if(b.status==="code-failed")bits.push("image blocked");
+  else if(b.status==="build-failed")bits.push("build failed");
   else bits.push("image —");
   return bits;
 }
@@ -379,9 +380,11 @@ function initSelector(){
   rmenu.innerHTML=`<div class="msec">Recent builds (${BUILDS.length})</div>
     <div class="runlist">${BUILDS.map(b=>{
       const failed=b.status==="code-failed"||b.status==="image-failed";
+      const bfail=b.status==="build-failed";
+      const tag=failed?'BLOCKED':bfail?'FAILED':'LATEST';
       const bits=buildMetaLine(b);
       return `<div class="rrow ${b.id===state.build?"on":""}" data-run="${escAttr(b.id)}">
-        <div class="t"><b>${fmtRun(b.scanned_at)}</b>${b.latest?`<span class="lt ${failed?'fail':''}">${failed?'BLOCKED':'LATEST'}</span>`:(failed?'<span class="lt fail">BLOCKED</span>':'')}</div>
+        <div class="t"><b>${fmtRun(b.scanned_at)}</b>${b.latest?`<span class="lt ${(failed||bfail)?'fail':''}">${tag}</span>`:((failed||bfail)?`<span class="lt fail">${tag}</span>`:'')}</div>
         <div class="m">${b.commit?`<span class="mono">${esc(String(b.commit).slice(0,7))}</span><span class="dot"></span>`:""}${bits.map((x,i)=>`${i?'<span class="dot"></span>':''}<span>${esc(x)}</span>`).join("")}<span class="dot"></span>score ${b.score}/10</div>
       </div>`;}).join("")||`<div class="rrow n0">No builds yet.</div>`}</div>`;
   document.getElementById("rbtn").classList.toggle("open",state.menu);
@@ -413,6 +416,12 @@ function bannerHtml(){
     return `<div class="banner"><div class="bi">${svg('<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>')}</div>
       <div><h2>Code scan failed - image was never built</h2>
       <p>This build was aborted at the <b>code scan</b> stage because Trivy found a critical vulnerability (or secret) in the source. The image is only built and scanned once the code scan passes, so there is no image report for this build. Fix the code-scan criticals and re-run the pipeline.</p>
+      <div class="ba"><a data-goto="code">View the Code Scan →</a></div></div></div>`;
+  }
+  if(state.kind==="image"&&st==="build-failed"){
+    return `<div class="banner"><div class="bi">${svg('<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>')}</div>
+      <div><h2>Build failed - image was never built</h2>
+      <p>This build errored during the <b>Docker build or push</b> stage - not because of a scan finding. The code scan passed, but the image was never built, so there is no image report for this build. Check the build job logs, fix the error and re-run the pipeline.</p>
       <div class="ba"><a data-goto="code">View the Code Scan →</a></div></div></div>`;
   }
   if(state.kind==="image"&&st==="image-pending"){

@@ -132,6 +132,10 @@ jobs:
     secrets:
       DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
       DOCKER_ACCESS_TOKEN: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+      # Optional: lets the build push the gh-pages dashboard as the GitHub App
+      # (on its ruleset bypass) where github-actions[bot] is blocked. Unset → GITHUB_TOKEN.
+      build_app_client_id: ${{ secrets.BUILD_APP_CLIENT_ID }}
+      build_app_private_key: ${{ secrets.BUILD_APP_PRIVATE_KEY }}
 
   # Deliver: on a develop/master build, promote each built service to its env's Kargo
   # stage. No-op unless KARGO_STAGES is set. Auto-promotes to DEV (unified-dev).
@@ -165,9 +169,24 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           ref: ${{ inputs.build_branch }}
+      # Push the dashboard home as the GitHub App when creds are set (ruleset
+      # bypass); no creds → steps skip and GITHUB_TOKEN is used. ${PK:+yes} never
+      # echoes the key.
+      - name: Detect Pages app creds
+        id: pages_creds
+        env:
+          PK: ${{ secrets.BUILD_APP_PRIVATE_KEY }}
+        run: echo "have=${PK:+yes}" >> "$GITHUB_OUTPUT"
+      - name: Mint Pages push token
+        id: pages_token
+        if: steps.pages_creds.outputs.have == 'yes'
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.BUILD_APP_CLIENT_ID }}
+          private-key: ${{ secrets.BUILD_APP_PRIVATE_KEY }}
       - name: Refresh dashboard home + roll-up
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.pages_token.outputs.token || github.token }}
           RESULT: ${{ needs.build.result }}
           SERVICES: ${{ needs.resolve.outputs.services }}
           BRANCH: ${{ inputs.build_branch }}

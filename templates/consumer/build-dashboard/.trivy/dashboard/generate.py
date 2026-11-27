@@ -221,9 +221,11 @@ STATUS = {
 def resolve_status(build):
     code, image = build.get("code"), build.get("image")
     if code and code.get("gate") == "fail":
-        return "code-failed"          # pipeline aborted before image build
+        return "code-failed"          # scan block: critical in the source
     if image and image.get("gate") == "fail":
-        return "image-failed"         # image scan aborted the push
+        return "image-failed"         # scan block: critical in the image
+    if build.get("build_failed"):
+        return "build-failed"         # build errored for a non-scan reason
     if code and image:
         return "complete"
     if code and not image:
@@ -303,6 +305,42 @@ def cmd_scan(args):
           f"image={(ims['totals']['CRITICAL'] if ims else '-')}C/{ims['totals']['HIGH'] if ims else '-'}H")
 
 
+def cmd_buildfail(args):
+    """Mark a build as failed for a non-scan reason (Docker build / push error),
+    so the card reads 'build failed' instead of the misleading 'image pending'.
+    The scan gates stay authoritative: a gate block is recorded by `scan` and
+    is never overwritten here."""
+    svc_dir = os.path.join(args.site, args.service)
+    builds_dir = os.path.join(svc_dir, "data", "builds")
+    os.makedirs(builds_dir, exist_ok=True)
+    bpath = os.path.join(builds_dir, args.build_id + ".json")
+
+    build = load_json(bpath) or {
+        "build_id": args.build_id, "service": args.service,
+        "meta": {"service": args.service, "build_id": args.build_id},
+        "code": None, "image": None}
+    build["build_failed"] = True
+    m = build["meta"]
+    m.update({"service": args.service, "build_id": args.build_id,
+              "commit": args.commit or m.get("commit", ""),
+              "branch": args.branch or m.get("branch", ""),
+              "actor": args.actor or m.get("actor", ""),
+              "repo_url": args.repo_url or m.get("repo_url", ""),
+              "run_url": args.run_url or m.get("run_url", ""),
+              "scanned_at": m.get("scanned_at") or now_iso(), "generated_at": now_iso()})
+    build["status"] = resolve_status(build)
+    recompute(build)
+    json.dump(build, open(bpath, "w"), ensure_ascii=False)
+
+    builds = update_manifest(builds_dir, manifest_entry(build))
+    for r in builds:
+        r["latest"] = (r["id"] == builds[0]["id"])
+    ensure_logo(args.site)
+    write_service_page(args.site, args.service, builds[:MAX_BUILDS], args.build_id)
+    write_service_summary(args.site, args.service, build, len(builds))
+    print(f"buildfail {args.service} build={args.build_id} status={build['status']}")
+
+
 def reskin_service_page(site, service):
     """Re-render a service's page from its stored manifest using the CURRENT
     template, so a template change reaches every service on the next build — not
@@ -353,11 +391,21 @@ def main():
     s.add_argument("--gate", default="pass", choices=["pass", "fail"],
                    help="fail = this scan found a blocking critical and aborted the run")
 
+    b = sub.add_parser("buildfail", help="mark a build as failed for a non-scan (build/push) reason")
+    b.add_argument("--service", required=True)
+    b.add_argument("--site", required=True, help="site root (…/security/trivy)")
+    b.add_argument("--build-id", required=True, dest="build_id")
+    b.add_argument("--commit", default="")
+    b.add_argument("--branch", default="")
+    b.add_argument("--actor", default="")
+    b.add_argument("--repo-url", default="", dest="repo_url")
+    b.add_argument("--run-url", default="", dest="run_url")
+
     h = sub.add_parser("home", help="rebuild the landing page from all service summaries")
     h.add_argument("--site", required=True)
 
     args = ap.parse_args()
-    {"scan": cmd_scan, "home": cmd_home}[args.mode](args)
+    {"scan": cmd_scan, "buildfail": cmd_buildfail, "home": cmd_home}[args.mode](args)
 
 
 if __name__ == "__main__":

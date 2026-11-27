@@ -4,7 +4,9 @@
 #
 # Usage:
 #   publish.sh <kind> <service> <build-id> <report.json> <gate>
-#     kind     : code | image | home
+#     kind     : code | image | buildfail | home
+#                buildfail marks a build that errored for a non-scan reason
+#                (Docker build/push failure) — no report JSON, no gate.
 #     service  : service / image name (becomes the URL slug)   [not used for home]
 #     build-id : unique run id (github.run_id)                  [not used for home]
 #     report   : raw Trivy JSON for this scan                   [not used for home]
@@ -48,7 +50,12 @@ for attempt in 1 2 3 4 5 6 7 8; do
 
   SITE="$WORK/ghpages/security/trivy"
   # generator progress must go to stderr so stdout carries only the final URL
-  if [ "$KIND" != "home" ]; then
+  if [ "$KIND" = "buildfail" ]; then
+    python3 "$DASH_DIR/generate.py" buildfail \
+      --service "$SERVICE" --site "$SITE" \
+      --build-id "$BUILD" --commit "${GITHUB_SHA:-}" --branch "${BRANCH:-}" \
+      --actor "${GITHUB_ACTOR:-}" --repo-url "$REPO_URL" --run-url "$RUN_URL" >&2
+  elif [ "$KIND" != "home" ]; then
     python3 "$DASH_DIR/generate.py" scan \
       --service "$SERVICE" --kind "$KIND" --input "$REPORT" --site "$SITE" \
       --build-id "$BUILD" --commit "${GITHUB_SHA:-}" --branch "${BRANCH:-}" \
@@ -61,7 +68,9 @@ for attempt in 1 2 3 4 5 6 7 8; do
     python3 "$DASH_DIR/generate.py" home --site "$SITE" >&2
   fi
 
-  if [ "$KIND" = "home" ]; then MSG="trivy: refresh dashboard home"; else MSG="trivy: ${KIND} scan for ${SERVICE} (build ${BUILD})"; fi
+  if [ "$KIND" = "home" ]; then MSG="trivy: refresh dashboard home";
+  elif [ "$KIND" = "buildfail" ]; then MSG="trivy: build failed for ${SERVICE} (build ${BUILD})";
+  else MSG="trivy: ${KIND} scan for ${SERVICE} (build ${BUILD})"; fi
   ( cd "$WORK/ghpages"
     touch .nojekyll
     git add -A

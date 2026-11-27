@@ -463,10 +463,28 @@ kong:  # API gateway (Kong)
     kongAdminUrl: http://kong-kong-admin.core-3-0:8001
     keycloakBaseUrl: http://keycloak.core-3-0:8080/keycloak
     clientId: auth-server
+    # Ingresses back onto a local Service kong-proxy (common chart default), but this Kong's
+    # proxy is kong-kong-proxy. gateway-sync creates the kong-proxy ExternalName bridge in each
+    # watched namespace except its own; core-3-0 gets it from extraObjects below.
+    ensureGatewayProxy: true
+    gatewayProxyUpstream: kong-kong-proxy.core-3-0.svc.cluster.local
+    gatewayProxyPort: 8000
     namespaces:
       - core-3-0
       - hcm-3-0
       - studio-3-0
+  extraObjects:
+    - apiVersion: v1
+      kind: Service
+      metadata:
+        name: kong-proxy
+        namespace: core-3-0
+      spec:
+        type: ExternalName
+        externalName: kong-kong-proxy.core-3-0.svc.cluster.local
+        ports:
+          - name: proxy
+            port: 8000
 
 # ==========================================================================
 #  BACKBONE

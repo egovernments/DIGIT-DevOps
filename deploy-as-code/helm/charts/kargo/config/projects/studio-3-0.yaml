@@ -1,0 +1,138 @@
+# studio-3-0 Kargo pipeline: DIGIT Studio on DIGIT 3.0 (dev -> qa -> uat).
+# Reuses the shared backbone (backbone-3-0 postgres + kafka) and core-3-0's kong + keycloak.
+# Runs beside DIGIT Studio on DIGIT 2.9 (namespace studio, project unified-studio); the two share
+# no namespace, database or Kafka.
+#
+# inbox and pdf-v3 are not here yet: they have no published chart on helm.digit.org. Each is
+# added as a service once its chart is released.
+kargo:
+  project: studio-3-0
+  registry: docker.io/egovio
+  argocdAppPrefix: digit3-
+  argocd:
+    project: studio-3-0-project
+    namespace: studio-3-0
+    namespaces: [studio-3-0]
+    layout: common
+  envFileWrite: merge
+  git:
+    repoURL: https://github.com/egovernments/DIGIT-DevOps.git
+  chartRepo: https://helm.digit.org/digit3/studio
+  chartSemver: "^3.0.0"
+  # 3.0 builds: the migration branch until it is merged, then develop/master builds.
+  allowTags: '^(studio-digit3-migration|develop|master)-[0-9a-f]{7,}$'
+  verify:
+    enabled: true
+    namespace: studio-3-0
+
+  services:
+    - name: digit-studio
+      chart: digit-studio
+      # UI builds carry a build number: studio-keycloak-ui-<sha>-<n>
+      extraAllowTags: '^studio-keycloak-ui-[0-9a-f]{7,}-[0-9]+$'
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 30m0s
+    - name: public-service
+      chart: public-service
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 30m0s
+    - name: public-service-init
+      chart: public-service-init
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 30m0s
+    - name: studio-calculator-service
+      chart: studio-calculator-service
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 30m0s
+    - name: studio-pdf
+      chart: studio-pdf
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 30m0s
+    - name: studio-pdf-helper-service
+      chart: studio-pdf-helper-service
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 30m0s
+    - name: studio-service-request
+      chart: studio-service-request
+      dbMigration: true
+      freightCreationPolicy: Manual
+      imageSelectionStrategy: NewestBuild
+      cacheByTag: true
+      discoveryLimit: 20
+      interval: 30m0s
+    # Chart-only: the module's ConfigMaps/Secrets, rendered into studio-3-0.
+    - name: cluster-configs
+      image: false
+      chart: cluster-configs
+      chartRepo: https://helm.digit.org/digit3/cluster-configs
+      valuesKey: cluster-configs
+      deploy:
+        layout: configs
+        app: studio-3-0-cluster-configs
+        releaseName: studio-3-0-cluster-configs
+      freightCreationPolicy: Manual
+      discoveryLimit: 20
+      interval: 5m0s
+
+  stages:
+    - name: dev
+      color: "#3BA9C2"
+      branch: unified-dev
+      envFile: deploy-as-code/helm/environments/digit-3.0/studio-3.0.yaml
+      autoPromotion: false
+      verifyKubeconfigSecret: verify-kubeconfig-dev
+    - name: qa
+      color: "#D64550"
+      from: dev
+      branch: unified-qa
+      envFile: deploy-as-code/helm/environments/digit-3.0/studio-3.0.yaml
+      autoPromotion: false
+    - name: uat
+      color: "#F2C230"
+      from: qa
+      branch: unified-uat
+      envFile: deploy-as-code/helm/environments/digit-3.0/studio-3.0.yaml
+      autoPromotion: false
+
+  # Same GitHub teams as DIGIT Studio on 2.9 (config/projects/unified-studio.yaml).
+  teams:
+    - name: devops
+      role: admin
+      groups: [egovernments:micro-service-devops]
+    - name: studio-devs
+      role: viewer
+      groups: [egovernments:unified-studio-dev]
+    - name: studio-dev-promoters
+      role: promoter
+      promoteStages: [dev]
+      manageFreight: true
+      groups: [egovernments:unified-studio-dev-promote]
+    - name: studio-qa-promoters
+      role: promoter
+      promoteStages: [qa]
+      groups: [egovernments:unified-studio-qa-promote]
+    - name: studio-uat-promoters
+      role: promoter
+      promoteStages: [uat]
+      groups: [egovernments:unified-studio-uat-promote]

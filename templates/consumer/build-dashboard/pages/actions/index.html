@@ -125,6 +125,37 @@
   select:disabled{opacity:.5;cursor:not-allowed}
   .hint{font-size:11.5px;color:var(--faint);margin-top:6px}
 
+  /* searchable branch combobox — the native #selBranch stays hidden as the source of truth */
+  .combo{position:relative}
+  .combo-btn{width:100%;display:flex;align-items:center;gap:8px;text-align:left;background:var(--inset);color:var(--fg);
+    border:1px solid var(--border-strong);border-radius:var(--r-sm);padding:11px 36px 11px 12px;font-size:14px;cursor:pointer;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235a6678' stroke-width='2.2' stroke-linecap='round'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat:no-repeat;background-position:right 11px center}
+  .combo-btn:disabled{opacity:.5;cursor:not-allowed}
+  .combo-btn[aria-expanded="true"]{border-color:var(--accent)}
+  .combo-val{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:13px}
+  .combo-val.muted{color:var(--faint);font-family:var(--sans);font-size:14px}
+  .combo-pop{position:absolute;z-index:30;top:calc(100% + 6px);left:0;right:0;background:var(--surface);
+    border:1px solid var(--border-strong);border-radius:var(--r-sm);box-shadow:var(--shadow);overflow:hidden}
+  .combo-search{display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid var(--border)}
+  .combo-search svg{width:15px;height:15px;flex:none;fill:none;stroke:var(--faint);stroke-width:2;stroke-linecap:round}
+  .combo-search input{flex:1;min-width:0;border:0;background:none;padding:0;color:var(--fg);font-family:var(--sans);font-size:13.5px}
+  .combo-search input:focus{outline:none}
+  .combo-list{max-height:280px;overflow:auto;padding:5px}
+  .combo-opt{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;cursor:pointer;
+    font-family:var(--mono);font-size:12.5px;color:var(--fg)}
+  .combo-opt .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .combo-opt .df{font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;
+    color:var(--faint);background:var(--surface-2);border-radius:999px;padding:1px 7px;flex:none}
+  .combo-opt .pin{margin-left:auto;flex:none;display:grid;place-items:center;color:var(--accent);opacity:.85}
+  .combo-opt .pin svg{width:13px;height:13px;display:block;fill:currentColor}
+  .combo-opt.pinned{color:var(--accent)}
+  .combo-opt.pinned .nm{font-weight:600}
+  .combo-opt.active,.combo-opt:hover{background:var(--accent-weak)}
+  .combo-opt[aria-selected="true"]{background:var(--accent-weak)}
+  .combo-sep{height:1px;background:var(--border);margin:5px 4px}
+  .combo-empty{padding:16px 10px;text-align:center;color:var(--faint);font-size:12.5px}
+
   .resolved{background:var(--inset);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-top:4px}
   .resolved .empty{color:var(--faint);font-size:13px;text-align:center;padding:10px 0}
   .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px;margin:0}
@@ -284,8 +315,20 @@
         <div class="hd"><h2>Trigger a build</h2><span class="tag">workflow_dispatch</span></div>
         <div class="bd">
           <div class="field">
-            <label class="lbl" for="selBranch"><span class="step">1</span>Branch</label>
-            <select id="selBranch"></select>
+            <label class="lbl" id="branchLbl"><span class="step">1</span>Branch</label>
+            <select id="selBranch" hidden></select>
+            <div class="combo" id="branchCombo">
+              <button type="button" class="combo-btn" id="branchBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="branchLbl branchVal" disabled>
+                <span class="combo-val muted" id="branchVal">Select branch…</span>
+              </button>
+              <div class="combo-pop" id="branchPop" hidden>
+                <div class="combo-search">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                  <input type="text" id="branchSearch" placeholder="Search branches…" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="combo-list" id="branchList" role="listbox" aria-label="Branches"></div>
+              </div>
+            </div>
             <div class="hint">Modules and services are read live from this branch's <span class="mono">build/build-config.yml</span>.</div>
           </div>
 
@@ -532,8 +575,77 @@ function fill(sel, items, placeholder){
   items.forEach(i => sel.appendChild(optEl(i.v, i.t)));
 }
 
+/* ---- searchable branch combobox over the hidden #selBranch (its value + change
+   event stay the source of truth; this only renders a nicer, filterable picker
+   with master + develop pinned on top). ---- */
+const bBtn=$("branchBtn"), bVal=$("branchVal"), bPop=$("branchPop"), bSearch=$("branchSearch"), bList=$("branchList");
+let B_ALL=[], B_PIN=[], bRows=[], bActive=-1;
+const PIN_SVG='<span class="pin" aria-label="pinned"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2h6a1 1 0 0 1 .7 1.7L14 5.4V10l3 2.3a1 1 0 0 1-.6 1.8H13v6l-1 2-1-2v-6H7.6a1 1 0 0 1-.6-1.8L10 10V5.4L8.3 3.7A1 1 0 0 1 9 2z"/></svg></span>';
+function orderBranches(all){
+  const pins=[]; [DEFAULT_BRANCH,"develop"].forEach(v=>{ if(v && all.includes(v) && !pins.includes(v)) pins.push(v); });
+  const rest = all.filter(b=>!pins.includes(b)).sort((a,b)=>a.localeCompare(b));
+  return {pins, ordered: pins.concat(rest)};
+}
+function branchLoading(){ selB.disabled=true; bBtn.disabled=true; bVal.textContent="Loading branches…"; bVal.classList.add("muted"); }
+function branchFailed(){ fill(selB,[],"Failed to load branches"); bBtn.disabled=true; bVal.textContent="Failed to load branches"; bVal.classList.add("muted"); }
+function setBranches(all){
+  const {pins, ordered}=orderBranches(all);
+  B_PIN=pins; B_ALL=ordered;
+  fill(selB, ordered.map(b => ({v:b, t: b===DEFAULT_BRANCH ? b+"  (default)" : b})), "Select branch…");
+  selB.disabled=false; bBtn.disabled=false;
+  syncBranchLabel(); renderBranchList("");
+}
+function syncBranchLabel(){
+  const v=selB.value;
+  if(v){ bVal.textContent=v+(v===DEFAULT_BRANCH?"  (default)":""); bVal.classList.remove("muted"); }
+  else { bVal.textContent="Select branch…"; bVal.classList.add("muted"); }
+}
+function renderBranchList(q){
+  const needle=(q||"").trim().toLowerCase();
+  bRows=B_ALL.filter(b=> !needle || b.toLowerCase().includes(needle));
+  if(!bRows.length){ bList.innerHTML='<div class="combo-empty">No branch matches "'+esc(q)+'"</div>'; bActive=-1; return; }
+  const cur=bRows.indexOf(selB.value); bActive=cur>=0?cur:0;
+  let html="", sepDone=false;
+  bRows.forEach((b,i)=>{
+    const isPin=B_PIN.includes(b);
+    if(!isPin && !sepDone && B_PIN.length && !needle){ html+='<div class="combo-sep"></div>'; sepDone=true; }
+    const sel=b===selB.value?' aria-selected="true"':'';
+    const df=b===DEFAULT_BRANCH?'<span class="df">default</span>':'';
+    html+='<div class="combo-opt'+(isPin?' pinned':'')+(i===bActive?' active':'')+'" role="option" data-i="'+i+'"'+sel+'>'
+        + '<span class="nm">'+esc(b)+'</span>'+df+(isPin?PIN_SVG:'')+'</div>';
+  });
+  bList.innerHTML=html; scrollActive();
+}
+function scrollActive(){ const el=bList.querySelector('.combo-opt.active'); if(el) el.scrollIntoView({block:"nearest"}); }
+function setActive(i){
+  const rows=[...bList.querySelectorAll('.combo-opt')]; if(!rows.length) return;
+  bActive=(i+rows.length)%rows.length;
+  rows.forEach((r,idx)=> r.classList.toggle('active', idx===bActive)); scrollActive();
+}
+function openBranch(){
+  if(bBtn.disabled) return;
+  bPop.hidden=false; bBtn.setAttribute("aria-expanded","true");
+  bSearch.value=""; renderBranchList(""); setTimeout(()=>bSearch.focus(),0);
+}
+function closeBranch(){ bPop.hidden=true; bBtn.setAttribute("aria-expanded","false"); }
+function pickBranch(b){
+  if(b==null) return;
+  selB.value=b; syncBranchLabel(); closeBranch();
+  selB.dispatchEvent(new Event("change"));
+}
+bBtn.addEventListener("click", ()=>{ bPop.hidden?openBranch():closeBranch(); });
+bSearch.addEventListener("input", ()=> renderBranchList(bSearch.value));
+bSearch.addEventListener("keydown", e=>{
+  if(e.key==="ArrowDown"){ e.preventDefault(); setActive(bActive+1); }
+  else if(e.key==="ArrowUp"){ e.preventDefault(); setActive(bActive-1); }
+  else if(e.key==="Enter"){ e.preventDefault(); if(bActive>=0 && bRows[bActive]!=null) pickBranch(bRows[bActive]); }
+  else if(e.key==="Escape"){ e.preventDefault(); closeBranch(); bBtn.focus(); }
+});
+bList.addEventListener("click", e=>{ const o=e.target.closest(".combo-opt"); if(!o) return; const i=+o.dataset.i; if(bRows[i]!=null) pickBranch(bRows[i]); });
+document.addEventListener("click", e=>{ if(!e.target.closest("#branchCombo")) closeBranch(); });
+
 async function loadBranches(){
-  fill(selB, [], "Loading branches…"); selB.disabled = true;
+  branchLoading();
   try{
     let page=1, all=[], more=true;
     while(more && page<=5){
@@ -543,11 +655,9 @@ async function loadBranches(){
       all = all.concat(arr.map(b => b.name));
       more = arr.length === 100; page++;
     }
-    all.sort((a,b)=> a===DEFAULT_BRANCH ? -1 : b===DEFAULT_BRANCH ? 1 : a.localeCompare(b));
-    selB.disabled = false;
-    fill(selB, all.map(b => ({v:b, t: b===DEFAULT_BRANCH ? b+"  (default)" : b})), "Select branch…");
+    setBranches(all);                 // pins default + develop on top, builds the combobox
     await restoreSelection(all);
-  }catch(e){ fill(selB, [], "Failed to load branches"); }
+  }catch(e){ branchFailed(); }
 }
 
 /* After connect/refresh, re-select the last-used branch/module/service (or the default
@@ -558,7 +668,7 @@ async function restoreSelection(branches){
   const branch = (saved.branch && branches.includes(saved.branch)) ? saved.branch
                : (branches.includes(DEFAULT_BRANCH) ? DEFAULT_BRANCH : "");
   if(!branch) return;
-  selB.value = branch;
+  selB.value = branch; syncBranchLabel();
   await loadConfig(branch);          // populate modules
   // Restore an in-flight queued dispatch so a refresh keeps the row until the run lists.
   try{ const p=JSON.parse(sessionStorage.getItem("cb-pending")||"null");

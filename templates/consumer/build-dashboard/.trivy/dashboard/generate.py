@@ -90,25 +90,50 @@ def load_json(p, default=None):
 # --------------------------------------------------------------------------- #
 # scoring — vulnerability posture, 0..10 (10 = clean)
 # --------------------------------------------------------------------------- #
-def vuln_penalty(t):
-    return (t.get("CRITICAL", 0) * 8 + t.get("HIGH", 0) * 2 + t.get("MEDIUM", 0) * 0.4
-            + t.get("LOW", 0) * 0.1 + t.get("secrets", 0) * 5)
+# Per-finding decay: each finding multiplies the section score by its factor, so
+# the count of every severity moves the needle (a flat "1 critical => ~5 forever"
+# curve was the old problem). A lone critical ~ halves the section; highs and
+# mediums keep discriminating below that. Any finding floors the section at 1.
+DECAY = {"CRITICAL": 0.40, "HIGH": 0.80, "MEDIUM": 0.96, "LOW": 0.985, "secrets": 0.45}
+
+# Section weights for the overall score. Code and image are scored independently
+# 0..10, then blended: a clean code section alone lifts the overall to ~CODE_W*10
+# (so "no code issues" already clears ~4), image weighted a little higher as the
+# runtime artifact that actually ships. Both clean => 10. Tunable here.
+CODE_W, IMAGE_W = 0.40, 0.60
+
+
+def section_score(t):
+    """0..10 for one scanned section (10 = clean); None when the section is absent."""
+    if not t:
+        return None
+    total = sum(t.get(k, 0) for k in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "secrets"))
+    if total == 0:
+        return 10.0
+    s = 10.0
+    for k, f in DECAY.items():
+        s *= f ** t.get(k, 0)
+    return max(1.0, s)
 
 
 def score_of(t):
-    """Severity-weighted score for a single artifact (image or repo)."""
-    if vuln_penalty(t) == 0:
-        return 10
-    K = 12.0  # 0->10, 1 crit->~6, 5 crit->~2, heavy->1
-    return max(1, min(10, round(10 / (1 + vuln_penalty(t) / K))))
+    """Severity-weighted score for a single artifact (image or repo), 1..10."""
+    s = section_score(t)
+    return 10 if s is None else int(round(s))
 
 
 def combined_score(code_t, image_t):
-    """One posture score for the whole service (code + image combined)."""
-    p = vuln_penalty(code_t or {}) + vuln_penalty(image_t or {})
-    if p == 0:
+    """One posture score for the whole service: a weighted blend of the code and
+    image section scores. When only one section was scanned, that section stands
+    alone (the overall is just its score)."""
+    cs, ims = section_score(code_t), section_score(image_t)
+    if cs is None and ims is None:
         return 10
-    return max(1, min(10, round(10 / (1 + p / 12.0))))
+    if cs is None:
+        return int(round(ims))
+    if ims is None:
+        return int(round(cs))
+    return int(round(CODE_W * cs + IMAGE_W * ims))
 
 
 # --------------------------------------------------------------------------- #

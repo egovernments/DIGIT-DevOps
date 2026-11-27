@@ -86,6 +86,12 @@ on:
         required: true
       DOCKER_ACCESS_TOKEN:
         required: true
+      build_app_client_id:
+        description: "GitHub App client id (Iv23…) used to push the gh-pages dashboard when repo rulesets block github-actions[bot]; optional — falls back to GITHUB_TOKEN"
+        required: false
+      build_app_private_key:
+        description: "GitHub App private key (PEM) paired with build_app_client_id"
+        required: false
     outputs:
       docker_image:
         description: "Pushed application image reference"
@@ -204,9 +210,26 @@ jobs:
           exit-code: '0'
           hide-progress: true
 
+      # Mint a GitHub App token for the gh-pages push when the caller supplies
+      # App creds — needed where repo rulesets block github-actions[bot] from
+      # pushing the dashboard branch. No creds → steps skip, push falls back to
+      # GITHUB_TOKEN. The ${PK:+yes} check never echoes the key itself.
+      - name: Detect Pages app creds
+        id: pages_creds
+        env:
+          PK: ${{ secrets.build_app_private_key }}
+        run: echo "have=${PK:+yes}" >> "$GITHUB_OUTPUT"
+      - name: Mint Pages push token
+        id: pages_token
+        if: steps.pages_creds.outputs.have == 'yes'
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.build_app_client_id }}
+          private-key: ${{ secrets.build_app_private_key }}
+
       - name: Evaluate gate & publish dashboard
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.pages_token.outputs.token || secrets.GITHUB_TOKEN }}
           BRANCH: ${{ inputs.build_branch || github.ref_name }}
           PUBLISH_HOME: ${{ inputs.publish_home && '1' || '0' }}
           PUBLISH_DASHBOARD: ${{ inputs.publish_dashboard && '1' || '0' }}
@@ -339,10 +362,28 @@ jobs:
           exit-code: '0'
           hide-progress: true
 
-      - name: Evaluate image gate & publish dashboard
+      # Mint a GitHub App token for the gh-pages push when the caller supplies
+      # App creds (repo rulesets may block github-actions[bot]); no creds → skip
+      # and fall back to GITHUB_TOKEN. ${PK:+yes} never echoes the key.
+      - name: Detect Pages app creds
+        id: pages_creds
         if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.do_scan == 'true' }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PK: ${{ secrets.build_app_private_key }}
+        run: echo "have=${PK:+yes}" >> "$GITHUB_OUTPUT"
+      - name: Mint Pages push token
+        id: pages_token
+        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.do_scan == 'true' && steps.pages_creds.outputs.have == 'yes' }}
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.build_app_client_id }}
+          private-key: ${{ secrets.build_app_private_key }}
+
+      - name: Evaluate image gate & publish dashboard
+        id: image_gate
+        if: ${{ inputs.enable_trivy && needs.resolve-config.outputs.do_scan == 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.pages_token.outputs.token || secrets.GITHUB_TOKEN }}
           BRANCH: ${{ inputs.build_branch || github.ref_name }}
           PUBLISH_HOME: ${{ inputs.publish_home && '1' || '0' }}
           PUBLISH_DASHBOARD: ${{ inputs.publish_dashboard && '1' || '0' }}
@@ -488,3 +529,19 @@ jobs:
               echo "- Build-only (push disabled)."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # If the job failed for a non-scan reason (Docker build or push error), mark
+      # the dashboard build "build-failed" so the card reads a true build error, not
+      # "image pending". Skipped when the image gate itself blocked (that is already
+      # recorded as "image blocked" by the gate step above).
+      - name: Flag build failure on dashboard
+        if: ${{ failure() && inputs.enable_trivy && inputs.publish_dashboard && needs.resolve-config.outputs.do_scan == 'true' && steps.image_gate.outcome != 'failure' }}
+        env:
+          GH_TOKEN: ${{ steps.pages_token.outputs.token || secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ inputs.build_branch || github.ref_name }}
+          PUBLISH_HOME: ${{ inputs.publish_home && '1' || '0' }}
+        run: |
+          set -euo pipefail
+          SERVICE="${{ needs.resolve-config.outputs.image_name }}"
+          bash .trivy/dashboard/publish.sh buildfail "$SERVICE" "${{ github.run_id }}" >&2 \
+            || echo "::warning::could not flag build failure on the dashboard"

@@ -213,6 +213,11 @@ cluster-configs:
                 notification: "http://notification:8080/"
                 notify: "http://notify:8080/"
                 account: "http://account:8080/"
+                # Used by employee-onboarding (same keys and values as test-lts)
+                individual-java: "http://individual.egov:8080/"
+                employee-java: "http://employee.egov:8080/"
+                boundary-java: "http://boundary.egov:8080/"
+                idgen-java: "http://idgen.egov:8080/"
 employee:
   dashboard-url: "https://dashboard-pbuat.egovernments.org/s/w---s/app/kibana#/dashboard/4e687470-f3c7-11e8-8d09-b151e2b1cf8e?embed=true&_g=(refreshInterval%3A(pause%3A!f%2Cvalue%3A300000)%2Ctime%3A(from%3Anow-15m%2Cmode%3Aquick%2Cto%3Anow))"
   custom-js-injection: |
@@ -491,6 +496,38 @@ url-shortener:
       image:
         tag: master-00fdef3
   tracing-export-enabled: "true"
+
+employee-onboarding:
+  image:
+    repository: "egovio/employee-onboarding"
+    tag: master-5657b59
+  initContainers:
+    dbMigration:
+      image:
+        repository: "egovio/employee-onboarding-db"
+        tag: master-5657b59
+  tracing-export-enabled: "true"
+  extraEnv:
+    app: |
+      - name: ACCOUNTS_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: account
+      - name: LOCALIZATION_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: localization
+  # The chart requests 500m CPU; this node has little left to schedule
+  # (most services request far more than they use). Limits as in the chart.
+  resources: |
+    requests:
+      cpu: "100m"
+      memory: "768Mi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
 
 workflow:
   image:

@@ -1,0 +1,314 @@
+# employee-onboarding -- from the published chart helm.digit.org/digit3/core
+# employee-onboarding 3.1.0 that test-lts runs, on this repo's common chart.
+# Changes: Kong route through kong-kong-proxy (ingress.zuul) and the gateway/*
+# annotations gateway-sync reads, as for the other core services.
+
+# ── Labels ──────────────────────────────────────────────────────────────────
+labels:
+  app: "employee-onboarding"
+  group: "core"
+
+# ── Namespace ─────────────────────────────────────────────────────────────────
+namespace: egov
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+# Exposes https://<domain>/employee-onboarding/* ; the app serves on
+# SERVER_CONTEXT_PATH (/employee-onboarding), so the path passes through unchanged.
+ingress:
+  namespace: egov
+  enabled: true
+  zuul: true
+  context: "employee-onboarding"
+
+# ── Gateway-sync annotations ──────────────────────────────────────────────────
+# Declarative Kong routing, consumed by the gateway-sync reconciler in gateway-kong.
+# The main route is protected (full auth stack), as on test-lts.
+service:
+  additionalAnnotations: |
+    gateway/route-path: employee-onboarding
+    gateway/route-auth: protected
+
+# ── Init containers (flyway DB migration) ─────────────────────────────────────
+initContainers:
+  dbMigration:
+    enabled: true
+    schemaTable: "employee_onboarding_schema"
+    image:
+      repository: "employee-onboarding-db"
+      # = appVersion. Used in global.mode dev, where the common default would be "latest"
+      # (not published for this image). Keep it equal to appVersion.
+      tag: "master-7859366"
+    env: |
+        - name: "DB_URL"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: db-url
+        - name: "SCHEMA_TABLE"
+          value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+        - name: "FLYWAY_USER"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-username
+        - name: "FLYWAY_PASSWORD"
+          valueFrom:
+            secretKeyRef:
+              name: db
+              key: flyway-password
+        - name: "FLYWAY_LOCATIONS"
+          valueFrom:
+            configMapKeyRef:
+              name: egov-config
+              key: flyway-locations
+        - name: FLYWAY_SCHEMAS
+          value: {{ .Values.dbSchema | default "public" | quote }}
+        - name: FLYWAY_DEFAULT_SCHEMA
+          value: {{ .Values.dbSchema | default "public" | quote }}
+
+# ── Container ─────────────────────────────────────────────────────────────────
+image:
+  repository: "employee-onboarding"
+replicas: 1
+# Reads its datasource via DB_HOST/DB_USER (not SPRING_DATASOURCE), so appType is
+# blank and the common chart does not inject the Spring env block.
+appType: ""
+tracing-enabled: false
+# span export switch (MANAGEMENT_TRACING_EXPORT_ENABLED); override per env
+tracing-export-enabled: "true"
+heap: "-XX:InitialRAMPercentage=50.0 -XX:MaxRAMPercentage=75.0"
+
+# live exposes no health route; probes stay off until one is added
+healthChecks:
+  enabled: false
+  livenessProbePath: "/health"
+  readinessProbePath: "/health"
+
+resources: |
+  requests:
+    cpu: "500m"
+    memory: "768Mi"
+  limits:
+    cpu: "1"
+    memory: "2Gi"
+
+# ── App config (overridable per env) ──────────────────────────────────────────
+context-path: ""  # blank -> /<ingress.context>
+dbSchema: "public"
+db-host: "postgres.egov"
+db-port: "5432"
+db-name: "postgres"
+db-ssl-mode: "disable"
+
+keycloak-base-url: "http://keycloak.keycloak.svc.cluster.local:8080/keycloak/"
+
+individual-path: "individuals/v3/individuals"
+individual-config-path: "individuals/v3/configs"
+employee-path: "employee/v3/employees"
+boundary-relationship-path: "boundary/v3/relationship"
+boundary-hierarchy-path: "boundary/v3/hierarchy"
+idgen-template-path: "idgen/v3/template"
+idgen-template-code: "EmployeeCode"
+
+vault-enabled: "true"
+pubsub-type: "kafka"
+redis-host: "redis.backbone.svc.cluster.local"
+redis-port: "6379"
+
+tenant-migration-enabled: "false"
+tenant-migration-consumer-group: "employee-onboarding"
+# OTLP collector endpoint (literal; egov-config has no otel key on this cluster)
+otel-otlp-endpoint: "http://open-telemetry-opentelemetry-collector.monitoring.svc.cluster.local:4318/v1/traces"
+
+# ── Onboarding tuning ──────────────────────────────────────────────────────────
+onboarding-max-file-bytes: "10485760"
+onboarding-max-rows: "100000"
+onboarding-password-min-length: "8"
+onboarding-denied-roles: "SUPERUSER"
+onboarding-validation-concurrency: "10"
+onboarding-kc-scan-max-users: "50000"
+onboarding-chunk-size: "100"
+onboarding-workers: "4"
+onboarding-row-concurrency: "10"
+onboarding-retry-delays-seconds: "60,120,300,600,900,900,900,900"
+onboarding-wait-max-rows: "50"
+onboarding-wait-max-seconds: "25"
+onboarding-unstarted-retention-days: "7"
+onboarding-paused-retention-days: "7"
+onboarding-row-pii-retention-days: "7"
+onboarding-result-retention-days: "90"
+onboarding-job-retention-days: "365"
+onboarding-notify-enabled: "true"
+onboarding-notify-topic: "notify-send"
+onboarding-notify-template-code: "employee-onboarding-welcome"
+
+# ── Container env ─────────────────────────────────────────────────────────────
+env: |
+  # ── Service ──────────────────────────────────────────────────────────────
+  - name: JAVA_OPTS
+    value: {{ index .Values "heap" | quote }}
+  - name: SERVER_PORT
+    value: {{ .Values.httpPort | quote }}
+  - name: SERVER_CONTEXT_PATH
+    value: {{ index .Values "context-path" | default (printf "/%s" .Values.ingress.context) | quote }}
+
+  # ── Database ─────────────────────────────────────────────────────────────
+  - name: DB_HOST
+    value: {{ index .Values "db-host" | quote }}
+  - name: DB_PORT
+    value: {{ index .Values "db-port" | quote }}
+  - name: DB_NAME
+    value: {{ index .Values "db-name" | quote }}
+  - name: DB_SSL_MODE
+    value: {{ index .Values "db-ssl-mode" | quote }}
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: username
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: db
+        key: password
+
+  # ── Keycloak ─────────────────────────────────────────────────────────────
+  - name: KEYCLOAK_BASE_URL
+    value: {{ index .Values "keycloak-base-url" | quote }}
+
+  # ── Downstream services ──────────────────────────────────────────────────
+  - name: INDIVIDUAL_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: individual-java
+  - name: INDIVIDUAL_PATH
+    value: {{ index .Values "individual-path" | quote }}
+  - name: INDIVIDUAL_CONFIG_PATH
+    value: {{ index .Values "individual-config-path" | quote }}
+  - name: EMPLOYEE_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: employee-java
+  - name: EMPLOYEE_PATH
+    value: {{ index .Values "employee-path" | quote }}
+  - name: BOUNDARY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: boundary-java
+  - name: BOUNDARY_RELATIONSHIP_PATH
+    value: {{ index .Values "boundary-relationship-path" | quote }}
+  - name: BOUNDARY_HIERARCHY_PATH
+    value: {{ index .Values "boundary-hierarchy-path" | quote }}
+  - name: IDGEN_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: idgen-java
+  - name: IDGEN_TEMPLATE_PATH
+    value: {{ index .Values "idgen-template-path" | quote }}
+  - name: IDGEN_TEMPLATE_CODE
+    value: {{ index .Values "idgen-template-code" | quote }}
+  - name: NOTIFY_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: notify
+
+  # ── Vault / PII encryption ───────────────────────────────────────────────
+  - name: VAULT_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: egov-service-host
+        key: vault
+  - name: VAULT_ROLE_ID
+    valueFrom:
+      secretKeyRef:
+        name: vault-approle
+        key: role-id
+        optional: true
+  - name: VAULT_SECRET_ID
+    valueFrom:
+      secretKeyRef:
+        name: vault-approle
+        key: secret-id
+        optional: true
+  - name: VAULT_ENABLED
+    value: {{ index .Values "vault-enabled" | quote }}
+  - name: HMAC_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: hmac-secret
+        key: hmac-secret
+        optional: true
+
+  # ── Onboarding tuning ──────────────────────────────────────────────────────
+  - name: EMPLOYEE_ONBOARDING_MAX_FILE_BYTES
+    value: {{ index .Values "onboarding-max-file-bytes" | quote }}
+  - name: EMPLOYEE_ONBOARDING_MAX_ROWS
+    value: {{ index .Values "onboarding-max-rows" | quote }}
+  - name: EMPLOYEE_ONBOARDING_PASSWORD_MIN_LENGTH
+    value: {{ index .Values "onboarding-password-min-length" | quote }}
+  - name: EMPLOYEE_ONBOARDING_DENIED_ROLES
+    value: {{ index .Values "onboarding-denied-roles" | quote }}
+  - name: EMPLOYEE_ONBOARDING_VALIDATION_CONCURRENCY
+    value: {{ index .Values "onboarding-validation-concurrency" | quote }}
+  - name: EMPLOYEE_ONBOARDING_KC_SCAN_MAX_USERS
+    value: {{ index .Values "onboarding-kc-scan-max-users" | quote }}
+  - name: EMPLOYEE_ONBOARDING_CHUNK_SIZE
+    value: {{ index .Values "onboarding-chunk-size" | quote }}
+  - name: EMPLOYEE_ONBOARDING_WORKERS
+    value: {{ index .Values "onboarding-workers" | quote }}
+  - name: EMPLOYEE_ONBOARDING_ROW_CONCURRENCY
+    value: {{ index .Values "onboarding-row-concurrency" | quote }}
+  - name: EMPLOYEE_ONBOARDING_RETRY_DELAYS_SECONDS
+    value: {{ index .Values "onboarding-retry-delays-seconds" | quote }}
+  - name: EMPLOYEE_ONBOARDING_WAIT_MAX_ROWS
+    value: {{ index .Values "onboarding-wait-max-rows" | quote }}
+  - name: EMPLOYEE_ONBOARDING_WAIT_MAX_SECONDS
+    value: {{ index .Values "onboarding-wait-max-seconds" | quote }}
+  - name: EMPLOYEE_ONBOARDING_UNSTARTED_RETENTION_DAYS
+    value: {{ index .Values "onboarding-unstarted-retention-days" | quote }}
+  - name: EMPLOYEE_ONBOARDING_PAUSED_RETENTION_DAYS
+    value: {{ index .Values "onboarding-paused-retention-days" | quote }}
+  - name: EMPLOYEE_ONBOARDING_ROW_PII_RETENTION_DAYS
+    value: {{ index .Values "onboarding-row-pii-retention-days" | quote }}
+  - name: EMPLOYEE_ONBOARDING_RESULT_RETENTION_DAYS
+    value: {{ index .Values "onboarding-result-retention-days" | quote }}
+  - name: EMPLOYEE_ONBOARDING_JOB_RETENTION_DAYS
+    value: {{ index .Values "onboarding-job-retention-days" | quote }}
+  - name: EMPLOYEE_ONBOARDING_NOTIFY_ENABLED
+    value: {{ index .Values "onboarding-notify-enabled" | quote }}
+  - name: EMPLOYEE_ONBOARDING_NOTIFY_TOPIC
+    value: {{ index .Values "onboarding-notify-topic" | quote }}
+  - name: EMPLOYEE_ONBOARDING_NOTIFY_TEMPLATE_CODE
+    value: {{ index .Values "onboarding-notify-template-code" | quote }}
+
+  # ── Messaging / cache ──────────────────────────────────────────────────────
+  - name: PUBSUB_TYPE
+    value: {{ index .Values "pubsub-type" | quote }}
+  - name: KAFKA_BROKERS
+    valueFrom:
+      configMapKeyRef:
+        name: egov-config
+        key: kafka-brokers
+  - name: REDIS_HOST
+    value: {{ index .Values "redis-host" | quote }}
+  - name: REDIS_PORT
+    value: {{ index .Values "redis-port" | quote }}
+
+  # ── Tenant migration ───────────────────────────────────────────────────────
+  - name: TENANT_MIGRATION_ENABLED
+    value: {{ index .Values "tenant-migration-enabled" | quote }}
+  - name: TENANT_MIGRATION_SCHEMA_TABLE
+    value: {{ .Values.initContainers.dbMigration.schemaTable | quote }}
+  - name: TENANT_MIGRATION_CONSUMER_GROUP
+    value: {{ index .Values "tenant-migration-consumer-group" | quote }}
+
+  # ── Observability (OpenTelemetry) ──────────────────────────────────────────
+  - name: MANAGEMENT_TRACING_EXPORT_ENABLED
+    value: {{ index .Values "tracing-export-enabled" | quote }}
+  - name: MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT
+    value: {{ index .Values "otel-otlp-endpoint" | quote }}

@@ -64,6 +64,16 @@
   .search input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
   .search svg{position:absolute;left:13px;top:12px;color:var(--faint)}
   .count{font-size:12.5px;color:var(--muted);white-space:nowrap}
+  .sortctl{display:inline-flex;align-items:center;gap:9px}
+  .sortlbl{font-size:10.5px;font-weight:750;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .segwrap{position:relative;display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:3px}
+  .segthumb{position:absolute;top:3px;left:0;bottom:3px;width:0;background:var(--surface);border-radius:9px;box-shadow:var(--sh-sm),0 3px 8px -3px rgba(16,27,46,.22);transition:transform .34s cubic-bezier(.34,1.3,.5,1),width .34s cubic-bezier(.34,1.3,.5,1)}
+  .seg{position:relative;z-index:1;display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;cursor:pointer;color:var(--muted);font:inherit;font-size:12.5px;font-weight:650;padding:7px 13px;border-radius:9px;transition:color .2s;-webkit-tap-highlight-color:transparent}
+  .seg:hover:not(.on){color:var(--ink-2)}
+  .seg.on{color:var(--accent)}
+  .seg .dir{width:13px;height:13px;opacity:0;transform:rotate(0deg);transition:transform .3s cubic-bezier(.34,1.3,.5,1),opacity .22s}
+  .seg.on .dir{opacity:1}
+  .seg.on.desc .dir{transform:rotate(180deg)}
 
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:20px}
   .card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px 22px 18px;box-shadow:var(--sh);display:block;transition:transform .13s,box-shadow .13s,border-color .13s}
@@ -135,6 +145,13 @@
   <div class="toolbar">
     <label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
       <input id="q" type="search" placeholder="Search services… (partial match)" autocomplete="off"></label>
+    <div class="sortctl" role="group" aria-label="Sort services">
+      <span class="sortlbl">Sort</span>
+      <div class="segwrap"><span class="segthumb" id="segthumb"></span>
+        <button class="seg" data-k="name" type="button">Name<svg class="dir" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg></button>
+        <button class="seg" data-k="score" type="button">Score<svg class="dir" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg></button>
+      </div>
+    </div>
     <span class="count" id="count"></span>
   </div>
 
@@ -212,19 +229,59 @@ function hero(){
     <div class="hstat"><b>${fmt(blocked)}</b><span>Builds blocked</span></div>`+
     (buildfailed?`<div class="hstat"><b>${fmt(buildfailed)}</b><span>Build failures</span></div>`:"");
 }
-let Q="";
+let Q="",sortKey="name",sortDir="asc";
+function sortList(list){
+  const dir=sortDir==="asc"?1:-1;
+  return list.slice().sort((a,b)=>{
+    let d = sortKey==="score" ? (a.score-b.score) : a.service.localeCompare(b.service);
+    if(d===0) d=a.service.localeCompare(b.service);   // stable tiebreak by name
+    return d*dir;
+  });
+}
+function updateSeg(){
+  document.querySelectorAll(".seg").forEach(b=>{
+    const on=b.dataset.k===sortKey;
+    b.classList.toggle("on",on); b.classList.toggle("desc",on&&sortDir==="desc");
+    b.setAttribute("aria-pressed",on);
+  });
+  const on=document.querySelector(".seg.on"),thumb=document.getElementById("segthumb");
+  if(on&&thumb){thumb.style.width=on.offsetWidth+"px";thumb.style.transform=`translateX(${on.offsetLeft-3}px)`;}
+}
 function draw(){
-  const list=SERVICES.filter(s=>!Q||s.service.toLowerCase().includes(Q));
-  document.getElementById("cards").innerHTML=list.map(card).join("")||`<div class="empty">No service matches “${esc(Q)}”.</div>`;
+  const host=document.getElementById("cards");
+  const prev=new Map();   // FLIP: remember where each card is now
+  host.querySelectorAll(".card").forEach(el=>prev.set(el.dataset.name,el.getBoundingClientRect()));
+  const list=sortList(SERVICES.filter(s=>!Q||s.service.toLowerCase().includes(Q)));
+  host.innerHTML=list.map(card).join("")||`<div class="empty">No service matches “${esc(Q)}”.</div>`;
   document.getElementById("count").textContent=`${list.length} of ${SERVICES.length} service${SERVICES.length!==1?"s":""}`;
+  if(window.matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches)return;
+  requestAnimationFrame(()=>{                              // FLIP: glide to new spots
+    host.querySelectorAll(".card").forEach(el=>{
+      const o=prev.get(el.dataset.name); if(!o)return;
+      const n=el.getBoundingClientRect(),dx=o.left-n.left,dy=o.top-n.top;
+      if(!dx&&!dy)return;
+      el.style.transition="none"; el.style.transform=`translate(${dx}px,${dy}px)`;
+      requestAnimationFrame(()=>{
+        el.style.transition="transform .44s cubic-bezier(.22,.61,.36,1)"; el.style.transform="";
+        el.addEventListener("transitionend",()=>{el.style.transition="";el.style.transform="";},{once:true});
+      });
+    });
+  });
 }
 (function(){
   const p=new URLSearchParams(location.search);if(p.get("theme")==="dark")document.documentElement.dataset.theme="dark";
   document.getElementById("logo").innerHTML=LOGO;
   (function(){try{var h=location.hostname,seg=location.pathname.split("/").filter(Boolean);if(h.endsWith(".github.io")&&seg[0]){document.getElementById("brand").textContent=seg[0];document.title=seg[0]+" · Security";}}catch(e){}})();
-  hero();draw();
+  hero();updateSeg();draw();
   document.getElementById("foot").innerHTML=`Generated ${fmtLocal(DATA.generated_at)} · Trivy security scanning · a critical finding blocks the build`;
   document.getElementById("q").addEventListener("input",e=>{Q=e.target.value.trim().toLowerCase();draw();});
+  document.querySelectorAll(".seg").forEach(b=>b.addEventListener("click",()=>{
+    const k=b.dataset.k;
+    if(k===sortKey)sortDir=sortDir==="asc"?"desc":"asc";
+    else{sortKey=k;sortDir="asc";}   // new key: A→Z for name, worst-first for score
+    updateSeg();draw();
+  }));
+  window.addEventListener("resize",updateSeg);
   document.getElementById("theme").onclick=()=>{const d=document.documentElement;const n=d.dataset.theme==="dark"?"light":"dark";d.dataset.theme=n;try{localStorage.setItem("cb-theme",n);}catch(e){}draw();};
 })();
 </script>

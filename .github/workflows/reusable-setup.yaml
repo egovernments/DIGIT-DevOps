@@ -154,9 +154,16 @@ jobs:
           # Seed the Build-from-Branch dropdown from live branches (default first,
           # dependabot/* excluded); Setup's sync mode keeps it current afterwards.
           DEFAULT=$(gh api "repos/${GITHUB_REPOSITORY}" -q .default_branch)
-          OTHERS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/branches" -q '.[].name' \
-                    | grep -vE '^dependabot/' | grep -vxF "$DEFAULT" | grep -v '^$' | sort | head -n 199)
-          BR=$(printf '%s\n%s\n' "$DEFAULT" "$OTHERS" | grep -v '^$')
+          ALLBR=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/branches" -q '.[].name' \
+                    | grep -vE '^dependabot/' | grep -v '^$')
+          # Pin permanent branches on top: default first, then develop if it exists.
+          PINNED="$DEFAULT"
+          if printf '%s\n' "$ALLBR" | grep -qxF develop && [ "$DEFAULT" != develop ]; then
+            PINNED=$(printf '%s\ndevelop' "$DEFAULT")
+          fi
+          CAP=$(( 200 - $(printf '%s\n' "$PINNED" | grep -c .) ))
+          OTHERS=$(printf '%s\n' "$ALLBR" | grep -vxF "$DEFAULT" | grep -vxF develop | sort | head -n "$CAP")
+          BR=$(printf '%s\n%s\n' "$PINNED" "$OTHERS" | grep -v '^$')
           BR="$BR" yq -i '.["on"].workflow_dispatch.inputs.build_branch.options = (strenv(BR) | split("\n"))' "$WF"
           DEFAULT="$DEFAULT" yq -i '.["on"].workflow_dispatch.inputs.build_branch.default = strenv(DEFAULT)' "$WF"
           # The "Sync from Branch" picker now lives in setup.yaml — seed it too.
@@ -212,9 +219,16 @@ jobs:
           DEFAULT=$(gh api "repos/${GITHUB_REPOSITORY}" -q .default_branch)
           # Live branches (dependabot/* excluded), default first; list is REPLACED
           # each run so deleted branches disappear from the picker.
-          OTHERS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/branches" -q '.[].name' \
-                    | grep -vE '^dependabot/' | grep -vxF "$DEFAULT" | grep -v '^$' | sort | head -n 199)
-          BR=$(printf '%s\n%s\n' "$DEFAULT" "$OTHERS" | grep -v '^$')
+          ALLBR=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/branches" -q '.[].name' \
+                    | grep -vE '^dependabot/' | grep -v '^$')
+          # Pin permanent branches on top: default first, then develop if it exists.
+          PINNED="$DEFAULT"
+          if printf '%s\n' "$ALLBR" | grep -qxF develop && [ "$DEFAULT" != develop ]; then
+            PINNED=$(printf '%s\ndevelop' "$DEFAULT")
+          fi
+          CAP=$(( 200 - $(printf '%s\n' "$PINNED" | grep -c .) ))
+          OTHERS=$(printf '%s\n' "$ALLBR" | grep -vxF "$DEFAULT" | grep -vxF develop | sort | head -n "$CAP")
+          BR=$(printf '%s\n%s\n' "$PINNED" "$OTHERS" | grep -v '^$')
           BR="$BR" yq -i '.["on"].workflow_dispatch.inputs.build_branch.options = (strenv(BR) | split("\n"))' "$WF"
           DEFAULT="$DEFAULT" yq -i '.["on"].workflow_dispatch.inputs.build_branch.default = strenv(DEFAULT)' "$WF"
           if [ -f "$SETUP_WF" ]; then

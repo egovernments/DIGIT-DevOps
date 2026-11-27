@@ -99,18 +99,6 @@ cluster-configs:
         # pdf-v3 (digitnxt/license-certificate) is not deployed yet (no published chart);
         # until it is, PDFs fail.
         pdf-service: "http://pdf-v3.studio-3-0:8080/"
-        # Old key names the published Studio charts still read (required keys: a pod does not
-        # start without them). Removed once the charts read the names above.
-        billing-service: "http://billing.core-3-0:8080/"
-        boundary-service: "http://boundary.core-3-0:8080/"
-        egov-filestore: "http://filestore.core-3-0:8080/"
-        egov-idgen: "http://idgen.core-3-0:8080/"
-        egov-localization: "http://localization.core-3-0:8080/"
-        egov-mdms-service: "http://mdms-v2.core-3-0:8080/"
-        egov-workflow-v2: "http://workflow.core-3-0:8080/"
-        # Read by studio-pdf's DIGIT 2.9 settings; no such service on DIGIT 3.0.
-        egov-user: "http://not-used-on-digit3:8080/"
-        collection-services: "http://not-used-on-digit3:8080/"
 
   secrets:
     db:
@@ -168,12 +156,39 @@ public-service:
     key: client-secret
   # SMS and email through DIGIT 3.0 notify (in-cluster). Every saved application goes to the
   # inbox (Postgres store) as an item, on topic inbox-item-upsert.
+  # The *_HOST entries: the published chart reads old egov-service-host key names; these
+  # (same env names; merged by name, last wins) read the DIGIT 3.0 names instead.
   extraEnv:
     app: |
       - name: NOTIFY_BASE_URL
         value: "http://notify.core-3-0:8080/"
       - name: INBOX_ITEM_TOPIC
         value: "inbox-item-upsert"
+      - name: WORKFLOW_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: workflow
+      - name: BOUNDARY_SERVICE_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: boundary
+      - name: BILLING_SERVICE_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: billing
+      - name: IDGEN_SERVICE_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: idgen
+      - name: LOCALIZATION_SERVICE_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: localization
   image:
     tag: studio-digit3-migration-57655bf
   initContainers:
@@ -199,6 +214,30 @@ public-service-init:
   keycloak-client-secret:
     name: studio-keycloak
     key: client-secret
+  # The published chart reads old egov-service-host key names; the entries below (same env
+  # names; merged by name, last wins) read the DIGIT 3.0 names instead.
+  extraEnv:
+    app: |
+      - name: WORKFLOW_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: workflow
+      - name: BILLING_SERVICE_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: billing
+      - name: IDGEN_SERVICE_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: idgen
+      - name: LOCALIZATION_SERVICE_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: localization
   image:
     tag: studio-digit3-migration-f90dad4
   initContainers:
@@ -208,6 +247,34 @@ public-service-init:
 
 studio-pdf:
   chart-version: "3.0.2"
+  # The published chart reads old egov-service-host key names; the entries below (same env
+  # names; merged by name, last wins) read the DIGIT 3.0 names instead.
+  # EGOV_MDMS/USER/WORKFLOW/COLLECTION_HOST are not read by the DIGIT 3.0 build: left empty.
+  extraEnv:
+    app: |
+      - name: EGOV_FILESTORE_SERVICE_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: filestore
+      - name: EGOV_LOCALIZATION_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: localization
+      - name: EGOV_BILLING_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: billing
+      - name: EGOV_MDMS_HOST
+        value: ""
+      - name: EGOV_USER_HOST
+        value: ""
+      - name: EGOV_WORKFLOW_HOST
+        value: ""
+      - name: EGOV_COLLECTION_HOST
+        value: ""
   resources: |
     limits:
       cpu: "100m"
@@ -270,7 +337,8 @@ studio-service-request:
   mdmsV1SearchEndpoint: "/mdms-v2/v1/_search"
   # Writes its own rows in each tenant's schema. Chart 3.0.1 has no tenant-migration setting, so
   # it goes in extraEnv.app, which replaces the chart's own extraEnv.app: its
-  # SPRING_DATASOURCE_URL is repeated.
+  # SPRING_DATASOURCE_URL is repeated. The EGOV_*_HOST entries read the DIGIT 3.0
+  # egov-service-host key names in place of the chart's old ones.
   extraEnv:
     app: |
       - name: SPRING_DATASOURCE_URL
@@ -280,6 +348,21 @@ studio-service-request:
             key: studio-db-url
       - name: TENANT_MIGRATION_ENABLED
         value: "true"
+      - name: EGOV_MDMS_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: mdms-v2
+      - name: EGOV_IDGEN_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: idgen
+      - name: EGOV_LOCALIZATION_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: egov-service-host
+            key: localization
   # The chart prefixes /<ingress context>: /studio-service-request/health/liveness.
   healthChecks:
     enabled: true

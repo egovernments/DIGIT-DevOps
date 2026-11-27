@@ -34,8 +34,18 @@ RUN_URL="${REPO_URL}/actions/runs/${BUILD}"
 DASH_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORK="$(mktemp -d)"
 
+# Each leg writes only its own disjoint subtree (security/trivy/<service>/), and
+# the index is owned by a single final `home` run, so a rejected push never has a
+# real content conflict — re-cloning the current tip and re-applying always
+# converges. Under an all-services build dozens of legs push to this one branch at
+# once, so we retry against a wall-clock budget instead of a small fixed count;
+# that stops writes from being silently dropped (which showed up as "image scanned
+# but code not scanned" cards).
 ok=false
-for attempt in 1 2 3 4 5 6 7 8; do
+attempt=0
+deadline=$(( SECONDS + ${PUBLISH_DEADLINE_SECS:-360} ))
+while : ; do
+  attempt=$(( attempt + 1 ))
   rm -rf "$WORK/ghpages"
   if git clone --quiet --depth 1 --branch gh-pages \
       "https://x-access-token:${GH_TOKEN}@github.com/${REPO_SLUG}.git" "$WORK/ghpages" 2>/dev/null; then
@@ -79,12 +89,13 @@ for attempt in 1 2 3 4 5 6 7 8; do
         commit --quiet -m "$MSG" || exit 0
     git push --quiet origin gh-pages ) >&2 && { ok=true; break; }
 
-  echo "gh-pages push attempt ${attempt} failed (likely a concurrent update); retrying..." >&2
-  sleep $(( (RANDOM % 5) + 3 ))
+  if [ "$SECONDS" -ge "$deadline" ]; then break; fi
+  echo "gh-pages push attempt ${attempt} lost the race (concurrent update); retrying..." >&2
+  sleep $(( (RANDOM % 4) + 1 ))
 done
 
 rm -rf "$WORK"
-$ok || { echo "::warning::could not publish the ${KIND} dashboard after 8 attempts"; }
+$ok || { echo "::warning::could not publish the ${KIND} dashboard for ${SERVICE:-home} after ${attempt} attempts / $(( ${PUBLISH_DEADLINE_SECS:-360} ))s"; }
 
 # A `home` run has no per-service URL to print.
 [ "$KIND" = "home" ] && { echo "dashboard home refreshed"; exit 0; }
